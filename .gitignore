@@ -18,6 +18,7 @@ artifacts/
 *.tar.gz
 tmp/
 public/question-assets/
+public/data/papers.json
 
 # Editor directories and files
 .vscode/*

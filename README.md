@@ -52,6 +52,8 @@ $env:CIE_SOURCE_ROOT = 'D:\path\to\download-output'
 npm run catalog
 ```
 
+The GitHub source mirror intentionally excludes the generated catalog and rendered source-page images. They are deployed with the private content release only, so verified question images and mark-scheme crops do not become repository artifacts. Run the catalog/index commands against the authorised local library before creating a fresh content release.
+
 Index new papers at question level. Re-running the same command is idempotent; use `--all` only for an intentional historical backfill:
 
 ```powershell
