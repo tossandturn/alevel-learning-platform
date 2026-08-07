@@ -1,0 +1,1740 @@
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  AlertTriangle,
+  BarChart3,
+  Brain,
+  CheckCircle2,
+  ChevronRight,
+  Dumbbell,
+  FileText,
+  Filter,
+  Flag,
+  GraduationCap,
+  Heart,
+  Home,
+  BookOpen,
+  HelpCircle,
+  Library,
+  ListFilter,
+  RefreshCcw,
+  Search,
+  Sparkles,
+  Target,
+  TimerReset,
+  Trophy,
+  Users,
+  Settings,
+} from 'lucide-react'
+import { importedPdfLibrary, subjects } from './data/catalog'
+import { learningPlan, stagesForComponentTags } from './data/learningPlan'
+import { HistoryView } from './components/HistoryView'
+import { AiCoach } from './components/AiCoach'
+import { RoleWorkspace } from './components/RoleWorkspace'
+import { PaperLibrary } from './components/PaperLibrary'
+import { PracticeWorkspace } from './components/PracticeWorkspace'
+import { usePaperCatalog } from './hooks/usePaperCatalog'
+import { loadState, makeAttemptId, saveState } from './lib/storage'
+import { scoreAttempt } from './lib/scoring'
+import { reviewAttempt } from './lib/aiReview'
+import { buildCoachPractice, coachPracticeOptions, previewCoachPracticeSourceMix } from './lib/coachPractice'
+import { latestBphoSpcPaper } from './lib/coachIntent'
+import { buildLearningProgress } from './lib/learningProgress'
+import { requestSharedAccount, requestSharedWorkspace, sharedAccountRequest } from './lib/sharedAccount'
+import './App.css'
+
+const PaperWorkspace = lazy(() =>
+  import('./components/PaperWorkspace').then((module) => ({ default: module.PaperWorkspace })),
+)
+
+function formatTime(totalSec) {
+  const minutes = Math.floor(totalSec / 60)
+  const seconds = totalSec % 60
+  return `${minutes}:${String(seconds).padStart(2, '0')}`
+}
+
+function formatDate(value) {
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value))
+}
+
+function focusedRetestUnit(unit, partId) {
+  if (!partId || unit.parts.length === 1) return unit
+  const part = unit.parts.find((item) => item.id === partId)
+  if (!part) return unit
+  const ratio = 1 / Math.max(1, unit.parts.length)
+  return {
+    ...unit,
+    id: `${unit.id}:focused:${part.id}`,
+    title: `${unit.title} · ${part.label}`,
+    parts: [part],
+    maxMarks: part.marks,
+    estimatedMinutes: Math.max(5, Math.ceil((unit.estimatedMinutes || 10) * ratio)),
+    durationSec: Math.max(300, Math.ceil((unit.durationSec || 600) * ratio)),
+    focusedRetestOf: unit.id,
+  }
+}
+
+function getUnitAttempts(attempts, unitId) {
+  return attempts.filter((attempt) => attempt.unitId === unitId && attempt.stage === 'result')
+}
+
+function latestResultFor(attempts, unitId) {
+  const completed = getUnitAttempts(attempts, unitId)
+  return completed.at(-1)?.scoreResult || null
+}
+
+function bestResultFor(attempts, unitId) {
+  return getUnitAttempts(attempts, unitId)
+    .map((attempt) => attempt.scoreResult)
+    .sort((a, b) => b.percentage - a.percentage)[0]
+}
+
+function gradeEstimate(percentage) {
+  return percentage >= 80 ? 'A/A* range' : percentage >= 65 ? 'B range' : percentage >= 50 ? 'C range' : 'Needs rebuild'
+}
+
+async function requestVisionReviews(unit, attempt) {
+  const entries = Object.entries(attempt.evidence || {}).filter(([, evidence]) => Boolean(evidence?.dataUrl))
+  if (!entries.length) return {}
+  try {
+    const statusResponse = await fetch('/api/ai/status')
+    const status = await statusResponse.json()
+    if (!status.visionEnabled) return Object.fromEntries(entries.map(([partId]) => [partId, { status: 'unconfigured' }]))
+  } catch {
+    return Object.fromEntries(entries.map(([partId]) => [partId, { status: 'error', error: 'AI service status could not be checked.' }]))
+  }
+
+  const subjectCode = subjects.find((subject) => subject.id === unit.subjectId)?.code || String(unit.specification || '').match(/\b\d{4}\b/)?.[0] || ''
+  const results = await Promise.all(entries.map(async ([partId, evidence]) => {
+    const part = unit.parts.find((item) => item.id === partId)
+    if (!part) return [partId, { status: 'error', error: 'Question context is unavailable.' }]
+    try {
+      const [questionImageDataUrls, markSchemeImageDataUrls] = await Promise.all([
+        Promise.all((part.sourceRef?.assetUrls || []).slice(0, 2).map(assetToDataUrl)),
+        Promise.all((part.answerRef?.assetUrls || []).slice(0, 2).map(assetToDataUrl)),
+      ])
+      const response = await fetch('/api/ai/mark-handwriting', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageDataUrl: evidence.dataUrl,
+          questionImageDataUrls,
+          markSchemeImageDataUrls,
+          subject: subjectCode,
+          syllabus: unit.specification,
+          questionNumber: Number(String(part.sourceRef?.question || '').match(/\d+/)?.[0]) || unit.parts.indexOf(part) + 1,
+          question: {
+            prompt: part.prompt,
+            answerType: part.answerType,
+            acceptedValue: part.acceptedValue,
+            acceptedUnits: part.acceptedUnits,
+            tolerance: part.tolerance,
+            officialAnswer: part.exactAnswer,
+          },
+          expectedMarkPoints: part.markPoints,
+          maxMarks: part.marks,
+          typedResponse: attempt.answers[partId] || attempt.working?.[partId] || '',
+          paper: part.sourceRef && part.answerRef ? {
+            subject: subjectCode,
+            questionFile: part.sourceRef.paper,
+            markSchemeFile: part.answerRef.file,
+          } : undefined,
+          provenance: part.answerBinding ? {
+            questionId: part.bankId,
+            answerId: part.answerBinding.answerId,
+            verificationStatus: part.answerBinding.verificationStatus,
+            questionDocumentSha256: part.answerBinding.questionDocumentSha256,
+            answerDocumentSha256: part.answerBinding.answerDocumentSha256,
+          } : undefined,
+        }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) return [partId, { status: payload.code === 'vision_not_configured' ? 'unconfigured' : 'error', error: payload.error || 'AI review could not be completed.' }]
+      if (payload.mode !== 'vision') return [partId, { status: 'error', error: payload.error || 'AI review could not be completed.' }]
+      return [partId, { ...payload, status: 'success' }]
+    } catch {
+      return [partId, { status: 'error', error: 'AI review could not be reached. Your response remains saved.' }]
+    }
+  }))
+  return Object.fromEntries(results)
+}
+
+async function assetToDataUrl(url) {
+  const response = await fetch(url)
+  if (!response.ok) throw new Error('An indexed source page is unavailable.')
+  const blob = await response.blob()
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result || ''))
+    reader.onerror = () => reject(new Error('An indexed source page could not be prepared.'))
+    reader.readAsDataURL(blob)
+  })
+}
+
+function mergeVisionScore(scoreResult, unit, answers, visionReviews) {
+  const criteria = scoreResult.criteria.map((criterion) => {
+    const part = unit.parts.find((item) => item.id === criterion.partId)
+    const review = visionReviews[criterion.partId]
+    const typed = Boolean(String(answers[criterion.partId] || '').trim())
+    const canUseVision = review?.status === 'success'
+      && review.confidence >= 0.55
+      && (!typed || ['written', 'handwritten'].includes(part.answerType))
+    if (!canUseVision) return criterion
+    return {
+      ...criterion,
+      awarded: Math.min(part.marks, review.rawMarks),
+      status: review.reviewRequired ? 'review-needed' : review.rawMarks >= part.marks ? 'secure' : review.rawMarks > 0 ? 'partial' : 'missed',
+      feedback: review.summary,
+      confidence: review.confidence,
+      evidence: review.markPoints?.length
+        ? review.markPoints.map((point, index) => ({ pointId: point.id || `${part.id}-AI${index + 1}`, awarded: point.awarded, point: point.reason }))
+        : criterion.evidence,
+      scoringSource: 'vision-assisted',
+    }
+  })
+  const rawMarks = criteria.reduce((sum, criterion) => sum + criterion.awarded, 0)
+  const percentage = Math.round((rawMarks / unit.maxMarks) * 100)
+  const weakest = criteria.find((criterion) => criterion.awarded < criterion.maxMarks)
+  return {
+    ...scoreResult,
+    schemaVersion: Object.values(visionReviews).some((review) => review.status === 'success') ? 'deterministic-plus-vision-v1' : scoreResult.schemaVersion,
+    rawMarks,
+    percentage,
+    gradeEstimate: gradeEstimate(percentage),
+    weakestPartId: weakest?.partId || null,
+    confidence: criteria.length ? Number((criteria.reduce((sum, criterion) => sum + (criterion.confidence ?? 0.9), 0) / criteria.length).toFixed(2)) : 0,
+    criteria,
+  }
+}
+
+function migratePracticeAnswers(unit, draft) {
+  if (!draft) return {}
+  return Object.fromEntries(unit.parts.map((part) => {
+    const answer = String(draft.answers?.[part.id] || '').trim()
+    const working = String(draft.working?.[part.id] || '').trim()
+    if (part.answerType === 'multiple-choice') {
+      const keyedAnswer = answer.match(/^([A-D])(?:\b|[.)\s:-])/i)?.[1]?.toUpperCase()
+      const optionIndex = part.options?.findIndex((option) => option === answer) ?? -1
+      return [part.id, keyedAnswer || (optionIndex >= 0 ? String.fromCharCode(65 + optionIndex) : answer)]
+    }
+    if (!working || answer.includes(working)) return [part.id, answer]
+    return [part.id, [working, answer].filter(Boolean).join('\n\n')]
+  }).filter(([, value]) => value))
+}
+
+function getIncomingProductContext() {
+  if (typeof window === 'undefined') return { from: '', focus: '', subjectId: 'all' }
+  const params = new URLSearchParams(window.location.search)
+  const focus = params.get('focus') || ''
+  const subjectId = {
+    physics: 'physics',
+    biology: 'biology',
+    mathematics: 'math',
+    chemistry: 'chemistry',
+    economics: 'economics',
+  }[focus] || 'all'
+  return { from: params.get('from') || '', focus, subjectId }
+}
+
+function App() {
+  const [appState, setAppState] = useState(() => loadState())
+  const paperCatalogState = usePaperCatalog()
+  const incomingContext = getIncomingProductContext()
+  const [view, setView] = useState(() => incomingContext.from === 'ieltsist' || incomingContext.focus ? 'library' : 'dashboard')
+  const [activeTab, setActiveTab] = useState('topics')
+  const [subjectFilter, setSubjectFilter] = useState(() => incomingContext.subjectId)
+  const [completionFilter, setCompletionFilter] = useState('all')
+  const [query, setQuery] = useState('')
+  const [currentAttempt, setCurrentAttempt] = useState(null)
+  const [resultAttempt, setResultAttempt] = useState(null)
+  const [activePaper, setActivePaper] = useState(null)
+  const [pendingSession, setPendingSession] = useState(null)
+  const [coachOpenRequest, setCoachOpenRequest] = useState(0)
+  const [sharedAccount, setSharedAccount] = useState({ status: 'loading', token: '', workspace: null, error: '' })
+  const verifiedStarterUnits = useMemo(() => {
+    try {
+      return [buildCoachPractice({ subjectId: 'physics', stage: 'AS', knowledgeGroupId: 'physics-9702-topic-03', questionCount: 10 })]
+    } catch {
+      return []
+    }
+  }, [])
+  const visibleVerifiedUnits = useMemo(() => {
+    const persisted = (appState.generatedUnits || []).filter((unit) => unit.agentGenerated && unit.parts?.length > 0 && unit.parts.every((part) => part.sourceKind === 'past-paper' && part.sourceRef?.sha256 && part.answerRef?.sha256 && part.answerBinding?.answerId))
+    return [...persisted, ...verifiedStarterUnits.filter((starter) => !persisted.some((unit) => unit.focusedRetestOf !== starter.id && unit.knowledgeGroupId === starter.knowledgeGroupId && unit.stage === starter.stage))]
+  }, [appState.generatedUnits, verifiedStarterUnits])
+  const allPracticeUnits = visibleVerifiedUnits
+  const aiPracticeOptions = useMemo(() => coachPracticeOptions(), [])
+  const learningProgress = useMemo(() => buildLearningProgress({
+    attempts: appState.attempts,
+    drafts: appState.drafts,
+    units: allPracticeUnits,
+    weeklyTarget: appState.profile.weeklyQuestions,
+  }), [allPracticeUnits, appState.attempts, appState.drafts, appState.profile.weeklyQuestions])
+  const syllabusRoadmap = useMemo(() => {
+    const planSubjectByAppSubject = { 'igcse-math': 'math-0580', 'additional-math': 'math-0606', physics: 'physics-9702', 'igcse-physics': 'physics-0625', biology: 'biology-9700', 'igcse-biology': 'biology-0610', chemistry: 'chemistry-9701', economics: 'economics-9708', math: 'math-9709', 'further-math': 'math-9231' }
+    const planSubjectId = subjectFilter === 'all' ? 'physics-9702' : planSubjectByAppSubject[subjectFilter]
+    const topicStats = new Map(learningProgress.topicProgress.map((item) => [item.id, item]))
+    return learningPlan.knowledgeGroups.filter((group) => group.subjectId === planSubjectId && !group.hidden).map((group) => ({
+      ...group,
+      ...(topicStats.get(group.id) || { mastery: null, attempts: 0, questions: 0, status: 'Not started' }),
+    }))
+  }, [learningProgress.topicProgress, subjectFilter])
+
+  useEffect(() => {
+    saveState(appState)
+  }, [appState])
+
+  const refreshSharedAccount = useCallback(async () => {
+    try {
+      const account = await requestSharedAccount()
+      const workspace = await requestSharedWorkspace(account.token)
+      setSharedAccount({ status: 'ready', ...account, workspace, error: '' })
+      return account
+    } catch (error) {
+      setSharedAccount({ status: 'guest', token: '', workspace: null, error: error.message || 'Shared account is unavailable.' })
+      return null
+    }
+  }, [])
+
+  useEffect(() => {
+    refreshSharedAccount()
+    const timer = window.setInterval(refreshSharedAccount, 4 * 60 * 1000)
+    return () => window.clearInterval(timer)
+  }, [refreshSharedAccount])
+
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [view])
+
+  useEffect(() => {
+    if (view !== 'practice') return undefined
+    const tick = window.setInterval(() => {
+      setCurrentAttempt((attempt) => {
+        if (!attempt) return attempt
+        const next = { ...attempt, elapsedSec: attempt.elapsedSec + 1 }
+        if (next.elapsedSec % 15 === 0) {
+          setAppState((state) => ({
+            ...state,
+            drafts: {
+              ...state.drafts,
+              [attempt.unitId]: {
+                answers: next.answers,
+                working: next.working,
+                evidence: next.evidence,
+                elapsedSec: next.elapsedSec,
+                activePartId: next.activePartId,
+                settings: next.settings,
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          }))
+        }
+        return next
+      })
+    }, 1000)
+
+    return () => window.clearInterval(tick)
+  }, [view])
+
+  const completionByUnit = useMemo(() => {
+    return allPracticeUnits.reduce((acc, unit) => {
+      const latest = latestResultFor(appState.attempts, unit.id)
+      const best = bestResultFor(appState.attempts, unit.id)
+      acc[unit.id] = {
+        completed: Boolean(latest),
+        latest,
+        best,
+        count: getUnitAttempts(appState.attempts, unit.id).length,
+      }
+      return acc
+    }, {})
+  }, [allPracticeUnits, appState.attempts])
+
+  const mistakes = useMemo(() => {
+    const attemptById = new Map(appState.attempts.map((attempt) => [attempt.id, attempt]))
+    const latestRetestCriterion = (sourceAttempt, partId) => [...appState.attempts].reverse().find((candidate) => {
+      let parentId = candidate.retestOf
+      while (parentId) {
+        if (parentId === sourceAttempt.id) {
+          return candidate.scoreResult?.criteria?.some((criterion) => criterion.partId === partId)
+        }
+        parentId = attemptById.get(parentId)?.retestOf
+      }
+      return false
+    })?.scoreResult?.criteria?.find((criterion) => criterion.partId === partId)
+
+    return appState.attempts.flatMap((attempt) => {
+      const unit = allPracticeUnits.find((item) => item.id === attempt.unitId)
+      if (!unit || !attempt.scoreResult) return []
+      return attempt.scoreResult.criteria
+        .filter((criterion) => criterion.awarded < criterion.maxMarks)
+        .filter((criterion) => {
+          const retestCriterion = latestRetestCriterion(attempt, criterion.partId)
+          return !retestCriterion || retestCriterion.awarded < retestCriterion.maxMarks
+        })
+        .map((criterion) => {
+          const part = unit.parts.find((item) => item.id === criterion.partId)
+          return {
+            id: `${attempt.id}-${criterion.partId}`,
+            attempt,
+            unit,
+            part,
+            criterion,
+            severity: criterion.awarded === 0 ? 'High' : 'Medium',
+            status: criterion.status === 'review-needed' ? 'Review needed' : 'Open',
+          }
+        })
+    })
+  }, [allPracticeUnits, appState.attempts])
+
+  const paperMistakes = useMemo(() => {
+    const reviews = appState.paperReviews || []
+    const latestReviewByAttempt = new Map()
+    reviews.forEach((review) => latestReviewByAttempt.set(review.attemptId, review))
+    const sessionByAttempt = new Map(appState.paperSessions.map((session) => [session.attemptId, session]))
+    const paperById = new Map((paperCatalogState.catalog?.items || []).map((paper) => [paper.id, paper]))
+
+    function latestDescendantReview(sourceAttemptId) {
+      for (const candidate of [...appState.paperSessions].reverse()) {
+        let parentId = candidate.retestOf
+        while (parentId) {
+          if (parentId === sourceAttemptId) {
+            const review = latestReviewByAttempt.get(candidate.attemptId)
+            if (review) return { session: candidate, review }
+            break
+          }
+          parentId = sessionByAttempt.get(parentId)?.retestOf
+        }
+      }
+      return null
+    }
+
+    return appState.paperSessions.flatMap((session) => {
+      if (session.retestOf) return []
+      const sourceReview = latestReviewByAttempt.get(session.attemptId)
+      if (!sourceReview) return []
+      const descendant = latestDescendantReview(session.attemptId)
+      const activeSession = descendant?.session || session
+      const activeReview = descendant?.review || sourceReview
+      const paper = paperById.get(session.paperId)
+      if (!paper) return []
+      const pdfInkQuestionNumbers = new Set(Object.values(activeSession.pdfInkQuestionMap || {}).flat().map(Number).filter(Number.isFinite))
+
+      return Array.from({ length: session.questionCount || 0 }, (_, index) => index + 1).flatMap((questionNumber) => {
+        const answer = activeSession.answers?.[questionNumber] || {}
+        const hasResponse = activeSession.profile?.mode === 'mcq'
+          ? Boolean(answer.choice)
+          : Boolean(String(answer.finalAnswer || '').trim() || answer.image || pdfInkQuestionNumbers.has(questionNumber))
+        const awardedValue = activeReview.selfMarks?.[questionNumber]
+        const maxValue = activeSession.profile?.mode === 'mcq' ? 1 : activeReview.maxMarksByQuestion?.[questionNumber]
+        const awarded = awardedValue === '' || awardedValue == null ? null : Number(awardedValue)
+        const maxMarks = maxValue === '' || maxValue == null ? null : Number(maxValue)
+        const secure = Number.isFinite(awarded) && Number.isFinite(maxMarks) && maxMarks > 0 && awarded >= maxMarks
+        if (secure) return []
+
+        return [{
+          id: `paper-${session.attemptId}-${questionNumber}`,
+          kind: 'paper',
+          session,
+          paper,
+          questionNumber,
+          awarded: Number.isFinite(awarded) ? awarded : null,
+          maxMarks: Number.isFinite(maxMarks) ? maxMarks : null,
+          severity: Number.isFinite(awarded) && awarded === 0 ? 'High' : 'Medium',
+          status: !hasResponse ? 'Blank response' : Number.isFinite(awarded) ? 'Open' : 'Self-mark needed',
+        }]
+      })
+    })
+  }, [appState.paperReviews, appState.paperSessions, paperCatalogState.catalog])
+
+  const topicMastery = useMemo(() => {
+    return visibleVerifiedUnits.map((unit) => {
+      const best = bestResultFor(appState.attempts, unit.id)
+      return {
+        id: unit.id,
+        topic: unit.topic,
+        subjectId: unit.subjectId,
+        icon: unit.icon,
+        score: best?.percentage ?? null,
+      }
+    })
+  }, [appState.attempts, visibleVerifiedUnits])
+
+  const recommendation = useMemo(() => {
+    const draftUnitId = Object.keys(appState.drafts)[0]
+    const draftUnit = allPracticeUnits.find((unit) => unit.id === draftUnitId)
+    if (draftUnit) {
+      return {
+        unit: draftUnit,
+        reason: 'An autosaved attempt is ready to continue.',
+        action: 'Resume',
+      }
+    }
+
+    const weakMistake = mistakes[0]
+    if (weakMistake) {
+      return {
+        unit: weakMistake.unit,
+        reason: `${weakMistake.part.label} part lost ${weakMistake.criterion.maxMarks - weakMistake.criterion.awarded} mark(s).`,
+        action: 'Fix this',
+      }
+    }
+
+    const freshUnit = visibleVerifiedUnits.find((unit) => !completionByUnit[unit.id]?.completed)
+    return {
+      unit: freshUnit || visibleVerifiedUnits[0],
+      reason: freshUnit ? 'No valid submission yet.' : 'Retest your lowest scored unit.',
+      action: freshUnit ? 'Start' : 'Retest',
+    }
+  }, [allPracticeUnits, appState.drafts, completionByUnit, mistakes, visibleVerifiedUnits])
+
+  const visibleUnits = useMemo(() => {
+    const source = activeTab === 'papers' || activeTab === 'exams' || activeTab === 'mistakes' ? [] : visibleVerifiedUnits
+    const normalizedQuery = query.toLowerCase().trim()
+
+    return source.filter((unit) => {
+      const matchesSubject = subjectFilter === 'all' || unit.subjectId === subjectFilter
+      const completion = completionByUnit[unit.id]
+      const matchesCompletion =
+        completionFilter === 'all' ||
+        (completionFilter === 'completed' && completion.completed) ||
+        (completionFilter === 'open' && !completion.completed)
+      const matchesQuery =
+        !normalizedQuery ||
+        [unit.title, unit.topic, unit.subtopic, unit.specification, unit.board]
+          .join(' ')
+          .toLowerCase()
+          .includes(normalizedQuery)
+      return matchesSubject && matchesCompletion && matchesQuery
+    })
+  }, [activeTab, completionByUnit, completionFilter, query, subjectFilter, visibleVerifiedUnits])
+
+  function updateProfile(patch) {
+    setAppState((state) => ({ ...state, profile: { ...state.profile, ...patch } }))
+  }
+
+  function toggleFavoriteUnit(unitId) {
+    setAppState((state) => {
+      const current = state.favoriteUnitIds || []
+      const favoriteUnitIds = current.includes(unitId)
+        ? current.filter((id) => id !== unitId)
+        : [unitId, ...current].slice(0, 24)
+      return { ...state, favoriteUnitIds }
+    })
+  }
+
+  async function createClassroom(name) {
+    const account = sharedAccount.status === 'ready' ? sharedAccount : await refreshSharedAccount()
+    if (!account?.token) throw new Error('Sign in to IELTS-ist before creating a class.')
+    const result = await sharedAccountRequest(account.token, '/api/stem/classrooms', { method: 'POST', body: JSON.stringify({ name }) })
+    const workspace = await requestSharedWorkspace(account.token)
+    setSharedAccount((current) => ({ ...current, status: 'ready', workspace }))
+    return result.classroom
+  }
+
+  async function joinClassroom(inviteCode) {
+    const account = sharedAccount.status === 'ready' ? sharedAccount : await refreshSharedAccount()
+    if (!account?.token) throw new Error('Sign in to IELTS-ist before joining a class.')
+    await sharedAccountRequest(account.token, '/api/stem/classrooms/join', { method: 'POST', body: JSON.stringify({ inviteCode }) })
+    const workspace = await requestSharedWorkspace(account.token)
+    setSharedAccount((current) => ({ ...current, status: 'ready', workspace }))
+  }
+
+  async function createAssignment(draft) {
+    const account = sharedAccount.status === 'ready' ? sharedAccount : await refreshSharedAccount()
+    if (!account?.token) throw new Error('Sign in to IELTS-ist before creating an assignment.')
+    const subject = subjects.find((item) => item.id === draft.subjectId)
+    const topic = learningPlan.knowledgeGroups.find((group) => group.id === draft.topicId)
+    const classroomId = draft.classroomId || account.workspace?.classrooms?.find((classroom) => ['owner', 'teacher'].includes(classroom.role))?.id
+    if (!classroomId) throw new Error('Create or join a teacher class before assigning work.')
+    const verifiedUnit = buildCoachPractice({ subjectId: draft.subjectId, stage: draft.stage, knowledgeGroupId: draft.topicId, questionCount: 10 })
+    const result = await sharedAccountRequest(account.token, '/api/stem/assignments', {
+      method: 'POST',
+      body: JSON.stringify({
+        classroomId,
+        subjectId: draft.subjectId,
+        stage: draft.stage,
+        syllabusPointId: draft.topicId,
+        title: draft.title || `${subject?.code || ''} ${topic?.name || 'verified practice'}`.trim(),
+        dueAt: draft.dueDate || null,
+        sourceScope: { questionIds: verifiedUnit.parts.map((part) => part.bankId), provenanceVersion: 'qp-ms-v1' },
+      }),
+    })
+    const workspace = await requestSharedWorkspace(account.token)
+    setSharedAccount((current) => ({ ...current, status: 'ready', workspace }))
+    return result.assignment
+  }
+
+  function startAssignedAssignment(assignment) {
+    const unit = buildCoachPractice({
+      subjectId: assignment.subjectId,
+      stage: assignment.stage,
+      knowledgeGroupId: assignment.syllabusPointId,
+      questionCount: assignment.sourceScope?.questionIds?.length || 10,
+    })
+    startPractice(unit, { assignmentId: assignment.id })
+  }
+
+  function startPractice(unit, options = {}) {
+    const sessionUnit = focusedRetestUnit(unit, options.onlyPartId)
+    if (!options.confirmed) {
+      setPendingSession({
+        unit: sessionUnit,
+        options,
+        mode: sessionUnit.type === 'paper' ? 'exam' : options.retestOf ? 'guided' : 'practice',
+        timing: sessionUnit.type === 'paper' ? 'timed' : 'recommended',
+        hints: sessionUnit.type !== 'paper',
+      })
+      return
+    }
+    if (sessionUnit.focusedRetestOf || sessionUnit.agentGenerated) {
+      setAppState((state) => ({
+        ...state,
+        generatedUnits: [sessionUnit, ...(state.generatedUnits || []).filter((item) => item.id !== sessionUnit.id)].slice(0, 24),
+      }))
+    }
+    setAppState((state) => ({
+      ...state,
+      recentPractice: [
+        { unitId: sessionUnit.id, openedAt: new Date().toISOString() },
+        ...(state.recentPractice || []).filter((item) => item.unitId !== sessionUnit.id),
+      ].slice(0, 8),
+    }))
+    const draft = options.clearDraft ? null : appState.drafts[sessionUnit.id]
+    setCurrentAttempt({
+      id: makeAttemptId(),
+      unitId: sessionUnit.id,
+      mode: sessionUnit.type,
+      stage: 'practice',
+      startedAt: new Date().toISOString(),
+      elapsedSec: draft?.elapsedSec || 0,
+      durationSec: sessionUnit.durationSec,
+      activePartId: draft?.activePartId || sessionUnit.parts[0].id,
+      answers: migratePracticeAnswers(sessionUnit, draft),
+      working: draft?.working || {},
+      evidence: draft?.evidence || {},
+      saveStatus: draft ? 'Restored draft' : 'Ready',
+      retestOf: options.retestOf || null,
+      assignmentId: options.assignmentId || null,
+      settings: options.settings || draft?.settings || { mode: sessionUnit.type === 'paper' ? 'exam' : 'practice', timing: 'recommended', hints: true },
+    })
+    setPendingSession(null)
+    setResultAttempt(null)
+    setView('practice')
+  }
+
+  function openPaper(paper) {
+    setActivePaper(paper)
+    setAppState((state) => ({
+      ...state,
+      recentPapers: [paper.id, ...state.recentPapers.filter((id) => id !== paper.id)].slice(0, 8),
+    }))
+    setView('paper')
+  }
+
+  function generateCoachPractice(selection) {
+    const unit = buildCoachPractice({
+      ...selection,
+      allowPartial: selection.allowPartial ?? true,
+    })
+    setAppState((state) => ({
+      ...state,
+      generatedUnits: [unit, ...(state.generatedUnits || [])].slice(0, 24),
+    }))
+    startPractice(unit, {
+      confirmed: true,
+      clearDraft: true,
+      settings: { mode: 'guided', timing: 'recommended', hints: true },
+    })
+    return unit
+  }
+
+  function openPaperLibraryForSubject(subjectId = 'all') {
+    setSubjectFilter(subjectId)
+    setActiveTab('papers')
+    setView('library')
+  }
+
+  async function handleCoachAgentAction(intent) {
+    if (intent.type === 'open-latest-paper' && intent.contest === 'bpho-spc') {
+      const paper = latestBphoSpcPaper(paperCatalogState.catalog?.items || [])
+      if (!paper) {
+        return {
+          handled: true,
+          message: 'BPhO SPC 的本地 PDF 目录还没有加载好，或没有找到已配对的最新 QP/MS。请稍后再试。',
+        }
+      }
+      openPaper({
+        ...paper,
+        agentNotice: '已打开最新 BPhO SPC question paper。先在右侧答题区作答并提交，提交后会解锁精确配对的 mark scheme。',
+      })
+      return {
+        handled: true,
+        message: `已打开 ${paper.file}。它已经配对 ${paper.markSchemeId ? '精确 mark scheme' : '答案文件'}；提交答题区后可以查看答案。`,
+      }
+    }
+
+    if (intent.type === 'build-topic-practice') {
+      try {
+        const unit = generateCoachPractice(intent)
+        return {
+          handled: true,
+          message: `已生成 ${unit.title}。共 ${unit.parts.length} 道真实来源题，每题绑定原卷和对应 mark scheme；提交后自动批改，手写图像会进入 AI 复核。`,
+        }
+      } catch (error) {
+        return { handled: true, message: error.message || 'This topic does not yet have enough verified questions.' }
+      }
+    }
+
+    return { handled: false }
+  }
+
+  function retestPaper(paper, sourceAttemptId) {
+    const key = paper.pairKey || paper.id
+    setAppState((state) => {
+      const { [key]: _removedDraft, ...paperDrafts } = state.paperDrafts
+      return { ...state, paperDrafts, recentPapers: [paper.id, ...state.recentPapers.filter((id) => id !== paper.id)].slice(0, 8) }
+    })
+    setActivePaper({ ...paper, retestOf: sourceAttemptId })
+    setView('paper')
+  }
+
+  const savePaperDraft = useCallback((draft) => {
+    const key = draft.pairKey || draft.paperId
+    setAppState((state) => ({ ...state, paperDrafts: { ...state.paperDrafts, [key]: draft } }))
+  }, [])
+
+  function finishPaperSession(session) {
+    setAppState((state) => {
+      if (state.paperSessions.some((item) => item.attemptId === session.attemptId)) return state
+      return {
+        ...state,
+        paperSessions: [
+          ...state.paperSessions,
+          { ...session, id: makeAttemptId().replace('att-', 'paper-'), completedAt: session.submittedAt || new Date().toISOString() },
+        ],
+      }
+    })
+  }
+
+  function finishPaperReview(review) {
+    setAppState((state) => ({
+      ...state,
+      paperReviews: [
+        ...(state.paperReviews || []),
+        { ...review, id: makeAttemptId().replace('att-', 'review-'), completedAt: review.reviewedAt || new Date().toISOString() },
+      ],
+    }))
+  }
+
+  function exportLearningData() {
+    const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), ...appState }, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `alevel-studio-export-${new Date().toISOString().slice(0, 10)}.json`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function updateAnswer(partId, value) {
+    setCurrentAttempt((attempt) => {
+      const next = {
+        ...attempt,
+        answers: { ...attempt.answers, [partId]: value },
+        saveStatus: 'Autosaved',
+      }
+      setAppState((state) => ({
+        ...state,
+        drafts: {
+          ...state.drafts,
+          [attempt.unitId]: {
+            answers: next.answers,
+            working: next.working,
+            evidence: next.evidence,
+            elapsedSec: next.elapsedSec,
+            activePartId: next.activePartId,
+            settings: next.settings,
+            updatedAt: new Date().toISOString(),
+          },
+        },
+      }))
+      return next
+    })
+  }
+
+  function updateEvidence(partId, evidence) {
+    setCurrentAttempt((attempt) => {
+      const next = {
+        ...attempt,
+        evidence: { ...attempt.evidence, [partId]: evidence },
+        saveStatus: 'Autosaved',
+      }
+      setAppState((state) => ({
+        ...state,
+        drafts: {
+          ...state.drafts,
+          [attempt.unitId]: {
+            answers: next.answers,
+            working: next.working,
+            evidence: next.evidence,
+            elapsedSec: next.elapsedSec,
+            activePartId: next.activePartId,
+            settings: next.settings,
+            updatedAt: new Date().toISOString(),
+          },
+        },
+      }))
+      return next
+    })
+  }
+
+  function setActivePart(partId) {
+    setCurrentAttempt((attempt) => {
+      const next = { ...attempt, activePartId: partId }
+      setAppState((state) => ({
+        ...state,
+        drafts: {
+          ...state.drafts,
+          [attempt.unitId]: {
+            answers: next.answers,
+            working: next.working,
+            evidence: next.evidence,
+            elapsedSec: next.elapsedSec,
+            activePartId: partId,
+            settings: next.settings,
+            updatedAt: new Date().toISOString(),
+          },
+        },
+      }))
+      return next
+    })
+  }
+
+  async function submitAttempt() {
+    if (!currentAttempt) return
+    if (currentAttempt.submitting) return
+    const attemptSnapshot = { ...currentAttempt, submitting: true }
+    setCurrentAttempt(attemptSnapshot)
+    const unit = allPracticeUnits.find((item) => item.id === currentAttempt.unitId)
+    const deterministicScore = scoreAttempt(unit, attemptSnapshot.answers, attemptSnapshot.elapsedSec)
+    const visionReviews = await requestVisionReviews(unit, attemptSnapshot)
+    const scoreResult = mergeVisionScore(deterministicScore, unit, attemptSnapshot.answers, visionReviews)
+    const assistedReview = reviewAttempt(unit, attemptSnapshot.answers, attemptSnapshot.working)
+    const imageEvidence = Object.entries(attemptSnapshot.evidence || {}).filter(([, evidence]) => Boolean(evidence)).map(([partId, evidence]) => ({ partId, ...evidence }))
+    const completedAttempt = {
+      ...attemptSnapshot,
+      submitting: false,
+      stage: 'result',
+      submittedAt: new Date().toISOString(),
+      scoreResult,
+      assistedReview,
+      imageEvidence,
+      visionReviews,
+      contentScope: {
+        unitId: unit.id,
+        title: unit.title,
+        type: unit.type,
+        subjectId: unit.subjectId,
+        topic: unit.topic,
+      },
+    }
+    const previousScores = appState.attempts
+      .filter((attempt) => attempt.stage === 'result' && attempt.unitId === unit.id && Number.isFinite(attempt.scoreResult?.percentage))
+      .map((attempt) => attempt.scoreResult.percentage)
+    const masteryBefore = previousScores.length
+      ? Math.round(previousScores.reduce((total, score) => total + score, 0) / previousScores.length)
+      : null
+    completedAttempt.learningSignal = {
+      masteryBefore,
+      masteryAfter: scoreResult.percentage,
+      masteryDelta: masteryBefore == null ? null : scoreResult.percentage - masteryBefore,
+    }
+
+    if (attemptSnapshot.assignmentId && sharedAccount.status === 'ready') {
+      try {
+        await sharedAccountRequest(sharedAccount.token, `/api/stem/assignments/${encodeURIComponent(attemptSnapshot.assignmentId)}/submissions`, {
+          method: 'POST',
+          body: JSON.stringify({
+            idempotencyKey: attemptSnapshot.id,
+            attemptId: attemptSnapshot.id,
+            rawMarks: scoreResult.rawMarks,
+            maxMarks: scoreResult.maxMarks,
+            percentage: scoreResult.percentage,
+            elapsedSeconds: scoreResult.elapsedSec,
+            markingMode: Object.keys(visionReviews).length ? 'assisted-vision' : 'deterministic',
+            reviewRequired: Object.values(visionReviews).some((review) => review.reviewRequired),
+          }),
+        })
+        completedAttempt.serverSync = 'synced'
+      } catch (error) {
+        completedAttempt.serverSync = 'pending'
+        completedAttempt.serverSyncError = error.message || 'The local result is saved and will need a retry.'
+      }
+    }
+
+    setAppState((state) => {
+      const { [unit.id]: _removedDraft, ...drafts } = state.drafts
+      return {
+        ...state,
+        attempts: [...state.attempts, completedAttempt],
+        drafts,
+      }
+    })
+    setCurrentAttempt(null)
+    setResultAttempt(completedAttempt)
+    setView('result')
+  }
+
+  const currentUnit = currentAttempt ? allPracticeUnits.find((unit) => unit.id === currentAttempt.unitId) : null
+  const resultUnit = resultAttempt ? allPracticeUnits.find((unit) => unit.id === resultAttempt.unitId) : null
+
+  return (
+    <main className="app-shell">
+      {view !== 'practice' && view !== 'paper' && <TopNav view={view} setView={setView} profile={appState.profile} openWorkspace={() => setView('workspace')} />}
+
+      {view === 'dashboard' && (
+        <StudentDashboard
+          profile={appState.profile}
+          updateProfile={updateProfile}
+          attempts={appState.attempts}
+          completionByUnit={completionByUnit}
+          recommendation={recommendation}
+          topicMastery={topicMastery}
+          mistakes={mistakes}
+          paperMistakes={paperMistakes}
+          learningProgress={learningProgress}
+          syllabusRoadmap={syllabusRoadmap}
+          startPractice={startPractice}
+          setView={setView}
+          setActiveTab={setActiveTab}
+          setSubjectFilter={setSubjectFilter}
+          setQuery={setQuery}
+          allPracticeUnits={allPracticeUnits}
+          recentPractice={appState.recentPractice || []}
+          favoriteUnitIds={appState.favoriteUnitIds || []}
+          openCoach={() => setCoachOpenRequest((value) => value + 1)}
+          openWorkspace={() => setView('workspace')}
+        />
+      )}
+
+      {view === 'workspace' && <RoleWorkspace profile={appState.profile} updateProfile={updateProfile} assignments={sharedAccount.workspace?.assignments || []} classrooms={sharedAccount.workspace?.classrooms || []} submissions={sharedAccount.workspace?.submissions || []} serverSummaries={sharedAccount.workspace?.serverSummaries || {}} attempts={appState.attempts} learningProgress={learningProgress} account={sharedAccount} onRefreshAccount={refreshSharedAccount} onCreateClassroom={createClassroom} onJoinClassroom={joinClassroom} onCreateAssignment={createAssignment} onStartAssignedAssignment={startAssignedAssignment} />}
+
+      {view === 'library' && (
+        <LibraryView
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          subjectFilter={subjectFilter}
+          setSubjectFilter={setSubjectFilter}
+          completionFilter={completionFilter}
+          setCompletionFilter={setCompletionFilter}
+          query={query}
+          setQuery={setQuery}
+          visibleUnits={visibleUnits}
+          completionByUnit={completionByUnit}
+          favoriteUnitIds={appState.favoriteUnitIds || []}
+          onToggleFavorite={toggleFavoriteUnit}
+          mistakes={mistakes}
+          paperMistakes={paperMistakes}
+          startPractice={startPractice}
+          retestPaper={retestPaper}
+          paperCatalogState={paperCatalogState}
+          openPaper={openPaper}
+          openPaperLibraryForSubject={openPaperLibraryForSubject}
+          startKnowledgeDrill={generateCoachPractice}
+          catalogItems={paperCatalogState.catalog?.items || []}
+        />
+      )}
+
+      {view === 'history' && (
+        <HistoryView
+          attempts={appState.attempts}
+          paperSessions={appState.paperSessions}
+          paperReviews={appState.paperReviews || []}
+          onRetest={startPractice}
+          units={allPracticeUnits}
+          onExport={exportLearningData}
+        />
+      )}
+
+      {view === 'paper' && activePaper && paperCatalogState.catalog && (
+        <Suspense fallback={<div className="paper-state workspace-loading"><span className="loading-line" />Loading the PDF study desk...</div>}>
+          <PaperWorkspace
+            paper={activePaper}
+            catalog={paperCatalogState.catalog}
+            draft={appState.paperDrafts[activePaper.pairKey || activePaper.id]}
+            onBack={() => {
+              setActiveTab('papers')
+              setView('library')
+            }}
+            onSaveDraft={savePaperDraft}
+            onFinish={finishPaperSession}
+            onFinishReview={finishPaperReview}
+          />
+        </Suspense>
+      )}
+
+      {view === 'practice' && currentUnit && currentAttempt && (
+        <PracticeWorkspace
+          attempt={currentAttempt}
+          unit={currentUnit}
+          setActivePart={setActivePart}
+          updateAnswer={updateAnswer}
+          updateEvidence={updateEvidence}
+          submitAttempt={submitAttempt}
+          goBack={() => setView('library')}
+        />
+      )}
+
+      {view === 'result' && resultUnit && resultAttempt && (
+        <ResultView
+          attempt={resultAttempt}
+          unit={resultUnit}
+          startPractice={startPractice}
+          goLibrary={() => setView('library')}
+        />
+      )}
+
+      {pendingSession && (
+        <SessionSetup
+          session={pendingSession}
+          onChange={(patch) => setPendingSession((current) => ({ ...current, ...patch }))}
+          onCancel={() => setPendingSession(null)}
+          onStart={() => startPractice(pendingSession.unit, {
+            ...pendingSession.options,
+            confirmed: true,
+            settings: {
+              mode: pendingSession.mode,
+              timing: pendingSession.timing,
+              hints: pendingSession.hints,
+            },
+          })}
+        />
+      )}
+      {view !== 'practice' && view !== 'paper' && (
+        <AiCoach
+          key={`${view}:${resultAttempt?.id || 'general'}`}
+          context={{
+            attemptId: resultAttempt?.id,
+            view,
+            subject: subjectFilter === 'all' ? null : subjects.find((subject) => subject.id === subjectFilter),
+            stage: resultUnit?.stage || 'Cambridge IGCSE / AS / A2',
+            question: resultAttempt && resultUnit ? {
+              label: 'Latest result',
+              prompt: resultUnit.parts.find((part) => part.id === resultAttempt.scoreResult.weakestPartId)?.prompt || resultUnit.title,
+            } : null,
+            response: resultAttempt && resultUnit ? resultAttempt.answers[resultAttempt.scoreResult.weakestPartId] || '' : '',
+            submitted: view === 'result',
+          }}
+          openRequest={coachOpenRequest}
+          practiceOptions={aiPracticeOptions}
+          onGeneratePractice={generateCoachPractice}
+          onAgentAction={handleCoachAgentAction}
+        />
+      )}
+    </main>
+  )
+}
+
+function SessionSetup({ session, onChange, onCancel, onStart }) {
+  const { unit } = session
+  const isPaper = unit.type === 'paper'
+  return (
+    <div className="setup-backdrop" role="presentation" onMouseDown={onCancel}>
+      <section className="session-setup" role="dialog" aria-modal="true" aria-labelledby="setup-title" onMouseDown={(event) => event.stopPropagation()}>
+        <header><div><p className="section-label">Session setup</p><h2 id="setup-title">{unit.title}</h2><p>{unit.topic} · {unit.parts.length} questions · {unit.maxMarks} marks</p></div><button type="button" className="setup-close" onClick={onCancel} aria-label="Close setup">×</button></header>
+        <div className="setup-section"><span className="setup-label">How do you want to practise?</span><div className="mode-segments"><button type="button" className={session.mode === 'guided' ? 'active' : ''} onClick={() => onChange({ mode: 'guided', hints: true })}><Sparkles size={16} /><strong>Guided</strong><small>Hints available</small></button><button type="button" className={session.mode === 'practice' ? 'active' : ''} onClick={() => onChange({ mode: 'practice' })}><Dumbbell size={16} /><strong>Practice</strong><small>Independent set</small></button><button type="button" className={session.mode === 'exam' ? 'active' : ''} onClick={() => onChange({ mode: 'exam', timing: 'timed', hints: false })}><GraduationCap size={16} /><strong>Exam</strong><small>Answers hidden</small></button></div></div>
+        <div className="setup-options"><label><span>Timing</span><select value={session.timing} onChange={(event) => onChange({ timing: event.target.value })}><option value="recommended">Recommended · {unit.estimatedMinutes} min</option><option value="timed">Strict timer</option><option value="untimed">Untimed</option></select></label><label className="toggle-row"><span><strong>Question hints</strong><small>Hints never reveal the final answer.</small></span><input type="checkbox" checked={session.hints} disabled={session.mode === 'exam'} onChange={(event) => onChange({ hints: event.target.checked })} /></label></div>
+        <div className="setup-summary"><ListFilter size={18} /><div><strong>{unit.parts.length} questions ready</strong><span>{isPaper ? 'Mixed paper practice' : `${unit.subtopic || unit.topic} knowledge drill`} · autosave on</span></div></div>
+        <footer><button type="button" className="secondary-action" onClick={onCancel}>Cancel</button><button type="button" className="primary-action" onClick={onStart}><PlayIcon />Start session</button></footer>
+      </section>
+    </div>
+  )
+}
+
+function TopNav({ view, setView, profile, openWorkspace }) {
+  const [campusOpen, setCampusOpen] = useState(false)
+  const [accountOpen, setAccountOpen] = useState(false)
+  const learnerName = String(profile?.learnerName || 'Student').trim() || 'Student'
+  const firstName = learnerName.split(/\s+/)[0]
+  return (
+    <header className="top-nav unified-top-nav">
+      <button className="brand-button" type="button" onClick={() => setView('dashboard')} aria-label="Open dashboard">
+        <span className="brand-mark">I</span>
+        <span>
+          <strong>IELTSist</strong>
+          <small>Learning platform</small>
+        </span>
+      </button>
+      <div className="campus-switcher">
+        <button type="button" aria-expanded={campusOpen} onClick={() => setCampusOpen((open) => !open)}><span className="campus-switcher__stem">STEM</span><ChevronRight size={15} /></button>
+        {campusOpen && <div className="campus-menu" role="menu" aria-label="Switch campus"><a href="https://ieltsist.com/" target="_blank" rel="noreferrer" role="menuitem"><span>IELTS</span><small>Language learning</small></a><button type="button" role="menuitem" onClick={() => { setView('dashboard'); setCampusOpen(false) }}><span>STEM</span><small>Maths and science</small></button></div>}
+      </div>
+      <nav aria-label="Primary navigation">
+        <button className={view === 'dashboard' ? 'active' : ''} type="button" onClick={() => setView('dashboard')}>
+          <Target size={17} />
+          Today
+        </button>
+        <button className={view === 'library' ? 'active' : ''} type="button" onClick={() => setView('library')}>
+          <Dumbbell size={17} />
+          Practice
+        </button>
+        <button className={view === 'history' ? 'active' : ''} type="button" onClick={() => setView('history')}>
+          <BarChart3 size={17} />
+          Progress
+        </button>
+        <button className={view === 'workspace' ? 'active' : ''} type="button" onClick={openWorkspace} aria-label="Notebook">
+          <BookOpen size={17} />
+          Notebook
+        </button>
+      </nav>
+      <div className="nav-context"><a className="vocabulary-link" href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer"><Brain size={15} />Terms</a><button type="button" className="notification-button" aria-label="Notifications"><span /></button><div className="account-menu"><button type="button" className="account-trigger" aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}><span className="account-avatar">{firstName.slice(0, 1).toUpperCase()}</span><span>{learnerName}</span><ChevronRight size={14} /></button>{accountOpen && <div className="account-popover"><strong>{learnerName}</strong><small>IELTSist Account</small><div><span>Student</span><b>STEM</b></div><a href="https://ieltsist.com/" target="_blank" rel="noreferrer">Open IELTS campus <ChevronRight size={14} /></a><button type="button" onClick={() => { openWorkspace(); setAccountOpen(false) }}>Teacher &amp; school workspace <ChevronRight size={14} /></button></div>}</div></div>
+    </header>
+  )
+}
+
+/* oxlint-disable no-unused-vars */
+function Dashboard({
+  profile,
+  updateProfile,
+  attempts,
+  completionByUnit,
+  recommendation,
+  topicMastery,
+  mistakes,
+  paperMistakes,
+  startPractice,
+  setView,
+  setActiveTab,
+  setSubjectFilter,
+  openWorkspace,
+  learningProgress,
+  syllabusRoadmap,
+}) {
+  const verifiedAttempts = attempts.filter((attempt) => completionByUnit[attempt.unitId])
+  const completedCount = Object.values(completionByUnit).filter((item) => item.completed).length
+  const latest = verifiedAttempts.at(-1)
+  const average = verifiedAttempts.length
+    ? Math.round(verifiedAttempts.reduce((sum, attempt) => sum + attempt.scoreResult.percentage, 0) / verifiedAttempts.length)
+    : null
+  const totalImportedFiles = importedPdfLibrary.reduce((sum, subject) => sum + subject.files, 0)
+  const nextUnit = recommendation.unit
+
+  function openCourse(subject) {
+    setSubjectFilter(subject.id)
+    setActiveTab('topics')
+    setView('library')
+  }
+
+  return (
+    <section className="dashboard page-band">
+      <section className="today-action-panel" aria-label="Today action">
+        <div className="today-action-main"><p className="section-label">Today</p><h2>{nextUnit?.title || 'Choose your first syllabus topic'}</h2><p>{nextUnit ? recommendation.reason : 'Start with a verified Cambridge question set and build your record from there.'}</p><div className="action-row"><button className="primary-action" type="button" onClick={() => nextUnit ? startPractice(nextUnit, recommendation.action === 'Resume' ? { confirmed: true } : {}) : setView('library')}><PlayIcon />{nextUnit ? recommendation.action : 'Choose practice'}</button><span className="today-proof"><CheckCircle2 size={16} />{learningProgress.week.completedQuestions} questions this week</span></div></div>
+        <div className="today-action-stats"><div><span>Weekly target</span><strong>{learningProgress.week.completedQuestions}/{learningProgress.week.targetQuestions}</strong><div className="progress-track"><span style={{ width: `${Math.min(100, Math.round((learningProgress.week.completedQuestions / learningProgress.week.targetQuestions) * 100))}%` }} /></div></div><div><span>Study streak</span><strong>{learningProgress.streak} day{learningProgress.streak === 1 ? '' : 's'}</strong><small>Based on submitted work</small></div></div>
+      </section>
+      <div className="student-intro">
+        <div>
+          <p className="section-label">STEM practice studio</p>
+          <h1>Learn from the paper, not from made-up questions.</h1>
+          <p>Choose a course, choose the syllabus point, then work through source-backed questions with a teacher beside you.</p>
+        </div>
+        <div className="streak-note"><span>Weekly target</span><strong>{Math.min(attempts.length, profile.weeklyQuestions)}/{profile.weeklyQuestions}</strong><small>scored questions</small></div>
+      </div>
+
+      <section className="course-launcher" aria-label="Choose a course">
+        <div className="section-heading-row"><div><p className="section-label">Start here</p><h2>Choose your qualification</h2></div><span>Each route keeps its own syllabus, stages and paper archive.</span></div>
+        <div className="course-launcher__grid">{subjects.map((subject) => <button type="button" key={subject.id} onClick={() => openCourse(subject)}><span className="course-launcher__code" style={{ color: subject.accent }}>{subject.code}</span><span><strong>{subject.name}</strong><small>{subject.topics.slice(0, 3).join(' · ')}</small></span><ChevronRight size={17} /></button>)}</div>
+      </section>
+
+      <section className="audience-callout" aria-label="Choose workspace">
+        <div><p className="section-label">Student / Teacher / School</p><h2>Use the same evidence at the right level.</h2><p>Students get a next action. Teachers get assignable verified work. Schools get programme-level signals without exposing private notebooks.</p></div>
+        <button type="button" className="secondary-action" onClick={openWorkspace}><Users size={17} />Open workspace</button>
+      </section>
+
+      <div className="decision-panel student-decision">
+        <div className="decision-copy">
+          <div className="recommendation-kicker"><Sparkles size={15} /> Continue a verified set</div>
+          <h1>{nextUnit?.title || 'Choose a syllabus topic'}</h1>
+          <p>{nextUnit ? recommendation.reason : 'Choose a syllabus topic to see its indexed source status and available practice.'}</p>
+          {nextUnit && <div className="recommendation-meta"><span>{nextUnit.topic}</span><span>{nextUnit.estimatedMinutes} min</span><span>{nextUnit.maxMarks} marks</span></div>}
+          <div className="action-row">
+            <button className="primary-action" type="button" onClick={() => nextUnit ? startPractice(nextUnit, recommendation.action === 'Resume' ? { confirmed: true } : {}) : openCourse(subjects[2])}>
+              <PlayIcon />
+              {nextUnit ? recommendation.action : 'Choose topic'}
+            </button>
+            <button
+              className="secondary-action"
+              type="button"
+              onClick={() => {
+                setActiveTab('topics')
+                setView('library')
+              }}
+            >
+              <ListFilter size={18} />
+              Build a session
+            </button>
+          </div>
+        </div>
+
+        <div className="goal-panel" aria-label="Learning goal">
+          <div className="goal-title">
+            <Target size={18} />
+            <span>My exam plan</span>
+          </div>
+          <p className="goal-helper">A small target keeps practice repeatable.</p>
+          <label>
+            Target grade
+            <select value={profile.targetGrade} onChange={(event) => updateProfile({ targetGrade: event.target.value })}>
+              {['A*', 'A', 'B', 'C'].map((grade) => (
+                <option key={grade}>{grade}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Weekly questions
+            <input
+              type="number"
+              min="1"
+              max="80"
+              value={profile.weeklyQuestions}
+              onChange={(event) => updateProfile({ weeklyQuestions: Number(event.target.value) || 1 })}
+            />
+          </label>
+          <label>
+            Exam date
+            <input type="date" value={profile.deadline} onChange={(event) => updateProfile({ deadline: event.target.value })} />
+          </label>
+        </div>
+      </div>
+
+      <div className="practice-modes">
+        <div className="section-heading-row"><div><p className="section-label">Choose a mode</p><h2>What do you need today?</h2></div><button type="button" className="text-action" onClick={() => { setActiveTab('topics'); setView('library') }}>View all practice <ChevronRight size={16} /></button></div>
+        <div className="mode-grid">
+          <ModeCard icon={<Dumbbell size={20} />} title="Knowledge drill" detail="One topic, short set, instant direction" accent="blue" onClick={() => { setActiveTab('topics'); setView('library') }} />
+          <ModeCard icon={<TimerReset size={20} />} title="Timed mixed set" detail="Switch between question types under time" accent="green" onClick={() => { setActiveTab('exams'); setView('library') }} />
+          <ModeCard icon={<GraduationCap size={20} />} title="Mock exam" detail="Build stamina with a full paper" accent="amber" onClick={() => { setActiveTab('papers'); setView('library') }} />
+          <ModeCard icon={<RefreshCcw size={20} />} title="Fix mistakes" detail={`${mistakes.length + paperMistakes.length || 'No'} open item${mistakes.length + paperMistakes.length === 1 ? '' : 's'} to revisit`} accent="rose" onClick={() => { setActiveTab('mistakes'); setView('library') }} />
+        </div>
+      </div>
+
+      <div className="metric-strip" aria-label="Progress summary">
+        <Metric icon={<Trophy size={20} />} label="Current score" value={average == null ? 'No verified score' : `${average}%`} detail="Based only on submitted QP/MS drills" />
+        <Metric icon={<CheckCircle2 size={20} />} label="Completed" value={`${completedCount}/${Object.keys(completionByUnit).length}`} detail="Valid submissions only" />
+        <Metric icon={<FileText size={20} />} label="Source PDFs" value={totalImportedFiles.toLocaleString()} detail="Official papers available for indexing" />
+        <Metric icon={<Flag size={20} />} label="Last attempt" value={latest ? `${latest.scoreResult.rawMarks}/${latest.scoreResult.maxMarks}` : 'No attempt'} detail={latest ? formatDate(latest.submittedAt) : 'Start a topic to create history'} />
+      </div>
+
+      <section className="syllabus-roadmap" aria-label="Syllabus roadmap">
+        <div className="panel-heading"><div><p className="section-label">Syllabus roadmap</p><h2>See where you are and what comes next</h2></div><button type="button" className="text-action" onClick={() => { setActiveTab('topics'); setView('library') }}>Open roadmap <ChevronRight size={16} /></button></div>
+        <div className="roadmap-track">{syllabusRoadmap.slice(0, 12).map((topic, index) => <button type="button" key={topic.id} className={`roadmap-node roadmap-${topic.status.toLowerCase().replaceAll(' ', '-')}`} onClick={() => { setSubjectFilter(topic.subjectId === 'physics-9702' ? 'physics' : subjectFilter); setActiveTab('topics'); setView('library') }}><span>{topic.officialTopicNumber || index + 1}</span><strong>{topic.name.replace(/^\d+\s+/, '')}</strong><small>{topic.mastery == null ? topic.status : `${topic.mastery}% mastery`}</small></button>)}</div>
+      </section>
+
+      <div className="student-progress-grid">
+        <section className="wide-panel weekly-task-panel"><div className="panel-heading"><div><p className="section-label">This week</p><h2>Small tasks, visible progress</h2></div><span className="progress-label">{learningProgress.week.completedSets} set{learningProgress.week.completedSets === 1 ? '' : 's'} submitted</span></div><div className="weekly-task-row"><CheckCircle2 size={18} /><div><strong>Complete {learningProgress.week.targetQuestions} questions</strong><span>{learningProgress.week.completedQuestions} completed from verified attempts</span></div><b>{Math.min(100, Math.round((learningProgress.week.completedQuestions / learningProgress.week.targetQuestions) * 100))}%</b></div><div className="weekly-task-row"><RefreshCcw size={18} /><div><strong>Correct your open mistakes</strong><span>{mistakes.length + paperMistakes.length} question{mistakes.length + paperMistakes.length === 1 ? '' : 's'} ready to revisit</span></div><b>{mistakes.length + paperMistakes.length ? 'Next' : 'Clear'}</b></div></section>
+        <section className="wide-panel milestone-panel"><div className="panel-heading"><div><p className="section-label">Milestones</p><h2>Evidence, not points</h2></div><Trophy size={19} /></div><div className="milestone-list">{learningProgress.milestones.slice(0, 3).map((milestone) => <div className="milestone-row" key={milestone.id}><span className={milestone.complete ? 'milestone-dot complete' : 'milestone-dot'}>{milestone.complete ? '✓' : ''}</span><div><strong>{milestone.label}</strong><small>{Math.min(milestone.value, milestone.target)}/{milestone.target} {milestone.unit}</small></div><div className="mini-progress"><i style={{ width: `${milestone.percentage}%` }} /></div></div>)}</div></section>
+      </div>
+
+      <div className="dashboard-grid">
+        <section className="wide-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="section-label">Topic progress</p>
+              <h2>Where your marks are coming from</h2>
+            </div>
+            <button
+              type="button"
+              className="text-action"
+              onClick={() => {
+                setActiveTab('mistakes')
+                setView('library')
+              }}
+            >
+              See weak points
+            </button>
+          </div>
+                <div className="radar-list">
+            {topicMastery.map((item) => (
+              <div className="radar-row" key={item.id}>
+                <span className="topic-icon">{item.icon}</span>
+                <span>{item.topic}</span>
+                <div className="progress-track" aria-label={`${item.topic} mastery`}>
+                  <span style={{ width: `${item.score ?? 18}%` }} />
+                </div>
+                <strong>{item.score == null ? 'No verified score' : `${item.score}%`}</strong>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="source-panel">
+          <div className="panel-heading compact">
+            <div>
+              <p className="section-label">Learning signal</p>
+              <h2>Recent feedback</h2>
+            </div>
+          </div>
+          {mistakes.length ? <div className="feedback-list">{mistakes.slice(0, 3).map((mistake) => <div className="feedback-row" key={mistake.id}><span className="feedback-icon"><Flag size={15} /></span><div><strong>{mistake.part.label} · {mistake.unit.topic}</strong><small>{mistake.criterion.feedback}</small></div><ChevronRight size={16} /></div>)}</div> : <div className="feedback-empty"><CheckCircle2 size={22} /><strong>No weak points yet</strong><span>Submit a set and your mark points will appear here.</span></div>}
+        </section>
+      </div>
+
+      <section className="study-principle"><div className="principle-icon"><Sparkles size={18} /></div><div><strong>Feedback is the lesson.</strong><p>Every answer is stored with its working. After submission, review the exact mark point you missed and retest the same idea with a new attempt.</p></div></section>
+    </section>
+  )
+}
+
+/* oxlint-enable no-unused-vars */
+function StudentDashboard({ profile, attempts, completionByUnit, recommendation, topicMastery, mistakes, paperMistakes, startPractice, setView, setActiveTab, setSubjectFilter, setQuery, allPracticeUnits, recentPractice, favoriteUnitIds, openCoach, openWorkspace, learningProgress, syllabusRoadmap }) {
+  const [searchText, setSearchText] = useState('')
+  const nextUnit = recommendation.unit
+  const latest = attempts.filter((attempt) => completionByUnit[attempt.unitId]).at(-1)
+  const average = latest ? Math.round(attempts.filter((attempt) => completionByUnit[attempt.unitId]).reduce((total, attempt) => total + attempt.scoreResult.percentage, 0) / attempts.filter((attempt) => completionByUnit[attempt.unitId]).length) : null
+  const weeklyPercent = Math.min(100, Math.round((learningProgress.week.completedQuestions / learningProgress.week.targetQuestions) * 100))
+  const goalComplete = learningProgress.week.completedQuestions >= learningProgress.week.targetQuestions
+  const unitById = new Map(allPracticeUnits.map((unit) => [unit.id, unit]))
+  const recentUnits = recentPractice.map((item) => unitById.get(item.unitId)).filter(Boolean).slice(0, 3)
+  const favoriteUnits = favoriteUnitIds.map((id) => unitById.get(id)).filter(Boolean).slice(0, 3)
+  const firstName = String(profile.learnerName || '').trim().split(/\s+/)[0] || 'there'
+  const weakTopic = topicMastery.find((item) => item.score != null && item.score < 65)
+
+  function openPractice({ tab = 'topics', subjectId, query } = {}) {
+    if (subjectId) setSubjectFilter(subjectId)
+    if (query != null) setQuery(query)
+    setActiveTab(tab)
+    setView('library')
+  }
+
+  return <section className="dashboard-studio">
+    <aside className="study-rail" aria-label="Student study navigation">
+      <div className="study-rail__identity"><span>Student plan</span><strong>Cambridge STEM</strong><small>Verified question practice</small></div>
+      <div className="study-rail__nav"><button className="active" type="button"><Home size={17} />Today</button><button type="button" onClick={() => openPractice()}><Dumbbell size={17} />Find practice</button><button type="button" onClick={() => setView('history')}><BarChart3 size={17} />My progress</button></div>
+      <div className="study-rail__progress"><p>Your progress</p><span>Weekly target</span><strong>{Math.min(learningProgress.week.completedQuestions, learningProgress.week.targetQuestions)}/{learningProgress.week.targetQuestions}</strong><div className="progress-track"><span style={{ width: `${weeklyPercent}%` }} /></div><span>Study streak</span><strong>{learningProgress.streak} day{learningProgress.streak === 1 ? '' : 's'}</strong></div>
+      <div className="study-rail__footer"><button type="button" onClick={openWorkspace}><Settings size={16} />Study settings</button><a href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer"><BookOpen size={16} />Professional terms</a><button type="button" onClick={openCoach}><HelpCircle size={16} />Help &amp; support</button></div>
+    </aside>
+
+    <main className="dashboard-main">
+      <header className="dashboard-welcome"><div><p>Good to see you, {firstName}.</p><h1>Ready for today&apos;s study session?</h1></div><form className="dashboard-search" onSubmit={(event) => { event.preventDefault(); openPractice({ query: searchText }) }}><Search size={17} /><input value={searchText} onChange={(event) => setSearchText(event.target.value)} placeholder="Search a topic, paper or course" aria-label="Search a course, topic or paper" /><button type="submit">Search</button></form></header>
+      <section className="continue-card" aria-label="Continue learning"><div className="continue-card__copy"><p>Continue learning</p><h2>{nextUnit?.title || 'Build your first syllabus drill'}</h2><span>{nextUnit ? `${nextUnit.topic} · ${nextUnit.estimatedMinutes} minutes · ${nextUnit.maxMarks} marks` : 'Start with a Cambridge syllabus point and a verified QP/MS question set.'}</span><div className="continue-card__progress"><strong>{nextUnit && completionByUnit[nextUnit.id]?.completed ? 'Completed previously' : 'Your next recommended set'}</strong><div className="progress-track"><span style={{ width: nextUnit && completionByUnit[nextUnit.id]?.completed ? '100%' : '18%' }} /></div></div><div className="action-row"><button className="primary-action" type="button" onClick={() => nextUnit ? startPractice(nextUnit, recommendation.action === 'Resume' ? { confirmed: true } : {}) : openPractice({ subjectId: 'physics' })}><PlayIcon />{nextUnit ? recommendation.action : 'Choose topic'}</button><button type="button" className="secondary-action" onClick={() => openPractice({ subjectId: nextUnit?.subjectId || 'physics' })}>View syllabus point</button></div></div><div className="continue-card__syllabus"><span>Source-backed</span><strong>{nextUnit?.board || 'Cambridge International'}</strong><small>{nextUnit?.stage || 'IGCSE / AS / A2'} · question paper and mark scheme paired</small></div></section>
+      <section className="dashboard-section"><div className="section-heading-row"><div><p className="section-label">Quick actions</p><h2>Choose how to study</h2></div></div><div className="study-action-grid"><StudyAction icon={<Sparkles size={21} />} tone="violet" title="AI practice" detail="Build a verified set from a syllabus topic" action="Start now" onClick={openCoach} /><StudyAction icon={<FileText size={21} />} tone="blue" title="Past papers" detail="Filter official papers by subject and session" action="Browse papers" onClick={() => openPractice({ tab: 'papers' })} /><StudyAction icon={<Target size={21} />} tone="green" title="Topic drill" detail="Practise one official syllabus point" action="Choose topic" onClick={() => openPractice()} /><StudyAction icon={<Trophy size={21} />} tone="amber" title="Exam simulation" detail="Work in the original PDF with handwriting" action="Start exam" onClick={() => openPractice({ tab: 'exams' })} /></div></section>
+      <div className="dashboard-lower-grid"><section className="dashboard-panel performance-panel"><header><div><p className="section-label">Your performance</p><h2>Evidence from submitted work</h2></div><button type="button" className="text-action" onClick={() => setView('history')}>View progress <ChevronRight size={15} /></button></header><div className="performance-stats"><Stat label="Accuracy" value={average == null ? '—' : `${average}%`} detail={average == null ? 'Submit a set to start' : 'Verified QP/MS attempts'} /><Stat label="Questions done" value={learningProgress.week.completedQuestions} detail="In the last 7 days" /><Stat label="Open mistakes" value={mistakes.length + paperMistakes.length} detail={weakTopic ? `${weakTopic.topic} needs attention` : 'Review after each result'} /><Stat label="Last attempt" value={latest ? `${latest.scoreResult.rawMarks}/${latest.scoreResult.maxMarks}` : '—'} detail={latest ? formatDate(latest.submittedAt) : 'No submission yet'} /></div></section><section className="dashboard-panel mistakes-panel"><header><div><p className="section-label">Recent mistakes</p><h2>What to revisit</h2></div><button type="button" className="text-action" onClick={() => openPractice({ tab: 'mistakes' })}>View all</button></header>{mistakes.length ? <div className="mistakes-compact">{mistakes.slice(0, 3).map((mistake) => <button type="button" key={mistake.id} onClick={() => startPractice(mistake.unit, { clearDraft: true, retestOf: mistake.attempt.id, onlyPartId: mistake.part.id })}><span>{mistake.unit.topic}</span><strong>{mistake.part.label}</strong><em>{mistake.criterion.maxMarks - mistake.criterion.awarded} mark{mistake.criterion.maxMarks - mistake.criterion.awarded === 1 ? '' : 's'}</em></button>)}</div> : <div className="compact-empty"><CheckCircle2 size={19} /><span>No weak points yet. Your next submitted set will create a focused review list.</span></div>}</section></div>
+      <div className="dashboard-feed-grid"><MiniUnitPanel eyebrow="Recent practice" title="Pick up where you left off" empty="Your opened drills will appear here for one-click return." units={recentUnits} icon={<Dumbbell size={19} />} openPractice={startPractice} onManage={() => openPractice()} /><MiniUnitPanel eyebrow="Saved for later" title="Favourite practice" empty="Save useful drills from the Practice Library and return to them here." units={favoriteUnits} icon={<Heart size={19} />} openPractice={startPractice} onManage={() => openPractice()} favorite /></div>
+      <section className="dashboard-panel roadmap-compact"><header><div><p className="section-label">Skill map</p><h2>Progress through the official syllabus</h2></div><button type="button" className="text-action" onClick={() => openPractice()}>Open all topics <ChevronRight size={15} /></button></header><div>{syllabusRoadmap.slice(0, 6).map((topic, index) => <button type="button" key={topic.id} onClick={() => openPractice({ subjectId: topic.subjectId === 'physics-9702' ? 'physics' : undefined })}><span>{topic.officialTopicNumber || index + 1}</span><strong>{topic.name.replace(/^\d+\s+/, '')}</strong><small>{topic.mastery == null ? 'Not started' : `${topic.mastery}% mastery`}</small><i><b style={{ width: `${topic.mastery || 0}%` }} /></i></button>)}</div></section>
+    </main>
+    <aside className="dashboard-aside"><section className="weekly-card"><p>Weekly target</p><div className={`goal-ring ${goalComplete ? 'complete' : ''}`} style={{ '--goal': `${weeklyPercent * 3.6}deg` }}><strong>{goalComplete ? 'Done' : `${Math.min(learningProgress.week.completedQuestions, learningProgress.week.targetQuestions)}/${learningProgress.week.targetQuestions}`}</strong><span>{goalComplete ? 'Goal complete' : `${weeklyPercent}%`}</span></div><div className="weekly-card__footer"><span><span className="streak-flame">●</span>{learningProgress.streak} day streak</span><small>{goalComplete ? 'Next: review one weak topic.' : `${learningProgress.week.targetQuestions - learningProgress.week.completedQuestions} questions to go`}</small></div></section><section className="tutor-card"><header><span className="action-icon blue"><Brain size={20} /></span><small>AI Tutor</small></header><h2>Your science and maths coach</h2><p>Ask for a screenshot hint, a check of your method, or a sourced topic drill.</p><button type="button" className="secondary-action" onClick={openCoach}><Sparkles size={16} />Chat with AI Tutor</button></section><section className="dashboard-panel milestones-compact"><header><div><p className="section-label">This week</p><h2>Next milestones</h2></div></header>{learningProgress.milestones.slice(0, 3).map((milestone) => <div key={milestone.id}><span className={milestone.complete ? 'milestone-dot complete' : 'milestone-dot'}>{milestone.complete ? <CheckCircle2 size={13} /> : null}</span><p><strong>{milestone.label}</strong><small>{Math.min(milestone.value, milestone.target)}/{milestone.target} {milestone.unit}</small></p><i><b style={{ width: `${milestone.percentage}%` }} /></i></div>)}</section></aside>
+  </section>
+}
+
+function StudyAction({ icon, tone, title, detail, action, onClick }) {
+  return <button type="button" onClick={onClick}><span className={`action-icon ${tone}`}>{icon}</span><strong>{title}</strong><small>{detail}</small><em>{action} <ChevronRight size={15} /></em></button>
+}
+
+function Stat({ label, value, detail }) {
+  return <div><span>{label}</span><strong>{value}</strong><small>{detail}</small></div>
+}
+
+function MiniUnitPanel({ eyebrow, title, empty, units, icon, openPractice, onManage, favorite = false }) {
+  return <section className="dashboard-panel recent-panel"><header><div><p className="section-label">{eyebrow}</p><h2>{title}</h2></div><button type="button" className="text-action" onClick={onManage}>Library <ChevronRight size={15} /></button></header>{units.length ? <div className="mini-unit-list">{units.map((unit) => <button type="button" key={unit.id} onClick={() => openPractice(unit)}><span>{favorite ? <Heart size={16} fill="currentColor" /> : unit.code || subjects.find((subject) => subject.id === unit.subjectId)?.code}</span><div><strong>{unit.title}</strong><small>{unit.topic} · {unit.estimatedMinutes} min</small></div><ChevronRight size={16} /></button>)}</div> : <div className="compact-empty">{icon}<span>{empty}</span></div>}</section>
+}
+
+function PlayIcon() {
+  return <span className="play-icon" aria-hidden="true">▶</span>
+}
+
+function ModeCard({ icon, title, detail, accent, onClick }) {
+  return <button type="button" className={`mode-card mode-${accent}`} onClick={onClick}><span className="mode-icon">{icon}</span><span className="mode-copy"><strong>{title}</strong><small>{detail}</small></span><ChevronRight size={17} /></button>
+}
+
+function Metric({ icon, label, value, detail }) {
+  return (
+    <div className="metric">
+      <span className="metric-icon">{icon}</span>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{detail}</small>
+    </div>
+  )
+}
+
+function LibraryView({
+  activeTab,
+  setActiveTab,
+  subjectFilter,
+  setSubjectFilter,
+  completionFilter,
+  setCompletionFilter,
+  query,
+  setQuery,
+  visibleUnits,
+  completionByUnit,
+  favoriteUnitIds,
+  onToggleFavorite,
+  mistakes,
+  paperMistakes,
+  startPractice,
+  retestPaper,
+  paperCatalogState,
+  openPaper,
+  openPaperLibraryForSubject,
+  startKnowledgeDrill,
+  catalogItems,
+}) {
+  const incomingContext = getIncomingProductContext()
+  const contextSubject = subjects.find((subject) => subject.id === incomingContext.subjectId)
+  return (
+    <section className="library-view page-band">
+      <div className="library-header">
+        <div>
+          <p className="section-label">Practice</p>
+          <h1>Find the right question, faster.</h1>
+          <p className="library-header__intro">Choose a syllabus topic, a paper, or a short set from your recent mistakes.</p>
+        </div>
+        <div className="tabs" role="tablist" aria-label="Practice type">
+          <button className={activeTab === 'topics' ? 'active' : ''} type="button" onClick={() => setActiveTab('topics')}>
+            Knowledge
+          </button>
+          <button className={activeTab === 'exams' ? 'active' : ''} type="button" onClick={() => setActiveTab('exams')}>
+            Timed sets
+          </button>
+          <button className={activeTab === 'papers' ? 'active' : ''} type="button" onClick={() => setActiveTab('papers')}>
+            Paper PDFs
+          </button>
+          <button className={activeTab === 'mistakes' ? 'active' : ''} type="button" onClick={() => setActiveTab('mistakes')}>
+            Mistakes
+          </button>
+          <button className={activeTab === 'saved' ? 'active' : ''} type="button" onClick={() => setActiveTab('saved')}>
+            Saved
+          </button>
+        </div>
+      </div>
+
+      {incomingContext.from === 'ieltsist' && <div className="product-bridge-band" role="status"><span className="product-bridge-icon"><Brain size={17} /></span><div><strong>From IELTS-ist Vocabulary</strong><p>{contextSubject ? `You are ready to practise ${contextSubject.name} concepts.` : 'Use IELTS-ist for language support, then practise the subject here.'}</p></div><a href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer">Open IELTS Vocabulary <ChevronRight size={15} /></a></div>}
+
+      {activeTab === 'papers' && <PaperLibrary catalogState={paperCatalogState} initialSubject={subjects.find((subject) => subject.id === subjectFilter)?.code} onOpenPaper={openPaper} />}
+
+      {activeTab === 'exams' && <PaperLibrary catalogState={paperCatalogState} initialSubject={subjects.find((subject) => subject.id === subjectFilter)?.code} onOpenPaper={openPaper} />}
+
+      {activeTab === 'topics' && (
+        <><KnowledgeMap subjectFilter={subjectFilter} setSubjectFilter={setSubjectFilter} completionByUnit={completionByUnit} startPractice={startPractice} startKnowledgeDrill={startKnowledgeDrill} openPapers={openPaperLibraryForSubject} catalogItems={catalogItems} verifiedUnits={visibleUnits} practiceOptions={coachPracticeOptions()} />
+        <div className="toolbar" aria-label="Library filters">
+          <label className="search-box">
+            <Search size={17} />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search topic, paper, source" />
+          </label>
+          <label>
+            <Filter size={17} />
+            <select value={subjectFilter} onChange={(event) => setSubjectFilter(event.target.value)}>
+              <option value="all">All subjects</option>
+              {subjects.map((subject) => (
+                <option value={subject.id} key={subject.id}>
+                  {subject.name} {subject.code}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Status
+            <select value={completionFilter} onChange={(event) => setCompletionFilter(event.target.value)}>
+              <option value="all">All</option>
+              <option value="open">Not completed</option>
+              <option value="completed">Completed</option>
+            </select>
+          </label>
+        </div></>
+      )}
+
+      {activeTab === 'mistakes' ? (
+        <MistakeList mistakes={mistakes} paperMistakes={paperMistakes} startPractice={startPractice} retestPaper={retestPaper} />
+      ) : activeTab === 'papers' || activeTab === 'exams' ? null : (activeTab === 'saved' ? visibleUnits.filter((unit) => favoriteUnitIds.includes(unit.id)) : visibleUnits).length ? (
+        <div className="unit-grid">
+          {(activeTab === 'saved' ? visibleUnits.filter((unit) => favoriteUnitIds.includes(unit.id)) : visibleUnits).map((unit) => (
+            <UnitCard key={unit.id} unit={unit} completion={completionByUnit[unit.id]} startPractice={startPractice} favorite={favoriteUnitIds.includes(unit.id)} onToggleFavorite={onToggleFavorite} />
+          ))}
+        </div>
+      ) : (
+        <div className="empty-state">
+          <Brain size={28} />
+          <h2>{activeTab === 'saved' ? 'No saved practice yet' : 'No items match these filters'}</h2>
+          <p>{activeTab === 'saved' ? 'Use the heart on any practice card to keep it ready for later.' : 'Clear filters or switch subject to rebuild the practice queue.'}</p>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function KnowledgeMap({ subjectFilter, setSubjectFilter, completionByUnit, startPractice, startKnowledgeDrill, openPapers, catalogItems, verifiedUnits, practiceOptions }) {
+  const [inventoryError, setInventoryError] = useState('')
+  const planSubjectByAppSubject = { 'igcse-math': 'math-0580', 'additional-math': 'math-0606', physics: 'physics-9702', 'igcse-physics': 'physics-0625', biology: 'biology-9700', 'igcse-biology': 'biology-0610', chemistry: 'chemistry-9701', economics: 'economics-9708', math: 'math-9709', 'further-math': 'math-9231' }
+  const appSubjectByPlanSubject = Object.fromEntries(Object.entries(planSubjectByAppSubject).map(([appSubject, planSubject]) => [planSubject, appSubject]))
+  const selectedPlanSubject = subjectFilter === 'all' ? 'physics-9702' : planSubjectByAppSubject[subjectFilter]
+  const planSubject = learningPlan.subjects.find((subject) => subject.id === selectedPlanSubject)
+  const contestSubject = practiceOptions.find((subject) => subject.id === subjectFilter)
+  const groups = planSubject ? (planSubject.knowledgeGroupIds || [])
+    .map((groupId) => learningPlan.knowledgeGroups.find((group) => group.id === groupId))
+    .filter((group) => group && !group.hidden) : (contestSubject?.topics || []).map((topic) => ({
+      id: topic.id,
+      name: topic.label,
+      description: `${contestSubject.label} official archive questions with paired source answers.`,
+      themes: [],
+      skills: ['choose a method', 'show complete working', 'check the conclusion'],
+      stageTags: contestSubject.stages,
+      contestStages: contestSubject.stages,
+      subjectId: contestSubject.id,
+    }))
+
+  function unitsForGroup(group) {
+    return verifiedUnits.filter((unit) => unit.knowledgeGroupId === group.id)
+  }
+
+  function stageOptionsForGroup(group) {
+    if (group.contestStages) return group.contestStages
+    if (group.subjectId === 'math-0580' || group.subjectId === 'math-0606' || group.subjectId === 'physics-0625') return ['IGCSE']
+    return stagesForComponentTags(group.stageTags)
+  }
+
+  function startGroupDrill(group, fallbackUnit, stage, available) {
+    const appSubjectId = appSubjectByPlanSubject[group.subjectId] || subjectFilter
+    if (startKnowledgeDrill && appSubjectId && appSubjectId !== 'all' && available > 0) {
+      try {
+        setInventoryError('')
+        startKnowledgeDrill({ subjectId: appSubjectId, stage, knowledgeGroupId: group.id, questionCount: Math.min(10, available), allowPartial: true })
+      } catch (error) {
+        setInventoryError(error.message || 'This topic has no verified source question yet.')
+      }
+      return
+    }
+    if (fallbackUnit) startPractice(fallbackUnit)
+    else openPapers(appSubjectId || 'all')
+  }
+
+  return (
+    <section className="knowledge-map">
+      <header><div><p className="section-label">Syllabus practice</p><h2>Pick the course, stage and topic you need today.</h2><p>Each drill follows the current Cambridge syllabus and uses only question-level items that are already indexed to their paired QP and mark scheme. Smaller inventories remain available and are labelled by stage.</p><div className="knowledge-links">{planSubject?.syllabusUrl && <a className="syllabus-link" href={planSubject.syllabusUrl} target="_blank" rel="noreferrer">Cambridge {planSubject.code} official syllabus <ChevronRight size={14} /></a>}<a className="syllabus-link" href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer">Review subject vocabulary <ChevronRight size={14} /></a></div></div><div className="subject-segments">{subjects.map((subject) => <button type="button" className={(subjectFilter === subject.id || (subjectFilter === 'all' && subject.id === 'physics')) ? 'active' : ''} key={subject.id} onClick={() => setSubjectFilter(subject.id)}><strong>{subject.code}</strong><span>{subject.name}</span></button>)}</div></header>
+      {inventoryError && <div className="inventory-alert" role="alert"><AlertTriangle size={18} /><span>{inventoryError}</span></div>}
+      <div className="knowledge-rows">{groups.map((group) => {
+        const units = unitsForGroup(group)
+        const unit = units[0]
+        const percentages = units.map((item) => completionByUnit[item.id]?.best?.percentage).filter((value) => value != null)
+        const percentage = percentages.length ? Math.max(...percentages) : null
+        const stage = percentage == null ? 'Not started' : percentage >= 80 ? 'Secure' : 'Practising'
+        const appSubjectId = appSubjectByPlanSubject[group.subjectId] || subjectFilter
+        const stageOptions = stageOptionsForGroup(group)
+        const previews = stageOptions.map((stageName) => ({
+          stage: stageName,
+          sourceMix: previewCoachPracticeSourceMix({
+            subjectId: appSubjectId,
+            stage: stageName,
+            knowledgeGroupId: group.id,
+            questionCount: 10,
+            catalogItems,
+          }),
+        }))
+        const primaryPreview = previews[0]?.sourceMix
+        const subjectCode = subjects.find((subject) => subject.id === appSubjectId)?.code || 'selected'
+        return <article className="knowledge-row" key={group.id}><div className="knowledge-stage"><span>{stage}</span>{group.stageTags?.length > 0 && <small>{group.stageTags.join(' / ')}</small>}<div className="mini-progress"><i style={{ width: `${percentage ?? 4}%` }} /></div></div><div className="knowledge-copy"><h3>{group.name}</h3><p>{group.description}</p><div className="knowledge-themes">{group.themes.map((theme) => <span key={theme}>{theme}</span>)}</div><small className="knowledge-skill-line">Skills: {(group.skills || []).slice(0, 3).join(' · ')}</small><div className="knowledge-source-preview" aria-label={`${group.name} drill source inventory`}>{previews.map((preview) => <span className={preview.sourceMix.status === 'empty' ? 'not-ready' : preview.sourceMix.partial ? 'partial' : 'ready'} key={preview.stage}><strong>{preview.stage}</strong>{preview.sourceMix.available} verified{preview.sourceMix.partial ? ' · partial' : ''}</span>)}</div><small className="knowledge-source-policy">Stage availability is real question-level inventory. It never blocks access to other indexed content.</small></div><div className="knowledge-action"><strong>{percentage == null ? `${primaryPreview?.available || 0} verified questions` : `${percentage}% best`}</strong><div className="knowledge-drill-buttons">{stageOptions.map((stageName) => { const preview = previews.find((item) => item.stage === stageName)?.sourceMix; const count = Math.min(10, preview?.available || 0); return <button type="button" className="card-action" key={stageName} disabled={!count} onClick={() => startGroupDrill(group, unit, stageName, count)}>{count ? `Build ${stageName} drill · ${count} question${count === 1 ? '' : 's'}` : `${stageName} · no source indexed`}<ChevronRight size={15} /></button> })}</div><button type="button" className="text-action" onClick={() => openPapers(appSubjectId)}>Open {subjectCode} papers</button></div></article>
+      })}</div>
+    </section>
+  )
+}
+
+function UnitCard({ unit, completion, startPractice, favorite, onToggleFavorite }) {
+  const subject = subjects.find((item) => item.id === unit.subjectId)
+
+  return (
+    <article className="unit-card">
+      <div className="unit-topline">
+        <span className="large-icon" style={{ color: subject?.accent }}>
+          {unit.icon}
+        </span>
+        <span className="status-pill">{unit.agentGenerated ? 'AI Coach set' : unit.priority}</span>
+        <button type="button" className={`unit-favorite ${favorite ? 'saved' : ''}`} onClick={() => onToggleFavorite(unit.id)} aria-label={favorite ? `Remove ${unit.title} from saved practice` : `Save ${unit.title} for later`}><Heart size={17} fill={favorite ? 'currentColor' : 'none'} /></button>
+      </div>
+      <h2>{unit.title}</h2>
+      <p>{unit.topic} · {unit.subtopic || unit.specification}</p>
+      <div className="unit-meta">
+        <span>{unit.board}</span>
+        <span>{unit.estimatedMinutes} min</span>
+        <span>{unit.maxMarks} marks</span>
+        {unit.referencePapers?.length > 0 && <span>{unit.referencePapers.length} paper refs</span>}
+      </div>
+      <div className="completion-line">
+        <span>{completion.completed ? 'Completed' : 'Not completed'}</span>
+        <strong>{completion.latest ? `${completion.latest.rawMarks}/${completion.latest.maxMarks}` : 'No score'}</strong>
+      </div>
+      <button type="button" className="card-action" onClick={() => startPractice(unit)}>
+        {completion.completed ? 'Practise again' : 'Start'}
+      </button>
+    </article>
+  )
+}
+
+function MistakeList({ mistakes, paperMistakes, startPractice, retestPaper }) {
+  if (!mistakes.length && !paperMistakes.length) {
+    return (
+      <div className="empty-state">
+        <CheckCircle2 size={28} />
+        <h2>No mistakes yet</h2>
+        <p>Submit a practice attempt and weak parts will appear here with linked retests.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mistake-list">
+      {mistakes.map((mistake) => (
+        <article className="mistake-row" key={mistake.id}>
+          <div>
+            <span className="status-pill danger">{mistake.severity}</span>
+            <h2>{mistake.unit.title} · part {mistake.part.label}</h2>
+            <p>{mistake.criterion.feedback}</p>
+          </div>
+          <div className="mistake-score">
+            <strong>{mistake.criterion.awarded}/{mistake.criterion.maxMarks}</strong>
+            <small>{mistake.status}</small>
+          </div>
+          <button type="button" className="secondary-action compact-action" onClick={() => startPractice(mistake.unit, { clearDraft: true, retestOf: mistake.attempt.id, onlyPartId: mistake.part.id })}>
+            <RefreshCcw size={16} />
+            Retest
+          </button>
+        </article>
+      ))}
+      {paperMistakes.map((mistake) => (
+        <article className="mistake-row paper-mistake-row" key={mistake.id}>
+          <div>
+            <span className="status-pill danger">{mistake.severity}</span>
+            <h2>{mistake.session.file} · question {mistake.questionNumber}</h2>
+            <p>{mistake.status === 'Blank response' ? 'No final response was submitted for this printed question.' : mistake.status === 'Self-mark needed' ? 'Compare this response with the exact mark scheme and record the awarded marks.' : 'The latest self-mark is below the recorded available marks.'}</p>
+          </div>
+          <div className="mistake-score">
+            <strong>{mistake.awarded == null ? '—' : mistake.awarded}/{mistake.maxMarks == null ? '?' : mistake.maxMarks}</strong>
+            <small>{mistake.status}</small>
+          </div>
+          <button type="button" className="secondary-action compact-action" onClick={() => retestPaper(mistake.paper, mistake.session.attemptId)}>
+            <RefreshCcw size={16} />
+            Retest paper
+          </button>
+        </article>
+      ))}
+    </div>
+  )
+}
+
+function ResultView({ attempt, unit, startPractice, goLibrary }) {
+  const result = attempt.scoreResult
+  const assisted = attempt.assistedReview
+  const weakest = result.weakestPartId ? unit.parts.find((part) => part.id === result.weakestPartId) : null
+  const answeredParts = unit.parts.filter((part) => Boolean(String(attempt.answers?.[part.id] || attempt.working?.[part.id] || '').trim()) || Boolean(attempt.evidence?.[part.id])).length
+  const assessmentState = answeredParts ? (result.percentage >= 80 ? 'Secure' : result.percentage >= 50 ? 'In progress' : 'Needs review') : 'Not assessed'
+  const assessmentCopy = answeredParts ? `${answeredParts}/${unit.parts.length} responses submitted` : 'No answer evidence was submitted'
+  const stemReturnUrl = typeof window === 'undefined' ? '' : `${window.location.origin}/?from=ieltsist&focus=${encodeURIComponent(unit.subjectId || '')}&return_attempt=${encodeURIComponent(attempt.id)}`
+  const termsUrl = `https://ieltsist.com/?from=stem&focus=language&subject=${encodeURIComponent(unit.code || unit.board || '')}&topic=${encodeURIComponent(unit.topic || '')}&term_ids=${encodeURIComponent((weakest?.topicTags || []).join(','))}&return_to=${encodeURIComponent(stemReturnUrl)}#vocabulary`
+
+  return (
+    <section className="result-view page-band">
+      <div className="result-hero">
+        <div>
+          <p className="section-label">Result</p>
+          <h1>{result.rawMarks}/{result.maxMarks} marks</h1>
+          <p><span className={`result-status result-status--${assessmentState.toLowerCase().replaceAll(' ', '-')}`}>{assessmentState}</span>{assessmentCopy} · {result.gradeEstimate}</p>
+        </div>
+        <div className="result-actions">
+          <button type="button" className="primary-action" onClick={() => startPractice(unit, { clearDraft: true, retestOf: attempt.id })}>
+            <RefreshCcw size={18} />
+            Retest
+          </button>
+          <button type="button" className="secondary-action" onClick={goLibrary}>
+            <Library size={18} />
+            Back to library
+          </button>
+        </div>
+      </div>
+
+      <section className="result-learning-signal" aria-label="Mastery change">
+        <div><p className="section-label">Learning signal</p><h2>What changed after this attempt</h2><p>{attempt.learningSignal?.masteryBefore == null ? 'This is the first verified result for this set. Keep the evidence and compare it after your retest.' : 'The change is based on your prior submitted attempts for this same verified set.'}</p></div>
+        <div className="mastery-delta"><span>Mastery</span><strong>{attempt.learningSignal?.masteryBefore == null ? `${result.percentage}%` : `${attempt.learningSignal.masteryBefore}% → ${attempt.learningSignal.masteryAfter}%`}</strong><small className={attempt.learningSignal?.masteryDelta > 0 ? 'up' : attempt.learningSignal?.masteryDelta < 0 ? 'down' : ''}>{attempt.learningSignal?.masteryDelta == null ? 'Baseline recorded' : `${attempt.learningSignal.masteryDelta > 0 ? '+' : ''}${attempt.learningSignal.masteryDelta}% from your previous average`}</small></div>
+        <a className="terms-recommendation" href={termsUrl} target="_blank" rel="noreferrer"><Brain size={18} /><span><strong>Professional terms for this question</strong><small>{(weakest?.topicTags || [unit.topic]).slice(0, 3).join(' · ')}</small></span><ChevronRight size={16} /></a>
+      </section>
+
+      {assisted && (
+        <section className="ai-review-summary">
+          <header><span className="ai-review-icon"><Sparkles size={19} /></span><div><p className="section-label">Process review</p><h2>{assisted.overallLabel}</h2><p>Objective typed answers use deterministic checks. Handwriting marks are AI-assisted suggestions with confidence and review status, not an official Cambridge decision.</p></div><div className="confidence-meter"><span>Confidence</span><strong>{Math.round(assisted.confidence * 100)}%</strong></div></header>
+          <div className="ai-review-grid"><div><span className="review-label secure">What worked</span>{assisted.strengths.length ? <ul>{assisted.strengths.slice(0, 3).map((item) => <li key={item}>{item}</li>)}</ul> : <p>No secure evidence yet.</p>}</div><div><span className="review-label gap">Marks still available</span>{assisted.gaps.length ? <ul>{assisted.gaps.slice(0, 3).map((item) => <li key={item}>{item}</li>)}</ul> : <p>No missing mark points detected.</p>}</div><div><span className="review-label next">Do this next</span><p>{assisted.nextStep}</p>{assisted.suggestedRetest.recommended && <button type="button" className="text-action" onClick={() => startPractice(unit, { clearDraft: true, retestOf: attempt.id })}>Build focused retest <ChevronRight size={15} /></button>}</div></div>
+          {attempt.imageEvidence?.length > 0 && <div className="image-evidence-review"><div><strong>Handwritten responses</strong><span>{attempt.imageEvidence.length} response image{attempt.imageEvidence.length === 1 ? '' : 's'} saved with this attempt. Configured vision results are shown beside each question below.</span></div>{attempt.imageEvidence.map((evidence) => <figure key={evidence.partId}><img src={evidence.dataUrl} alt={`Handwritten response for part ${evidence.partId}`} /><figcaption>Part {unit.parts.find((part) => part.id === evidence.partId)?.label || evidence.partId}</figcaption></figure>)}</div>}
+        </section>
+      )}
+
+      <section className="result-next-step" aria-label="Next study step"><div><p className="section-label">Next step</p><h2>Turn this feedback into another attempt</h2><p>{weakest ? `Revisit ${weakest.topic || unit.topic}, then retest the specific mark point you missed.` : 'Keep the method active with a short retest and the related professional terms.'}</p></div><div className="result-next-actions"><button type="button" className="primary-action" onClick={() => startPractice(unit, { clearDraft: true, retestOf: attempt.id })}><RefreshCcw size={17} />Retest this idea</button><a className="secondary-action" href={termsUrl} target="_blank" rel="noreferrer"><Brain size={17} />Review professional terms</a></div></section>
+
+      <div className="result-grid">
+        <section className="wide-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="section-label">Evidence</p>
+              <h2>{weakest ? `Weakest part: ${weakest.label}` : 'All seed checks secure'}</h2>
+            </div>
+            <strong>{result.percentage}%</strong>
+          </div>
+          <div className="criteria-list">
+            {result.criteria.map((criterion, criterionIndex) => {
+              const part = unit.parts.find((item) => item.id === criterion.partId)
+              const assistedPart = assisted?.parts?.[criterionIndex]
+              const visionPart = attempt.visionReviews?.[criterion.partId]
+              return (
+                <article className="criterion" key={criterion.partId}>
+                  <div>
+                    <h3>Part {part.label}: {criterion.awarded}/{criterion.maxMarks}</h3>
+                    <p>{criterion.feedback}</p>
+                    <div className="student-submission">
+                      <span>Your response</span>
+                      <strong>{attempt.answers[part.id] || (attempt.evidence?.[part.id] ? 'Handwritten response submitted' : 'No answer submitted')}</strong>
+                      {attempt.working?.[part.id] && !attempt.answers[part.id] && <pre>{attempt.working[part.id]}</pre>}
+                    </div>
+                    {visionPart?.status === 'success' && <div className="vision-result-inline"><header><Sparkles size={14} /><strong>Handwriting review: {visionPart.rawMarks}/{visionPart.maxMarks}</strong><span>{Math.round(visionPart.confidence * 100)}% confidence{visionPart.reviewRequired ? ' · check required' : ''}</span></header>{visionPart.recognizedWork && <p>{visionPart.recognizedWork}</p>}{visionPart.correctedSolution && <details><summary>Correction</summary><p>{visionPart.correctedSolution}</p></details>}</div>}
+                    {visionPart?.status === 'unconfigured' && <p className="vision-result-inactive">AI handwriting marking was not configured; this image is saved for manual review.</p>}
+                    {visionPart?.status === 'error' && <p className="vision-result-inactive">{visionPart.error}</p>}
+                    {part.sourceRef?.markSchemeUrl && <a className="mark-scheme-link" href={part.sourceRef.markSchemeUrl} target="_blank" rel="noreferrer">Open exact mark scheme for {part.sourceRef.question}</a>}
+                    {part.answerRef && <div className="official-answer"><header><strong>Official mark scheme</strong><a className="mark-scheme-link" href={part.answerRef.localUrl} target="_blank" rel="noreferrer">Open {part.answerRef.file}</a></header>{part.answerRef.assetUrls?.map((url) => <img src={url} alt={`${part.answerRef.file}, answer for ${part.sourceRef?.question}`} loading="lazy" key={url} />)}{part.exactAnswer && <details><summary>Extracted mark-scheme text</summary><p>{part.exactAnswer}</p></details>}</div>}
+                  </div>
+                  <div className="mark-points">
+                    {criterion.evidence.map((point) => (
+                      <span className={point.awarded ? 'awarded' : ''} key={point.pointId}>
+                        {point.awarded ? '✓' : '○'} {point.point}
+                      </span>
+                    ))}
+                    {assistedPart && <div className="assisted-part-note"><Sparkles size={14} /><span>{assistedPart.nextStep}</span></div>}
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        </section>
+
+        <aside className="source-panel">
+          <p className="section-label">Attempt record</p>
+          <dl className="record-list">
+            <div>
+              <dt>Started</dt>
+              <dd>{formatDate(attempt.startedAt)}</dd>
+            </div>
+            <div>
+              <dt>Elapsed</dt>
+              <dd>{formatTime(result.elapsedSec)}</dd>
+            </div>
+            <div>
+              <dt>Scoring</dt>
+              <dd>{result.schemaVersion}</dd>
+            </div>
+            <div>
+              <dt>Confidence</dt>
+              <dd>{Math.round(result.confidence * 100)}%</dd>
+            </div>
+          </dl>
+        </aside>
+      </div>
+    </section>
+  )
+}
+
+export default App
