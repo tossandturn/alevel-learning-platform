@@ -1,0 +1,33 @@
+{
+  "name": "alevel-learning-platform",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "catalog": "node scripts/generate-paper-catalog.mjs",
+    "questions:index": "node scripts/import-question-index.mjs",
+    "questions:audit": "node scripts/audit-question-bank.mjs",
+    "build": "vite build",
+    "lint": "oxlint",
+    "test": "node scripts/smoke.mjs",
+    "test:shared-workspace": "node scripts/test-shared-workspace.mjs",
+    "qa:browser": "node scripts/qa-browser.cjs",
+    "qa:coach": "node scripts/qa-coach-generated.cjs",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "lucide-react": "^1.28.0",
+    "pdfjs-dist": "^6.2.108",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.4",
+    "oxlint": "^1.75.0",
+    "vite": "^8.2.0",
+    "vite-plugin-static-copy": "^4.1.1"
+  }
+}

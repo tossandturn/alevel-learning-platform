@@ -1,0 +1,154 @@
+import importedQuestionIndex from './importedQuestionIndex.json' with { type: 'json' }
+
+const REQUIRED_SOURCE_FIELDS = ['paperId', 'paper', 'question', 'localUrl', 'pageStart', 'sha256']
+const REQUIRED_ANSWER_FIELDS = ['documentId', 'file', 'localUrl', 'pageStart', 'sha256']
+
+function joinedIndexItems(index) {
+  if (Array.isArray(index.items)) return index.items
+  const answers = new Map((index.answers || []).map((answer) => [answer.answerId, answer]))
+  const bindings = new Map((index.bindings || []).map((binding) => [binding.questionId, binding]))
+  return (index.questions || []).map((question) => {
+    const binding = bindings.get(question.questionId)
+    const answer = answers.get(binding?.answerId)
+    return answer ? { ...question, ...answer, bankId: question.questionId, answerBinding: binding } : question
+  })
+}
+
+function hasRequiredFields(value, fields) {
+  return value && fields.every((field) => value[field] !== undefined && value[field] !== null && value[field] !== '')
+}
+
+export function isVerifiedPastPaperItem(question) {
+  return Boolean(
+    question
+    && question.sourceKind === 'past-paper'
+    && question.bankId
+    && question.qualificationId
+    && question.knowledgeGroupId
+    && Array.isArray(question.topicTags)
+    && question.topicTags.length
+    && question.answerBinding
+    && (question.answerBinding.verificationStatus === 'machine-indexed' || question.answerBinding.verificationStatus === 'reviewed')
+    && question.answerBinding.questionDocumentSha256 === question.sourceRef?.sha256
+    && question.answerBinding.answerDocumentSha256 === question.answerRef?.sha256
+    && hasRequiredFields(question.sourceRef, REQUIRED_SOURCE_FIELDS)
+    && hasRequiredFields(question.answerRef, REQUIRED_ANSWER_FIELDS),
+  )
+}
+
+export function normalizeImportedQuestion(question) {
+  const sourceRef = { ...(question.sourceRef || {}), page: question.sourceRef?.page ?? question.sourceRef?.pageStart }
+  const answerRef = question.answerRef || {}
+  return Object.freeze({
+    ...question,
+    sourceKind: 'past-paper',
+    answerType: question.answerType || 'handwritten',
+    marks: Math.max(1, Number(question.marks) || 1),
+    stageTags: [...new Set(question.stageTags || [])],
+    componentTags: [...new Set(question.componentTags || [])],
+    topicTags: [...new Set(question.topicTags || [])],
+    skillTags: [...new Set(question.skillTags || [])],
+    sourceRef: Object.freeze(sourceRef),
+    answerRef: Object.freeze(answerRef),
+    provenance: Object.freeze({
+      source: 'Official question paper and exact paired mark scheme',
+      licenseStatus: question.provenance?.licenseStatus || 'Official exam material; personal study library',
+      paperRef: sourceRef.paper,
+      indexedAt: question.provenance?.indexedAt || importedQuestionIndex.generatedAt,
+    }),
+  })
+}
+
+export const unifiedQuestionBank = Object.freeze(
+  joinedIndexItems(importedQuestionIndex).map(normalizeImportedQuestion).filter(isVerifiedPastPaperItem),
+)
+
+export function selectTaggedQuestions({
+  qualificationId,
+  subjectId,
+  stage,
+  knowledgeGroupId,
+  questionCount = 10,
+  questionBank = unifiedQuestionBank,
+}) {
+  const requestedCount = Math.min(30, Math.max(10, Number(questionCount) || 10))
+  const candidates = questionBank.filter((question) => (
+    (!qualificationId || question.qualificationId === qualificationId)
+    && (!subjectId || question.subjectId === subjectId)
+    && question.knowledgeGroupId === knowledgeGroupId
+    && (!stage || question.stageTags.includes(stage))
+    && isVerifiedPastPaperItem(question)
+  ))
+
+  const sorted = candidates.toSorted((left, right) => (
+      (Number(right.sourceRef?.year) || 0) - (Number(left.sourceRef?.year) || 0)
+      || String(left.sourceRef?.paper).localeCompare(String(right.sourceRef?.paper))
+      || String(left.sourceRef?.question).localeCompare(String(right.sourceRef?.question), undefined, { numeric: true })
+    ))
+
+  // A topic may contain many MCQs from one recent paper and only a few
+  // structured parts. Round-robin the available answer surfaces and papers so
+  // a 10-question drill remains useful for both exam recognition and working.
+  const interleaveByPaper = (items) => {
+    const byPaper = Map.groupBy(items, (question) => question.sourceRef?.paperId || question.sourceRef?.paper)
+    const paperBuckets = [...byPaper.values()]
+    const result = []
+    let cursor = 0
+    while (result.length < items.length) {
+      let added = false
+      for (const bucket of paperBuckets) {
+        if (cursor < bucket.length) {
+          result.push(bucket[cursor])
+          added = true
+        }
+      }
+      if (!added) break
+      cursor += 1
+    }
+    return result
+  }
+  const byType = Map.groupBy(sorted, (question) => question.answerType || 'handwritten')
+  for (const [type, items] of byType) byType.set(type, interleaveByPaper(items))
+  const typeOrder = ['handwritten', 'numeric', 'graph', 'multiple-choice']
+  const types = [...byType.keys()].toSorted((left, right) => {
+    const leftRank = typeOrder.indexOf(left)
+    const rightRank = typeOrder.indexOf(right)
+    return (leftRank < 0 ? typeOrder.length : leftRank) - (rightRank < 0 ? typeOrder.length : rightRank) || left.localeCompare(right)
+  })
+  const cursors = new Map(types.map((type) => [type, 0]))
+  const selected = []
+
+  while (selected.length < requestedCount) {
+    let added = false
+    for (const type of types) {
+      const index = cursors.get(type)
+      const bucket = byType.get(type)
+      if (index >= bucket.length) continue
+      selected.push(bucket[index])
+      cursors.set(type, index + 1)
+      added = true
+      if (selected.length >= requestedCount) break
+    }
+    if (!added) break
+  }
+
+  return selected
+}
+
+export function questionInventory({ qualificationId, subjectId, stage, knowledgeGroupId, questionBank = unifiedQuestionBank }) {
+  return questionBank.filter((question) => (
+    (!qualificationId || question.qualificationId === qualificationId)
+    && (!subjectId || question.subjectId === subjectId)
+    && (!stage || question.stageTags.includes(stage))
+    && (!knowledgeGroupId || question.knowledgeGroupId === knowledgeGroupId)
+    && isVerifiedPastPaperItem(question)
+  )).length
+}
+
+export function sourceMixForQuestions(questions) {
+  return {
+    pastPaperItems: questions.filter(isVerifiedPastPaperItem).length,
+    generatedPractice: 0,
+    referencedPapers: new Set(questions.map((question) => question.sourceRef?.paperId).filter(Boolean)).size,
+  }
+}
