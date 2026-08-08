@@ -41,7 +41,18 @@ function parseIdentity(payload) {
   if (token.length < 32 || !Number.isFinite(expiry) || expiry <= Date.now() + 15_000) {
     throw new SharedAccountError('invalid_identity', 'The shared sign-in response was incomplete. Sign in again to continue.', { loginRequired: true })
   }
-  return { token, expiresAt }
+  return {
+    token,
+    expiresAt,
+    identity: payload?.identity && typeof payload.identity === 'object'
+      ? {
+          id: String(payload.identity.id || ''),
+          username: String(payload.identity.username || ''),
+          avatarDataUrl: String(payload.identity.avatarDataUrl || ''),
+          roles: Array.isArray(payload.identity.roles) ? payload.identity.roles.map(String) : [],
+        }
+      : null,
+  }
 }
 
 async function jsonFetch(url, options = {}, timeoutMs = IDENTITY_TIMEOUT_MS) {
@@ -197,10 +208,28 @@ function safeReturnUrl(value = window.location.href) {
   return target.href
 }
 
-export function sharedLoginUrl(returnTo = window.location.href) {
+export function sharedAuthUrl(mode = 'login', returnTo = window.location.href) {
   const url = new URL('/', IDENTITY_ORIGIN)
   url.searchParams.set('returnTo', safeReturnUrl(returnTo))
+  url.searchParams.set('return_to', safeReturnUrl(returnTo))
   url.searchParams.set('from', 'stem')
+  url.searchParams.set('auth', mode === 'register' ? 'register' : 'login')
+  url.searchParams.set('focus', 'account')
+  url.hash = 'mine'
+  return url.href
+}
+
+export function sharedLoginUrl(returnTo = window.location.href) {
+  return sharedAuthUrl('login', returnTo)
+}
+
+export function sharedLogoutUrl(returnTo = window.location.href) {
+  const url = new URL('/', IDENTITY_ORIGIN)
+  url.searchParams.set('from', 'stem')
+  url.searchParams.set('returnTo', safeReturnUrl(returnTo))
+  url.searchParams.set('return_to', safeReturnUrl(returnTo))
+  url.searchParams.set('auth', 'logout')
+  url.hash = 'mine'
   return url.href
 }
 

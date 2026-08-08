@@ -280,6 +280,14 @@ function appDatabase(env) {
       UNIQUE (assignment_id, student_user_id, idempotency_key)
     );
     CREATE INDEX IF NOT EXISTS idx_submission_events_assignment ON submission_events(assignment_id, student_user_id, occurred_at DESC);
+    CREATE TABLE IF NOT EXISTS private_notes (
+      user_id TEXT NOT NULL,
+      route_id TEXT NOT NULL,
+      body TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, route_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_private_notes_user ON private_notes(user_id, updated_at DESC);
   `)
   migrateRouteScope(database)
   migrateSubmissionIdempotency(database)
@@ -680,10 +688,48 @@ function eventPayload(value) {
 
 export function createStemApi({ env }) {
   const signingKey = String(env.STEM_IDENTITY_SIGNING_KEY || '')
+  const identityOrigin = String(env.IELTSIST_ORIGIN || 'https://ieltsist.com').replace(/\/$/, '')
+  const stemOrigin = String(env.STEM_ORIGIN || 'https://stem.ieltsist.com').replace(/\/$/, '')
   return async function stemApi(request, response, next) {
     const url = new URL(request.url, 'http://127.0.0.1')
-    if (!url.pathname.startsWith('/api/stem/') && url.pathname !== '/api/auth/status') return next()
+    if (!url.pathname.startsWith('/api/stem/') && !['/api/auth/status', '/api/auth/config'].includes(url.pathname)) return next()
     try {
+      if (request.method === 'GET' && url.pathname === '/api/auth/config') {
+        sendJson(response, 200, {
+          protocol: 'stem-sso-v1',
+          provider: 'ieltsist',
+          providerOrigin: identityOrigin,
+          clientOrigin: stemOrigin,
+          browserFlow: {
+            login: `${identityOrigin}/?from=stem&auth=login&return_to=${encodeURIComponent(stemOrigin) }#mine`,
+            register: `${identityOrigin}/?from=stem&auth=register&return_to=${encodeURIComponent(stemOrigin) }#mine`,
+            logout: `${identityOrigin}/?from=stem&auth=logout&return_to=${encodeURIComponent(stemOrigin) }#mine`,
+          },
+          endpoints: {
+            login: `${identityOrigin}/api/auth/login`,
+            register: `${identityOrigin}/api/auth/register`,
+            logout: `${identityOrigin}/api/auth/logout`,
+            currentUser: `${identityOrigin}/api/me`,
+            identityExchange: `${identityOrigin}/api/stem/identity`,
+          },
+          session: {
+            browserCookie: 'ieltsist_session',
+            cookieOwner: 'ieltsist.com',
+            exchange: 'short-lived-hmac-jwt',
+            tokenStorage: 'memory-only',
+          },
+          responses: {
+            loginSuccess: 200,
+            registerSuccess: 200,
+            invalidCredentials: 401,
+            duplicateIdentifier: 409,
+            validationError: 400,
+            logoutSuccess: 200,
+          },
+          note: 'STEM never accepts or stores the IELTSist password. The provider owns account creation and browser logout.',
+        })
+        return
+      }
       const user = identityFromRequest(request, signingKey)
       const db = appDatabase(env)
       if (request.method === 'GET' && url.pathname === '/api/auth/status') {
@@ -692,6 +738,28 @@ export function createStemApi({ env }) {
       }
       if (request.method === 'GET' && url.pathname === '/api/stem/workspace') {
         sendJson(response, 200, currentWorkspace(db, user))
+        return
+      }
+      if (url.pathname === '/api/stem/notebook/notes' && request.method === 'GET') {
+        const routeId = canonicalRouteId(url.searchParams.get('routeId'))
+        const note = db.prepare('SELECT route_id, body, updated_at FROM private_notes WHERE user_id = ? AND route_id = ?').get(user.id, routeId)
+        sendJson(response, 200, { routeId, note: note ? { routeId: note.route_id, body: note.body, updatedAt: note.updated_at } : null, privacy: 'private-to-student' })
+        return
+      }
+      const privateNoteMatch = url.pathname.match(/^\/api\/stem\/notebook\/notes\/([^/]+)$/)
+      if (privateNoteMatch && ['PUT', 'DELETE'].includes(request.method)) {
+        const routeId = canonicalRouteId(decodeURIComponent(privateNoteMatch[1]))
+        if (request.method === 'DELETE') {
+          db.prepare('DELETE FROM private_notes WHERE user_id = ? AND route_id = ?').run(user.id, routeId)
+          sendJson(response, 200, { routeId, note: null, privacy: 'private-to-student' })
+          return
+        }
+        const payload = await readJson(request)
+        const body = asText(payload.body, 20_000)
+        const updatedAt = nowIso()
+        db.prepare(`INSERT INTO private_notes (user_id, route_id, body, updated_at) VALUES (?, ?, ?, ?)
+          ON CONFLICT(user_id, route_id) DO UPDATE SET body = excluded.body, updated_at = excluded.updated_at`).run(user.id, routeId, body, updatedAt)
+        sendJson(response, 200, { routeId, note: { routeId, body, updatedAt }, privacy: 'private-to-student' })
         return
       }
       if (request.method === 'POST' && url.pathname === '/api/stem/classrooms') {

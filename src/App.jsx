@@ -14,6 +14,8 @@ import {
   BookOpen,
   Library,
   ListFilter,
+  LogIn,
+  LogOut,
   Play,
   RefreshCcw,
   Search,
@@ -38,7 +40,7 @@ import { reviewAttempt } from './lib/aiReview'
 import { buildCoachPractice, coachPracticeOptions, previewCoachPracticeSourceMix } from './lib/coachPractice'
 import { latestBphoSpcPaper } from './lib/coachIntent'
 import { buildCompletionByUnit, buildLearningProgress, recommendForRoute } from './lib/learningProgress'
-import { requestSharedAccount, requestSharedWorkspace, sharedAccountRequest } from './lib/sharedAccount'
+import { requestSharedAccount, requestSharedWorkspace, sharedAccountRequest, sharedAuthUrl, sharedLogoutUrl } from './lib/sharedAccount'
 import './App.css'
 import './StudentV2.css'
 
@@ -266,6 +268,7 @@ function App() {
   const [coachOpenRequest, setCoachOpenRequest] = useState(0)
   const [sharedAccount, setSharedAccount] = useState({ status: 'loading', token: '', workspace: null, error: '' })
   const migrationAttemptedRef = useRef(false)
+  const notebookSyncTimerRef = useRef(null)
   const verifiedStarterUnits = useMemo(() => {
     try {
       return [buildCoachPractice({ routeId: 'cie-9702-as-physics', knowledgeGroupId: 'physics-9702-topic-03', questionCount: 10 })]
@@ -364,6 +367,22 @@ function App() {
     const timer = window.setInterval(refreshSharedAccount, 4 * 60 * 1000)
     return () => window.clearInterval(timer)
   }, [refreshSharedAccount])
+
+  useEffect(() => {
+    if (sharedAccount.status !== 'ready' || !sharedAccount.token) return undefined
+    let cancelled = false
+    sharedAccountRequest(sharedAccount.token, `/api/stem/notebook/notes?routeId=${encodeURIComponent(activeRouteId)}`)
+      .then((payload) => {
+        if (cancelled || !payload.note) return
+        setAppState((state) => {
+          const current = state.notebookNotes?.[activeRouteId]
+          if (current?.updatedAt && Date.parse(current.updatedAt) >= Date.parse(payload.note.updatedAt)) return state
+          return { ...state, notebookNotes: { ...(state.notebookNotes || {}), [activeRouteId]: { body: payload.note.body, updatedAt: payload.note.updatedAt, syncStatus: 'synced' } } }
+        })
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [activeRouteId, sharedAccount.status, sharedAccount.token])
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -561,9 +580,38 @@ function App() {
         [activeRouteId]: {
           body: value,
           updatedAt: new Date().toISOString(),
+          syncStatus: sharedAccount.status === 'ready' ? 'pending' : 'local-only',
         },
       },
     }))
+    if (notebookSyncTimerRef.current) window.clearTimeout(notebookSyncTimerRef.current)
+    if (sharedAccount.status === 'ready' && sharedAccount.token) {
+      notebookSyncTimerRef.current = window.setTimeout(async () => {
+        try {
+          await sharedAccountRequest(sharedAccount.token, `/api/stem/notebook/notes/${encodeURIComponent(activeRouteId)}`, { method: 'PUT', body: JSON.stringify({ body: value }) })
+          setAppState((state) => ({
+            ...state,
+            notebookNotes: {
+              ...(state.notebookNotes || {}),
+              [activeRouteId]: { ...(state.notebookNotes?.[activeRouteId] || {}), syncStatus: 'synced' },
+            },
+          }))
+        } catch {
+          setAppState((state) => ({
+            ...state,
+            notebookNotes: {
+              ...(state.notebookNotes || {}),
+              [activeRouteId]: { ...(state.notebookNotes?.[activeRouteId] || {}), syncStatus: 'error' },
+            },
+          }))
+        }
+      }, 650)
+    }
+  }
+
+  function disconnectSharedAccount() {
+    setSharedAccount({ status: 'guest', token: '', workspace: null, error: 'You are signed out of the STEM session.' })
+    window.location.assign(sharedLogoutUrl())
   }
 
   async function createClassroom(name) {
@@ -972,7 +1020,7 @@ function App() {
 
   return (
     <main className="app-shell">
-      {view !== 'practice' && view !== 'paper' && <TopNav view={view} setView={setView} profile={appState.profile} openNotebook={() => setView('notebook')} openRoleWorkspace={() => setView('workspace')} openPractice={() => { setActiveTab('recommended'); setView('library') }} />}
+      {view !== 'practice' && view !== 'paper' && <TopNav view={view} setView={setView} profile={appState.profile} sharedAccount={sharedAccount} onRefreshSharedAccount={refreshSharedAccount} onDisconnectSharedAccount={disconnectSharedAccount} openNotebook={() => setView('notebook')} openRoleWorkspace={() => setView('workspace')} openPractice={() => { setActiveTab('recommended'); setView('library') }} />}
 
       {view === 'dashboard' && (
         <StudentDashboard
@@ -996,9 +1044,11 @@ function App() {
           setQuery={setQuery}
           allPracticeUnits={allPracticeUnits}
           recentPractice={appState.recentPractice || []}
-          favoriteUnitIds={appState.favoriteUnitIds || []}
-          openCoach={() => setCoachOpenRequest((value) => value + 1)}
-          openNotebook={() => setView('notebook')}
+           favoriteUnitIds={appState.favoriteUnitIds || []}
+           openCoach={() => setCoachOpenRequest((value) => value + 1)}
+           sharedAccount={sharedAccount}
+           onRefreshSharedAccount={refreshSharedAccount}
+           openNotebook={() => setView('notebook')}
           openRoleWorkspace={() => setView('workspace')}
         />
       )}
@@ -1169,11 +1219,48 @@ function SessionSetup({ session, onChange, onCancel, onStart }) {
   )
 }
 
-function TopNav({ view, setView, profile, openNotebook, openRoleWorkspace, openPractice }) {
+const STAGE_ORDER = ['IGCSE', 'AS', 'A2', 'Admissions']
+
+function StudentRoutePicker({ activeRoute, routes = courseRoutes, selectRoute, compact = false }) {
+  const [stage, setStage] = useState(activeRoute.stage)
+  useEffect(() => setStage(activeRoute.stage), [activeRoute.stage])
+  const stages = STAGE_ORDER.filter((item) => routes.some((route) => route.stage === item))
+  const stageRoutes = routes.filter((route) => route.stage === stage)
+  const selectedRoute = stageRoutes.some((route) => route.routeId === activeRoute.routeId) ? activeRoute.routeId : stageRoutes[0]?.routeId || activeRoute.routeId
+
+  function changeStage(nextStage) {
+    setStage(nextStage)
+    const nextRoute = routes.find((route) => route.routeId === activeRoute.routeId && route.stage === nextStage) || routes.find((route) => route.stage === nextStage)
+    if (nextRoute && nextRoute.routeId !== activeRoute.routeId) selectRoute(nextRoute.routeId)
+  }
+
+  return <div className={`student-route-picker ${compact ? 'student-route-picker--compact' : ''}`}>
+    <div className="student-route-picker__stages" role="tablist" aria-label="Choose stage">
+      {stages.map((item) => <button type="button" role="tab" aria-selected={stage === item} className={stage === item ? 'active' : ''} key={item} onClick={() => changeStage(item)}>{item}</button>)}
+    </div>
+    <label>
+      <span>{compact ? 'Course' : 'Current course'}</span>
+      <select aria-label="Current course" value={selectedRoute} onChange={(event) => selectRoute(event.target.value)}>
+        {stageRoutes.map((route) => <option value={route.routeId} key={route.routeId}>{routePickerLabel(route)}</option>)}
+      </select>
+    </label>
+    <small className="student-route-picker__selected">Selected: {activeRoute.stage} {activeRoute.subject} · {activeRoute.subjectCode}</small>
+  </div>
+}
+
+function SharedAccountBanner({ sharedAccount, onRefreshSharedAccount }) {
+  if (sharedAccount.status === 'ready') {
+    return <section className="student-account-banner student-account-banner--ready" role="status"><CheckCircle2 size={19} /><div><strong>IELTSist ID connected</strong><span>{sharedAccount.identity?.username || 'Your shared account'} · STEM progress can sync across devices.</span></div><button type="button" className="text-action" onClick={onRefreshSharedAccount}>Refresh session <RefreshCcw size={14} /></button></section>
+  }
+  return <section className="student-account-banner" role="status"><LogIn size={19} /><div><strong>Save your learning across devices</strong><span>Use one IELTSist ID for IELTS and STEM. Your private notebook stays private from teachers and schools.</span></div><a className="primary-action compact-action" href={sharedAuthUrl('login')}>Log in or create account <ChevronRight size={15} /></a></section>
+}
+
+function TopNav({ view, setView, profile, sharedAccount, onRefreshSharedAccount, onDisconnectSharedAccount, openNotebook, openRoleWorkspace, openPractice }) {
   const [campusOpen, setCampusOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
   const learnerName = String(profile?.learnerName || 'Student').trim() || 'Student'
-  const firstName = learnerName.split(/\s+/)[0]
+  const accountName = sharedAccount.status === 'ready' && sharedAccount.identity?.username ? sharedAccount.identity.username : learnerName
+  const firstName = accountName.split(/\s+/)[0]
   return (
     <header className="top-nav unified-top-nav">
       <button className="brand-button" type="button" onClick={() => setView('dashboard')} aria-label="Open dashboard">
@@ -1205,7 +1292,7 @@ function TopNav({ view, setView, profile, openNotebook, openRoleWorkspace, openP
           Notebook
         </button>
       </nav>
-      <div className="nav-context"><a className="vocabulary-link" href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer"><Brain size={15} />Terms</a><button type="button" className="notification-button" aria-label="Notifications"><span /></button><div className="account-menu"><button type="button" className="account-trigger" aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}><span className="account-avatar">{firstName.slice(0, 1).toUpperCase()}</span><span>{learnerName}</span><ChevronRight size={14} /></button>{accountOpen && <div className="account-popover"><strong>{learnerName}</strong><small>IELTSist Account</small><div><span>Student</span><b>STEM</b></div><a href="https://ieltsist.com/" target="_blank" rel="noreferrer">Open IELTS campus <ChevronRight size={14} /></a><button type="button" onClick={() => { openRoleWorkspace(); setAccountOpen(false) }}>Teacher &amp; school workspace <ChevronRight size={14} /></button></div>}</div></div>
+      <div className="nav-context"><a className="vocabulary-link" href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer"><Brain size={15} />Terms</a><button type="button" className="notification-button" aria-label="Notifications"><span /></button><div className="account-menu"><button type="button" className={`account-trigger ${sharedAccount.status !== 'ready' ? 'account-trigger--guest' : ''}`} aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}><span className="account-avatar">{firstName.slice(0, 1).toUpperCase()}</span><span>{sharedAccount.status === 'ready' ? accountName : 'Connect account'}</span><ChevronRight size={14} /></button>{accountOpen && <div className="account-popover"><strong>{sharedAccount.status === 'ready' ? accountName : 'IELTSist ID'}</strong><small>{sharedAccount.status === 'ready' ? 'Shared account connected' : 'One account for IELTS + STEM'}</small>{sharedAccount.status !== 'ready' ? <><p className="account-popover__hint">STEM does not create a second password. Continue to IELTSist to log in or register, then return here.</p><a className="account-popover__primary" href={sharedAuthUrl('login')}><LogIn size={15} />Log in to IELTSist <ChevronRight size={14} /></a><a href={sharedAuthUrl('register')}><Users size={15} />Create an IELTSist account <ChevronRight size={14} /></a>{sharedAccount.error && <p className="account-popover__error" role="alert">{sharedAccount.error}</p>}<button type="button" onClick={() => onRefreshSharedAccount()}><RefreshCcw size={15} />Check shared session <ChevronRight size={14} /></button></> : <><div><span>Student</span><b>STEM</b></div><span className="account-popover__privacy">Private notes are visible only to you.</span><a href="https://ieltsist.com/?from=stem#mine" target="_blank" rel="noreferrer">Open IELTSist account <ChevronRight size={14} /></a><button type="button" onClick={() => { openRoleWorkspace(); setAccountOpen(false) }}>Teacher &amp; school workspace <ChevronRight size={14} /></button><button type="button" className="account-popover__logout" onClick={() => { setAccountOpen(false); onDisconnectSharedAccount() }}><LogOut size={15} />Sign out of shared account <ChevronRight size={14} /></button></>}</div>}</div></div>
     </header>
   )
 }
@@ -1400,7 +1487,7 @@ function Dashboard({
 }
 
 /* oxlint-enable no-unused-vars */
-function StudentDashboard({ activeRoute, routeOptions, selectRoute, profile, attempts, completionByUnit, recommendation, topicMastery, mistakes, paperMistakes, startPractice, setView, setActiveTab, setSubjectFilter, setQuery, allPracticeUnits, recentPractice, favoriteUnitIds, openNotebook, learningProgress, syllabusRoadmap }) {
+function StudentDashboard({ activeRoute, routeOptions, selectRoute, profile, attempts, completionByUnit, recommendation, topicMastery, mistakes, paperMistakes, startPractice, setView, setActiveTab, setSubjectFilter, setQuery, allPracticeUnits, recentPractice, favoriteUnitIds, openNotebook, learningProgress, syllabusRoadmap, sharedAccount, onRefreshSharedAccount }) {
   const nextUnit = recommendation.unit
   const latest = attempts.filter((attempt) => completionByUnit[attempt.unitId]).at(-1)
   const average = latest ? Math.round(attempts.filter((attempt) => completionByUnit[attempt.unitId]).reduce((total, attempt) => total + attempt.scoreResult.percentage, 0) / attempts.filter((attempt) => completionByUnit[attempt.unitId]).length) : null
@@ -1443,8 +1530,9 @@ function StudentDashboard({ activeRoute, routeOptions, selectRoute, profile, att
     <main className="student-home-guided__main">
       <header className="student-home-header">
         <div><p>{firstName ? `Hi, ${firstName}.` : 'Your study plan'}</p><h1>Start here today.</h1><span>One focused session for the course you are studying now.</span></div>
-        <label className="student-course-picker"><span>Current course</span><select aria-label="Current course" value={activeRoute.routeId} onChange={(event) => selectRoute(event.target.value)}>{routeOptions.map((route) => <option value={route.routeId} key={route.routeId}>{routePickerLabel(route)}</option>)}</select></label>
+        <StudentRoutePicker activeRoute={activeRoute} routes={routeOptions} selectRoute={selectRoute} />
       </header>
+      <SharedAccountBanner sharedAccount={sharedAccount} onRefreshSharedAccount={onRefreshSharedAccount} />
 
       <section className="recommended-session" aria-label="Recommended session">
         <div className="recommended-session__copy">
@@ -1571,7 +1659,8 @@ function LibraryView({
 }) {
   const incomingContext = getIncomingProductContext()
   const contextSubject = subjects.find((subject) => subject.id === incomingContext.subjectId)
-  const routeOptions = courseRoutes.filter((route) => route.qualification === activeRoute.qualification)
+  const practiceTopics = coachPracticeOptions().find((option) => option.routeId === activeRouteId)?.topics || []
+  const selectedTopic = practiceTopics.some((topic) => topic.label === query) ? query : ''
   return (
     <section className="practice-hub page-band">
       <header className="practice-hub__header">
@@ -1581,8 +1670,8 @@ function LibraryView({
           <p className="practice-hub__intro">Start with a recommendation, focus on one syllabus topic, or work through a Cambridge paper.</p>
         </div>
         <div className="practice-hub__controls">
-          <label><span>Current course</span><select aria-label="Current course" value={activeRoute.routeId} onChange={(event) => selectRoute(event.target.value)}>{routeOptions.map((route) => <option value={route.routeId} key={route.routeId}>{routePickerLabel(route)}</option>)}</select></label>
-          <label className="practice-hub__search"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search this course" aria-label="Search this course" /></label>
+          <StudentRoutePicker activeRoute={activeRoute} routes={courseRoutes} selectRoute={selectRoute} compact />
+          <label className="practice-topic-filter"><span>Topic focus</span><select aria-label="Topic focus" value={selectedTopic} onChange={(event) => setQuery(event.target.value)}><option value="">All topics in this route</option>{practiceTopics.map((topic) => <option value={topic.label} key={topic.id}>{topic.label.replace(/^\d+\s+/, '')}</option>)}</select></label>
         </div>
       </header>
 
@@ -1910,6 +1999,11 @@ function StudentNotebook({ activeRoute, routeOptions, selectRoute, attempts, uni
   const filteredPaperMistakes = paperMistakes.filter((mistake) => !search || `${mistake.session.file} ${mistake.status}`.toLowerCase().includes(search))
   const recentAttempts = [...attempts].sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt)).slice(0, 4)
   const savedNote = note?.body || ''
+  const masteredTopics = new Set(units.filter((unit) => {
+    const best = getUnitAttempts(attempts, unit.id).map((attempt) => attempt.scoreResult?.percentage).filter(Number.isFinite).sort((a, b) => b - a)[0]
+    return best >= 80
+  }).map((unit) => unit.knowledgeGroupId || unit.topic)).size
+  const noteStatus = note?.syncStatus === 'error' ? 'Sync failed; your local note is safe' : note?.syncStatus === 'pending' ? 'Syncing privately…' : note?.syncStatus === 'synced' ? 'Synced to your IELTSist ID' : 'Saved on this device'
 
   return (
     <section className="notebook-view page-band">
@@ -1919,12 +2013,13 @@ function StudentNotebook({ activeRoute, routeOptions, selectRoute, attempts, uni
           <h1>Turn mistakes into your next marks.</h1>
           <p className="page-intro">Review open mark points, keep a private route note, and retest without replacing the original attempt.</p>
         </div>
-        <label className="notebook-route"><span>Current route</span><select value={activeRoute.routeId} onChange={(event) => selectRoute(event.target.value)}>{routeOptions.map((route) => <option value={route.routeId} key={route.routeId}>{routePickerLabel(route)}</option>)}</select></label>
+        <StudentRoutePicker activeRoute={activeRoute} routes={routeOptions} selectRoute={selectRoute} compact />
       </header>
 
       <div className="notebook-summary" aria-label="Notebook summary">
         <div><strong>{mistakes.length + paperMistakes.length}</strong><span>open items</span></div>
         <div><strong>{mistakes.filter((item) => item.severity === 'High').length}</strong><span>high priority</span></div>
+        <div><strong>{masteredTopics}</strong><span>mastered topics</span></div>
         <div><strong>{recentAttempts.length}</strong><span>recent results</span></div>
       </div>
 
@@ -1943,7 +2038,7 @@ function StudentNotebook({ activeRoute, routeOptions, selectRoute, attempts, uni
         </section>
 
         <aside className="notebook-side">
-          <section className="notebook-note-tool"><header><div><p className="section-label">Private note</p><h2>What will you remember?</h2></div><BookOpen size={18} /></header><textarea value={savedNote} onChange={(event) => onChangeNote(event.target.value)} placeholder="Write a short method, formula, or reminder for this route..." aria-label="Private route notebook note" /><small>{note?.updatedAt ? `Saved locally ${formatDate(note.updatedAt)}` : 'Saved locally for this route'}</small></section>
+           <section className="notebook-note-tool"><header><div><p className="section-label">Private note</p><h2>What will you remember?</h2></div><BookOpen size={18} /></header><textarea value={savedNote} onChange={(event) => onChangeNote(event.target.value)} placeholder="Write a short method, formula, or reminder for this route..." aria-label="Private route notebook note" /><small>{note?.updatedAt ? `${noteStatus} · ${formatDate(note.updatedAt)}` : noteStatus}</small></section>
           <section className="notebook-recent"><header><div><p className="section-label">Progress</p><h2>Recent results</h2></div><BarChart3 size={18} /></header>{recentAttempts.length ? <div>{recentAttempts.map((attempt) => { const unit = unitById.get(attempt.unitId); return <div className="notebook-result-row" key={attempt.id}><span><strong>{unit?.topic || 'Practice set'}</strong><small>{unit?.title || 'Verified question set'}</small></span><b>{attempt.scoreResult.percentage}%</b></div> })}</div> : <p className="notebook-side-empty">Your completed sets will appear here.</p>}</section>
         </aside>
       </div>
