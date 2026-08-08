@@ -215,7 +215,7 @@ async function extractPdfText(reference) {
       pages.push(`[Page ${pageNumber}]\n${content.items.map((item) => item.str).join(' ')}`)
     }
   } finally {
-    await document.destroy()
+    if (typeof document.destroy === 'function') await document.destroy()
   }
   const text = pages.join('\n\n')
   pdfTextCache.clear()
