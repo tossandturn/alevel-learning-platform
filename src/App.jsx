@@ -61,6 +61,12 @@ function formatDate(value) {
   }).format(new Date(value))
 }
 
+function routePickerLabel(route) {
+  const siblings = courseRoutes.filter((item) => item.qualification === route.qualification && item.subjectId === route.subjectId && item.stage === route.stage)
+  const componentLabel = siblings.length > 1 ? ` · ${formatRouteComponents(route.paperComponents)}` : ''
+  return `${route.stage} ${route.subject} (${route.subjectCode.toUpperCase()})${componentLabel}`
+}
+
 function focusedRetestUnit(unit, partId) {
   if (!partId || unit.parts.length === 1) return unit
   const part = unit.parts.find((item) => item.id === partId)
@@ -1428,7 +1434,7 @@ function StudentDashboard({ activeRoute, routeOptions, selectRoute, profile, att
     <main className="student-home-guided__main">
       <header className="student-home-header">
         <div><p>{firstName ? `Hi, ${firstName}.` : 'Your study plan'}</p><h1>Start here today.</h1><span>One focused session for the course you are studying now.</span></div>
-        <label className="student-course-picker"><span>Current course</span><select aria-label="Current course" value={activeRoute.routeId} onChange={(event) => selectRoute(event.target.value)}>{routeOptions.map((route) => <option value={route.routeId} key={route.routeId}>{route.stage} {route.subject} ({route.subjectCode.toUpperCase()})</option>)}</select></label>
+        <label className="student-course-picker"><span>Current course</span><select aria-label="Current course" value={activeRoute.routeId} onChange={(event) => selectRoute(event.target.value)}>{routeOptions.map((route) => <option value={route.routeId} key={route.routeId}>{routePickerLabel(route)}</option>)}</select></label>
       </header>
 
       <section className="recommended-session" aria-label="Recommended session">
@@ -1566,7 +1572,7 @@ function LibraryView({
           <p className="practice-hub__intro">Start with a recommendation, focus on one syllabus topic, or work through a Cambridge paper.</p>
         </div>
         <div className="practice-hub__controls">
-          <label><span>Current course</span><select aria-label="Current course" value={activeRoute.routeId} onChange={(event) => selectRoute(event.target.value)}>{routeOptions.map((route) => <option value={route.routeId} key={route.routeId}>{route.stage} {route.subject} ({route.subjectCode.toUpperCase()})</option>)}</select></label>
+          <label><span>Current course</span><select aria-label="Current course" value={activeRoute.routeId} onChange={(event) => selectRoute(event.target.value)}>{routeOptions.map((route) => <option value={route.routeId} key={route.routeId}>{routePickerLabel(route)}</option>)}</select></label>
           <label className="practice-hub__search"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search this course" aria-label="Search this course" /></label>
         </div>
       </header>
@@ -1904,7 +1910,7 @@ function StudentNotebook({ activeRoute, routeOptions, selectRoute, attempts, uni
           <h1>Turn mistakes into your next marks.</h1>
           <p className="page-intro">Review open mark points, keep a private route note, and retest without replacing the original attempt.</p>
         </div>
-        <label className="notebook-route"><span>Current route</span><select value={activeRoute.routeId} onChange={(event) => selectRoute(event.target.value)}>{routeOptions.map((route) => <option value={route.routeId} key={route.routeId}>{route.stage} - {route.subjectCode.toUpperCase()} {route.subject} - {formatRouteComponents(route.paperComponents)}</option>)}</select></label>
+        <label className="notebook-route"><span>Current route</span><select value={activeRoute.routeId} onChange={(event) => selectRoute(event.target.value)}>{routeOptions.map((route) => <option value={route.routeId} key={route.routeId}>{routePickerLabel(route)}</option>)}</select></label>
       </header>
 
       <div className="notebook-summary" aria-label="Notebook summary">
