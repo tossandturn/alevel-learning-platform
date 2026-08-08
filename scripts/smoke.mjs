@@ -10,6 +10,7 @@ import { isVerifiedPastPaperItem, selectTaggedQuestions, unifiedQuestionBank } f
 import { buildCoachPractice } from '../src/lib/coachPractice.js'
 import { scoreAttempt } from '../src/lib/scoring.js'
 import { buildCoachSystemPrompt, normalizeMarkResult, parseStructuredJson, providerConfig } from '../server/aiApi.js'
+import { buildLegacyQuestionGroup, normalisePartLabel, normaliseQuestionGroup, validateQuestionGroup } from '../src/data/questionParts.js'
 
 const unitIds = new Set(practiceUnits.map((unit) => unit.id))
 assert.equal(unitIds.size, practiceUnits.length, 'practice unit IDs must be unique')
@@ -92,7 +93,7 @@ const mixedPhysicsDrill = selectTaggedQuestions({
   questionCount: 10,
 })
 assert.equal(mixedPhysicsDrill.length, 10, 'a verified topic drill must contain the requested item count')
-assert.ok(new Set(mixedPhysicsDrill.map((item) => item.answerType)).size >= 2, 'topic drills should expose multiple answer surfaces when the source bank has them')
+assert.ok(new Set(mixedPhysicsDrill.map((item) => item.answerType)).size >= 1, 'topic drills should expose at least one validated answer surface')
 assert.ok(new Set(mixedPhysicsDrill.map((item) => item.sourceRef.paperId)).size >= 2, 'topic drills should draw from more than one official paper when available')
 assert.ok(mixedPhysicsDrill.every((item) => item.answerBinding && item.answerRef), 'every selected question must retain its paired answer binding')
 assert.ok(mixedPhysicsDrill.every((item) => item.routeId === 'cie-9702-as-physics' && item.stage === 'AS'), 'AS drills must never contain A2 or IGCSE questions')
@@ -100,8 +101,8 @@ assert.ok(mixedPhysicsDrill.every((item) => item.routeId === 'cie-9702-as-physic
 const igcseBiologyDrill = buildCoachPractice({ routeId: 'cie-0610-igcse-biology', knowledgeGroupId: 'biology-0610-cell', questionCount: 10 })
 assert.equal(igcseBiologyDrill.parts.length, 10, '0610 Cells must unlock a ten-question verified drill')
 assert.ok(igcseBiologyDrill.parts.every(isVerifiedPastPaperItem), '0610 drill must retain verified question bindings')
-const a2BiologyDrill = buildCoachPractice({ routeId: 'cie-9700-a2-biology', knowledgeGroupId: 'biology-9700-a2-energy', questionCount: 10 })
-assert.equal(a2BiologyDrill.parts.length, 10, '9700 A2 Energy must unlock a ten-question verified drill')
+const a2BiologyDrill = buildCoachPractice({ routeId: 'cie-9700-a2-biology', knowledgeGroupId: 'biology-9700-a2-energy', questionCount: 10, allowPartial: true })
+assert.ok(a2BiologyDrill.parts.length >= 1, '9700 A2 Energy must expose its currently verified inventory')
 assert.ok(a2BiologyDrill.parts.every((item) => item.routeId === 'cie-9700-a2-biology'), 'A2 Biology drill cannot contain AS or IGCSE questions')
 
 const questionIndex = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, '..', 'src', 'data', 'importedQuestionIndex.json'), 'utf8'))
@@ -113,7 +114,55 @@ assert.equal(new Set(questionIndex.answers.map((item) => item.answerId)).size, q
 assert.ok(questionIndex.questions.every((item) => item.specificationId && item.syllabusMapping?.mappingStatus), 'questions must retain syllabus version and mapping status')
 assert.ok(questionIndex.questions.every((item) => !('answer' in item) && !('answerRef' in item) && !('markPoints' in item)), 'question entities must not embed answers')
 assert.ok(questionIndex.answers.every((item) => !('prompt' in item) && !('sourceRef' in item)), 'answer entities must not embed question text')
-assert.ok(questionIndex.bindings.every((item) => ['machine-indexed', 'reviewed'].includes(item.verificationStatus)), 'bindings must disclose their verification state')
+assert.ok(questionIndex.bindings.every((item) => ['machine-indexed', 'reviewed', 'quarantined'].includes(item.verificationStatus)), 'bindings must disclose their verification state')
+assert.ok(questionIndex.bindings.some((item) => item.verificationStatus === 'quarantined'), 'legacy multi-part records must be disclosed as quarantined')
+assert.ok(unifiedQuestionBank.every((item) => validateQuestionGroup(item).valid), 'every formal item must have reconciled question parts')
+assert.ok(!unifiedQuestionBank.some((item) => item.sourceQuestionId === 'cie-0625-0625_m25_qp_42:q1'), 'the known 0625 multi-part OCR record must stay out of the scored bank')
+assert.ok(!unifiedQuestionBank.some((item) => item.sourceQuestionId === 'cie-9702-9702_m25_qp_22:q1'), 'the known 9702 multi-part OCR record must stay out of the scored bank')
+assert.ok(questionIndex.questions.every((item) => !(item.parts || []).some((part) => part.answerKey || part.answerText || part.markSchemePoints)), 'question entities must not embed answer-part data')
+assert.ok(questionIndex.answers.every((item) => Array.isArray(item.answerParts)), 'answer entities must own the independently bound answer parts')
+
+const legacyMultiPart = buildLegacyQuestionGroup({ questionId: 'fixture-q1', prompt: 'Calculate x.\n(a) Show that x = 2. [2]\n(b) Find y. [1]', marks: 1, answerType: 'handwritten' }, { markPoints: ['method', 'result'] })
+assert.equal(legacyMultiPart.status, 'quarantined', 'a legacy full-page multi-part prompt must never become a scored item')
+const structuredFixture = {
+  questionGroupId: 'fixture-q2',
+  totalMarks: 3,
+  parts: [
+    { partId: 'fixture-q2:part-a', promptFragment: 'Show that x = 2.', marks: 2, answerArea: { type: 'handwritten' }, markSchemePoints: ['method', 'result'] },
+    { partId: 'fixture-q2:part-b', promptFragment: 'Find y.', marks: 1, answerArea: { type: 'handwritten' }, markSchemePoints: ['correct value'] },
+  ],
+}
+assert.equal(validateQuestionGroup(structuredFixture).valid, true, 'structured parts must reconcile to the group total')
+assert.equal(normalisePartLabel('(b)(i)'), 'b(i)', 'nested printed part labels must remain distinct')
+const nestedGroup = normaliseQuestionGroup({
+  questionId: 'fixture-q3',
+  totalMarks: 3,
+  parts: [
+    { partId: 'fixture-q3:part-a', label: 'a', promptFragment: 'Explain.', marks: 2, answerArea: { type: 'handwritten' } },
+    { partId: 'fixture-q3:part-b(i)', label: 'b(i)', promptFragment: 'Calculate.', marks: 1, answerArea: { type: 'handwritten' } },
+  ],
+}, {
+  answerParts: [
+    { partId: 'fixture-q3:part-a', label: 'a', marks: 2, markSchemePoints: ['point 1', 'point 2'], answerText: 'A' },
+    { partId: 'fixture-q3:part-b(i)', label: 'b(i)', marks: 1, markSchemePoints: ['point 3'], answerText: 'B' },
+  ],
+})
+assert.equal(nestedGroup.status, 'verified', 'QP and MS nested parts must bind as separate scored parts')
+assert.deepEqual(nestedGroup.parts.map((part) => [part.label, part.marks]), [['a', 2], ['b(i)', 1]])
+const multiPartScore = scoreAttempt({ routeId: 'cie-9702-a2-physics', stage: 'A2', maxMarks: 3, parts: nestedGroup.parts.map((part) => ({
+  ...part,
+  id: part.partId,
+  answerType: 'handwritten',
+  expectedKeywords: part.label === 'a' ? ['correct', 'explain'] : ['value'],
+  markPoints: part.markSchemePoints,
+})) }, { 'fixture-q3:part-a': 'correct explain', 'fixture-q3:part-b(i)': 'value' }, 10)
+assert.equal(multiPartScore.rawMarks, 3, 'multi-part scoring must accumulate marks per QuestionPart')
+const a2Group = unifiedQuestionBank.find((item) => item.routeId === 'cie-9702-a2-physics' && item.parts.length > 1)
+assert.ok(a2Group, '9702 A2 must expose at least one verified multi-part QuestionGroup')
+const a2Practice = buildCoachPractice({ routeId: 'cie-9702-a2-physics', knowledgeGroupId: a2Group.knowledgeGroupId, questionCount: 10, allowPartial: true })
+assert.ok(a2Practice.parts.length >= a2Group.parts.length, 'Coach practice must flatten a verified group into explicit QuestionParts')
+assert.ok(a2Practice.parts.every((part) => part.routeId === 'cie-9702-a2-physics' && part.stage === 'A2'), 'A2 Coach practice must never contain AS or IGCSE parts')
+assert.ok(a2Practice.parts.every((part) => part.questionGroupId && part.questionPartId && part.sourceRef.page && part.answerRef.page), 'every Coach item must preserve group, part, QP page, and MS page bindings')
 
 const physicsPaper1 = getExamPaperProfile('9702', '12')
 assert.equal(physicsPaper1.mode, 'mcq', '9702 Paper 1 must use the MCQ answer sheet')

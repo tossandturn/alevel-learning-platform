@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { normaliseQuestionGroup } from '../src/data/questionParts.js'
 
 const root = path.resolve(import.meta.dirname, '..')
 const indexPath = path.join(root, 'src', 'data', 'importedQuestionIndex.json')
@@ -30,11 +31,15 @@ for (const question of index.questions) {
   if (!question.qualificationId || !question.knowledgeGroupId || !question.stageTags?.length) errors.push(`${label}: missing syllabus tags`)
   if (!question.sourceRef?.paper || !question.sourceRef?.question || !question.sourceRef?.sha256) errors.push(`${label}: missing question provenance`)
   if (!answer?.answerRef?.file || !answer.answerRef?.sha256) errors.push(`${label}: missing answer provenance`)
+  if (binding && !['machine-indexed', 'reviewed', 'quarantined'].includes(binding.verificationStatus)) errors.push(`${label}: unknown verification status`)
   if (binding && question.sourceRef?.sha256 !== binding.questionDocumentSha256) errors.push(`${label}: question SHA does not match binding`)
   if (binding && answer?.answerRef?.sha256 !== binding.answerDocumentSha256) errors.push(`${label}: answer SHA does not match binding`)
   if (question.sourceRef?.sha256 && answer?.answerRef?.sha256 && question.sourceRef.sha256 === answer.answerRef.sha256) errors.push(`${label}: QP and MS cannot share a document SHA`)
-  const key = [question.qualificationId, question.stageTags.join('+'), question.knowledgeGroupId].join(' | ')
-  inventory.set(key, (inventory.get(key) || 0) + 1)
+  if (binding?.verificationStatus !== 'quarantined' && normaliseQuestionGroup(question, answer).status !== 'verified') errors.push(`${label}: question parts do not reconcile with total marks`)
+  if (binding?.verificationStatus !== 'quarantined') {
+    const key = [question.qualificationId, question.stageTags.join('+'), question.knowledgeGroupId].join(' | ')
+    inventory.set(key, (inventory.get(key) || 0) + 1)
+  }
 }
 
 for (const questionId of duplicateBindings) errors.push(`${questionId}: duplicate answer binding`)
@@ -46,6 +51,7 @@ if (errors.length) {
   console.error(errors.join('\n'))
   process.exitCode = 1
 } else {
+  const quarantined = index.bindings.filter((binding) => binding.verificationStatus === 'quarantined').length
   const ready = [...inventory.entries()].filter(([, count]) => count >= 10).length
   const short = [...inventory.entries()].filter(([, count]) => count < 10).length
   console.log(JSON.stringify({
@@ -53,6 +59,7 @@ if (errors.length) {
     questions: index.questions.length,
     answers: index.answers.length,
     bindings: index.bindings.length,
+    quarantined,
     drillReadyTopics: ready,
     topicsNeedingMoreIndexedItems: short,
     inventory: Object.fromEntries([...inventory.entries()].sort()),

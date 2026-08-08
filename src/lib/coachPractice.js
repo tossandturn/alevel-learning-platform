@@ -169,14 +169,29 @@ export function buildCoachPractice({ routeId, subjectId, stage, knowledgeGroupId
   }
 
   const generatedAt = Date.now()
-  const parts = bank.map((part, index) => ({
-    ...part,
-    id: `set-${generatedAt}-${index + 1}`,
-    label: String(index + 1),
-    sourceKind: 'past-paper',
+  let parts = bank.map((part, _index) => ({
     sourceLabel: `${part.sourceRef.paper} · ${part.sourceRef.question}`,
     sourceDescription: `Official question paper, page ${part.sourceRef.pageStart}. The exact paired mark scheme unlocks after submission.`,
   }))
+  parts = bank.flatMap((group, groupIndex) => (group.parts || []).map((questionPart, partIndex) => ({
+    ...group,
+    ...questionPart,
+    id: `set-${generatedAt}-${groupIndex + 1}-${partIndex + 1}`,
+    questionGroupId: group.questionGroupId,
+    questionPartId: questionPart.partId,
+    label: `${group.sourceRef.question || groupIndex + 1}${questionPart.label ? `(${questionPart.label})` : ''}`,
+    prompt: questionPart.promptFragment,
+    marks: questionPart.marks,
+    answerType: questionPart.answerArea?.type || group.answerType || 'handwritten',
+    answerKey: questionPart.answerKey,
+    answer: questionPart.answerKey,
+    markPoints: questionPart.markSchemePoints || [],
+    sourceKind: 'past-paper',
+    sourceLabel: `${group.sourceRef.paper} / ${group.sourceRef.question}${questionPart.label ? `(${questionPart.label})` : ''}`,
+    sourceDescription: `Official question paper, page ${questionPart.sourcePage || group.sourceRef.pageStart}. The exact paired mark scheme is bound to this question part.`,
+    sourceRef: { ...group.sourceRef, questionPartId: questionPart.partId, page: questionPart.sourcePage || group.sourceRef.pageStart },
+    answerRef: { ...group.answerRef, questionPartId: questionPart.partId, page: questionPart.answerSourcePage || group.answerRef.pageStart },
+  })))
   if (parts.some((part) => part.routeId !== subject.routeId || part.stage !== subject.stage)) {
     throw new Error('The selected source contains a question outside this learning route.')
   }

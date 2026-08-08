@@ -4,6 +4,7 @@ import os from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { learningPlan, stagesForComponentTags } from '../src/data/learningPlan.js'
 import { examStructures } from '../src/data/examStructure.js'
+import { normaliseQuestionGroup, questionPartLabel, validateQuestionGroup } from '../src/data/questionParts.js'
 
 const projectRoot = path.resolve(import.meta.dirname, '..')
 const paperCatalogPath = path.join(projectRoot, 'public', 'data', 'papers.json')
@@ -262,7 +263,9 @@ async function mapLimited(items, limit, worker) {
 function questionInstruction(subject, topics, page) {
   return [
     `This is page ${page} of an official ${subject} question paper. Index only text genuinely visible on this page.`,
-    'Return JSON {"fragments":[...]}. Each fragment: questionNumber (main printed number only), exactText, startsHere, continues, marks, answerType, options, topicId, topicTags, skillTags.',
+    'Return JSON {"fragments":[...]}. Each fragment is one explicit QuestionPart inside a QuestionGroup: questionNumber (main printed number only), partId, label, promptFragment, startsHere, continues, marks, answerArea {type}, options, topicId, topicTags, skillTags, sourcePage.',
+    'Never merge (a), (b), (i), (ii) or any separately marked response area into one fragment. The group total is the sum of its visible part marks.',
+    'If this page continues a question from an earlier page, set continues=true and repeat the same main questionNumber. Never convert a subpart such as (i), (ii), or a letter in prose into questionNumber. If the main number is not visibly printed, use null and rely on continues=true; do not guess it from page position.',
     'Never complete missing text from memory. Preserve equations in plain Unicode only. Do not emit LaTeX commands or backslashes. Use answerType multiple-choice only when options are visible; otherwise handwritten.',
     `Choose exactly one topicId from: ${JSON.stringify(topics)}. If no exam question is visible, return {"fragments":[]}.`,
   ].join('\n')
@@ -271,13 +274,21 @@ function questionInstruction(subject, topics, page) {
 function answerInstruction(subject, page) {
   return [
     `This is page ${page} of the exact official ${subject} mark scheme paired with a question paper.`,
-    'Return JSON {"answers":[...]}. Each answer: questionNumber (main printed number only), exactText, marks, markPoints, correctOption.',
+    'Return JSON {"answers":[...]}. Each answer is one mark-scheme entry for one QuestionPart: questionNumber, partId, label, exactText, marks, markPoints, correctOption, sourcePage.',
+    'Use the printed part label exactly. Do not combine marks from (a), (b), (i) or (ii). The answer total must reconcile with the QuestionGroup total.',
     'correctOption must be A/B/C/D only when explicitly printed. Use plain Unicode only and do not emit LaTeX commands or backslashes. Never invent missing mark points. If no answer entry is visible, return {"answers":[]}.',
   ].join('\n')
 }
 
 function normalizeQuestionNumber(value) {
   return String(value || '').trim().replace(/^Q/i, '').match(/^\d+/)?.[0] || ''
+}
+
+function normalizeMarkValue(value) {
+  const numeric = Number(value)
+  if (Number.isInteger(numeric)) return numeric
+  const code = String(value || '').match(/(\d+)\s*$/)
+  return code ? Number(code[1]) : 0
 }
 
 const OFFICIAL_9702_TAG_MAP = Object.freeze([
@@ -319,10 +330,20 @@ function officialPhysicsTopicId(item) {
 
 function mergeFragments(records, key) {
   const grouped = new Map()
+  let activeQuestionNumber = null
   for (const record of records) {
     for (const fragment of record[key] || []) {
-      const questionNumber = normalizeQuestionNumber(fragment.questionNumber)
+      const candidate = normalizeQuestionNumber(fragment.questionNumber)
+      let questionNumber = candidate
+      if (!questionNumber && activeQuestionNumber) questionNumber = activeQuestionNumber
+      if (questionNumber && activeQuestionNumber && questionNumber !== activeQuestionNumber) {
+        const expectedNext = String(Number(activeQuestionNumber) + 1)
+        if (fragment.continues === true || questionNumber !== expectedNext) questionNumber = activeQuestionNumber
+      }
       if (!questionNumber) continue
+      if (questionNumber !== activeQuestionNumber && (!activeQuestionNumber || Number(questionNumber) >= Number(activeQuestionNumber))) {
+        activeQuestionNumber = questionNumber
+      }
       const current = grouped.get(questionNumber) || { questionNumber, pages: [], fragments: [] }
       current.pages.push(record.page)
       current.fragments.push(fragment)
@@ -330,6 +351,51 @@ function mergeFragments(records, key) {
     }
   }
   return grouped
+}
+
+function collapseFragments(fragments, { sumMarks = false } = {}) {
+  const grouped = new Map()
+  for (const fragment of fragments) {
+    const label = questionPartLabel(fragment, fragments.length === 1 ? 'a' : '')
+    if (!label) return null
+    const current = grouped.get(label)
+    if (!current) {
+      const key = String(fragment.exactText || fragment.promptFragment || fragment.answerText || '').trim().toLowerCase()
+      grouped.set(label, { ...fragment, label, partId: fragment.partId || label, _markEntryKeys: key ? new Set([key]) : new Set() })
+      continue
+    }
+    const currentMarks = normalizeMarkValue(current.marks)
+    const nextMarks = normalizeMarkValue(fragment.marks)
+    if (!sumMarks && Number.isInteger(currentMarks) && Number.isInteger(nextMarks) && currentMarks > 0 && nextMarks > 0 && currentMarks !== nextMarks) return null
+    const currentText = String(current.promptFragment || current.exactText || '').trim()
+    const nextText = String(fragment.promptFragment || fragment.exactText || '').trim()
+    const mergedText = currentText && nextText && currentText !== nextText ? `${currentText}\n${nextText}` : currentText || nextText
+    const currentPoints = Array.isArray(current.markPoints) ? current.markPoints : []
+    const nextPoints = Array.isArray(fragment.markPoints) ? fragment.markPoints : []
+    const entryKey = String(fragment.exactText || fragment.promptFragment || fragment.answerText || '').trim().toLowerCase()
+    const seenEntry = entryKey && current._markEntryKeys?.has(entryKey)
+    const markTotal = sumMarks
+      ? (currentMarks || 0) + (seenEntry ? 0 : (nextMarks || 0))
+      : currentMarks || nextMarks
+    const markEntryKeys = new Set(current._markEntryKeys || [])
+    if (entryKey) markEntryKeys.add(entryKey)
+    grouped.set(label, {
+      ...current,
+      ...fragment,
+      label,
+      partId: current.partId || fragment.partId || label,
+      promptFragment: mergedText,
+      exactText: mergedText,
+      marks: markTotal,
+      markPoints: [...new Set([...currentPoints, ...nextPoints].map((value) => String(value).trim()).filter(Boolean))],
+      sourcePage: Math.min(Number(current.sourcePage || current.page) || Number.POSITIVE_INFINITY, Number(fragment.sourcePage || fragment.page) || Number.POSITIVE_INFINITY),
+      _markEntryKeys: markEntryKeys,
+    })
+  }
+  return [...grouped.values()].map((fragment) => ({
+    ...(({ _markEntryKeys, ...value }) => value)(fragment),
+    sourcePage: Number.isFinite(fragment.sourcePage) ? fragment.sourcePage : null,
+  }))
 }
 
 function stageTags(paper, config) {
@@ -374,8 +440,9 @@ function decoupleIndex(items) {
   const answers = []
   const bindings = []
   for (const item of items) {
-    const { answer, answerKey, markPoints, exactAnswer, answerRef, answerBinding, bankId, ...question } = item
+    const { answer, answerKey, markPoints, exactAnswer, answerRef, answerBinding, answerParts: _answerParts, bankId, ...question } = item
     const questionId = bankId || item.questionId
+    const questionGroup = normaliseQuestionGroup({ ...question, questionId }, item)
     const knowledgeGroupId = officialPhysicsTopicId(item)
     const answerId = `${questionId}:answer`
     const config = subjectConfig[item.subjectCode]
@@ -384,10 +451,31 @@ function decoupleIndex(items) {
     const migratedStageTags = item.subjectCode === '9709' && componentTags.some((component) => [4, 5, '4', '5'].includes(component))
       ? ['AS', 'A2']
       : question.stageTags
+    const questionParts = (questionGroup.parts || []).map((part) => ({
+      partId: part.partId,
+      label: part.label,
+      promptFragment: part.promptFragment,
+      marks: part.marks,
+      answerArea: part.answerArea,
+      sourcePage: part.sourcePage,
+    }))
+    const answerPartRecords = (questionGroup.parts || []).map((part) => ({
+      partId: part.partId,
+      label: part.label,
+      marks: part.marks,
+      markSchemePoints: part.markSchemePoints || [],
+      answerKey: part.answerKey || null,
+      answerText: part.answerText || null,
+      sourcePage: part.answerSourcePage || null,
+    }))
     questions.push({
       ...question,
       questionId,
-      marks: question.answerType === 'multiple-choice' ? 1 : question.marks,
+      questionGroupId: questionGroup.questionGroupId || questionId,
+      questionGroupStatus: questionGroup.status,
+      totalMarks: questionGroup.totalMarks || 0,
+      parts: questionParts,
+      marks: questionGroup.totalMarks || (question.answerType === 'multiple-choice' ? 1 : question.marks),
       stageTags: migratedStageTags,
       examFamilyId: question.examFamilyId || config?.examFamilyId || 'unknown',
       specificationId,
@@ -401,11 +489,21 @@ function decoupleIndex(items) {
         mappingStatus: 'machine-indexed',
       },
     })
-    answers.push({ answerId, answer, answerKey: answerKey || (question.answerType === 'multiple-choice' ? answer : null), markPoints, exactAnswer, answerRef })
+    answers.push({
+      answerId,
+      answer,
+      answerKey: answerKey || (question.answerType === 'multiple-choice' ? answer : null),
+      markPoints,
+      exactAnswer,
+      answerRef,
+      answerParts: answerPartRecords,
+    })
     bindings.push({
       questionId,
       answerId,
-      verificationStatus: answerBinding?.verificationStatus === 'reviewed' ? 'reviewed' : 'machine-indexed',
+      verificationStatus: questionGroup.status === 'quarantined'
+        ? 'quarantined'
+        : answerBinding?.verificationStatus === 'reviewed' ? 'reviewed' : 'machine-indexed',
       questionDocumentSha256: item.sourceRef?.sha256,
       answerDocumentSha256: answerRef?.sha256,
     })
@@ -420,21 +518,81 @@ function decoupleIndex(items) {
 
 function buildItems(paper, markScheme, config, questionGroups, answerGroups) {
   const items = []
+  const dropped = new Map()
+  const drop = (reason) => dropped.set(reason, (dropped.get(reason) || 0) + 1)
   for (const [questionNumber, question] of questionGroups) {
     const answer = answerGroups.get(questionNumber)
-    if (!answer) continue
-    const first = question.fragments[0]
-    const answerParts = answer.fragments
+    if (!answer) {
+      drop('missing-answer-group')
+      continue
+    }
+    const questionParts = collapseFragments(question.fragments || [])
+    const answerParts = collapseFragments(answer.fragments || [], { sumMarks: true })
+    if (!questionParts || !answerParts) {
+      drop('ambiguous-cross-page-fragments')
+      continue
+    }
+    if (!questionParts.length || !answerParts.length) {
+      drop('empty-question-or-answer-parts')
+      continue
+    }
+    const first = questionParts[0]
     const questionPages = [...new Set(question.pages)].sort((a, b) => a - b)
     const answerPages = [...new Set(answer.pages)].sort((a, b) => a - b)
     const topicId = first.topicId
-    if (!topicId) continue
-    const exactText = question.fragments.map((fragment) => fragment.exactText).filter(Boolean).join('\n').trim()
-    const exactAnswer = answerParts.map((fragment) => fragment.exactText).filter(Boolean).join('\n').trim()
-    if (!exactText || !exactAnswer) continue
-    const correctOption = answerParts.map((fragment) => fragment.correctOption).find((value) => /^[A-D]$/.test(value || '')) || null
-    const answerType = first.answerType === 'multiple-choice' || correctOption ? 'multiple-choice' : 'handwritten'
-    const options = answerType === 'multiple-choice' ? (first.options?.length === 4 ? first.options : ['A', 'B', 'C', 'D']) : undefined
+    if (!topicId) {
+      drop('missing-topic')
+      continue
+    }
+    const answerByLabel = new Map(answerParts.map((fragment, index) => [
+      questionPartLabel(fragment, answerParts.length === 1 ? 'a' : String(index + 1)),
+      fragment,
+    ]))
+    const parts = questionParts.map((fragment) => {
+      const label = questionPartLabel(fragment, questionParts.length === 1 ? 'a' : '')
+      const answerPart = answerByLabel.get(label)
+      if (!label || !answerPart) return null
+      const answerType = fragment.answerArea?.type || fragment.answerType || (answerPart.correctOption ? 'multiple-choice' : 'handwritten')
+      const questionMarks = normalizeMarkValue(fragment.marks)
+      const answerMarks = normalizeMarkValue(answerPart.marks)
+      const marks = answerType === 'multiple-choice' && !Number.isInteger(answerMarks) ? 1 : questionMarks
+      if (!Number.isInteger(marks) || marks < 1 || (Number.isInteger(answerMarks) && answerMarks !== marks)) return null
+      return {
+        partId: `${paper.id}:q${questionNumber}:part-${label}`,
+        label,
+        promptFragment: String(fragment.promptFragment || fragment.exactText || '').trim(),
+        marks,
+        answerArea: typeof fragment.answerArea === 'object' ? fragment.answerArea : { type: answerType, input: answerType === 'multiple-choice' ? 'choice' : 'handwriting' },
+        markSchemePoints: [...(answerPart.markPoints || fragment.markPoints || [])].map((value) => String(value).trim()).filter(Boolean),
+        answerKey: answerPart.correctOption || fragment.answerKey || null,
+        answerText: answerPart.exactText || null,
+        sourcePage: Number(fragment.sourcePage || fragment.page || question.pages[0]) || null,
+        answerSourcePage: Number(answerPart.sourcePage || answerPart.page || answer.pages[0]) || null,
+        options: fragment.options?.length ? fragment.options : undefined,
+      }
+    })
+    if (parts.some((part) => !part)) {
+      drop('part-label-or-mark-mismatch')
+      continue
+    }
+    if (parts.length !== answerParts.length) {
+      drop('question-answer-part-count-mismatch')
+      continue
+    }
+    const group = { questionGroupId: `${paper.id}:q${questionNumber}`, totalMarks: parts.reduce((sum, part) => sum + part.marks, 0), parts }
+    if (!validateQuestionGroup(group).valid) {
+      drop('question-group-validation')
+      continue
+    }
+    const exactText = parts.map((part) => part.promptFragment).filter(Boolean).join('\n').trim()
+    const exactAnswer = parts.map((part) => part.answerText).filter(Boolean).join('\n').trim()
+    if (!exactText || !exactAnswer) {
+      drop('missing-prompt-or-answer-text')
+      continue
+    }
+    const answerType = parts.length === 1 ? parts[0].answerArea.type : 'structured'
+    const correctOption = parts.length === 1 ? parts[0].answerKey : null
+    const options = parts.length === 1 && answerType === 'multiple-choice' ? (parts[0].options?.length === 4 ? parts[0].options : ['A', 'B', 'C', 'D']) : undefined
     items.push({
       bankId: `${paper.id}:q${questionNumber}`,
       examFamilyId: config.examFamilyId,
@@ -453,8 +611,12 @@ function buildItems(paper, markScheme, config, questionGroups, answerGroups) {
       options,
       answer: correctOption,
       answerKey: correctOption,
-      marks: Math.max(1, Number(first.marks) || Number(answerParts[0]?.marks) || 1),
-      markPoints: answerParts.flatMap((fragment) => fragment.markPoints || []).filter(Boolean),
+      questionGroupId: group.questionGroupId,
+      questionGroupStatus: 'verified',
+      totalMarks: group.totalMarks,
+      parts,
+      marks: group.totalMarks,
+      markPoints: parts.flatMap((part) => part.markSchemePoints || []).filter(Boolean),
       exactAnswer,
       sourceRef: {
         paperId: paper.id,
@@ -487,6 +649,15 @@ function buildItems(paper, markScheme, config, questionGroups, answerGroups) {
       },
     })
   }
+  if (process.env.QUESTION_INDEX_DEBUG) {
+    console.log(JSON.stringify({
+      paper: paper.file,
+      questionGroups: questionGroups.size,
+      answerGroups: answerGroups.size,
+      accepted: items.length,
+      dropped: Object.fromEntries(dropped),
+    }))
+  }
   return items
 }
 
@@ -513,6 +684,24 @@ async function indexPaper(paper, markScheme, config, provider, topics) {
       const value = await callVision(provider, page.filePath, answerInstruction(paper.subject, page.page))
       return { page: page.page, answers: value.answers || [] }
     })
+    if (process.env.QUESTION_INDEX_DEBUG) {
+      const summarize = (record, key) => ({
+        page: record.page,
+        count: (record[key] || []).length,
+        parts: (record[key] || []).slice(0, 12).map((fragment) => ({
+          questionNumber: fragment.questionNumber,
+          partId: fragment.partId,
+          label: fragment.label,
+          marks: fragment.marks,
+          topicId: fragment.topicId,
+        })),
+      })
+      console.log(JSON.stringify({
+        paper: paper.file,
+        questionPages: questionRecords.map((record) => summarize(record, 'fragments')),
+        answerPages: answerRecords.map((record) => summarize(record, 'answers')),
+      }))
+    }
     const outputDirectory = path.join(assetRoot, paper.id)
     copyRenderedPages(qpPages, outputDirectory, 'qp')
     copyRenderedPages(msPages, outputDirectory, 'ms')

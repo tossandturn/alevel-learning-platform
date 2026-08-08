@@ -814,6 +814,7 @@
   }
 
   .student-home-header {
+    grid-template-columns: 1fr;
     gap: 10px;
   }
 
@@ -831,6 +832,7 @@
   }
 
   .recommended-session {
+    grid-template-columns: 1fr;
     gap: 12px;
     margin-top: 13px;
     padding: 19px 20px;
@@ -943,5 +945,13 @@
 
   .topic-detail__source > span {
     grid-column: 2;
+  }
+}
+
+@media (max-width: 540px) {
+  .student-home-guided ~ .ai-coach-trigger {
+    top: auto;
+    right: 18px;
+    bottom: calc(18px + env(safe-area-inset-bottom));
   }
 }

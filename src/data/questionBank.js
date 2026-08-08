@@ -1,5 +1,6 @@
 import importedQuestionIndex from './importedQuestionIndex.json' with { type: 'json' }
 import { LEGACY_UNSCOPED_ROUTE_ID, resolveRouteId, routeById, routesForSubject } from './routeRegistry.js'
+import { normaliseQuestionGroup } from './questionParts.js'
 
 const REQUIRED_SOURCE_FIELDS = ['paperId', 'paper', 'question', 'localUrl', 'pageStart', 'sha256']
 const REQUIRED_ANSWER_FIELDS = ['documentId', 'file', 'localUrl', 'pageStart', 'sha256']
@@ -21,6 +22,7 @@ function hasRequiredFields(value, fields) {
 
 export function isVerifiedPastPaperItem(question) {
   const route = routeById(question?.routeId)
+  const groupValidation = normaliseQuestionGroup(question, question)
   return Boolean(
     question
     && question.sourceKind === 'past-paper'
@@ -33,6 +35,9 @@ export function isVerifiedPastPaperItem(question) {
     && (question.answerBinding.verificationStatus === 'machine-indexed' || question.answerBinding.verificationStatus === 'reviewed')
     && question.answerBinding.questionDocumentSha256 === question.sourceRef?.sha256
     && question.answerBinding.answerDocumentSha256 === question.answerRef?.sha256
+    && question.questionGroupId
+    && question.questionGroupStatus !== 'quarantined'
+    && groupValidation.status === 'verified'
     && route
     && route.stage === question.stage
     && route.qualification === question.qualification
@@ -61,6 +66,7 @@ export function normalizeImportedQuestion(question, route = null) {
   const sourceRef = { ...(question.sourceRef || {}), page: question.sourceRef?.page ?? question.sourceRef?.pageStart }
   const answerRef = question.answerRef || {}
   const sourceQuestionId = question.bankId || question.questionId
+  const questionGroup = normaliseQuestionGroup(question, question)
   const routeId = route?.routeId || LEGACY_UNSCOPED_ROUTE_ID
   const sourceKnowledgeGroupId = question.knowledgeGroupId || question.topicId || null
   const sourceTopicRouteId = resolveRouteId({ subjectId: question.subjectId, knowledgeGroupId: sourceKnowledgeGroupId })
@@ -71,6 +77,10 @@ export function normalizeImportedQuestion(question, route = null) {
     ...question,
     bankId: `${sourceQuestionId}@${routeId}`,
     sourceQuestionId,
+    questionGroupId: questionGroup.questionGroupId || sourceQuestionId,
+    questionGroupStatus: questionGroup.status,
+    totalMarks: questionGroup.totalMarks || 0,
+    parts: Object.freeze((questionGroup.parts || []).map((part) => Object.freeze(part))),
     routeId,
     qualification: route?.qualification || null,
     stage: route?.stage || null,
@@ -83,7 +93,7 @@ export function normalizeImportedQuestion(question, route = null) {
     sourcePaper: sourceRef.paper || null,
     sourceKind: 'past-paper',
     answerType: question.answerType || 'handwritten',
-    marks: Math.max(1, Number(question.marks) || 1),
+    marks: questionGroup.totalMarks || Math.max(1, Number(question.marks) || 1),
     stageTags: [...new Set(question.stageTags || [])],
     componentTags: [...new Set(question.componentTags || [])],
     topicTags: [...new Set(question.topicTags || [])],

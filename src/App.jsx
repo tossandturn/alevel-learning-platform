@@ -960,6 +960,16 @@ function App() {
   const currentUnit = currentAttempt ? allPracticeUnits.find((unit) => unit.id === currentAttempt.unitId) : null
   const resultUnit = resultAttempt ? allPracticeUnits.find((unit) => unit.id === resultAttempt.unitId) : null
 
+  function returnToLibrary(tab = 'recommended') {
+    setCurrentAttempt(null)
+    setPendingSession(null)
+    setResultAttempt(null)
+    setActivePaper(null)
+    setSelectedTopicId(null)
+    setActiveTab(tab)
+    setView('library')
+  }
+
   return (
     <main className="app-shell">
       {view !== 'practice' && view !== 'paper' && <TopNav view={view} setView={setView} profile={appState.profile} openNotebook={() => setView('notebook')} openRoleWorkspace={() => setView('workspace')} openPractice={() => { setActiveTab('recommended'); setView('library') }} />}
@@ -1071,8 +1081,7 @@ function App() {
             catalog={paperCatalogState.catalog}
             draft={appState.paperDrafts[activePaper.pairKey || activePaper.id]}
             onBack={() => {
-              setActiveTab('papers')
-              setView('library')
+              returnToLibrary('papers')
             }}
             onSaveDraft={savePaperDraft}
             onFinish={finishPaperSession}
@@ -1089,7 +1098,7 @@ function App() {
           updateAnswer={updateAnswer}
           updateEvidence={updateEvidence}
           submitAttempt={submitAttempt}
-          goBack={() => setView('library')}
+          goBack={() => returnToLibrary('topics')}
         />
       )}
 
@@ -1098,7 +1107,7 @@ function App() {
           attempt={resultAttempt}
           unit={resultUnit}
           startPractice={startPractice}
-          goLibrary={() => setView('library')}
+          goLibrary={() => returnToLibrary('recommended')}
         />
       )}
 

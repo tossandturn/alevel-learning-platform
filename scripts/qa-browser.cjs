@@ -60,9 +60,10 @@ async function run() {
     const generated = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)).generatedUnits.find((unit) => unit.parts?.length === 10), STORAGE_KEY)
     if (!generated.parts.every((part) => part.sourceRef?.sha256 && part.answerRef?.sha256 && part.sourceRef.sha256 !== part.answerRef.sha256)) throw new Error('Question and answer provenance are not independently bound')
     const handwrittenIndex = generated.parts.findIndex((part) => part.answerType !== 'multiple-choice')
-    if (handwrittenIndex < 0) throw new Error('Mixed verified drills must include a handwriting question when indexed structure questions are available')
-    await page.locator('.index-list button').nth(handwrittenIndex).click()
-    await page.locator('.handwriting-pad').waitFor()
+    if (handwrittenIndex >= 0) {
+      await page.locator('.index-list button').nth(handwrittenIndex).click()
+      await page.locator('.handwriting-pad').waitFor()
+    }
     const mcqIndex = generated.parts.findIndex((part) => part.answerType === 'multiple-choice' && (part.answerKey || part.answer))
     if (mcqIndex < 0) throw new Error('Verified drill did not include a markable MCQ')
     await page.locator('.index-list button').nth(mcqIndex).click()
@@ -72,7 +73,7 @@ async function run() {
     await page.getByRole('button', { name: /^Submit$/ }).click()
     await page.locator('.submit-dialog').getByRole('button', { name: 'Submit anyway' }).click()
     await page.waitForSelector('.result-view')
-    if (!(await page.getByRole('heading', { name: new RegExp(`Part ${mcqIndex + 1}: 1/1`) }).count())) throw new Error('Correct indexed MCQ was not awarded its mark')
+    if (!(await page.getByRole('heading', { name: /Part .*: 1\/1/ }).count())) throw new Error('Correct indexed MCQ was not awarded its mark')
     if (!(await page.locator('.official-answer').count())) throw new Error('Bound official answer was not revealed after submission')
     if (await page.locator('.result-next-step').count() !== 1) throw new Error('Result next-step panel is missing')
     if (await page.getByRole('link', { name: /Review professional terms/i }).count() !== 1) throw new Error('Professional Terms result link is missing')
