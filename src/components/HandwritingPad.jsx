@@ -223,6 +223,16 @@ export function HandwritingPad({
     event.preventDefault()
   }
 
+  function switchMode(nextMode) {
+    if (nextMode === mode) return
+    if (nextMode === 'handwrite') {
+      const active = window.document.activeElement
+      if (active instanceof HTMLElement) active.blur()
+      window.getSelection?.()?.removeAllRanges()
+    }
+    setMode(nextMode)
+  }
+
   async function undo() {
     if (disabled || historyRef.current.length <= 1) return
     historyRef.current = historyRef.current.slice(0, -1)
@@ -262,12 +272,12 @@ export function HandwritingPad({
   }
 
   return (
-    <section className="handwriting-pad" aria-labelledby={`${instanceId}-label`} onSelectStart={preventSelection} onDragStart={preventSelection} onContextMenu={preventSelection}>
+    <section className="handwriting-pad" aria-labelledby={`${instanceId}-label`} onSelectStart={mode === 'handwrite' ? preventSelection : undefined} onDragStart={mode === 'handwrite' ? preventSelection : undefined} onContextMenu={preventSelection}>
       <header className="handwriting-pad__header">
         <div><strong id={`${instanceId}-label`}>{label}</strong><span>Write the full method and final answer in one place</span></div>
         <div className="handwriting-pad__modes" role="group" aria-label="Answer input mode">
-          <button type="button" className={mode === 'handwrite' ? 'active' : ''} onClick={() => setMode('handwrite')}><PenTool size={16} />Handwrite</button>
-          <button type="button" className={mode === 'type' ? 'active' : ''} onClick={() => setMode('type')}><Keyboard size={16} />Type</button>
+          <button type="button" className={mode === 'handwrite' ? 'active' : ''} onClick={() => switchMode('handwrite')}><PenTool size={16} />Handwrite</button>
+          <button type="button" className={mode === 'type' ? 'active' : ''} onClick={() => switchMode('type')}><Keyboard size={16} />Type</button>
         </div>
       </header>
 

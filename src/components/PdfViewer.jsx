@@ -131,7 +131,6 @@ export function PdfViewer({ file, annotate = false, inkByPage = {}, inkTool = 'p
       cMapUrl: '/pdfjs/cmaps/',
       cMapPacked: true,
       standardFontDataUrl: '/pdfjs/standard_fonts/',
-      wasmUrl: '/pdfjs/wasm/',
     })
     setStatus('loading')
     setError('')

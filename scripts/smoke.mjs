@@ -63,6 +63,7 @@ assert.equal(parseCoachIntent('Give me an AS Physics past-paper set').type, 'cla
 
 const paperAnswerSheetSource = fs.readFileSync(path.resolve(import.meta.dirname, '..', 'src', 'components', 'PaperAnswerSheet.jsx'), 'utf8')
 assert.ok(paperAnswerSheetSource.includes('<HandwritingPad'), 'structured paper questions must use the unified handwriting pad')
+assert.ok(paperAnswerSheetSource.includes('pdfInkActive && !submitted'), 'submitted paper questions must keep the original answer evidence visible')
 assert.ok(!paperAnswerSheetSource.includes('Show your working'), 'structured paper questions must not expose a separate working field')
 assert.ok(!paperAnswerSheetSource.includes('Final answer</span>'), 'structured paper questions must not expose a separate final-answer field')
 

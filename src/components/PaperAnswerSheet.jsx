@@ -211,8 +211,8 @@ export function PaperAnswerSheet({
                     ))}
                   </div>
                 </fieldset>
-              ) : pdfInkActive ? (
-                <div className="paper-answer-sheet__pdf-note"><strong>{submitted ? 'PDF handwriting submitted' : 'Write on the original PDF'}</strong><span>{submitted ? 'AI reads the PDF handwriting for this question against the paired paper and mark scheme. Results appear below as soon as the review finishes.' : 'Select the pen on the paper pane and write your working beside this question. Your PDF page and handwriting will be combined for AI review after submission.'}</span>{submitted && <AiMarkResult result={aiMarks[questionNumber]} />}</div>
+              ) : pdfInkActive && !submitted ? (
+                <div className="paper-answer-sheet__pdf-note"><strong>Write on the original PDF</strong><span>Select the pen on the paper pane and write your working beside this question. Your PDF page and handwriting will be combined for AI review after submission.</span></div>
               ) : (
                 <div className="paper-answer-sheet__response">
                   <HandwritingPad
