@@ -3,6 +3,9 @@ import { Eraser, FilePlus2, Hand, Keyboard, PenTool, Trash2, Undo2, Upload } fro
 
 const CANVAS_HEIGHT = 340
 const MAX_HISTORY = 24
+const PEN_MIN_WIDTH = 1.15
+const PEN_PRESSURE_WIDTH = 2.35
+const ERASER_WIDTH = 22
 
 function imageUrl(image) {
   return image?.previewUrl || image?.dataUrl || ''
@@ -114,7 +117,7 @@ export function HandwritingPad({
 
   function scheduleEmit(canvas) {
     window.clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = window.setTimeout(() => emitCanvas(canvas), 1600)
+    saveTimerRef.current = window.setTimeout(() => emitCanvas(canvas), 1100)
   }
 
   useEffect(() => {
@@ -187,13 +190,15 @@ export function HandwritingPad({
     const ratio = canvas.width / canvas.getBoundingClientRect().width
     for (const sample of samples) {
       const previous = lastPointRef.current
+      if (!previous) continue
       const next = pointFor(sample)
       const midpoint = { x: (previous.x + next.x) / 2, y: (previous.y + next.y) / 2 }
       context.save()
       context.lineCap = 'round'
       context.lineJoin = 'round'
-      context.strokeStyle = tool === 'eraser' ? '#ffffff' : '#172033'
-      context.lineWidth = tool === 'eraser' ? 18 * ratio : (0.8 + next.pressure * 1.8) * ratio
+      context.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over'
+      context.strokeStyle = '#172033'
+      context.lineWidth = tool === 'eraser' ? ERASER_WIDTH * ratio : (PEN_MIN_WIDTH + next.pressure * PEN_PRESSURE_WIDTH) * ratio
       context.beginPath()
       context.moveTo(previous.x, previous.y)
       context.quadraticCurveTo(previous.x, previous.y, midpoint.x, midpoint.y)
@@ -212,6 +217,10 @@ export function HandwritingPad({
     const canvas = canvasRef.current
     snapshot(canvas)
     scheduleEmit(canvas)
+  }
+
+  function preventSelection(event) {
+    event.preventDefault()
   }
 
   async function undo() {
@@ -253,7 +262,7 @@ export function HandwritingPad({
   }
 
   return (
-    <section className="handwriting-pad" aria-labelledby={`${instanceId}-label`}>
+    <section className="handwriting-pad" aria-labelledby={`${instanceId}-label`} onSelectStart={preventSelection} onDragStart={preventSelection} onContextMenu={preventSelection}>
       <header className="handwriting-pad__header">
         <div><strong id={`${instanceId}-label`}>{label}</strong><span>Write the full method and final answer in one place</span></div>
         <div className="handwriting-pad__modes" role="group" aria-label="Answer input mode">
@@ -285,6 +294,7 @@ export function HandwritingPad({
             onPointerCancel={finishStroke}
             onPointerLeave={(event) => event.pointerType === 'mouse' && finishStroke(event)}
             onLostPointerCapture={finishStroke}
+            onSelectStart={preventSelection}
           />
         </div>
       ) : (

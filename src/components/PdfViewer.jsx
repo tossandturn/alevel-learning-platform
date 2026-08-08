@@ -29,6 +29,10 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, questionNumb
   const lastPointRef = useRef(null)
   const [ready, setReady] = useState(false)
 
+  function preventSelection(event) {
+    event.preventDefault()
+  }
+
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || !width || !height) return undefined
@@ -66,21 +70,24 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, questionNumb
     if (!drawingRef.current) return
     event.preventDefault()
     const context = canvasRef.current.getContext('2d')
-    const previous = lastPointRef.current
-    const next = pointFor(event)
     const ratio = canvasRef.current.width / canvasRef.current.getBoundingClientRect().width
-    context.save()
-    context.lineCap = 'round'
-    context.lineJoin = 'round'
-    context.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over'
-    context.strokeStyle = '#14243a'
-    context.lineWidth = (tool === 'eraser' ? 18 : 0.8 + next.pressure * 1.8) * ratio
-    context.beginPath()
-    context.moveTo(previous.x, previous.y)
-    context.lineTo(next.x, next.y)
-    context.stroke()
-    context.restore()
-    lastPointRef.current = next
+    for (const sample of event.getCoalescedEvents?.() || [event]) {
+      const previous = lastPointRef.current
+      if (!previous) continue
+      const next = pointFor(sample)
+      context.save()
+      context.lineCap = 'round'
+      context.lineJoin = 'round'
+      context.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over'
+      context.strokeStyle = '#14243a'
+      context.lineWidth = (tool === 'eraser' ? 22 : 1.15 + next.pressure * 2.35) * ratio
+      context.beginPath()
+      context.moveTo(previous.x, previous.y)
+      context.lineTo(next.x, next.y)
+      context.stroke()
+      context.restore()
+      lastPointRef.current = next
+    }
   }
 
   function finishStroke(event) {
@@ -98,7 +105,7 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, questionNumb
     onChange?.(pageNumber, { dataUrl: composite.toDataURL('image/jpeg', 0.82), inkDataUrl, questionNumber })
   }
 
-  return <canvas ref={canvasRef} className="pdf-ink-layer" aria-label={`Handwriting layer for PDF page ${pageNumber}`} onPointerDown={startStroke} onPointerMove={continueStroke} onPointerUp={finishStroke} onPointerCancel={finishStroke} onLostPointerCapture={finishStroke} />
+  return <canvas ref={canvasRef} className="pdf-ink-layer" aria-label={`Handwriting layer for PDF page ${pageNumber}`} onPointerDown={startStroke} onPointerMove={continueStroke} onPointerUp={finishStroke} onPointerCancel={finishStroke} onLostPointerCapture={finishStroke} onSelectStart={preventSelection} onDragStart={preventSelection} onContextMenu={preventSelection} />
 }
 
 export function PdfViewer({ file, annotate = false, inkByPage = {}, inkTool = 'pen', questionNumber = 1, onInkChange }) {

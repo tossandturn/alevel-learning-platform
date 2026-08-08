@@ -128,6 +128,8 @@ export function AiCoach({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: studentMessage.content, history: previous, context: intent?.type === 'clarify-practice' ? { ...context, agentIntent: intent } : context, hintLevel: level, imageDataUrl }),
       })
+      const contentType = response.headers.get('content-type') || ''
+      if (!contentType.includes('application/json')) throw new Error('AI Coach endpoint returned an invalid response. Check the STEM server deployment.')
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(payload.error || 'AI Coach could not answer this request.')
       setMessages((current) => [...current, {
@@ -137,6 +139,7 @@ export function AiCoach({
         warning: payload.warning || '',
         createdAt: new Date().toISOString(),
       }])
+      if (payload.mode === 'offline') setError(payload.warning || 'Qwen is offline. This response is only a controlled offline hint.')
       setImageDataUrl('')
       if (/hint|提示|下一步|截图|手写/i.test(clean)) setHintLevel((current) => Math.min(5, current + 1))
     } catch (requestError) {
@@ -233,7 +236,7 @@ export function AiCoach({
               <span>{message.role === 'assistant' ? 'Coach' : 'You'}</span>
               <p>{message.content}</p>
               {message.warning && <small>{message.warning}</small>}
-              {message.role === 'assistant' && message.mode === 'local' && <small>Local guidance mode</small>}
+              {message.role === 'assistant' && message.mode === 'offline' && <small>Offline hint only; retry when Qwen is available.</small>}
             </article>
           ))}
           {loading && <div className="ai-coach__thinking"><span />Reviewing the current question...</div>}

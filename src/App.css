@@ -3055,6 +3055,9 @@ textarea:focus-visible {
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  overscroll-behavior: contain;
+  isolation: isolate;
   cursor: crosshair;
   background-color: #fff;
   background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 31px, #e9edf3 32px);
@@ -4521,6 +4524,11 @@ button:disabled {
   display: block;
   margin: 0;
   touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  overscroll-behavior: contain;
   cursor: crosshair;
 }
 

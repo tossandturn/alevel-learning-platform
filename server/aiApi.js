@@ -239,7 +239,7 @@ export function providerConfig(env = {}) {
   const dashscopeBase = workspaceId
     ? `https://${workspaceId}.${region}.maas.aliyuncs.com/compatible-mode/v1`
     : 'https://dashscope.aliyuncs.com/compatible-mode/v1'
-  const compatibleBaseUrl = (env.DASHSCOPE_COMPAT_BASE_URL || dashscopeBase).replace(/\/+$/, '')
+  const compatibleBaseUrl = normalizeCompatibleBaseUrl(env.DASHSCOPE_COMPAT_BASE_URL || dashscopeBase)
   const dashscopeKey = env.DASHSCOPE_API_KEY || env.QWEN_API_KEY || ''
   const sharedKey = env.PHYSICS_AI_API_KEY || dashscopeKey
   const sharedBaseUrl = (env.PHYSICS_AI_BASE_URL || compatibleBaseUrl).replace(/\/+$/, '')
@@ -249,19 +249,26 @@ export function providerConfig(env = {}) {
     provider: 'qwen',
     coach: {
       apiKey: env.COACH_AI_API_KEY || env.QWEN_COACH_API_KEY || sharedKey,
-      baseUrl: (env.COACH_AI_BASE_URL || env.QWEN_COACH_BASE_URL || sharedBaseUrl).replace(/\/+$/, ''),
+      baseUrl: normalizeCompatibleBaseUrl(env.COACH_AI_BASE_URL || env.QWEN_COACH_BASE_URL || sharedBaseUrl),
       model: env.COACH_AI_MODEL || env.QWEN_COACH_MODEL || env.PHYSICS_COACH_MODEL || 'qwen3.7-max',
       publicBaseUrl,
       imageMode,
     },
     vision: {
       apiKey: env.VISION_AI_API_KEY || env.QWEN_VISION_API_KEY || sharedKey,
-      baseUrl: (env.VISION_AI_BASE_URL || env.QWEN_VISION_BASE_URL || sharedBaseUrl).replace(/\/+$/, ''),
+      baseUrl: normalizeCompatibleBaseUrl(env.VISION_AI_BASE_URL || env.QWEN_VISION_BASE_URL || sharedBaseUrl),
       model: env.VISION_AI_MODEL || env.QWEN_VISION_MODEL || env.PHYSICS_VISION_MODEL || 'qwen3-vl-plus',
       publicBaseUrl,
       imageMode,
     },
   }
+}
+
+function normalizeCompatibleBaseUrl(value) {
+  const source = String(value || '').trim().replace(/[\r\n]+/g, '').replace(/\/+$/, '')
+  if (!source) return ''
+  if (/\/chat\/completions$/i.test(source)) return source.replace(/\/chat\/completions$/i, '')
+  return source
 }
 
 function imagePublicBase(provider, request) {
@@ -278,8 +285,13 @@ function publicBaseUrlFromRequest(request) {
 
 function providerMessage(error) {
   const message = String(error?.message || error || '')
-  if (/timeout|timed out|fetch failed|econn|network/i.test(message)) return 'The AI service could not be reached. Try again in a moment.'
-  return 'AI review is temporarily unavailable. Your answer remains saved.'
+  if (/timeout|timed out|abort/i.test(message)) return 'Qwen request timed out. Check the server network and retry.'
+  if (/fetch failed|econn|enotfound|network/i.test(message)) return 'Qwen network request failed. Check the server network and retry.'
+  const status = message.match(/AI provider returned (\d{3})/)?.[1]
+  if (status === '401' || status === '403') return 'Qwen authentication or model access failed. Check the server key and model permission.'
+  if (status === '404') return 'Qwen model or endpoint was not found. Check the Base URL and model ID.'
+  if (status) return `Qwen upstream returned HTTP ${status}. Retry or check the provider configuration.`
+  return 'Qwen review is temporarily unavailable. Your answer remains saved.'
 }
 
 async function callCompatibleAi(provider, { messages, temperature = 0.2, json = false }) {
@@ -383,7 +395,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   if (!message && !imageDataUrl) throw Object.assign(new Error('Ask a question or attach an image.'), { statusCode: 400 })
   const localAnswer = localCoachReply(context, hintLevel)
   const activeProvider = imageDataUrl && visionProvider?.apiKey ? visionProvider : provider
-  if (!activeProvider.apiKey) return sendJson(response, 200, { mode: 'local', answer: localAnswer, warning: 'Qwen AI Coach is not configured on this local server.' })
+  if (!activeProvider.apiKey) return sendJson(response, 200, { mode: 'offline', providerStatus: 'not_configured', answer: localAnswer, warning: 'Qwen AI Coach is not configured on this server. This is an offline hint, not an AI review.' })
   const userText = [
     `Structured learning context:\n${compactText(JSON.stringify(context), 12000)}`,
     `Student request:\n${message || 'Explain the attached handwriting or diagram.'}`,
@@ -395,9 +407,9 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
       messages: [{ role: 'system', content: buildCoachSystemPrompt({ verifiedSubmitted, hintLevel }) }, ...history, { role: 'user', content }],
       temperature: 0.2,
     })
-    return sendJson(response, 200, { mode: 'ai', provider: 'qwen', answer: answer || localAnswer, model: activeProvider.model })
+    return sendJson(response, 200, { mode: 'ai', provider: 'qwen', providerStatus: 'connected', answer: answer || localAnswer, model: activeProvider.model })
   } catch (error) {
-    return sendJson(response, 200, { mode: 'local', answer: localAnswer, warning: providerMessage(error) })
+    return sendJson(response, 200, { mode: 'offline', provider: 'qwen', providerStatus: 'error', answer: localAnswer, warning: providerMessage(error), retryable: true })
   } finally {
     providerImage?.cleanup()
   }
@@ -442,7 +454,7 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
     source = await paperContext(payload, libraryRoot, allowedSubjects)
   } catch (error) {
     if (error.statusCode) throw error
-    return sendJson(response, 200, { mode: 'unavailable', code: 'vision_context_failed', error: providerMessage(error) })
+    return sendJson(response, 200, { mode: 'offline', code: 'vision_context_failed', provider: 'qwen', providerStatus: 'error', error: providerMessage(error), retryable: true })
   }
   const context = {
     subject: compactText(payload.subject, 80),
@@ -482,14 +494,14 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
     try {
       const raw = await callCompatibleAi(provider, { messages: [{ role: 'system', content: system }, { role: 'user', content }], temperature: 0.05 })
       const result = normalizeMarkResult(parseStructuredJson(raw), payload.maxMarks)
-      return sendJson(response, 200, { mode: 'vision', provider: 'qwen', model: provider.model, ...result })
+      return sendJson(response, 200, { mode: 'vision', provider: 'qwen', providerStatus: 'connected', model: provider.model, ...result })
     } finally {
       providerImage.cleanup()
       sourceImages.forEach((image) => image.cleanup())
     }
   } catch (error) {
     console.error(`[qwen-vision] ${String(error?.message || error).slice(0, 180)}`)
-    return sendJson(response, 200, { mode: 'unavailable', code: 'vision_review_failed', error: providerMessage(error) })
+    return sendJson(response, 200, { mode: 'offline', code: 'vision_review_failed', provider: 'qwen', providerStatus: 'error', error: providerMessage(error), retryable: true })
   }
 }
 
