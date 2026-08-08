@@ -1,6 +1,8 @@
+import { LEGACY_UNSCOPED_ROUTE_ID, resolveRouteId, routesForSubject } from './routeRegistry.js'
+
 const CAMBRIDGE_ROOT = 'https://www.cambridgeinternational.org/programmes-and-qualifications/'
 
-export const examStructures = {
+const EXAM_STRUCTURES = {
   '0580': {
     subject: 'Mathematics',
     qualification: 'Cambridge IGCSE',
@@ -236,6 +238,18 @@ export const examStructures = {
   },
 }
 
+export const examStructures = Object.freeze(Object.fromEntries(Object.entries(EXAM_STRUCTURES).map(([subjectCode, structure]) => {
+  const courseRouteIds = routesForSubject(subjectCode).map((route) => route.routeId)
+  return [subjectCode, Object.freeze({
+    ...structure,
+    courseRouteIds: Object.freeze(courseRouteIds),
+    routes: Object.freeze((structure.routes || []).map((route) => Object.freeze({
+      ...route,
+      courseRouteId: resolveRouteId({ subjectId: subjectCode, stage: route.stage }) || (courseRouteIds.length === 1 ? courseRouteIds[0] : LEGACY_UNSCOPED_ROUTE_ID),
+    }))),
+  })]
+})))
+
 export function paperNumberFromVariant(variant) {
   const match = /^(\d)(?:\d)?$/.exec(String(variant || ''))
   return match ? Number(match[1]) : null
@@ -272,6 +286,12 @@ export function getExamPaperProfile(subject, variant, year = null) {
     ? []
     : (structure.routes || []).filter((route) => paperNumbers.some((number) => route.papers.includes(number))).map((route) => route.id)
   const syllabusEra = year != null && subject === '9709' && Number(year) <= 2019 ? 'legacy-through-2019' : year != null && subject === '9702' && Number(year) <= 2006 ? 'legacy-through-2006' : year != null && subject === '0580' && Number(year) <= 2024 ? 'legacy-through-2024' : 'current'
+  const courseRouteId = resolveRouteId({
+    qualificationId: structure.qualification,
+    subjectId: subject,
+    paperComponent: paperNumber,
+    year,
+  })
   return {
     subject,
     paperNumber,
@@ -290,6 +310,8 @@ export function getExamPaperProfile(subject, variant, year = null) {
       stages: [...new Set(matchedPapers.flatMap((entry) => entry.stages || []))],
     } : paper),
     routeIds,
+    courseRouteId: courseRouteId || LEGACY_UNSCOPED_ROUTE_ID,
+    courseRouteIds: structure.courseRouteIds,
     syllabusEra,
   }
 }

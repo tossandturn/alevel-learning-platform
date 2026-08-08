@@ -34,7 +34,10 @@ async function run() {
       if (response.status() >= 400 && !expectedGuestIdentity) errors.push(`${response.status()} ${response.url()}`)
     })
     await page.goto(APP_URL, { waitUntil: 'domcontentloaded' })
-    await page.evaluate(() => localStorage.clear())
+    await page.evaluate(() => {
+      localStorage.clear()
+      for (const key of Object.keys(localStorage)) if (key.includes('ai-coach')) localStorage.removeItem(key)
+    })
     await page.reload({ waitUntil: 'domcontentloaded' })
     await page.locator('.dashboard-studio .continue-card').waitFor()
     if (await page.locator('.dashboard-studio .study-action-grid').count() !== 1) throw new Error('Study actions are missing')
@@ -86,6 +89,8 @@ async function run() {
       if (await row.getByRole('button', { name: /Build AS drill · 10 questions/i }).isDisabled()) throw new Error(`${topic} ten-question drill is still locked`)
     }
 
+    await page.getByRole('button', { name: /^Today$/ }).click()
+    await page.getByRole('combobox', { name: 'Current route' }).selectOption('cie-0625-igcse-physics')
     await page.getByRole('button', { name: /^Practice$/ }).click()
     await page.getByRole('button', { name: /^Notebook$/ }).click()
     await page.getByRole('button', { name: /Teacher Create classes/ }).click()

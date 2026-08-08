@@ -66,9 +66,9 @@ assert.ok(!paperAnswerSheetSource.includes('Show your working'), 'structured pap
 assert.ok(!paperAnswerSheetSource.includes('Final answer</span>'), 'structured paper questions must not expose a separate final-answer field')
 
 assert.equal(practiceUnits.length, 0, 'formal practice must not expose generated seed questions')
-const verifiedFixture = unifiedQuestionBank.find((item) => item.subjectCode === '9702' && item.answerType === 'multiple-choice' && item.answerKey)
+const verifiedFixture = unifiedQuestionBank.find((item) => item.routeId === 'cie-9702-as-physics' && item.answerType === 'multiple-choice' && item.answerKey)
 assert.ok(verifiedFixture, 'a real 9702 MCQ fixture must be indexed')
-const verifiedUnit = { maxMarks: verifiedFixture.marks, parts: [{ ...verifiedFixture, id: 'verified-fixture' }] }
+const verifiedUnit = { routeId: verifiedFixture.routeId, stage: verifiedFixture.stage, maxMarks: verifiedFixture.marks, parts: [{ ...verifiedFixture, id: 'verified-fixture' }] }
 const blankResult = scoreAttempt(verifiedUnit, {}, 0)
 assert.equal(blankResult.rawMarks, 0, 'blank attempt must score zero')
 assert.equal(blankResult.maxMarks, verifiedUnit.maxMarks)
@@ -85,6 +85,7 @@ assert.ok(unifiedQuestionBank.every(isVerifiedPastPaperItem), 'formal topic dril
 assert.ok(unifiedQuestionBank.every((item) => item.sourceRef.sha256 !== item.answerRef.sha256), 'question and answer documents must remain independently bound')
 
 const mixedPhysicsDrill = selectTaggedQuestions({
+  routeId: 'cie-9702-as-physics',
   qualificationId: 'cambridge-9702',
   stage: 'AS',
   knowledgeGroupId: 'physics-9702-topic-03',
@@ -94,12 +95,14 @@ assert.equal(mixedPhysicsDrill.length, 10, 'a verified topic drill must contain 
 assert.ok(new Set(mixedPhysicsDrill.map((item) => item.answerType)).size >= 2, 'topic drills should expose multiple answer surfaces when the source bank has them')
 assert.ok(new Set(mixedPhysicsDrill.map((item) => item.sourceRef.paperId)).size >= 2, 'topic drills should draw from more than one official paper when available')
 assert.ok(mixedPhysicsDrill.every((item) => item.answerBinding && item.answerRef), 'every selected question must retain its paired answer binding')
+assert.ok(mixedPhysicsDrill.every((item) => item.routeId === 'cie-9702-as-physics' && item.stage === 'AS'), 'AS drills must never contain A2 or IGCSE questions')
 
-const igcseBiologyDrill = buildCoachPractice({ subjectId: 'igcse-biology', stage: 'IGCSE', knowledgeGroupId: 'biology-0610-cell', questionCount: 10 })
+const igcseBiologyDrill = buildCoachPractice({ routeId: 'cie-0610-igcse-biology', knowledgeGroupId: 'biology-0610-cell', questionCount: 10 })
 assert.equal(igcseBiologyDrill.parts.length, 10, '0610 Cells must unlock a ten-question verified drill')
 assert.ok(igcseBiologyDrill.parts.every(isVerifiedPastPaperItem), '0610 drill must retain verified question bindings')
-const a2BiologyDrill = buildCoachPractice({ subjectId: 'biology', stage: 'A2', knowledgeGroupId: 'biology-9700-a2-energy', questionCount: 10 })
+const a2BiologyDrill = buildCoachPractice({ routeId: 'cie-9700-a2-biology', knowledgeGroupId: 'biology-9700-a2-energy', questionCount: 10 })
 assert.equal(a2BiologyDrill.parts.length, 10, '9700 A2 Energy must unlock a ten-question verified drill')
+assert.ok(a2BiologyDrill.parts.every((item) => item.routeId === 'cie-9700-a2-biology'), 'A2 Biology drill cannot contain AS or IGCSE questions')
 
 const questionIndex = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, '..', 'src', 'data', 'importedQuestionIndex.json'), 'utf8'))
 assert.equal(questionIndex.schemaVersion, 2, 'question index must use the decoupled schema')
@@ -222,3 +225,93 @@ assert.deepEqual(stagesForComponentTags(['AS/A2 P4 (M1)']), ['AS', 'A2'], 'share
 assert.deepEqual(stagesForComponentTags(['AS or A2 P3']), ['AS', 'A2'], 'alternative-stage components must expose both AS and A2')
 
 console.log('Smoke checks passed')
+
+const { courseRoutes: routeContractRegistry } = await import('../src/data/routeRegistry.js')
+const { LEGACY_UNSCOPED_ROUTE_ID: unscopedRouteId, resolveRouteBinding: resolveRouteContract } = await import('../src/lib/routeMigration.js')
+const { mergeStoredState, normalizeState: normalizeStoredState, normalizeSyncItem } = await import('../src/lib/storage.js')
+
+assert.equal(
+  resolveRouteContract({ routeId: 'unknown-route', stage: 'AS' }, { routes: routeContractRegistry }).routeId,
+  unscopedRouteId,
+  'explicit route IDs must be validated against the supplied registry',
+)
+assert.equal(
+  resolveRouteContract({ routeId: 'cie-9702-as-physics', stage: 'A2' }, { routes: routeContractRegistry }).routeId,
+  unscopedRouteId,
+  'explicit route metadata must not conflict with the registered stage',
+)
+assert.equal(
+  resolveRouteContract({ routeId: 'cie-0625-igcse-physics', stage: 'IGCSE', subjectId: 'physics-9702' }, { routes: routeContractRegistry }).routeId,
+  unscopedRouteId,
+  'subjectId syllabus codes must be checked when validating an explicit route',
+)
+assert.equal(
+  resolveRouteContract({ subjectId: 'physics-9702', syllabusTopic: 'Superposition' }, { routes: routeContractRegistry }).routeId,
+  'cie-9702-as-physics',
+  'route metadata matching must recognise subjectId and route.syllabus.topics',
+)
+
+const routeScoringPart = { id: 'route-score', marks: 1, answerType: 'multiple-choice', answer: 'A', markPoints: ['A'] }
+const validRouteScore = scoreAttempt({ routeId: 'cie-9702-as-physics', maxMarks: 1, parts: [routeScoringPart] }, { 'route-score': 'A' }, 10)
+assert.deepEqual([validRouteScore.routeId, validRouteScore.stage], ['cie-9702-as-physics', 'AS'], 'scoring must bind a registered route to its canonical stage')
+const conflictingRouteScore = scoreAttempt({ routeId: 'cie-9702-as-physics', stage: 'A2', maxMarks: 1, parts: [routeScoringPart] }, { 'route-score': 'A' }, 10)
+assert.deepEqual([conflictingRouteScore.routeId, conflictingRouteScore.stage], [unscopedRouteId, null], 'scoring must reject a route/stage mismatch')
+const legacyTopicIdUnit = buildCoachPractice({ routeId: 'cie-9702-as-physics', knowledgeGroupId: 'physics-9702-topic-03', questionCount: 1, allowPartial: true })
+assert.deepEqual(
+  [scoreAttempt(legacyTopicIdUnit, {}, 1).routeId, scoreAttempt(legacyTopicIdUnit, {}, 1).stage],
+  ['cie-9702-as-physics', 'AS'],
+  'registered route validation must accept a legacy knowledge-group ID when its syllabus topic title matches',
+)
+
+const oldIgcseState = normalizeStoredState({ profile: { role: 'student', learningTrack: 'IGCSE' } })
+assert.equal(oldIgcseState.profile.activeRouteId, null, 'legacy profiles without a unique active route must not silently switch to AS Physics')
+assert.equal(oldIgcseState.profile.learningTrack, 'IGCSE', 'legacy profile stage should be preserved while route selection is unresolved')
+
+const staticAttemptState = {
+  profile: { role: 'student', learningTrack: 'AS' },
+  attempts: [{ id: 'static-attempt', unitId: 'static-as-unit', stage: 'result', submittedAt: '2026-08-08T00:00:00.000Z', scoreResult: { percentage: 70, maxMarks: 1, criteria: [{}] } }],
+}
+const deferredStaticState = normalizeStoredState(staticAttemptState)
+assert.equal(deferredStaticState.attempts[0].stage, 'result', 'missing static unit context must defer migration instead of destroying the lifecycle stage')
+assert.equal(deferredStaticState.attempts[0].routeMigration.status, 'deferred', 'missing static unit context must be explicit')
+const scopedStaticState = normalizeStoredState(staticAttemptState, { units: [{ id: 'static-as-unit', routeId: 'cie-9702-as-physics', stage: 'AS', subjectId: 'physics-9702' }] })
+assert.deepEqual(
+  [scopedStaticState.attempts[0].routeId, scopedStaticState.attempts[0].stage, scopedStaticState.attempts[0].attemptStatus],
+  ['cie-9702-as-physics', 'AS', 'result'],
+  'supplying static units must enable a unique route migration',
+)
+
+const legacyQueueInput = {
+  resource: '/api/stem/assignments/assignment-1/submissions',
+  method: 'POST',
+  idempotencyKey: 'legacy-queue-key',
+  attemptId: 'legacy-attempt',
+  body: { idempotencyKey: 'legacy-queue-key', attemptId: 'legacy-attempt', rawMarks: 1, maxMarks: 2, percentage: 50 },
+}
+const legacyQueueA = normalizeSyncItem(legacyQueueInput)
+const legacyQueueB = normalizeSyncItem(legacyQueueInput)
+assert.equal(legacyQueueA.id, legacyQueueB.id, 'legacy queue IDs must be generated deterministically')
+assert.deepEqual([legacyQueueA.syncable, legacyQueueA.syncStatus, legacyQueueA.routeId, legacyQueueA.stage], [false, 'blocked', unscopedRouteId, null], 'unscoped legacy queue entries must remain visible but unsyncable')
+
+const validQueue = normalizeSyncItem({
+  ...legacyQueueInput,
+  idempotencyKey: 'route-queue-key',
+  routeId: 'cie-9702-as-physics',
+  stage: 'AS',
+  body: { ...legacyQueueInput.body, idempotencyKey: 'route-queue-key', routeId: 'cie-9702-as-physics', stage: 'AS' },
+})
+assert.equal(validQueue.syncable, true, 'new route-bound submissions must remain replayable')
+assert.deepEqual([validQueue.body.routeId, validQueue.body.stage], ['cie-9702-as-physics', 'AS'], 'sync payloads must preserve route and stage')
+
+const mergedAfterCompletion = mergeStoredState(
+  { attempts: [{ id: 'done-attempt', serverSync: 'synced' }], syncQueue: [], completedSyncKeys: ['done-key'] },
+  { attempts: [{ id: 'done-attempt', serverSync: 'pending' }], syncQueue: [{ ...validQueue, idempotencyKey: 'done-key', attemptId: 'done-attempt' }], completedSyncKeys: [] },
+)
+assert.equal(mergedAfterCompletion.syncQueue.length, 0, 'a stale UI save must not resurrect a completed sync item')
+assert.equal(mergedAfterCompletion.attempts[0].serverSync, 'synced', 'a stale UI save must preserve the completed attempt receipt state')
+assert.ok(mergeStoredState(
+  { attempts: [{ id: 'append-only-attempt', serverSync: 'synced' }], syncQueue: [], completedSyncKeys: [] },
+  { attempts: [], syncQueue: [], completedSyncKeys: [] },
+).attempts.some((attempt) => attempt.id === 'append-only-attempt'), 'stale state must not delete an append-only persisted attempt')
+
+console.log('Route migration and sync queue checks passed')

@@ -1,6 +1,7 @@
 import { subjects } from '../data/catalog.js'
 import { learningPlan } from '../data/learningPlan.js'
-import { questionInventory, selectTaggedQuestions, sourceMixForQuestions } from '../data/questionBank.js'
+import { questionInventory, selectTaggedQuestions, sourceMixForQuestions, unifiedQuestionBank } from '../data/questionBank.js'
+import { courseRoutes, routeById, routesForSubject } from '../data/routeRegistry.js'
 
 const EXTERNAL_GROUPS = Object.freeze({
   bpho: [
@@ -35,34 +36,55 @@ function externalGroup(id, name) {
   return Object.freeze({ id, name, stageTags: [] })
 }
 
-export const coachPracticeSubjects = Object.freeze([
-  coachSubject('biology', 'cambridge-9700', '9700', '9700 Biology', 'biology-9700', ['AS', 'A2']),
-  coachSubject('igcse-biology', 'cambridge-0610', '0610', '0610 IGCSE Biology', 'biology-0610', ['IGCSE']),
-  coachSubject('physics', 'cambridge-9702', '9702', '9702 Physics', 'physics-9702', ['AS', 'A2']),
-  coachSubject('chemistry', 'cambridge-9701', '9701', '9701 Chemistry', 'chemistry-9701', ['AS', 'A2']),
-  coachSubject('economics', 'cambridge-9708', '9708', '9708 Economics', 'economics-9708', ['AS', 'A2']),
-  coachSubject('math', 'cambridge-9709', '9709', '9709 Mathematics', 'math-9709', ['AS', 'A2']),
-  coachSubject('further-math', 'cambridge-9231', '9231', '9231 Further Mathematics', 'math-9231', ['AS', 'A2']),
-  coachSubject('igcse-physics', 'cambridge-0625', '0625', '0625 IGCSE Physics', 'physics-0625', ['IGCSE']),
-  coachSubject('igcse-math', 'cambridge-0580', '0580', '0580 IGCSE Mathematics', 'math-0580', ['IGCSE']),
-  coachSubject('additional-math', 'cambridge-0606', '0606', '0606 Additional Mathematics', 'math-0606', ['IGCSE']),
-  coachSubject('bpho', 'bpho', 'bpho', 'BPhO', null, ['Physics Challenge', 'SPC', 'Round 1', 'Round 2']),
-  coachSubject('esat', 'esat', 'esat', 'ESAT', null, ['Mathematics 1', 'Mathematics 2', 'Physics', 'Chemistry', 'Biology']),
-  coachSubject('tmua', 'tmua', 'tmua', 'TMUA', null, ['Paper 1', 'Paper 2']),
-  coachSubject('amc12', 'amc12', 'amc12', 'AMC 12', null, ['AMC 12']),
-])
+function appSubjectForRoute(route) {
+  return subjects.find((subject) => subject.routeIds?.includes(route.routeId))
+}
 
-function coachSubject(id, qualificationId, code, label, planSubjectId, stages) {
-  return Object.freeze({ id, qualificationId, code, label, planSubjectId, stages })
+export const coachPracticeSubjects = Object.freeze(courseRoutes.map((route) => {
+  const appSubject = appSubjectForRoute(route)
+  return Object.freeze({
+    id: route.routeId,
+    routeId: route.routeId,
+    subjectId: appSubject?.id || route.subjectId,
+    qualificationId: route.routeId.startsWith('cie-') ? `cambridge-${route.subjectCode}` : route.subjectId,
+    qualification: route.qualification,
+    code: route.subjectCode,
+    label: `${route.stage} ${route.subjectCode.toUpperCase()} ${route.subject}`,
+    planSubjectId: route.subjectId,
+    stage: route.stage,
+    stages: [route.stage],
+  })
+}))
+
+function baseTopicId(topicId) {
+  return String(topicId || '').split('@')[0]
 }
 
 function planGroupsFor(subject) {
   if (!subject) return []
-  if (!subject.planSubjectId) return EXTERNAL_GROUPS[subject.id] || []
-  const planSubject = learningPlan.subjects.find((item) => item.id === subject.planSubjectId)
-  return (planSubject?.knowledgeGroupIds || [])
-    .map((groupId) => learningPlan.knowledgeGroups.find((group) => group.id === groupId))
-    .filter(Boolean)
+  const routeQuestions = selectTaggedQuestionsForRoute(subject.routeId)
+  const questionTopicIds = [...new Set(routeQuestions.map((question) => question.knowledgeGroupId).filter(Boolean))]
+  const routePlanGroups = learningPlan.knowledgeGroups.filter((group) => group.routeId === subject.routeId && !group.hidden)
+  const groupIds = [...new Set([...routePlanGroups.map((group) => group.id), ...questionTopicIds])]
+  return groupIds.map((id) => {
+    const sourceId = baseTopicId(id)
+    const group = learningPlan.knowledgeGroups.find((item) => item.id === sourceId)
+      || Object.values(EXTERNAL_GROUPS).flat().find((item) => item.id === sourceId)
+    return Object.freeze({
+      ...(group || {}),
+      id,
+      routeId: subject.routeId,
+      stage: subject.stage,
+      name: group?.name || sourceId.replaceAll('-', ' '),
+      stageTags: [subject.stage],
+    })
+  })
+}
+
+function selectTaggedQuestionsForRoute(routeId) {
+  const route = routeById(routeId)
+  if (!route) return []
+  return unifiedQuestionBank.filter((question) => question.routeId === routeId)
 }
 
 export function coachPracticeOptions() {
@@ -70,12 +92,13 @@ export function coachPracticeOptions() {
     ...subject,
     topics: planGroupsFor(subject).map((group) => ({
       id: group.id,
+      routeId: subject.routeId,
       label: group.name,
       stageTags: group.stageTags || [],
-      inventory: questionInventory({ qualificationId: subject.qualificationId, knowledgeGroupId: group.id }),
+      inventory: questionInventory({ routeId: subject.routeId, qualificationId: subject.qualificationId, knowledgeGroupId: group.id }),
       inventoryByStage: Object.fromEntries(subject.stages.map((stage) => [
         stage,
-        questionInventory({ qualificationId: subject.qualificationId, stage, knowledgeGroupId: group.id }),
+        questionInventory({ routeId: subject.routeId, qualificationId: subject.qualificationId, stage, knowledgeGroupId: group.id }),
       ])),
     })),
   }))
@@ -91,17 +114,28 @@ export class PracticeInventoryError extends Error {
   }
 }
 
-function resolveSelection(subjectId, knowledgeGroupId) {
-  const subject = coachPracticeSubjects.find((item) => item.id === subjectId) || coachPracticeSubjects[0]
+function resolveSelection({ routeId, subjectId, stage, knowledgeGroupId }) {
+  const explicitRoute = routeById(routeId || subjectId)
+  const matchingRoutes = explicitRoute ? [explicitRoute] : routesForSubject(subjectId).filter((route) => !stage || route.stage === stage)
+  if (matchingRoutes.length !== 1) {
+    throw new Error(matchingRoutes.length ? 'Choose one exact paper route before building practice.' : 'Choose a valid learning route before building practice.')
+  }
+  const subject = coachPracticeSubjects.find((item) => item.routeId === matchingRoutes[0].routeId)
   const groups = planGroupsFor(subject)
   const group = groups.find((item) => item.id === knowledgeGroupId) || groups[0]
   return { subject, group }
 }
 
-export function previewCoachPracticeSourceMix({ subjectId, stage, knowledgeGroupId, questionCount = 10 }) {
-  const { subject, group } = resolveSelection(subjectId, knowledgeGroupId)
+export function previewCoachPracticeSourceMix({ routeId, subjectId, stage, knowledgeGroupId, questionCount = 10 }) {
   const requestedCount = Math.min(30, Math.max(10, Number(questionCount) || 10))
-  const available = group ? questionInventory({ qualificationId: subject.qualificationId, stage, knowledgeGroupId: group.id }) : 0
+  let selection
+  try {
+    selection = resolveSelection({ routeId, subjectId, stage, knowledgeGroupId })
+  } catch {
+    return { questionCount: requestedCount, available: 0, shortfall: requestedCount, partial: false, status: 'route-required', pastPaperItems: 0, generatedPractice: 0, referencedPapers: 0, referencePapers: [] }
+  }
+  const { subject, group } = selection
+  const available = group ? questionInventory({ routeId: subject.routeId, qualificationId: subject.qualificationId, stage: subject.stage, knowledgeGroupId: group.id }) : 0
   return {
     questionCount: requestedCount,
     available,
@@ -115,22 +149,23 @@ export function previewCoachPracticeSourceMix({ subjectId, stage, knowledgeGroup
   }
 }
 
-export function buildCoachPractice({ subjectId, stage, knowledgeGroupId, questionCount = 10, allowPartial = false }) {
-  const { subject, group } = resolveSelection(subjectId, knowledgeGroupId)
+export function buildCoachPractice({ routeId, subjectId, stage, knowledgeGroupId, questionCount = 10, allowPartial = false }) {
+  const { subject, group } = resolveSelection({ routeId, subjectId, stage, knowledgeGroupId })
   const requestedCount = Math.min(30, Math.max(10, Number(questionCount) || 10))
-  if (!group) throw new PracticeInventoryError({ subject, stage, group: { name: 'selected topic' }, available: 0, requested: requestedCount })
+  if (!group) throw new PracticeInventoryError({ subject, stage: subject.stage, group: { name: 'selected topic' }, available: 0, requested: requestedCount })
   const bank = selectTaggedQuestions({
+    routeId: subject.routeId,
     qualificationId: subject.qualificationId,
-    subjectId: subject.id,
-    stage,
+    subjectId: subject.subjectId,
+    stage: subject.stage,
     knowledgeGroupId: group.id,
     questionCount: requestedCount,
   })
   if (!bank.length) {
-    throw new PracticeInventoryError({ subject, stage, group, available: bank.length, requested: requestedCount })
+    throw new PracticeInventoryError({ subject, stage: subject.stage, group, available: bank.length, requested: requestedCount })
   }
   if (bank.length < requestedCount && !allowPartial) {
-    throw new PracticeInventoryError({ subject, stage, group, available: bank.length, requested: requestedCount })
+    throw new PracticeInventoryError({ subject, stage: subject.stage, group, available: bank.length, requested: requestedCount })
   }
 
   const generatedAt = Date.now()
@@ -142,6 +177,9 @@ export function buildCoachPractice({ subjectId, stage, knowledgeGroupId, questio
     sourceLabel: `${part.sourceRef.paper} · ${part.sourceRef.question}`,
     sourceDescription: `Official question paper, page ${part.sourceRef.pageStart}. The exact paired mark scheme unlocks after submission.`,
   }))
+  if (parts.some((part) => part.routeId !== subject.routeId || part.stage !== subject.stage)) {
+    throw new Error('The selected source contains a question outside this learning route.')
+  }
   const sourcePapers = new Map()
   for (const part of parts) {
     if (!sourcePapers.has(part.sourceRef.paperId)) {
@@ -156,26 +194,32 @@ export function buildCoachPractice({ subjectId, stage, knowledgeGroupId, questio
       })
     }
   }
-  const appSubject = subjects.find((item) => item.id === subject.id)
+  const appSubject = subjects.find((item) => item.id === subject.subjectId)
   const sourceMix = sourceMixForQuestions(parts)
 
   return {
     id: `verified-set-${generatedAt}`,
     type: 'topic',
     agentGenerated: true,
-    subjectId: subject.id,
+    routeId: subject.routeId,
+    qualification: subject.qualification,
+    subject: routeById(subject.routeId)?.subject,
+    subjectId: subject.subjectId,
     qualificationId: subject.qualificationId,
     knowledgeGroupId: group.id,
     topicId: group.id,
     topic: group.name,
-    subtopic: `${stage} verified past-paper drill`,
+    subtopic: `${subject.stage} verified past-paper drill`,
     icon: appSubject?.icon || 'Q',
-    title: `${subject.label}: ${group.name}`,
+    title: `${subject.stage} ${routeById(subject.routeId)?.subject} · ${group.name}`,
     board: subject.label,
     code: subject.code,
-    specification: `${stage} · official past-paper questions`,
+    specification: `${subject.stage} · official past-paper questions`,
     inventoryStatus: parts.length < requestedCount ? 'partial-source-inventory' : 'verified-source-inventory',
-    stage,
+    stage: subject.stage,
+    paperComponent: [...new Set(parts.map((part) => part.paperComponent).filter((value) => value != null))],
+    syllabusTopic: group.id,
+    sourcePaper: [...new Set(parts.map((part) => part.sourcePaper).filter(Boolean))],
     durationSec: Math.max(20, parts.length * 4) * 60,
     maxMarks: parts.reduce((sum, part) => sum + part.marks, 0),
     difficulty: 'Past paper',

@@ -8,6 +8,7 @@ import { closeStemDatabaseForTests, createStemApi } from '../server/stemApi.js'
 
 const signingKey = 'shared-workspace-test-signing-key'
 const databasePath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'stem-workspace-test-')), 'stem.sqlite')
+const legacyDatabasePath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'stem-workspace-legacy-test-')), 'stem.sqlite')
 
 function tokenFor(userId, username, roles = []) {
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
@@ -58,37 +59,128 @@ try {
   assert.equal(schoolJoined.statusCode, 200)
   assert.equal(schoolJoined.body.classroom.role, 'school')
 
+  const missingRoute = await call(api, {
+    method: 'POST', url: '/api/stem/assignments', token: teacherToken,
+    body: { classroomId: createdClass.body.classroom.id, subjectId: 'physics-9702', stage: 'AS', syllabusPointId: 'physics-waves', title: 'Missing route', sourceScope: { questionIds: ['qp-0@cie-9702-as-physics'], routeId: 'cie-9702-as-physics', stage: 'AS' } },
+  })
+  assert.equal(missingRoute.statusCode, 400)
+  assert.match(missingRoute.body.error, /routeId/)
+  const mismatchedRoute = await call(api, {
+    method: 'POST', url: '/api/stem/assignments', token: teacherToken,
+    body: { classroomId: createdClass.body.classroom.id, subjectId: 'physics-9702', routeId: 'cie-9702-a2-physics', stage: 'AS', syllabusPointId: 'physics-waves', title: 'Mixed stages', sourceScope: { questionIds: ['qp-0@cie-9702-a2-physics'], routeId: 'cie-9702-a2-physics', stage: 'AS' } },
+  })
+  assert.equal(mismatchedRoute.statusCode, 400)
+  assert.match(mismatchedRoute.body.error, /same learning route/)
+  const fakeRoute = await call(api, {
+    method: 'POST', url: '/api/stem/assignments', token: teacherToken,
+    body: { classroomId: createdClass.body.classroom.id, subjectId: 'physics-9702', routeId: 'cie-9999-as-physics', stage: 'AS', syllabusPointId: 'physics-waves', title: 'Fake route', sourceScope: { questionIds: ['qp-0@cie-9999-as-physics'], routeId: 'cie-9999-as-physics', stage: 'AS' } },
+  })
+  assert.equal(fakeRoute.statusCode, 400)
+  assert.match(fakeRoute.body.error, /not registered/)
+  const wrongSubject = await call(api, {
+    method: 'POST', url: '/api/stem/assignments', token: teacherToken,
+    body: { classroomId: createdClass.body.classroom.id, subjectId: 'biology-9700', routeId: 'cie-9702-as-physics', stage: 'AS', syllabusPointId: 'physics-waves', title: 'Wrong subject', sourceScope: { questionIds: ['qp-0@cie-9702-as-physics'], routeId: 'cie-9702-as-physics', stage: 'AS' } },
+  })
+  assert.equal(wrongSubject.statusCode, 400)
+  assert.match(wrongSubject.body.error, /subjectId does not match/)
+  const missingSourceScope = await call(api, {
+    method: 'POST', url: '/api/stem/assignments', token: teacherToken,
+    body: { classroomId: createdClass.body.classroom.id, subjectId: 'physics-9702', routeId: 'cie-9702-as-physics', stage: 'AS', syllabusPointId: 'physics-waves', title: 'Missing source route', sourceScope: { questionIds: ['qp-0@cie-9702-as-physics'] } },
+  })
+  assert.equal(missingSourceScope.statusCode, 400)
+  assert.match(missingSourceScope.body.error, /sourceScope must include routeId and stage/)
+  const unscopedBankId = await call(api, {
+    method: 'POST', url: '/api/stem/assignments', token: teacherToken,
+    body: { classroomId: createdClass.body.classroom.id, subjectId: 'physics-9702', routeId: 'cie-9702-as-physics', stage: 'AS', syllabusPointId: 'physics-waves', title: 'Unscoped bank ID', sourceScope: { questionIds: ['qp-0'], routeId: 'cie-9702-as-physics', stage: 'AS' } },
+  })
+  assert.equal(unscopedBankId.statusCode, 400)
+  assert.match(unscopedBankId.body.error, /bankId must use/)
+  const wrongBankSuffix = await call(api, {
+    method: 'POST', url: '/api/stem/assignments', token: teacherToken,
+    body: { classroomId: createdClass.body.classroom.id, subjectId: 'physics-9702', routeId: 'cie-9702-as-physics', stage: 'AS', syllabusPointId: 'physics-waves', title: 'Wrong bank suffix', sourceScope: { questionIds: ['qp-0@cie-9702-a2-physics'], routeId: 'cie-9702-as-physics', stage: 'AS' } },
+  })
+  assert.equal(wrongBankSuffix.statusCode, 400)
+  assert.match(wrongBankSuffix.body.error, /bankId must use/)
+
   const assignment = await call(api, {
     method: 'POST', url: '/api/stem/assignments', token: teacherToken,
-    body: { classroomId: createdClass.body.classroom.id, subjectId: 'physics', stage: 'AS', syllabusPointId: 'physics-9702-waves', title: 'Waves evidence set', sourceScope: { questionIds: ['qp-1', 'qp-2'] } },
+    body: { classroomId: createdClass.body.classroom.id, subjectId: 'physics-9702', routeId: 'cie-9702-as-physics', stage: 'AS', syllabusPointId: 'physics-waves', title: 'AS Waves evidence set', sourceScope: { questionIds: ['as-qp-1@cie-9702-as-physics', 'as-qp-2@cie-9702-as-physics'], routeId: 'cie-9702-as-physics', stage: 'AS' } },
   })
   assert.equal(assignment.statusCode, 201)
+  assert.equal(assignment.body.assignment.routeId, 'cie-9702-as-physics')
+  assert.equal(assignment.body.assignment.stage, 'AS')
+  assert.equal(assignment.body.assignment.scopeStatus, 'scoped')
+  assert.equal(assignment.body.assignment.sourceScope.routeId, 'cie-9702-as-physics')
+
+  const a2Assignment = await call(api, {
+    method: 'POST', url: '/api/stem/assignments', token: teacherToken,
+    body: { classroomId: createdClass.body.classroom.id, subjectId: 'physics-9702', routeId: 'cie-9702-a2-physics', stage: 'A2', syllabusPointId: 'physics-waves', title: 'A2 Waves evidence set', sourceScope: { questionIds: ['a2-qp-1@cie-9702-a2-physics'], routeId: 'cie-9702-a2-physics', stage: 'A2' } },
+  })
+  assert.equal(a2Assignment.statusCode, 201, a2Assignment.body.error)
+  const igcseAssignment = await call(api, {
+    method: 'POST', url: '/api/stem/assignments', token: teacherToken,
+    body: { classroomId: createdClass.body.classroom.id, subjectId: 'physics-0625', routeId: 'cie-0625-igcse-physics', stage: 'IGCSE', syllabusPointId: 'physics-electricity', title: 'IGCSE Electricity evidence set', sourceScope: { questionIds: ['igcse-qp-1@cie-0625-igcse-physics'], routeId: 'cie-0625-igcse-physics', stage: 'IGCSE' } },
+  })
+  assert.equal(igcseAssignment.statusCode, 201, igcseAssignment.body.error)
 
   const submission = await call(api, {
     method: 'POST', url: `/api/stem/assignments/${assignment.body.assignment.id}/submissions`, token: studentToken,
     body: { idempotencyKey: 'student-one-waves-attempt-one', attemptId: 'attempt-1', rawMarks: 8, maxMarks: 10, percentage: 80, elapsedSeconds: 900, markingMode: 'assisted' },
   })
   assert.equal(submission.statusCode, 201)
+  assert.equal(submission.body.routeId, 'cie-9702-as-physics')
+  assert.equal(submission.body.stage, 'AS')
+  const crossStageSubmission = await call(api, {
+    method: 'POST', url: `/api/stem/assignments/${assignment.body.assignment.id}/submissions`, token: studentToken,
+    body: { idempotencyKey: 'cross-stage-attempt', routeId: 'cie-9702-a2-physics', stage: 'A2', rawMarks: 5, maxMarks: 10, percentage: 50 },
+  })
+  assert.equal(crossStageSubmission.statusCode, 400)
+  assert.match(crossStageSubmission.body.error, /match the assignment/)
+  const a2Submission = await call(api, {
+    method: 'POST', url: `/api/stem/assignments/${a2Assignment.body.assignment.id}/submissions`, token: studentToken,
+    body: { idempotencyKey: 'student-one-waves-attempt-one', routeId: 'cie-9702-a2-physics', stage: 'A2', rawMarks: 6, maxMarks: 10, percentage: 60 },
+  })
+  assert.equal(a2Submission.statusCode, 201, a2Submission.body.error)
+  assert.equal(a2Submission.body.duplicate, false)
+  const igcseSubmission = await call(api, {
+    method: 'POST', url: `/api/stem/assignments/${igcseAssignment.body.assignment.id}/submissions`, token: studentToken,
+    body: { idempotencyKey: 'student-one-igcse-attempt-one', rawMarks: 7, maxMarks: 10, percentage: 70 },
+  })
+  assert.equal(igcseSubmission.statusCode, 201, igcseSubmission.body.error)
+  assert.equal(igcseSubmission.body.routeId, 'cie-0625-igcse-physics')
+  assert.equal(igcseSubmission.body.stage, 'IGCSE')
   const duplicate = await call(api, {
     method: 'POST', url: `/api/stem/assignments/${assignment.body.assignment.id}/submissions`, token: studentToken,
     body: { idempotencyKey: 'student-one-waves-attempt-one', attemptId: 'attempt-1', rawMarks: 8, maxMarks: 10, percentage: 80 },
   })
   assert.equal(duplicate.statusCode, 200)
   assert.equal(duplicate.body.duplicate, true)
+  assert.equal(duplicate.body.routeId, 'cie-9702-as-physics')
+  assert.equal(duplicate.body.stage, 'AS')
 
-  const summary = await call(api, { method: 'GET', url: `/api/stem/classrooms/${createdClass.body.classroom.id}/summary`, token: teacherToken })
+  const summary = await call(api, { method: 'GET', url: `/api/stem/classrooms/${createdClass.body.classroom.id}/summary?routeId=cie-9702-as-physics&stage=AS`, token: teacherToken })
   assert.equal(summary.statusCode, 200)
   assert.equal(summary.body.summary.submissions, 1)
   assert.equal(summary.body.summary.averagePercentage, 80)
   assert.equal(summary.body.summary.studentCount, 1)
   assert.equal(summary.body.summary.teacherCount, 1)
   assert.equal(summary.body.summary.assignmentCompletionRate, 100)
-  assert.equal(summary.body.summary.coverageBySyllabusPoint['physics-9702-waves'].submissions, 1)
+  assert.equal(summary.body.summary.coverageBySyllabusPoint['cie-9702-as-physics::physics-waves'].submissions, 1)
+  assert.equal(summary.body.summary.filter.routeId, 'cie-9702-as-physics')
+  assert.equal(summary.body.summary.aggregationMode, 'single-scope')
   assert.doesNotMatch(JSON.stringify(summary.body.summary), /student_one|payload_json|student_user_id/)
+  const unfilteredSummary = await call(api, { method: 'GET', url: `/api/stem/classrooms/${createdClass.body.classroom.id}/summary`, token: teacherToken })
+  assert.equal(unfilteredSummary.statusCode, 200)
+  assert.equal(unfilteredSummary.body.summary.submissions, 3)
+  assert.equal(unfilteredSummary.body.summary.aggregationMode, 'cross-route-overview')
+  assert.deepEqual(unfilteredSummary.body.summary.routeGroups.map((item) => item.routeId).sort(), ['cie-0625-igcse-physics', 'cie-9702-a2-physics', 'cie-9702-as-physics'])
+  assert.equal(unfilteredSummary.body.summary.coverageBySyllabusPoint['cie-9702-as-physics::physics-waves'].submissions, 1)
+  assert.equal(unfilteredSummary.body.summary.coverageBySyllabusPoint['cie-9702-a2-physics::physics-waves'].submissions, 1)
   const schoolSubmissions = await call(api, { method: 'GET', url: `/api/stem/classrooms/${createdClass.body.classroom.id}/submissions`, token: schoolToken })
   assert.equal(schoolSubmissions.statusCode, 200)
-  assert.equal(schoolSubmissions.body.submissions.length, 1)
+  assert.equal(schoolSubmissions.body.submissions.length, 3)
   assert.equal(Object.hasOwn(schoolSubmissions.body.submissions[0], 'studentUserId'), false)
+  assert.ok(schoolSubmissions.body.submissions.every((item) => item.routeId && item.stage && item.scopeStatus === 'scoped'))
   assert.doesNotMatch(JSON.stringify(schoolSubmissions.body), /student_one|student_user_id/)
 
   const reminder = await call(api, {
@@ -124,14 +216,97 @@ try {
   const analytics = await call(api, { method: 'GET', url: '/api/stem/school/analytics?from=2020-01-01T00%3A00%3A00.000Z', token: teacherToken })
   assert.equal(analytics.statusCode, 200, analytics.body.error)
   assert.equal(analytics.body.analytics.cohortCount, 1)
-  assert.equal(analytics.body.analytics.topicCoverage[0].topicId, 'physics-9702-waves')
+  assert.equal(analytics.body.analytics.aggregationMode, 'grouped-by-route')
+  assert.deepEqual(analytics.body.analytics.routeGroups.map((item) => item.routeId).sort(), ['cie-0625-igcse-physics', 'cie-9702-a2-physics', 'cie-9702-as-physics'])
+  assert.equal(analytics.body.analytics.topicCoverage.filter((item) => item.topicId === 'physics-waves').length, 2)
+  assert.deepEqual(analytics.body.analytics.topicCoverage.filter((item) => item.topicId === 'physics-waves').map((item) => item.stage).sort(), ['A2', 'AS'])
   assert.doesNotMatch(JSON.stringify(analytics.body.analytics), /student_one|student_user_id|payload_json/)
+  const asAnalytics = await call(api, { method: 'GET', url: '/api/stem/school/analytics?routeId=cie-9702-as-physics&stage=AS', token: teacherToken })
+  assert.equal(asAnalytics.statusCode, 200, asAnalytics.body.error)
+  assert.equal(asAnalytics.body.analytics.filter.routeId, 'cie-9702-as-physics')
+  assert.equal(asAnalytics.body.analytics.routeGroups.length, 1)
+  assert.equal(asAnalytics.body.analytics.routeGroups[0].routeId, 'cie-9702-as-physics')
+  assert.equal(asAnalytics.body.analytics.routeGroups[0].submissions, 1)
+  assert.ok(asAnalytics.body.analytics.topicCoverage.every((item) => item.routeId === 'cie-9702-as-physics' && item.stage === 'AS'))
+  const stageAnalytics = await call(api, { method: 'GET', url: '/api/stem/school/analytics?stage=A2', token: teacherToken })
+  assert.equal(stageAnalytics.statusCode, 200, stageAnalytics.body.error)
+  assert.equal(stageAnalytics.body.analytics.routeGroups.length, 1)
+  assert.equal(stageAnalytics.body.analytics.routeGroups[0].routeId, 'cie-9702-a2-physics')
+  assert.equal(stageAnalytics.body.analytics.routeGroups[0].submissions, 1)
+  const mismatchedAnalytics = await call(api, { method: 'GET', url: '/api/stem/school/analytics?routeId=cie-9702-a2-physics&stage=AS', token: teacherToken })
+  assert.equal(mismatchedAnalytics.statusCode, 400)
   const anonymousReport = await call(api, { method: 'GET', url: '/api/stem/school/reports/anonymous', token: teacherToken })
   assert.equal(anonymousReport.statusCode, 200, anonymousReport.body.error)
   assert.equal(anonymousReport.body.report.cohorts[0].cohort, 'Cohort 1')
+  assert.equal(anonymousReport.body.report.routeGroups.length, 3)
   assert.doesNotMatch(JSON.stringify(anonymousReport.body.report), /AS Physics|student_one|student_user_id|payload_json/)
+
+  closeStemDatabaseForTests()
+  const { DatabaseSync } = process.getBuiltinModule('node:sqlite')
+  const legacyDatabase = new DatabaseSync(legacyDatabasePath)
+  legacyDatabase.exec(`
+    CREATE TABLE classrooms (id TEXT PRIMARY KEY, owner_user_id TEXT NOT NULL, name TEXT NOT NULL, invite_code TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, archived_at TEXT);
+    CREATE TABLE class_memberships (classroom_id TEXT NOT NULL, user_id TEXT NOT NULL, role TEXT NOT NULL, joined_at TEXT NOT NULL, PRIMARY KEY (classroom_id, user_id));
+    CREATE TABLE assignments (
+      id TEXT PRIMARY KEY, classroom_id TEXT NOT NULL, created_by_user_id TEXT NOT NULL, subject_id TEXT NOT NULL,
+      stage TEXT NOT NULL, syllabus_point_id TEXT NOT NULL, title TEXT NOT NULL, source_scope_json TEXT NOT NULL,
+      due_at TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL
+    );
+    CREATE TABLE submission_events (
+      id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL, student_user_id TEXT NOT NULL, idempotency_key TEXT NOT NULL,
+      event_type TEXT NOT NULL, payload_json TEXT NOT NULL, occurred_at TEXT NOT NULL,
+      UNIQUE (student_user_id, idempotency_key)
+    );
+  `)
+  const legacyAt = '2026-01-01T00:00:00.000Z'
+  legacyDatabase.prepare('INSERT INTO classrooms VALUES (?, ?, ?, ?, ?, ?)').run('legacy-class', 'ielts:1', 'Legacy Physics', 'legacy-code', legacyAt, null)
+  legacyDatabase.prepare('INSERT INTO class_memberships VALUES (?, ?, ?, ?)').run('legacy-class', 'ielts:1', 'owner', legacyAt)
+  legacyDatabase.prepare('INSERT INTO class_memberships VALUES (?, ?, ?, ?)').run('legacy-class', 'ielts:2', 'student', legacyAt)
+  legacyDatabase.prepare('INSERT INTO assignments VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run('legacy-assignment', 'legacy-class', 'ielts:1', 'physics', 'AS', 'physics-waves', 'Old mixed assignment', JSON.stringify({ questionIds: ['old-question'] }), null, 'active', legacyAt)
+  legacyDatabase.prepare('INSERT INTO submission_events VALUES (?, ?, ?, ?, ?, ?, ?)').run('legacy-event', 'legacy-assignment', 'ielts:2', 'legacy-key', 'submitted', JSON.stringify({ rawMarks: 4, maxMarks: 10, percentage: 40 }), legacyAt)
+  legacyDatabase.close()
+
+  const legacyApi = createStemApi({ env: { STEM_IDENTITY_SIGNING_KEY: signingKey, STEM_DB_PATH: legacyDatabasePath } })
+  const legacyWorkspace = await call(legacyApi, { method: 'GET', url: '/api/stem/workspace', token: teacherToken })
+  assert.equal(legacyWorkspace.statusCode, 200, legacyWorkspace.body.error)
+  assert.equal(legacyWorkspace.body.assignments[0].routeId, 'legacy-unscoped')
+  assert.equal(legacyWorkspace.body.assignments[0].stage, 'legacy-unscoped')
+  assert.equal(legacyWorkspace.body.assignments[0].legacyStage, 'AS')
+  const legacyAnalytics = await call(legacyApi, { method: 'GET', url: '/api/stem/school/analytics', token: teacherToken })
+  assert.equal(legacyAnalytics.statusCode, 200, legacyAnalytics.body.error)
+  assert.equal(legacyAnalytics.body.analytics.routeGroups[0].routeId, 'legacy-unscoped')
+  assert.equal(legacyAnalytics.body.analytics.routeGroups[0].stage, 'legacy-unscoped')
+  assert.equal(legacyAnalytics.body.analytics.routeGroups[0].submissions, 1)
+  const migratedScopedAssignment = await call(legacyApi, {
+    method: 'POST', url: '/api/stem/assignments', token: teacherToken,
+    body: {
+      classroomId: 'legacy-class', subjectId: 'physics-9702', routeId: 'cie-9702-as-physics', stage: 'AS',
+      syllabusPointId: 'physics-waves', title: 'Scoped after migration',
+      sourceScope: { questionIds: ['post-migration-qp@cie-9702-as-physics'], routeId: 'cie-9702-as-physics', stage: 'AS' },
+    },
+  })
+  assert.equal(migratedScopedAssignment.statusCode, 201, migratedScopedAssignment.body.error)
+  const reusedLegacyKey = await call(legacyApi, {
+    method: 'POST', url: `/api/stem/assignments/${migratedScopedAssignment.body.assignment.id}/submissions`, token: studentToken,
+    body: { idempotencyKey: 'legacy-key', rawMarks: 9, maxMarks: 10, percentage: 90 },
+  })
+  assert.equal(reusedLegacyKey.statusCode, 201, reusedLegacyKey.body.error)
+  assert.equal(reusedLegacyKey.body.duplicate, false)
+  const migratedAsAnalytics = await call(legacyApi, { method: 'GET', url: '/api/stem/school/analytics?stage=AS', token: teacherToken })
+  assert.equal(migratedAsAnalytics.statusCode, 200, migratedAsAnalytics.body.error)
+  assert.equal(migratedAsAnalytics.body.analytics.routeGroups.length, 1)
+  assert.equal(migratedAsAnalytics.body.analytics.routeGroups[0].routeId, 'cie-9702-as-physics')
+  assert.equal(migratedAsAnalytics.body.analytics.routeGroups[0].submissions, 1)
+  assert.ok(migratedAsAnalytics.body.analytics.topicCoverage.every((item) => item.scopeStatus === 'scoped'))
+  const legacySubmission = await call(legacyApi, {
+    method: 'POST', url: '/api/stem/assignments/legacy-assignment/submissions', token: teacherToken,
+    body: { idempotencyKey: 'new-legacy-attempt', rawMarks: 5, maxMarks: 10, percentage: 50 },
+  })
+  assert.equal(legacySubmission.statusCode, 409)
+  assert.match(legacySubmission.body.error, /Legacy unscoped assignments/)
   console.log('Shared workspace API checks passed')
 } finally {
   closeStemDatabaseForTests()
   fs.rmSync(path.dirname(databasePath), { recursive: true, force: true })
+  fs.rmSync(path.dirname(legacyDatabasePath), { recursive: true, force: true })
 }

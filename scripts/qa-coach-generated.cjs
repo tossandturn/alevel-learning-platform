@@ -28,8 +28,12 @@ async function run() {
 
   try {
     await page.goto(APP_URL, { waitUntil: 'domcontentloaded' })
-    await page.evaluate((key) => localStorage.removeItem(key), STORAGE_KEY)
+    await page.evaluate((key) => {
+      localStorage.removeItem(key)
+      for (const item of Object.keys(localStorage)) if (item.includes('ai-coach')) localStorage.removeItem(item)
+    }, STORAGE_KEY)
     await page.reload({ waitUntil: 'domcontentloaded' })
+    await page.waitForFunction(() => performance.getEntriesByType('resource').some((entry) => entry.name.endsWith('/data/papers.json')))
 
     await sendCoachMessage(page, '给我一套最新的 BPhO SPC 真题，带答案')
     await page.waitForSelector('.paper-workspace')
@@ -60,11 +64,12 @@ async function run() {
     }
     await page.getByRole('button', { name: 'Back to library' }).click()
     await page.waitForSelector('.ai-coach-backdrop', { state: 'detached' })
+    await page.getByRole('button', { name: /^Today$/ }).click()
+    await page.getByRole('combobox', { name: 'Current route' }).selectOption('cie-9701-as-chemistry')
+    await page.getByRole('button', { name: /^Practice$/ }).click()
     await page.getByRole('button', { name: /^Knowledge$/ }).click()
-    await page.getByText(/Each drill follows the current Cambridge syllabus and uses only question-level items/i).waitFor()
-    for (const code of ['9701', '9708']) {
-      if (!(await page.getByRole('button', { name: new RegExp(code) }).count())) throw new Error(`${code} knowledge-map entry is missing`)
-    }
+    await page.getByText(/All drills are restricted to this route\. Each question remains bound to its original question paper and exact mark scheme/i).waitFor()
+    if (!(await page.getByRole('heading', { name: /AS Chemistry/ }).count())) throw new Error('9701 route knowledge map is missing')
 
     if (errors.length) throw new Error(`Browser errors: ${errors.join(' | ')}`)
     console.log(JSON.stringify({ bphoPaper: 'BPhO_SPC_2025_QP.pdf', verifiedQuestions: 10, sourceChanged: true }, null, 2))

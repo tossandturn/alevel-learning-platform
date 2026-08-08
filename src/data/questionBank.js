@@ -1,4 +1,5 @@
 import importedQuestionIndex from './importedQuestionIndex.json' with { type: 'json' }
+import { LEGACY_UNSCOPED_ROUTE_ID, resolveRouteId, routeById, routesForSubject } from './routeRegistry.js'
 
 const REQUIRED_SOURCE_FIELDS = ['paperId', 'paper', 'question', 'localUrl', 'pageStart', 'sha256']
 const REQUIRED_ANSWER_FIELDS = ['documentId', 'file', 'localUrl', 'pageStart', 'sha256']
@@ -19,6 +20,7 @@ function hasRequiredFields(value, fields) {
 }
 
 export function isVerifiedPastPaperItem(question) {
+  const route = routeById(question?.routeId)
   return Boolean(
     question
     && question.sourceKind === 'past-paper'
@@ -31,16 +33,54 @@ export function isVerifiedPastPaperItem(question) {
     && (question.answerBinding.verificationStatus === 'machine-indexed' || question.answerBinding.verificationStatus === 'reviewed')
     && question.answerBinding.questionDocumentSha256 === question.sourceRef?.sha256
     && question.answerBinding.answerDocumentSha256 === question.answerRef?.sha256
+    && route
+    && route.stage === question.stage
+    && route.qualification === question.qualification
     && hasRequiredFields(question.sourceRef, REQUIRED_SOURCE_FIELDS)
     && hasRequiredFields(question.answerRef, REQUIRED_ANSWER_FIELDS),
   )
 }
 
-export function normalizeImportedQuestion(question) {
+function routesForImportedQuestion(question) {
+  const stages = new Set(question.stageTags || [])
+  const component = Number(question.sourceRef?.component || question.componentTags?.[0])
+  const topicRouteId = resolveRouteId({
+    qualificationId: question.qualificationId,
+    subjectId: question.subjectId,
+    knowledgeGroupId: question.knowledgeGroupId,
+  })
+  return routesForSubject(question.subjectId).filter((route) => {
+    const stageMatches = route.stage === 'Admissions' || stages.has(route.stage)
+    const componentMatches = route.stage === 'Admissions' || !Number.isFinite(component) || !route.paperComponents.length || route.paperComponents.includes(component)
+    const topicMatches = !topicRouteId || route.routeId === topicRouteId
+    return stageMatches && componentMatches && topicMatches
+  })
+}
+
+export function normalizeImportedQuestion(question, route = null) {
   const sourceRef = { ...(question.sourceRef || {}), page: question.sourceRef?.page ?? question.sourceRef?.pageStart }
   const answerRef = question.answerRef || {}
+  const sourceQuestionId = question.bankId || question.questionId
+  const routeId = route?.routeId || LEGACY_UNSCOPED_ROUTE_ID
+  const sourceKnowledgeGroupId = question.knowledgeGroupId || question.topicId || null
+  const sourceTopicRouteId = resolveRouteId({ subjectId: question.subjectId, knowledgeGroupId: sourceKnowledgeGroupId })
+  const syllabusTopic = route && sourceTopicRouteId !== routeId
+    ? `${sourceKnowledgeGroupId}@${routeId}`
+    : sourceKnowledgeGroupId
   return Object.freeze({
     ...question,
+    bankId: `${sourceQuestionId}@${routeId}`,
+    sourceQuestionId,
+    routeId,
+    qualification: route?.qualification || null,
+    stage: route?.stage || null,
+    subject: route?.subject || null,
+    paperComponent: sourceRef.component ?? null,
+    knowledgeGroupId: syllabusTopic,
+    topicId: syllabusTopic,
+    syllabusTopic,
+    sourceKnowledgeGroupId,
+    sourcePaper: sourceRef.paper || null,
     sourceKind: 'past-paper',
     answerType: question.answerType || 'handwritten',
     marks: Math.max(1, Number(question.marks) || 1),
@@ -60,10 +100,16 @@ export function normalizeImportedQuestion(question) {
 }
 
 export const unifiedQuestionBank = Object.freeze(
-  joinedIndexItems(importedQuestionIndex).map(normalizeImportedQuestion).filter(isVerifiedPastPaperItem),
+  joinedIndexItems(importedQuestionIndex)
+    .flatMap((question) => {
+      const routes = routesForImportedQuestion(question)
+      return routes.length ? routes.map((route) => normalizeImportedQuestion(question, route)) : [normalizeImportedQuestion(question)]
+    })
+    .filter(isVerifiedPastPaperItem),
 )
 
 export function selectTaggedQuestions({
+  routeId,
   qualificationId,
   subjectId,
   stage,
@@ -72,11 +118,14 @@ export function selectTaggedQuestions({
   questionBank = unifiedQuestionBank,
 }) {
   const requestedCount = Math.min(30, Math.max(10, Number(questionCount) || 10))
+  const route = routeById(routeId)
+  if (!route) return []
   const candidates = questionBank.filter((question) => (
-    (!qualificationId || question.qualificationId === qualificationId)
+    question.routeId === routeId
+    && (!qualificationId || question.qualificationId === qualificationId)
     && (!subjectId || question.subjectId === subjectId)
     && question.knowledgeGroupId === knowledgeGroupId
-    && (!stage || question.stageTags.includes(stage))
+    && (!stage || question.stage === stage)
     && isVerifiedPastPaperItem(question)
   ))
 
@@ -135,11 +184,14 @@ export function selectTaggedQuestions({
   return selected
 }
 
-export function questionInventory({ qualificationId, subjectId, stage, knowledgeGroupId, questionBank = unifiedQuestionBank }) {
+export function questionInventory({ routeId, qualificationId, subjectId, stage, knowledgeGroupId, questionBank = unifiedQuestionBank }) {
+  const route = routeById(routeId)
+  if (!route) return 0
   return questionBank.filter((question) => (
-    (!qualificationId || question.qualificationId === qualificationId)
+    question.routeId === routeId
+    && (!qualificationId || question.qualificationId === qualificationId)
     && (!subjectId || question.subjectId === subjectId)
-    && (!stage || question.stageTags.includes(stage))
+    && (!stage || question.stage === stage)
     && (!knowledgeGroupId || question.knowledgeGroupId === knowledgeGroupId)
     && isVerifiedPastPaperItem(question)
   )).length

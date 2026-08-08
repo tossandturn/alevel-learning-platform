@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, FileCheck2, FileText, Search, SlidersHorizontal } from 'lucide-react'
 import { examStructures, getRouteGuidance, getRouteOptions, getStageGuidance, getStageOptions } from '../data/examStructure'
+import { formatRouteComponents } from '../data/routeRegistry'
 
 const PAGE_SIZE = 20
 const EMPTY_ITEMS = []
@@ -36,7 +37,7 @@ function bytesLabel(bytes) {
   return bytes >= 1_000_000 ? `${(bytes / 1_000_000).toFixed(1)} MB` : `${Math.ceil(bytes / 1000)} KB`
 }
 
-export function PaperLibrary({ catalogState, initialSubject = 'all', onOpenPaper }) {
+export function PaperLibrary({ catalogState, initialSubject = 'all', activeRoute = null, onOpenPaper }) {
   const [filters, setFilters] = useState({ subject: initialSubject, stage: 'all', route: 'all', paperNumber: 'all', year: 'all', season: 'all', kind: 'qp', query: '' })
   const [page, setPage] = useState(1)
   const items = catalogState.catalog?.items || EMPTY_ITEMS
@@ -65,7 +66,13 @@ export function PaperLibrary({ catalogState, initialSubject = 'all', onOpenPaper
     const query = filters.query.trim().toLowerCase()
     return items.filter((item) => {
       const isSeriesDocument = !item.variant && ['er', 'gt'].includes(item.kind)
+      const component = item.examProfile?.paperNumber == null ? null : Number(item.examProfile.paperNumber)
+      const matchesActiveRoute = !activeRoute || (
+        item.subject === activeRoute.subjectCode
+        && (isSeriesDocument || component == null || !Number.isFinite(component) || activeRoute.paperComponents.includes(component))
+      )
       return (
+        matchesActiveRoute &&
         (filters.subject === 'all' || item.subject === filters.subject) &&
         (filters.stage === 'all' || item.examProfile?.stages.includes(filters.stage) || isSeriesDocument) &&
         (filters.route === 'all' || item.examProfile?.routeIds?.includes(filters.route) || isSeriesDocument) &&
@@ -76,7 +83,7 @@ export function PaperLibrary({ catalogState, initialSubject = 'all', onOpenPaper
         (!query || `${item.file} ${item.subject} ${item.year} ${item.season} ${item.variant}`.toLowerCase().includes(query))
       )
     })
-  }, [filters, items])
+  }, [activeRoute, filters, items])
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const safePage = Math.min(page, pageCount)
@@ -106,7 +113,7 @@ export function PaperLibrary({ catalogState, initialSubject = 'all', onOpenPaper
       <div className="paper-summary">
         <div><strong>{catalogState.catalog.totals.files.toLocaleString()}</strong><span>verified PDFs</span></div>
         <div><strong>{(catalogState.catalog.totals.bytes / 1_000_000_000).toFixed(2)} GB</strong><span>local library</span></div>
-        <p>{catalogState.catalog.totals.pairedQuestionPapers.toLocaleString()} question papers have an exact mark scheme. {catalogState.catalog.totals.unpairedQuestionPapers} source files do not.</p>
+        <p>{activeRoute ? `${activeRoute.stage} ${activeRoute.subjectCode} ${activeRoute.subject} · ${formatRouteComponents(activeRoute.paperComponents)}` : `${catalogState.catalog.totals.pairedQuestionPapers.toLocaleString()} question papers have an exact mark scheme.`}</p>
       </div>
 
       <div className="paper-filters" aria-label="Past paper filters">

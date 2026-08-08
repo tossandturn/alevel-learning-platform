@@ -5,6 +5,41 @@ import path from 'node:path'
 const MAX_BODY_BYTES = 2 * 1024 * 1024
 const TOKEN_AUDIENCE = 'stem.ieltsist.com'
 const TOKEN_ISSUER = 'ieltsist.com'
+const LEGACY_SCOPE = 'legacy-unscoped'
+const ROUTE_STAGES = new Map([
+  ['igcse', 'IGCSE'],
+  ['as', 'AS'],
+  ['a2', 'A2'],
+  ['admissions', 'Admissions'],
+])
+const REGISTERED_ROUTES = new Map(Object.entries({
+  'cie-0580-igcse-mathematics': ['IGCSE', 'math-0580'],
+  'cie-0606-igcse-additional-mathematics': ['IGCSE', 'math-0606'],
+  'cie-0610-igcse-biology': ['IGCSE', 'biology-0610'],
+  'cie-0625-igcse-physics': ['IGCSE', 'physics-0625'],
+  'cie-9700-as-biology': ['AS', 'biology-9700'],
+  'cie-9700-a2-biology': ['A2', 'biology-9700'],
+  'cie-9701-as-chemistry': ['AS', 'chemistry-9701'],
+  'cie-9701-a2-chemistry': ['A2', 'chemistry-9701'],
+  'cie-9702-as-physics': ['AS', 'physics-9702'],
+  'cie-9702-a2-physics': ['A2', 'physics-9702'],
+  'cie-9708-as-economics': ['AS', 'economics-9708'],
+  'cie-9708-a2-economics': ['A2', 'economics-9708'],
+  'cie-9709-as-p1-p2': ['AS', 'math-9709'],
+  'cie-9709-as-p1-p4': ['AS', 'math-9709'],
+  'cie-9709-as-p1-p5': ['AS', 'math-9709'],
+  'cie-9709-a2-after-p1-p5-p3-p4': ['A2', 'math-9709'],
+  'cie-9709-a2-after-p1-p5-p3-p6': ['A2', 'math-9709'],
+  'cie-9709-a2-after-p1-p4-p3-p5': ['A2', 'math-9709'],
+  'cie-9231-as-p1-p3': ['AS', 'math-9231'],
+  'cie-9231-as-p1-p4': ['AS', 'math-9231'],
+  'cie-9231-a2-after-p1-p3-p2-p4': ['A2', 'math-9231'],
+  'cie-9231-a2-after-p1-p4-p2-p3': ['A2', 'math-9231'],
+  'bpho-admissions-physics': ['Admissions', 'bpho'],
+  'maa-amc12-admissions-mathematics': ['Admissions', 'amc12'],
+  'uatuk-esat-admissions': ['Admissions', 'esat'],
+  'uatuk-tmua-admissions': ['Admissions', 'tmua'],
+}))
 let database = null
 
 function sendJson(response, statusCode, body) {
@@ -42,8 +77,134 @@ function asText(value, maxLength = 200) {
   return String(value || '').trim().replace(/\s+/g, ' ').slice(0, maxLength)
 }
 
+function canonicalStage(value, { allowLegacy = false } = {}) {
+  const raw = asText(value, 40)
+  if (allowLegacy && raw === LEGACY_SCOPE) return LEGACY_SCOPE
+  const stage = ROUTE_STAGES.get(raw.toLowerCase())
+  if (!stage) throw Object.assign(new Error('Stage must be IGCSE, AS, A2 or Admissions.'), { statusCode: 400 })
+  return stage
+}
+
+function canonicalRouteId(value, { allowLegacy = false } = {}) {
+  const routeId = asText(value, 120).toLowerCase()
+  if (allowLegacy && routeId === LEGACY_SCOPE) return LEGACY_SCOPE
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(routeId)) {
+    throw Object.assign(new Error('A valid routeId is required.'), { statusCode: 400 })
+  }
+  if (!REGISTERED_ROUTES.has(routeId)) throw Object.assign(new Error('routeId is not registered.'), { statusCode: 400 })
+  return routeId
+}
+
+function stageForRoute(routeId) {
+  if (routeId === LEGACY_SCOPE) return LEGACY_SCOPE
+  return REGISTERED_ROUTES.get(routeId)?.[0] || null
+}
+
+function verifiedRouteScope(routeValue, stageValue, { allowLegacy = false } = {}) {
+  const routeId = canonicalRouteId(routeValue, { allowLegacy })
+  const stage = canonicalStage(stageValue, { allowLegacy })
+  if (stageForRoute(routeId) !== stage) {
+    throw Object.assign(new Error('routeId and stage must identify the same learning route.'), { statusCode: 400 })
+  }
+  return { routeId, stage }
+}
+
+function verifiedAssignmentScope(routeValue, stageValue, subjectValue) {
+  const scope = verifiedRouteScope(routeValue, stageValue)
+  const subjectId = asText(subjectValue, 80).toLowerCase()
+  if (REGISTERED_ROUTES.get(scope.routeId)?.[1] !== subjectId) {
+    throw Object.assign(new Error('subjectId does not match the registered routeId.'), { statusCode: 400 })
+  }
+  return { ...scope, subjectId }
+}
+
+function routeScopedQuestionIds(values, routeId) {
+  if (!Array.isArray(values) || !values.length) throw Object.assign(new Error('Assignment needs route-scoped question IDs.'), { statusCode: 400 })
+  return values.slice(0, 60).map((value) => {
+    const bankId = asText(value, 320)
+    const separator = bankId.indexOf('@')
+    const sourceQuestionId = bankId.slice(0, separator)
+    const suffix = bankId.slice(separator + 1)
+    if (separator <= 0 || sourceQuestionId.includes('@') || /\s/.test(bankId) || suffix !== routeId) {
+      throw Object.assign(new Error(`Every question bankId must use <sourceQuestionId>@${routeId}.`), { statusCode: 400 })
+    }
+    return bankId
+  })
+}
+
+function storedScope(row) {
+  const routeId = asText(row.route_id, 120) || LEGACY_SCOPE
+  if (routeId === LEGACY_SCOPE) return { routeId: LEGACY_SCOPE, stage: LEGACY_SCOPE, scopeStatus: LEGACY_SCOPE }
+  return { routeId, stage: asText(row.stage, 40), scopeStatus: 'scoped' }
+}
+
 function nowIso() {
   return new Date().toISOString()
+}
+
+function ensureColumn(database, table, column, definition) {
+  const columns = database.prepare(`PRAGMA table_info(${table})`).all()
+  if (!columns.some((item) => item.name === column)) database.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+}
+
+function migrateRouteScope(database) {
+  ensureColumn(database, 'assignments', 'route_id', 'TEXT')
+  ensureColumn(database, 'submission_events', 'route_id', 'TEXT')
+  ensureColumn(database, 'submission_events', 'stage', 'TEXT')
+  database.prepare("UPDATE assignments SET route_id = ? WHERE route_id IS NULL OR TRIM(route_id) = ''").run(LEGACY_SCOPE)
+  database.prepare("UPDATE submission_events SET route_id = ? WHERE route_id IS NULL OR TRIM(route_id) = ''").run(LEGACY_SCOPE)
+  database.prepare("UPDATE submission_events SET stage = ? WHERE stage IS NULL OR TRIM(stage) = ''").run(LEGACY_SCOPE)
+  database.exec(`
+    CREATE INDEX IF NOT EXISTS idx_assignments_route_stage ON assignments(route_id, stage, classroom_id);
+  `)
+}
+
+function hasAssignmentScopedIdempotency(database) {
+  return database.prepare('PRAGMA index_list(submission_events)').all().some((index) => {
+    if (!index.unique) return false
+    const columns = database.prepare(`PRAGMA index_info(${index.name})`).all().sort((left, right) => left.seqno - right.seqno).map((item) => item.name)
+    return columns.join(',') === 'assignment_id,student_user_id,idempotency_key'
+  })
+}
+
+function migrateSubmissionIdempotency(database) {
+  if (!hasAssignmentScopedIdempotency(database)) {
+    database.exec('PRAGMA foreign_keys = OFF')
+    try {
+      database.exec(`
+        BEGIN IMMEDIATE;
+        DROP TABLE IF EXISTS submission_events_route_migration;
+        CREATE TABLE submission_events_route_migration (
+          id TEXT PRIMARY KEY,
+          assignment_id TEXT NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+          student_user_id TEXT NOT NULL,
+          idempotency_key TEXT NOT NULL,
+          event_type TEXT NOT NULL,
+          route_id TEXT NOT NULL,
+          stage TEXT NOT NULL,
+          payload_json TEXT NOT NULL,
+          occurred_at TEXT NOT NULL,
+          UNIQUE (assignment_id, student_user_id, idempotency_key)
+        );
+        INSERT INTO submission_events_route_migration
+          (id, assignment_id, student_user_id, idempotency_key, event_type, route_id, stage, payload_json, occurred_at)
+        SELECT id, assignment_id, student_user_id, idempotency_key, event_type, route_id, stage, payload_json, occurred_at
+        FROM submission_events;
+        DROP TABLE submission_events;
+        ALTER TABLE submission_events_route_migration RENAME TO submission_events;
+        COMMIT;
+      `)
+    } catch (error) {
+      try { database.exec('ROLLBACK') } catch { /* No active migration transaction. */ }
+      throw error
+    } finally {
+      database.exec('PRAGMA foreign_keys = ON')
+    }
+  }
+  database.exec(`
+    CREATE INDEX IF NOT EXISTS idx_submission_events_assignment ON submission_events(assignment_id, student_user_id, occurred_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_submission_events_route_stage ON submission_events(route_id, stage, occurred_at DESC);
+  `)
 }
 
 function appDatabase(env) {
@@ -79,6 +240,7 @@ function appDatabase(env) {
       created_by_user_id TEXT NOT NULL,
       subject_id TEXT NOT NULL,
       stage TEXT NOT NULL,
+      route_id TEXT NOT NULL,
       syllabus_point_id TEXT NOT NULL,
       title TEXT NOT NULL,
       source_scope_json TEXT NOT NULL,
@@ -111,12 +273,16 @@ function appDatabase(env) {
       student_user_id TEXT NOT NULL,
       idempotency_key TEXT NOT NULL,
       event_type TEXT NOT NULL,
+      route_id TEXT NOT NULL,
+      stage TEXT NOT NULL,
       payload_json TEXT NOT NULL,
       occurred_at TEXT NOT NULL,
-      UNIQUE (student_user_id, idempotency_key)
+      UNIQUE (assignment_id, student_user_id, idempotency_key)
     );
     CREATE INDEX IF NOT EXISTS idx_submission_events_assignment ON submission_events(assignment_id, student_user_id, occurred_at DESC);
   `)
+  migrateRouteScope(database)
+  migrateSubmissionIdempotency(database)
   return database
 }
 
@@ -188,11 +354,13 @@ function publicClassroom(row, role) {
 }
 
 function publicAssignment(row) {
+  const scope = storedScope(row)
   return {
     id: row.id,
     classroomId: row.classroom_id,
     subjectId: row.subject_id,
-    stage: row.stage,
+    ...scope,
+    legacyStage: scope.scopeStatus === LEGACY_SCOPE ? asText(row.stage, 40) || null : undefined,
     syllabusPointId: row.syllabus_point_id,
     title: row.title,
     sourceScope: JSON.parse(row.source_scope_json),
@@ -232,13 +400,15 @@ function assignmentsForWorkspace(database, classes) {
 
 function publicSubmission(row, { includeStudentUserId = true } = {}) {
   const payload = JSON.parse(row.payload_json)
+  const scope = storedScope(row)
   const result = {
+    ...payload,
     id: row.id,
     assignmentId: row.assignment_id,
     eventType: row.event_type,
     occurredAt: row.occurred_at,
     syllabusPointId: row.syllabus_point_id,
-    ...payload,
+    ...scope,
   }
   if (includeStudentUserId) result.studentUserId = row.student_user_id
   return result
@@ -262,19 +432,65 @@ function timeWindow(url) {
   return { from, to }
 }
 
-function submissionFilter(column, window) {
+function reportFilter(url) {
+  const filter = timeWindow(url)
+  const requestedRouteId = asText(url.searchParams.get('routeId'), 120)
+  const requestedStage = asText(url.searchParams.get('stage'), 40)
+  if (!requestedRouteId && !requestedStage) return { ...filter, routeId: null, stage: null }
+  if (requestedRouteId) {
+    const routeId = canonicalRouteId(requestedRouteId, { allowLegacy: true })
+    const stage = requestedStage
+      ? canonicalStage(requestedStage, { allowLegacy: true })
+      : stageForRoute(routeId)
+    if (stageForRoute(routeId) !== stage) throw Object.assign(new Error('routeId and stage filters must match.'), { statusCode: 400 })
+    return { ...filter, routeId, stage }
+  }
+  return { ...filter, routeId: null, stage: canonicalStage(requestedStage, { allowLegacy: true }) }
+}
+
+function submissionFilter(column, filter) {
   const conditions = [`${column}.event_type = 'submitted'`]
   const parameters = []
-  if (window?.from) { conditions.push(`${column}.occurred_at >= ?`); parameters.push(window.from) }
-  if (window?.to) { conditions.push(`${column}.occurred_at <= ?`); parameters.push(window.to) }
+  if (filter?.from) { conditions.push(`${column}.occurred_at >= ?`); parameters.push(filter.from) }
+  if (filter?.to) { conditions.push(`${column}.occurred_at <= ?`); parameters.push(filter.to) }
+  if (filter?.routeId) { conditions.push(`${column}.route_id = ?`); parameters.push(filter.routeId) }
+  if (filter?.stage) {
+    conditions.push(`${column}.stage = ?`)
+    parameters.push(filter.stage)
+    if (filter.stage !== LEGACY_SCOPE) { conditions.push(`${column}.route_id <> ?`); parameters.push(LEGACY_SCOPE) }
+  }
   return { sql: conditions.join(' AND '), parameters }
 }
 
-function summaryForClass(database, classroomId, window = {}) {
-  const latestFilter = submissionFilter('submission_events', window)
-  const outerFilter = submissionFilter('events', window)
+function assignmentFilter(column, filter, { activeOnly = false } = {}) {
+  const conditions = []
+  const parameters = []
+  if (activeOnly) conditions.push(`${column}.status = 'active'`)
+  if (filter?.routeId) { conditions.push(`${column}.route_id = ?`); parameters.push(filter.routeId) }
+  if (filter?.stage === LEGACY_SCOPE && !filter?.routeId) { conditions.push(`${column}.route_id = ?`); parameters.push(LEGACY_SCOPE) }
+  else if (filter?.stage && filter.stage !== LEGACY_SCOPE) {
+    conditions.push(`${column}.stage = ?`, `${column}.route_id <> ?`)
+    parameters.push(filter.stage, LEGACY_SCOPE)
+  }
+  return { sql: conditions.length ? conditions.join(' AND ') : '1 = 1', parameters }
+}
+
+function routeScopesForClass(database, classroomId, filter = {}) {
+  const stageCondition = filter.stage && filter.stage !== LEGACY_SCOPE ? 'AND stage = ? AND route_id <> ?' : filter.stage === LEGACY_SCOPE ? 'AND route_id = ?' : ''
+  const parameters = filter.stage ? filter.stage === LEGACY_SCOPE ? [LEGACY_SCOPE] : [filter.stage, LEGACY_SCOPE] : []
+  return database.prepare(`
+    SELECT DISTINCT route_id, CASE WHEN route_id = ? THEN ? ELSE stage END AS stage
+    FROM assignments WHERE classroom_id = ? ${stageCondition}
+    ORDER BY route_id, stage
+  `).all(LEGACY_SCOPE, LEGACY_SCOPE, classroomId, ...parameters).map(storedScope)
+}
+
+function summaryForClass(database, classroomId, filter = {}, { includeRouteGroups = true } = {}) {
+  const latestFilter = submissionFilter('submission_events', filter)
+  const outerFilter = submissionFilter('events', filter)
   const rows = database.prepare(`
-    SELECT events.student_user_id, events.payload_json, events.occurred_at, assignments.syllabus_point_id, assignments.status
+    SELECT events.student_user_id, events.payload_json, events.occurred_at, events.route_id, events.stage,
+      assignments.syllabus_point_id, assignments.status
     FROM submission_events AS events
     JOIN assignments ON assignments.id = events.assignment_id
     JOIN (
@@ -291,18 +507,25 @@ function summaryForClass(database, classroomId, window = {}) {
       SUM(CASE WHEN role IN ('owner', 'teacher') THEN 1 ELSE 0 END) AS teacher_count
     FROM class_memberships WHERE classroom_id = ?
   `).get(classroomId)
-  const activeAssignments = database.prepare("SELECT COUNT(*) AS count FROM assignments WHERE classroom_id = ? AND status = 'active'").get(classroomId).count
+  const activeFilter = assignmentFilter('assignments', filter, { activeOnly: true })
+  const activeAssignments = database.prepare(`SELECT COUNT(*) AS count FROM assignments WHERE classroom_id = ? AND ${activeFilter.sql}`).get(classroomId, ...activeFilter.parameters).count
   const reportableResults = results.filter((row) => !['draft', 'archived'].includes(row.status))
   const activeCutoff = new Date(Date.now() - 28 * 86_400_000).toISOString()
   const coverageBySyllabusPoint = reportableResults.reduce((coverage, row) => {
-    const item = coverage[row.syllabus_point_id] || { submissions: 0, percentages: [] }
+    const scope = storedScope(row)
+    const key = `${scope.routeId}::${row.syllabus_point_id}`
+    const item = coverage[key] || { ...scope, topicId: row.syllabus_point_id, submissions: 0, percentages: [] }
     item.submissions += 1
     const percentage = Number(row.payload.percentage)
     if (Number.isFinite(percentage)) item.percentages.push(percentage)
-    coverage[row.syllabus_point_id] = item
+    coverage[key] = item
     return coverage
   }, {})
-  const publicCoverage = Object.fromEntries(Object.entries(coverageBySyllabusPoint).map(([topicId, item]) => [topicId, {
+  const publicCoverage = Object.fromEntries(Object.entries(coverageBySyllabusPoint).map(([key, item]) => [key, {
+    routeId: item.routeId,
+    stage: item.stage,
+    scopeStatus: item.scopeStatus,
+    topicId: item.topicId,
     submissions: item.submissions,
     averagePercentage: item.percentages.length ? Math.round(item.percentages.reduce((total, value) => total + value, 0) / item.percentages.length) : null,
   }]))
@@ -314,7 +537,9 @@ function summaryForClass(database, classroomId, window = {}) {
   if (completionRate != null && completionRate < 60) riskReasons.push('Low assignment completion')
   if (percentages.length && percentages.reduce((total, value) => total + value, 0) / percentages.length < 60) riskReasons.push('Low submitted accuracy')
   if (!reportableResults.length && activeAssignments) riskReasons.push('No submitted evidence')
-  return {
+  const summary = {
+    filter: { routeId: filter.routeId || null, stage: filter.stage || null },
+    aggregationMode: filter.routeId || filter.stage ? 'single-scope' : 'cross-route-overview',
     submissions: results.length,
     averagePercentage: percentages.length ? Math.round(percentages.reduce((total, value) => total + value, 0) / percentages.length) : null,
     needsSupport: percentages.filter((value) => value < 60).length,
@@ -328,6 +553,14 @@ function summaryForClass(database, classroomId, window = {}) {
     coverageBySyllabusPoint: publicCoverage,
     riskReasons,
   }
+  if (includeRouteGroups && !filter.routeId) {
+    summary.routeGroups = routeScopesForClass(database, classroomId, filter).map((scope) => ({
+      ...scope,
+      summary: summaryForClass(database, classroomId, { ...filter, routeId: scope.routeId, stage: scope.stage }, { includeRouteGroups: false }),
+    }))
+    summary.legacyUnscoped = summary.routeGroups.find((item) => item.routeId === LEGACY_SCOPE)?.summary || null
+  }
+  return summary
 }
 
 function accessibleStaffClasses(database, userId) {
@@ -341,37 +574,70 @@ function accessibleStaffClasses(database, userId) {
   `).all(userId)
 }
 
-function schoolAnalytics(database, user, window) {
+function schoolAnalytics(database, user, filter) {
   const classes = accessibleStaffClasses(database, user.id)
   const cohorts = classes.map((classroom) => ({
     classroomId: classroom.id,
     name: classroom.name,
-    summary: summaryForClass(database, classroom.id, window),
+    summary: summaryForClass(database, classroom.id, filter),
   }))
   const coverage = {}
+  const groupedRoutes = {}
   const risks = new Map()
   for (const cohort of cohorts) {
-    for (const [topicId, item] of Object.entries(cohort.summary.coverageBySyllabusPoint)) {
-      const current = coverage[topicId] || { submissions: 0, weightedScore: 0, scoredSubmissions: 0 }
+    for (const item of Object.values(cohort.summary.coverageBySyllabusPoint)) {
+      const key = `${item.routeId}::${item.topicId}`
+      const current = coverage[key] || { routeId: item.routeId, stage: item.stage, scopeStatus: item.scopeStatus, topicId: item.topicId, submissions: 0, weightedScore: 0, scoredSubmissions: 0 }
       current.submissions += item.submissions
       if (Number.isFinite(item.averagePercentage)) {
         current.weightedScore += item.averagePercentage * item.submissions
         current.scoredSubmissions += item.submissions
       }
-      coverage[topicId] = current
+      coverage[key] = current
+    }
+    const cohortGroups = cohort.summary.routeGroups || [{
+      routeId: filter.routeId || LEGACY_SCOPE,
+      stage: filter.stage || LEGACY_SCOPE,
+      scopeStatus: filter.routeId === LEGACY_SCOPE ? LEGACY_SCOPE : 'scoped',
+      summary: cohort.summary,
+    }]
+    for (const group of cohortGroups) {
+      const key = `${group.routeId}::${group.stage}`
+      const current = groupedRoutes[key] || { routeId: group.routeId, stage: group.stage, scopeStatus: group.scopeStatus, submissions: 0, weightedScore: 0, activeAssignments: 0, needsSupport: 0, cohorts: 0 }
+      current.submissions += group.summary.submissions
+      current.activeAssignments += group.summary.activeAssignments
+      current.needsSupport += group.summary.needsSupport
+      current.cohorts += 1
+      if (Number.isFinite(group.summary.averagePercentage)) current.weightedScore += group.summary.averagePercentage * group.summary.submissions
+      groupedRoutes[key] = current
     }
     for (const reason of cohort.summary.riskReasons) risks.set(reason, (risks.get(reason) || 0) + 1)
   }
-  const topics = Object.entries(coverage).map(([topicId, item]) => ({
-    topicId,
+  const topics = Object.values(coverage).map((item) => ({
+    routeId: item.routeId,
+    stage: item.stage,
+    scopeStatus: item.scopeStatus,
+    topicId: item.topicId,
     submissions: item.submissions,
     averagePercentage: item.scoredSubmissions ? Math.round(item.weightedScore / item.scoredSubmissions) : null,
   })).sort((left, right) => (left.averagePercentage ?? 101) - (right.averagePercentage ?? 101))
   return {
     generatedAt: nowIso(),
-    window,
+    window: { from: filter.from, to: filter.to },
+    filter: { routeId: filter.routeId || null, stage: filter.stage || null },
+    aggregationMode: filter.routeId || filter.stage ? 'single-scope' : 'grouped-by-route',
     cohortCount: cohorts.length,
     cohorts,
+    routeGroups: Object.values(groupedRoutes).map((item) => ({
+      routeId: item.routeId,
+      stage: item.stage,
+      scopeStatus: item.scopeStatus,
+      submissions: item.submissions,
+      averagePercentage: item.submissions ? Math.round(item.weightedScore / item.submissions) : null,
+      activeAssignments: item.activeAssignments,
+      needsSupport: item.needsSupport,
+      cohortCount: item.cohorts,
+    })).sort((left, right) => left.routeId.localeCompare(right.routeId)),
     topicCoverage: topics,
     riskReasons: [...risks.entries()].map(([reason, cohortsAffected]) => ({ reason, cohortsAffected })).sort((left, right) => right.cohortsAffected - left.cohortsAffected),
     privacy: 'Aggregate only. This report excludes student notes, handwriting, drafts and AI Coach conversations.',
@@ -447,8 +713,8 @@ export function createStemApi({ env }) {
       if (request.method === 'GET' && classroomMatch) {
         const classroomId = decodeURIComponent(classroomMatch[1])
         requireMembership(db, classroomId, user.id, new Set(['owner', 'teacher', 'school']))
-        const window = timeWindow(url)
-        sendJson(response, 200, { classroomId, summary: summaryForClass(db, classroomId, window), window })
+        const filter = reportFilter(url)
+        sendJson(response, 200, { classroomId, summary: summaryForClass(db, classroomId, filter), filter })
         return
       }
       const submissionsMatch = url.pathname.match(/^\/api\/stem\/classrooms\/([^/]+)\/submissions$/)
@@ -471,17 +737,20 @@ export function createStemApi({ env }) {
         const classroomId = asText(payload.classroomId, 80)
         requireMembership(db, classroomId, user.id, new Set(['owner', 'teacher']))
         const title = asText(payload.title, 160)
-        const subjectId = asText(payload.subjectId, 80)
-        const stage = asText(payload.stage, 40)
+        const { routeId, stage, subjectId } = verifiedAssignmentScope(payload.routeId, payload.stage, payload.subjectId)
         const syllabusPointId = asText(payload.syllabusPointId, 120)
         const sourceScope = payload.sourceScope && typeof payload.sourceScope === 'object' ? payload.sourceScope : null
-        if (!title || !subjectId || !stage || !syllabusPointId || !sourceScope?.questionIds?.length) throw Object.assign(new Error('Assignment details and verified source question IDs are required.'), { statusCode: 400 })
+        if (!title || !subjectId || !syllabusPointId || !sourceScope?.questionIds?.length) throw Object.assign(new Error('Assignment details and verified source question IDs are required.'), { statusCode: 400 })
+        if (!sourceScope.routeId || !sourceScope.stage) throw Object.assign(new Error('sourceScope must include routeId and stage.'), { statusCode: 400 })
+        const sourceRoute = verifiedRouteScope(sourceScope.routeId, sourceScope.stage)
+        if (sourceRoute.routeId !== routeId || sourceRoute.stage !== stage) throw Object.assign(new Error('Assignment questions must use the assignment routeId and stage.'), { statusCode: 400 })
+        const questionIds = routeScopedQuestionIds(sourceScope.questionIds, routeId)
         const id = crypto.randomUUID()
         const createdAt = nowIso()
         const status = payload.status === 'draft' ? 'draft' : 'active'
-        db.prepare(`INSERT INTO assignments (id, classroom_id, created_by_user_id, subject_id, stage, syllabus_point_id, title, source_scope_json, due_at, status, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-          .run(id, classroomId, user.id, subjectId, stage, syllabusPointId, title, JSON.stringify({ questionIds: sourceScope.questionIds.slice(0, 60).map((id) => asText(id, 160)), provenanceVersion: asText(sourceScope.provenanceVersion, 40) || 'v1' }), validDueAt(payload.dueAt), status, createdAt)
+        db.prepare(`INSERT INTO assignments (id, classroom_id, created_by_user_id, subject_id, stage, route_id, syllabus_point_id, title, source_scope_json, due_at, status, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+          .run(id, classroomId, user.id, subjectId, stage, routeId, syllabusPointId, title, JSON.stringify({ questionIds, routeId, stage, provenanceVersion: asText(sourceScope.provenanceVersion, 40) || 'v1' }), validDueAt(payload.dueAt), status, createdAt)
         sendJson(response, 201, { assignment: publicAssignment(db.prepare('SELECT * FROM assignments WHERE id = ?').get(id)) })
         return
       }
@@ -551,17 +820,20 @@ export function createStemApi({ env }) {
       if (request.method === 'GET' && url.pathname === '/api/stem/school/analytics') {
         const classes = accessibleStaffClasses(db, user.id)
         if (!classes.length) throw Object.assign(new Error('No school or teaching classes are available for this account.'), { statusCode: 403 })
-        sendJson(response, 200, { analytics: schoolAnalytics(db, user, timeWindow(url)) })
+        sendJson(response, 200, { analytics: schoolAnalytics(db, user, reportFilter(url)) })
         return
       }
       if (request.method === 'GET' && url.pathname === '/api/stem/school/reports/anonymous') {
         const classes = accessibleStaffClasses(db, user.id)
         if (!classes.length) throw Object.assign(new Error('No school or teaching classes are available for this account.'), { statusCode: 403 })
-        const analytics = schoolAnalytics(db, user, timeWindow(url))
+        const analytics = schoolAnalytics(db, user, reportFilter(url))
         const report = {
           generatedAt: analytics.generatedAt,
           window: analytics.window,
+          filter: analytics.filter,
+          aggregationMode: analytics.aggregationMode,
           cohorts: analytics.cohorts.map((cohort, index) => ({ cohort: `Cohort ${index + 1}`, summary: cohort.summary })),
+          routeGroups: analytics.routeGroups,
           topicCoverage: analytics.topicCoverage,
           riskReasons: analytics.riskReasons,
           privacy: analytics.privacy,
@@ -578,16 +850,24 @@ export function createStemApi({ env }) {
         const payload = await readJson(request)
         const idempotencyKey = asText(payload.idempotencyKey, 100)
         if (!idempotencyKey) throw Object.assign(new Error('Submission needs an idempotency key.'), { statusCode: 400 })
-        const existing = db.prepare('SELECT id, occurred_at FROM submission_events WHERE student_user_id = ? AND idempotency_key = ?').get(user.id, idempotencyKey)
+        const assignmentScope = storedScope(assignment)
+        if (assignmentScope.scopeStatus === LEGACY_SCOPE) throw Object.assign(new Error('Legacy unscoped assignments cannot accept new submissions.'), { statusCode: 409 })
+        if (payload.routeId || payload.stage) {
+          const submittedScope = verifiedRouteScope(payload.routeId, payload.stage)
+          if (submittedScope.routeId !== assignmentScope.routeId || submittedScope.stage !== assignmentScope.stage) {
+            throw Object.assign(new Error('Submission routeId and stage must match the assignment.'), { statusCode: 400 })
+          }
+        }
+        const existing = db.prepare('SELECT id, occurred_at, route_id, stage FROM submission_events WHERE assignment_id = ? AND student_user_id = ? AND idempotency_key = ?').get(assignment.id, user.id, idempotencyKey)
         if (existing) {
-          sendJson(response, 200, { eventId: existing.id, occurredAt: existing.occurred_at, duplicate: true })
+          sendJson(response, 200, { eventId: existing.id, occurredAt: existing.occurred_at, duplicate: true, ...storedScope(existing) })
           return
         }
         const eventId = crypto.randomUUID()
         const occurredAt = nowIso()
-        db.prepare('INSERT INTO submission_events (id, assignment_id, student_user_id, idempotency_key, event_type, payload_json, occurred_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-          .run(eventId, assignmentId, user.id, idempotencyKey, 'submitted', JSON.stringify(eventPayload(payload)), occurredAt)
-        sendJson(response, 201, { eventId, occurredAt, duplicate: false })
+        db.prepare('INSERT INTO submission_events (id, assignment_id, student_user_id, idempotency_key, event_type, route_id, stage, payload_json, occurred_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+          .run(eventId, assignmentId, user.id, idempotencyKey, 'submitted', assignmentScope.routeId, assignmentScope.stage, JSON.stringify(eventPayload(payload)), occurredAt)
+        sendJson(response, 201, { eventId, occurredAt, duplicate: false, ...assignmentScope })
         return
       }
       sendJson(response, 404, { error: 'STEM workspace endpoint not found.' })

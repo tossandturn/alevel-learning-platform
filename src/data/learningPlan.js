@@ -7,6 +7,7 @@
  */
 
 import { additionalKnowledgeGroups, additionalSubjects, curriculumSources } from './curriculumContent.js'
+import { courseRoutes, LEGACY_UNSCOPED_ROUTE_ID, resolveRouteId, routeById, routesForSubject } from './routeRegistry.js'
 
 export const MASTERY_STAGES = Object.freeze([
   {
@@ -200,13 +201,21 @@ export function stagesForComponentTags(tags = []) {
   return tags.some((tag) => /IGCSE|Core|Extended/i.test(tag)) ? ['IGCSE'] : ['AS', 'A2']
 }
 
-function group({ id, subjectId, name, description, themes, skills, priority, recommendedModes, checkpoints, stageTags: explicitStageTags, officialTopicNumber = null, hidden = false }) {
+function group({ id, subjectId, name, description, themes, skills, priority, recommendedModes, checkpoints, stageTags: explicitStageTags, officialTopicNumber = null, hidden = false, routeId: explicitRouteId = null }) {
   const stageTags = explicitStageTags || COMPONENT_TAGS[id] || (subjectId === 'physics-0625'
     ? ['IGCSE']
     : ['AS', 'A2'])
+  const routeId = explicitRouteId || resolveRouteId({ subjectId, knowledgeGroupId: id }) || LEGACY_UNSCOPED_ROUTE_ID
+  const route = routeById(routeId)
   return Object.freeze({
     id,
     subjectId,
+    routeId,
+    qualification: route?.qualification || null,
+    stage: route?.stage || LEGACY_UNSCOPED_ROUTE_ID,
+    paperComponent: null,
+    syllabusTopic: id,
+    sourcePaper: null,
     name,
     description,
     themes: Object.freeze([...themes]),
@@ -570,7 +579,7 @@ export const KNOWLEDGE_GROUPS = Object.freeze([
   ...additionalKnowledgeGroups,
 ])
 
-export const SUBJECTS = Object.freeze([
+const SUBJECT_DEFINITIONS = [
   {
     id: 'physics-9702',
     code: '9702',
@@ -608,12 +617,25 @@ export const SUBJECTS = Object.freeze([
     mockConfigIds: ['mock-9231-topic-mix', 'mock-9231-full-paper'],
   },
   ...additionalSubjects,
-])
+]
 
-export const MOCK_EXAM_CONFIGS = Object.freeze([
+export const SUBJECTS = Object.freeze(SUBJECT_DEFINITIONS.map((subject) => {
+  const routeIds = routesForSubject(subject.id).map((route) => route.routeId)
+  const routeId = routeIds.length === 1 ? routeIds[0] : LEGACY_UNSCOPED_ROUTE_ID
+  const route = routeById(routeId)
+  return Object.freeze({
+    ...subject,
+    routeId,
+    routeIds: Object.freeze(routeIds),
+    stage: route?.stage || LEGACY_UNSCOPED_ROUTE_ID,
+  })
+}))
+
+const MOCK_EXAM_DEFINITIONS = [
   {
     id: 'mock-9702-foundation',
     subjectId: 'physics-9702',
+    courseStage: 'AS',
     title: 'Physics focused mock',
     description: 'A shorter mixed configuration for checking readiness before a complete paper.',
     durationMinutes: 45,
@@ -677,7 +699,21 @@ export const MOCK_EXAM_CONFIGS = Object.freeze([
     reviewChecklist: ['time by section', 'logical completeness', 'model assumptions', 'exact forms', 'unanswered parts'],
     sourcePolicy: 'Paper code, duration, marks, and option combination must come from exact verified paper metadata.',
   },
-])
+]
+
+export const MOCK_EXAM_CONFIGS = Object.freeze(MOCK_EXAM_DEFINITIONS.map((mock) => {
+  const routeId = resolveRouteId({ subjectId: mock.subjectId, stage: mock.courseStage, paperComponent: mock.paperComponent }) || LEGACY_UNSCOPED_ROUTE_ID
+  const route = routeById(routeId)
+  return Object.freeze({
+    ...mock,
+    routeId,
+    qualification: route?.qualification || null,
+    stage: route?.stage || LEGACY_UNSCOPED_ROUTE_ID,
+    paperComponent: mock.paperComponent ?? null,
+    syllabusTopic: null,
+    sourcePaper: null,
+  })
+}))
 
 export const LEARNING_SUGGESTIONS = Object.freeze([
   {
@@ -723,7 +759,8 @@ const MOCK_BY_ID = new Map(MOCK_EXAM_CONFIGS.map((mock) => [mock.id, mock]))
 const STAGE_RANK = new Map(MASTERY_STAGES.map((stage, index) => [stage.id, index]))
 
 export const learningPlan = Object.freeze({
-  schemaVersion: 1,
+  schemaVersion: 2,
+  courseRoutes,
   subjects: SUBJECTS,
   knowledgeGroups: KNOWLEDGE_GROUPS,
   masteryStages: MASTERY_STAGES,

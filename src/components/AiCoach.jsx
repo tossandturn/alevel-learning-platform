@@ -43,7 +43,7 @@ export function AiCoach({
   const [hintLevel, setHintLevel] = useState(1)
   const [imageDataUrl, setImageDataUrl] = useState('')
   const [builderOpen, setBuilderOpen] = useState(false)
-  const [builderSubjectId, setBuilderSubjectId] = useState(practiceOptions[0]?.id || 'physics')
+  const [builderSubjectId, setBuilderSubjectId] = useState(practiceOptions[0]?.id || '')
   const [builderStage, setBuilderStage] = useState(practiceOptions[0]?.stages?.[0] || 'AS')
   const [builderTopicId, setBuilderTopicId] = useState(practiceOptions[0]?.topics?.[0]?.id || '')
   const [builderCount, setBuilderCount] = useState('10')
@@ -168,8 +168,9 @@ export function AiCoach({
     setError('')
     try {
       const unit = await onGeneratePractice({
-        subjectId: builderSubject.id,
-        stage: builderStage,
+        routeId: builderSubject.routeId,
+        subjectId: builderSubject.subjectId,
+        stage: builderSubject.stage,
         knowledgeGroupId: builderTopicId,
         questionCount: Number(builderCount),
         allowPartial: true,
@@ -218,8 +219,7 @@ export function AiCoach({
 
         {builderOpen && <section className="ai-coach__builder" aria-label="Generate a focused practice set">
           <header><div><strong>Build a focused set</strong><span>Choose the syllabus point, then start writing.</span></div><Sparkles size={18} /></header>
-          <label><span>Subject</span><select value={builderSubject?.id || ''} onChange={(event) => setBuilderSubjectId(event.target.value)}>{practiceOptions.map((item) => <option value={item.id} key={item.id}>{item.label}</option>)}</select></label>
-          <label><span>Stage</span><select value={builderStage} onChange={(event) => setBuilderStage(event.target.value)}>{(builderSubject?.stages || []).map((stage) => <option value={stage} key={stage}>{stage}</option>)}</select></label>
+          <label><span>Learning route</span><select value={builderSubject?.id || ''} onChange={(event) => setBuilderSubjectId(event.target.value)}>{practiceOptions.map((item) => <option value={item.id} key={item.id}>{item.label}</option>)}</select></label>
           <label><span>Knowledge point</span><select value={builderTopicId} onChange={(event) => setBuilderTopicId(event.target.value)}>{builderTopics.map((topic) => <option value={topic.id} key={topic.id}>{topic.label}</option>)}</select></label>
           <label><span>Questions</span><select value={builderCount} onChange={(event) => setBuilderCount(event.target.value)}><option value="10">10 questions</option><option value="15">15 questions</option><option value="20">20 questions</option></select></label>
           <p>Source policy: indexed official paper only. Each question is bound to its own QP and mark scheme. <strong>{verifiedCount} verified for this stage</strong>{sourceReady && verifiedCount < requestedCount ? ' · available questions will be used' : sourceReady ? ' · ready to build' : ' · indexing in progress'}</p>
