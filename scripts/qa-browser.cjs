@@ -63,6 +63,37 @@ async function run() {
     if (handwrittenIndex >= 0) {
       await page.locator('.index-list button').nth(handwrittenIndex).click()
       await page.locator('.handwriting-pad').waitFor()
+      const handwritingCanvas = page.locator('.handwriting-pad__canvas')
+      const handwritingStyle = await handwritingCanvas.evaluate((element) => {
+        const computed = getComputedStyle(element)
+        return { touchAction: computed.touchAction, userSelect: computed.userSelect, webkitUserSelect: computed.webkitUserSelect }
+      })
+      if (handwritingStyle.touchAction !== 'none' || handwritingStyle.userSelect !== 'none' || handwritingStyle.webkitUserSelect !== 'none') throw new Error(`Handwriting selection guard failed: ${JSON.stringify(handwritingStyle)}`)
+      const handwritingBox = await handwritingCanvas.boundingBox()
+      await page.mouse.move(handwritingBox.x + 80, handwritingBox.y + 140)
+      await page.mouse.down()
+      await page.mouse.move(handwritingBox.x + 220, handwritingBox.y + 140, { steps: 8 })
+      await page.mouse.up()
+      const drawnPixels = await handwritingCanvas.evaluate((element) => {
+        const pixels = element.getContext('2d').getImageData(0, 0, element.width, element.height).data
+        let dark = 0
+        for (let index = 0; index < pixels.length; index += 4) if (pixels[index] < 100 && pixels[index + 1] < 120 && pixels[index + 2] < 150) dark += 1
+        return dark
+      })
+      if (!drawnPixels) throw new Error('Pointer stroke did not reach handwriting canvas')
+      if (await page.evaluate(() => window.getSelection()?.toString() || '')) throw new Error('Page text was selected while drawing')
+      await page.getByRole('button', { name: 'Eraser' }).click()
+      await page.mouse.move(handwritingBox.x + 145, handwritingBox.y + 140)
+      await page.mouse.down()
+      await page.mouse.move(handwritingBox.x + 180, handwritingBox.y + 140, { steps: 4 })
+      await page.mouse.up()
+      const erasedPixels = await handwritingCanvas.evaluate((element) => {
+        const pixels = element.getContext('2d').getImageData(0, 0, element.width, element.height).data
+        let dark = 0
+        for (let index = 0; index < pixels.length; index += 4) if (pixels[index] < 100 && pixels[index + 1] < 120 && pixels[index + 2] < 150) dark += 1
+        return dark
+      })
+      if (erasedPixels >= drawnPixels) throw new Error(`Eraser did not remove local ink: ${drawnPixels} -> ${erasedPixels}`)
     }
     const mcqIndex = generated.parts.findIndex((part) => part.answerType === 'multiple-choice' && (part.answerKey || part.answer))
     if (mcqIndex < 0) throw new Error('Verified drill did not include a markable MCQ')
