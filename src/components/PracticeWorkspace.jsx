@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Lightbulb, ListChecks, Save, Sparkles } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Clock3, FileText, Lightbulb, ListChecks, Save, Sparkles } from 'lucide-react'
 import { AiCoach } from './AiCoach'
 import { HandwritingPad } from './HandwritingPad'
+import './QuestionPlayer.css'
 
 function formatTime(totalSec) {
   const minutes = Math.floor(totalSec / 60)
@@ -12,9 +13,10 @@ function hasAnswer(value) {
   return Boolean(String(value || '').trim())
 }
 
-function responseLabel(part) {
-  if (part.answerType === 'multiple-choice') return 'Multiple choice'
+function answerTypeLabel(part) {
+  if (part.answerType === 'multiple-choice') return 'Choose one'
   if (part.answerType === 'numeric') return 'Calculation'
+  if (part.answerType === 'graph') return 'Graph / diagram'
   return 'Written response'
 }
 
@@ -32,9 +34,9 @@ function plural(count, singular, pluralForm = `${singular}s`) {
 function sourceMixText(sourceMix) {
   if (!sourceMix) return ''
   return [
-    plural(sourceMix.pastPaperItems || 0, 'indexed past-paper item'),
-    plural(sourceMix.referencedPapers || 0, 'official PDF reference'),
-  ].join(' · ')
+    plural(sourceMix.pastPaperItems || 0, 'past-paper question'),
+    plural(sourceMix.referencedPapers || 0, 'official paper'),
+  ].join(' / ')
 }
 
 function prepareEvidence(file) {
@@ -76,20 +78,70 @@ function isComplete(attempt, part) {
   return hasAnswer(attempt.answers[part.id]) || Boolean(attempt.evidence?.[part.id])
 }
 
+function NumericAnswer({ part, value, onChange }) {
+  const displayValue = String(value || '').includes('\n') ? '' : value || ''
+  return (
+    <div className="qp-numeric-entry">
+      <label htmlFor={`numeric-${part.id}`}>
+        <span>Final value</span>
+        <input
+          id={`numeric-${part.id}`}
+          inputMode="decimal"
+          autoComplete="off"
+          value={displayValue}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder="e.g. 6.0 N"
+        />
+      </label>
+      <p>Include the unit. You can show your working in the answer area below.</p>
+    </div>
+  )
+}
+
+function MultipleChoiceAnswer({ part, selected, onChange }) {
+  return (
+    <fieldset className="mcq-answer qp-mcq-answer">
+      <legend>Select one answer</legend>
+      {part.options.map((option, optionIndex) => {
+        const letter = String.fromCharCode(65 + optionIndex)
+        const optionText = String(option).replace(new RegExp(`^${letter}[.)\\s:-]+`, 'i'), '')
+        const isSelected = selected === letter
+        return (
+          <label className={isSelected ? 'selected' : ''} key={`${letter}:${option}`}>
+            <input type="radio" name={part.id} value={letter} checked={isSelected} onChange={() => onChange(letter)} aria-label={`${letter}. ${optionText}`} />
+            <span className="qp-option-letter">{letter}</span>
+            <span className="qp-option-text">{optionText}</span>
+            {isSelected && <CheckCircle2 size={17} aria-hidden="true" />}
+          </label>
+        )
+      })}
+    </fieldset>
+  )
+}
+
 export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, updateEvidence, submitAttempt, goBack }) {
   const [showSubmitCheck, setShowSubmitCheck] = useState(false)
   const [coachRequest, setCoachRequest] = useState(0)
-  const answered = unit.parts.filter((part) => isComplete(attempt, part)).length
-  const unanswered = unit.parts.length - answered
+  const parts = unit.parts || []
+  const answered = parts.filter((part) => isComplete(attempt, part)).length
+  const unanswered = parts.length - answered
   const remaining = Math.max(0, attempt.durationSec - attempt.elapsedSec)
   const settings = attempt.settings || { mode: 'practice', timing: 'recommended', hints: true }
-  const modeLabel = settings.mode === 'exam' ? 'Exam mode' : settings.mode === 'guided' ? 'Guided practice' : 'Independent practice'
-  const activePart = unit.parts.find((part) => part.id === attempt.activePartId) || unit.parts[0]
-  const activeIndex = Math.max(0, unit.parts.findIndex((part) => part.id === activePart.id))
+  const activePart = parts.find((part) => part.id === attempt.activePartId) || parts[0]
+  const activeIndex = Math.max(0, parts.findIndex((part) => part.id === activePart?.id))
+  const complete = activePart ? isComplete(attempt, activePart) : false
+  const progress = Math.round((answered / Math.max(1, parts.length)) * 100)
+  const modeLabel = settings.mode === 'exam' ? 'Exam mode' : settings.mode === 'guided' ? 'Guided practice' : 'Practice mode'
 
   function goToPart(partId) {
     setActivePart(partId)
     document.getElementById(`question-${partId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  function openCoach() {
+    if (!activePart) return
+    setActivePart(activePart.id)
+    setCoachRequest((value) => value + 1)
   }
 
   function requestSubmit() {
@@ -97,116 +149,143 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
     else submitAttempt()
   }
 
-  function askCoach(partId) {
-    setActivePart(partId)
-    setCoachRequest((value) => value + 1)
-  }
+  if (!activePart) return null
 
   return (
-    <section className="practice-view">
-      <header className="workspace-header">
-        <button type="button" className="icon-button" onClick={goBack} aria-label="Back to library"><ArrowLeft size={19} /></button>
-        <div className="workspace-title"><strong>{unit.title}</strong><small>{unit.board} · {unit.provenance.licenseStatus}</small></div>
-        <div className="workspace-tools">
-          <span className={`practice-mode-label mode-${settings.mode}`}>{modeLabel}</span>
-          <span className="answer-progress"><CheckCircle2 size={16} />{answered}/{unit.parts.length} answered</span>
-          <span className="timer"><Clock3 size={16} />{settings.timing === 'untimed' ? formatTime(attempt.elapsedSec) : formatTime(remaining)}</span>
-          <span className="save-state"><Save size={16} />{attempt.saveStatus}</span>
-          <button type="button" className="submit-button" onClick={requestSubmit} disabled={attempt.submitting}>{attempt.submitting ? 'Marking...' : 'Submit'}</button>
+    <section className="practice-view qp-player">
+      <header className="qp-header">
+        <div className="qp-header__leading">
+          <button type="button" className="qp-icon-button" onClick={goBack} aria-label="Back to library" title="Back to practice">
+            <ArrowLeft size={19} />
+          </button>
+          <div className="qp-header__title">
+            <strong>{unit.title}</strong>
+            <span>{unit.topic}{unit.subtopic ? ` / ${unit.subtopic}` : ''}</span>
+          </div>
+        </div>
+        <div className="qp-header__status">
+          <span className={`qp-mode qp-mode--${settings.mode}`}>{modeLabel}</span>
+          <span className="qp-status-item"><CheckCircle2 size={16} />{answered}/{parts.length}</span>
+          <span className="qp-status-item qp-timer"><Clock3 size={16} />{settings.timing === 'untimed' ? formatTime(attempt.elapsedSec) : formatTime(remaining)}</span>
+          <span className="qp-status-item qp-save" aria-live="polite"><Save size={15} />{attempt.saveStatus || 'Saved'}</span>
+          <button type="button" className="qp-submit-button" onClick={requestSubmit} disabled={attempt.submitting}>
+            {attempt.submitting ? 'Marking...' : 'Submit'}
+          </button>
         </div>
       </header>
 
-      <section className="practice-progress-strip" aria-label="Live practice progress">
-        <div><strong>Question {activeIndex + 1} of {unit.parts.length}</strong><span>{answered} answered · {unanswered} remaining</span></div>
-        <div className="practice-progress-track"><i style={{ width: `${Math.round((answered / Math.max(1, unit.parts.length)) * 100)}%` }} /></div>
-        <div className="practice-progress-meta"><span>{activePart.marks} marks on this question</span><span>{settings.timing === 'untimed' ? 'Untimed' : `${Math.ceil(remaining / 60)} min left`}</span></div>
-      </section>
+      <div className="qp-shell">
+        <div className="qp-flow" aria-label="Practice steps">
+          <span className="qp-flow__step qp-flow__step--done"><CheckCircle2 size={15} />Question</span>
+          <span className="qp-flow__line qp-flow__line--active" />
+          <span className="qp-flow__step qp-flow__step--current"><span>2</span>Attempt</span>
+          <span className="qp-flow__line" />
+          <span className="qp-flow__step"><span>3</span>Submit</span>
+          <div className="qp-flow__meta"><strong>{progress}% complete</strong><span>{unanswered ? `${unanswered} to go` : 'Ready to submit'}</span></div>
+        </div>
 
-      <div className="student-workspace">
-        <aside className="question-index" aria-label="Question navigation">
-          <div className="index-heading"><span>Questions</span><strong>{answered}/{unit.parts.length}</strong></div>
-          <div className="index-list">{unit.parts.map((part, index) => {
-            const complete = isComplete(attempt, part)
-            return <button type="button" key={part.id} className={part.id === attempt.activePartId ? 'active' : ''} onClick={() => goToPart(part.id)}><span>{unit.agentGenerated ? index + 1 : part.label}</span><small>{part.marks}m</small>{complete ? <CheckCircle2 size={15} /> : <i />}</button>
-          })}</div>
-        </aside>
+        <div className="practice-progress-strip qp-progress" aria-label="Question progress">
+          <div className="qp-progress__copy"><strong>Question {activeIndex + 1} of {parts.length}</strong><span>{activePart.marks} {activePart.marks === 1 ? 'mark' : 'marks'} · {settings.timing === 'untimed' ? 'Untimed' : `${Math.ceil(remaining / 60)} min left`}</span></div>
+          <div className="qp-progress__track"><i style={{ width: `${progress}%` }} /></div>
+        </div>
 
-        <main className="answer-paper">
-          <header className="answer-paper-heading">
-            <div><span>{unit.specification}</span><h1>{unit.topic}</h1><p>{unit.subtopic || 'Structured practice'}</p></div>
-            <dl><div><dt>Time</dt><dd>{unit.estimatedMinutes} min</dd></div><div><dt>Marks</dt><dd>{unit.maxMarks}</dd></div></dl>
-          </header>
+        <div className="qp-layout">
+          <aside className="question-index qp-index" aria-label="Question navigation">
+            <div className="qp-index__heading"><span>Questions</span><strong>{answered}/{parts.length}</strong></div>
+            <div className="index-list qp-index__list">
+              {parts.map((part, index) => {
+                const partComplete = isComplete(attempt, part)
+                return (
+                  <button type="button" key={part.id} className={part.id === activePart.id ? 'active' : ''} onClick={() => goToPart(part.id)} aria-label={`Question ${index + 1}${partComplete ? ', answered' : ', not answered'}`} aria-current={part.id === activePart.id ? 'step' : undefined}>
+                    <span>{index + 1}</span><small>{part.marks}m</small>{partComplete ? <CheckCircle2 size={15} /> : <i />}
+                  </button>
+                )
+              })}
+            </div>
+          </aside>
 
-          {unit.sourceMix && <section className="practice-source-strip practice-source-summary" aria-label="Drill source mix">
-            <div className="practice-source-copy"><strong>Verified past-paper set</strong><span>{sourceMixText(unit.sourceMix)} · exact QP/MS bindings</span></div>
-          </section>}
+          <main className="answer-paper qp-paper">
+            <div className="qp-paper__intro">
+              <div>
+                <span className="qp-eyebrow">{unit.specification || unit.board || 'Cambridge practice'}</span>
+                <h1>{unit.topic || unit.title}</h1>
+                <p>Read the question, write your answer, then submit when you are ready.</p>
+              </div>
+              <div className="qp-paper__stats"><span><strong>{unit.maxMarks}</strong> marks</span><span><strong>{unit.estimatedMinutes || '--'}</strong> min</span></div>
+            </div>
 
-          <div className="question-flow">{[activePart].map((part) => {
-            const index = activeIndex
-            const complete = isComplete(attempt, part)
-            return (
-              <section className="question-block" id={`question-${part.id}`} key={part.id} onFocus={() => setActivePart(part.id)}>
-                <div className="question-block-heading">
-                  <span className="question-number">{unit.agentGenerated ? index + 1 : `${index + 1}${part.label}`}</span>
-                  <div>{settings.mode !== 'exam' && <button type="button" className="ask-coach-button" onClick={() => askCoach(part.id)}><Sparkles size={14} />Ask Coach</button>}<span>{responseLabel(part)}</span><strong>{part.marks} {part.marks === 1 ? 'mark' : 'marks'}</strong></div>
+            {unit.sourceMix && (
+              <details className="qp-provenance">
+                <summary><FileText size={16} /><span><strong>Source details</strong><small>{sourceMixText(unit.sourceMix)} · paired answers available after submission</small></span></summary>
+                <div className="qp-provenance__body"><strong>Verified past-paper set</strong><span>Every question stays linked to its official source and answer record.</span></div>
+              </details>
+            )}
+
+            <section className="question-block qp-question" id={`question-${activePart.id}`} onFocus={() => setActivePart(activePart.id)}>
+              <div className="qp-question__topline">
+                <div className="qp-question__number"><span>Question</span><strong>{activeIndex + 1}</strong></div>
+                <div className="qp-question__meta"><span>{answerTypeLabel(activePart)}</span><strong>{activePart.marks} {activePart.marks === 1 ? 'mark' : 'marks'}</strong></div>
+              </div>
+
+              <div className="qp-question__body">
+                <h2>{displayPrompt(activePart)}</h2>
+                {activePart.sourceRef && <div className="question-source-label qp-source-label"><strong>Official Cambridge question · {activePart.sourceRef.question || activePart.label || activeIndex + 1}</strong><span>Source-bound question from the original paper. Marking feedback appears after submission.</span></div>}
+              </div>
+
+              <div className="qp-attempt-label"><span>2</span><div><strong>Your answer</strong><small>Show enough reasoning for method marks.</small></div><span className={complete ? 'qp-answer-status qp-answer-status--saved' : 'qp-answer-status'}>{complete ? <><CheckCircle2 size={15} />Saved</> : 'Not answered'}</span></div>
+
+              {activePart.answerType === 'multiple-choice' && <MultipleChoiceAnswer part={activePart} selected={attempt.answers[activePart.id]} onChange={(value) => updateAnswer(activePart.id, value)} />}
+              {activePart.answerType === 'numeric' && <NumericAnswer part={activePart} value={attempt.answers[activePart.id]} onChange={(value) => updateAnswer(activePart.id, value)} />}
+              {activePart.answerType !== 'multiple-choice' && <HandwritingPad
+                answerId={activePart.id}
+                image={attempt.evidence?.[activePart.id]}
+                label={activePart.answerType === 'numeric' ? 'Working and method' : `${answerTypeLabel(activePart)} area`}
+                text={attempt.answers[activePart.id] || attempt.working?.[activePart.id] || ''}
+                onTextChange={(value) => updateAnswer(activePart.id, value)}
+                onImageChange={async (file) => updateEvidence(activePart.id, file ? await prepareEvidence(file) : null)}
+              />}
+
+              <div className="qp-question__help">
+                <div><Lightbulb size={17} /><span>Need a nudge?</span></div>
+                {settings.mode !== 'exam' && <button type="button" className="qp-text-action" onClick={openCoach}><Sparkles size={15} />Open AI Tutor</button>}
+                {settings.mode === 'exam' && <small>Hints are available after you submit this exam.</small>}
+              </div>
+
+              {settings.hints && settings.mode !== 'exam' && <details className="question-hint qp-local-hint"><summary>See a small prompt</summary><p>{activePart.hint || 'Identify the command word, choose the relevant relationship, then check units and significant figures.'}</p></details>}
+
+              <details className="question-source-evidence qp-source-evidence">
+                <summary><span><FileText size={15} /><strong>View official source</strong><small>Original paper · question {activePart.sourceRef?.question || activePart.label || activeIndex + 1}</small></span><ChevronRight size={16} /></summary>
+                <div className="question-source-pages" aria-label={`Official source pages for ${activePart.sourceRef?.question || 'this question'}`}>
+                  {activePart.sourceRef?.assetUrls?.length > 0 && activePart.sourceRef.assetUrls.map((url, pageIndex) => <img src={url} alt={`${activePart.sourceRef.paper}, ${activePart.sourceRef.question || 'question'}, source page ${(activePart.sourceRef.pageStart || activePart.sourceRef.page || 1) + pageIndex}`} loading="lazy" key={url} />)}
+                  {activePart.sourceRef?.localUrl && <a href={activePart.sourceRef.localUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Open the original paper</a>}
+                  {activePart.sourceRef?.paper && <small className="qp-source-file">Source record: {activePart.sourceRef.paper}</small>}
                 </div>
-                <p className="question-prompt">{displayPrompt(part)}</p>
-                {part.sourceLabel && <div className={`question-source-label source-${part.sourceKind || 'generated-practice'}`}><strong>{part.sourceLabel}</strong><span>{part.sourceDescription}</span></div>}
+              </details>
+            </section>
 
-                {part.answerType === 'multiple-choice' && (
-                  <fieldset className="mcq-answer"><legend>Select one answer</legend>{part.options.map((option, optionIndex) => {
-                    const letter = String.fromCharCode(65 + optionIndex)
-                    const optionText = String(option).replace(new RegExp(`^${letter}[.)\\s:-]+`, 'i'), '')
-                    const selected = attempt.answers[part.id] === letter
-                    return <label className={selected ? 'selected' : ''} key={`${letter}:${option}`}><input type="radio" name={part.id} value={letter} checked={selected} onChange={() => updateAnswer(part.id, letter)} aria-label={`${letter}. ${optionText}`} /><span className="option-letter">{letter}</span><span>{optionText}</span></label>
-                  })}</fieldset>
-                )}
+            <nav className="question-stepper qp-stepper" aria-label="Move between questions">
+              <button type="button" className="qp-secondary-action" disabled={activeIndex === 0} onClick={() => goToPart(parts[activeIndex - 1]?.id)}><ChevronLeft size={17} />Previous</button>
+              <span>Question {activeIndex + 1} of {parts.length}</span>
+              <button type="button" className="qp-next-action" disabled={activeIndex === parts.length - 1} onClick={() => goToPart(parts[activeIndex + 1]?.id)}>Next question<ChevronRight size={17} /></button>
+            </nav>
+          </main>
+        </div>
 
-                {part.answerType !== 'multiple-choice' && (
-                  <HandwritingPad
-                    answerId={part.id}
-                    image={attempt.evidence?.[part.id]}
-                    label={`${responseLabel(part)} for part ${part.label}`}
-                    text={attempt.answers[part.id] || attempt.working?.[part.id] || ''}
-                    onTextChange={(value) => updateAnswer(part.id, value)}
-                    onImageChange={async (file) => updateEvidence(part.id, file ? await prepareEvidence(file) : null)}
-                  />
-                )}
-
-                {part.sourceRef && <details className="question-source-evidence">
-                  <summary><span><strong>Original paper evidence</strong><small>{part.sourceRef.paper} · {part.sourceRef.question} · page {part.sourceRef.page}</small></span><a href={part.sourceRef.localUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Open PDF</a></summary>
-                  {part.sourceRef.assetUrls?.length > 0 && <div className="question-source-pages" aria-label={`Official source pages for ${part.sourceRef.question}`}>{part.sourceRef.assetUrls.map((url, pageIndex) => <img src={url} alt={`${part.sourceRef.paper}, ${part.sourceRef.question}, source page ${part.sourceRef.pageStart + pageIndex}`} loading="lazy" key={url} />)}</div>}
-                </details>}
-
-                <div className={`response-state ${complete ? 'complete' : ''}`}>{complete ? <CheckCircle2 size={15} /> : <span />}{complete ? 'Answer saved' : 'Not answered'}</div>
-                {settings.hints && <details className="question-hint"><summary><Lightbulb size={16} />Need a hint?</summary><p>{part.hint || 'Identify the command word, select the relevant relationship, then check units and significant figures. The worked answer stays hidden until submission.'}</p></details>}
-                <nav className="question-stepper" aria-label="Move between questions">
-                  <button type="button" className="secondary-action" disabled={activeIndex === 0} onClick={() => goToPart(unit.parts[activeIndex - 1]?.id)}><ChevronLeft size={17} />Previous</button>
-                  <span>Question {activeIndex + 1} of {unit.parts.length}</span>
-                  <button type="button" className="primary-action" disabled={activeIndex === unit.parts.length - 1} onClick={() => goToPart(unit.parts[activeIndex + 1]?.id)}>Next<ChevronRight size={17} /></button>
-                </nav>
-              </section>
-            )
-          })}</div>
-        </main>
-
-        <aside className="exam-checklist">
-          <div className="checklist-heading"><ListChecks size={18} /><strong>Before you submit</strong></div>
-          <ul><li>Show substitutions for method marks.</li><li>Keep the final value and unit clear in the same answer area.</li><li>Use the requested significant figures.</li><li>Answer every command word.</li></ul>
-          <p>{settings.mode === 'exam' ? 'Exam mode: hints and mark schemes stay hidden until submission.' : 'Answers stay hidden until submission. Your full response is included in assisted review.'}</p>
+        <aside className="exam-checklist qp-checklist" aria-label="Answer checklist">
+          <div><ListChecks size={17} /><strong>Before submitting</strong></div>
+          <span>Have you answered every command word and included units where needed?</span>
+          <small>{settings.mode === 'exam' ? 'Your working and mark scheme stay hidden until submission.' : 'Your answer and any handwriting evidence are saved as you work.'}</small>
         </aside>
       </div>
 
-      {showSubmitCheck && (
-        <div className="submit-dialog-backdrop" role="presentation" onMouseDown={() => setShowSubmitCheck(false)}>
-          <div className="submit-dialog" role="dialog" aria-modal="true" aria-labelledby="submit-check-title" onMouseDown={(event) => event.stopPropagation()}>
-            <AlertTriangle size={24} />
-            <h2 id="submit-check-title">{unanswered} {unanswered === 1 ? 'question is' : 'questions are'} unanswered</h2>
-            <p>Blank answers receive zero marks. You can return to the paper or submit it now.</p>
-            <div><button type="button" className="secondary-action" onClick={() => setShowSubmitCheck(false)}>Keep working</button><button type="button" className="submit-button" disabled={attempt.submitting} onClick={submitAttempt}>{attempt.submitting ? 'Marking...' : 'Submit anyway'}</button></div>
-          </div>
+      {showSubmitCheck && <div className="submit-dialog-backdrop qp-dialog-backdrop" role="presentation" onMouseDown={() => setShowSubmitCheck(false)}>
+        <div className="submit-dialog qp-dialog" role="dialog" aria-modal="true" aria-labelledby="submit-check-title" onMouseDown={(event) => event.stopPropagation()}>
+          <AlertTriangle size={24} />
+          <h2 id="submit-check-title">{unanswered} {unanswered === 1 ? 'question is' : 'questions are'} unanswered</h2>
+          <p>Blank answers receive zero marks. You can return to the paper or submit it now.</p>
+          <div><button type="button" className="qp-secondary-action" onClick={() => setShowSubmitCheck(false)}>Keep working</button><button type="button" className="qp-submit-button" disabled={attempt.submitting} onClick={submitAttempt}>{attempt.submitting ? 'Marking...' : 'Submit anyway'}</button></div>
         </div>
-      )}
+      </div>}
 
       {settings.mode !== 'exam' && <AiCoach
         key={`${attempt.id}:${activePart.id}`}
@@ -218,11 +297,8 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
           stage: unit.stage || unit.specification,
           component: unit.type,
           topic: unit.topic,
-          paper: activePart.sourceRef && activePart.answerRef ? {
-            questionFile: activePart.sourceRef.paper,
-            markSchemeFile: activePart.answerRef.file,
-          } : null,
-          question: { id: activePart.id, label: `Question ${activePart.label}`, prompt: activePart.prompt, hint: activePart.hint, marks: activePart.marks },
+          paper: activePart.sourceRef && activePart.answerRef ? { questionFile: activePart.sourceRef.paper, markSchemeFile: activePart.answerRef.file } : null,
+          question: { id: activePart.id, label: `Question ${activePart.label || activeIndex + 1}`, prompt: activePart.prompt, hint: activePart.hint, marks: activePart.marks },
           response: attempt.answers[activePart.id] || attempt.working?.[activePart.id] || '',
           handwritingAttached: Boolean(attempt.evidence?.[activePart.id]),
           submitted: false,
