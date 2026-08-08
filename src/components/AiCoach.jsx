@@ -66,9 +66,9 @@ export function AiCoach({
 
   useEffect(() => {
     if (!builderSubject) return
-    if (!builderSubject.stages.includes(builderStage)) setBuilderStage(builderSubject.stages[0])
-    if (!builderTopics.some((topic) => topic.id === builderTopicId)) setBuilderTopicId(builderTopics[0]?.id || '')
-  }, [builderSubject, builderStage, builderTopicId, builderTopics])
+    setBuilderStage((current) => builderSubject.stages.includes(current) ? current : builderSubject.stages[0])
+    setBuilderTopicId((current) => builderTopics.some((topic) => topic.id === current) ? current : builderTopics[0]?.id || '')
+  }, [builderSubject, builderTopics])
 
   useEffect(() => {
     window.localStorage.setItem(storageKey, JSON.stringify(messages.slice(-30)))
@@ -195,7 +195,7 @@ export function AiCoach({
         <Sparkles size={18} /><span>AI Coach</span>
       </button>
       {open && <button type="button" className="ai-coach-backdrop" onPointerDown={closeCoach} onClick={closeCoach} aria-label="Close AI Coach" />}
-      <aside className={`ai-coach ${open ? 'open' : ''} ${builderOpen ? 'builder-open' : ''}`} inert={!open ? '' : undefined} aria-hidden={!open} aria-label="AI Coach">
+      <aside className={`ai-coach ${open ? 'open' : ''} ${builderOpen ? 'builder-open' : ''}`} inert={!open ? true : undefined} aria-hidden={!open} aria-label="AI Coach">
         <header>
           <div className="ai-coach__identity"><span><BrainCircuit size={19} /></span><div><strong>AI Coach</strong><small>{context.question?.label || context.question?.title || context.subject?.code || 'Study support'}</small></div></div>
           <button type="button" className="icon-button" onClick={closeCoach} aria-label="Close AI Coach"><X size={18} /></button>

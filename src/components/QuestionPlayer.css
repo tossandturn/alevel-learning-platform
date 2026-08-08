@@ -160,7 +160,7 @@
 .qp-player .handwriting-pad__modes button { min-height: 36px; border-radius: 7px; }
 .qp-player .handwriting-pad__surface { border-top-color: var(--qp-border); }
 .qp-player .handwriting-pad__toolbar { min-height: 52px; padding: 6px 10px; background: #f8fafc; }
-.qp-player .handwriting-pad__toolbar button { width: 42px; height: 42px; border-radius: 7px; }
+.qp-player .handwriting-pad__toolbar button { width: 44px; height: 44px; border-radius: 7px; }
 .qp-player .handwriting-pad__canvas { min-height: 300px; background-color: #fff; background-image: linear-gradient(#eef2f7 1px, transparent 1px); background-size: 100% 34px; touch-action: none; }
 .qp-player .handwriting-pad__textarea { min-height: 300px; border: 0; border-top: 1px solid var(--qp-border); border-radius: 0; }
 .qp-player .handwriting-pad footer { padding: 8px 13px; border-top-color: var(--qp-border); background: #fbfcfe; }

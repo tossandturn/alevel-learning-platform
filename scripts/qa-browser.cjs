@@ -52,7 +52,7 @@ async function run() {
     shots.push(path.join(ARTIFACT_DIR, 'dashboard-desktop-after.png'))
     await page.screenshot({ path: shots.at(-1), fullPage: false })
     await openVerifiedStarter(page)
-    if (await page.locator('.practice-progress-strip').count() !== 1) throw new Error('Live practice progress is missing')
+    if (await page.locator('.qp-progress').count() !== 1) throw new Error('Live practice progress is missing')
 
     if (!(await page.getByText('Verified past-paper set', { exact: true }).count())) throw new Error('Verified source summary is missing')
     const evidence = page.locator('.question-source-evidence')
@@ -90,11 +90,14 @@ async function run() {
     if ((await page.locator('.index-list button').count()) !== 1) throw new Error('Mistake retest must contain only the selected question')
 
     await page.getByRole('button', { name: 'Back to library' }).click()
-    await page.getByRole('button', { name: /^Knowledge$/ }).click()
-    for (const topic of ['7 Waves', '9 Electricity']) {
-      const row = page.locator('.knowledge-row').filter({ hasText: topic })
+    await page.getByRole('button', { name: /^Topic Drill$/ }).click()
+    for (const topic of ['Waves', 'Electricity']) {
+      const row = page.locator('.topic-directory__row').filter({ hasText: topic }).first()
       if (!(await row.getByText(/verified/i).count())) throw new Error(`${topic} inventory is not shown`)
-      if (await row.getByRole('button', { name: /Build AS drill · 10 questions/i }).isDisabled()) throw new Error(`${topic} ten-question drill is still locked`)
+      await row.click()
+      if (await page.getByRole('button', { name: /Practice \d+ question/i }).isDisabled()) throw new Error(`${topic} topic practice is unexpectedly disabled`)
+      if (await page.getByText(/Build AS drill|Build A2 drill|AS \/ A2/i).count()) throw new Error(`${topic} topic detail contains mixed-stage controls`)
+      await page.getByRole('button', { name: /Back to AS Physics/i }).click()
     }
 
     await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: /^Today$/ }).click()
@@ -116,7 +119,7 @@ async function run() {
     await page.getByRole('button', { name: 'Programmes', exact: true }).click()
     if (await page.getByRole('region', { name: 'School reporting controls' }).count() !== 1) throw new Error('School Coverage controls are missing')
     await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: /^Practice$/ }).click()
-    await page.getByRole('button', { name: /^Paper PDFs$/ }).click()
+    await page.getByRole('button', { name: /^Past Papers$/ }).click()
     await page.locator('.paper-filters select').nth(0).selectOption('0625')
     await page.locator('.paper-filters select').nth(3).selectOption('1')
     await page.locator('.paper-table tbody tr').first().getByRole('button', { name: 'Open' }).click()
@@ -138,7 +141,12 @@ async function run() {
     if (!mobileStartBox || mobileStartBox.y + mobileStartBox.height > 844) throw new Error(`Dashboard start action is outside the mobile first viewport: ${JSON.stringify(mobileStartBox)}`)
     const mobileCoachBox = await mobilePage.locator('.ai-coach-trigger').boundingBox()
     const mobileRecommendationBox = await mobilePage.locator('.recommended-session').boundingBox()
-    if (!mobileCoachBox || !mobileRecommendationBox || mobileCoachBox.y + mobileCoachBox.height > mobileRecommendationBox.y) throw new Error(`Mobile AI Coach trigger overlaps dashboard content: ${JSON.stringify({ mobileCoachBox, mobileRecommendationBox })}`)
+    const coachOverlapsRecommendation = mobileCoachBox && mobileRecommendationBox
+      && mobileCoachBox.x < mobileRecommendationBox.x + mobileRecommendationBox.width
+      && mobileCoachBox.x + mobileCoachBox.width > mobileRecommendationBox.x
+      && mobileCoachBox.y < mobileRecommendationBox.y + mobileRecommendationBox.height
+      && mobileCoachBox.y + mobileCoachBox.height > mobileRecommendationBox.y
+    if (!mobileCoachBox || !mobileRecommendationBox || coachOverlapsRecommendation) throw new Error(`Mobile AI Coach trigger overlaps the primary recommendation: ${JSON.stringify({ mobileCoachBox, mobileRecommendationBox })}`)
     shots.push(path.join(ARTIFACT_DIR, 'dashboard-mobile-after.png'))
     await mobilePage.screenshot({ path: shots.at(-1), fullPage: false })
     await openVerifiedStarter(mobilePage)
@@ -147,7 +155,7 @@ async function run() {
       clientWidth: document.documentElement.clientWidth,
       evidenceOpen: document.querySelector('.question-source-evidence')?.open,
       answerTop: document.querySelector('.mcq-answer, .handwriting-pad')?.getBoundingClientRect().top,
-      promptBottom: document.querySelector('.question-prompt')?.getBoundingClientRect().bottom,
+      promptBottom: document.querySelector('.qp-question__body h2')?.getBoundingClientRect().bottom,
     }))
     if (mobileMetrics.scrollWidth > mobileMetrics.clientWidth) throw new Error(`Mobile practice geometry failed: ${JSON.stringify(mobileMetrics)}`)
     if (mobileMetrics.evidenceOpen) throw new Error(`Source evidence must be collapsed by default on mobile: ${JSON.stringify(mobileMetrics)}`)
