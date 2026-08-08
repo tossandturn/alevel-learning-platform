@@ -67,6 +67,10 @@ assert.ok(paperAnswerSheetSource.includes('pdfInkActive && !submitted'), 'submit
 assert.ok(!paperAnswerSheetSource.includes('Show your working'), 'structured paper questions must not expose a separate working field')
 assert.ok(!paperAnswerSheetSource.includes('Final answer</span>'), 'structured paper questions must not expose a separate final-answer field')
 
+const appSource = fs.readFileSync(path.resolve(import.meta.dirname, '..', 'src', 'App.jsx'), 'utf8')
+assert.ok(appSource.includes('unifiedQuestionBank'), 'topic detail must read the decoupled question bank')
+assert.ok(appSource.includes('topic-detail__paper-group'), 'topic detail must render grouped real-paper questions')
+
 assert.equal(practiceUnits.length, 0, 'formal practice must not expose generated seed questions')
 const verifiedFixture = unifiedQuestionBank.find((item) => item.routeId === 'cie-9702-as-physics' && item.answerType === 'multiple-choice' && item.answerKey)
 assert.ok(verifiedFixture, 'a real 9702 MCQ fixture must be indexed')

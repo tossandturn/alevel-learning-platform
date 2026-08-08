@@ -41,6 +41,7 @@ import { buildCoachPractice, coachPracticeOptions, previewCoachPracticeSourceMix
 import { latestBphoSpcPaper } from './lib/coachIntent'
 import { buildCompletionByUnit, buildLearningProgress, recommendForRoute } from './lib/learningProgress'
 import { requestSharedAccount, requestSharedWorkspace, sharedAccountRequest, sharedAuthUrl, sharedLogoutUrl } from './lib/sharedAccount'
+import { unifiedQuestionBank } from './data/questionBank'
 import './App.css'
 import './StudentV2.css'
 
@@ -1733,6 +1734,28 @@ function masteryLabel(mastery) {
   return 'Weak'
 }
 
+function baseTopicId(topicId) {
+  return String(topicId || '').split('@')[0]
+}
+
+function topicQuestionMatches(question, routeId, topicId) {
+  const requestedTopic = baseTopicId(topicId)
+  const questionTopic = baseTopicId(question.knowledgeGroupId || question.topicId)
+  return question.routeId === routeId && questionTopic === requestedTopic
+}
+
+function sourceQuestionPreview(question) {
+  return String(question.prompt || question.parts?.[0]?.promptFragment || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function sourcePaperLabel(question) {
+  const source = question.sourceRef || {}
+  const season = source.season ? `${source.season} ` : ''
+  return `${season}${source.year || ''} · ${source.paper || 'Verified question paper'}`.trim()
+}
+
 function PracticeOverview({ recommendation, visibleUnits, completionByUnit, mistakes, paperMistakes, startPractice, onOpenTopic, onOpenCoach, onOpenPapers }) {
   const nextUnit = recommendation?.unit
   const completedCount = visibleUnits.filter((unit) => completionByUnit[unit.id]?.completed).length
@@ -1799,6 +1822,31 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, lea
   const available = topic?.inventory || 0
   const questionCount = Math.min(10, available)
   const topicMistakes = mistakes.filter((mistake) => mistake.unit.knowledgeGroupId === topicId).length
+  const topicQuestions = unifiedQuestionBank
+    .filter((question) => topicQuestionMatches(question, activeRouteId, topicId))
+    .toSorted((left, right) => (
+      (Number(right.sourceRef?.year) || 0) - (Number(left.sourceRef?.year) || 0)
+      || String(left.sourceRef?.season || '').localeCompare(String(right.sourceRef?.season || ''))
+      || String(left.sourceRef?.paper || '').localeCompare(String(right.sourceRef?.paper || ''))
+      || String(left.sourceRef?.question || '').localeCompare(String(right.sourceRef?.question || ''), undefined, { numeric: true })
+    ))
+  const topicPaperGroups = [...topicQuestions.reduce((groups, question) => {
+    const key = question.sourceRef?.paperId || question.sourceRef?.paper || question.bankId
+    const current = groups.get(key) || []
+    current.push(question)
+    groups.set(key, current)
+    return groups
+  }, new Map()).values()]
+  const chapterItems = (metadata?.themes?.length ? metadata.themes : ['Core method selection', 'Complete working', 'Accuracy and checking']).map((theme, index) => {
+    const normalizedTheme = theme.toLowerCase()
+    const count = topicQuestions.filter((question) => (question.topicTags || []).some((tag) => String(tag).toLowerCase().includes(normalizedTheme) || normalizedTheme.includes(String(tag).toLowerCase()))).length
+    return { theme, index, count }
+  })
+  const checkpoints = metadata?.mastery?.stageIds?.map((stageId) => ({
+    id: stageId,
+    label: stageId === 'exam-ready' ? 'Exam ready' : stageId.charAt(0).toUpperCase() + stageId.slice(1),
+    description: metadata.mastery.checkpoints[stageId],
+  })) || []
 
   function startTopicPractice() {
     try {
@@ -1821,7 +1869,9 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, lea
 
       <div className="topic-detail__layout">
         <main>
-          <section className="topic-detail__concepts"><header><div><p className="section-label">Concepts</p><h2>What you will practise</h2></div></header><div>{(metadata?.themes?.length ? metadata.themes : ['Choose the correct method', 'Show complete working', 'Check units and conclusion']).map((theme, index) => <div key={theme}><span>{String(index + 1).padStart(2, '0')}</span><strong>{theme}</strong><small>{index === 0 && mastery != null && mastery < 70 ? 'Recommended focus' : mastery == null ? 'Not assessed yet' : 'Included in this set'}</small></div>)}</div></section>
+          <section className="topic-detail__concepts"><header><div><p className="section-label">Topic content</p><h2>Chapters inside this topic</h2><p>Each chapter is a syllabus skill cluster. The question bank stays separate, then links real exam questions back to the right chapter.</p></div></header><div>{chapterItems.map(({ theme, index, count }) => <div key={theme}><span>{String(index + 1).padStart(2, '0')}</span><strong>{theme}</strong><small>{count ? `${count} linked question${count === 1 ? '' : 's'}` : mastery == null ? 'Not assessed yet' : 'Practice checkpoint'}</small></div>)}</div></section>
+          {checkpoints.length > 0 && <section className="topic-detail__checkpoints"><header><div><p className="section-label">Progression</p><h2>What good looks like</h2></div><span>Move from recall to exam application</span></header><div>{checkpoints.map((checkpoint) => <article key={checkpoint.id}><strong>{checkpoint.label}</strong><p>{checkpoint.description}</p></article>)}</div></section>}
+          <section className="topic-detail__past-papers"><header><div><p className="section-label">Real exam collection</p><h2>Past-paper questions by chapter</h2><p>These are question-level records, grouped by their original paper. Open the source page or mark scheme without losing the topic mapping.</p></div><strong>{topicQuestions.length} questions · {topicPaperGroups.length} papers</strong></header>{topicPaperGroups.length ? <div className="topic-detail__paper-groups">{topicPaperGroups.map((paperQuestions) => { const first = paperQuestions[0]; const source = first.sourceRef || {}; return <article className="topic-detail__paper-group" key={source.paperId || source.paper}><header><div><strong>{sourcePaperLabel(first)}</strong><span>{source.component ? `Component ${source.component}` : 'Official source'} · {paperQuestions.length} linked question{paperQuestions.length === 1 ? '' : 's'}</span></div><div><a href={`${source.localUrl}#page=${source.pageStart || 1}`} target="_blank" rel="noreferrer">Open QP</a><a href={`${first.answerRef?.localUrl || '#'}#page=${first.answerRef?.pageStart || 1}`} target="_blank" rel="noreferrer">Open MS</a></div></header><div>{paperQuestions.map((question) => <div className="topic-detail__question-row" key={question.questionGroupId || question.bankId}><span>{question.sourceRef?.question || 'Question'}</span><p>{sourceQuestionPreview(question) || 'Indexed question text is available in the source paper.'}</p><small>{question.totalMarks || question.marks || 1} mark{(question.totalMarks || question.marks || 1) === 1 ? '' : 's'} · QP p.{question.sourceRef?.pageStart || '?'} · MS p.{question.answerRef?.pageStart || '?'}</small></div>)}</div></article> })}</div> : <div className="topic-detail__empty-source"><FileText size={20} /><strong>No question-level source records yet</strong><p>This topic is in the syllabus map, but its verified paper index has not been attached to this route.</p></div>}</section>
           <section className="topic-detail__source"><FileText size={20} /><div><strong>Verified source questions</strong><p>Questions and answers stay paired with their original paper. No cross-stage items and no unverified generated questions.</p></div><span>{available} available</span></section>
         </main>
         <aside className="topic-detail__start"><p className="section-label">Next session</p><h2>{questionCount || 0} question{questionCount === 1 ? '' : 's'}</h2><ul><li>About {Math.max(10, questionCount * 3)} minutes</li><li>AI marking after submit</li><li>{topicMistakes ? `${topicMistakes} mistake${topicMistakes === 1 ? '' : 's'} linked` : 'Hints available in practice mode'}</li></ul>{available > 0 ? <button type="button" className="primary-action" onClick={startTopicPractice}><PlayIcon />Practice {questionCount} question{questionCount === 1 ? '' : 's'}</button> : <button type="button" className="primary-action" disabled>Still indexing this topic</button>}<button type="button" className="topic-detail__ai" onClick={onOpenCoach}><Sparkles size={16} />Ask AI Tutor about this topic</button>{startError && <p className="topic-detail__error" role="alert">{startError}</p>}</aside>
