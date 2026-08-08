@@ -316,6 +316,11 @@ assert.deepEqual(
   ['cie-9702-as-physics', 'AS'],
   'registered route validation must accept a legacy knowledge-group ID when its syllabus topic title matches',
 )
+const generatedMathUnit = buildCoachPractice({ routeId: 'cie-9709-a2-after-p1-p5-p3-p4', knowledgeGroupId: 'math-9709-pure', questionCount: 10, allowPartial: true })
+const normalizedGeneratedMathState = normalizeStoredState({ generatedUnits: [generatedMathUnit] })
+assert.equal(normalizedGeneratedMathState.generatedUnits[0].routeId, generatedMathUnit.routeId, 'Topic drills must retain their registered route when persisted')
+assert.equal(normalizedGeneratedMathState.generatedUnits[0].stage, generatedMathUnit.stage, 'Topic drills must retain their canonical academic stage when persisted')
+assert.ok(normalizedGeneratedMathState.generatedUnits[0].parts.every((part) => part.routeId === generatedMathUnit.routeId), 'persisted Topic drill parts must remain route-isolated')
 
 const oldIgcseState = normalizeStoredState({ profile: { role: 'student', learningTrack: 'IGCSE' } })
 assert.equal(oldIgcseState.profile.activeRouteId, null, 'legacy profiles without a unique active route must not silently switch to AS Physics')

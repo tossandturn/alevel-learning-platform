@@ -959,6 +959,14 @@
     grid-template-columns: 1fr;
   }
 
+  .topic-detail__layout > main {
+    order: 2;
+  }
+
+  .topic-detail__layout > .topic-detail__start {
+    order: 1;
+  }
+
   .practice-hub__header {
     grid-template-columns: 1fr;
     gap: 20px;

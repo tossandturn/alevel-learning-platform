@@ -113,7 +113,8 @@ function routeMatchesMetadata(route, metadata) {
   if (metadata.syllabusTopics?.length) {
     const topics = topicKeys(route)
     const requested = metadata.syllabusTopics.map(normalized)
-    const matchesTopic = requested.some((topic) => topics.includes(topic) || topics.map(canonicalTopic).includes(canonicalTopic(topic)))
+    const scopedTopicMatches = requested.some((topic) => topic.endsWith(`@${normalized(route.routeId)}`))
+    const matchesTopic = scopedTopicMatches || requested.some((topic) => topics.includes(topic) || topics.map(canonicalTopic).includes(canonicalTopic(topic)))
     if (topics.length && !matchesTopic) return false
   }
   return hasRouteMetadata(metadata)
