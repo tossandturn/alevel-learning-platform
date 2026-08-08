@@ -811,6 +811,473 @@
   }
 }
 
+@media (min-width: 641px) {
+  .study-paths__grid > button {
+    grid-template-columns: 38px minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    min-height: 100px;
+  }
+
+  .study-paths__grid .action-icon {
+    grid-row: 1 / 4;
+  }
+
+  .study-paths__grid small {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .study-paths__grid em {
+    grid-column: 2;
+    grid-row: 3;
+    margin-top: 3px;
+  }
+}
+
+@media (max-width: 540px) {
+  .unified-top-nav {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 8px 12px;
+    min-height: 0;
+    padding: 8px 12px;
+  }
+
+  .unified-top-nav .brand-button {
+    grid-column: 1;
+  }
+
+  .unified-top-nav .campus-switcher {
+    grid-column: 2;
+    justify-self: end;
+  }
+
+  .unified-top-nav nav {
+    grid-column: 1 / -1;
+    width: 100%;
+    margin: 0;
+  }
+
+  .unified-top-nav .nav-context {
+    display: none;
+  }
+
+  .student-home-guided ~ .ai-coach-trigger {
+    top: 10px;
+    right: 94px;
+    bottom: auto;
+  }
+}
+
+/* Guided student home: one course, one recommendation, one primary next step. */
+.student-home-guided {
+  width: min(1120px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 34px 0 80px;
+}
+
+.student-home-guided__main {
+  min-width: 0;
+}
+
+.student-home-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+  align-items: end;
+  gap: 40px;
+}
+
+.student-home-header p,
+.student-home-header h1,
+.student-home-header > div > span {
+  margin: 0;
+}
+
+.student-home-header p {
+  margin-bottom: 4px;
+  color: #526174;
+  font-size: 14px;
+}
+
+.student-home-header h1 {
+  color: #101827;
+  font-size: 32px;
+  line-height: 1.18;
+}
+
+.student-home-header > div > span {
+  display: block;
+  margin-top: 7px;
+  color: #697689;
+  font-size: 14px;
+}
+
+.student-course-picker {
+  display: grid;
+  gap: 6px;
+  color: #526174;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.student-course-picker select {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 38px 0 12px;
+  border: 1px solid #cfd8e4;
+  border-radius: 6px;
+  color: #172236;
+  background: #fff;
+  font: inherit;
+  font-size: 14px;
+}
+
+.recommended-session {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 190px;
+  gap: 30px;
+  align-items: center;
+  margin-top: 24px;
+  padding: 30px 32px;
+  border: 1px solid #cfd9e5;
+  border-left: 4px solid #146b5a;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(21, 34, 51, 0.07);
+}
+
+.recommended-session__copy {
+  min-width: 0;
+}
+
+.recommended-session__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 9px;
+  color: #0b705b;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.recommended-session h2 {
+  max-width: 720px;
+  margin: 0;
+  color: #111b2d;
+  font-size: 27px;
+  line-height: 1.22;
+}
+
+.recommended-session__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 18px;
+  margin-top: 11px;
+  color: #697689;
+  font-size: 13px;
+}
+
+.recommended-session__meta span + span {
+  position: relative;
+}
+
+.recommended-session__meta span + span::before {
+  position: absolute;
+  left: -11px;
+  color: #abb5c1;
+  content: '\00b7';
+}
+
+.recommended-session__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.recommended-session__actions button {
+  min-height: 46px;
+}
+
+.recommended-session__course {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 18px 0 18px 24px;
+  border-left: 1px solid #e1e6ec;
+}
+
+.recommended-session__course span {
+  color: #0b705b;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.recommended-session__course strong {
+  overflow-wrap: anywhere;
+  color: #172236;
+  font-size: 17px;
+}
+
+.recommended-session__course small {
+  color: #758296;
+  font-size: 12px;
+}
+
+.study-paths {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 28px;
+  align-items: center;
+  margin-top: 30px;
+}
+
+.study-paths .section-label,
+.study-paths h2,
+.week-progress-strip .section-label,
+.week-progress-strip h2,
+.week-progress-strip span {
+  margin: 0;
+}
+
+.study-paths h2 {
+  margin-top: 4px;
+  color: #182335;
+  font-size: 18px;
+}
+
+.study-paths__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.study-paths__grid > button {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  gap: 3px 10px;
+  align-items: center;
+  min-height: 82px;
+  padding: 13px 14px;
+  border: 1px solid #d9e1e9;
+  border-radius: 7px;
+  color: #1d293b;
+  background: #fff;
+  text-align: left;
+}
+
+.study-paths__grid > button:hover {
+  border-color: #9eb5d2;
+  box-shadow: 0 7px 18px rgba(22, 40, 65, 0.06);
+}
+
+.study-paths__grid .action-icon {
+  grid-row: 1 / 3;
+  width: 36px;
+  height: 36px;
+}
+
+.study-paths__grid strong {
+  align-self: end;
+  font-size: 13px;
+}
+
+.study-paths__grid small {
+  overflow: hidden;
+  align-self: start;
+  color: #758296;
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.study-paths__grid em {
+  display: flex;
+  grid-column: 3;
+  grid-row: 1 / 3;
+  align-items: center;
+  color: #2764c6;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.week-progress-strip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 260px) auto;
+  gap: 24px;
+  align-items: center;
+  margin-top: 30px;
+  padding: 18px 20px;
+  border-top: 1px solid #dce3ea;
+  border-bottom: 1px solid #dce3ea;
+}
+
+.week-progress-strip h2 {
+  margin-top: 3px;
+  color: #172236;
+  font-size: 16px;
+}
+
+.week-progress-strip > div > span {
+  display: block;
+  margin-top: 4px;
+  color: #768397;
+  font-size: 11px;
+}
+
+.week-progress-strip__progress {
+  display: grid;
+  grid-template-columns: auto minmax(90px, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.week-progress-strip__progress strong {
+  color: #253248;
+  font-size: 12px;
+}
+
+.week-progress-strip__progress .progress-track {
+  height: 6px;
+}
+
+.week-progress-strip > .text-action {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 40px;
+  padding: 0 10px;
+  color: #235fbe;
+  background: transparent;
+  box-shadow: none;
+}
+
+.student-home-guided .dashboard-lower-grid {
+  margin-top: 30px;
+}
+
+.student-home-guided .roadmap-compact {
+  margin-top: 14px;
+}
+
+@media (max-width: 900px) {
+  .student-home-guided {
+    width: min(100% - 28px, 760px);
+    padding-top: 24px;
+  }
+
+  .student-home-header {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .recommended-session {
+    grid-template-columns: minmax(0, 1fr) 150px;
+  }
+
+  .study-paths {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .week-progress-strip {
+    grid-template-columns: minmax(0, 1fr) minmax(180px, 240px);
+  }
+
+  .week-progress-strip > .text-action {
+    grid-column: 2;
+    justify-self: end;
+  }
+}
+
+@media (max-width: 640px) {
+  .student-home-guided {
+    width: min(100% - 20px, 560px);
+    padding: 18px 0 88px;
+  }
+
+  .student-home-header {
+    gap: 14px;
+  }
+
+  .student-home-header h1 {
+    font-size: 26px;
+  }
+
+  .student-home-header > div > span {
+    font-size: 13px;
+  }
+
+  .student-course-picker select {
+    min-height: 44px;
+  }
+
+  .recommended-session {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    margin-top: 16px;
+    padding: 20px;
+  }
+
+  .recommended-session h2 {
+    font-size: 22px;
+  }
+
+  .recommended-session__actions {
+    display: grid;
+    margin-top: 19px;
+  }
+
+  .recommended-session__actions button {
+    width: 100%;
+  }
+
+  .recommended-session__course {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 14px 0 0;
+    border-top: 1px solid #e1e6ec;
+    border-left: 0;
+  }
+
+  .study-paths {
+    margin-top: 24px;
+  }
+
+  .study-paths__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .study-paths__grid > button {
+    min-height: 72px;
+  }
+
+  .week-progress-strip {
+    grid-template-columns: 1fr auto;
+    gap: 14px;
+    margin-top: 24px;
+    padding: 16px 4px;
+  }
+
+  .week-progress-strip__progress {
+    grid-column: 1 / -1;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .week-progress-strip > .text-action {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
 /* Unified IELTSist student shell. */
 .unified-top-nav {
   gap: 12px;
@@ -5697,5 +6164,41 @@ button:disabled {
 
   .ai-coach.open {
     transform: translateY(0) !important;
+  }
+}
+
+/* Keep the student shell compact enough that the recommended action stays in view. */
+@media (max-width: 540px) {
+  .unified-top-nav {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 8px 12px;
+    min-height: 0;
+    padding: 8px 12px;
+  }
+
+  .unified-top-nav .brand-button {
+    grid-column: 1;
+  }
+
+  .unified-top-nav .campus-switcher {
+    grid-column: 2;
+    justify-self: end;
+  }
+
+  .unified-top-nav nav {
+    grid-column: 1 / -1;
+    width: 100%;
+    margin: 0;
+  }
+
+  .unified-top-nav .nav-context {
+    display: none;
+  }
+
+  .student-home-guided ~ .ai-coach-trigger {
+    top: 10px;
+    right: 94px;
+    bottom: auto;
   }
 }

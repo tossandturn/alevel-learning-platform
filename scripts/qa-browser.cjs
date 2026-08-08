@@ -13,7 +13,7 @@ async function startSession(page) {
 }
 
 async function openVerifiedStarter(page) {
-  await page.getByRole('button', { name: /^Start$/ }).first().click()
+  await page.locator('.student-primary-start').click()
   await startSession(page)
   if ((await page.locator('.index-list button').count()) !== 10) throw new Error('Verified starter did not contain ten questions')
   if ((await page.locator('.question-block').count()) !== 1) throw new Error('Workspace must render one focused question')
@@ -39,10 +39,18 @@ async function run() {
       for (const key of Object.keys(localStorage)) if (key.includes('ai-coach')) localStorage.removeItem(key)
     })
     await page.reload({ waitUntil: 'domcontentloaded' })
-    await page.locator('.dashboard-studio .continue-card').waitFor()
-    if (await page.locator('.dashboard-studio .study-action-grid').count() !== 1) throw new Error('Study actions are missing')
-    if (await page.locator('.dashboard-studio .roadmap-compact').count() !== 1) throw new Error('Skill map is missing')
+    await page.locator('.student-home-guided .recommended-session').waitFor()
+    if (await page.locator('.student-home-guided .recommended-session').count() !== 1) throw new Error('Dashboard must show exactly one recommended session')
+    if (await page.locator('.student-home-guided .student-primary-start').count() !== 1) throw new Error('Dashboard primary start action is missing')
+    if (await page.locator('.student-home-guided .study-rail').count()) throw new Error('Dashboard still contains duplicate student navigation')
+    if (await page.locator('.student-home-guided .study-paths__grid > button').count() !== 3) throw new Error('Dashboard alternative study paths are unclear')
+    if (await page.locator('.student-home-guided').getByText(/QP\/MS|source-backed|verified question set/i).count()) throw new Error('Dashboard exposes internal content terminology')
+    const desktopStartBox = await page.locator('.student-primary-start').boundingBox()
+    if (!desktopStartBox || desktopStartBox.y + desktopStartBox.height > 900) throw new Error(`Dashboard start action is outside the desktop first viewport: ${JSON.stringify(desktopStartBox)}`)
+    if (await page.locator('.student-home-guided .roadmap-compact').count() !== 1) throw new Error('Skill map is missing')
     if (await page.getByText(/Need \d+ more/i).count()) throw new Error('Inventory shortage must not block or show Need more copy')
+    shots.push(path.join(ARTIFACT_DIR, 'dashboard-desktop-after.png'))
+    await page.screenshot({ path: shots.at(-1), fullPage: false })
     await openVerifiedStarter(page)
     if (await page.locator('.practice-progress-strip').count() !== 1) throw new Error('Live practice progress is missing')
 
@@ -90,7 +98,7 @@ async function run() {
     }
 
     await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: /^Today$/ }).click()
-    await page.getByRole('combobox', { name: 'Current route' }).selectOption('cie-0625-igcse-physics')
+    await page.getByRole('combobox', { name: 'Current course' }).selectOption('cie-0625-igcse-physics')
     await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: /^Practice$/ }).click()
     await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: /^Notebook$/ }).click()
     if (await page.getByRole('heading', { name: 'What needs another look' }).count() !== 1) throw new Error('Student notebook review queue is missing')
@@ -125,6 +133,14 @@ async function run() {
     await mobilePage.goto(APP_URL, { waitUntil: 'domcontentloaded' })
     await mobilePage.evaluate(() => localStorage.clear())
     await mobilePage.reload({ waitUntil: 'domcontentloaded' })
+    await mobilePage.locator('.student-home-guided .recommended-session').waitFor()
+    const mobileStartBox = await mobilePage.locator('.student-primary-start').boundingBox()
+    if (!mobileStartBox || mobileStartBox.y + mobileStartBox.height > 844) throw new Error(`Dashboard start action is outside the mobile first viewport: ${JSON.stringify(mobileStartBox)}`)
+    const mobileCoachBox = await mobilePage.locator('.ai-coach-trigger').boundingBox()
+    const mobileRecommendationBox = await mobilePage.locator('.recommended-session').boundingBox()
+    if (!mobileCoachBox || !mobileRecommendationBox || mobileCoachBox.y + mobileCoachBox.height > mobileRecommendationBox.y) throw new Error(`Mobile AI Coach trigger overlaps dashboard content: ${JSON.stringify({ mobileCoachBox, mobileRecommendationBox })}`)
+    shots.push(path.join(ARTIFACT_DIR, 'dashboard-mobile-after.png'))
+    await mobilePage.screenshot({ path: shots.at(-1), fullPage: false })
     await openVerifiedStarter(mobilePage)
     const mobileMetrics = await mobilePage.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,

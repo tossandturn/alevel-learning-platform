@@ -191,7 +191,7 @@ export function AiCoach({
 
   return (
     <>
-      <button ref={triggerRef} type="button" className="ai-coach-trigger" onClick={() => setOpen(true)} aria-label="Open AI Coach">
+      <button ref={triggerRef} type="button" className="ai-coach-trigger" onClick={() => setOpen(true)} aria-label="Open AI Coach" title="Open AI Coach">
         <Sparkles size={18} /><span>AI Coach</span>
       </button>
       {open && <button type="button" className="ai-coach-backdrop" onPointerDown={closeCoach} onClick={closeCoach} aria-label="Close AI Coach" />}
