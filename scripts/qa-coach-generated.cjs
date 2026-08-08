@@ -64,9 +64,9 @@ async function run() {
     }
     await page.getByRole('button', { name: 'Back to library' }).click()
     await page.waitForSelector('.ai-coach-backdrop', { state: 'detached' })
-    await page.getByRole('button', { name: /^Today$/ }).click()
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: /^Today$/ }).click()
     await page.getByRole('combobox', { name: 'Current route' }).selectOption('cie-9701-as-chemistry')
-    await page.getByRole('button', { name: /^Practice$/ }).click()
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: /^Practice$/ }).click()
     await page.getByRole('button', { name: /^Knowledge$/ }).click()
     await page.getByText(/All drills are restricted to this route\. Each question remains bound to its original question paper and exact mark scheme/i).waitFor()
     if (!(await page.getByRole('heading', { name: /AS Chemistry/ }).count())) throw new Error('9701 route knowledge map is missing')

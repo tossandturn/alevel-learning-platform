@@ -212,6 +212,8 @@ export function RoleWorkspace({
             <TeacherClasses
               classrooms={teacherClasses}
               serverSummaries={serverSummaries}
+              assignments={assignments}
+              submissions={submissions}
             />
           )}
           {teacherTab === "assignments" && (
@@ -227,6 +229,8 @@ export function RoleWorkspace({
               copiedId={copiedId}
               onCreateAssignment={onCreateAssignment}
               account={account}
+              submissions={submissions}
+              serverSummaries={serverSummaries}
               onAssignmentAction={assignmentAction}
             />
           )}
@@ -251,11 +255,11 @@ export function RoleWorkspace({
             onChange={setSchoolTab}
             items={[
               ["overview", "Overview"],
-              ["cohorts", "Cohorts"],
-              ["health", "Programme Health"],
-              ["coverage", "Coverage"],
+              ["people", "People"],
+              ["programmes", "Programmes"],
+              ["licences", "Licences"],
               ["reports", "Reports"],
-              ["governance", "Governance"],
+              ["settings", "Settings"],
             ]}
           />
           <SchoolRoute
@@ -541,7 +545,84 @@ function topicAverages(submissions) {
     .sort((left, right) => left.average - right.average);
 }
 
-function TeacherClasses({ classrooms, serverSummaries }) {
+function studentDisplayName(studentUserId) {
+  return studentUserId
+    ? studentUserId.replace(/^.*:/, "Student ")
+    : "Student identifier unavailable";
+}
+
+function TeacherClasses({
+  classrooms,
+  serverSummaries,
+  assignments,
+  submissions,
+}) {
+  const [selectedClassroomId, setSelectedClassroomId] = useState(
+    classrooms[0]?.id || "",
+  );
+  const [selectedStudentId, setSelectedStudentId] = useState("");
+  const selectedClassroom =
+    classrooms.find((classroom) => classroom.id === selectedClassroomId) ||
+    classrooms[0];
+  const classAssignmentIds = new Set(
+    assignments
+      .filter((assignment) => assignment.classroomId === selectedClassroom?.id)
+      .map((assignment) => assignment.id),
+  );
+  const classSubmissions = submissions.filter((submission) =>
+    classAssignmentIds.has(submission.assignmentId),
+  );
+  const students = Object.entries(
+    classSubmissions.reduce((rows, submission) => {
+      if (!submission.studentUserId) return rows;
+      rows[submission.studentUserId] = rows[submission.studentUserId] || [];
+      rows[submission.studentUserId].push(submission);
+      return rows;
+    }, {}),
+  )
+    .map(([studentUserId, rows]) => ({
+      studentUserId,
+      submissions: rows,
+      average: Math.round(
+        rows.reduce(
+          (sum, submission) =>
+            sum + (Number(submission.percentage) || 0),
+          0,
+        ) / rows.length,
+      ),
+      lastActive: rows.reduce(
+        (latest, submission) =>
+          !latest || submission.occurredAt > latest
+            ? submission.occurredAt
+            : latest,
+        "",
+      ),
+    }))
+    .sort((left, right) => left.average - right.average);
+  const selectedStudent =
+    students.find((student) => student.studentUserId === selectedStudentId) ||
+    students[0];
+  const routeResults = selectedStudent
+    ? Object.entries(
+        selectedStudent.submissions.reduce((groups, submission) => {
+          const key = submission.routeId || "legacy-unscoped";
+          groups[key] = groups[key] || [];
+          groups[key].push(submission);
+          return groups;
+        }, {}),
+      ).map(([studentRouteId, rows]) => ({
+        routeId: studentRouteId,
+        count: rows.length,
+        average: Math.round(
+          rows.reduce(
+            (sum, submission) =>
+              sum + (Number(submission.percentage) || 0),
+            0,
+          ) / rows.length,
+        ),
+      }))
+    : [];
+
   return (
     <section className="teacher-section" aria-label="Teacher classes">
       <header>
@@ -556,39 +637,160 @@ function TeacherClasses({ classrooms, serverSummaries }) {
         <Users size={24} />
       </header>
       {classrooms.length ? (
-        <div className="classroom-grid">
-          {classrooms.map((classroom) => {
-            const summary = serverSummaries?.[classroom.id];
-            return (
-              <article key={classroom.id}>
-                <strong>{classroom.name}</strong>
-                <span>{classroom.role} access</span>
-                <dl>
-                  <div>
-                    <dt>Students</dt>
-                    <dd>{summary?.studentCount ?? "No data"}</dd>
+        <>
+          <div className="classroom-grid">
+            {classrooms.map((classroom) => {
+              const summary = serverSummaries?.[classroom.id];
+              return (
+                <article key={classroom.id}>
+                  <button
+                    type="button"
+                    className="text-action"
+                    onClick={() => {
+                      setSelectedClassroomId(classroom.id);
+                      setSelectedStudentId("");
+                    }}
+                  >
+                    {classroom.name}
+                  </button>
+                  <span>{classroom.role} access</span>
+                  <dl>
+                    <div>
+                      <dt>Students</dt>
+                      <dd>{summary?.studentCount ?? "No data"}</dd>
+                    </div>
+                    <div>
+                      <dt>Completion</dt>
+                      <dd>
+                        {summary?.assignmentCompletionRate == null
+                          ? "No data"
+                          : `${summary.assignmentCompletionRate}%`}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Average</dt>
+                      <dd>
+                        {summary?.averagePercentage == null
+                          ? "No data"
+                          : `${summary.averagePercentage}%`}
+                      </dd>
+                    </div>
+                  </dl>
+                </article>
+              );
+            })}
+          </div>
+          <div className="teacher-home-grid">
+            <section className="teacher-table-panel">
+              <header>
+                <div>
+                  <p className="section-label">Student activity</p>
+                  <h3>{selectedClassroom?.name}</h3>
+                </div>
+                <span>Submitted work only</span>
+              </header>
+              {students.length ? (
+                <div className="teacher-table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Student</th>
+                        <th>Submitted sets</th>
+                        <th>Average</th>
+                        <th>Last submission</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {students.map((student) => (
+                        <tr key={student.studentUserId}>
+                          <td>
+                            <button
+                              type="button"
+                              className="text-action"
+                              onClick={() =>
+                                setSelectedStudentId(student.studentUserId)
+                              }
+                            >
+                              {studentDisplayName(student.studentUserId)}
+                            </button>
+                          </td>
+                          <td>{student.submissions.length}</td>
+                          <td>{student.average}%</td>
+                          <td>
+                            {new Date(student.lastActive).toLocaleDateString(
+                              "en-GB",
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="role-empty">
+                  <ClipboardCheck size={20} />
+                  <p>
+                    No student has submitted an assignment in this class yet.
+                    Enrolment totals remain aggregate until evidence is
+                    submitted.
+                  </p>
+                </div>
+              )}
+            </section>
+            <section className="teacher-table-panel">
+              <header>
+                <div>
+                  <p className="section-label">Student detail</p>
+                  <h3>
+                    {selectedStudent
+                      ? studentDisplayName(selectedStudent.studentUserId)
+                      : "No submitted evidence"}
+                  </h3>
+                </div>
+                <span>Routes stay separate</span>
+              </header>
+              {selectedStudent ? (
+                <>
+                  <div className="topic-insight-list">
+                    {routeResults.map((result) => (
+                      <div key={result.routeId}>
+                        <strong>
+                          {routeLabel(routeById(result.routeId))}
+                        </strong>
+                        <span>
+                          {result.count} submitted set
+                          {result.count === 1 ? "" : "s"} | {result.average}%
+                          average
+                        </span>
+                        <i style={{ width: `${result.average}%` }} />
+                      </div>
+                    ))}
                   </div>
-                  <div>
-                    <dt>Completion</dt>
-                    <dd>
-                      {summary?.assignmentCompletionRate == null
-                        ? "No data"
-                        : `${summary.assignmentCompletionRate}%`}
-                    </dd>
+                  <div className="permission-note">
+                    <strong>Available detail</strong>
+                    <span>
+                      Assignment result, topic, route and submission time.
+                    </span>
+                    <strong>Private by design</strong>
+                    <span>
+                      Notebook pages, handwriting, drafts and Coach chats are
+                      not part of this record.
+                    </span>
                   </div>
-                  <div>
-                    <dt>Average</dt>
-                    <dd>
-                      {summary?.averagePercentage == null
-                        ? "No data"
-                        : `${summary.averagePercentage}%`}
-                    </dd>
-                  </div>
-                </dl>
-              </article>
-            );
-          })}
-        </div>
+                </>
+              ) : (
+                <div className="role-empty">
+                  <BarChart3 size={20} />
+                  <p>
+                    Student-level route analysis appears after a source-bound
+                    submission. The API does not expose a separate people
+                    directory.
+                  </p>
+                </div>
+              )}
+            </section>
+          </div>
+        </>
       ) : (
         <div className="role-empty">
           <Users size={20} />
@@ -648,16 +850,40 @@ function TeacherInsights({ submissions }) {
 function TeacherReview({ submissions, assignments, onAssignmentAction }) {
   const [selectedSubmissionId, setSelectedSubmissionId] = useState("");
   const [feedback, setFeedback] = useState("");
+  const [feedbackRows, setFeedbackRows] = useState([]);
   const [status, setStatus] = useState("");
   const selected =
     submissions.find((item) => item.id === selectedSubmissionId) ||
     submissions[0];
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!selected?.assignmentId) {
+      setFeedbackRows([]);
+      return undefined;
+    }
+    setStatus("");
+    onAssignmentAction(
+      `/api/stem/assignments/${encodeURIComponent(selected.assignmentId)}/feedback`,
+      { method: "GET" },
+    )
+      .then((result) => {
+        if (!cancelled) setFeedbackRows(result.feedback || []);
+      })
+      .catch((error) => {
+        if (!cancelled)
+          setStatus(error.message || "Feedback history could not be loaded.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [onAssignmentAction, selected?.assignmentId]);
+
   async function sendFeedback() {
     if (!selected || !feedback.trim()) return;
     setStatus("");
     try {
-      await onAssignmentAction(
+      const result = await onAssignmentAction(
         `/api/stem/assignments/${encodeURIComponent(selected.assignmentId)}/feedback`,
         {
           method: "POST",
@@ -668,6 +894,7 @@ function TeacherReview({ submissions, assignments, onAssignmentAction }) {
         },
       );
       setFeedback("");
+      setFeedbackRows((current) => [result.feedback, ...current]);
       setStatus(
         "Feedback is available to this student in their assignment context.",
       );
@@ -711,7 +938,7 @@ function TeacherReview({ submissions, assignments, onAssignmentAction }) {
                         className="text-action"
                         onClick={() => setSelectedSubmissionId(submission.id)}
                       >
-                        {submission.studentUserId.replace(/^.*:/, "Student ")}
+                        {studentDisplayName(submission.studentUserId)}
                       </button>
                     </td>
                     <td>{submission.syllabusPointId}</td>
@@ -738,7 +965,7 @@ function TeacherReview({ submissions, assignments, onAssignmentAction }) {
           </div>
           <div className="permission-note">
             <strong>
-              Feedback for {selected?.studentUserId.replace(/^.*:/, "Student ")}
+              Feedback for {studentDisplayName(selected?.studentUserId)}
             </strong>
             <span>
               {assignments.find(
@@ -765,6 +992,40 @@ function TeacherReview({ submissions, assignments, onAssignmentAction }) {
                 {status}
               </p>
             )}
+            <div className="topic-insight-list">
+              {feedbackRows
+                .filter(
+                  (item) =>
+                    !item.studentUserId ||
+                    item.studentUserId === selected?.studentUserId,
+                )
+                .map((item) => (
+                  <div key={item.id}>
+                    <strong>
+                      {item.studentUserId
+                        ? `To ${studentDisplayName(item.studentUserId)}`
+                        : "Shared assignment feedback"}
+                    </strong>
+                    <span>{item.body}</span>
+                    <span>
+                      {new Date(item.createdAt).toLocaleString("en-GB")}
+                    </span>
+                  </div>
+                ))}
+              {!feedbackRows.some(
+                (item) =>
+                  !item.studentUserId ||
+                  item.studentUserId === selected?.studentUserId,
+              ) && (
+                <div>
+                  <strong>No feedback sent yet</strong>
+                  <span>
+                    Send a concise next step to create the first visible
+                    feedback record for this student.
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
         </>
       ) : (
@@ -923,7 +1184,7 @@ function TeacherHome({
                   {submissions.slice(0, 8).map((submission) => (
                     <tr key={submission.id}>
                       <td>
-                        {submission.studentUserId.replace(/^.*:/, "Student ")}
+                        {studentDisplayName(submission.studentUserId)}
                       </td>
                       <td>{submission.syllabusPointId}</td>
                       <td>
@@ -998,6 +1259,8 @@ function TeacherRoute({
   copiedId,
   onCreateAssignment,
   account,
+  submissions,
+  serverSummaries,
   onAssignmentAction,
 }) {
   const selectedRoute = routeById(assignmentDraft.routeId);
@@ -1009,6 +1272,7 @@ function TeacherRoute({
     routeId: assignmentDraft.routeId,
   });
   const [error, setError] = useState("");
+  const [reminderDrafts, setReminderDrafts] = useState({});
   async function createAssignment() {
     try {
       setError("");
@@ -1043,15 +1307,36 @@ function TeacherRoute({
       setError("");
       const result = await onAssignmentAction(
         `/api/stem/assignments/${encodeURIComponent(assignment.id)}/reminders`,
-        { method: "POST", body: JSON.stringify({ audience: "incomplete" }) },
+        {
+          method: "POST",
+          body: JSON.stringify({
+            audience: "incomplete",
+            message: reminderDrafts[assignment.id],
+          }),
+        },
       );
+      setReminderDrafts((current) => ({ ...current, [assignment.id]: "" }));
       setError(
-        `Reminder recorded for ${result.reminder.audienceCount} enrolled student${result.reminder.audienceCount === 1 ? "" : "s"}.`,
+        `Reminder recorded for the incomplete audience in ${result.reminder.audienceCount} enrolled student${result.reminder.audienceCount === 1 ? "" : "s"}. Delivery is recorded by the shared workspace.`,
       );
     } catch (reason) {
       setError(reason.message || "The reminder could not be recorded.");
     }
   }
+  const assignmentMetrics = {
+    active: assignments.filter((assignment) => assignment.status === "active")
+      .length,
+    draft: assignments.filter((assignment) => assignment.status === "draft")
+      .length,
+    closed: assignments.filter((assignment) => assignment.status === "closed")
+      .length,
+    overdue: assignments.filter(
+      (assignment) =>
+        assignment.status === "active" &&
+        assignment.dueAt &&
+        new Date(assignment.dueAt) < new Date(),
+    ).length,
+  };
   return (
     <div className="role-grid">
       <section className="role-panel">
@@ -1196,8 +1481,39 @@ function TeacherRoute({
           <Users size={26} />
         </header>
         {assignments.length ? (
-          assignments.map((assignment) => {
+          <>
+            <div className="teacher-metric-grid">
+              <div>
+                <span>Published</span>
+                <strong>{assignmentMetrics.active}</strong>
+                <small>Open to enrolled students</small>
+              </div>
+              <div>
+                <span>Draft</span>
+                <strong>{assignmentMetrics.draft}</strong>
+                <small>Not visible to students</small>
+              </div>
+              <div>
+                <span>Closed</span>
+                <strong>{assignmentMetrics.closed}</strong>
+                <small>Retained for review</small>
+              </div>
+              <div>
+                <span>Past due</span>
+                <strong>{assignmentMetrics.overdue}</strong>
+                <small>Still published</small>
+              </div>
+            </div>
+            {assignments.map((assignment) => {
             const route = routeById(assignment.routeId);
+            const submittedStudents = new Set(
+              submissions
+                .filter((submission) => submission.assignmentId === assignment.id)
+                .map((submission) => submission.studentUserId)
+                .filter(Boolean),
+            ).size;
+            const enrolledStudents =
+              serverSummaries?.[assignment.classroomId]?.studentCount;
             return (
               <article className="assignment-row" key={assignment.id}>
                 <div>
@@ -1211,6 +1527,14 @@ function TeacherRoute({
                     {assignment.sourceScope.questionIds.length} verified
                     QP/MS-bound questions · {assignment.status} ·{" "}
                     {assignment.reminderCount || 0} reminders recorded
+                  </small>
+                  <small>
+                    {assignment.dueAt
+                      ? `Due ${new Date(assignment.dueAt).toLocaleDateString("en-GB")}`
+                      : "No due date"}
+                    {enrolledStudents == null
+                      ? " | Completion data unavailable"
+                      : ` | ${submittedStudents}/${enrolledStudents} students with submitted evidence`}
                   </small>
                 </div>
                 <div className="assignment-row__actions">
@@ -1229,14 +1553,27 @@ function TeacherRoute({
                     <option value="archived">Archived</option>
                   </select>
                   {assignment.status === "active" && (
-                    <button
-                      type="button"
-                      className="secondary-action compact-action"
-                      onClick={() => sendReminder(assignment)}
-                    >
-                      <BellRing size={15} />
-                      Remind
-                    </button>
+                    <>
+                      <input
+                        aria-label={`Reminder message for ${assignment.title}`}
+                        value={reminderDrafts[assignment.id] || ""}
+                        onChange={(event) =>
+                          setReminderDrafts((current) => ({
+                            ...current,
+                            [assignment.id]: event.target.value,
+                          }))
+                        }
+                        placeholder="Optional reminder message"
+                      />
+                      <button
+                        type="button"
+                        className="secondary-action compact-action"
+                        onClick={() => sendReminder(assignment)}
+                      >
+                        <BellRing size={15} />
+                        Remind
+                      </button>
+                    </>
                   )}
                   <button
                     type="button"
@@ -1249,7 +1586,8 @@ function TeacherRoute({
                 </div>
               </article>
             );
-          })
+            })}
+          </>
         ) : (
           <div className="role-empty">
             <ShieldCheck size={20} />
@@ -1808,121 +2146,147 @@ function SchoolAnalyticsRoute({ activeTab, onAssignmentAction }) {
         </section>
       </>
     );
-  if (activeTab === "cohorts")
+  if (activeTab === "licences")
+    return (
+      <>
+        <section className="teacher-section" aria-label="School licences">
+          <header>
+            <div>
+              <p className="section-label">Licences</p>
+              <h2>Licence administration is not connected</h2>
+              <p>
+                This workspace API does not provide seat counts, entitlement
+                terms, renewal dates or licence administration actions.
+              </p>
+            </div>
+            <ShieldCheck size={24} />
+          </header>
+          <div className="role-empty">
+            <ShieldCheck size={20} />
+            <p>
+              No licence data is shown or inferred. Programme activity remains
+              available under Programmes and Reports.
+            </p>
+          </div>
+        </section>
+      </>
+    );
+  if (activeTab === "people")
     return (
       <>
         {controls}
         <section className="teacher-section" aria-label="School cohorts">
           <header>
             <div>
-              <p className="section-label">Cohorts</p>
-              <h2>Compare class-level trends</h2>
+              <p className="section-label">People</p>
+              <h2>Permissioned participation by route</h2>
               <p>
-                Each row is one permissioned class and one explicit learning
-                route. Results are never merged across stages.
+                People management is aggregate-only here. Each row is one
+                permissioned class and one explicit learning route, so results
+                are never merged across stages.
               </p>
             </div>
             <Users size={24} />
           </header>
-          <div className="teacher-table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Class</th>
-                  <th>Route</th>
-                  <th>Enrolled</th>
-                  <th>Active</th>
-                  <th>Completion</th>
-                  <th>Average</th>
-                  <th>Risk reason</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cohortRouteRows.map(({ cohort, group }) => (
-                  <tr key={cohort.classroomId + group.routeId}>
-                    <td>{cohort.name}</td>
-                    <td>{routeLabel(routeById(group.routeId))}</td>
-                    <td>{group.summary.studentCount}</td>
-                    <td>{group.summary.activeStudentCount}</td>
-                    <td>
-                      {group.summary.assignmentCompletionRate == null
-                        ? "No data"
-                        : `${group.summary.assignmentCompletionRate}%`}
-                    </td>
-                    <td>
-                      {group.summary.averagePercentage == null
-                        ? "No data"
-                        : `${group.summary.averagePercentage}%`}
-                    </td>
-                    <td>
-                      {group.summary.riskReasons.length
-                        ? group.summary.riskReasons.join("; ")
-                        : "No current signal"}
-                    </td>
+          {cohortRouteRows.length ? (
+            <div className="teacher-table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Class</th>
+                    <th>Route</th>
+                    <th>Enrolled</th>
+                    <th>Active</th>
+                    <th>Completion</th>
+                    <th>Average</th>
+                    <th>Risk reason</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {cohortRouteRows.map(({ cohort, group }) => (
+                    <tr key={cohort.classroomId + group.routeId}>
+                      <td>{cohort.name}</td>
+                      <td>{routeLabel(routeById(group.routeId))}</td>
+                      <td>{group.summary.studentCount}</td>
+                      <td>{group.summary.activeStudentCount}</td>
+                      <td>
+                        {group.summary.assignmentCompletionRate == null
+                          ? "No data"
+                          : `${group.summary.assignmentCompletionRate}%`}
+                      </td>
+                      <td>
+                        {group.summary.averagePercentage == null
+                          ? "No data"
+                          : `${group.summary.averagePercentage}%`}
+                      </td>
+                      <td>
+                        {group.summary.riskReasons.length
+                          ? group.summary.riskReasons.join("; ")
+                          : "No current signal"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="role-empty">
+              <Users size={20} />
+              <p>
+                No route-level participation is available for this scope.
+                Roster names and membership editing are not exposed to the
+                school workspace API.
+              </p>
+            </div>
+          )}
         </section>
       </>
     );
-  if (activeTab === "health")
+  if (activeTab === "programmes")
     return (
       <>
         {controls}
         <section className="teacher-section" aria-label="Programme health">
           <header>
             <div>
-              <p className="section-label">Programme Health</p>
-              <h2>Reasons behind intervention signals</h2>
+              <p className="section-label">Programmes</p>
+              <h2>Route-specific curriculum activity</h2>
               <p>
-                Signals require submitted, source-bound evidence and are not
-                rankings.
+                Submitted source-bound evidence is grouped by exact route and
+                stage. No cross-stage programme average is calculated.
               </p>
             </div>
-            <BarChart3 size={24} />
+            <Layers3 size={24} />
           </header>
-          {riskReasons.length ? (
+          {routeGroups.length ? (
             <div className="insight-table">
-              {riskReasons.map((risk) => (
-                <div key={risk.reason}>
+              {routeGroups.map((group) => (
+                <div key={group.routeId}>
                   <div>
-                    <strong>{risk.reason}</strong>
+                    <strong>{routeLabel(routeById(group.routeId))}</strong>
                     <span>
-                      {risk.cohortsAffected} cohort
-                      {risk.cohortsAffected === 1 ? "" : "s"} affected
+                      {group.submissions} submitted set
+                      {group.submissions === 1 ? "" : "s"} | {group.activeAssignments}
+                      {" "}active assignment
+                      {group.activeAssignments === 1 ? "" : "s"}
                     </span>
                   </div>
-                  <b>{risk.cohortsAffected}</b>
+                  <b>
+                    {group.averagePercentage == null
+                      ? "No score"
+                      : `${group.averagePercentage}%`}
+                  </b>
                 </div>
               ))}
             </div>
           ) : (
             <div className="role-empty">
-              <BarChart3 size={20} />
-              <p>No programme risk reason is visible in this period.</p>
-            </div>
-          )}
-        </section>
-      </>
-    );
-  if (activeTab === "coverage")
-    return (
-      <>
-        {controls}
-        <section className="teacher-section" aria-label="Curriculum coverage">
-          <header>
-            <div>
-              <p className="section-label">Curriculum Coverage</p>
-              <h2>Verified activity by syllabus topic</h2>
+              <Layers3 size={20} />
               <p>
-                Coverage means a syllabus-linked assignment has submitted
-                evidence. It is not a mastery claim.
+                No programme has submitted evidence in this reporting scope.
               </p>
             </div>
-            <Layers3 size={24} />
-          </header>
+          )}
           {topicCoverage.length ? (
             <div className="insight-table">
               {topicCoverage.map((topic) => (
@@ -1949,18 +2313,51 @@ function SchoolAnalyticsRoute({ activeTab, onAssignmentAction }) {
               <Layers3 size={20} />
               <p>
                 No syllabus-linked submission is available in this reporting
-                period.
+                period, so coverage cannot be claimed.
               </p>
             </div>
           )}
+          {riskReasons.length ? (
+            <div className="school-risk-list">
+              {riskReasons.map((risk) => (
+                <div key={risk.reason}>
+                  <strong>{risk.reason}</strong>
+                  <span>
+                    {risk.cohortsAffected} cohort
+                    {risk.cohortsAffected === 1 ? "" : "s"} affected
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </section>
       </>
     );
-  if (activeTab === "governance")
+  if (activeTab === "settings")
     return (
       <>
-        <>{controls}</>
+        {controls}
         <SchoolGovernance />
+        <section className="teacher-section" aria-label="School settings">
+          <header>
+            <div>
+              <p className="section-label">Settings</p>
+              <h2>No school settings are writable here</h2>
+              <p>
+                The current API exposes reporting and role-scoped records, not
+                organisation profile, retention or membership configuration.
+              </p>
+            </div>
+            <ShieldCheck size={24} />
+          </header>
+          <div className="role-empty">
+            <ShieldCheck size={20} />
+            <p>
+              There are no editable school settings to display. Access remains
+              enforced by server-verified classroom membership.
+            </p>
+          </div>
+        </section>
       </>
     );
   return (

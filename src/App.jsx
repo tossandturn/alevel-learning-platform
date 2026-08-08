@@ -278,6 +278,12 @@ function App() {
   const allPracticeUnits = visibleVerifiedUnits
   const migrationUnits = useMemo(() => [...new Map([...allPracticeUnits, ...topicUnits, ...fullPaperUnits].map((unit) => [unit.id, unit])).values()], [allPracticeUnits])
   const routePracticeUnits = useMemo(() => allPracticeUnits.filter((unit) => unit.routeId === activeRouteId), [activeRouteId, allPracticeUnits])
+  const routeAttempts = useMemo(() => appState.attempts.filter((attempt) => attempt.routeId === activeRouteId), [activeRouteId, appState.attempts])
+  const routePaperSessions = useMemo(() => appState.paperSessions.filter((session) => session.routeId === activeRouteId), [activeRouteId, appState.paperSessions])
+  const routePaperReviews = useMemo(() => {
+    const attemptIds = new Set(routePaperSessions.map((session) => session.attemptId))
+    return (appState.paperReviews || []).filter((review) => review.routeId === activeRouteId || attemptIds.has(review.attemptId))
+  }, [activeRouteId, appState.paperReviews, routePaperSessions])
   const aiPracticeOptions = useMemo(() => coachPracticeOptions(), [])
   const learningProgress = useMemo(() => buildLearningProgress({
     attempts: appState.attempts,
@@ -534,6 +540,19 @@ function App() {
         : [unitId, ...current].slice(0, 24)
       return { ...state, favoriteUnitIds }
     })
+  }
+
+  function updateNotebookNote(value) {
+    setAppState((state) => ({
+      ...state,
+      notebookNotes: {
+        ...(state.notebookNotes || {}),
+        [activeRouteId]: {
+          body: value,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    }))
   }
 
   async function createClassroom(name) {
@@ -941,7 +960,7 @@ function App() {
 
   return (
     <main className="app-shell">
-      {view !== 'practice' && view !== 'paper' && <TopNav view={view} setView={setView} profile={appState.profile} openWorkspace={() => setView('workspace')} />}
+      {view !== 'practice' && view !== 'paper' && <TopNav view={view} setView={setView} profile={appState.profile} openNotebook={() => setView('notebook')} openRoleWorkspace={() => setView('workspace')} />}
 
       {view === 'dashboard' && (
         <StudentDashboard
@@ -950,7 +969,7 @@ function App() {
           selectRoute={selectRoute}
           profile={appState.profile}
           updateProfile={updateProfile}
-          attempts={appState.attempts}
+          attempts={routeAttempts}
           completionByUnit={completionByUnit}
           recommendation={recommendation}
           topicMastery={topicMastery}
@@ -967,11 +986,29 @@ function App() {
           recentPractice={appState.recentPractice || []}
           favoriteUnitIds={appState.favoriteUnitIds || []}
           openCoach={() => setCoachOpenRequest((value) => value + 1)}
-          openWorkspace={() => setView('workspace')}
+          openNotebook={() => setView('notebook')}
+          openRoleWorkspace={() => setView('workspace')}
         />
       )}
 
       {view === 'workspace' && <RoleWorkspace profile={appState.profile} updateProfile={updateProfile} assignments={sharedAccount.workspace?.assignments || []} classrooms={sharedAccount.workspace?.classrooms || []} submissions={sharedAccount.workspace?.submissions || []} serverSummaries={sharedAccount.workspace?.serverSummaries || {}} attempts={appState.attempts} learningProgress={learningProgress} account={sharedAccount} onRefreshAccount={refreshSharedAccount} onCreateClassroom={createClassroom} onJoinClassroom={joinClassroom} onCreateAssignment={createAssignment} onStartAssignedAssignment={startAssignedAssignment} />}
+
+      {view === 'notebook' && (
+        <StudentNotebook
+          activeRoute={activeRoute}
+          routeOptions={courseRoutes}
+          selectRoute={selectRoute}
+          attempts={routeAttempts}
+          units={routePracticeUnits}
+          mistakes={mistakes}
+          paperMistakes={paperMistakes}
+          note={appState.notebookNotes?.[activeRouteId] || null}
+          onChangeNote={updateNotebookNote}
+          startPractice={startPractice}
+          retestPaper={retestPaper}
+          openPractice={() => { setActiveTab('topics'); setView('library') }}
+        />
+      )}
 
       {view === 'library' && (
         <LibraryView
@@ -1004,11 +1041,11 @@ function App() {
 
       {view === 'history' && (
         <HistoryView
-          attempts={appState.attempts}
-          paperSessions={appState.paperSessions}
-          paperReviews={appState.paperReviews || []}
+          attempts={routeAttempts}
+          paperSessions={routePaperSessions}
+          paperReviews={routePaperReviews}
           onRetest={startPractice}
-          units={allPracticeUnits}
+          units={routePracticeUnits}
           onExport={exportLearningData}
         />
       )}
@@ -1109,7 +1146,7 @@ function SessionSetup({ session, onChange, onCancel, onStart }) {
   )
 }
 
-function TopNav({ view, setView, profile, openWorkspace }) {
+function TopNav({ view, setView, profile, openNotebook, openRoleWorkspace }) {
   const [campusOpen, setCampusOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
   const learnerName = String(profile?.learnerName || 'Student').trim() || 'Student'
@@ -1140,12 +1177,12 @@ function TopNav({ view, setView, profile, openWorkspace }) {
           <BarChart3 size={17} />
           Progress
         </button>
-        <button className={view === 'workspace' ? 'active' : ''} type="button" onClick={openWorkspace} aria-label="Notebook">
+        <button className={view === 'notebook' ? 'active' : ''} type="button" onClick={openNotebook} aria-label="Notebook">
           <BookOpen size={17} />
           Notebook
         </button>
       </nav>
-      <div className="nav-context"><a className="vocabulary-link" href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer"><Brain size={15} />Terms</a><button type="button" className="notification-button" aria-label="Notifications"><span /></button><div className="account-menu"><button type="button" className="account-trigger" aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}><span className="account-avatar">{firstName.slice(0, 1).toUpperCase()}</span><span>{learnerName}</span><ChevronRight size={14} /></button>{accountOpen && <div className="account-popover"><strong>{learnerName}</strong><small>IELTSist Account</small><div><span>Student</span><b>STEM</b></div><a href="https://ieltsist.com/" target="_blank" rel="noreferrer">Open IELTS campus <ChevronRight size={14} /></a><button type="button" onClick={() => { openWorkspace(); setAccountOpen(false) }}>Teacher &amp; school workspace <ChevronRight size={14} /></button></div>}</div></div>
+      <div className="nav-context"><a className="vocabulary-link" href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer"><Brain size={15} />Terms</a><button type="button" className="notification-button" aria-label="Notifications"><span /></button><div className="account-menu"><button type="button" className="account-trigger" aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}><span className="account-avatar">{firstName.slice(0, 1).toUpperCase()}</span><span>{learnerName}</span><ChevronRight size={14} /></button>{accountOpen && <div className="account-popover"><strong>{learnerName}</strong><small>IELTSist Account</small><div><span>Student</span><b>STEM</b></div><a href="https://ieltsist.com/" target="_blank" rel="noreferrer">Open IELTS campus <ChevronRight size={14} /></a><button type="button" onClick={() => { openRoleWorkspace(); setAccountOpen(false) }}>Teacher &amp; school workspace <ChevronRight size={14} /></button></div>}</div></div>
     </header>
   )
 }
@@ -1340,7 +1377,7 @@ function Dashboard({
 }
 
 /* oxlint-enable no-unused-vars */
-function StudentDashboard({ activeRoute, routeOptions, selectRoute, profile, attempts, completionByUnit, recommendation, topicMastery, mistakes, paperMistakes, startPractice, setView, setActiveTab, setSubjectFilter, setQuery, allPracticeUnits, recentPractice, favoriteUnitIds, openCoach, openWorkspace, learningProgress, syllabusRoadmap }) {
+function StudentDashboard({ activeRoute, routeOptions, selectRoute, profile, attempts, completionByUnit, recommendation, topicMastery, mistakes, paperMistakes, startPractice, setView, setActiveTab, setSubjectFilter, setQuery, allPracticeUnits, recentPractice, favoriteUnitIds, openCoach, openNotebook, openRoleWorkspace, learningProgress, syllabusRoadmap }) {
   const [searchText, setSearchText] = useState('')
   const nextUnit = recommendation.unit
   const latest = attempts.filter((attempt) => completionByUnit[attempt.unitId]).at(-1)
@@ -1360,23 +1397,35 @@ function StudentDashboard({ activeRoute, routeOptions, selectRoute, profile, att
     setView('library')
   }
 
+  function takeGoalNextStep() {
+    if (goalComplete && (mistakes.length || paperMistakes.length)) {
+      openNotebook()
+      return
+    }
+    if (nextUnit) {
+      startPractice(nextUnit, recommendation.action === 'Resume' ? { confirmed: true } : {})
+      return
+    }
+    openPractice({ subjectId: activeRoute.subjectId })
+  }
+
   return <section className="dashboard-studio">
     <aside className="study-rail" aria-label="Student study navigation">
       <div className="study-rail__identity"><span>Student plan</span><strong>Cambridge STEM</strong><small>Verified question practice</small></div>
-      <div className="study-rail__nav"><button className="active" type="button"><Home size={17} />Today</button><button type="button" onClick={() => openPractice()}><Dumbbell size={17} />Find practice</button><button type="button" onClick={() => setView('history')}><BarChart3 size={17} />My progress</button></div>
+      <div className="study-rail__nav"><button className="active" type="button"><Home size={17} />Today</button><button type="button" onClick={() => openPractice()}><Dumbbell size={17} />Practice</button><button type="button" onClick={() => setView('history')}><BarChart3 size={17} />Progress</button><button type="button" onClick={openNotebook}><BookOpen size={17} />Notebook</button></div>
       <div className="study-rail__progress"><p>Your progress</p><span>Weekly target</span><strong>{Math.min(learningProgress.week.completedQuestions, learningProgress.week.targetQuestions)}/{learningProgress.week.targetQuestions}</strong><div className="progress-track"><span style={{ width: `${weeklyPercent}%` }} /></div><span>Study streak</span><strong>{learningProgress.streak} day{learningProgress.streak === 1 ? '' : 's'}</strong></div>
-      <div className="study-rail__footer"><button type="button" onClick={openWorkspace}><Settings size={16} />Study settings</button><a href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer"><BookOpen size={16} />Professional terms</a><button type="button" onClick={openCoach}><HelpCircle size={16} />Help &amp; support</button></div>
+      <div className="study-rail__footer"><button type="button" onClick={openRoleWorkspace}><Settings size={16} />Teacher workspace</button><a href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer"><Brain size={16} />Professional terms</a><button type="button" onClick={openCoach}><HelpCircle size={16} />Help &amp; support</button></div>
     </aside>
 
     <main className="dashboard-main">
       <header className="dashboard-welcome"><div><p>Good to see you, {firstName}.</p><h1>Ready for today&apos;s study session?</h1></div><div className="dashboard-route-tools"><label className="route-switcher"><span>Current route</span><select value={activeRoute.routeId} onChange={(event) => selectRoute(event.target.value)}>{routeOptions.map((route) => <option value={route.routeId} key={route.routeId}>{route.stage} · {route.subjectCode.toUpperCase()} {route.subject}{route.paperComponents?.length ? ` · ${formatRouteComponents(route.paperComponents)}` : ''}</option>)}</select></label><form className="dashboard-search" onSubmit={(event) => { event.preventDefault(); openPractice({ query: searchText }) }}><Search size={17} /><input value={searchText} onChange={(event) => setSearchText(event.target.value)} placeholder="Search this route" aria-label="Search this learning route" /><button type="submit">Search</button></form></div></header>
       <section className="continue-card" aria-label="Continue learning"><div className="continue-card__copy"><p>Continue learning</p><h2>{nextUnit?.title || 'Build your first syllabus drill'}</h2><span>{nextUnit ? `${nextUnit.topic} · ${nextUnit.estimatedMinutes} minutes · ${nextUnit.maxMarks} marks` : 'Start with a Cambridge syllabus point and a verified QP/MS question set.'}</span><div className="continue-card__progress"><strong>{nextUnit && completionByUnit[nextUnit.id]?.completed ? 'Completed previously' : 'Your next recommended set'}</strong><div className="progress-track"><span style={{ width: nextUnit && completionByUnit[nextUnit.id]?.completed ? '100%' : '18%' }} /></div></div><div className="action-row"><button className="primary-action" type="button" onClick={() => nextUnit ? startPractice(nextUnit, recommendation.action === 'Resume' ? { confirmed: true } : {}) : openPractice({ subjectId: 'physics' })}><PlayIcon />{nextUnit ? recommendation.action : 'Choose topic'}</button><button type="button" className="secondary-action" onClick={() => openPractice({ subjectId: nextUnit?.subjectId || 'physics' })}>View syllabus point</button></div></div><div className="continue-card__syllabus"><span>Source-backed</span><strong>{nextUnit?.board || 'Cambridge International'}</strong><small>{nextUnit?.stage || 'IGCSE / AS / A2'} · question paper and mark scheme paired</small></div></section>
       <section className="dashboard-section"><div className="section-heading-row"><div><p className="section-label">Quick actions</p><h2>Choose how to study</h2></div></div><div className="study-action-grid"><StudyAction icon={<Sparkles size={21} />} tone="violet" title="AI practice" detail="Build a verified set from a syllabus topic" action="Start now" onClick={openCoach} /><StudyAction icon={<FileText size={21} />} tone="blue" title="Past papers" detail="Filter official papers by subject and session" action="Browse papers" onClick={() => openPractice({ tab: 'papers' })} /><StudyAction icon={<Target size={21} />} tone="green" title="Topic drill" detail="Practise one official syllabus point" action="Choose topic" onClick={() => openPractice()} /><StudyAction icon={<Trophy size={21} />} tone="amber" title="Exam simulation" detail="Work in the original PDF with handwriting" action="Start exam" onClick={() => openPractice({ tab: 'exams' })} /></div></section>
-      <div className="dashboard-lower-grid"><section className="dashboard-panel performance-panel"><header><div><p className="section-label">Your performance</p><h2>Evidence from submitted work</h2></div><button type="button" className="text-action" onClick={() => setView('history')}>View progress <ChevronRight size={15} /></button></header><div className="performance-stats"><Stat label="Accuracy" value={average == null ? '—' : `${average}%`} detail={average == null ? 'Submit a set to start' : 'Verified QP/MS attempts'} /><Stat label="Questions done" value={learningProgress.week.completedQuestions} detail="In the last 7 days" /><Stat label="Open mistakes" value={mistakes.length + paperMistakes.length} detail={weakTopic ? `${weakTopic.topic} needs attention` : 'Review after each result'} /><Stat label="Last attempt" value={latest ? `${latest.scoreResult.rawMarks}/${latest.scoreResult.maxMarks}` : '—'} detail={latest ? formatDate(latest.submittedAt) : 'No submission yet'} /></div></section><section className="dashboard-panel mistakes-panel"><header><div><p className="section-label">Recent mistakes</p><h2>What to revisit</h2></div><button type="button" className="text-action" onClick={() => openPractice({ tab: 'mistakes' })}>View all</button></header>{mistakes.length ? <div className="mistakes-compact">{mistakes.slice(0, 3).map((mistake) => <button type="button" key={mistake.id} onClick={() => startPractice(mistake.unit, { clearDraft: true, retestOf: mistake.attempt.id, onlyPartId: mistake.part.id })}><span>{mistake.unit.topic}</span><strong>{mistake.part.label}</strong><em>{mistake.criterion.maxMarks - mistake.criterion.awarded} mark{mistake.criterion.maxMarks - mistake.criterion.awarded === 1 ? '' : 's'}</em></button>)}</div> : <div className="compact-empty"><CheckCircle2 size={19} /><span>No weak points yet. Your next submitted set will create a focused review list.</span></div>}</section></div>
-      <div className="dashboard-feed-grid"><MiniUnitPanel eyebrow="Recent practice" title="Pick up where you left off" empty="Your opened drills will appear here for one-click return." units={recentUnits} icon={<Dumbbell size={19} />} openPractice={startPractice} onManage={() => openPractice()} /><MiniUnitPanel eyebrow="Saved for later" title="Favourite practice" empty="Save useful drills from the Practice Library and return to them here." units={favoriteUnits} icon={<Heart size={19} />} openPractice={startPractice} onManage={() => openPractice()} favorite /></div>
+      <div className="dashboard-feed-grid"><MiniUnitPanel eyebrow="Recent practice" title="Pick up where you left off" empty="Your opened drills will appear here for one-click return." units={recentUnits} icon={<Dumbbell size={19} />} openPractice={startPractice} onManage={() => openPractice()} /><MiniUnitPanel eyebrow="Saved for later" title="Favourite practice" empty="Save useful drills from the Practice Library and return to them here." units={favoriteUnits} icon={<Heart size={19} />} openPractice={startPractice} onManage={() => openPractice({ tab: 'saved' })} favorite /></div>
+      <div className="dashboard-lower-grid"><section className="dashboard-panel performance-panel"><header><div><p className="section-label">Your performance</p><h2>Evidence from submitted work</h2></div><button type="button" className="text-action" onClick={() => setView('history')}>View progress <ChevronRight size={15} /></button></header><div className="performance-stats"><Stat label="Accuracy" value={average == null ? 'Not scored' : `${average}%`} detail={average == null ? 'Submit a set to start' : 'Verified QP/MS attempts'} /><Stat label="Questions done" value={learningProgress.week.completedQuestions} detail="In the last 7 days" /><Stat label="Open mistakes" value={mistakes.length + paperMistakes.length} detail={weakTopic ? `${weakTopic.topic} needs attention` : 'Review after each result'} /><Stat label="Last attempt" value={latest ? `${latest.scoreResult.rawMarks}/${latest.scoreResult.maxMarks}` : 'Not started'} detail={latest ? formatDate(latest.submittedAt) : 'No submission yet'} /></div></section><section className="dashboard-panel mistakes-panel"><header><div><p className="section-label">Recent mistakes</p><h2>What to revisit</h2></div><button type="button" className="text-action" onClick={openNotebook}>Open notebook</button></header>{mistakes.length ? <div className="mistakes-compact">{mistakes.slice(0, 3).map((mistake) => <button type="button" key={mistake.id} onClick={() => startPractice(mistake.unit, { clearDraft: true, retestOf: mistake.attempt.id, onlyPartId: mistake.part.id })}><span>{mistake.unit.topic}</span><strong>{mistake.part.label}</strong><em>{mistake.criterion.maxMarks - mistake.criterion.awarded} mark{mistake.criterion.maxMarks - mistake.criterion.awarded === 1 ? '' : 's'}</em></button>)}</div> : <div className="compact-empty"><CheckCircle2 size={19} /><span>No weak points yet. Your next submitted set will create a focused review list.</span></div>}</section></div>
       <section className="dashboard-panel roadmap-compact"><header><div><p className="section-label">Skill map</p><h2>Progress through the official syllabus</h2></div><button type="button" className="text-action" onClick={() => openPractice()}>Open all topics <ChevronRight size={15} /></button></header><div>{syllabusRoadmap.slice(0, 6).map((topic, index) => <button type="button" key={topic.id} onClick={() => openPractice({ subjectId: topic.subjectId === 'physics-9702' ? 'physics' : undefined })}><span>{topic.officialTopicNumber || index + 1}</span><strong>{topic.name.replace(/^\d+\s+/, '')}</strong><small>{topic.mastery == null ? 'Not started' : `${topic.mastery}% mastery`}</small><i><b style={{ width: `${topic.mastery || 0}%` }} /></i></button>)}</div></section>
     </main>
-    <aside className="dashboard-aside"><section className="weekly-card"><p>Weekly target</p><div className={`goal-ring ${goalComplete ? 'complete' : ''}`} style={{ '--goal': `${weeklyPercent * 3.6}deg` }}><strong>{goalComplete ? 'Done' : `${Math.min(learningProgress.week.completedQuestions, learningProgress.week.targetQuestions)}/${learningProgress.week.targetQuestions}`}</strong><span>{goalComplete ? 'Goal complete' : `${weeklyPercent}%`}</span></div><div className="weekly-card__footer"><span><span className="streak-flame">●</span>{learningProgress.streak} day streak</span><small>{goalComplete ? 'Next: review one weak topic.' : `${learningProgress.week.targetQuestions - learningProgress.week.completedQuestions} questions to go`}</small></div></section><section className="tutor-card"><header><span className="action-icon blue"><Brain size={20} /></span><small>AI Tutor</small></header><h2>Your science and maths coach</h2><p>Ask for a screenshot hint, a check of your method, or a sourced topic drill.</p><button type="button" className="secondary-action" onClick={openCoach}><Sparkles size={16} />Chat with AI Tutor</button></section><section className="dashboard-panel milestones-compact"><header><div><p className="section-label">This week</p><h2>Next milestones</h2></div></header>{learningProgress.milestones.slice(0, 3).map((milestone) => <div key={milestone.id}><span className={milestone.complete ? 'milestone-dot complete' : 'milestone-dot'}>{milestone.complete ? <CheckCircle2 size={13} /> : null}</span><p><strong>{milestone.label}</strong><small>{Math.min(milestone.value, milestone.target)}/{milestone.target} {milestone.unit}</small></p><i><b style={{ width: `${milestone.percentage}%` }} /></i></div>)}</section></aside>
+    <aside className="dashboard-aside"><section className="weekly-card"><p>Weekly target</p><div className={`goal-ring ${goalComplete ? 'complete' : ''}`} style={{ '--goal': `${weeklyPercent * 3.6}deg` }}><strong>{goalComplete ? 'Done' : `${Math.min(learningProgress.week.completedQuestions, learningProgress.week.targetQuestions)}/${learningProgress.week.targetQuestions}`}</strong><span>{goalComplete ? 'Goal complete' : `${weeklyPercent}%`}</span></div><div className="weekly-card__footer"><span><span className="streak-flame">Streak</span>{learningProgress.streak} day{learningProgress.streak === 1 ? '' : 's'}</span><small>{goalComplete ? (mistakes.length + paperMistakes.length ? `${mistakes.length + paperMistakes.length} mistake${mistakes.length + paperMistakes.length === 1 ? '' : 's'} ready to correct` : 'Keep the habit with your next recommended set.') : `${Math.max(0, learningProgress.week.targetQuestions - learningProgress.week.completedQuestions)} questions to go`}</small><button type="button" className="goal-next-action" onClick={takeGoalNextStep}>{goalComplete && (mistakes.length + paperMistakes.length) ? 'Review mistakes' : goalComplete ? 'Start next set' : 'Continue weekly goal'}<ChevronRight size={15} /></button></div></section><section className="tutor-card"><header><span className="action-icon blue"><Brain size={20} /></span><small>AI Tutor</small></header><h2>Your science and maths coach</h2><p>Ask for a screenshot hint, a check of your method, or a sourced topic drill.</p><button type="button" className="secondary-action" onClick={openCoach}><Sparkles size={16} />Chat with AI Tutor</button></section><section className="dashboard-panel milestones-compact"><header><div><p className="section-label">This week</p><h2>Next milestones</h2></div></header>{learningProgress.milestones.slice(0, 3).map((milestone) => <div key={milestone.id}><span className={milestone.complete ? 'milestone-dot complete' : 'milestone-dot'}>{milestone.complete ? <CheckCircle2 size={13} /> : null}</span><p><strong>{milestone.label}</strong><small>{Math.min(milestone.value, milestone.target)}/{milestone.target} {milestone.unit}</small></p><i><b style={{ width: `${milestone.percentage}%` }} /></i></div>)}</section></aside>
   </section>
 }
 
@@ -1661,6 +1710,59 @@ function UnitCard({ unit, completion, startPractice, favorite, onToggleFavorite 
         {completion.completed ? 'Practise again' : 'Start'}
       </button>
     </article>
+  )
+}
+
+function StudentNotebook({ activeRoute, routeOptions, selectRoute, attempts, units, mistakes, paperMistakes, note, onChangeNote, startPractice, retestPaper, openPractice }) {
+  const [query, setQuery] = useState('')
+  const [severity, setSeverity] = useState('all')
+  const unitById = new Map(units.map((unit) => [unit.id, unit]))
+  const search = query.trim().toLowerCase()
+  const filteredMistakes = mistakes.filter((mistake) => {
+    const searchable = `${mistake.unit.title} ${mistake.unit.topic} ${mistake.part.label} ${mistake.criterion.feedback}`.toLowerCase()
+    return (!search || searchable.includes(search)) && (severity === 'all' || mistake.severity.toLowerCase() === severity)
+  })
+  const filteredPaperMistakes = paperMistakes.filter((mistake) => !search || `${mistake.session.file} ${mistake.status}`.toLowerCase().includes(search))
+  const recentAttempts = [...attempts].sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt)).slice(0, 4)
+  const savedNote = note?.body || ''
+
+  return (
+    <section className="notebook-view page-band">
+      <header className="notebook-header">
+        <div>
+          <p className="section-label">Notebook</p>
+          <h1>Turn mistakes into your next marks.</h1>
+          <p className="page-intro">Review open mark points, keep a private route note, and retest without replacing the original attempt.</p>
+        </div>
+        <label className="notebook-route"><span>Current route</span><select value={activeRoute.routeId} onChange={(event) => selectRoute(event.target.value)}>{routeOptions.map((route) => <option value={route.routeId} key={route.routeId}>{route.stage} - {route.subjectCode.toUpperCase()} {route.subject} - {formatRouteComponents(route.paperComponents)}</option>)}</select></label>
+      </header>
+
+      <div className="notebook-summary" aria-label="Notebook summary">
+        <div><strong>{mistakes.length + paperMistakes.length}</strong><span>open items</span></div>
+        <div><strong>{mistakes.filter((item) => item.severity === 'High').length}</strong><span>high priority</span></div>
+        <div><strong>{recentAttempts.length}</strong><span>recent results</span></div>
+      </div>
+
+      <div className="notebook-layout">
+        <section className="notebook-queue">
+          <header className="notebook-section-heading"><div><p className="section-label">Review queue</p><h2>What needs another look</h2></div><button type="button" className="secondary-action compact-action" onClick={openPractice}><Dumbbell size={16} />Find practice</button></header>
+          <div className="notebook-filters"><label className="search-box"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search mistakes" aria-label="Search notebook mistakes" /></label><label><span>Priority</span><select value={severity} onChange={(event) => setSeverity(event.target.value)}><option value="all">All priorities</option><option value="high">High</option><option value="medium">Medium</option></select></label></div>
+          {filteredMistakes.length || filteredPaperMistakes.length ? <div className="notebook-mistake-list">
+            {filteredMistakes.map((mistake) => {
+              const response = mistake.attempt.answers?.[mistake.part.id] || mistake.attempt.working?.[mistake.part.id] || 'No typed response saved'
+              const missedPoints = mistake.criterion.evidence?.filter((point) => !point.awarded) || []
+              return <article className="notebook-mistake" key={mistake.id}><header><span className={`status-pill danger ${mistake.severity.toLowerCase()}`}>{mistake.severity} priority</span><span>{mistake.status}</span></header><h3>{mistake.unit.title} - part {mistake.part.label}</h3><p className="notebook-mistake__topic">{mistake.unit.topic} - {mistake.part.marks} marks - {formatDate(mistake.attempt.submittedAt)}</p><p>{mistake.criterion.feedback}</p><details><summary>Review your response and missed points</summary><div className="notebook-evidence-copy"><strong>Your response</strong><pre>{response}</pre>{missedPoints.length > 0 && <><strong>Mark points to add next time</strong><ul>{missedPoints.map((point) => <li key={point.pointId}>{point.point}</li>)}</ul></>}</div></details><footer><span>{mistake.criterion.awarded}/{mistake.criterion.maxMarks} marks</span><button type="button" className="primary-action compact-action" onClick={() => startPractice(mistake.unit, { clearDraft: true, retestOf: mistake.attempt.id, onlyPartId: mistake.part.id })}><RefreshCcw size={15} />Retest this part</button></footer></article>
+            })}
+            {filteredPaperMistakes.map((mistake) => <article className="notebook-mistake" key={mistake.id}><header><span className="status-pill danger">Paper review</span><span>{mistake.status}</span></header><h3>{mistake.session.file} - question {mistake.questionNumber}</h3><p className="notebook-mistake__topic">{mistake.paper.subject} - {formatDate(mistake.session.completedAt)}</p><p>{mistake.status === 'Blank response' ? 'No final response was submitted for this printed question.' : 'Compare your response with the exact mark scheme and record the awarded marks.'}</p><footer><span>{mistake.awarded == null ? 'Not self-marked' : `${mistake.awarded}/${mistake.maxMarks} marks`}</span><button type="button" className="primary-action compact-action" onClick={() => retestPaper(mistake.paper, mistake.session.attemptId)}><RefreshCcw size={15} />Retest paper</button></footer></article>)}
+          </div> : <div className="empty-state notebook-empty"><CheckCircle2 size={28} /><h2>{search || severity !== 'all' ? 'No notebook items match' : 'Your review queue is clear'}</h2><p>{search || severity !== 'all' ? 'Try a different search or priority.' : 'Complete a practice set and missed mark points will be saved here.'}</p>{(search || severity !== 'all') && <button type="button" className="secondary-action" onClick={() => { setQuery(''); setSeverity('all') }}>Clear filters</button>}</div>}
+        </section>
+
+        <aside className="notebook-side">
+          <section className="notebook-note-tool"><header><div><p className="section-label">Private note</p><h2>What will you remember?</h2></div><BookOpen size={18} /></header><textarea value={savedNote} onChange={(event) => onChangeNote(event.target.value)} placeholder="Write a short method, formula, or reminder for this route..." aria-label="Private route notebook note" /><small>{note?.updatedAt ? `Saved locally ${formatDate(note.updatedAt)}` : 'Saved locally for this route'}</small></section>
+          <section className="notebook-recent"><header><div><p className="section-label">Progress</p><h2>Recent results</h2></div><BarChart3 size={18} /></header>{recentAttempts.length ? <div>{recentAttempts.map((attempt) => { const unit = unitById.get(attempt.unitId); return <div className="notebook-result-row" key={attempt.id}><span><strong>{unit?.topic || 'Practice set'}</strong><small>{unit?.title || 'Verified question set'}</small></span><b>{attempt.scoreResult.percentage}%</b></div> })}</div> : <p className="notebook-side-empty">Your completed sets will appear here.</p>}</section>
+        </aside>
+      </div>
+    </section>
   )
 }
 

@@ -304,7 +304,7 @@ function verifiedRoleClaims(payload) {
     else if (typeof value === 'string') values.push(...value.split(','))
   }
   if (typeof payload.role === 'string') values.push(payload.role)
-  return [...new Set(values.map((value) => asText(value, 40).toLowerCase()))].filter((value) => ['teacher', 'owner', 'school', 'school_admin'].includes(value))
+  return [...new Set(values.map((value) => asText(value, 40).toLowerCase()))].filter((value) => ['teacher', 'owner', 'school', 'school_admin', 'school_owner'].includes(value))
 }
 
 function identityFromRequest(request, signingKey) {
@@ -336,6 +336,12 @@ function identityFromRequest(request, signingKey) {
 function requireVerifiedStaffClaim(user) {
   if (!user.roles.includes('teacher') && !user.roles.includes('owner')) {
     throw Object.assign(new Error('A server-verified teacher or owner claim is required to create a class.'), { statusCode: 403 })
+  }
+}
+
+function requireSchoolAdminClaim(user) {
+  if (!user.roles.includes('school_admin') && !user.roles.includes('school_owner')) {
+    throw Object.assign(new Error('A server-verified school administrator claim is required for school analytics and reports.'), { statusCode: 403 })
   }
 }
 
@@ -480,7 +486,7 @@ function routeScopesForClass(database, classroomId, filter = {}) {
   const parameters = filter.stage ? filter.stage === LEGACY_SCOPE ? [LEGACY_SCOPE] : [filter.stage, LEGACY_SCOPE] : []
   return database.prepare(`
     SELECT DISTINCT route_id, CASE WHEN route_id = ? THEN ? ELSE stage END AS stage
-    FROM assignments WHERE classroom_id = ? ${stageCondition}
+    FROM assignments WHERE classroom_id = ? AND status <> 'archived' ${stageCondition}
     ORDER BY route_id, stage
   `).all(LEGACY_SCOPE, LEGACY_SCOPE, classroomId, ...parameters).map(storedScope)
 }
@@ -497,7 +503,7 @@ function summaryForClass(database, classroomId, filter = {}, { includeRouteGroup
       SELECT assignment_id, student_user_id, MAX(occurred_at) AS latest_at
       FROM submission_events WHERE ${latestFilter.sql} GROUP BY assignment_id, student_user_id
     ) latest ON latest.assignment_id = events.assignment_id AND latest.student_user_id = events.student_user_id AND latest.latest_at = events.occurred_at
-    WHERE assignments.classroom_id = ? AND ${outerFilter.sql}
+    WHERE assignments.classroom_id = ? AND assignments.status <> 'archived' AND ${outerFilter.sql}
   `).all(...latestFilter.parameters, classroomId, ...outerFilter.parameters)
   const results = rows.map((row) => ({ ...row, payload: JSON.parse(row.payload_json) }))
   const percentages = results.map((row) => Number(row.payload.percentage)).filter(Number.isFinite)
@@ -654,13 +660,17 @@ function eventPayload(value) {
   const rawMarks = Number(value?.rawMarks)
   const maxMarks = Number(value?.maxMarks)
   const percentage = Number(value?.percentage)
-  if (![rawMarks, maxMarks, percentage].every(Number.isFinite) || rawMarks < 0 || maxMarks <= 0 || percentage < 0 || percentage > 100) {
+  if (![rawMarks, maxMarks, percentage].every(Number.isFinite) || rawMarks < 0 || maxMarks <= 0 || rawMarks > maxMarks || percentage < 0 || percentage > 100) {
     throw Object.assign(new Error('Submission requires valid mark totals and percentage.'), { statusCode: 400 })
   }
+  const calculatedPercentage = Math.round((rawMarks / maxMarks) * 100)
+  if (percentage !== calculatedPercentage) {
+    throw Object.assign(new Error('Submission percentage must match rawMarks and maxMarks.'), { statusCode: 400 })
+  }
   return {
-    rawMarks: Math.min(rawMarks, maxMarks),
+    rawMarks,
     maxMarks,
-    percentage: Math.round(percentage),
+    percentage: calculatedPercentage,
     elapsedSeconds: Math.max(0, Math.min(Number(value.elapsedSeconds) || 0, 86_400)),
     markingMode: asText(value.markingMode || 'assisted', 40),
     reviewRequired: Boolean(value.reviewRequired),
@@ -702,7 +712,7 @@ export function createStemApi({ env }) {
         const inviteCode = asText(payload.inviteCode, 64)
         const classroom = db.prepare('SELECT * FROM classrooms WHERE invite_code = ? AND archived_at IS NULL').get(inviteCode)
         if (!classroom) throw Object.assign(new Error('That class code is invalid or archived.'), { statusCode: 404 })
-        const role = user.roles.includes('school') || user.roles.includes('school_admin')
+        const role = user.roles.includes('school') || user.roles.includes('school_admin') || user.roles.includes('school_owner')
           ? 'school'
           : user.roles.includes('teacher') || user.roles.includes('owner') ? 'teacher' : 'student'
         db.prepare('INSERT INTO class_memberships (classroom_id, user_id, role, joined_at) VALUES (?, ?, ?, ?) ON CONFLICT(classroom_id, user_id) DO NOTHING').run(classroom.id, user.id, role, nowIso())
@@ -720,7 +730,7 @@ export function createStemApi({ env }) {
       const submissionsMatch = url.pathname.match(/^\/api\/stem\/classrooms\/([^/]+)\/submissions$/)
       if (request.method === 'GET' && submissionsMatch) {
         const classroomId = decodeURIComponent(submissionsMatch[1])
-        const record = requireMembership(db, classroomId, user.id, new Set(['owner', 'teacher', 'school']))
+        requireMembership(db, classroomId, user.id, new Set(['owner', 'teacher']))
         const rows = db.prepare(`
           SELECT events.*, assignments.syllabus_point_id
           FROM submission_events AS events
@@ -729,7 +739,7 @@ export function createStemApi({ env }) {
           ORDER BY events.occurred_at DESC
           LIMIT 500
         `).all(classroomId)
-        sendJson(response, 200, { classroomId, submissions: rows.map((row) => publicSubmission(row, { includeStudentUserId: record.role !== 'school' })) })
+        sendJson(response, 200, { classroomId, submissions: rows.map((row) => publicSubmission(row)) })
         return
       }
       if (request.method === 'POST' && url.pathname === '/api/stem/assignments') {
@@ -818,25 +828,32 @@ export function createStemApi({ env }) {
         }
       }
       if (request.method === 'GET' && url.pathname === '/api/stem/school/analytics') {
+        requireSchoolAdminClaim(user)
         const classes = accessibleStaffClasses(db, user.id)
-        if (!classes.length) throw Object.assign(new Error('No school or teaching classes are available for this account.'), { statusCode: 403 })
+        if (!classes.length) throw Object.assign(new Error('No school classes are available for this account.'), { statusCode: 403 })
         sendJson(response, 200, { analytics: schoolAnalytics(db, user, reportFilter(url)) })
         return
       }
       if (request.method === 'GET' && url.pathname === '/api/stem/school/reports/anonymous') {
+        requireSchoolAdminClaim(user)
         const classes = accessibleStaffClasses(db, user.id)
-        if (!classes.length) throw Object.assign(new Error('No school or teaching classes are available for this account.'), { statusCode: 403 })
+        if (!classes.length) throw Object.assign(new Error('No school classes are available for this account.'), { statusCode: 403 })
         const analytics = schoolAnalytics(db, user, reportFilter(url))
+        const minimumCohortSize = 5
+        const eligibleCohorts = analytics.cohorts.filter((cohort) => Number(cohort.summary.studentCount) >= minimumCohortSize)
+        const suppressedCohorts = analytics.cohorts.length - eligibleCohorts.length
         const report = {
           generatedAt: analytics.generatedAt,
           window: analytics.window,
           filter: analytics.filter,
           aggregationMode: analytics.aggregationMode,
-          cohorts: analytics.cohorts.map((cohort, index) => ({ cohort: `Cohort ${index + 1}`, summary: cohort.summary })),
-          routeGroups: analytics.routeGroups,
-          topicCoverage: analytics.topicCoverage,
-          riskReasons: analytics.riskReasons,
-          privacy: analytics.privacy,
+          cohorts: eligibleCohorts.map((cohort, index) => ({ cohort: `Cohort ${index + 1}`, summary: cohort.summary })),
+          routeGroups: suppressedCohorts ? [] : analytics.routeGroups,
+          topicCoverage: suppressedCohorts ? [] : analytics.topicCoverage,
+          riskReasons: suppressedCohorts ? [] : analytics.riskReasons,
+          suppressedCohorts,
+          minimumCohortSize,
+          privacy: `${analytics.privacy} Cohorts with fewer than ${minimumCohortSize} students are suppressed in anonymous reports.`,
         }
         sendJson(response, 200, { report })
         return
@@ -846,7 +863,7 @@ export function createStemApi({ env }) {
         const assignmentId = decodeURIComponent(submissionMatch[1])
         const assignment = db.prepare('SELECT * FROM assignments WHERE id = ? AND status = \'active\'').get(assignmentId)
         if (!assignment) throw Object.assign(new Error('This assignment is not available.'), { statusCode: 404 })
-        requireMembership(db, assignment.classroom_id, user.id, new Set(['student', 'teacher', 'owner']))
+        requireMembership(db, assignment.classroom_id, user.id, new Set(['student']))
         const payload = await readJson(request)
         const idempotencyKey = asText(payload.idempotencyKey, 100)
         if (!idempotencyKey) throw Object.assign(new Error('Submission needs an idempotency key.'), { statusCode: 400 })
