@@ -138,6 +138,12 @@ try {
   })
   assert.equal(wrongBankSuffix.statusCode, 400)
   assert.match(wrongBankSuffix.body.error, /bankId must use/)
+  const duplicateBankIds = await call(api, {
+    method: 'POST', url: '/api/stem/assignments', token: teacherToken,
+    body: { classroomId: createdClass.body.classroom.id, subjectId: 'physics-9702', routeId: 'cie-9702-as-physics', stage: 'AS', syllabusPointId: 'physics-waves', title: 'Duplicate source IDs', sourceScope: { questionIds: ['qp-0@cie-9702-as-physics', 'qp-0@cie-9702-as-physics'], routeId: 'cie-9702-as-physics', stage: 'AS' } },
+  })
+  assert.equal(duplicateBankIds.statusCode, 400)
+  assert.match(duplicateBankIds.body.error, /must be unique/)
 
   const assignment = await call(api, {
     method: 'POST', url: '/api/stem/assignments', token: teacherToken,
@@ -184,7 +190,7 @@ try {
 
   const submission = await call(api, {
     method: 'POST', url: `/api/stem/assignments/${assignment.body.assignment.id}/submissions`, token: studentToken,
-    body: { idempotencyKey: 'student-one-waves-attempt-one', attemptId: 'attempt-1', rawMarks: 8, maxMarks: 10, percentage: 80, elapsedSeconds: 900, markingMode: 'assisted' },
+    body: { idempotencyKey: 'student-one-waves-attempt-one', attemptId: 'attempt-1', rawMarks: 8, maxMarks: 10, percentage: 80, elapsedSeconds: 900, markingMode: 'official' },
   })
   assert.equal(submission.statusCode, 201)
   assert.equal(submission.body.routeId, 'cie-9702-as-physics')
@@ -236,7 +242,9 @@ try {
   const summary = await call(api, { method: 'GET', url: `/api/stem/classrooms/${createdClass.body.classroom.id}/summary?routeId=cie-9702-as-physics&stage=AS`, token: teacherToken })
   assert.equal(summary.statusCode, 200)
   assert.equal(summary.body.summary.submissions, 1)
-  assert.equal(summary.body.summary.averagePercentage, 80)
+  assert.equal(summary.body.summary.verifiedScoreCount, 0)
+  assert.equal(summary.body.summary.reportedScoreCount, 1)
+  assert.equal(summary.body.summary.averagePercentage, null)
   assert.equal(summary.body.summary.studentCount, 1)
   assert.equal(summary.body.summary.teacherCount, 2)
   assert.equal(summary.body.summary.assignmentCompletionRate, 100)
@@ -247,13 +255,20 @@ try {
   const unfilteredSummary = await call(api, { method: 'GET', url: `/api/stem/classrooms/${createdClass.body.classroom.id}/summary`, token: teacherToken })
   assert.equal(unfilteredSummary.statusCode, 200)
   assert.equal(unfilteredSummary.body.summary.submissions, 3)
-  assert.equal(unfilteredSummary.body.summary.averagePercentage, 70)
+  assert.equal(unfilteredSummary.body.summary.verifiedScoreCount, 0)
+  assert.equal(unfilteredSummary.body.summary.reportedScoreCount, 3)
+  assert.equal(unfilteredSummary.body.summary.averagePercentage, null)
   assert.equal(unfilteredSummary.body.summary.aggregationMode, 'cross-route-overview')
   assert.deepEqual(unfilteredSummary.body.summary.routeGroups.map((item) => item.routeId).sort(), ['cie-0625-igcse-physics', 'cie-9702-a2-physics', 'cie-9702-as-physics'])
   assert.equal(unfilteredSummary.body.summary.coverageBySyllabusPoint['cie-9702-as-physics::physics-waves'].submissions, 1)
   assert.equal(unfilteredSummary.body.summary.coverageBySyllabusPoint['cie-9702-a2-physics::physics-waves'].submissions, 1)
   const schoolSubmissions = await call(api, { method: 'GET', url: `/api/stem/classrooms/${createdClass.body.classroom.id}/submissions`, token: schoolRoleToken })
   assert.equal(schoolSubmissions.statusCode, 403)
+  const teacherSubmissions = await call(api, { method: 'GET', url: `/api/stem/classrooms/${createdClass.body.classroom.id}/submissions`, token: teacherToken })
+  assert.equal(teacherSubmissions.statusCode, 200)
+  const reportedSubmission = teacherSubmissions.body.submissions.find((item) => item.attemptId === 'attempt-1')
+  assert.equal(reportedSubmission.scoreStatus, 'reported')
+  assert.equal(reportedSubmission.markingMode, 'student-reported')
 
   const reminder = await call(api, {
     method: 'POST', url: `/api/stem/assignments/${assignment.body.assignment.id}/reminders`, token: teacherToken,

@@ -120,7 +120,8 @@ function verifiedAssignmentScope(routeValue, stageValue, subjectValue) {
 
 function routeScopedQuestionIds(values, routeId) {
   if (!Array.isArray(values) || !values.length) throw Object.assign(new Error('Assignment needs route-scoped question IDs.'), { statusCode: 400 })
-  return values.slice(0, 60).map((value) => {
+  if (values.length > 60) throw Object.assign(new Error('An assignment can contain at most 60 question IDs.'), { statusCode: 400 })
+  const questionIds = values.map((value) => {
     const bankId = asText(value, 320)
     const separator = bankId.indexOf('@')
     const sourceQuestionId = bankId.slice(0, separator)
@@ -130,6 +131,10 @@ function routeScopedQuestionIds(values, routeId) {
     }
     return bankId
   })
+  if (new Set(questionIds).size !== questionIds.length) {
+    throw Object.assign(new Error('Assignment question IDs must be unique.'), { statusCode: 400 })
+  }
+  return questionIds
 }
 
 function storedScope(row) {
@@ -428,6 +433,12 @@ function publicSubmission(row, { includeStudentUserId = true } = {}) {
   return result
 }
 
+function scoreStatus(payload) {
+  // Assignment completion is authenticated server-side, but browser-calculated
+  // marks are untrusted until a server-owned marking workflow verifies them.
+  return payload?.scoreStatus === 'verified' ? 'verified' : 'reported'
+}
+
 function currentWorkspace(database, user) {
   const classes = database.prepare(`
     SELECT classrooms.*, class_memberships.role
@@ -514,7 +525,9 @@ function summaryForClass(database, classroomId, filter = {}, { includeRouteGroup
     WHERE assignments.classroom_id = ? AND assignments.status <> 'archived' AND ${outerFilter.sql}
   `).all(...latestFilter.parameters, classroomId, ...outerFilter.parameters)
   const results = rows.map((row) => ({ ...row, payload: JSON.parse(row.payload_json) }))
-  const percentages = results.map((row) => Number(row.payload.percentage)).filter(Number.isFinite)
+  const verifiedResults = results.filter((row) => scoreStatus(row.payload) === 'verified')
+  const reportedScoreCount = results.length - verifiedResults.length
+  const percentages = verifiedResults.map((row) => Number(row.payload.percentage)).filter(Number.isFinite)
   const enrolment = database.prepare(`
     SELECT
       SUM(CASE WHEN role = 'student' THEN 1 ELSE 0 END) AS student_count,
@@ -528,10 +541,13 @@ function summaryForClass(database, classroomId, filter = {}, { includeRouteGroup
   const coverageBySyllabusPoint = reportableResults.reduce((coverage, row) => {
     const scope = storedScope(row)
     const key = `${scope.routeId}::${row.syllabus_point_id}`
-    const item = coverage[key] || { ...scope, topicId: row.syllabus_point_id, submissions: 0, percentages: [] }
+    const item = coverage[key] || { ...scope, topicId: row.syllabus_point_id, submissions: 0, verifiedScoreCount: 0, percentages: [] }
     item.submissions += 1
-    const percentage = Number(row.payload.percentage)
-    if (Number.isFinite(percentage)) item.percentages.push(percentage)
+    const percentage = scoreStatus(row.payload) === 'verified' ? Number(row.payload.percentage) : NaN
+    if (Number.isFinite(percentage)) {
+      item.percentages.push(percentage)
+      item.verifiedScoreCount += 1
+    }
     coverage[key] = item
     return coverage
   }, {})
@@ -541,6 +557,7 @@ function summaryForClass(database, classroomId, filter = {}, { includeRouteGroup
     scopeStatus: item.scopeStatus,
     topicId: item.topicId,
     submissions: item.submissions,
+    verifiedScoreCount: item.verifiedScoreCount,
     averagePercentage: item.percentages.length ? Math.round(item.percentages.reduce((total, value) => total + value, 0) / item.percentages.length) : null,
   }]))
   const studentCount = Number(enrolment.student_count) || 0
@@ -549,12 +566,15 @@ function summaryForClass(database, classroomId, filter = {}, { includeRouteGroup
   const riskReasons = []
   if (studentCount && new Set(results.filter((row) => row.occurred_at >= activeCutoff).map((row) => row.student_user_id)).size / studentCount < 0.6) riskReasons.push('Low recent participation')
   if (completionRate != null && completionRate < 60) riskReasons.push('Low assignment completion')
-  if (percentages.length && percentages.reduce((total, value) => total + value, 0) / percentages.length < 60) riskReasons.push('Low submitted accuracy')
+  if (percentages.length && percentages.reduce((total, value) => total + value, 0) / percentages.length < 60) riskReasons.push('Low verified accuracy')
+  if (reportedScoreCount) riskReasons.push('Scores await verified marking')
   if (!reportableResults.length && activeAssignments) riskReasons.push('No submitted evidence')
   const summary = {
     filter: { routeId: filter.routeId || null, stage: filter.stage || null },
     aggregationMode: filter.routeId || filter.stage ? 'single-scope' : 'cross-route-overview',
     submissions: results.length,
+    verifiedScoreCount: verifiedResults.length,
+    reportedScoreCount,
     averagePercentage: percentages.length ? Math.round(percentages.reduce((total, value) => total + value, 0) / percentages.length) : null,
     needsSupport: percentages.filter((value) => value < 60).length,
     studentCount,
@@ -604,8 +624,8 @@ function schoolAnalytics(database, user, filter) {
       const current = coverage[key] || { routeId: item.routeId, stage: item.stage, scopeStatus: item.scopeStatus, topicId: item.topicId, submissions: 0, weightedScore: 0, scoredSubmissions: 0 }
       current.submissions += item.submissions
       if (Number.isFinite(item.averagePercentage)) {
-        current.weightedScore += item.averagePercentage * item.submissions
-        current.scoredSubmissions += item.submissions
+        current.weightedScore += item.averagePercentage * item.verifiedScoreCount
+        current.scoredSubmissions += item.verifiedScoreCount
       }
       coverage[key] = current
     }
@@ -617,8 +637,9 @@ function schoolAnalytics(database, user, filter) {
     }]
     for (const group of cohortGroups) {
       const key = `${group.routeId}::${group.stage}`
-      const current = groupedRoutes[key] || { routeId: group.routeId, stage: group.stage, scopeStatus: group.scopeStatus, submissions: 0, weightedScore: 0, activeAssignments: 0, needsSupport: 0, cohorts: 0 }
+      const current = groupedRoutes[key] || { routeId: group.routeId, stage: group.stage, scopeStatus: group.scopeStatus, submissions: 0, verifiedScoreCount: 0, weightedScore: 0, activeAssignments: 0, needsSupport: 0, cohorts: 0 }
       current.submissions += group.summary.submissions
+      current.verifiedScoreCount += group.summary.verifiedScoreCount
       current.activeAssignments += group.summary.activeAssignments
       current.needsSupport += group.summary.needsSupport
       current.cohorts += 1
@@ -647,7 +668,8 @@ function schoolAnalytics(database, user, filter) {
       stage: item.stage,
       scopeStatus: item.scopeStatus,
       submissions: item.submissions,
-      averagePercentage: item.submissions ? Math.round(item.weightedScore / item.submissions) : null,
+      verifiedScoreCount: item.verifiedScoreCount,
+      averagePercentage: item.verifiedScoreCount ? Math.round(item.weightedScore / item.verifiedScoreCount) : null,
       activeAssignments: item.activeAssignments,
       needsSupport: item.needsSupport,
       cohortCount: item.cohorts,
@@ -675,12 +697,15 @@ function eventPayload(value) {
   if (percentage !== calculatedPercentage) {
     throw Object.assign(new Error('Submission percentage must match rawMarks and maxMarks.'), { statusCode: 400 })
   }
+  const requestedMarkingMode = asText(value.markingMode || 'student-reported', 40)
+  const supportedMarkingModes = new Set(['deterministic', 'assisted', 'assisted-vision', 'student-self-mark', 'student-reported'])
   return {
     rawMarks,
     maxMarks,
     percentage: calculatedPercentage,
     elapsedSeconds: Math.max(0, Math.min(Number(value.elapsedSeconds) || 0, 86_400)),
-    markingMode: asText(value.markingMode || 'assisted', 40),
+    markingMode: supportedMarkingModes.has(requestedMarkingMode) ? requestedMarkingMode : 'student-reported',
+    scoreStatus: 'reported',
     reviewRequired: Boolean(value.reviewRequired),
     attemptId: asText(value.attemptId, 100),
   }

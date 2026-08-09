@@ -534,15 +534,29 @@ function topicAverages(submissions) {
     return groups;
   }, {});
   return Object.entries(grouped)
-    .map(([topicId, rows]) => ({
-      topicId,
-      count: rows.length,
-      average: Math.round(
-        rows.reduce((sum, row) => sum + (Number(row.percentage) || 0), 0) /
-          rows.length,
-      ),
-    }))
+    .map(([topicId, rows]) => {
+      const verified = rows.filter(hasVerifiedScore);
+      return {
+        topicId,
+        count: rows.length,
+        verifiedCount: verified.length,
+        average: verified.length
+          ? Math.round(verified.reduce((sum, row) => sum + Number(row.percentage), 0) / verified.length)
+          : null,
+      };
+    })
+    .filter((item) => item.average != null)
     .sort((left, right) => left.average - right.average);
+}
+
+function hasVerifiedScore(submission) {
+  return submission?.scoreStatus === "verified" && Number.isFinite(Number(submission.percentage));
+}
+
+function submissionScoreSource(submission) {
+  if (!hasVerifiedScore(submission)) return "Student-reported result; verification pending";
+  if (submission.markingMode === "official") return "Official mark points";
+  return "Server-verified scoring";
 }
 
 function studentDisplayName(studentUserId) {
@@ -580,25 +594,24 @@ function TeacherClasses({
       return rows;
     }, {}),
   )
-    .map(([studentUserId, rows]) => ({
-      studentUserId,
-      submissions: rows,
-      average: Math.round(
-        rows.reduce(
-          (sum, submission) =>
-            sum + (Number(submission.percentage) || 0),
-          0,
-        ) / rows.length,
-      ),
-      lastActive: rows.reduce(
+    .map(([studentUserId, rows]) => {
+      const verified = rows.filter(hasVerifiedScore);
+      return {
+        studentUserId,
+        submissions: rows,
+        average: verified.length
+          ? Math.round(verified.reduce((sum, submission) => sum + Number(submission.percentage), 0) / verified.length)
+          : null,
+        lastActive: rows.reduce(
         (latest, submission) =>
           !latest || submission.occurredAt > latest
             ? submission.occurredAt
             : latest,
-        "",
-      ),
-    }))
-    .sort((left, right) => left.average - right.average);
+          "",
+        ),
+      };
+    })
+    .sort((left, right) => (left.average ?? 101) - (right.average ?? 101));
   const selectedStudent =
     students.find((student) => student.studentUserId === selectedStudentId) ||
     students[0];
@@ -610,17 +623,16 @@ function TeacherClasses({
           groups[key].push(submission);
           return groups;
         }, {}),
-      ).map(([studentRouteId, rows]) => ({
-        routeId: studentRouteId,
-        count: rows.length,
-        average: Math.round(
-          rows.reduce(
-            (sum, submission) =>
-              sum + (Number(submission.percentage) || 0),
-            0,
-          ) / rows.length,
-        ),
-      }))
+      ).map(([studentRouteId, rows]) => {
+        const verified = rows.filter(hasVerifiedScore);
+        return {
+          routeId: studentRouteId,
+          count: rows.length,
+          average: verified.length
+            ? Math.round(verified.reduce((sum, submission) => sum + Number(submission.percentage), 0) / verified.length)
+            : null,
+        };
+      })
     : [];
 
   return (
@@ -715,7 +727,7 @@ function TeacherClasses({
                             </button>
                           </td>
                           <td>{student.submissions.length}</td>
-                          <td>{student.average}%</td>
+                          <td>{student.average == null ? "Pending verification" : `${student.average}%`}</td>
                           <td>
                             {new Date(student.lastActive).toLocaleDateString(
                               "en-GB",
@@ -759,10 +771,9 @@ function TeacherClasses({
                         </strong>
                         <span>
                           {result.count} submitted set
-                          {result.count === 1 ? "" : "s"} | {result.average}%
-                          average
+                          {result.count === 1 ? "" : "s"} | {result.average == null ? "score pending verification" : `${result.average}% verified average`}
                         </span>
-                        <i style={{ width: `${result.average}%` }} />
+                        <i style={{ width: `${result.average || 0}%` }} />
                       </div>
                     ))}
                   </div>
@@ -947,11 +958,7 @@ function TeacherReview({ submissions, assignments, onAssignmentAction }) {
                       {submission.percentage}%)
                     </td>
                     <td>
-                      {submission.markingMode === "official"
-                        ? "Official mark points"
-                        : submission.markingMode === "assisted"
-                          ? "AI-assisted review"
-                          : "Verified scoring"}
+                      {submissionScoreSource(submission)}
                     </td>
                     <td>
                       {new Date(submission.occurredAt).toLocaleDateString(

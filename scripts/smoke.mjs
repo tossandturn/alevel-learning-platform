@@ -303,6 +303,11 @@ const a2Practice = buildCoachPractice({ routeId: 'cie-9702-a2-physics', knowledg
 assert.ok(a2Practice.parts.length >= a2Group.parts.length, 'Coach practice must flatten a verified group into explicit QuestionParts')
 assert.ok(a2Practice.parts.every((part) => part.routeId === 'cie-9702-a2-physics' && part.stage === 'A2'), 'A2 Coach practice must never contain AS or IGCSE parts')
 assert.ok(a2Practice.parts.every((part) => part.questionGroupId && part.questionPartId && part.sourceRef.page && part.answerRef.page), 'every Coach item must preserve group, part, QP page, and MS page bindings')
+const exactAssignedPractice = buildCoachPractice({ routeId: 'cie-9702-a2-physics', knowledgeGroupId: a2Group.knowledgeGroupId, sourceQuestionIds: [a2Group.bankId], unitId: 'assignment-test' })
+assert.equal(exactAssignedPractice.questionGroupCount, 1, 'an assigned source list must not be expanded to the normal ten-question drill minimum')
+assert.equal(exactAssignedPractice.parts.length, a2Group.parts.length, 'an assignment must reopen the exact saved question group, including every QuestionPart')
+assert.deepEqual(exactAssignedPractice.assignmentSourceIds, [a2Group.bankId], 'an assignment must retain its immutable source question IDs')
+assert.throws(() => buildCoachPractice({ routeId: 'cie-9702-a2-physics', knowledgeGroupId: a2Group.knowledgeGroupId, sourceQuestionIds: [a2Group.bankId, a2Group.bankId] }), /duplicate question IDs/, 'duplicate assignment sources must be rejected')
 
 const physicsPaper1 = getExamPaperProfile('9702', '12')
 assert.equal(physicsPaper1.mode, 'mcq', '9702 Paper 1 must use the MCQ answer sheet')

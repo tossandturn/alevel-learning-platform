@@ -149,19 +149,34 @@ export function previewCoachPracticeSourceMix({ routeId, subjectId, stage, knowl
   }
 }
 
-export function buildCoachPractice({ routeId, subjectId, stage, knowledgeGroupId, questionCount = 10, questionOffset = 0, allowPartial = false, unitId = '' }) {
+export function buildCoachPractice({ routeId, subjectId, stage, knowledgeGroupId, questionCount = 10, questionOffset = 0, allowPartial = false, unitId = '', sourceQuestionIds = null }) {
   const { subject, group } = resolveSelection({ routeId, subjectId, stage, knowledgeGroupId })
-  const requestedCount = Math.min(30, Math.max(10, Number(questionCount) || 10))
+  const assignedSourceIds = Array.isArray(sourceQuestionIds)
+    ? sourceQuestionIds.map((id) => String(id || '').trim()).filter(Boolean)
+    : null
+  if (assignedSourceIds && new Set(assignedSourceIds).size !== assignedSourceIds.length) {
+    throw new Error('The assignment source list contains duplicate question IDs.')
+  }
+  const requestedCount = assignedSourceIds ? assignedSourceIds.length : Math.min(30, Math.max(10, Number(questionCount) || 10))
   if (!group) throw new PracticeInventoryError({ subject, stage: subject.stage, group: { name: 'selected topic' }, available: 0, requested: requestedCount })
-  const bank = selectTaggedQuestions({
-    routeId: subject.routeId,
-    qualificationId: subject.qualificationId,
-    subjectId: subject.subjectId,
-    stage: subject.stage,
-    knowledgeGroupId: group.id,
-    questionCount: requestedCount,
-    questionOffset,
-  })
+  const bank = assignedSourceIds
+    ? (() => {
+      const available = new Map(selectTaggedQuestionsForRoute(subject.routeId)
+        .filter((question) => question.knowledgeGroupId === group.id)
+        .map((question) => [question.bankId, question]))
+      const missing = assignedSourceIds.filter((id) => !available.has(id))
+      if (missing.length) throw new Error('This assignment references question IDs that are no longer available in its selected topic.')
+      return assignedSourceIds.map((id) => available.get(id))
+    })()
+    : selectTaggedQuestions({
+      routeId: subject.routeId,
+      qualificationId: subject.qualificationId,
+      subjectId: subject.subjectId,
+      stage: subject.stage,
+      knowledgeGroupId: group.id,
+      questionCount: requestedCount,
+      questionOffset,
+    })
   if (!bank.length) {
     throw new PracticeInventoryError({ subject, stage: subject.stage, group, available: bank.length, requested: requestedCount })
   }
@@ -252,6 +267,7 @@ export function buildCoachPractice({ routeId, subjectId, stage, knowledgeGroupId
       paperRef: [...sourcePapers.values()].map((item) => item.file).join(', '),
     },
     sourceMix,
+    assignmentSourceIds: assignedSourceIds,
     questionGroupCount: bank.length,
     questionOffset: Math.max(0, Math.floor(Number(questionOffset) || 0)),
     referencePapers: [...sourcePapers.values()],

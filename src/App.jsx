@@ -728,7 +728,7 @@ function App() {
         syllabusPointId: draft.topicId,
         title: draft.title || `${subject?.code || ''} ${topic?.name || 'verified practice'}`.trim(),
         dueAt: draft.dueDate || null,
-        sourceScope: { routeId: route.routeId, stage: route.stage, questionIds: verifiedUnit.parts.map((part) => part.bankId), provenanceVersion: 'qp-ms-v2' },
+        sourceScope: { routeId: route.routeId, stage: route.stage, questionIds: [...new Set(verifiedUnit.parts.map((part) => part.bankId))], provenanceVersion: 'qp-ms-v2' },
       }),
     })
     const workspace = await requestSharedWorkspace(account.token)
@@ -737,10 +737,15 @@ function App() {
   }
 
   function startAssignedAssignment(assignment) {
+    const sourceQuestionIds = assignment.sourceScope?.questionIds
+    if (!Array.isArray(sourceQuestionIds) || !sourceQuestionIds.length) {
+      throw new Error('This assignment has no verified source question list. Ask the teacher to republish it.')
+    }
     const unit = buildCoachPractice({
       routeId: assignment.routeId,
       knowledgeGroupId: assignment.syllabusPointId,
-      questionCount: assignment.sourceScope?.questionIds?.length || 10,
+      sourceQuestionIds,
+      unitId: `assignment:${assignment.id}`,
     })
     startPractice(unit, { assignmentId: assignment.id })
   }
