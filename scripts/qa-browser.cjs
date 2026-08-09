@@ -429,6 +429,17 @@ async function run() {
     await mobilePage.evaluate(() => localStorage.clear())
     await mobilePage.reload({ waitUntil: 'domcontentloaded' })
     await mobilePage.locator('.student-home-guided .recommended-session').waitFor()
+    const mobileNav = await mobilePage.evaluate(() => {
+      const nav = document.querySelector('.unified-top-nav nav')
+      const buttons = [...(nav?.querySelectorAll('button') || [])].map((button) => {
+        const box = button.getBoundingClientRect()
+        return { label: button.textContent.trim(), left: box.left, right: box.right, width: box.width, height: box.height }
+      })
+      return { buttonCount: buttons.length, buttons, scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }
+    })
+    if (mobileNav.buttonCount !== 5 || mobileNav.scrollWidth > mobileNav.clientWidth || mobileNav.buttons.some((button) => button.left < -1 || button.right > mobileNav.clientWidth + 1 || button.width < 44 || button.height < 38)) {
+      throw new Error(`Mobile primary navigation geometry failed: ${JSON.stringify(mobileNav)}`)
+    }
     const mobileStartBox = await mobilePage.locator('.student-primary-start').boundingBox()
     if (!mobileStartBox || mobileStartBox.y + mobileStartBox.height > 844) throw new Error(`Dashboard start action is outside the mobile first viewport: ${JSON.stringify(mobileStartBox)}`)
     const mobileCoachBox = await mobilePage.locator('.ai-coach-trigger').boundingBox()
