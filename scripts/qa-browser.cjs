@@ -291,6 +291,8 @@ async function run() {
     await specialistCourseSelect.selectOption('bpho-admissions-physics')
     await page.getByRole('button', { name: /^Past Papers$/ }).click()
     await page.getByRole('heading', { name: 'British Physics Olympiad historical archive' }).waitFor()
+    const primaryNavState = await page.getByRole('navigation', { name: 'Primary navigation' }).evaluate((nav) => Object.fromEntries([...nav.querySelectorAll('button')].map((button) => [button.textContent.trim(), button.classList.contains('active')])))
+    if (!primaryNavState.Papers || primaryNavState.Practice) throw new Error(`Past Papers top-level navigation state is incorrect: ${JSON.stringify(primaryNavState)}`)
     if (await page.locator('.ai-coach-trigger').count()) throw new Error('Past Papers still exposes a floating Coach button over the archive table')
     if (await page.locator('.paper-filters select[aria-label="Subject"]').count()) throw new Error('Route-scoped paper library still exposes a duplicate subject filter')
     if (await page.locator('.competition-archive__rounds > div').count() !== 6) throw new Error('BPhO round coverage summary is incomplete')

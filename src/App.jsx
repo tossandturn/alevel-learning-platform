@@ -1103,7 +1103,7 @@ function App() {
 
   return (
     <main className="app-shell">
-      {view !== 'practice' && view !== 'paper' && <TopNav view={view} setView={setView} profile={appState.profile} sharedAccount={sharedAccount} onRefreshSharedAccount={refreshSharedAccount} onDisconnectSharedAccount={disconnectSharedAccount} openNotebook={() => setView('notebook')} openRoleWorkspace={() => setView('workspace')} openPractice={() => { setActiveTab('recommended'); setView('library') }} openPapers={() => { setActiveTab('papers'); setView('library') }} />}
+      {view !== 'practice' && view !== 'paper' && <TopNav view={view} activeTab={activeTab} setView={setView} profile={appState.profile} sharedAccount={sharedAccount} onRefreshSharedAccount={refreshSharedAccount} onDisconnectSharedAccount={disconnectSharedAccount} openNotebook={() => setView('notebook')} openRoleWorkspace={() => setView('workspace')} openPractice={() => { setActiveTab('recommended'); setView('library') }} openPapers={() => { setActiveTab('papers'); setView('library') }} />}
 
       {view === 'dashboard' && (
         <StudentDashboard
@@ -1340,7 +1340,7 @@ function SharedAccountBanner({ sharedAccount, onRefreshSharedAccount }) {
   return <section className="student-account-banner" role="status"><LogIn size={19} /><div><strong>Save your learning across devices</strong><span>Use one IELTSist ID for IELTS and STEM. Your private notebook stays private from teachers and schools.</span></div><a className="primary-action compact-action" href={sharedAuthUrl('login')}>Log in or create account <ChevronRight size={15} /></a></section>
 }
 
-function TopNav({ view, setView, profile, sharedAccount, onRefreshSharedAccount, onDisconnectSharedAccount, openNotebook, openRoleWorkspace, openPractice, openPapers }) {
+function TopNav({ view, activeTab, setView, profile, sharedAccount, onRefreshSharedAccount, onDisconnectSharedAccount, openNotebook, openRoleWorkspace, openPractice, openPapers }) {
   const [campusOpen, setCampusOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
   const learnerName = String(profile?.learnerName || 'Student').trim() || 'Student'
@@ -1364,11 +1364,11 @@ function TopNav({ view, setView, profile, sharedAccount, onRefreshSharedAccount,
           <Target size={17} />
           Today
         </button>
-        <button className={view === 'library' || view === 'topic' ? 'active' : ''} type="button" onClick={openPractice}>
+        <button className={view === 'topic' || (view === 'library' && activeTab !== 'papers') ? 'active' : ''} type="button" onClick={openPractice}>
           <Dumbbell size={17} />
           Practice
         </button>
-        <button type="button" onClick={openPapers}>
+        <button className={view === 'library' && activeTab === 'papers' ? 'active' : ''} type="button" onClick={openPapers}>
           <FileText size={17} />
           Papers
         </button>
