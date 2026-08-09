@@ -44,6 +44,7 @@ import { requestSharedAccount, requestSharedWorkspace, sharedAccountRequest, sha
 import { unifiedQuestionBank } from './data/questionBank'
 import './App.css'
 import './StudentV2.css'
+import './TabletNavFix.css'
 
 const PaperWorkspace = lazy(() =>
   import('./components/PaperWorkspace').then((module) => ({ default: module.PaperWorkspace })),

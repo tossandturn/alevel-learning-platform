@@ -1,0 +1,22 @@
+/* Keep the compact tablet header's account control inside the viewport. */
+@media (min-width: 701px) and (max-width: 1040px) {
+  .unified-top-nav nav {
+    min-width: 0;
+    flex: 1 1 auto;
+    justify-content: center;
+    gap: 0;
+  }
+
+  .unified-top-nav nav button {
+    min-width: 0;
+    flex: 1 1 0;
+    padding-inline: 7px;
+    gap: 5px;
+    font-size: 12px;
+  }
+
+  .unified-top-nav .nav-context {
+    min-width: 0;
+    flex: 0 0 auto;
+  }
+}
