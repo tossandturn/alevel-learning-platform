@@ -12,8 +12,22 @@ async function startSession(page) {
   await page.waitForSelector('.question-block')
 }
 
+async function assertSessionMarkingDisclosure(page, expectedLabel) {
+  const note = page.locator('.setup-marking-note')
+  await note.waitFor()
+  const copy = (await note.innerText()).replace(/\s+/g, ' ').trim()
+  if (!copy.includes(expectedLabel)) {
+    throw new Error(`Session setup marking disclosure is incorrect: expected ${expectedLabel}, received ${copy}`)
+  }
+}
+
 async function openVerifiedStarter(page) {
   await page.locator('.student-primary-start').click()
+  await page.waitForSelector('.session-setup')
+  const disclosure = (await page.locator('.setup-marking-note').innerText()).replace(/\s+/g, ' ').trim()
+  if (!/^(Instant objective marking|Mixed marking|AI-assisted review after submission|Self-mark after submission)\b/.test(disclosure)) {
+    throw new Error(`Session setup is missing a clear marking disclosure: ${disclosure}`)
+  }
   await startSession(page)
   if ((await page.locator('.index-list button').count()) < 1) throw new Error('Verified starter did not contain a source-backed question')
   if ((await page.locator('.question-block').count()) !== 1) throw new Error('Workspace must render one focused question')
@@ -29,7 +43,10 @@ async function openHandwritingStarter(page) {
   if (await practiceButton.isDisabled()) throw new Error('IGCSE Mathematics Number topic did not expose a handwriting practice set')
   await practiceButton.click()
   await page.waitForSelector('.session-setup, .question-block')
-  if (await page.locator('.session-setup').count()) await startSession(page)
+  if (await page.locator('.session-setup').count()) {
+    await assertSessionMarkingDisclosure(page, 'Self-mark after submission')
+    await startSession(page)
+  }
   else await page.locator('.question-block').waitFor()
 }
 

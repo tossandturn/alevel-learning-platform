@@ -3914,6 +3914,12 @@ textarea:focus-visible {
 .setup-summary div { display: grid; gap: 3px; }
 .setup-summary strong { color: var(--text); font-size: 13px; }
 .setup-summary span { color: var(--muted); font-size: 11px; }
+.setup-marking-note { display: grid; gap: 3px; margin: 10px 22px 0; padding: 11px 13px; border: 1px solid #d9e1ec; border-left: 3px solid #64748b; color: #42526a; background: #f8fafc; }
+.setup-marking-note strong { color: var(--text); font-size: 12px; }
+.setup-marking-note span { font-size: 11px; line-height: 1.4; }
+.setup-marking-note--deterministic { border-left-color: #11846b; background: #f0f8f4; }
+.setup-marking-note--ai-assisted { border-left-color: #7357e8; background: #f4f1ff; }
+.setup-marking-note--mixed { border-left-color: #c47b19; background: #fff8eb; }
 .session-setup footer { justify-content: flex-end; margin-top: 20px; border-top: 1px solid var(--border); background: #fbfcfe; }
 
 @media (max-width: 520px) {
@@ -3923,6 +3929,7 @@ textarea:focus-visible {
   .mode-segments button { min-height: 54px; }
   .setup-options { grid-template-columns: 1fr; }
   .setup-summary { margin-inline: 16px; }
+  .setup-marking-note { margin-inline: 16px; }
   .session-setup footer { display: grid; grid-template-columns: 1fr 1fr; }
   .session-setup footer button { width: 100%; }
 }

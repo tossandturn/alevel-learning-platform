@@ -112,6 +112,39 @@ function isSelfMarkOnlyUnit(unit) {
   return Boolean(unit?.parts?.length) && unit.parts.every((part) => !part?.deterministicScoringAvailable && !canUseAiAssistedMarking(part))
 }
 
+function markingCapabilityForUnit(unit) {
+  const parts = unit?.parts || []
+  const deterministic = parts.filter((part) => Boolean(part?.deterministicScoringAvailable || part?.answerKey)).length
+  const aiAssisted = parts.filter((part) => canUseAiAssistedMarking(part)).length
+  const selfMark = Math.max(0, parts.length - deterministic - aiAssisted)
+  if (selfMark && !deterministic && !aiAssisted) {
+    return {
+      mode: 'self-mark',
+      label: 'Self-mark after submission',
+      description: 'Compare each response with the paired official mark scheme and record marks. No automatic result is created until you confirm them.',
+    }
+  }
+  if (aiAssisted && !selfMark && !deterministic) {
+    return {
+      mode: 'ai-assisted',
+      label: 'AI-assisted review after submission',
+      description: 'Written work is reviewed with confidence and evidence; objective answers are not treated as official grades.',
+    }
+  }
+  if (selfMark) {
+    return {
+      mode: 'mixed',
+      label: 'Mixed marking',
+      description: `${deterministic} objective answer${deterministic === 1 ? '' : 's'} score automatically; ${selfMark} response${selfMark === 1 ? '' : 's'} need official mark-scheme self-marking.`,
+    }
+  }
+  return {
+    mode: 'deterministic',
+    label: 'Instant objective marking',
+    description: 'Answers are checked against the verified answer key after submission.',
+  }
+}
+
 function scoreRecordedSelfMark(unit, marksByPart, elapsedSec) {
   const criteria = unit.parts.map((part) => {
     const awarded = Math.max(0, Math.min(part.marks, Number(marksByPart[part.id])))
@@ -1293,6 +1326,7 @@ function App() {
 function SessionSetup({ session, onChange, onCancel, onStart }) {
   const { unit } = session
   const isPaper = unit.type === 'paper'
+  const markingCapability = markingCapabilityForUnit(unit)
   return (
     <div className="setup-backdrop" role="presentation" onMouseDown={onCancel}>
       <section className="session-setup" role="dialog" aria-modal="true" aria-labelledby="setup-title" onMouseDown={(event) => event.stopPropagation()}>
@@ -1300,6 +1334,7 @@ function SessionSetup({ session, onChange, onCancel, onStart }) {
         <div className="setup-section"><span className="setup-label">How do you want to practise?</span><div className="mode-segments"><button type="button" className={session.mode === 'guided' ? 'active' : ''} onClick={() => onChange({ mode: 'guided', hints: true })}><Sparkles size={16} /><strong>Guided</strong><small>Hints available</small></button><button type="button" className={session.mode === 'practice' ? 'active' : ''} onClick={() => onChange({ mode: 'practice' })}><Dumbbell size={16} /><strong>Practice</strong><small>Independent set</small></button><button type="button" className={session.mode === 'exam' ? 'active' : ''} onClick={() => onChange({ mode: 'exam', timing: 'timed', hints: false })}><GraduationCap size={16} /><strong>Exam</strong><small>Answers hidden</small></button></div></div>
         <div className="setup-options"><label><span>Timing</span><select value={session.timing} onChange={(event) => onChange({ timing: event.target.value })}><option value="recommended">Recommended · {unit.estimatedMinutes} min</option><option value="timed">Strict timer</option><option value="untimed">Untimed</option></select></label><label className="toggle-row"><span><strong>Question hints</strong><small>Hints never reveal the final answer.</small></span><input type="checkbox" checked={session.hints} disabled={session.mode === 'exam'} onChange={(event) => onChange({ hints: event.target.checked })} /></label></div>
         <div className="setup-summary"><ListFilter size={18} /><div><strong>{unit.parts.length} questions ready</strong><span>{isPaper ? 'Mixed paper practice' : `${unit.subtopic || unit.topic} knowledge drill`} · autosave on</span></div></div>
+        <div className={`setup-marking-note setup-marking-note--${markingCapability.mode}`} role="status"><strong>{markingCapability.label}</strong><span>{markingCapability.description}</span></div>
         <footer><button type="button" className="secondary-action" onClick={onCancel}>Cancel</button><button type="button" className="primary-action" onClick={onStart}><PlayIcon />Start session</button></footer>
       </section>
     </div>
