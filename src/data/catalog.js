@@ -183,7 +183,7 @@ const SUBJECTS = [
     name: 'Physics',
     code: '9702',
     icon: '⚡',
-    accent: '#246bfe',
+    accent: '#7357e8',
     topics: ['mechanics', 'waves', 'electricity', 'fields'],
   },
   {

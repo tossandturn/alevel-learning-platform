@@ -32,13 +32,13 @@ function legacyResponse(answer) {
   return [answer.working, answer.finalAnswer].filter(hasText).join('\n\n')
 }
 
-function AiMarkResult({ result }) {
+function AiMarkResult({ result, questionNumber, onRetryMarking }) {
   if (!result) return null
-  if (result.status === 'loading') return <div className="vision-mark vision-mark--loading"><Sparkles size={16} /><span>AI is reading the handwriting and matching mark points...</span></div>
-  if (result.status === 'unconfigured') return <div className="vision-mark vision-mark--inactive"><span>AI handwriting marking is not configured on this server. Your response remains saved for self-marking.</span></div>
-  if (result.status === 'error') return <div className="vision-mark vision-mark--error"><span>{result.error || 'AI review could not be completed. Your response remains saved.'}</span></div>
-  if (result.status === 'review-only') return <div className="vision-mark vision-mark--inactive"><span>AI image reading is available, but marks are unavailable because this PDF question has no reviewed question-level mark allocation. Enter the marks manually against the paired mark scheme.</span></div>
-  if (result.status !== 'success') return null
+  if (result.status === 'queued') return <div className="vision-mark vision-mark--loading"><Sparkles size={16} /><span>Queued by the shared IELTSist marking service with reviewed question metadata.</span></div>
+  if (result.status === 'processing') return <div className="vision-mark vision-mark--loading"><Sparkles size={16} /><span>Shared AI marking is processing this sourced response...</span></div>
+  if (result.status === 'failed') return <div className="vision-mark vision-mark--error"><span>{result.loginRequired ? 'Sign in with your IELTSist account to use AI-assisted marking. Your response remains saved.' : 'Shared AI marking failed. Your response remains saved; use the paired mark scheme or retry later.'}</span>{result.retryable && result.submissionId && onRetryMarking && <button type="button" onClick={() => onRetryMarking(questionNumber)}>Retry shared marking</button>}</div>
+  if (result.status === 'missing_metadata' || result.status === 'review-only') return <div className="vision-mark vision-mark--inactive"><span>This question has no reviewed question-level mark allocation in the current index. Your response is saved; use the paired mark scheme for self-marking.</span></div>
+  if (result.status !== 'completed') return null
   return (
     <div className="vision-mark vision-mark--success">
       <header><span>AI-assisted mark</span><strong>{result.rawMarks}/{result.maxMarks}</strong><small>{Math.round((result.confidence || 0) * 100)}% confidence{result.reviewRequired ? ' · check required' : ''}</small></header>
@@ -50,13 +50,13 @@ function AiMarkResult({ result }) {
   )
 }
 
-function SelfMarkInput({ mode, questionNumber, maxMarksByQuestion, selfMarks, onMaxMarkChange, onSelfMarkChange }) {
+function SelfMarkInput({ mode, questionNumber, maxMarksByQuestion, officialMaxMarks, selfMarks, onMaxMarkChange, onSelfMarkChange }) {
   const maxMarks = maxMarksFor(questionNumber, mode, maxMarksByQuestion)
   const value = selfMarks?.[questionNumber] ?? ''
 
   return (
     <div className="paper-answer-sheet__self-mark">
-      <span>Self-mark for question {questionNumber}</span>
+      <span>Self-mark for question {questionNumber}{officialMaxMarks ? ' · reviewed allocation' : ''}</span>
       <label>
         <small>Awarded</small>
         <input
@@ -89,7 +89,7 @@ function SelfMarkInput({ mode, questionNumber, maxMarksByQuestion, selfMarks, on
           step="1"
           inputMode="numeric"
           value={maxMarks ?? ''}
-          disabled={mode === 'mcq'}
+          disabled={mode === 'mcq' || Boolean(officialMaxMarks)}
           aria-label={`Maximum marks for question ${questionNumber}`}
           onChange={(event) => onMaxMarkChange?.(questionNumber, event.target.value === '' ? null : Math.max(1, Number(event.target.value)))}
         />
@@ -113,15 +113,18 @@ export function PaperAnswerSheet({
   selfMarks = {},
   maxMarksByQuestion = {},
   aiMarks = {},
+  questionMetadataByNumber = {},
   disabled = false,
   onAnswerChange,
   onQuestionFocus,
   onAskCoach,
   onImageChange,
+  onLinkPdfInkQuestion,
   onMaxMarkChange,
   onReviewSubmit,
   onSelfMarkChange,
   onSubmit,
+  onRetryMarking,
 }) {
   const instanceId = useId()
   const mode = profile?.mode
@@ -184,6 +187,7 @@ export function PaperAnswerSheet({
           const index = questionNumber - 1
           const answer = draftAnswers[questionNumber] || {}
           const sectionId = `${instanceId}-question-${questionNumber}`
+          const aiReviewEligible = questionMetadataByNumber[questionNumber]?.reviewStatus === 'reviewed'
 
           return (
             <section id={sectionId} className="paper-answer-sheet__question" data-state={states[index]} key={questionNumber}>
@@ -212,11 +216,14 @@ export function PaperAnswerSheet({
                   </div>
                 </fieldset>
               ) : pdfInkActive && !submitted ? (
-                <div className="paper-answer-sheet__pdf-note"><strong>Write on the original PDF</strong><span>Select the pen on the paper pane and write your working beside this question. Your PDF page and handwriting will be combined for AI review after submission.</span></div>
+                <div className="paper-answer-sheet__pdf-note"><strong>Write on the original PDF</strong><span>{aiReviewEligible ? 'Select the pen on the paper pane and write your working beside this question. Your PDF page and handwriting are available for AI-assisted review after submission.' : 'Select the pen on the paper pane and write your working beside this question. Your handwriting is saved with this attempt; after submission, use the paired mark scheme to self-mark.'}</span><button type="button" onClick={() => onLinkPdfInkQuestion?.(questionNumber)}>Link current PDF writing</button></div>
+              ) : submitted && pdfInkQuestions.has(questionNumber) && !hasText(legacyResponse(answer)) && !answer.image ? (
+                <div className="paper-answer-sheet__pdf-note paper-answer-sheet__pdf-note--saved"><strong>Handwriting saved on the original PDF</strong><span>Your Pencil response remains visible on the question-paper pane and is bound to this submitted attempt.</span></div>
               ) : (
                 <div className="paper-answer-sheet__response">
                   <HandwritingPad
                     answerId={`paper-${questionNumber}`}
+                    aiReviewEligible={aiReviewEligible}
                     disabled={answersLocked}
                     image={answer.image}
                     label={mode === 'practical' ? `Question ${questionNumber} observations, working and conclusion` : `Question ${questionNumber} working and answer`}
@@ -224,15 +231,17 @@ export function PaperAnswerSheet({
                     onTextChange={(response) => updateAnswer(questionNumber, { response })}
                     onImageChange={(file) => onImageChange?.(questionNumber, file)}
                   />
-                  {submitted && <AiMarkResult result={aiMarks[questionNumber]} />}
                 </div>
               )}
+
+              {submitted && <AiMarkResult result={aiMarks[questionNumber]} questionNumber={questionNumber} onRetryMarking={onRetryMarking} />}
 
               {submitted && (
                 <SelfMarkInput
                   mode={mode}
                   questionNumber={questionNumber}
                   maxMarksByQuestion={maxMarksByQuestion}
+                  officialMaxMarks={questionMetadataByNumber[questionNumber]?.maxMarks}
                   selfMarks={selfMarks}
                   onMaxMarkChange={onMaxMarkChange}
                   onSelfMarkChange={onSelfMarkChange}

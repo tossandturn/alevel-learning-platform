@@ -6,9 +6,15 @@ const STORAGE_PREFIX = 'alevel-ai-coach-v3'
 const EMPTY_PRACTICE_OPTIONS = Object.freeze([])
 
 function conversationKey(context) {
-  const attempt = context.attemptId || context.view || 'general'
+  // Coach history is learning-context data. It must never cross a route, stage,
+  // course or workspace simply because the question label happens to match.
+  const route = context.routeId || 'unscoped-route'
+  const stage = context.stage || 'unscoped-stage'
+  const course = context.subject?.code || context.subject?.id || 'unscoped-course'
+  const view = context.view || 'general'
+  const attempt = context.attemptId || 'no-attempt'
   const question = context.question?.id || context.question?.number || context.question?.label || 'overview'
-  return `${STORAGE_PREFIX}:${attempt}:${question}`
+  return `${STORAGE_PREFIX}:${route}:${stage}:${course}:${view}:${attempt}:${question}`
 }
 
 function loadMessages(key) {
@@ -32,6 +38,7 @@ function fileToDataUrl(file) {
 export function AiCoach({
   context = {},
   openRequest = 0,
+  showTrigger = true,
   practiceOptions = EMPTY_PRACTICE_OPTIONS,
   onGeneratePractice,
   onAgentAction,
@@ -53,6 +60,7 @@ export function AiCoach({
   const endRef = useRef(null)
   const triggerRef = useRef(null)
   const lastOpenRequestRef = useRef(openRequest)
+  const canOpenBphoSpc = Boolean(onAgentAction && (context.stage === 'Competition' || context.routeId === 'bpho-admissions-physics'))
 
   const builderSubject = useMemo(
     () => practiceOptions.find((item) => item.id === builderSubjectId) || practiceOptions[0],
@@ -194,9 +202,9 @@ export function AiCoach({
 
   return (
     <>
-      <button ref={triggerRef} type="button" className="ai-coach-trigger" onClick={() => setOpen(true)} aria-label="Open AI Coach" title="Open AI Coach">
+      {showTrigger && <button ref={triggerRef} type="button" className="ai-coach-trigger" onClick={() => setOpen(true)} aria-label="Open AI Coach" title="Open AI Coach">
         <Sparkles size={18} /><span>AI Coach</span>
-      </button>
+      </button>}
       {open && <button type="button" className="ai-coach-backdrop" onPointerDown={closeCoach} onClick={closeCoach} aria-label="Close AI Coach" />}
       <aside className={`ai-coach ${open ? 'open' : ''} ${builderOpen ? 'builder-open' : ''}`} inert={!open ? true : undefined} aria-hidden={!open} aria-label="AI Coach">
         <header>
@@ -213,7 +221,7 @@ export function AiCoach({
         <div className="ai-coach__quick-actions">
           {onGeneratePractice && <button type="button" className={builderOpen ? 'active' : ''} onClick={() => setBuilderOpen((value) => !value)}><Sparkles size={13} />Build practice</button>}
           <label className="ai-coach__screenshot"><ImagePlus size={13} /><span>Screenshot hint</span><input type="file" accept="image/*" capture="environment" onChange={attachImage} /></label>
-          {onAgentAction && <button type="button" onClick={() => ask('打开最新的 BPhO SPC 真题，带答案。')}><FileText size={13} />Latest BPhO SPC</button>}
+          {canOpenBphoSpc && <button type="button" onClick={() => ask('打开最新的 BPhO SPC 真题，带答案。')}><FileText size={13} />Latest BPhO SPC</button>}
           <button type="button" onClick={() => ask('Give me a hint for the next step.', hintLevel)}>Hint {hintLevel}/5</button>
           <button type="button" onClick={() => ask('Check my method and identify the first issue.', 3)}>Check method</button>
           {imageDataUrl && <button type="button" onClick={() => ask('Read my attached work. Give me the first issue and one next step, without giving the final answer.', hintLevel)}><ImagePlus size={13} />Review screenshot</button>}

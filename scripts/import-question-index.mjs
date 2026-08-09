@@ -40,7 +40,7 @@ const subjectConfig = Object.freeze({
   bpho: { examFamilyId: 'olympiad', subjectId: 'bpho', qualificationId: 'bpho', specificationId: 'bpho-current', topicIds: ['bpho-mechanics', 'bpho-waves', 'bpho-electricity', 'bpho-thermal-modern'] },
   esat: { examFamilyId: 'admissions', subjectId: 'esat', qualificationId: 'esat', specificationId: 'esat-current', topicIds: ['esat-mathematics-1', 'esat-mathematics-2', 'esat-physics', 'esat-chemistry', 'esat-biology'] },
   tmua: { examFamilyId: 'admissions', subjectId: 'tmua', qualificationId: 'tmua', specificationId: 'tmua-current', topicIds: ['tmua-algebra', 'tmua-geometry', 'tmua-proof', 'tmua-problem-solving'] },
-  amc12: { examFamilyId: 'admissions', subjectId: 'amc12', qualificationId: 'amc12', specificationId: 'amc12-current', topicIds: ['amc12-algebra', 'amc12-geometry', 'amc12-number', 'amc12-combinatorics'] },
+  amc12: { examFamilyId: 'competition', subjectId: 'amc12', qualificationId: 'amc12', specificationId: 'amc12-current', topicIds: ['amc12-algebra', 'amc12-geometry', 'amc12-number', 'amc12-combinatorics'] },
 })
 
 function parseArgs(argv) {

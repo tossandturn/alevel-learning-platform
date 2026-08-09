@@ -1,5 +1,5 @@
 export const LEGACY_UNSCOPED_ROUTE_ID = 'legacy-unscoped'
-export const ROUTE_MIGRATION_VERSION = 1
+export const ROUTE_MIGRATION_VERSION = 2
 
 const ACADEMIC_STAGES = new Map([
   ['igcse', 'IGCSE'],
@@ -67,8 +67,18 @@ function qualificationFamily(value) {
   const key = normalized(value)
   if (key.includes('igcse')) return 'igcse'
   if (key.includes('a-level') || key.includes('a level') || key.includes('as & a')) return 'a-level'
-  if (key.includes('admission') || key.includes('competition')) return 'admissions'
+  if (key.includes('competition') || key.includes('olympiad') || key.includes('bpho') || key.includes('amc')) return 'competition'
+  if (key.includes('admission') || key.includes('esat') || key.includes('tmua')) return 'admissions'
   return key
+}
+
+function migrateLegacyCompetitionMetadata(metadata, route) {
+  if (normalizeAcademicStage(route?.stage) !== 'Competition') return metadata
+  return {
+    ...metadata,
+    stage: metadata.stage === 'Admissions' ? 'Competition' : metadata.stage,
+    qualification: qualificationFamily(metadata.qualification) === 'admissions' ? 'Competition' : metadata.qualification,
+  }
 }
 
 function subjectMatches(route, value) {
@@ -129,7 +139,7 @@ export function resolveRouteBinding(value = {}, { unit = null, routes = [] } = {
   if (candidates.size === 1) {
     const routeId = [...candidates][0]
     const registryRoute = routes.find((route) => routeIdOf(route) === routeId)
-    const metadata = metadataFor(value, unit)
+    const metadata = migrateLegacyCompetitionMetadata(metadataFor(value, unit), registryRoute)
     if (!routes.length) {
       return { routeId: LEGACY_UNSCOPED_ROUTE_ID, stage: null, reason: 'route-registry-required' }
     }
@@ -140,7 +150,7 @@ export function resolveRouteBinding(value = {}, { unit = null, routes = [] } = {
     if (registryRoute && hasRouteMetadata(metadata) && !routeMatchesMetadata(registryRoute, metadata)) {
       return { routeId: LEGACY_UNSCOPED_ROUTE_ID, stage: null, reason: 'conflicting-route-metadata' }
     }
-    return { routeId, stage: metadata.stage || registryStage, reason: 'explicit' }
+    return { routeId, stage: registryStage || metadata.stage, reason: 'explicit' }
   }
   if (candidates.size > 1) return { routeId: LEGACY_UNSCOPED_ROUTE_ID, stage: null, reason: 'ambiguous-route-ids' }
 

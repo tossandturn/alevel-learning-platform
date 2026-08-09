@@ -126,6 +126,15 @@ function extraKind(item) {
   return item.kind
 }
 
+function extraOfficialYear(item) {
+  if (item.subject !== 'bpho' || item.season !== 'pc') return { year: item.year, yearSource: 'manifest' }
+  const legacyFileYear = Number(item.file.match(/^BPhO_Paper1_(20\d{2})_/i)?.[1])
+  if (legacyFileYear >= 2005 && legacyFileYear <= 2011) {
+    return { year: legacyFileYear - 1, yearSource: 'official source-page heading' }
+  }
+  return { year: item.year, yearSource: 'manifest' }
+}
+
 function extraPairKey(item) {
   const file = item.file.toLowerCase()
   if (item.subject === 'amc12') return `amc12-${item.year}-${item.season || 'main'}`
@@ -152,7 +161,8 @@ if (fs.existsSync(extraManifestPath)) {
   const extraManifest = JSON.parse(fs.readFileSync(extraManifestPath, 'utf8')).filter((item) => extraSubjects.has(item.subject) && item.downloaded !== 'missing')
   for (const item of extraManifest) {
     const kind = extraKind(item)
-    const normalisedItem = { ...item, kind }
+    const officialYear = extraOfficialYear(item)
+    const normalisedItem = { ...item, kind, year: officialYear.year }
     const filePath = path.join(pdfRoot, item.subject, item.file)
     if (!fs.existsSync(filePath)) throw new Error(`Missing extra manifest file: ${filePath}`)
     const stat = fs.statSync(filePath)
@@ -160,7 +170,8 @@ if (fs.existsSync(extraManifestPath)) {
     prepared.push({
       id: `${item.subject}-${item.file.replace(/\.pdf$/i, '')}`,
       subject: item.subject,
-      year: item.year,
+      year: normalisedItem.year,
+      yearSource: officialYear.yearSource,
       season: item.season || '',
       kind,
       file: item.file,

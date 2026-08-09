@@ -1,25 +1,45 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Eraser, FilePlus2, Hand, Keyboard, PenTool, Trash2, Undo2, Upload } from 'lucide-react'
+import { canvasPoint, createInkMetrics, drawDot, drawSegment, exposeInkMetrics, pointDistance, pointerSamples } from '../lib/inkStroke'
 
 const CANVAS_HEIGHT = 340
 const MAX_HISTORY = 24
 const PEN_MIN_WIDTH = 1.15
 const PEN_PRESSURE_WIDTH = 2.35
 const ERASER_WIDTH = 22
+const MAX_EXPORT_SIDE = 1600
 
 function imageUrl(image) {
   return image?.previewUrl || image?.dataUrl || ''
 }
 
-function canvasFile(canvas, name, pages) {
+function exportCanvasFor(canvas) {
+  const scale = Math.min(1, MAX_EXPORT_SIDE / Math.max(canvas.width, canvas.height))
+  const exportCanvas = window.document.createElement('canvas')
+  exportCanvas.width = Math.max(1, Math.round(canvas.width * scale))
+  exportCanvas.height = Math.max(1, Math.round(canvas.height * scale))
+  const context = exportCanvas.getContext('2d')
+  context.fillStyle = '#ffffff'
+  context.fillRect(0, 0, exportCanvas.width, exportCanvas.height)
+  context.drawImage(canvas, 0, 0, exportCanvas.width, exportCanvas.height)
+  return exportCanvas
+}
+
+function canvasEvidence(exportCanvas, name, pages) {
+  return {
+    name,
+    type: 'image/jpeg',
+    dataUrl: exportCanvas.toDataURL('image/jpeg', 0.82),
+    width: exportCanvas.width,
+    height: exportCanvas.height,
+    pages,
+    recognitionStatus: 'visual-review-required',
+    attachedAt: new Date().toISOString(),
+  }
+}
+
+function canvasFile(exportCanvas, name, pages) {
   return new Promise((resolve, reject) => {
-    const exportCanvas = window.document.createElement('canvas')
-    exportCanvas.width = canvas.width
-    exportCanvas.height = canvas.height
-    const context = exportCanvas.getContext('2d')
-    context.fillStyle = '#ffffff'
-    context.fillRect(0, 0, exportCanvas.width, exportCanvas.height)
-    context.drawImage(canvas, 0, 0)
     exportCanvas.toBlob((blob) => {
       if (!blob) {
         reject(new Error('The handwritten response could not be prepared.'))
@@ -66,24 +86,31 @@ function drawImage(canvas, source, { allowUpscale = true } = {}) {
 export function HandwritingPad({
   answerId,
   disabled = false,
+  aiReviewEligible = false,
   image,
   label = 'Response',
   onImageChange,
+  onSnapshotChange,
   onTextChange,
   text = '',
 }) {
   const instanceId = useId()
   const canvasRef = useRef(null)
   const drawingRef = useRef(false)
+  const movedRef = useRef(false)
   const lastPointRef = useRef(null)
+  const activePointerIdRef = useRef(null)
+  const inkMetricsRef = useRef(createInkMetrics())
   const historyRef = useRef([])
   const latestSnapshotRef = useRef('')
   const initializedRef = useRef(false)
-  const saveTimerRef = useRef(null)
+  const pendingPageEmitRef = useRef(false)
+  const saveVersionRef = useRef(0)
+  const mountedRef = useRef(true)
   const [mode, setMode] = useState(imageUrl(image) ? 'handwrite' : text ? 'type' : 'handwrite')
   const [tool, setTool] = useState('pen')
   const [pageCount, setPageCount] = useState(() => Math.max(1, Number(image?.pages) || 1))
-  const [pencilOnly, setPencilOnly] = useState(() => (window.navigator.maxTouchPoints || 0) > 1)
+  const [pencilOnly, setPencilOnly] = useState(() => (window.navigator.maxTouchPoints || 0) > 0)
   const [canUndo, setCanUndo] = useState(false)
   const [status, setStatus] = useState(imageUrl(image) ? 'Handwriting restored' : 'Ready for Apple Pencil')
   const fileInputRef = useRef(null)
@@ -106,19 +133,32 @@ export function HandwritingPad({
   }
 
   async function emitCanvas(canvas) {
+    const name = `${answerId || 'response'}-handwriting.jpg`
+    const exportCanvas = exportCanvasFor(canvas)
+    const version = saveVersionRef.current + 1
+    saveVersionRef.current = version
+    onSnapshotChange?.(canvasEvidence(exportCanvas, name, pageCount))
+    if (!onImageChange) {
+      if (mountedRef.current) setStatus('Saved locally')
+      return
+    }
+    if (mountedRef.current) setStatus('Saving locally...')
     try {
-      const file = await canvasFile(canvas, `${answerId || 'response'}-handwriting.jpg`, pageCount)
+      const file = await canvasFile(exportCanvas, name, pageCount)
+      if (version !== saveVersionRef.current) return
       await onImageChange?.(file)
-      setStatus('Saved locally')
+      if (version === saveVersionRef.current && mountedRef.current) setStatus('Saved locally')
     } catch (error) {
-      setStatus(error.message || 'Handwriting could not be saved')
+      if (version === saveVersionRef.current && mountedRef.current) setStatus(error.message || 'Handwriting could not be saved')
     }
   }
 
-  function scheduleEmit(canvas) {
-    window.clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = window.setTimeout(() => emitCanvas(canvas), 1100)
-  }
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -134,15 +174,25 @@ export function HandwritingPad({
       canvas.width = targetWidth
       canvas.height = targetHeight
       canvas.getContext('2d').setTransform(1, 0, 0, 1, 0, 0)
-      if (previous) {
-        drawImage(canvas, previous).then(() => {
-          if (!initializedRef.current) setBaseline(canvas)
-          initializedRef.current = true
-        }).catch(() => fillPaper(canvas))
-      } else {
-        fillPaper(canvas)
+      const finishResize = () => {
         if (!initializedRef.current) setBaseline(canvas)
         initializedRef.current = true
+        if (pendingPageEmitRef.current) {
+          pendingPageEmitRef.current = false
+          snapshot(canvas, false)
+          void emitCanvas(canvas)
+        }
+      }
+      if (previous) {
+        drawImage(canvas, previous).then(() => {
+          finishResize()
+        }).catch(() => {
+          fillPaper(canvas)
+          finishResize()
+        })
+      } else {
+        fillPaper(canvas)
+        finishResize()
       }
     }
 
@@ -152,71 +202,89 @@ export function HandwritingPad({
     return () => {
       observer.disconnect()
       initializedRef.current = false
-      window.clearTimeout(saveTimerRef.current)
     }
     // The stored image is only used to hydrate a newly mounted pad. New strokes
     // already live on the canvas and must not be replaced by parent rerenders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, pageCount])
 
-  function pointFor(event) {
+  function brushFor(point) {
     const canvas = canvasRef.current
-    const rect = canvas.getBoundingClientRect()
+    const ratio = canvas.width / canvas.getBoundingClientRect().width
     return {
-      x: (event.clientX - rect.left) * (canvas.width / rect.width),
-      y: (event.clientY - rect.top) * (canvas.height / rect.height),
-      pressure: event.pressure > 0 ? event.pressure : 0.5,
+      color: '#172033',
+      composite: tool === 'eraser' ? 'destination-out' : 'source-over',
+      width: tool === 'eraser' ? ERASER_WIDTH * ratio : (PEN_MIN_WIDTH + point.pressure * PEN_PRESSURE_WIDTH) * ratio,
     }
   }
 
+  function appendSamples(event) {
+    const canvas = canvasRef.current
+    const context = canvas.getContext('2d')
+    for (const sample of pointerSamples(event)) {
+      const previous = lastPointRef.current
+      const next = canvasPoint(canvas, sample)
+      if (!previous) {
+        lastPointRef.current = next
+        continue
+      }
+      if (pointDistance(previous, next) < 0.01) continue
+      drawSegment(context, previous, next, brushFor(next))
+      inkMetricsRef.current.segments += 1
+      // Every rendered segment begins exactly where the previous one ended.
+      inkMetricsRef.current.maxSegmentGap = Math.max(inkMetricsRef.current.maxSegmentGap, 0)
+      lastPointRef.current = next
+      movedRef.current = true
+    }
+    exposeInkMetrics(canvas, inkMetricsRef.current)
+  }
+
   function startStroke(event) {
-    if (disabled || mode !== 'handwrite' || (pencilOnly && event.pointerType === 'touch')) return
+    if (disabled || mode !== 'handwrite' || drawingRef.current || event.isPrimary === false || (pencilOnly && event.pointerType === 'touch')) return
     event.preventDefault()
     event.stopPropagation()
     const canvas = canvasRef.current
-    canvas.setPointerCapture?.(event.pointerId)
+    try {
+      canvas.setPointerCapture?.(event.pointerId)
+    } catch {
+      // Synthetic QA pointer events do not own a browser pointer to capture.
+    }
     drawingRef.current = true
-    lastPointRef.current = pointFor(event)
+    movedRef.current = false
+    activePointerIdRef.current = event.pointerId
+    inkMetricsRef.current.activePointerId = event.pointerId
+    lastPointRef.current = canvasPoint(canvas, event.nativeEvent || event)
+    exposeInkMetrics(canvas, inkMetricsRef.current)
     setStatus(event.pointerType === 'pen' ? 'Apple Pencil active' : 'Editing')
   }
 
   function continueStroke(event) {
-    if (!drawingRef.current || disabled) return
+    if (!drawingRef.current || disabled || event.pointerId !== activePointerIdRef.current) return
     event.preventDefault()
     event.stopPropagation()
-    const canvas = canvasRef.current
-    const context = canvas.getContext('2d')
-    const samples = event.getCoalescedEvents?.() || [event]
-    const ratio = canvas.width / canvas.getBoundingClientRect().width
-    for (const sample of samples) {
-      const previous = lastPointRef.current
-      if (!previous) continue
-      const next = pointFor(sample)
-      const midpoint = { x: (previous.x + next.x) / 2, y: (previous.y + next.y) / 2 }
-      context.save()
-      context.lineCap = 'round'
-      context.lineJoin = 'round'
-      context.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over'
-      context.strokeStyle = '#172033'
-      context.lineWidth = tool === 'eraser' ? ERASER_WIDTH * ratio : (PEN_MIN_WIDTH + next.pressure * PEN_PRESSURE_WIDTH) * ratio
-      context.beginPath()
-      context.moveTo(previous.x, previous.y)
-      context.quadraticCurveTo(previous.x, previous.y, midpoint.x, midpoint.y)
-      context.stroke()
-      context.restore()
-      lastPointRef.current = next
-    }
+    appendSamples(event)
   }
 
   function finishStroke(event) {
-    if (!drawingRef.current) return
+    if (!drawingRef.current || event.pointerId !== activePointerIdRef.current) return
     event.preventDefault()
     event.stopPropagation()
-    drawingRef.current = false
-    lastPointRef.current = null
     const canvas = canvasRef.current
+    appendSamples(event)
+    drawingRef.current = false
+    if (!movedRef.current && lastPointRef.current) {
+      const context = canvas.getContext('2d')
+      drawDot(context, lastPointRef.current, brushFor(lastPointRef.current))
+      inkMetricsRef.current.dots += 1
+    }
+    inkMetricsRef.current.strokes += 1
+    inkMetricsRef.current.activePointerId = null
+    activePointerIdRef.current = null
+    lastPointRef.current = null
+    movedRef.current = false
+    exposeInkMetrics(canvas, inkMetricsRef.current)
     snapshot(canvas)
-    scheduleEmit(canvas)
+    void emitCanvas(canvas)
   }
 
   function preventSelection(event) {
@@ -240,16 +308,17 @@ export function HandwritingPad({
     await drawImage(canvasRef.current, previous)
     latestSnapshotRef.current = previous
     setCanUndo(historyRef.current.length > 1)
-    scheduleEmit(canvasRef.current)
+    await emitCanvas(canvasRef.current)
   }
 
   async function clear() {
     if (disabled) return
     fillPaper(canvasRef.current)
-    window.clearTimeout(saveTimerRef.current)
+    saveVersionRef.current += 1
     historyRef.current = [snapshot(canvasRef.current, false)]
     setCanUndo(false)
     setStatus('Answer area cleared')
+    onSnapshotChange?.(null)
     await onImageChange?.(null)
   }
 
@@ -271,8 +340,15 @@ export function HandwritingPad({
     }
   }
 
+  function addPage() {
+    if (disabled || pageCount >= 4) return
+    pendingPageEmitRef.current = true
+    setPageCount((value) => Math.min(4, value + 1))
+    setStatus('Adding answer page...')
+  }
+
   return (
-    <section className="handwriting-pad" aria-labelledby={`${instanceId}-label`} onSelectStart={mode === 'handwrite' ? preventSelection : undefined} onDragStart={mode === 'handwrite' ? preventSelection : undefined} onContextMenu={preventSelection}>
+    <section className="handwriting-pad" aria-labelledby={`${instanceId}-label`} onDragStart={mode === 'handwrite' ? preventSelection : undefined} onContextMenu={mode === 'handwrite' ? preventSelection : undefined}>
       <header className="handwriting-pad__header">
         <div><strong id={`${instanceId}-label`}>{label}</strong><span>Write the full method and final answer in one place</span></div>
         <div className="handwriting-pad__modes" role="group" aria-label="Answer input mode">
@@ -286,10 +362,10 @@ export function HandwritingPad({
           <div className="handwriting-pad__toolbar" role="toolbar" aria-label="Handwriting tools">
             <button type="button" className={tool === 'pen' ? 'active' : ''} disabled={disabled} onClick={() => setTool('pen')} title="Pen" aria-label="Pen"><PenTool size={17} /></button>
             <button type="button" className={tool === 'eraser' ? 'active' : ''} disabled={disabled} onClick={() => setTool('eraser')} title="Eraser" aria-label="Eraser"><Eraser size={17} /></button>
-            <button type="button" className={pencilOnly ? 'active' : ''} disabled={disabled} onClick={() => setPencilOnly((value) => !value)} title="Palm rejection" aria-label="Toggle palm rejection"><Hand size={17} /></button>
+            <button type="button" className={pencilOnly ? 'active' : ''} disabled={disabled} onClick={() => setPencilOnly((value) => !value)} title={pencilOnly ? 'Pencil only: page gestures stay outside the writing surface' : 'Finger drawing enabled'} aria-label="Toggle palm rejection" aria-pressed={pencilOnly}><Hand size={17} /></button>
             <button type="button" disabled={disabled || !canUndo} onClick={undo} title="Undo" aria-label="Undo last stroke"><Undo2 size={17} /></button>
             <button type="button" disabled={disabled} onClick={clear} title="Clear" aria-label="Clear handwriting"><Trash2 size={17} /></button>
-            <button type="button" disabled={disabled || pageCount >= 4} onClick={() => setPageCount((value) => Math.min(4, value + 1))} title="Add answer page" aria-label="Add answer page"><FilePlus2 size={17} /></button>
+            <button type="button" disabled={disabled || pageCount >= 4} onClick={addPage} title="Add answer page" aria-label="Add answer page"><FilePlus2 size={17} /></button>
             <button type="button" disabled={disabled} onClick={() => fileInputRef.current?.click()} title="Import image" aria-label="Import notebook image"><Upload size={17} /></button>
             <input ref={fileInputRef} type="file" accept="image/*" capture="environment" hidden onChange={importImage} />
           </div>
@@ -304,7 +380,6 @@ export function HandwritingPad({
             onPointerCancel={finishStroke}
             onPointerLeave={(event) => event.pointerType === 'mouse' && finishStroke(event)}
             onLostPointerCapture={finishStroke}
-            onSelectStart={preventSelection}
           />
         </div>
       ) : (
@@ -318,7 +393,10 @@ export function HandwritingPad({
           onChange={(event) => onTextChange?.(event.target.value)}
         />
       )}
-      <footer><span aria-live="polite">{status}</span><span>{pageCount} answer page{pageCount === 1 ? '' : 's'}{imageUrl(image) ? ' · image ready for AI review after submission' : ''}</span></footer>
+      <footer>
+        <span aria-live="polite">{status}</span>
+        <span>{pageCount} answer page{pageCount === 1 ? '' : 's'}{aiReviewEligible ? ' - AI-assisted review is available after submission' : ' - handwriting is saved with your answer; self-mark with the paired mark scheme after submission'}</span>
+      </footer>
     </section>
   )
 }

@@ -19,11 +19,11 @@ import { dataChain, learningTracks, workspaceRoles } from "../data/audience";
 import { learningPlan } from "../data/learningPlan";
 import { questionInventory } from "../data/questionBank";
 import { courseRoutes, formatRouteComponents, routeById, topicsForRoute } from "../data/routeRegistry";
+import { COURSE_STAGE_ORDER } from "../data/stages";
 import { coachPracticeOptions } from "../lib/coachPractice";
 import { sharedAccountRequest } from "../lib/sharedAccount";
 
 const DEFAULT_ASSIGNMENT_ROUTE_ID = "cie-9702-as-physics";
-const STAGE_ORDER = ["IGCSE", "AS", "A2", "Admissions"];
 
 function routeLabel(route) {
   if (!route) return "Legacy unscoped route";
@@ -1367,7 +1367,7 @@ function TeacherRoute({
                 value={assignmentDraft.routeId}
                 onChange={(event) => changeRoute(event.target.value)}
               >
-                {STAGE_ORDER.map((stage) => (
+                {COURSE_STAGE_ORDER.map((stage) => (
                   <optgroup label={stage} key={stage}>
                     {courseRoutes
                       .filter((route) => route.stage === stage)
@@ -1991,7 +1991,7 @@ function SchoolAnalyticsRoute({ activeTab, onAssignmentAction }) {
             onChange={(event) => changeStage(event.target.value)}
           >
             <option value="">All stages</option>
-            {STAGE_ORDER.map((item) => (
+            {COURSE_STAGE_ORDER.map((item) => (
               <option value={item} key={item}>
                 {item}
               </option>
@@ -2086,7 +2086,7 @@ function SchoolAnalyticsRoute({ activeTab, onAssignmentAction }) {
           onChange={(event) => changeStage(event.target.value)}
         >
           <option value="">All stages</option>
-          {STAGE_ORDER.map((item) => (
+          {COURSE_STAGE_ORDER.map((item) => (
             <option value={item} key={item}>
               {item}
             </option>
@@ -2404,7 +2404,7 @@ function SchoolAnalyticsRoute({ activeTab, onAssignmentAction }) {
               <p className="section-label">Route results</p>
               <h2>Scores kept separate by exam stage</h2>
               <p>
-                IGCSE, AS, A2 and Admissions evidence is shown per registered
+                IGCSE, AS, A2, Competition and Admissions evidence is shown per registered
                 route. No cross-stage average is calculated.
               </p>
             </div>

@@ -267,18 +267,23 @@ export function buildCompletionByUnit({ attempts = [], units = [], routes = cour
 export function recommendForRoute({ attempts = [], drafts = {}, units = [], routes = courseRoutes, routeId }) {
   if (!routeId || routeId === LEGACY_UNSCOPED_ROUTE_ID) return { routeId: routeId || null, unit: null, action: 'Choose practice', reason: 'Select a learning route first.' }
   const routeUnits = units.filter((unit) => resolveRouteBinding(unit, { routes }).routeId === routeId)
+  // Keep smaller source slices discoverable in Topic Drill, but do not make one
+  // the first student action when this route already has a complete drill.
+  // `parts` is the actual answerable QuestionPart count, not an OCR estimate.
+  const completeRouteUnits = routeUnits.filter((unit) => (unit.parts?.length || 0) >= 10)
+  const recommendedUnits = completeRouteUnits.length ? completeRouteUnits : routeUnits
   const completion = buildCompletionByUnit({ attempts, units: routeUnits, routes, routeId })
   const draftUnit = routeUnits.find((unit) => drafts[unit.id]?.routeId === routeId)
   if (draftUnit) return { routeId, stage: resolveRouteBinding(draftUnit, { routes }).stage, unit: draftUnit, action: 'Resume', reason: 'Continue your saved work in this route.' }
 
-  const weakUnit = routeUnits
+  const weakUnit = recommendedUnits
     .filter((unit) => completion[unit.id]?.completed)
     .sort((a, b) => (completion[a.id]?.best?.percentage ?? 101) - (completion[b.id]?.best?.percentage ?? 101))[0]
   if (weakUnit && Number(completion[weakUnit.id]?.best?.percentage) < 80) {
     return { routeId, stage: resolveRouteBinding(weakUnit, { routes }).stage, unit: weakUnit, action: 'Practise again', reason: 'This is your weakest completed set in the selected route.' }
   }
 
-  const freshUnit = routeUnits.find((unit) => !completion[unit.id]?.completed) || null
+  const freshUnit = recommendedUnits.find((unit) => !completion[unit.id]?.completed) || null
   return {
     routeId,
     stage: freshUnit ? resolveRouteBinding(freshUnit, { routes }).stage : null,

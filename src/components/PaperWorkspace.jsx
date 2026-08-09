@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, ArrowLeft, CheckCircle2, Clock3, Columns2, Eraser, ExternalLink, FileCheck2, FileText, GripVertical, Minus, NotebookPen, NotebookText, PenTool, Plus, Save, Trash2 } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, CheckCircle2, Clock3, Columns2, Eraser, ExternalLink, FileCheck2, FileText, GripVertical, Hand, Maximize2, Minimize2, Minus, NotebookPen, NotebookText, PenTool, Plus, Save, Trash2 } from 'lucide-react'
 import { getExamPaperProfile } from '../data/examStructure'
+import { paperQuestionMarkingMetadata } from '../data/questionBank'
 import { deletePaperEvidence, getPaperEvidence, putPaperEvidence } from '../lib/evidenceStorage'
+import { buildSharedMarkingSubmission, completedMarksByQuestion, createSharedMarkingSubmission, loadQuestionAsset, paperSubmissionMarkingSummary, retrySharedMarkingSubmission, waitForSharedMarkingSubmission } from '../lib/paperMarking'
 import { AiCoach } from './AiCoach'
 import { PaperAnswerSheet } from './PaperAnswerSheet'
 import { PdfViewer } from './PdfViewer'
@@ -81,7 +83,7 @@ function defaultQuestionCount(profile) {
   return 12
 }
 
-export function PaperWorkspace({ paper, catalog, draft, onBack, onSaveDraft, onFinish, onFinishReview }) {
+export function PaperWorkspace({ paper, catalog, draft, sharedIdentityToken = '', onBack, onSaveDraft, onFinish, onFinishReview }) {
   const itemById = useMemo(() => new Map((catalog?.items || []).map((item) => [item.id, item])), [catalog])
   const questionPaper = itemById.get(paper.questionPaperId) || (paper.kind === 'qp' ? paper : null)
   const markScheme = itemById.get(paper.markSchemeId)
@@ -100,24 +102,30 @@ export function PaperWorkspace({ paper, catalog, draft, onBack, onSaveDraft, onF
     questionCountRange: [1, 30],
     stages: [],
   }, [sourcePaper])
+  const questionMetadataByNumber = useMemo(() => paperQuestionMarkingMetadata({ paperId: sourcePaper.id, routeId: sourcePaper.routeId }), [sourcePaper.id, sourcePaper.routeId])
+  const reviewedMaxMarks = useMemo(() => Object.fromEntries(Object.entries(questionMetadataByNumber).map(([number, metadata]) => [number, metadata.maxMarks])), [questionMetadataByNumber])
   const [attemptId] = useState(() => draft?.attemptId || `paper-attempt-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`)
   const [elapsedSec, setElapsedSec] = useState(draft?.elapsedSec || 0)
   const [notes, setNotes] = useState(draft?.notes || '')
   const [answers, setAnswers] = useState(draft?.answers || {})
   const [submitted, setSubmitted] = useState(Boolean(draft?.submitted))
   const [selfMarks, setSelfMarks] = useState(draft?.selfMarks || {})
-  const [maxMarksByQuestion, setMaxMarksByQuestion] = useState(draft?.maxMarksByQuestion || {})
+  const [maxMarksByQuestion, setMaxMarksByQuestion] = useState(() => ({ ...reviewedMaxMarks, ...(draft?.maxMarksByQuestion || {}) }))
   const [aiMarks, setAiMarks] = useState(draft?.aiMarks || {})
-  const [visionEnabled, setVisionEnabled] = useState(null)
   const [focusedQuestion, setFocusedQuestion] = useState(draft?.focusedQuestion || 1)
   const [coachRequest, setCoachRequest] = useState(0)
   const [questionCount, setQuestionCount] = useState(draft?.questionCount || defaultQuestionCount(profile))
   const [documentMode, setDocumentMode] = useState(paper.kind === 'ms' ? 'mark' : paper.kind === 'er' ? 'report' : 'question')
-  const [pdfWritingEnabled, setPdfWritingEnabled] = useState(() => profile.mode !== 'mcq' && !draft?.submitted)
+  const [pdfWritingEnabled, setPdfWritingEnabled] = useState(() => Boolean(draft?.pdfWritingEnabled) && profile.mode !== 'mcq' && !draft?.submitted)
   const [pdfInkTool, setPdfInkTool] = useState('pen')
   const [pdfInkByPage, setPdfInkByPage] = useState(draft?.pdfInkByPage || {})
-  const [pdfInkQuestionMap, setPdfInkQuestionMap] = useState(draft?.pdfInkQuestionMap || {})
+  // Older drafts inferred a question from whichever answer slot had focus. That
+  // makes cover-page ink look like a Q1 response, so only explicit v2 links are
+  // eligible for completion or marking.
+  const [pdfInkQuestionMap, setPdfInkQuestionMap] = useState(() => draft?.pdfInkMapVersion === 2 ? (draft?.pdfInkQuestionMap || {}) : {})
+  const [lastPdfInkPage, setLastPdfInkPage] = useState(null)
   const [mobilePane, setMobilePane] = useState('paper')
+  const [immersive, setImmersive] = useState(false)
   const [answerPaneWidth, setAnswerPaneWidth] = useState(storedAnswerPaneWidth)
   const [saveStatus, setSaveStatus] = useState(draft ? 'Restored' : 'Ready')
   const [showSubmitCheck, setShowSubmitCheck] = useState(false)
@@ -132,6 +140,11 @@ export function PaperWorkspace({ paper, catalog, draft, onBack, onSaveDraft, onF
   const isAttempt = paper.kind === 'qp'
   const canReview = !isAttempt || submitted
   const pdfInkQuestionNumbers = useMemo(() => [...new Set(Object.values(pdfInkQuestionMap).flat().map(Number).filter(Number.isFinite))], [pdfInkQuestionMap])
+  const responseQuestionNumbers = useMemo(() => [...new Set([
+    ...Object.entries(answers).filter(([, answer]) => hasResponse(profile, answer)).map(([number]) => Number(number)),
+    ...pdfInkQuestionNumbers,
+  ])].filter(Number.isFinite), [answers, pdfInkQuestionNumbers, profile])
+  const markingSummary = paperSubmissionMarkingSummary({ submitted, aiMarks, responseQuestionNumbers })
   const answeredCount = Array.from({ length: questionCount }, (_, index) => index + 1).filter((questionNumber) => hasResponse(profile, answers[questionNumber]) || pdfInkQuestionNumbers.includes(questionNumber)).length
   const displayPaper = documentMode === 'mark' ? markScheme : documentMode === 'report' ? examinerReport : questionPaper || paper
   const title = documentMode === 'compare' ? `${questionPaper?.file} + ${markScheme?.file}` : displayPaper?.file || paper.file
@@ -152,6 +165,8 @@ export function PaperWorkspace({ paper, catalog, draft, onBack, onSaveDraft, onF
     focusedQuestion,
     pdfInkByPage,
     pdfInkQuestionMap,
+    pdfInkMapVersion: 2,
+    pdfWritingEnabled,
     submitted,
     selfMarks,
     maxMarksByQuestion,
@@ -173,15 +188,6 @@ export function PaperWorkspace({ paper, catalog, draft, onBack, onSaveDraft, onF
 
   useEffect(() => {
     let active = true
-    fetch('/api/ai/status')
-      .then((response) => response.json())
-      .then((payload) => active && setVisionEnabled(Boolean(payload.visionEnabled)))
-      .catch(() => active && setVisionEnabled(false))
-    return () => { active = false }
-  }, [])
-
-  useEffect(() => {
-    let active = true
     async function hydrateEvidence() {
       const hydrated = await Promise.all(Object.entries(initialAnswers.current).map(async ([questionNumber, answer]) => {
         if (!answer.image?.id || answer.image.previewUrl) return [questionNumber, answer]
@@ -196,6 +202,10 @@ export function PaperWorkspace({ paper, catalog, draft, onBack, onSaveDraft, onF
     hydrateEvidence().catch(() => active && setEvidenceStatus('One saved notebook image could not be restored.'))
     return () => { active = false }
   }, [attemptId])
+
+  useEffect(() => {
+    setMaxMarksByQuestion((current) => ({ ...reviewedMaxMarks, ...current }))
+  }, [reviewedMaxMarks])
 
   useEffect(() => () => {
     objectUrls.current.forEach((url) => URL.revokeObjectURL(url))
@@ -283,10 +293,19 @@ export function PaperWorkspace({ paper, catalog, draft, onBack, onSaveDraft, onF
 
   function updatePdfInk(pageNumber, ink) {
     setPdfInkByPage((current) => ({ ...current, [pageNumber]: ink }))
+    setLastPdfInkPage(Number(pageNumber))
+  }
+
+  function linkPdfInkToQuestion(questionNumber) {
+    if (!Number.isFinite(lastPdfInkPage) || !pdfInkByPage[lastPdfInkPage]) {
+      setEvidenceStatus('Write on a PDF page first, then link that page to this answer slot.')
+      return
+    }
     setPdfInkQuestionMap((current) => ({
       ...current,
-      [pageNumber]: [...new Set([...(current[pageNumber] || []), Number(ink.questionNumber) || focusedQuestion])],
+      [lastPdfInkPage]: [...new Set([...(current[lastPdfInkPage] || []), Number(questionNumber)])],
     }))
+    setEvidenceStatus(`PDF page ${lastPdfInkPage} linked to question ${questionNumber}.`)
   }
 
   function clearPdfInk() {
@@ -347,92 +366,114 @@ export function PaperWorkspace({ paper, catalog, draft, onBack, onSaveDraft, onF
     else submitPaper()
   }
 
-  async function markHandwriting(questionNumber, enabled = visionEnabled) {
+  async function responseForSharedMarking(questionNumber) {
     const answer = answers[questionNumber] || {}
+    const questionMetadata = questionMetadataByNumber[questionNumber]
     const inkPage = Object.entries(pdfInkQuestionMap).find(([, questions]) => questions.map(Number).includes(Number(questionNumber)))?.[0]
     const pdfInk = inkPage ? pdfInkByPage[inkPage] : null
-    if (!answer.image && !pdfInk?.dataUrl) return null
-    if (!enabled) {
-      setAiMarks((current) => ({ ...current, [questionNumber]: { status: 'unconfigured' } }))
-      return null
+    let handwritingImageDataUrl = answer.image?.dataUrl || pdfInk?.inkDataUrl || pdfInk?.dataUrl || ''
+    if (!handwritingImageDataUrl && answer.image?.id) {
+      const stored = await getPaperEvidence(answer.image.id)
+      if (stored?.blob) handwritingImageDataUrl = await blobToDataUrl(stored.blob)
     }
-    setAiMarks((current) => ({ ...current, [questionNumber]: { status: 'loading' } }))
-    try {
-      let dataUrl = answer.image?.dataUrl || pdfInk?.dataUrl || ''
-      if (!dataUrl && answer.image?.id) {
-        const stored = await getPaperEvidence(answer.image.id)
-        if (stored?.blob) dataUrl = await blobToDataUrl(stored.blob)
-      }
-      if (!dataUrl && answer.image?.previewUrl) {
-        const response = await fetch(answer.image.previewUrl)
-        dataUrl = await blobToDataUrl(await response.blob())
-      }
-      if (!dataUrl) throw new Error('The saved handwriting image is unavailable.')
-      const response = await fetch('/api/ai/mark-handwriting', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageDataUrl: dataUrl,
-          subject: sourcePaper.subject,
-          syllabus: profile.title,
-          questionNumber,
-          maxMarks: maxMarksByQuestion[questionNumber] || undefined,
-          typedResponse: responseText(answer),
-          paper: {
-            subject: sourcePaper.subject,
-            questionFile: questionPaper?.file,
-            markSchemeFile: markScheme?.file,
-          },
-        }),
-      })
-      const payload = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        if (payload.code === 'vision_not_configured') {
-          setVisionEnabled(false)
-          setAiMarks((current) => ({ ...current, [questionNumber]: { status: 'unconfigured' } }))
-          return null
-        }
-        throw new Error(payload.error || 'AI review could not be completed.')
-      }
-      if (payload.mode !== 'vision') throw new Error(payload.error || 'AI review could not be completed.')
-      if (payload.status === 'review-only' || payload.marksAvailable === false) {
-        const result = { ...payload, status: 'review-only' }
-        setAiMarks((current) => ({ ...current, [questionNumber]: result }))
-        return result
-      }
-      const result = { ...payload, status: 'success' }
-      setAiMarks((current) => ({ ...current, [questionNumber]: result }))
-      setSelfMarks((current) => ({ ...current, [questionNumber]: result.rawMarks }))
-      setMaxMarksByQuestion((current) => ({ ...current, [questionNumber]: result.maxMarks }))
-      return result
-    } catch (error) {
-      setAiMarks((current) => ({ ...current, [questionNumber]: { status: 'error', error: error.message || 'AI review could not be completed.' } }))
-      return null
+    if (!handwritingImageDataUrl && answer.image?.previewUrl) {
+      const response = await fetch(answer.image.previewUrl)
+      handwritingImageDataUrl = await blobToDataUrl(await response.blob())
+    }
+    return {
+      questionNumber,
+      questionMetadata,
+      typedText: responseText(answer),
+      handwritingImageDataUrl,
+      questionAsset: await loadQuestionAsset({ sourceRef: questionMetadata?.sourceRef }),
     }
   }
 
-  async function markAllHandwriting() {
-    const questionNumbers = [...new Set([
-      ...Object.entries(answers).filter(([, answer]) => answer.image).map(([questionNumber]) => Number(questionNumber)),
-      ...pdfInkQuestionNumbers,
-    ])]
+  async function markAllResponses() {
+    const questionNumbers = responseQuestionNumbers
     if (!questionNumbers.length) return
-    let enabled = visionEnabled
-    if (enabled == null) {
-      try {
-        const response = await fetch('/api/ai/status')
-        enabled = Boolean((await response.json()).visionEnabled)
-        setVisionEnabled(enabled)
-      } catch {
-        enabled = false
-        setVisionEnabled(false)
+    try {
+      const responses = await Promise.all(questionNumbers.map(responseForSharedMarking))
+      const contract = buildSharedMarkingSubmission({
+        attemptId,
+        routeId: sourcePaper.routeId,
+        specificationVersion: profile.title,
+        paperId: sourcePaper.id,
+        responses,
+      })
+      if (contract.missingQuestionNumbers.length) {
+        setAiMarks((current) => ({ ...current, ...Object.fromEntries(contract.missingQuestionNumbers.map((number) => [number, { status: 'missing_metadata', code: 'question_metadata_missing' }])) }))
       }
+      const queuedQuestionNumbers = [...new Set(Object.values(contract.questionNumberByPartId))]
+      if (!contract.ok) return
+      if (!sharedIdentityToken) {
+        setAiMarks((current) => ({ ...current, ...Object.fromEntries(queuedQuestionNumbers.map((number) => [number, { status: 'failed', failureCode: 'identity_required', loginRequired: true }])) }))
+        return
+      }
+      setAiMarks((current) => ({ ...current, ...Object.fromEntries(queuedQuestionNumbers.map((number) => [number, { status: 'queued', submissionId: contract.payload.submissionId }])) }))
+      let submission = await createSharedMarkingSubmission({ token: sharedIdentityToken, submission: contract.payload })
+      if (submission.status === 'queued' || submission.status === 'processing') {
+        setAiMarks((current) => ({ ...current, ...Object.fromEntries(queuedQuestionNumbers.map((number) => [number, { status: submission.status, submissionId: contract.payload.submissionId }])) }))
+        submission = await waitForSharedMarkingSubmission({
+          token: sharedIdentityToken,
+          submissionId: contract.payload.submissionId,
+          onStatus: (nextSubmission) => {
+            if (!['queued', 'processing'].includes(nextSubmission.status)) return
+            setAiMarks((current) => ({ ...current, ...Object.fromEntries(queuedQuestionNumbers.map((number) => [number, { status: nextSubmission.status, submissionId: contract.payload.submissionId }])) }))
+          },
+        })
+      }
+      if (submission.status === 'completed') {
+        const results = completedMarksByQuestion(submission, contract.questionNumberByPartId)
+        setAiMarks((current) => ({ ...current, ...results }))
+        setSelfMarks((current) => ({ ...current, ...Object.fromEntries(Object.entries(results).map(([number, result]) => [number, result.rawMarks])) }))
+        setMaxMarksByQuestion((current) => ({ ...current, ...Object.fromEntries(Object.entries(results).map(([number, result]) => [number, result.maxMarks])) }))
+        return
+      }
+      const terminal = submission.status === 'missing_metadata'
+        ? { status: 'missing_metadata', metadataIssues: submission.metadataIssues || [] }
+        : { status: 'failed', submissionId: contract.payload.submissionId, failureCode: submission.failureCode || 'provider_unavailable', retryable: Boolean(submission.retryable) }
+      setAiMarks((current) => ({ ...current, ...Object.fromEntries(queuedQuestionNumbers.map((number) => [number, terminal])) }))
+    } catch (error) {
+      setAiMarks((current) => ({ ...current, ...Object.fromEntries(questionNumbers.filter((number) => questionMetadataByNumber[number]).map((number) => [number, { status: 'failed', failureCode: error.code || 'service_unavailable', retryable: Boolean(error.retryable), loginRequired: Boolean(error.loginRequired) }])) }))
     }
-    if (!enabled) {
-      setAiMarks((current) => ({ ...current, ...Object.fromEntries(questionNumbers.map((questionNumber) => [questionNumber, { status: 'unconfigured' }])) }))
-      return
+  }
+
+  async function retryMarking(questionNumber) {
+    const current = aiMarks[questionNumber]
+    if (current?.status !== 'failed' || !current.submissionId || !sharedIdentityToken) return
+    const submissionId = current.submissionId
+    setAiMarks((value) => ({ ...value, [questionNumber]: { ...current, status: 'queued', retryable: false } }))
+    try {
+      let submission = await retrySharedMarkingSubmission({ token: sharedIdentityToken, submissionId })
+      if (submission.status === 'queued' || submission.status === 'processing') {
+        setAiMarks((value) => ({ ...value, [questionNumber]: { ...value[questionNumber], status: submission.status, submissionId } }))
+        submission = await waitForSharedMarkingSubmission({
+          token: sharedIdentityToken,
+          submissionId,
+          onStatus: (next) => {
+            if (next.status === 'queued' || next.status === 'processing') setAiMarks((value) => ({ ...value, [questionNumber]: { ...value[questionNumber], status: next.status, submissionId } }))
+          },
+        })
+      }
+      if (submission.status === 'completed') {
+        const metadata = questionMetadataByNumber[questionNumber]
+        const partIds = Object.fromEntries((metadata?.parts || []).map((part) => [part.id, questionNumber]))
+        const result = completedMarksByQuestion(submission, partIds)[questionNumber]
+        if (result) {
+          setAiMarks((value) => ({ ...value, [questionNumber]: result }))
+          setSelfMarks((value) => ({ ...value, [questionNumber]: result.rawMarks }))
+          setMaxMarksByQuestion((value) => ({ ...value, [questionNumber]: result.maxMarks }))
+          return
+        }
+      }
+      const terminal = submission.status === 'missing_metadata'
+        ? { status: 'missing_metadata', metadataIssues: submission.metadataIssues || [] }
+        : { status: 'failed', submissionId, failureCode: submission.failureCode || 'provider_unavailable', retryable: Boolean(submission.retryable) }
+      setAiMarks((value) => ({ ...value, [questionNumber]: terminal }))
+    } catch (error) {
+      setAiMarks((value) => ({ ...value, [questionNumber]: { status: 'failed', submissionId, failureCode: error.code || 'service_unavailable', retryable: Boolean(error.retryable), loginRequired: Boolean(error.loginRequired) } }))
     }
-    for (const questionNumber of questionNumbers) await markHandwriting(questionNumber, enabled)
   }
 
   function submitPaper() {
@@ -462,7 +503,8 @@ export function PaperWorkspace({ paper, catalog, draft, onBack, onSaveDraft, onF
       retestOf: paper.retestOf || null,
       submittedAt,
     })
-    void markAllHandwriting()
+    setAiMarks((current) => ({ ...current, ...Object.fromEntries(responseQuestionNumbers.map((questionNumber) => [questionNumber, questionMetadataByNumber[questionNumber] ? { status: 'queued' } : { status: 'missing_metadata', code: 'question_metadata_missing' }])) }))
+    void markAllResponses()
   }
 
   function finishReview() {
@@ -482,7 +524,7 @@ export function PaperWorkspace({ paper, catalog, draft, onBack, onSaveDraft, onF
   }
 
   return (
-    <section className="paper-workspace">
+    <section className={`paper-workspace ${immersive ? 'paper-workspace--immersive' : ''}`}>
       <header className="paper-workspace-header">
         <button type="button" className="icon-button" onClick={() => { persistLatestDraft(); onBack() }} aria-label="Back to paper library"><ArrowLeft size={19} /></button>
         <div className="workspace-title"><strong>{title}</strong><small>{profile.title} · {paper.season} {paper.year} · verified local PDF</small></div>
@@ -490,14 +532,15 @@ export function PaperWorkspace({ paper, catalog, draft, onBack, onSaveDraft, onF
           <span className="timer"><Clock3 size={16} />{formatTime(elapsedSec)}</span>
           <span className="save-state" aria-live="polite"><Save size={16} /><span>{saveStatus}</span></span>
           <a className="icon-button" href={(displayPaper || paper).localUrl} target="_blank" rel="noreferrer" aria-label="Open PDF in a new tab"><ExternalLink size={18} /></a>
+          <button type="button" className="paper-focus-button" onClick={() => setImmersive((value) => !value)} aria-label={immersive ? 'Exit paper focus mode' : 'Enter paper focus mode'} aria-pressed={immersive} title={immersive ? 'Exit paper focus mode' : 'Enter paper focus mode'}>{immersive ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>
           {isAttempt && <button type="button" className="submit-button" onClick={requestSubmit} disabled={submitted}>{submitted ? 'Submitted' : 'Submit paper'}</button>}
         </div>
       </header>
 
       <div className="paper-document-tabs" role="tablist" aria-label="Paper documents">
         <button type="button" className={documentMode === 'question' ? 'active' : ''} disabled={!questionPaper} onClick={() => openDocument('question')}><FileText size={17} />Question paper</button>
-        {isAttempt && profile.mode !== 'mcq' && <button type="button" className={pdfWritingEnabled ? 'active' : ''} disabled={submitted || documentMode !== 'question'} onClick={() => setPdfWritingEnabled((value) => !value)}><NotebookPen size={17} />Write on PDF</button>}
-        {isAttempt && profile.mode !== 'mcq' && pdfWritingEnabled && <><button type="button" className={pdfInkTool === 'pen' ? 'active' : ''} disabled={submitted} onClick={() => setPdfInkTool('pen')} title="Write on the PDF" aria-label="PDF pen"><PenTool size={17} /></button><button type="button" className={pdfInkTool === 'eraser' ? 'active' : ''} disabled={submitted} onClick={() => setPdfInkTool('eraser')} title="Erase PDF handwriting" aria-label="PDF eraser"><Eraser size={17} /></button></>}
+        {isAttempt && profile.mode !== 'mcq' && <button type="button" className={pdfWritingEnabled ? 'active' : ''} aria-pressed={pdfWritingEnabled} disabled={submitted || documentMode !== 'question'} onClick={() => setPdfWritingEnabled((value) => !value)}><NotebookPen size={17} />Write on PDF</button>}
+        {isAttempt && profile.mode !== 'mcq' && pdfWritingEnabled && <><button type="button" className={pdfInkTool === 'pen' ? 'active' : ''} disabled={submitted} onClick={() => setPdfInkTool('pen')} title="Write on the PDF" aria-label="PDF pen"><PenTool size={17} /></button><button type="button" className={pdfInkTool === 'eraser' ? 'active' : ''} disabled={submitted} onClick={() => setPdfInkTool('eraser')} title="Erase PDF handwriting" aria-label="PDF eraser"><Eraser size={17} /></button><button type="button" className={pdfInkTool === 'hand' ? 'active' : ''} disabled={submitted} onClick={() => setPdfInkTool('hand')} title="Drag to scroll the PDF" aria-label="PDF hand"><Hand size={17} /></button></>}
         {isAttempt && profile.mode !== 'mcq' && Object.keys(pdfInkByPage).length > 0 && <button type="button" disabled={submitted} onClick={clearPdfInk} title="Clear all handwriting placed on the PDF" aria-label="Clear PDF handwriting"><Trash2 size={17} /></button>}
         <button type="button" className={documentMode === 'mark' ? 'active' : ''} disabled={!markScheme || !canReview} title={!canReview ? 'Submit your answer sheet before opening the mark scheme' : 'Open the exact mark scheme'} onClick={() => openDocument('mark')}><FileCheck2 size={17} />Mark scheme</button>
         <button type="button" className={documentMode === 'compare' ? 'active' : ''} disabled={!questionPaper || !markScheme || !canReview} title={!canReview ? 'Submit before comparing answers' : 'Review question paper and mark scheme side by side'} onClick={() => openDocument('compare')}><Columns2 size={17} />Compare</button>
@@ -512,10 +555,10 @@ export function PaperWorkspace({ paper, catalog, draft, onBack, onSaveDraft, onF
 
       {questionPaper && !markScheme && <div className="missing-mark-scheme"><AlertTriangle size={18} /><div><strong>No exact mark scheme is present for {questionPaper.file}</strong><span>Another paper's mark scheme will not be substituted.</span></div></div>}
       {paper.agentNotice && <div className="session-complete"><CheckCircle2 size={18} />{paper.agentNotice}</div>}
-      {submitted && <div className="session-complete"><CheckCircle2 size={18} />Answer sheet submitted. AI handwriting reviews are processing in the answer pane; the exact mark scheme is also unlocked for comparison.</div>}
+      {markingSummary && <div className={`session-complete session-complete--${markingSummary.tone}`}><CheckCircle2 size={18} />{markingSummary.text}</div>}
       <div ref={paperDeskRef} className={`paper-desk ${documentMode === 'compare' ? 'compare-mode' : ''} ${!isAttempt ? 'reference-mode' : ''}`} style={{ '--answer-pane-width': `${answerPaneWidth}px` }}>
         <div id="paper-document-pane" role="tabpanel" className={`pdf-stage ${documentMode === 'compare' ? 'pdf-stage-compare' : ''} ${mobilePane !== 'paper' ? 'mobile-pane-hidden' : ''}`}>
-          {documentMode === 'compare' ? <div className="pdf-compare"><section><header>Question paper</header><PdfViewer file={questionPaper} /></section><section><header>Mark scheme</header><PdfViewer file={markScheme} /></section></div> : <PdfViewer file={displayPaper || paper} annotate={isAttempt && documentMode === 'question' && pdfWritingEnabled} inkByPage={pdfInkByPage} inkTool={pdfInkTool} questionNumber={focusedQuestion} onInkChange={updatePdfInk} />}
+          {documentMode === 'compare' ? <div className="pdf-compare"><section><header>Question paper</header><PdfViewer file={questionPaper} annotate={isAttempt && Object.keys(pdfInkByPage).length > 0} readOnly inkByPage={pdfInkByPage} /></section><section><header>Mark scheme</header><PdfViewer file={markScheme} /></section></div> : <PdfViewer file={displayPaper || paper} annotate={isAttempt && documentMode === 'question' && pdfWritingEnabled} inkByPage={pdfInkByPage} inkTool={pdfInkTool} questionNumber={focusedQuestion} onInkChange={updatePdfInk} />}
         </div>
         {isAttempt && <div
           className="paper-splitter"
@@ -549,9 +592,12 @@ export function PaperWorkspace({ paper, catalog, draft, onBack, onSaveDraft, onF
             selfMarks={selfMarks}
             maxMarksByQuestion={maxMarksByQuestion}
             aiMarks={aiMarks}
+            questionMetadataByNumber={questionMetadataByNumber}
+            onRetryMarking={retryMarking}
             disabled={!isAttempt}
             onAnswerChange={updateAnswer}
             onQuestionFocus={setFocusedQuestion}
+            onLinkPdfInkQuestion={linkPdfInkToQuestion}
             onAskCoach={submitted ? (questionNumber) => {
               setFocusedQuestion(questionNumber)
               setCoachRequest((value) => value + 1)
@@ -569,6 +615,7 @@ export function PaperWorkspace({ paper, catalog, draft, onBack, onSaveDraft, onF
       {submitted && <AiCoach
         key={`${attemptId}:${focusedQuestion}`}
         openRequest={coachRequest}
+        showTrigger={false}
         context={{
           attemptId,
           view: 'full-paper',

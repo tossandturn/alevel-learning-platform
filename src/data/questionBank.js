@@ -46,6 +46,13 @@ export function isVerifiedPastPaperItem(question) {
   )
 }
 
+// A machine-indexed QP/MS binding is sufficient to show a source-backed
+// question for practice. It is not sufficient evidence to send a student's
+// work to an AI marker or present OCR-derived marks as official.
+export function isHumanReviewedPastPaperItem(question) {
+  return isVerifiedPastPaperItem(question) && question.answerBinding?.verificationStatus === 'reviewed'
+}
+
 function routesForImportedQuestion(question) {
   const stages = new Set(question.stageTags || [])
   const component = Number(question.sourceRef?.component || question.componentTags?.[0])
@@ -55,8 +62,9 @@ function routesForImportedQuestion(question) {
     knowledgeGroupId: question.knowledgeGroupId,
   })
   return routesForSubject(question.subjectId).filter((route) => {
-    const stageMatches = route.stage === 'Admissions' || stages.has(route.stage)
-    const componentMatches = route.stage === 'Admissions' || !Number.isFinite(component) || !route.paperComponents.length || route.paperComponents.includes(component)
+    const isSpecialistRoute = route.stage === 'Admissions' || route.stage === 'Competition'
+    const stageMatches = isSpecialistRoute || stages.has(route.stage)
+    const componentMatches = isSpecialistRoute || !Number.isFinite(component) || !route.paperComponents.length || route.paperComponents.includes(component)
     const topicMatches = !topicRouteId || route.routeId === topicRouteId
     return stageMatches && componentMatches && topicMatches
   })
@@ -125,9 +133,12 @@ export function selectTaggedQuestions({
   stage,
   knowledgeGroupId,
   questionCount = 10,
+  questionOffset = 0,
   questionBank = unifiedQuestionBank,
 }) {
-  const requestedCount = Math.min(30, Math.max(10, Number(questionCount) || 10))
+  const requestedCount = Math.min(30, Math.max(1, Number(questionCount) || 10))
+  const offset = Math.max(0, Math.floor(Number(questionOffset) || 0))
+  const selectionLimit = offset + requestedCount
   const route = routeById(routeId)
   if (!route) return []
   const candidates = questionBank.filter((question) => (
@@ -177,7 +188,7 @@ export function selectTaggedQuestions({
   const cursors = new Map(types.map((type) => [type, 0]))
   const selected = []
 
-  while (selected.length < requestedCount) {
+  while (selected.length < selectionLimit) {
     let added = false
     for (const type of types) {
       const index = cursors.get(type)
@@ -186,12 +197,12 @@ export function selectTaggedQuestions({
       selected.push(bucket[index])
       cursors.set(type, index + 1)
       added = true
-      if (selected.length >= requestedCount) break
+      if (selected.length >= selectionLimit) break
     }
     if (!added) break
   }
 
-  return selected
+  return selected.slice(offset, offset + requestedCount)
 }
 
 export function questionInventory({ routeId, qualificationId, subjectId, stage, knowledgeGroupId, questionBank = unifiedQuestionBank }) {
@@ -205,6 +216,57 @@ export function questionInventory({ routeId, qualificationId, subjectId, stage, 
     && (!knowledgeGroupId || question.knowledgeGroupId === knowledgeGroupId)
     && isVerifiedPastPaperItem(question)
   )).length
+}
+
+function printedQuestionNumber(question) {
+  const match = String(question?.sourceRef?.question || '').match(/\d+/)
+  return match ? Number(match[0]) : null
+}
+
+export function paperQuestionMarkingMetadata({ paperId, routeId, questionBank = unifiedQuestionBank }) {
+  const sourceQuestions = questionBank.filter((question) => (
+    question.sourceRef?.paperId === paperId
+    && (!routeId || question.routeId === routeId)
+    && isHumanReviewedPastPaperItem(question)
+  ))
+  const bySourceQuestion = new Map()
+  for (const question of sourceQuestions) {
+    const sourceId = question.sourceQuestionId || question.questionGroupId
+    if (!bySourceQuestion.has(sourceId)) bySourceQuestion.set(sourceId, question)
+  }
+  return Object.fromEntries([...bySourceQuestion.values()].flatMap((question) => {
+    const number = printedQuestionNumber(question)
+    if (!number) return []
+    const parts = (question.parts || []).map((part) => ({
+      id: part.partId,
+      label: part.label,
+      marks: Number(part.marks) || 0,
+      prompt: part.promptFragment || '',
+      markSchemePoints: [...(part.markSchemePoints || [])],
+      sourcePage: part.sourcePage || question.sourceRef.pageStart,
+      markSchemePage: part.answerSourcePage || question.answerRef.pageStart,
+    }))
+    const maxMarks = parts.reduce((sum, part) => sum + part.marks, 0) || Number(question.totalMarks) || Number(question.marks) || 0
+    if (!maxMarks) return []
+    return [[number, Object.freeze({
+      schemaVersion: 'paper-question-marking-v1',
+      reviewStatus: 'reviewed',
+      questionId: question.sourceQuestionId || question.questionGroupId,
+      questionGroupId: question.questionGroupId,
+      number,
+      maxMarks,
+      prompt: parts.map((part) => part.prompt).filter(Boolean).join('\n'),
+      parts: Object.freeze(parts.map(Object.freeze)),
+      expectedMarkPoints: Object.freeze(parts.flatMap((part) => part.markSchemePoints.map((point, index) => ({
+        id: `${part.id}:M${index + 1}`,
+        partId: part.id,
+        marks: 1,
+        point,
+      })))),
+      sourceRef: question.sourceRef,
+      answerRef: question.answerRef,
+    })]]
+  }))
 }
 
 export function sourceMixForQuestions(questions) {

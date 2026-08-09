@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Clock3, FileText, Lightbulb, ListChecks, Save, Sparkles } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Clock3, FileText, Lightbulb, ListChecks, Maximize2, Minimize2, Save, Sparkles } from 'lucide-react'
 import { AiCoach } from './AiCoach'
 import { HandwritingPad } from './HandwritingPad'
 import './QuestionPlayer.css'
@@ -39,38 +39,26 @@ function sourceMixText(sourceMix) {
   ].join(' / ')
 }
 
-function prepareEvidence(file) {
-  if (!file) return Promise.resolve(null)
-  return new Promise((resolve, reject) => {
-    const image = new Image()
-    const objectUrl = URL.createObjectURL(file)
-    image.onload = () => {
-      const maxSide = 1600
-      const scale = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight))
-      const width = Math.max(1, Math.round(image.naturalWidth * scale))
-      const height = Math.max(1, Math.round(image.naturalHeight * scale))
-      const canvas = window.document.createElement('canvas')
-      canvas.width = width
-      canvas.height = height
-      canvas.getContext('2d', { alpha: false }).drawImage(image, 0, 0, width, height)
-      resolve({
-        name: file.name,
-        type: 'image/jpeg',
-        dataUrl: canvas.toDataURL('image/jpeg', 0.82),
-        width,
-        height,
-        pages: file.answerPages || 1,
-        recognitionStatus: 'visual-review-required',
-        attachedAt: new Date().toISOString(),
-      })
-      URL.revokeObjectURL(objectUrl)
+function markingCapability(part) {
+  if (part.aiAssistedMarkingAvailable || part.reviewStatus === 'reviewed') {
+    return {
+      mode: 'ai-assisted',
+      label: 'AI-assisted marking',
+      detail: 'Reviewed question-level marks are available after submission.',
     }
-    image.onerror = () => {
-      URL.revokeObjectURL(objectUrl)
-      reject(new Error('This image could not be read.'))
+  }
+  if (part.deterministicScoringAvailable || part.answerKey) {
+    return {
+      mode: 'deterministic',
+      label: 'Deterministic scoring',
+      detail: 'This response is checked against its source-bound answer key.',
     }
-    image.src = objectUrl
-  })
+  }
+  return {
+    mode: 'self-mark',
+    label: 'Self-mark only',
+    detail: 'The source question is available for practice, but its question-level marking metadata still awaits review.',
+  }
 }
 
 function isComplete(attempt, part) {
@@ -122,6 +110,7 @@ function MultipleChoiceAnswer({ part, selected, onChange }) {
 export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, updateEvidence, submitAttempt, goBack }) {
   const [showSubmitCheck, setShowSubmitCheck] = useState(false)
   const [coachRequest, setCoachRequest] = useState(0)
+  const [immersive, setImmersive] = useState(false)
   const parts = unit.parts || []
   const answered = parts.filter((part) => isComplete(attempt, part)).length
   const unanswered = parts.length - answered
@@ -132,6 +121,7 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
   const complete = activePart ? isComplete(attempt, activePart) : false
   const progress = Math.round((answered / Math.max(1, parts.length)) * 100)
   const modeLabel = settings.mode === 'exam' ? 'Exam mode' : settings.mode === 'guided' ? 'Guided practice' : 'Practice mode'
+  const activeMarkingCapability = markingCapability(activePart)
 
   function goToPart(partId) {
     setActivePart(partId)
@@ -152,7 +142,7 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
   if (!activePart) return null
 
   return (
-    <section className="practice-view qp-player">
+    <section className={`practice-view qp-player ${immersive ? 'qp-player--immersive' : ''}`}>
       <header className="qp-header">
         <div className="qp-header__leading">
           <button type="button" className="qp-icon-button" onClick={goBack} aria-label="Back to library" title="Back to practice">
@@ -168,6 +158,9 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
           <span className="qp-status-item"><CheckCircle2 size={16} />{answered}/{parts.length}</span>
           <span className="qp-status-item qp-timer"><Clock3 size={16} />{settings.timing === 'untimed' ? formatTime(attempt.elapsedSec) : formatTime(remaining)}</span>
           <span className="qp-status-item qp-save" aria-live="polite"><Save size={15} />{attempt.saveStatus || 'Saved'}</span>
+          <button type="button" className="qp-focus-button" onClick={() => setImmersive((value) => !value)} aria-label={immersive ? 'Exit focus mode' : 'Enter focus mode'} aria-pressed={immersive} title={immersive ? 'Exit focus mode' : 'Enter focus mode'}>
+            {immersive ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
+          </button>
           <button type="button" className="qp-submit-button" onClick={requestSubmit} disabled={attempt.submitting}>
             {attempt.submitting ? 'Marking...' : 'Submit'}
           </button>
@@ -230,6 +223,9 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
               <div className="qp-question__body">
                 <h2>{displayPrompt(activePart)}</h2>
                 {activePart.sourceRef && <div className="question-source-label qp-source-label"><strong>Official Cambridge question · {activePart.sourceRef.question || activePart.label || activeIndex + 1}</strong><span>Source-bound question from the original paper. Marking feedback appears after submission.</span></div>}
+                <p className={`qp-marking-capability qp-marking-capability--${activeMarkingCapability.mode}`} data-review-status={activePart.reviewStatus || 'unindexed'}>
+                  <span>{activeMarkingCapability.label}</span>{activeMarkingCapability.detail}
+                </p>
               </div>
 
               <div className="qp-attempt-label"><span>2</span><div><strong>Your answer</strong><small>Show enough reasoning for method marks.</small></div><span className={complete ? 'qp-answer-status qp-answer-status--saved' : 'qp-answer-status'}>{complete ? <><CheckCircle2 size={15} />Saved</> : 'Not answered'}</span></div>
@@ -237,12 +233,14 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
               {activePart.answerType === 'multiple-choice' && <MultipleChoiceAnswer part={activePart} selected={attempt.answers[activePart.id]} onChange={(value) => updateAnswer(activePart.id, value)} />}
               {activePart.answerType === 'numeric' && <NumericAnswer part={activePart} value={attempt.answers[activePart.id]} onChange={(value) => updateAnswer(activePart.id, value)} />}
               {activePart.answerType !== 'multiple-choice' && <HandwritingPad
+                key={activePart.id}
                 answerId={activePart.id}
+                aiReviewEligible={Boolean(activePart.aiAssistedMarkingAvailable && activePart.reviewStatus === 'reviewed')}
                 image={attempt.evidence?.[activePart.id]}
                 label={activePart.answerType === 'numeric' ? 'Working and method' : `${answerTypeLabel(activePart)} area`}
                 text={attempt.answers[activePart.id] || attempt.working?.[activePart.id] || ''}
                 onTextChange={(value) => updateAnswer(activePart.id, value)}
-                onImageChange={async (file) => updateEvidence(activePart.id, file ? await prepareEvidence(file) : null)}
+                onSnapshotChange={(evidence) => updateEvidence(activePart.id, evidence)}
               />}
 
               <div className="qp-question__help">
@@ -290,6 +288,7 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
       {settings.mode !== 'exam' && <AiCoach
         key={`${attempt.id}:${activePart.id}`}
         openRequest={coachRequest}
+        showTrigger={false}
         context={{
           attemptId: attempt.id,
           view: 'chapter-practice',

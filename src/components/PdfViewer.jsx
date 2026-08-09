@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Download, ZoomIn, ZoomOut } from 'lucide-react'
 import * as pdfjs from 'pdfjs-dist'
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+import { canvasPoint, createInkMetrics, drawDot, drawSegment, exposeInkMetrics, pointDistance, pointerSamples } from '../lib/inkStroke'
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker
 
@@ -23,15 +24,16 @@ function drawDataUrl(canvas, dataUrl) {
   })
 }
 
-function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, questionNumber, tool = 'pen', onChange }) {
+function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, questionNumber, tool = 'pen', onChange, readOnly = false, panMode = false }) {
   const canvasRef = useRef(null)
   const drawingRef = useRef(false)
+  const movedRef = useRef(false)
   const lastPointRef = useRef(null)
+  const activePointerIdRef = useRef(null)
+  const initializedRef = useRef(false)
+  const latestInkRef = useRef(ink?.inkDataUrl || '')
+  const inkMetricsRef = useRef(createInkMetrics())
   const [ready, setReady] = useState(false)
-
-  function preventSelection(event) {
-    event.preventDefault()
-  }
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -39,76 +41,115 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, questionNumb
     const ratio = Math.min(3, Math.max(1, window.devicePixelRatio || 1))
     const pixelWidth = baseCanvas?.width || Math.round(width * ratio)
     const pixelHeight = baseCanvas?.height || Math.round(height * ratio)
+    if (initializedRef.current && canvas.width === pixelWidth && canvas.height === pixelHeight) return undefined
+    const previous = initializedRef.current ? canvas.toDataURL('image/png') : latestInkRef.current
+    setReady(false)
     canvas.width = pixelWidth
     canvas.height = pixelHeight
     canvas.style.width = `${width}px`
     canvas.style.height = `${height}px`
-    drawDataUrl(canvas, ink?.inkDataUrl).finally(() => setReady(true))
-    return () => setReady(false)
-  }, [baseCanvas, height, ink?.inkDataUrl, width])
+    drawDataUrl(canvas, previous).finally(() => {
+      initializedRef.current = true
+      exposeInkMetrics(canvas, inkMetricsRef.current)
+      setReady(true)
+    })
+    return undefined
+  }, [baseCanvas, height, width])
 
-  function pointFor(event) {
+  function brushFor(point) {
     const canvas = canvasRef.current
-    const rect = canvas.getBoundingClientRect()
+    const ratio = canvas.width / canvas.getBoundingClientRect().width
     return {
-      x: (event.clientX - rect.left) * (canvas.width / rect.width),
-      y: (event.clientY - rect.top) * (canvas.height / rect.height),
-      pressure: event.pressure > 0 ? event.pressure : 0.5,
+      color: '#14243a',
+      composite: tool === 'eraser' ? 'destination-out' : 'source-over',
+      width: (tool === 'eraser' ? 22 : 1.15 + point.pressure * 2.35) * ratio,
     }
+  }
+
+  function appendSamples(event) {
+    const canvas = canvasRef.current
+    const context = canvas.getContext('2d')
+    for (const sample of pointerSamples(event)) {
+      const previous = lastPointRef.current
+      const next = canvasPoint(canvas, sample)
+      if (!previous) {
+        lastPointRef.current = next
+        continue
+      }
+      if (pointDistance(previous, next) < 0.01) continue
+      drawSegment(context, previous, next, brushFor(next))
+      inkMetricsRef.current.segments += 1
+      lastPointRef.current = next
+      movedRef.current = true
+    }
+    exposeInkMetrics(canvas, inkMetricsRef.current)
   }
 
   function startStroke(event) {
-    if (!ready || event.pointerType === 'touch') return
+    if (readOnly || !ready || drawingRef.current || event.isPrimary === false || event.pointerType === 'touch') return
     event.preventDefault()
+    event.stopPropagation()
     const canvas = canvasRef.current
-    canvas.setPointerCapture?.(event.pointerId)
+    try {
+      canvas.setPointerCapture?.(event.pointerId)
+    } catch {
+      // Synthetic QA pointer events do not own a browser pointer to capture.
+    }
     drawingRef.current = true
-    lastPointRef.current = pointFor(event)
+    movedRef.current = false
+    activePointerIdRef.current = event.pointerId
+    inkMetricsRef.current.activePointerId = event.pointerId
+    lastPointRef.current = canvasPoint(canvas, event.nativeEvent || event)
+    exposeInkMetrics(canvas, inkMetricsRef.current)
   }
 
   function continueStroke(event) {
-    if (!drawingRef.current) return
+    if (!drawingRef.current || event.pointerId !== activePointerIdRef.current) return
     event.preventDefault()
-    const context = canvasRef.current.getContext('2d')
-    const ratio = canvasRef.current.width / canvasRef.current.getBoundingClientRect().width
-    for (const sample of event.getCoalescedEvents?.() || [event]) {
-      const previous = lastPointRef.current
-      if (!previous) continue
-      const next = pointFor(sample)
-      context.save()
-      context.lineCap = 'round'
-      context.lineJoin = 'round'
-      context.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over'
-      context.strokeStyle = '#14243a'
-      context.lineWidth = (tool === 'eraser' ? 22 : 1.15 + next.pressure * 2.35) * ratio
-      context.beginPath()
-      context.moveTo(previous.x, previous.y)
-      context.lineTo(next.x, next.y)
-      context.stroke()
-      context.restore()
-      lastPointRef.current = next
-    }
+    event.stopPropagation()
+    appendSamples(event)
   }
 
   function finishStroke(event) {
-    if (!drawingRef.current) return
+    if (!drawingRef.current || event.pointerId !== activePointerIdRef.current) return
     event.preventDefault()
+    event.stopPropagation()
+    appendSamples(event)
     drawingRef.current = false
+    const canvas = canvasRef.current
+    if (!movedRef.current && lastPointRef.current) {
+      drawDot(canvas.getContext('2d'), lastPointRef.current, brushFor(lastPointRef.current))
+      inkMetricsRef.current.dots += 1
+    }
+    inkMetricsRef.current.strokes += 1
+    inkMetricsRef.current.activePointerId = null
+    activePointerIdRef.current = null
     lastPointRef.current = null
-    const inkDataUrl = canvasRef.current.toDataURL('image/png')
+    movedRef.current = false
+    exposeInkMetrics(canvas, inkMetricsRef.current)
+    const inkDataUrl = canvas.toDataURL('image/png')
+    latestInkRef.current = inkDataUrl
     const composite = window.document.createElement('canvas')
-    composite.width = canvasRef.current.width
-    composite.height = canvasRef.current.height
+    composite.width = canvas.width
+    composite.height = canvas.height
     const context = composite.getContext('2d')
     if (baseCanvas) context.drawImage(baseCanvas, 0, 0, composite.width, composite.height)
-    context.drawImage(canvasRef.current, 0, 0)
-    onChange?.(pageNumber, { dataUrl: composite.toDataURL('image/jpeg', 0.82), inkDataUrl, questionNumber })
+    context.drawImage(canvas, 0, 0)
+    onChange?.(pageNumber, {
+      dataUrl: composite.toDataURL('image/jpeg', 0.82),
+      inkDataUrl,
+      questionNumber,
+      strokeCount: inkMetricsRef.current.strokes,
+      segmentCount: inkMetricsRef.current.segments,
+      maxSegmentGap: inkMetricsRef.current.maxSegmentGap,
+    })
   }
 
-  return <canvas ref={canvasRef} className="pdf-ink-layer" aria-label={`Handwriting layer for PDF page ${pageNumber}`} onPointerDown={startStroke} onPointerMove={continueStroke} onPointerUp={finishStroke} onPointerCancel={finishStroke} onLostPointerCapture={finishStroke} onSelectStart={preventSelection} onDragStart={preventSelection} onContextMenu={preventSelection} />
+  const inert = readOnly || panMode
+  return <canvas ref={canvasRef} className={`pdf-ink-layer ${readOnly ? 'read-only' : ''} ${panMode ? 'pdf-pan-mode' : ''}`} aria-label={`Handwriting layer for PDF page ${pageNumber}`} data-stroke-count={inkMetricsRef.current.strokes} data-segment-count={inkMetricsRef.current.segments} onPointerDown={inert ? undefined : startStroke} onPointerMove={inert ? undefined : continueStroke} onPointerUp={inert ? undefined : finishStroke} onPointerCancel={inert ? undefined : finishStroke} onLostPointerCapture={inert ? undefined : finishStroke} onDragStart={(event) => event.preventDefault()} onContextMenu={(event) => event.preventDefault()} />
 }
 
-export function PdfViewer({ file, annotate = false, inkByPage = {}, inkTool = 'pen', questionNumber = 1, onInkChange }) {
+export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage = {}, inkTool = 'pen', questionNumber = 1, onInkChange }) {
   const containerRef = useRef(null)
   const canvasRefs = useRef(new Map())
   const [document, setDocument] = useState(null)
@@ -219,7 +260,7 @@ export function PdfViewer({ file, annotate = false, inkByPage = {}, inkTool = 'p
             <figcaption>Page {pageNumber}</figcaption>
             <div className="pdf-page-layer" style={size ? { width: size.width, height: size.height } : undefined}>
               <canvas ref={(canvas) => { if (canvas) canvasRefs.current.set(pageNumber, canvas); else canvasRefs.current.delete(pageNumber) }} aria-label={`${file.file}, page ${pageNumber}`} />
-              {annotate && size && <PdfInkCanvas pageNumber={pageNumber} baseCanvas={canvasRefs.current.get(pageNumber)} width={size.width} height={size.height} ink={inkByPage[pageNumber]} tool={inkTool} questionNumber={questionNumber} onChange={onInkChange} />}
+              {annotate && size && <PdfInkCanvas pageNumber={pageNumber} baseCanvas={canvasRefs.current.get(pageNumber)} width={size.width} height={size.height} ink={inkByPage[pageNumber]} tool={inkTool} questionNumber={questionNumber} onChange={onInkChange} readOnly={readOnly} panMode={inkTool === 'hand'} />}
             </div>
           </figure>
         })}</div>}

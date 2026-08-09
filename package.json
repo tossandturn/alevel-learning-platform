@@ -8,6 +8,7 @@
     "catalog": "node scripts/generate-paper-catalog.mjs",
     "questions:index": "node scripts/import-question-index.mjs",
     "questions:audit": "node scripts/audit-question-bank.mjs",
+    "questions:coverage": "node scripts/question-coverage-matrix.mjs",
     "build": "vite build",
     "lint": "oxlint",
     "test": "node scripts/smoke.mjs",

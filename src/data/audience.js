@@ -2,7 +2,8 @@ export const learningTracks = Object.freeze([
   { id: 'IGCSE', label: 'IGCSE', audience: 'Years 10-11', description: 'Build the syllabus map, practical vocabulary and exam habits.' },
   { id: 'AS', label: 'AS', audience: 'First year', description: 'Secure the AS components before the A2 route adds new papers.' },
   { id: 'A2', label: 'A2', audience: 'Second year', description: 'Close gaps, practise the A2 components and prepare for the full route.' },
-  { id: 'competition', label: 'Competition', audience: 'BPhO / ESAT / TMUA / AMC12', description: 'Train problem selection, proof and unfamiliar applications.' },
+  { id: 'competition', label: 'Competition', audience: 'BPhO / AMC 12', description: 'Train problem selection, proof and unfamiliar applications.' },
+  { id: 'admissions', label: 'Admissions', audience: 'ESAT / TMUA', description: 'Prepare for university admissions tests with their own paper structures.' },
   { id: 'IELTS', label: 'IELTS', audience: 'Academic English', description: 'Learn the language needed to read and explain STEM questions.' },
 ])
 
@@ -23,5 +24,7 @@ export const dataChain = Object.freeze([
 export function stagesForSubject(code) {
   if (code === '0610' || code === '0625' || code === '0580' || code === '0606') return ['IGCSE']
   if (code === '9700' || code === '9701' || code === '9702' || code === '9708' || code === '9709' || code === '9231') return ['AS', 'A2']
-  return ['Competition']
+  if (code === 'bpho' || code === 'amc12') return ['Competition']
+  if (code === 'esat' || code === 'tmua') return ['Admissions']
+  return []
 }

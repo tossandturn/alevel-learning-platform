@@ -149,7 +149,7 @@ export function previewCoachPracticeSourceMix({ routeId, subjectId, stage, knowl
   }
 }
 
-export function buildCoachPractice({ routeId, subjectId, stage, knowledgeGroupId, questionCount = 10, allowPartial = false }) {
+export function buildCoachPractice({ routeId, subjectId, stage, knowledgeGroupId, questionCount = 10, questionOffset = 0, allowPartial = false, unitId = '' }) {
   const { subject, group } = resolveSelection({ routeId, subjectId, stage, knowledgeGroupId })
   const requestedCount = Math.min(30, Math.max(10, Number(questionCount) || 10))
   if (!group) throw new PracticeInventoryError({ subject, stage: subject.stage, group: { name: 'selected topic' }, available: 0, requested: requestedCount })
@@ -160,6 +160,7 @@ export function buildCoachPractice({ routeId, subjectId, stage, knowledgeGroupId
     stage: subject.stage,
     knowledgeGroupId: group.id,
     questionCount: requestedCount,
+    questionOffset,
   })
   if (!bank.length) {
     throw new PracticeInventoryError({ subject, stage: subject.stage, group, available: bank.length, requested: requestedCount })
@@ -169,6 +170,7 @@ export function buildCoachPractice({ routeId, subjectId, stage, knowledgeGroupId
   }
 
   const generatedAt = Date.now()
+  const stableUnitId = unitId || `verified-set-${generatedAt}`
   let parts = bank.map((part, _index) => ({
     sourceLabel: `${part.sourceRef.paper} · ${part.sourceRef.question}`,
     sourceDescription: `Official question paper, page ${part.sourceRef.pageStart}. The exact paired mark scheme unlocks after submission.`,
@@ -176,7 +178,7 @@ export function buildCoachPractice({ routeId, subjectId, stage, knowledgeGroupId
   parts = bank.flatMap((group, groupIndex) => (group.parts || []).map((questionPart, partIndex) => ({
     ...group,
     ...questionPart,
-    id: `set-${generatedAt}-${groupIndex + 1}-${partIndex + 1}`,
+    id: `${stableUnitId}:${group.questionGroupId || group.sourceQuestionId}:${questionPart.partId || `${groupIndex + 1}-${partIndex + 1}`}`,
     questionGroupId: group.questionGroupId,
     questionPartId: questionPart.partId,
     label: `${group.sourceRef.question || groupIndex + 1}${questionPart.label ? `(${questionPart.label})` : ''}`,
@@ -185,6 +187,10 @@ export function buildCoachPractice({ routeId, subjectId, stage, knowledgeGroupId
     answerType: questionPart.answerArea?.type || group.answerType || 'handwritten',
     answerKey: questionPart.answerKey,
     answer: questionPart.answerKey,
+    reviewStatus: group.answerBinding?.verificationStatus || 'unindexed',
+    practiceAvailable: true,
+    deterministicScoringAvailable: Boolean(questionPart.answerKey),
+    aiAssistedMarkingAvailable: group.answerBinding?.verificationStatus === 'reviewed',
     markPoints: questionPart.markSchemePoints || [],
     sourceKind: 'past-paper',
     sourceLabel: `${group.sourceRef.paper} / ${group.sourceRef.question}${questionPart.label ? `(${questionPart.label})` : ''}`,
@@ -213,7 +219,7 @@ export function buildCoachPractice({ routeId, subjectId, stage, knowledgeGroupId
   const sourceMix = sourceMixForQuestions(parts)
 
   return {
-    id: `verified-set-${generatedAt}`,
+    id: stableUnitId,
     type: 'topic',
     agentGenerated: true,
     routeId: subject.routeId,
@@ -246,7 +252,53 @@ export function buildCoachPractice({ routeId, subjectId, stage, knowledgeGroupId
       paperRef: [...sourcePapers.values()].map((item) => item.file).join(', '),
     },
     sourceMix,
+    questionGroupCount: bank.length,
+    questionOffset: Math.max(0, Math.floor(Number(questionOffset) || 0)),
     referencePapers: [...sourcePapers.values()],
     parts,
+  }
+}
+
+function stableCatalogUnitId(routeId, topicId, setNumber) {
+  return `past-paper-set:${routeId}:${topicId}:set-${setNumber}`
+}
+
+export function buildVerifiedPracticeCatalog({ chunkSize = 10 } = {}) {
+  const size = Math.min(30, Math.max(5, Math.floor(Number(chunkSize) || 10)))
+  const units = []
+  for (const option of coachPracticeOptions()) {
+    for (const topic of option.topics) {
+      for (let offset = 0; offset < topic.inventory; offset += size) {
+        const setNumber = Math.floor(offset / size) + 1
+        const unit = buildCoachPractice({
+          routeId: option.routeId,
+          knowledgeGroupId: topic.id,
+          questionCount: Math.min(size, topic.inventory - offset),
+          questionOffset: offset,
+          allowPartial: true,
+          unitId: stableCatalogUnitId(option.routeId, topic.id, setNumber),
+        })
+        units.push({
+          ...unit,
+          agentGenerated: false,
+          sourceSetIndex: setNumber,
+          sourceSetCount: Math.ceil(topic.inventory / size),
+          title: `${option.stage} ${routeById(option.routeId)?.subject} · ${topic.label} · Set ${setNumber}`,
+          priority: setNumber === 1 ? 'Start here' : 'Past paper set',
+        })
+      }
+    }
+  }
+  return units
+}
+
+export function verifiedPracticeCatalogMetrics(units = buildVerifiedPracticeCatalog()) {
+  return {
+    units: units.length,
+    questionGroups: units.reduce((sum, unit) => sum + (unit.questionGroupCount || 0), 0),
+    answerableParts: units.reduce((sum, unit) => sum + unit.parts.length, 0),
+    referencedPapers: new Set(units.flatMap((unit) => unit.referencePapers || []).map((paper) => paper.id)).size,
+    routes: new Set(units.map((unit) => unit.routeId)).size,
+    topics: new Set(units.map((unit) => `${unit.routeId}:${unit.knowledgeGroupId}`)).size,
   }
 }

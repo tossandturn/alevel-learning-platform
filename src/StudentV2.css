@@ -1,11 +1,11 @@
 :root {
-  --v2-bg: #f7f9fc;
+  --v2-bg: #f5f6fb;
   --v2-surface: #ffffff;
-  --v2-text: #111827;
-  --v2-muted: #667085;
-  --v2-border: #e6eaf0;
-  --v2-primary: #2563eb;
-  --v2-primary-dark: #1d4ed8;
+  --v2-text: #18213d;
+  --v2-muted: #6f7892;
+  --v2-border: #e4e7f0;
+  --v2-primary: #7357e8;
+  --v2-primary-dark: #5638c3;
   --v2-green: #087f5b;
   --v2-amber: #a15c00;
 }
@@ -55,7 +55,7 @@
   border-left: 0;
   border-radius: 14px;
   background: #fff;
-  box-shadow: 0 14px 36px rgba(31, 64, 122, 0.08);
+  box-shadow: 0 12px 30px rgba(42, 31, 89, 0.07);
 }
 
 .recommended-session::before {
@@ -86,7 +86,7 @@
 .primary-action {
   border-radius: 8px;
   background: var(--v2-primary);
-  box-shadow: 0 5px 12px rgba(37, 99, 235, 0.2);
+  box-shadow: 0 5px 12px rgba(115, 87, 232, 0.2);
 }
 
 .primary-action:hover:not(:disabled) {
@@ -930,6 +930,43 @@
   min-height: 48px;
 }
 
+.topic-detail__set-list {
+  max-height: 260px;
+  display: grid;
+  gap: 6px;
+  overflow-y: auto;
+  margin-top: 10px;
+  padding-right: 3px;
+}
+
+.topic-detail__set-list button {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  padding: 9px 10px;
+  border: 1px solid #dbe2ee;
+  border-radius: 6px;
+  color: var(--v2-text);
+  background: #f8f9fc;
+  text-align: left;
+}
+
+.topic-detail__set-list button[data-completed='true'] {
+  border-color: #a9d8c9;
+  background: #edf9f5;
+}
+
+.topic-detail__set-list span {
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.topic-detail__set-list small {
+  color: var(--v2-muted);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
 .topic-detail__ai {
   display: flex;
   align-items: center;
@@ -1160,6 +1197,132 @@
   }
 }
 
+/* V2 student shell: a quiet navy rail keeps the current route and study loop
+   visible while the workspace stays light and readable. Tablet widths switch
+   to a compact topbar so the rail never competes with the answer surface. */
+@media (min-width: 1041px) {
+  .app-shell > .unified-top-nav + .student-home-guided,
+  .app-shell > .unified-top-nav + .page-band {
+    width: min(1180px, calc(100% - 290px));
+    margin-left: 264px;
+    margin-right: 26px;
+  }
+
+  .app-shell > .unified-top-nav + .practice-hub,
+  .app-shell > .unified-top-nav + .notebook-view,
+  .app-shell > .unified-top-nav + .history-view,
+  .app-shell > .unified-top-nav + .workspace-view {
+    width: min(1180px, calc(100% - 290px));
+    margin-left: 264px;
+    margin-right: 26px;
+  }
+
+  .unified-top-nav {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 40;
+    display: flex;
+    width: 232px;
+    min-height: 100vh;
+    height: 100vh;
+    padding: 24px 14px 18px;
+    border: 0;
+    border-right: 1px solid rgba(255, 255, 255, .09);
+    background: #111a36;
+    box-shadow: 8px 0 30px rgba(16, 24, 40, .08);
+    color: #fff;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+
+  .unified-top-nav .brand-button {
+    width: 100%;
+    padding: 4px 9px 24px;
+    border-bottom: 1px solid rgba(255, 255, 255, .12);
+    color: #fff;
+  }
+
+  .unified-top-nav .brand-button strong { color: #fff; }
+  .unified-top-nav .brand-button small { color: #9da9c6; }
+  .unified-top-nav .brand-mark { background: #6d34e8; }
+
+  .unified-top-nav .campus-switcher {
+    margin-top: 16px;
+  }
+
+  .unified-top-nav .campus-switcher > button {
+    width: 100%;
+    justify-content: space-between;
+    min-height: 38px;
+    padding: 0 10px;
+    border: 1px solid rgba(255, 255, 255, .15);
+    border-radius: 7px;
+    color: #d9def0;
+    background: rgba(255, 255, 255, .08);
+  }
+
+  .unified-top-nav .campus-switcher__stem { color: #fff; font-weight: 800; }
+
+  .unified-top-nav nav {
+    display: grid;
+    gap: 5px;
+    margin: 24px 0 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .unified-top-nav nav button {
+    justify-content: flex-start;
+    width: 100%;
+    min-height: 42px;
+    padding: 0 12px;
+    border-radius: 7px;
+    color: #aab5d1;
+    font-size: 13px;
+  }
+
+  .unified-top-nav nav button:hover { color: #fff; background: rgba(255, 255, 255, .08); }
+  .unified-top-nav nav button.active { color: #fff; background: #28345a; box-shadow: inset 3px 0 #8c6cf2; }
+  .unified-top-nav nav button.active::after { display: none; }
+
+  .unified-top-nav .nav-context {
+    display: grid;
+    gap: 8px;
+    margin-top: auto;
+    margin-left: 0;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, .12);
+  }
+
+  .unified-top-nav .vocabulary-link,
+  .unified-top-nav .notification-button,
+  .unified-top-nav .account-trigger {
+    color: #b8c2dc;
+  }
+
+  .unified-top-nav .vocabulary-link { justify-content: flex-start; }
+  .unified-top-nav .account-trigger { width: 100%; justify-content: flex-start; padding: 7px 8px; }
+  .unified-top-nav .account-trigger:hover { color: #fff; background: rgba(255, 255, 255, .08); }
+  .unified-top-nav .account-avatar { background: #168f8b; }
+  .unified-top-nav .account-popover { right: auto; bottom: 50px; left: 0; }
+}
+
+@media (min-width: 701px) and (max-width: 1040px) {
+  .unified-top-nav {
+    min-height: 64px;
+    padding: 8px 18px;
+    gap: 12px;
+  }
+
+  .unified-top-nav .brand-button { flex: 0 0 auto; }
+  .unified-top-nav .brand-button small { display: none; }
+  .unified-top-nav nav { flex: 1 1 auto; justify-content: center; }
+  .unified-top-nav .nav-context { flex: 0 0 auto; }
+}
+
 @media (max-width: 540px) {
   .topic-detail__checkpoints > div {
     grid-template-columns: 1fr;
@@ -1207,7 +1370,7 @@
 .student-route-picker__stages button.active {
   border-color: #c7d8f7;
   color: var(--v2-primary);
-  background: #eff5ff;
+  background: #f0ecff;
 }
 
 .student-route-picker label {
@@ -1246,6 +1409,8 @@
 
 .student-route-picker--compact .student-route-picker__stages button {
   min-height: 30px;
+  padding: 0 7px;
+  font-size: 10px;
 }
 
 .student-route-picker--compact .student-route-picker__selected {
@@ -1376,5 +1541,15 @@
   .notebook-header > .student-route-picker {
     width: 100%;
     justify-self: stretch;
+  }
+}
+
+@media (max-width: 540px) {
+  /* The dashboard trigger must not float over the recommended session or the
+     first weak-area action on a short phone viewport. */
+  .app-shell > .ai-coach-trigger {
+    top: 122px;
+    right: 12px;
+    bottom: auto;
   }
 }

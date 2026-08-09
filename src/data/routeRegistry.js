@@ -12,6 +12,7 @@ export function formatRouteComponents(components = []) {
 const QUALIFICATIONS = Object.freeze({
   IGCSE: 'IGCSE',
   A_LEVEL: 'A-Level',
+  COMPETITION: 'Competition',
   ADMISSIONS: 'Admissions',
 })
 
@@ -73,18 +74,26 @@ function cieRoute({ routeId, qualification, stage, subject, subjectId, code, pap
   })
 }
 
-function admissionsRoute({ routeId, subject, subjectId, paperComponents = [], topicKey }) {
+function specialistRoute({ routeId, qualification, stage, subject, subjectId, paperComponents = [], topicKey, board, url }) {
   return Object.freeze({
     routeId,
-    qualification: QUALIFICATIONS.ADMISSIONS,
-    qualificationId: 'admissions',
-    stage: 'Admissions',
+    qualification,
+    qualificationId: qualification.toLowerCase(),
+    stage,
     subject,
     subjectId,
     subjectCode: subjectId,
     paperComponents: Object.freeze([...paperComponents]),
-    syllabus: Object.freeze({ board: 'Official assessment provider', code: subjectId, version: 'current', url: null, topics: freezeTopics(topicKey) }),
+    syllabus: Object.freeze({ board, code: subjectId, version: 'current', url, topics: freezeTopics(topicKey) }),
   })
+}
+
+function competitionRoute(options) {
+  return specialistRoute({ ...options, qualification: QUALIFICATIONS.COMPETITION, stage: 'Competition' })
+}
+
+function admissionsRoute(options) {
+  return specialistRoute({ ...options, qualification: QUALIFICATIONS.ADMISSIONS, stage: 'Admissions' })
 }
 
 export const courseRoutes = Object.freeze([
@@ -110,10 +119,10 @@ export const courseRoutes = Object.freeze([
   cieRoute({ routeId: 'cie-9231-as-p1-p4', qualification: QUALIFICATIONS.A_LEVEL, stage: 'AS', subject: 'Further Mathematics', subjectId: 'math-9231', code: '9231', paperComponents: [1, 4], topicKey: '9231-as' }),
   cieRoute({ routeId: 'cie-9231-a2-after-p1-p3-p2-p4', qualification: QUALIFICATIONS.A_LEVEL, stage: 'A2', subject: 'Further Mathematics', subjectId: 'math-9231', code: '9231', paperComponents: [2, 4], topicKey: '9231-a2' }),
   cieRoute({ routeId: 'cie-9231-a2-after-p1-p4-p2-p3', qualification: QUALIFICATIONS.A_LEVEL, stage: 'A2', subject: 'Further Mathematics', subjectId: 'math-9231', code: '9231', paperComponents: [2, 3], topicKey: '9231-a2' }),
-  admissionsRoute({ routeId: 'bpho-admissions-physics', subject: 'British Physics Olympiad', subjectId: 'bpho', topicKey: 'bpho' }),
-  admissionsRoute({ routeId: 'maa-amc12-admissions-mathematics', subject: 'AMC 12', subjectId: 'amc12', topicKey: 'amc12' }),
-  admissionsRoute({ routeId: 'uatuk-esat-admissions', subject: 'ESAT', subjectId: 'esat', paperComponents: ['mathematics-1', 'mathematics-2', 'physics', 'chemistry', 'biology'], topicKey: 'esat' }),
-  admissionsRoute({ routeId: 'uatuk-tmua-admissions', subject: 'TMUA', subjectId: 'tmua', paperComponents: [1, 2], topicKey: 'tmua' }),
+  competitionRoute({ routeId: 'bpho-admissions-physics', subject: 'British Physics Olympiad', subjectId: 'bpho', topicKey: 'bpho', board: 'British Physics Olympiad', url: 'https://www.bpho.org.uk/Papers/R1/' }),
+  competitionRoute({ routeId: 'maa-amc12-admissions-mathematics', subject: 'AMC 12', subjectId: 'amc12', topicKey: 'amc12', board: 'Mathematical Association of America', url: 'https://maa.org/student-programs/amc/' }),
+  admissionsRoute({ routeId: 'uatuk-esat-admissions', subject: 'ESAT', subjectId: 'esat', paperComponents: ['mathematics-1', 'mathematics-2', 'physics', 'chemistry', 'biology'], topicKey: 'esat', board: 'UAT-UK', url: 'https://esat-tmua.ac.uk/esat-preparation-materials/' }),
+  admissionsRoute({ routeId: 'uatuk-tmua-admissions', subject: 'TMUA', subjectId: 'tmua', paperComponents: [1, 2], topicKey: 'tmua', board: 'UAT-UK', url: 'https://esat-tmua.ac.uk/tmua-preparation-materials/' }),
 ])
 
 const ROUTE_BY_ID = new Map(courseRoutes.map((route) => [route.routeId, route]))
@@ -150,14 +159,16 @@ function normaliseQualification(value) {
   const key = String(value || '').trim().toLowerCase()
   if (/igcse/.test(key)) return QUALIFICATIONS.IGCSE
   if (/a[ -]?level|as[ &-]+a|cambridge-international/.test(key)) return QUALIFICATIONS.A_LEVEL
-  if (/admission|bpho|amc|esat|tmua/.test(key)) return QUALIFICATIONS.ADMISSIONS
+  if (/competition|olympiad|bpho|amc/.test(key)) return QUALIFICATIONS.COMPETITION
+  if (/admission|esat|tmua/.test(key)) return QUALIFICATIONS.ADMISSIONS
   return null
 }
 
 function normaliseStage(value) {
   const key = String(value || '').trim().toUpperCase()
   if (key === 'IGCSE' || key === 'AS' || key === 'A2') return key
-  if (key === 'ADMISSIONS' || key === 'COMPETITION') return 'Admissions'
+  if (key === 'COMPETITION') return 'Competition'
+  if (key === 'ADMISSIONS') return 'Admissions'
   return null
 }
 

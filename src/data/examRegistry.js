@@ -1,6 +1,7 @@
 export const examFamilies = Object.freeze([
   { id: 'cambridge', provider: 'Cambridge International', kind: 'school-qualification' },
   { id: 'olympiad', provider: 'British Physics Olympiad', kind: 'olympiad' },
+  { id: 'competition', provider: 'Mathematical Association of America', kind: 'mathematics-competition' },
   { id: 'admissions', provider: 'UAT-UK', kind: 'admissions-test' },
 ])
 
@@ -16,6 +17,7 @@ export const qualifications = Object.freeze([
   qualification('cambridge-9709', 'cambridge', '9709', 'AS & A Level Mathematics', 'math', ['AS', 'A2']),
   qualification('cambridge-9231', 'cambridge', '9231', 'AS & A Level Further Mathematics', 'math', ['AS', 'A2']),
   qualification('bpho', 'olympiad', 'bpho', 'British Physics Olympiad', 'physics', ['SPC', 'Round 1', 'Round 2']),
+  qualification('amc12', 'competition', 'amc12', 'AMC 12', 'math', ['AMC 12 A', 'AMC 12 B']),
   qualification('esat', 'admissions', 'esat', 'ESAT', 'stem', ['Mathematics 1', 'Mathematics 2', 'Physics', 'Chemistry']),
   qualification('tmua', 'admissions', 'tmua', 'TMUA', 'math', ['Paper 1', 'Paper 2']),
 ])
