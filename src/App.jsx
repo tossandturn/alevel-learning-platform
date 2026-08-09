@@ -73,6 +73,14 @@ function routePickerLabel(route) {
   return `${stageLabel}${route.subject} (${route.subjectCode.toUpperCase()})${componentLabel}`
 }
 
+function displayPartLabel(part, fallback = 'Question') {
+  if (part?.displayLabel) return part.displayLabel
+  const file = String(part?.sourceRef?.paper || '').replace(/\.[^.]+$/, '')
+  const match = file.match(/(?:^|[_-])([msw])(\d{2})[_-]qp[_-]?(\d{1,2})(?:$|[_-])/i)
+  const label = part?.label || fallback
+  return match ? `${match[1].toUpperCase()}${match[2]}/${match[3]} · ${label}` : label
+}
+
 function focusedRetestUnit(unit, partId) {
   if (!partId || unit.parts.length === 1) return unit
   const part = unit.parts.find((item) => item.id === partId)
@@ -81,7 +89,7 @@ function focusedRetestUnit(unit, partId) {
   return {
     ...unit,
     id: `${unit.id}:focused:${part.id}`,
-    title: `${unit.title} · ${part.label}`,
+    title: `${unit.title} · ${displayPartLabel(part)}`,
     parts: [part],
     maxMarks: part.marks,
     estimatedMinutes: Math.max(5, Math.ceil((unit.estimatedMinutes || 10) * ratio)),
@@ -1606,7 +1614,7 @@ function Dashboard({
               <h2>Recent feedback</h2>
             </div>
           </div>
-          {mistakes.length ? <div className="feedback-list">{mistakes.slice(0, 3).map((mistake) => <div className="feedback-row" key={mistake.id}><span className="feedback-icon"><Flag size={15} /></span><div><strong>{mistake.part.label} · {mistake.unit.topic}</strong><small>{mistake.criterion.feedback}</small></div><ChevronRight size={16} /></div>)}</div> : <div className="feedback-empty"><CheckCircle2 size={22} /><strong>No weak points yet</strong><span>Submit a set and your mark points will appear here.</span></div>}
+          {mistakes.length ? <div className="feedback-list">{mistakes.slice(0, 3).map((mistake) => <div className="feedback-row" key={mistake.id}><span className="feedback-icon"><Flag size={15} /></span><div><strong>{displayPartLabel(mistake.part)} · {mistake.unit.topic}</strong><small>{mistake.criterion.feedback}</small></div><ChevronRight size={16} /></div>)}</div> : <div className="feedback-empty"><CheckCircle2 size={22} /><strong>No weak points yet</strong><span>Submit a set and your mark points will appear here.</span></div>}
         </section>
       </div>
 
@@ -2223,7 +2231,7 @@ function StudentNotebook({ activeRoute, routeOptions, selectRoute, attempts, uni
             {filteredMistakes.map((mistake) => {
               const response = mistake.attempt.answers?.[mistake.part.id] || mistake.attempt.working?.[mistake.part.id] || 'No typed response saved'
               const missedPoints = mistake.criterion.evidence?.filter((point) => !point.awarded) || []
-              return <article className="notebook-mistake" key={mistake.id}><header><span className={`status-pill danger ${mistake.severity.toLowerCase()}`}>{mistake.severity} priority</span><span>{mistake.status}</span></header><h3>{mistake.unit.title} - part {mistake.part.label}</h3><p className="notebook-mistake__topic">{mistake.unit.topic} - {mistake.part.marks} marks - {formatDate(mistake.attempt.submittedAt)}</p><p>{mistake.criterion.feedback}</p><details><summary>Review your response and missed points</summary><div className="notebook-evidence-copy"><strong>Your response</strong><pre>{response}</pre>{missedPoints.length > 0 && <><strong>Mark points to add next time</strong><ul>{missedPoints.map((point) => <li key={point.pointId}>{point.point}</li>)}</ul></>}</div></details><footer><span>{mistake.criterion.awarded}/{mistake.criterion.maxMarks} marks</span><button type="button" className="primary-action compact-action" onClick={() => startPractice(mistake.unit, { clearDraft: true, retestOf: mistake.attempt.id, onlyPartId: mistake.part.id })}><RefreshCcw size={15} />Retest this part</button></footer></article>
+              return <article className="notebook-mistake" key={mistake.id}><header><span className={`status-pill danger ${mistake.severity.toLowerCase()}`}>{mistake.severity} priority</span><span>{mistake.status}</span></header><h3>{mistake.unit.title} - part {displayPartLabel(mistake.part)}</h3><p className="notebook-mistake__topic">{mistake.unit.topic} - {mistake.part.marks} marks - {formatDate(mistake.attempt.submittedAt)}</p><p>{mistake.criterion.feedback}</p><details><summary>Review your response and missed points</summary><div className="notebook-evidence-copy"><strong>Your response</strong><pre>{response}</pre>{missedPoints.length > 0 && <><strong>Mark points to add next time</strong><ul>{missedPoints.map((point) => <li key={point.pointId}>{point.point}</li>)}</ul></>}</div></details><footer><span>{mistake.criterion.awarded}/{mistake.criterion.maxMarks} marks</span><button type="button" className="primary-action compact-action" onClick={() => startPractice(mistake.unit, { clearDraft: true, retestOf: mistake.attempt.id, onlyPartId: mistake.part.id })}><RefreshCcw size={15} />Retest this part</button></footer></article>
             })}
             {filteredPaperMistakes.map((mistake) => <article className="notebook-mistake" key={mistake.id}><header><span className="status-pill danger">Paper review</span><span>{mistake.status}</span></header><h3>{mistake.session.file} - question {mistake.questionNumber}</h3><p className="notebook-mistake__topic">{mistake.paper.subject} - {formatDate(mistake.session.completedAt)}</p><p>{mistake.status === 'Blank response' ? 'No final response was submitted for this printed question.' : 'Compare your response with the exact mark scheme and record the awarded marks.'}</p><footer><span>{mistake.awarded == null ? 'Not self-marked' : `${mistake.awarded}/${mistake.maxMarks} marks`}</span><button type="button" className="primary-action compact-action" onClick={() => retestPaper(mistake.paper, mistake.session.attemptId)}><RefreshCcw size={15} />Retest paper</button></footer></article>)}
           </div> : <div className="empty-state notebook-empty"><CheckCircle2 size={28} /><h2>{search || severity !== 'all' ? 'No notebook items match' : 'Your review queue is clear'}</h2><p>{search || severity !== 'all' ? 'Try a different search or priority.' : 'Complete a practice set and missed mark points will be saved here.'}</p>{(search || severity !== 'all') && <button type="button" className="secondary-action" onClick={() => { setQuery(''); setSeverity('all') }}>Clear filters</button>}</div>}
@@ -2255,7 +2263,7 @@ function MistakeList({ mistakes, paperMistakes, startPractice, retestPaper }) {
         <article className="mistake-row" key={mistake.id}>
           <div>
             <span className="status-pill danger">{mistake.severity}</span>
-            <h2>{mistake.unit.title} · part {mistake.part.label}</h2>
+            <h2>{mistake.unit.title} · part {displayPartLabel(mistake.part)}</h2>
             <p>{mistake.criterion.feedback}</p>
           </div>
           <div className="mistake-score">
@@ -2317,7 +2325,7 @@ function ResultView({ attempt, unit, startPractice, goLibrary, recordSelfMark })
         <section className="self-mark-result__guide" aria-label="Record self-mark">
           <div><p className="section-label">Paired mark scheme</p><h2>Record your own mark before it counts.</h2><p>Compare each answer with its exact paired mark scheme. Only this explicit record creates a score, mastery update or retest suggestion.</p></div>
           <div className="self-mark-result__rows">
-            {unit.parts.map((part, index) => <label key={part.id}><span><strong>Question {part.label || index + 1}</strong><small>{part.marks} {part.marks === 1 ? 'mark' : 'marks'}</small></span><input type="number" min="0" max={part.marks} step="1" inputMode="numeric" aria-label={`Self-mark for question ${part.label || index + 1}`} value={selfMarks[part.id] ?? ''} onChange={(event) => setSelfMarks((current) => ({ ...current, [part.id]: event.target.value === '' ? '' : Math.max(0, Math.min(part.marks, Number(event.target.value))) }))} />{part.answerRef?.localUrl && <a href={part.answerRef.localUrl} target="_blank" rel="noreferrer">Mark scheme</a>}</label>)}
+            {unit.parts.map((part, index) => <label key={part.id}><span><strong>{displayPartLabel(part, `Question ${index + 1}`)}</strong><small>{part.marks} {part.marks === 1 ? 'mark' : 'marks'}</small></span><input type="number" min="0" max={part.marks} step="1" inputMode="numeric" aria-label={`Self-mark for ${displayPartLabel(part, `Question ${index + 1}`)}`} value={selfMarks[part.id] ?? ''} onChange={(event) => setSelfMarks((current) => ({ ...current, [part.id]: event.target.value === '' ? '' : Math.max(0, Math.min(part.marks, Number(event.target.value))) }))} />{part.answerRef?.localUrl && <a href={part.answerRef.localUrl} target="_blank" rel="noreferrer">Mark scheme</a>}</label>)}
           </div>
           <button type="button" className="primary-action" disabled={!marksComplete} onClick={() => recordSelfMark?.(attempt.id, selfMarks)}>Record self-mark</button>
         </section>
@@ -2367,7 +2375,7 @@ function ResultView({ attempt, unit, startPractice, goLibrary, recordSelfMark })
           <div className="panel-heading">
             <div>
               <p className="section-label">Evidence</p>
-              <h2>{weakest ? `Weakest part: ${weakest.label}` : 'All seed checks secure'}</h2>
+              <h2>{weakest ? `Weakest part: ${displayPartLabel(weakest)}` : 'All seed checks secure'}</h2>
             </div>
             <strong>{result.percentage}%</strong>
           </div>
@@ -2379,7 +2387,7 @@ function ResultView({ attempt, unit, startPractice, goLibrary, recordSelfMark })
               return (
                 <article className="criterion" key={criterion.partId}>
                   <div>
-                    <h3>Part {part.label}: {criterion.awarded}/{criterion.maxMarks}</h3>
+                    <h3>Part {displayPartLabel(part)}: {criterion.awarded}/{criterion.maxMarks}</h3>
                     <p>{criterion.feedback}</p>
                     <div className="student-submission">
                       <span>Your response</span>
@@ -2390,7 +2398,7 @@ function ResultView({ attempt, unit, startPractice, goLibrary, recordSelfMark })
                     {visionPart?.status === 'unconfigured' && <p className="vision-result-inactive">AI handwriting marking was not configured; this image is saved for manual review.</p>}
                     {visionPart?.status === 'error' && <p className="vision-result-inactive">{visionPart.error}</p>}
                     {visionPart?.status === 'self_mark_only' && <p className="vision-result-inactive">Handwriting is saved with this attempt. Compare it with the exact mark scheme and record your self-mark.</p>}
-                    {part.sourceRef?.markSchemeUrl && <a className="mark-scheme-link" href={part.sourceRef.markSchemeUrl} target="_blank" rel="noreferrer">Open exact mark scheme for {part.sourceRef.question}</a>}
+                    {part.sourceRef?.markSchemeUrl && <a className="mark-scheme-link" href={part.sourceRef.markSchemeUrl} target="_blank" rel="noreferrer">Open exact mark scheme for {displayPartLabel(part)}</a>}
                     {part.answerRef && <div className="official-answer"><header><strong>Official mark scheme</strong><a className="mark-scheme-link" href={part.answerRef.localUrl} target="_blank" rel="noreferrer">Open {part.answerRef.file}</a></header>{part.answerRef.assetUrls?.map((url) => <img src={url} alt={`${part.answerRef.file}, answer for ${part.sourceRef?.question}`} loading="lazy" key={url} />)}{part.exactAnswer && <details><summary>Extracted mark-scheme text</summary><p>{part.exactAnswer}</p></details>}</div>}
                   </div>
                   <div className="mark-points">

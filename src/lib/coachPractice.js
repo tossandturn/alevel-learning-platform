@@ -36,6 +36,13 @@ function externalGroup(id, name) {
   return Object.freeze({ id, name, stageTags: [] })
 }
 
+function compactSourcePaperLabel(sourceRef) {
+  const file = String(sourceRef?.paper || '').replace(/\.[^.]+$/, '')
+  const match = file.match(/(?:^|[_-])([msw])(\d{2})[_-]qp[_-]?(\d{1,2})(?:$|[_-])/i)
+  if (match) return `${match[1].toUpperCase()}${match[2]}/${match[3]}`
+  return file || String(sourceRef?.paperId || '').replace(/^cie-\d{4}-/i, '')
+}
+
 function appSubjectForRoute(route) {
   return subjects.find((subject) => subject.routeIds?.includes(route.routeId))
 }
@@ -197,6 +204,7 @@ export function buildCoachPractice({ routeId, subjectId, stage, knowledgeGroupId
     questionGroupId: group.questionGroupId,
     questionPartId: questionPart.partId,
     label: `${group.sourceRef.question || groupIndex + 1}${questionPart.label ? `(${questionPart.label})` : ''}`,
+    displayLabel: `${compactSourcePaperLabel(group.sourceRef) ? `${compactSourcePaperLabel(group.sourceRef)} · ` : ''}${group.sourceRef.question || groupIndex + 1}${questionPart.label ? `(${questionPart.label})` : ''}`,
     prompt: questionPart.promptFragment,
     marks: questionPart.marks,
     answerType: questionPart.answerArea?.type || group.answerType || 'handwritten',

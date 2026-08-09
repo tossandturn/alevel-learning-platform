@@ -31,6 +31,14 @@ function plural(count, singular, pluralForm = `${singular}s`) {
   return `${count} ${count === 1 ? singular : pluralForm}`
 }
 
+function displayPartLabel(part, fallback = 'Question') {
+  if (part?.displayLabel) return part.displayLabel
+  const file = String(part?.sourceRef?.paper || '').replace(/\.[^.]+$/, '')
+  const match = file.match(/(?:^|[_-])([msw])(\d{2})[_-]qp[_-]?(\d{1,2})(?:$|[_-])/i)
+  const label = part?.label || fallback
+  return match ? `${match[1].toUpperCase()}${match[2]}/${match[3]} · ${label}` : label
+}
+
 function sourceMixText(sourceMix) {
   if (!sourceMix) return ''
   return [
@@ -222,7 +230,7 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
 
               <div className="qp-question__body">
                 <h2>{displayPrompt(activePart)}</h2>
-                {activePart.sourceRef && <div className="question-source-label qp-source-label"><strong>Official Cambridge question · {activePart.sourceRef.question || activePart.label || activeIndex + 1}</strong><span>Source-bound question from the original paper. Marking feedback appears after submission.</span></div>}
+                {activePart.sourceRef && <div className="question-source-label qp-source-label"><strong>Official Cambridge question · {displayPartLabel(activePart, `Question ${activeIndex + 1}`)}</strong><span>Source-bound question from the original paper. Marking feedback appears after submission.</span></div>}
                 <p className={`qp-marking-capability qp-marking-capability--${activeMarkingCapability.mode}`} data-review-status={activePart.reviewStatus || 'unindexed'}>
                   <span>{activeMarkingCapability.label}</span>{activeMarkingCapability.detail}
                 </p>
@@ -252,7 +260,7 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
               {settings.hints && settings.mode !== 'exam' && <details className="question-hint qp-local-hint"><summary>See a small prompt</summary><p>{activePart.hint || 'Identify the command word, choose the relevant relationship, then check units and significant figures.'}</p></details>}
 
               <details className="question-source-evidence qp-source-evidence">
-                <summary><span><FileText size={15} /><strong>View official source</strong><small>Original paper · question {activePart.sourceRef?.question || activePart.label || activeIndex + 1}</small></span><ChevronRight size={16} /></summary>
+                <summary><span><FileText size={15} /><strong>View official source</strong><small>Original paper · {displayPartLabel(activePart, `Question ${activeIndex + 1}`)}</small></span><ChevronRight size={16} /></summary>
                 <div className="question-source-pages" aria-label={`Official source pages for ${activePart.sourceRef?.question || 'this question'}`}>
                   {activePart.sourceRef?.assetUrls?.length > 0 && activePart.sourceRef.assetUrls.map((url, pageIndex) => <img src={url} alt={`${activePart.sourceRef.paper}, ${activePart.sourceRef.question || 'question'}, source page ${(activePart.sourceRef.pageStart || activePart.sourceRef.page || 1) + pageIndex}`} loading="lazy" key={url} />)}
                   {activePart.sourceRef?.localUrl && <a href={activePart.sourceRef.localUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Open the original paper</a>}
@@ -297,7 +305,7 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
           component: unit.type,
           topic: unit.topic,
           paper: activePart.sourceRef && activePart.answerRef ? { questionFile: activePart.sourceRef.paper, markSchemeFile: activePart.answerRef.file } : null,
-          question: { id: activePart.id, label: `Question ${activePart.label || activeIndex + 1}`, prompt: activePart.prompt, hint: activePart.hint, marks: activePart.marks },
+          question: { id: activePart.id, label: displayPartLabel(activePart, `Question ${activeIndex + 1}`), prompt: activePart.prompt, hint: activePart.hint, marks: activePart.marks },
           response: attempt.answers[activePart.id] || attempt.working?.[activePart.id] || '',
           handwritingAttached: Boolean(attempt.evidence?.[activePart.id]),
           submitted: false,
