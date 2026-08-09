@@ -106,6 +106,15 @@ async function sendLocalPdf(request, response, next) {
   Readable.fromWeb(remoteResponse.body).pipe(response)
 }
 
+function sendHealth(request, response, next) {
+  const requestUrl = new URL(request.url, 'http://127.0.0.1')
+  if (requestUrl.pathname !== '/healthz') return next()
+  response.statusCode = 200
+  response.setHeader('Content-Type', 'application/json; charset=utf-8')
+  response.setHeader('Cache-Control', 'no-store')
+  response.end(JSON.stringify({ ok: true, service: 'stem' }))
+}
+
 function localCieLibrary(env) {
   const libraryRoot = path.resolve(env.CIE_LIBRARY_ROOT || DEFAULT_LIBRARY_ROOT)
   const aiApi = createAiApi({ env, libraryRoot, allowedSubjects: ALLOWED_SUBJECTS })
@@ -113,11 +122,13 @@ function localCieLibrary(env) {
   return {
     name: 'local-cie-library',
     configureServer(server) {
+      server.middlewares.use(sendHealth)
       server.middlewares.use(stemApi)
       server.middlewares.use(aiApi)
       server.middlewares.use(sendLocalPdf)
     },
     configurePreviewServer(server) {
+      server.middlewares.use(sendHealth)
       server.middlewares.use(stemApi)
       server.middlewares.use(aiApi)
       server.middlewares.use(sendLocalPdf)
