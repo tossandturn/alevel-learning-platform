@@ -783,7 +783,7 @@
 @media (max-width: 430px) {
   .top-nav nav {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 2px;
   }
 
@@ -6365,7 +6365,7 @@ button:disabled {
 @media (max-width: 430px) {
   .top-nav nav {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 2px;
   }
 
