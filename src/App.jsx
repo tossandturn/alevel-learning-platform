@@ -807,7 +807,7 @@ function App() {
   function openPaper(paper, routeOverride = activeRoute) {
     const paperNumber = paper.examProfile?.paperNumber == null ? null : Number(paper.examProfile.paperNumber)
     const routeMatches = String(paper.subject) === String(routeOverride.subjectCode)
-      && (paperNumber == null || !Number.isFinite(paperNumber) || routeOverride.paperComponents.includes(paperNumber))
+      && (paperNumber == null || !Number.isFinite(paperNumber) || !routeOverride.paperComponents.length || routeOverride.paperComponents.includes(paperNumber))
     if (!routeMatches) return
     const scopedPaper = { ...paper, routeId: routeOverride.routeId, stage: routeOverride.stage, qualification: routeOverride.qualification }
     setActivePaper(scopedPaper)

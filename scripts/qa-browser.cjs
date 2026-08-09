@@ -322,6 +322,12 @@ async function run() {
       if (resultText !== `${expected} files`) throw new Error(`BPhO ${round} filter returned ${resultText}, expected ${expected} files`)
     }
     await roundSelect.selectOption('all')
+    await page.locator('.paper-table tbody tr').first().getByRole('button', { name: 'Open' }).click()
+    await page.locator('.paper-workspace').waitFor()
+    await page.locator('.pdf-canvas-scroll canvas').first().waitFor({ timeout: 60000 })
+    if (await page.getByText(/Answer slots/i).count() !== 1) throw new Error('Competition historical paper did not open the answer workspace')
+    await page.getByRole('button', { name: 'Back to paper library' }).click()
+    await page.getByRole('heading', { name: 'British Physics Olympiad historical archive' }).waitFor()
     shots.push(path.join(ARTIFACT_DIR, 'competition-archive-desktop.png'))
     await page.screenshot({ path: shots.at(-1), fullPage: false })
 
