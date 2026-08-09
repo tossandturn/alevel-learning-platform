@@ -1090,25 +1090,27 @@ function TeacherHome({
   const completionRate = assignments.length
     ? Math.round((submittedAssignmentIds.size / assignments.length) * 100)
     : null;
-  const average = submissions.length
+  const verifiedSubmissions = submissions.filter(hasVerifiedScore)
+  const average = verifiedSubmissions.length
     ? Math.round(
-        submissions.reduce(
-          (sum, submission) => sum + (Number(submission.percentage) || 0),
-          0,
-        ) / submissions.length,
+        verifiedSubmissions.reduce((sum, submission) => sum + Number(submission.percentage), 0) /
+          verifiedSubmissions.length,
       )
     : null;
   const topicRows = Object.entries(
     Object.groupBy(submissions, (submission) => submission.syllabusPointId),
   )
-    .map(([topicId, rows]) => ({
-      topicId,
-      count: rows.length,
-      average: Math.round(
-        rows.reduce((sum, row) => sum + (Number(row.percentage) || 0), 0) /
-          rows.length,
-      ),
-    }))
+    .map(([topicId, rows]) => {
+      const verified = rows.filter(hasVerifiedScore)
+      return {
+        topicId,
+        count: rows.length,
+        average: verified.length
+          ? Math.round(verified.reduce((sum, row) => sum + Number(row.percentage), 0) / verified.length)
+          : null,
+      }
+    })
+    .filter((item) => item.average != null)
     .sort((left, right) => left.average - right.average);
   const classSupport = Object.entries(serverSummaries || {}).flatMap(
     ([classroomId, summary]) =>
@@ -1129,8 +1131,9 @@ function TeacherHome({
           <p className="section-label">Teacher Home</p>
           <h2>Act on the next teaching signal</h2>
           <p>
-            Scores are aggregate evidence from verified QP/MS practice. Private
-            notebooks and Coach chats remain outside this view.
+            Scores are aggregate evidence from submitted work. Student-reported
+            marks remain pending verification; private notebooks and Coach
+            chats stay outside this view.
           </p>
         </div>
         <span>{learningProgress?.completedSets || 0} local submitted sets</span>
@@ -1157,7 +1160,7 @@ function TeacherHome({
         <div>
           <span>Average correctness</span>
           <strong>{average == null ? "No data" : `${average}%`}</strong>
-          <small>Submitted work only</small>
+            <small>{verifiedSubmissions.length} verified score{verifiedSubmissions.length === 1 ? "" : "s"}</small>
         </div>
         <div>
           <span>Support queue</span>
@@ -1197,6 +1200,7 @@ function TeacherHome({
                       <td>
                         {submission.rawMarks}/{submission.maxMarks} (
                         {submission.percentage}%)
+                        {!hasVerifiedScore(submission) && " · pending verification"}
                       </td>
                       <td>
                         {new Date(submission.occurredAt).toLocaleDateString(
@@ -1224,7 +1228,7 @@ function TeacherHome({
               <p className="section-label">Insights</p>
               <h3>Topics needing attention</h3>
             </div>
-            <span>Lowest submitted average first</span>
+            <span>Lowest verified average first</span>
           </header>
           {topicRows.length ? (
             <div className="topic-insight-list">
