@@ -5,7 +5,7 @@ import { paperQuestionMarkingMetadata } from '../data/questionBank'
 import { deletePaperEvidence, getPaperEvidence, putPaperEvidence } from '../lib/evidenceStorage'
 import { buildSharedMarkingSubmission, completedMarksByQuestion, createSharedMarkingSubmission, loadQuestionAsset, paperSubmissionMarkingSummary, retrySharedMarkingSubmission, waitForSharedMarkingSubmission } from '../lib/paperMarking'
 import { AiCoach } from './AiCoach'
-import { PaperAnswerSheet } from './PaperAnswerSheet'
+import { PaperAnswerSheet, SelfMarkSummary } from './PaperAnswerSheet'
 import { PdfViewer } from './PdfViewer'
 
 function formatTime(totalSec) {
@@ -111,6 +111,7 @@ export function PaperWorkspace({ paper, catalog, draft, sharedIdentityToken = ''
   const [submitted, setSubmitted] = useState(Boolean(draft?.submitted))
   const [selfMarks, setSelfMarks] = useState(draft?.selfMarks || {})
   const [maxMarksByQuestion, setMaxMarksByQuestion] = useState(() => ({ ...reviewedMaxMarks, ...(draft?.maxMarksByQuestion || {}) }))
+  const [lastSavedReview, setLastSavedReview] = useState(draft?.lastSavedReview || null)
   const [aiMarks, setAiMarks] = useState(draft?.aiMarks || {})
   const [focusedQuestion, setFocusedQuestion] = useState(draft?.focusedQuestion || 1)
   const [coachRequest, setCoachRequest] = useState(0)
@@ -170,6 +171,7 @@ export function PaperWorkspace({ paper, catalog, draft, sharedIdentityToken = ''
     submitted,
     selfMarks,
     maxMarksByQuestion,
+    lastSavedReview,
     aiMarks,
     elapsedSec,
     notes,
@@ -508,9 +510,18 @@ export function PaperWorkspace({ paper, catalog, draft, sharedIdentityToken = ''
   }
 
   function finishReview() {
-    const marks = Object.values(selfMarks).filter((value) => Number.isFinite(Number(value))).map(Number)
-    const available = Object.values(maxMarksByQuestion).filter((value) => Number.isFinite(Number(value))).map(Number)
-    onFinishReview({
+    const completedQuestionNumbers = responseQuestionNumbers.filter((questionNumber) => {
+      const awarded = selfMarks[questionNumber]
+      const available = maxMarksByQuestion[questionNumber]
+      const awardedNumber = Number(awarded)
+      const availableNumber = Number(available)
+      return awarded !== '' && awarded != null && available !== '' && available != null
+        && Number.isFinite(awardedNumber) && Number.isFinite(availableNumber)
+        && awardedNumber >= 0 && availableNumber >= 0 && awardedNumber <= availableNumber
+    })
+    const marks = completedQuestionNumbers.map((questionNumber) => Number(selfMarks[questionNumber]))
+    const available = completedQuestionNumbers.map((questionNumber) => Number(maxMarksByQuestion[questionNumber]))
+    const review = {
       attemptId,
       paperId: sourcePaper.id,
       selfMarks,
@@ -520,7 +531,15 @@ export function PaperWorkspace({ paper, catalog, draft, sharedIdentityToken = ''
       maxMarks: profile.mode === 'mcq' ? questionCount : available.reduce((sum, value) => sum + value, 0),
       reviewedAt: new Date().toISOString(),
       officialResult: false,
+    }
+    const signature = JSON.stringify({
+      scoredQuestionNumbers: completedQuestionNumbers,
+      selfMarks: Object.fromEntries(completedQuestionNumbers.map((questionNumber) => [questionNumber, selfMarks[questionNumber]])),
+      maxMarksByQuestion: Object.fromEntries(completedQuestionNumbers.map((questionNumber) => [questionNumber, maxMarksByQuestion[questionNumber]])),
     })
+    if (lastSavedReview?.signature === signature) return
+    setLastSavedReview({ savedAt: review.reviewedAt, rawMarks: review.rawMarks, maxMarks: review.maxMarks, signature })
+    onFinishReview(review)
   }
 
   return (
@@ -578,6 +597,17 @@ export function PaperWorkspace({ paper, catalog, draft, sharedIdentityToken = ''
           onPointerCancel={finishPaneResize}
         ><GripVertical size={16} /></div>}
         {isAttempt && <aside id="paper-answer-pane" role="tabpanel" className={`paper-response-panel ${mobilePane !== 'answer' ? 'mobile-pane-hidden' : ''}`}>
+          {submitted && <SelfMarkSummary
+            responseQuestionNumbers={responseQuestionNumbers}
+            selfMarks={selfMarks}
+            maxMarksByQuestion={maxMarksByQuestion}
+            lastSavedReview={lastSavedReview}
+            onOpenMarkScheme={() => {
+              openDocument('mark')
+              setMobilePane('paper')
+            }}
+            onReviewSubmit={finishReview}
+          />}
           {!questionCountFixed && <div className="paper-question-count"><div><strong>Answer slots</strong><span>Match the question numbers printed in this paper.</span></div><div><button type="button" onClick={() => setCount(questionCount - 1)} aria-label="Remove answer slot"><Minus size={16} /></button><input type="number" min={minimumQuestions} max={maximumQuestions} value={questionCount} onChange={(event) => setCount(event.target.value)} aria-label="Number of answer slots" /><button type="button" onClick={() => setCount(questionCount + 1)} aria-label="Add answer slot"><Plus size={16} /></button></div></div>}
           <label className="paper-session-notes"><span>Session notes</span><textarea rows="2" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Formula checks, timing notes, questions to revisit..." /></label>
           {evidenceStatus && <div className="paper-evidence-status" aria-live="polite">{evidenceStatus}</div>}

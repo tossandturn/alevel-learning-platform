@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { HandwritingPad } from './HandwritingPad'
 
@@ -22,9 +22,16 @@ function stateLabel(state) {
 }
 
 function maxMarksFor(questionNumber, mode, maxMarksByQuestion) {
-  const configured = Number(maxMarksByQuestion?.[questionNumber])
+  const rawConfigured = maxMarksByQuestion?.[questionNumber]
+  const configured = rawConfigured === '' || rawConfigured == null ? Number.NaN : Number(rawConfigured)
   if (Number.isFinite(configured) && configured >= 0) return configured
   return mode === 'mcq' ? 1 : undefined
+}
+
+function markValue(value) {
+  if (value === '' || value == null) return null
+  const numericValue = Number(value)
+  return Number.isFinite(numericValue) && numericValue >= 0 ? numericValue : null
 }
 
 function legacyResponse(answer) {
@@ -53,36 +60,16 @@ function AiMarkResult({ result, questionNumber, onRetryMarking }) {
 function SelfMarkInput({ mode, questionNumber, maxMarksByQuestion, officialMaxMarks, selfMarks, onMaxMarkChange, onSelfMarkChange }) {
   const maxMarks = maxMarksFor(questionNumber, mode, maxMarksByQuestion)
   const value = selfMarks?.[questionNumber] ?? ''
+  const hasAvailableMarks = Number.isFinite(maxMarks)
+  const awardedMarks = markValue(value)
+  const isComplete = hasAvailableMarks && awardedMarks != null
+  const fieldId = `self-mark-${questionNumber}`
 
   return (
-    <div className="paper-answer-sheet__self-mark">
-      <span>Self-mark for question {questionNumber}{officialMaxMarks ? ' · reviewed allocation' : ''}</span>
+    <fieldset className="paper-answer-sheet__self-mark">
+      <legend>Self-mark question {questionNumber}{officialMaxMarks ? ' · reviewed allocation' : ''}</legend>
       <label>
-        <small>Awarded</small>
-        <input
-          type="number"
-          min="0"
-          max={maxMarks}
-          step="1"
-          inputMode="numeric"
-          value={value}
-          aria-label={`Self-mark awarded for question ${questionNumber}`}
-          onChange={(event) => {
-            const nextValue = event.target.value
-            if (nextValue === '') {
-              onSelfMarkChange?.(questionNumber, null)
-              return
-            }
-            const numericValue = Number(nextValue)
-            const boundedValue = maxMarks == null
-              ? Math.max(0, numericValue)
-              : Math.min(maxMarks, Math.max(0, numericValue))
-            onSelfMarkChange?.(questionNumber, boundedValue)
-          }}
-        />
-      </label>
-      <label>
-        <small>Available</small>
+        <small>Mark scheme total</small>
         <input
           type="number"
           min="1"
@@ -90,11 +77,74 @@ function SelfMarkInput({ mode, questionNumber, maxMarksByQuestion, officialMaxMa
           inputMode="numeric"
           value={maxMarks ?? ''}
           disabled={mode === 'mcq' || Boolean(officialMaxMarks)}
-          aria-label={`Maximum marks for question ${questionNumber}`}
+          placeholder={hasAvailableMarks ? undefined : 'From mark scheme'}
+          aria-label={`Mark scheme total for question ${questionNumber}`}
+          aria-describedby={`${fieldId}-help`}
           onChange={(event) => onMaxMarkChange?.(questionNumber, event.target.value === '' ? null : Math.max(1, Number(event.target.value)))}
         />
       </label>
-    </div>
+      <label>
+        <small>Your awarded mark</small>
+        <input
+          type="number"
+          min="0"
+          max={maxMarks}
+          step="1"
+          inputMode="numeric"
+          value={value}
+          disabled={!hasAvailableMarks}
+          placeholder={hasAvailableMarks ? '0' : 'Set total first'}
+          aria-label={`Awarded mark for question ${questionNumber}`}
+          aria-describedby={`${fieldId}-help`}
+          onChange={(event) => {
+            const nextValue = event.target.value
+            if (nextValue === '') {
+              onSelfMarkChange?.(questionNumber, null)
+              return
+            }
+            onSelfMarkChange?.(questionNumber, Math.min(maxMarks, Math.max(0, Number(nextValue))))
+          }}
+        />
+      </label>
+      <p id={`${fieldId}-help`} className={isComplete ? 'is-complete' : ''} role="status">
+        {isComplete ? `Recorded for this attempt: ${awardedMarks}/${maxMarks} marks.` : hasAvailableMarks ? 'Enter the mark you awarded after checking the mark scheme.' : 'Enter the total marks printed beside this question in the mark scheme first.'}
+      </p>
+    </fieldset>
+  )
+}
+
+export function SelfMarkSummary({ responseQuestionNumbers, selfMarks, maxMarksByQuestion, lastSavedReview, onOpenMarkScheme, onReviewSubmit }) {
+  const scoredQuestionNumbers = responseQuestionNumbers.filter((questionNumber) => {
+    const awarded = markValue(selfMarks?.[questionNumber])
+    const available = markValue(maxMarksByQuestion?.[questionNumber])
+    return awarded != null && available != null && awarded <= available
+  })
+  const totals = scoredQuestionNumbers.reduce((summary, questionNumber) => ({
+    awarded: summary.awarded + markValue(selfMarks[questionNumber]),
+    available: summary.available + markValue(maxMarksByQuestion[questionNumber]),
+  }), { awarded: 0, available: 0 })
+  const hasScore = scoredQuestionNumbers.length > 0
+  const allSubmittedResponsesScored = responseQuestionNumbers.length > 0 && scoredQuestionNumbers.length === responseQuestionNumbers.length
+
+  return (
+    <section className="paper-answer-sheet__self-mark-summary" aria-labelledby="self-mark-summary-title">
+      <div>
+        <span>Submitted answer sheet</span>
+        <h3 id="self-mark-summary-title">Self-mark with the paired mark scheme</h3>
+        <p>For each answered question, enter the total shown in the mark scheme, then the marks you awarded yourself.</p>
+      </div>
+      <dl>
+        <div><dt>Scored responses</dt><dd>{scoredQuestionNumbers.length}/{responseQuestionNumbers.length}</dd></div>
+        <div><dt>Current total</dt><dd>{hasScore ? `${totals.awarded}/${totals.available}` : 'Not scored'}</dd></div>
+      </dl>
+      <div className="paper-answer-sheet__self-mark-summary-actions">
+        <p role="status">{lastSavedReview ? `Saved result: ${lastSavedReview.rawMarks}/${lastSavedReview.maxMarks} marks.` : hasScore ? (allSubmittedResponsesScored ? 'All submitted responses are ready to save.' : 'Progress is saved in this attempt; score the remaining responses when ready.') : 'Start with the mark scheme total for an answered question.'}</p>
+        <div>
+          <button type="button" className="paper-answer-sheet__mark-scheme-action" onClick={onOpenMarkScheme}>Open mark scheme</button>
+          <button type="button" onClick={onReviewSubmit} disabled={!hasScore}>Save self-mark</button>
+        </div>
+      </div>
+    </section>
   )
 }
 
@@ -143,6 +193,12 @@ export function PaperAnswerSheet({
   const answersLocked = disabled || submitted
   const paperLabel = profile.paperNumber ? `Paper ${profile.paperNumber}` : profile.title || 'Paper'
   const modeLabel = mode === 'mcq' ? `${paperLabel} multiple choice` : mode === 'practical' ? 'Practical paper' : 'Structured paper'
+  const [saveNotice, setSaveNotice] = useState('')
+
+  function saveSelfMark() {
+    onReviewSubmit?.()
+    setSaveNotice('Self-mark saved to your results history.')
+  }
 
   function updateAnswer(questionNumber, patch) {
     const current = draftAnswers[questionNumber] || {}
@@ -258,7 +314,7 @@ export function PaperAnswerSheet({
             Submit answer sheet
           </button>
         ) : (
-          <><span role="status">Submitted for self-marking</span><button type="button" onClick={onReviewSubmit}>Save self-mark</button></>
+          <><span role="status">{saveNotice || 'Self-mark progress is saved in this attempt.'}</span><button type="button" onClick={saveSelfMark}>Save self-mark</button></>
         )}
       </footer>
     </form>
