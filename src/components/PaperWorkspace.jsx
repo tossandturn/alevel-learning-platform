@@ -27,8 +27,10 @@ const REVIEWED_0580_MARKING_CONTRACT = Object.freeze({
   routeId: 'cie-0580-igcse-mathematics',
   qualification: 'IGCSE',
   specificationVersion: 'cambridge-0580-2025-2027',
-  answerSlots: 24,
+  answerSlots: 26,
 })
+const SHARED_MARKING_BATCH_SIZE = 4
+const SHARED_MARKING_CONCURRENCY = 2
 
 function sharedMarkingContractForPaper(paper) {
   return paper?.id === REVIEWED_0580_MARKING_CONTRACT.paperId
@@ -98,6 +100,12 @@ function defaultQuestionCount(profile, paperId) {
   return 12
 }
 
+function questionBatches(questionNumbers, size = SHARED_MARKING_BATCH_SIZE) {
+  const batches = []
+  for (let index = 0; index < questionNumbers.length; index += size) batches.push(questionNumbers.slice(index, index + size))
+  return batches
+}
+
 export function PaperWorkspace({ paper, catalog, draft, sharedIdentityToken = '', onBack, onSaveDraft, onFinish, onFinishReview }) {
   const itemById = useMemo(() => new Map((catalog?.items || []).map((item) => [item.id, item])), [catalog])
   const questionPaper = itemById.get(paper.questionPaperId) || (paper.kind === 'qp' ? paper : null)
@@ -129,6 +137,7 @@ export function PaperWorkspace({ paper, catalog, draft, sharedIdentityToken = ''
   const [maxMarksByQuestion, setMaxMarksByQuestion] = useState(() => ({ ...reviewedMaxMarks, ...(draft?.maxMarksByQuestion || {}) }))
   const [lastSavedReview, setLastSavedReview] = useState(draft?.lastSavedReview || null)
   const [aiMarks, setAiMarks] = useState(draft?.aiMarks || {})
+  const [aiMarkingInProgress, setAiMarkingInProgress] = useState(false)
   const [focusedQuestion, setFocusedQuestion] = useState(draft?.focusedQuestion || 1)
   const [coachRequest, setCoachRequest] = useState(0)
   const [questionCount, setQuestionCount] = useState(draft?.questionCount || defaultQuestionCount(profile, sourcePaper.id))
@@ -166,7 +175,9 @@ export function PaperWorkspace({ paper, catalog, draft, sharedIdentityToken = ''
   const answeredCount = Array.from({ length: questionCount }, (_, index) => index + 1).filter((questionNumber) => hasResponse(profile, answers[questionNumber]) || pdfInkQuestionNumbers.includes(questionNumber)).length
   const displayPaper = documentMode === 'mark' ? markScheme : documentMode === 'report' ? examinerReport : questionPaper || paper
   const title = documentMode === 'compare' ? `${questionPaper?.file} + ${markScheme?.file}` : displayPaper?.file || paper.file
-  const [minimumQuestions, maximumQuestions] = profile.questionCountRange || [1, 30]
+  const [minimumQuestions, maximumQuestions] = sharedMarkingContract
+    ? [sharedMarkingContract.answerSlots, sharedMarkingContract.answerSlots]
+    : profile.questionCountRange || [1, 30]
   const questionCountFixed = minimumQuestions === maximumQuestions
   const componentLabel = profile.paperNumber ? `P${profile.paperNumber}` : profile.title || sourcePaper.subject.toUpperCase()
 
@@ -409,62 +420,90 @@ export function PaperWorkspace({ paper, catalog, draft, sharedIdentityToken = ''
   }
 
   async function markAllResponses() {
+    if (aiMarkingInProgress) return
     const questionNumbers = responseQuestionNumbers
     if (!questionNumbers.length) return
+    const eligibleQuestionNumbers = questionNumbers.filter((number) => questionMetadataByNumber[number]?.reviewStatus === 'reviewed')
+    const unreviewedQuestionNumbers = questionNumbers.filter((number) => !questionMetadataByNumber[number]?.reviewStatus || questionMetadataByNumber[number]?.reviewStatus !== 'reviewed')
+    if (unreviewedQuestionNumbers.length) {
+      setAiMarks((current) => ({ ...current, ...Object.fromEntries(unreviewedQuestionNumbers.map((number) => [number, { status: 'missing_metadata', code: 'question_metadata_missing' }])) }))
+    }
+    if (!eligibleQuestionNumbers.length || !sharedMarkingContract) return
+    setAiMarkingInProgress(true)
     try {
-      const responses = await Promise.all(questionNumbers.map(responseForSharedMarking))
-      const contract = buildSharedMarkingSubmission({
-        attemptId,
-        routeId: sharedMarkingContract?.routeId,
-        qualification: sharedMarkingContract?.qualification,
-        specificationVersion: sharedMarkingContract?.specificationVersion,
-        paperId: sharedMarkingContract?.paperId,
-        responses,
-      })
-      if (contract.missingQuestionNumbers.length) {
-        setAiMarks((current) => ({ ...current, ...Object.fromEntries(contract.missingQuestionNumbers.map((number) => [number, { status: 'missing_metadata', code: 'question_metadata_missing' }])) }))
-      }
-      const queuedQuestionNumbers = [...new Set(Object.values(contract.questionNumberByPartId))]
-      if (!contract.ok) return
-      if (!sharedMarkingContract) {
-        setAiMarks((current) => ({ ...current, ...Object.fromEntries(queuedQuestionNumbers.map((number) => [number, { status: 'missing_metadata', code: 'trusted_manifest_not_available' }])) }))
+      if (!sharedIdentityToken) {
+        setAiMarks((current) => ({ ...current, ...Object.fromEntries(eligibleQuestionNumbers.map((number) => [number, { status: 'failed', failureCode: 'identity_required', loginRequired: true }])) }))
         return
       }
       const availability = await readSharedMarkingAvailability({ token: sharedIdentityToken })
-      if (availability.authenticationRequired || !sharedIdentityToken) {
-        setAiMarks((current) => ({ ...current, ...Object.fromEntries(queuedQuestionNumbers.map((number) => [number, { status: 'failed', failureCode: 'identity_required', loginRequired: true }])) }))
+      if (availability.authenticationRequired) {
+        setAiMarks((current) => ({ ...current, ...Object.fromEntries(eligibleQuestionNumbers.map((number) => [number, { status: 'failed', failureCode: 'identity_required', loginRequired: true }])) }))
         return
       }
       if (!sharedMarkingIsAvailable(availability)) {
-        setAiMarks((current) => ({ ...current, ...Object.fromEntries(queuedQuestionNumbers.map((number) => [number, { status: 'failed', failureCode: 'service_unavailable', retryable: true }])) }))
+        setAiMarks((current) => ({ ...current, ...Object.fromEntries(eligibleQuestionNumbers.map((number) => [number, { status: 'failed', failureCode: 'service_unavailable', retryable: true }])) }))
         return
       }
-      setAiMarks((current) => ({ ...current, ...Object.fromEntries(queuedQuestionNumbers.map((number) => [number, { status: 'queued', submissionId: contract.payload.submissionId }])) }))
-      let submission = await createSharedMarkingSubmission({ token: sharedIdentityToken, submission: contract.payload })
-      if (submission.status === 'queued' || submission.status === 'processing') {
-        setAiMarks((current) => ({ ...current, ...Object.fromEntries(queuedQuestionNumbers.map((number) => [number, { status: submission.status, submissionId: contract.payload.submissionId }])) }))
-        submission = await waitForSharedMarkingSubmission({
-          token: sharedIdentityToken,
-          submissionId: contract.payload.submissionId,
-          onStatus: (nextSubmission) => {
-            if (!['queued', 'processing'].includes(nextSubmission.status)) return
-            setAiMarks((current) => ({ ...current, ...Object.fromEntries(queuedQuestionNumbers.map((number) => [number, { status: nextSubmission.status, submissionId: contract.payload.submissionId }])) }))
-          },
-        })
+
+      const batches = questionBatches(eligibleQuestionNumbers)
+      let cursor = 0
+      async function markBatch(questionNumbersForBatch, batchIndex) {
+        try {
+          const responses = await Promise.all(questionNumbersForBatch.map(responseForSharedMarking))
+          const contract = buildSharedMarkingSubmission({
+            attemptId,
+            routeId: sharedMarkingContract.routeId,
+            qualification: sharedMarkingContract.qualification,
+            specificationVersion: sharedMarkingContract.specificationVersion,
+            paperId: sharedMarkingContract.paperId,
+            submissionSuffix: `batch-${batchIndex + 1}-${questionNumbersForBatch.join('-')}`,
+            responses,
+          })
+          if (contract.missingQuestionNumbers.length) {
+            setAiMarks((current) => ({ ...current, ...Object.fromEntries(contract.missingQuestionNumbers.map((number) => [number, { status: 'missing_metadata', code: 'question_metadata_missing' }])) }))
+          }
+          const queuedQuestionNumbers = [...new Set(Object.values(contract.questionNumberByPartId))]
+          if (!contract.ok) return
+          setAiMarks((current) => ({ ...current, ...Object.fromEntries(queuedQuestionNumbers.map((number) => [number, { status: 'queued', submissionId: contract.payload.submissionId }])) }))
+          let submission = await createSharedMarkingSubmission({ token: sharedIdentityToken, submission: contract.payload })
+          if (submission.status === 'queued' || submission.status === 'processing') {
+            setAiMarks((current) => ({ ...current, ...Object.fromEntries(queuedQuestionNumbers.map((number) => [number, { status: submission.status, submissionId: contract.payload.submissionId }])) }))
+            submission = await waitForSharedMarkingSubmission({
+              token: sharedIdentityToken,
+              submissionId: contract.payload.submissionId,
+              onStatus: (nextSubmission) => {
+                if (!['queued', 'processing'].includes(nextSubmission.status)) return
+                setAiMarks((current) => ({ ...current, ...Object.fromEntries(queuedQuestionNumbers.map((number) => [number, { status: nextSubmission.status, submissionId: contract.payload.submissionId }])) }))
+              },
+            })
+          }
+          if (submission.status === 'completed') {
+            const results = completedMarksByQuestion(submission, contract.questionNumberByPartId)
+            setAiMarks((current) => ({ ...current, ...results }))
+            setSelfMarks((current) => ({ ...current, ...Object.fromEntries(Object.entries(results).map(([number, result]) => [number, result.rawMarks])) }))
+            setMaxMarksByQuestion((current) => ({ ...current, ...Object.fromEntries(Object.entries(results).map(([number, result]) => [number, result.maxMarks])) }))
+            return
+          }
+          const terminal = submission.status === 'missing_metadata'
+            ? { status: 'missing_metadata', metadataIssues: submission.metadataIssues || [] }
+            : { status: 'failed', submissionId: contract.payload.submissionId, failureCode: submission.failureCode || 'provider_unavailable', retryable: Boolean(submission.retryable) }
+          setAiMarks((current) => ({ ...current, ...Object.fromEntries(queuedQuestionNumbers.map((number) => [number, terminal])) }))
+        } catch (error) {
+          setAiMarks((current) => ({ ...current, ...Object.fromEntries(questionNumbersForBatch.map((number) => [number, { status: 'failed', failureCode: error.code || 'service_unavailable', retryable: Boolean(error.retryable), loginRequired: Boolean(error.loginRequired) }])) }))
+        }
       }
-      if (submission.status === 'completed') {
-        const results = completedMarksByQuestion(submission, contract.questionNumberByPartId)
-        setAiMarks((current) => ({ ...current, ...results }))
-        setSelfMarks((current) => ({ ...current, ...Object.fromEntries(Object.entries(results).map(([number, result]) => [number, result.rawMarks])) }))
-        setMaxMarksByQuestion((current) => ({ ...current, ...Object.fromEntries(Object.entries(results).map(([number, result]) => [number, result.maxMarks])) }))
-        return
+      async function worker() {
+        while (cursor < batches.length) {
+          const batchIndex = cursor
+          cursor += 1
+          await markBatch(batches[batchIndex], batchIndex)
+        }
       }
-      const terminal = submission.status === 'missing_metadata'
-        ? { status: 'missing_metadata', metadataIssues: submission.metadataIssues || [] }
-        : { status: 'failed', submissionId: contract.payload.submissionId, failureCode: submission.failureCode || 'provider_unavailable', retryable: Boolean(submission.retryable) }
-      setAiMarks((current) => ({ ...current, ...Object.fromEntries(queuedQuestionNumbers.map((number) => [number, terminal])) }))
+      await Promise.all(Array.from({ length: Math.min(SHARED_MARKING_CONCURRENCY, batches.length) }, worker))
     } catch (error) {
-      setAiMarks((current) => ({ ...current, ...Object.fromEntries(questionNumbers.filter((number) => questionMetadataByNumber[number]).map((number) => [number, { status: 'failed', failureCode: error.code || 'service_unavailable', retryable: Boolean(error.retryable), loginRequired: Boolean(error.loginRequired) }])) }))
+      setAiMarks((current) => ({ ...current, ...Object.fromEntries(eligibleQuestionNumbers.map((number) => [number, { status: 'failed', failureCode: error.code || 'service_unavailable', retryable: Boolean(error.retryable), loginRequired: Boolean(error.loginRequired) }])) }))
+    } finally {
+      setAiMarkingInProgress(false)
     }
   }
 
@@ -472,36 +511,38 @@ export function PaperWorkspace({ paper, catalog, draft, sharedIdentityToken = ''
     const current = aiMarks[questionNumber]
     if (current?.status !== 'failed' || !current.submissionId || !sharedIdentityToken) return
     const submissionId = current.submissionId
-    setAiMarks((value) => ({ ...value, [questionNumber]: { ...current, status: 'queued', retryable: false } }))
+    const affectedQuestionNumbers = Object.entries(aiMarks).filter(([, result]) => result?.submissionId === submissionId).map(([number]) => Number(number))
+    setAiMarks((value) => ({ ...value, ...Object.fromEntries(affectedQuestionNumbers.map((number) => [number, { ...value[number], status: 'queued', retryable: false }])) }))
     try {
       let submission = await retrySharedMarkingSubmission({ token: sharedIdentityToken, submissionId })
       if (submission.status === 'queued' || submission.status === 'processing') {
-        setAiMarks((value) => ({ ...value, [questionNumber]: { ...value[questionNumber], status: submission.status, submissionId } }))
+        setAiMarks((value) => ({ ...value, ...Object.fromEntries(affectedQuestionNumbers.map((number) => [number, { ...value[number], status: submission.status, submissionId }])) }))
         submission = await waitForSharedMarkingSubmission({
           token: sharedIdentityToken,
           submissionId,
           onStatus: (next) => {
-            if (next.status === 'queued' || next.status === 'processing') setAiMarks((value) => ({ ...value, [questionNumber]: { ...value[questionNumber], status: next.status, submissionId } }))
+            if (next.status === 'queued' || next.status === 'processing') setAiMarks((value) => ({ ...value, ...Object.fromEntries(affectedQuestionNumbers.map((number) => [number, { ...value[number], status: next.status, submissionId }])) }))
           },
         })
       }
       if (submission.status === 'completed') {
-        const metadata = questionMetadataByNumber[questionNumber]
-        const partIds = Object.fromEntries((metadata?.parts || []).map((part) => [part.id, questionNumber]))
-        const result = completedMarksByQuestion(submission, partIds)[questionNumber]
-        if (result) {
-          setAiMarks((value) => ({ ...value, [questionNumber]: result }))
-          setSelfMarks((value) => ({ ...value, [questionNumber]: result.rawMarks }))
-          setMaxMarksByQuestion((value) => ({ ...value, [questionNumber]: result.maxMarks }))
+        const partIds = Object.fromEntries(affectedQuestionNumbers.flatMap((number) => (
+          (questionMetadataByNumber[number]?.parts || []).map((part) => [part.id, number])
+        )))
+        const results = completedMarksByQuestion(submission, partIds)
+        if (Object.keys(results).length) {
+          setAiMarks((value) => ({ ...value, ...results }))
+          setSelfMarks((value) => ({ ...value, ...Object.fromEntries(Object.entries(results).map(([number, result]) => [number, result.rawMarks])) }))
+          setMaxMarksByQuestion((value) => ({ ...value, ...Object.fromEntries(Object.entries(results).map(([number, result]) => [number, result.maxMarks])) }))
           return
         }
       }
       const terminal = submission.status === 'missing_metadata'
         ? { status: 'missing_metadata', metadataIssues: submission.metadataIssues || [] }
         : { status: 'failed', submissionId, failureCode: submission.failureCode || 'provider_unavailable', retryable: Boolean(submission.retryable) }
-      setAiMarks((value) => ({ ...value, [questionNumber]: terminal }))
+      setAiMarks((value) => ({ ...value, ...Object.fromEntries(affectedQuestionNumbers.map((number) => [number, terminal])) }))
     } catch (error) {
-      setAiMarks((value) => ({ ...value, [questionNumber]: { status: 'failed', submissionId, failureCode: error.code || 'service_unavailable', retryable: Boolean(error.retryable), loginRequired: Boolean(error.loginRequired) } }))
+      setAiMarks((value) => ({ ...value, ...Object.fromEntries(affectedQuestionNumbers.map((number) => [number, { status: 'failed', submissionId, failureCode: error.code || 'service_unavailable', retryable: Boolean(error.retryable), loginRequired: Boolean(error.loginRequired) }])) }))
     }
   }
 
@@ -513,7 +554,10 @@ export function PaperWorkspace({ paper, catalog, draft, sharedIdentityToken = ''
     setShowSubmitCheck(false)
     if (markScheme) {
       setDocumentMode('compare')
-      setMobilePane('paper')
+      // On touch layouts the actionable result is the answer pane: keep the
+      // self-mark summary visible immediately after submission. Desktop keeps
+      // both panes visible, so this does not change its split workspace.
+      setMobilePane('answer')
     }
     onFinish({
       attemptId,
@@ -653,6 +697,8 @@ export function PaperWorkspace({ paper, catalog, draft, sharedIdentityToken = ''
             reviewedResponseQuestionNumbers={reviewedResponseQuestionNumbers}
             sharedMarkingContract={sharedMarkingContract}
             sharedIdentityConnected={Boolean(sharedIdentityToken)}
+            aiMarkingInProgress={aiMarkingInProgress}
+            onRequestAiMarking={markAllResponses}
             onRetryMarking={retryMarking}
             disabled={!isAttempt}
             onAnswerChange={updateAnswer}

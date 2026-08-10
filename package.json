@@ -9,6 +9,7 @@
     "questions:index": "node scripts/import-question-index.mjs",
     "questions:audit": "node scripts/audit-question-bank.mjs",
     "questions:coverage": "node scripts/question-coverage-matrix.mjs",
+    "test:marking-pilot": "node scripts/test-reviewed-marking-pilot.mjs",
     "build": "vite build",
     "lint": "oxlint",
     "test": "node scripts/smoke.mjs",

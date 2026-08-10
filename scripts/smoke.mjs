@@ -97,13 +97,19 @@ assert.ok(!paperWorkspaceSource.includes('Number(ink.questionNumber) || focusedQ
 assert.equal(practiceUnits.length, 0, 'formal practice must not expose generated seed questions')
 const verifiedPracticeCatalog = buildVerifiedPracticeCatalog()
 const verifiedCatalogMetrics = verifiedPracticeCatalogMetrics(verifiedPracticeCatalog)
-assert.deepEqual(verifiedCatalogMetrics, { units: 142, questionGroups: 891, answerableParts: 932, referencedPapers: 51, routes: 25, topics: 88 }, 'all verified indexed question groups must be exposed as stable route/topic practice units')
+assert.deepEqual(verifiedCatalogMetrics, { units: 145, questionGroups: 917, answerableParts: 978, referencedPapers: 52, routes: 25, topics: 89 }, 'all verified indexed question groups must be exposed as stable route/topic practice units')
 assert.equal(new Set(verifiedPracticeCatalog.map((unit) => unit.id)).size, verifiedPracticeCatalog.length, 'verified practice unit IDs must be stable and unique')
 assert.ok(verifiedPracticeCatalog.every((unit) => unit.parts.every((part) => part.routeId === unit.routeId && part.stage === unit.stage && part.sourceRef?.sha256 && part.answerRef?.sha256)), 'catalog practice units must preserve route, stage and independent QP/MS provenance')
 const catalogAnswerParts = verifiedPracticeCatalog.flatMap((unit) => unit.parts)
-assert.equal(catalogAnswerParts.filter((part) => part.aiAssistedMarkingAvailable).length, 0, 'machine-indexed source records must never unlock AI-assisted marking')
+const reviewed0580Parts = catalogAnswerParts.filter((part) => part.sourceRef?.paperId === 'cie-0580-0580_m25_qp_12')
+const reviewed0580QuestionIds = [...new Set(reviewed0580Parts.map((part) => part.sourceQuestionId))].sort((left, right) => Number(left.split(':q')[1]) - Number(right.split(':q')[1]))
+assert.deepEqual(reviewed0580QuestionIds, Array.from({ length: 26 }, (_, index) => `cie-0580-0580_m25_qp_12:q${index + 1}`), 'reviewed 0580 March 2025 Paper 1 must cover every printed question Q1-Q26')
+assert.equal(reviewed0580Parts.length, 46, 'reviewed 0580 March 2025 Paper 1 must expose all 46 answerable parts')
+assert.equal(reviewed0580Parts.reduce((sum, part) => sum + (Number(part.marks) || 0), 0), 80, 'reviewed 0580 March 2025 Paper 1 mark allocations must total 80')
+assert.ok(reviewed0580Parts.every((part) => part.aiAssistedMarkingAvailable && part.answerBinding?.verificationStatus === 'reviewed'), 'every reviewed 0580 part must be eligible for AI-assisted marking and retain reviewed provenance')
+assert.equal(catalogAnswerParts.filter((part) => part.aiAssistedMarkingAvailable).length, 46, 'only the reviewed 0580 marking pilot parts may unlock AI-assisted marking')
 assert.equal(catalogAnswerParts.filter((part) => part.deterministicScoringAvailable).length, 769, 'only source-bound objective answers may use deterministic scoring')
-assert.equal(catalogAnswerParts.filter((part) => !part.aiAssistedMarkingAvailable && !part.deterministicScoringAvailable).length, 163, 'structured machine-indexed items must remain explicitly self-mark only')
+assert.equal(catalogAnswerParts.filter((part) => !part.aiAssistedMarkingAvailable && !part.deterministicScoringAvailable).length, 163, 'unreviewed structured items must remain explicitly self-mark only')
 const asPhysicsRecommendation = recommendForRoute({
   units: verifiedPracticeCatalog,
   routeId: 'cie-9702-as-physics',

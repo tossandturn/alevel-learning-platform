@@ -8,33 +8,62 @@ import {
 } from '../src/lib/paperMarking.js'
 
 const paperId = 'cie-0580-0580_m25_qp_12'
-const metadata = paperQuestionMarkingMetadata({ paperId, routeId: 'cie-0580-igcse-mathematics' })
-const submission = buildSharedMarkingSubmission({
+const tuple = {
+  routeId: 'cie-0580-igcse-mathematics',
+  qualification: 'IGCSE',
+  specificationVersion: 'cambridge-0580-2025-2027',
+  paperId,
+}
+const metadata = paperQuestionMarkingMetadata({ paperId, routeId: tuple.routeId })
+const questionNumbers = Object.keys(metadata).map(Number).sort((left, right) => left - right)
+assert.deepEqual(questionNumbers, Array.from({ length: 26 }, (_, index) => index + 1))
+assert.equal(Object.values(metadata).reduce((sum, question) => sum + question.maxMarks, 0), 80)
+assert.equal(Object.values(metadata).flatMap((question) => question.parts).length, 46)
+assert.match(metadata[22].expectedMarkPoints.map((point) => point.point).join(' '), /7\/15 \+ 1\/5/)
+assert.doesNotMatch(metadata[22].expectedMarkPoints.map((point) => point.point).join(' '), /7\/15 \+ 1\/3/)
+
+const fullPaper = buildSharedMarkingSubmission({
   attemptId: 'client-contract-fixture',
-  routeId: 'cie-0580-igcse-mathematics',
-  qualification: 'IGCSE',
-  specificationVersion: 'cambridge-0580-2025-2027',
-  paperId,
-  responses: [20, 22, 24].map((questionNumber) => ({ questionNumber, typedText: 'fixture response', questionMetadata: metadata[questionNumber] })),
+  ...tuple,
+  submissionSuffix: 'batch-1',
+  responses: questionNumbers.map((questionNumber) => ({ questionNumber, typedText: `fixture response ${questionNumber}`, questionMetadata: metadata[questionNumber] })),
 })
+assert.equal(fullPaper.ok, true)
+assert.equal(fullPaper.payload.submissionId, 'stem-paper-client-contract-fixture-batch-1')
+assert.deepEqual(fullPaper.missingQuestionNumbers, [])
+assert.equal(fullPaper.payload.questions.length, 46)
+assert.equal(fullPaper.payload.questions.reduce((sum, question) => sum + question.availableMarks, 0), 80)
+assert.equal(new Set(fullPaper.payload.questions.map((question) => question.questionPartId)).size, 46)
 
-assert.equal(submission.ok, true)
-assert.equal(submission.payload.routeId, 'cie-0580-igcse-mathematics')
-assert.equal(submission.payload.qualification, 'IGCSE')
-assert.equal(submission.payload.specificationVersion, 'cambridge-0580-2025-2027')
-assert.equal(submission.payload.paperId, paperId)
-assert.deepEqual(submission.missingQuestionNumbers, [])
-
-const unreviewed = buildSharedMarkingSubmission({
-  attemptId: 'client-unreviewed-fixture',
-  routeId: 'cie-0580-igcse-mathematics',
-  qualification: 'IGCSE',
-  specificationVersion: 'cambridge-0580-2025-2027',
-  paperId,
-  responses: [{ questionNumber: 21, typedText: 'fixture response', questionMetadata: metadata[21] }],
+// This mirrors the student's screenshot: four handwritten top-level answers
+// must queue all of Q1-Q4's eight reviewed parts, rather than fall back to self-marking.
+const screenshotPath = buildSharedMarkingSubmission({
+  attemptId: 'screenshot-q1-q4',
+  ...tuple,
+  responses: [1, 2, 3, 4].map((questionNumber) => ({ questionNumber, typedText: 'handwritten response transcription', questionMetadata: metadata[questionNumber] })),
 })
-assert.equal(unreviewed.ok, false)
-assert.deepEqual(unreviewed.missingQuestionNumbers, [21])
+assert.equal(screenshotPath.ok, true)
+assert.deepEqual(screenshotPath.missingQuestionNumbers, [])
+assert.equal(screenshotPath.payload.questions.length, 8)
+assert.equal(screenshotPath.payload.questions.reduce((sum, question) => sum + question.availableMarks, 0), 9)
+assert.deepEqual(screenshotPath.payload.questions.map((question) => question.questionPartId), [
+  'cie-0580-0580_m25_qp_12:q1:part-a',
+  'cie-0580-0580_m25_qp_12:q2:part-a',
+  'cie-0580-0580_m25_qp_12:q2:part-b',
+  'cie-0580-0580_m25_qp_12:q2:part-c',
+  'cie-0580-0580_m25_qp_12:q3:part-a',
+  'cie-0580-0580_m25_qp_12:q4:part-a',
+  'cie-0580-0580_m25_qp_12:q4:part-b',
+  'cie-0580-0580_m25_qp_12:q4:part-c',
+])
+
+const missingMetadata = buildSharedMarkingSubmission({
+  attemptId: 'missing-metadata-fixture',
+  ...tuple,
+  responses: [{ questionNumber: 27, typedText: 'fixture response', questionMetadata: metadata[27] }],
+})
+assert.equal(missingMetadata.ok, false)
+assert.deepEqual(missingMetadata.missingQuestionNumbers, [27])
 
 const calls = []
 const enabled = await readSharedMarkingAvailability({
@@ -61,7 +90,7 @@ const authRequired = await readSharedMarkingAvailability({
 assert.equal(authRequired.authenticationRequired, true)
 assert.equal(sharedMarkingIsAvailable(authRequired), false)
 
-assert.match(paperSubmissionMarkingSummary({ submitted: true, aiMarks: { 20: { status: 'failed', loginRequired: true } }, responseQuestionNumbers: [20] }).text, /Sign in with your IELTSist ID/)
-assert.match(paperSubmissionMarkingSummary({ submitted: true, aiMarks: { 20: { status: 'failed', failureCode: 'service_unavailable' } }, responseQuestionNumbers: [20] }).text, /temporarily unavailable/)
+assert.match(paperSubmissionMarkingSummary({ submitted: true, aiMarks: { 1: { status: 'failed', loginRequired: true } }, responseQuestionNumbers: [1] }).text, /Sign in with your IELTSist ID/)
+assert.match(paperSubmissionMarkingSummary({ submitted: true, aiMarks: { 1: { status: 'failed', failureCode: 'service_unavailable' } }, responseQuestionNumbers: [1] }).text, /temporarily unavailable/)
 
-console.log('STEM shared marking client contract checks passed.')
+console.log('STEM shared marking client contract checks passed for Q1-Q26 (46 parts, 80 marks).')

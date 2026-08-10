@@ -17,6 +17,39 @@ const seenBindings = new Set()
 const inventory = new Map()
 const errors = []
 
+function reviewedPartEvidenceErrors(question, answer, binding, label) {
+  if (binding.verificationStatus !== 'reviewed') return []
+  const evidence = binding.reviewEvidence
+  const reviewErrors = []
+  if (!/^\d{4}-\d{2}-\d{2}T/.test(String(binding.reviewedAt || ''))) reviewErrors.push(`${label}: reviewed binding is missing reviewedAt`)
+  if (!String(binding.reviewedBy || '').trim()) reviewErrors.push(`${label}: reviewed binding is missing reviewedBy`)
+  if (!evidence || evidence.method !== 'paired-qp-ms-page-review') reviewErrors.push(`${label}: reviewed binding is missing paired QP/MS review evidence`)
+  if (evidence?.questionPaper?.sha256 !== question.sourceRef?.sha256) reviewErrors.push(`${label}: reviewed QP checksum does not match source`)
+  if (evidence?.markScheme?.sha256 !== answer?.answerRef?.sha256) reviewErrors.push(`${label}: reviewed MS checksum does not match source`)
+  const allocations = new Map((evidence?.partAllocations || []).map((allocation) => [allocation.partId, allocation]))
+  const group = normaliseQuestionGroup(question, answer)
+  for (const part of group.parts || []) {
+    const allocation = allocations.get(part.partId)
+    const answerPart = answer?.answerParts?.find((candidate) => candidate.partId === part.partId)
+    const expectedMarkSchemePage = Number(answerPart?.sourcePage || answer?.answerRef?.pageStart)
+    if (!allocation) {
+      reviewErrors.push(`${label}: reviewed binding is missing allocation evidence for ${part.partId}`)
+      continue
+    }
+    if (Number(allocation.marks) !== Number(part.marks)) reviewErrors.push(`${label}: reviewed allocation marks do not match ${part.partId}`)
+    if (Number(allocation.questionPage) !== Number(part.sourcePage)) reviewErrors.push(`${label}: reviewed QP page does not match ${part.partId}`)
+    if (Number(allocation.markSchemePage) !== expectedMarkSchemePage) reviewErrors.push(`${label}: reviewed MS page does not match ${part.partId}`)
+    if (!Number.isInteger(Number(allocation.markPointCount)) || Number(allocation.markPointCount) < 1) reviewErrors.push(`${label}: reviewed allocation has no mark-point evidence for ${part.partId}`)
+    const answerEvidence = (answerPart?.markSchemeEvidence || []).map((item) => String(item?.text || '').trim()).filter(Boolean)
+    const allocationEvidence = (allocation.markSchemeEvidence || []).map((item) => String(item || '').trim()).filter(Boolean)
+    if (!answerEvidence.length) reviewErrors.push(`${label}: reviewed answer part is missing quoted mark-scheme evidence for ${part.partId}`)
+    if (Number(allocation.markPointCount) !== answerEvidence.length) reviewErrors.push(`${label}: reviewed allocation evidence count does not match ${part.partId}`)
+    if (JSON.stringify(allocationEvidence) !== JSON.stringify(answerEvidence)) reviewErrors.push(`${label}: reviewed allocation evidence does not match answer evidence for ${part.partId}`)
+  }
+  if (allocations.size !== (group.parts || []).length) reviewErrors.push(`${label}: reviewed binding has extra allocation evidence`)
+  return reviewErrors
+}
+
 for (const binding of index.bindings) {
   if (seenBindings.has(binding.questionId)) duplicateBindings.add(binding.questionId)
   seenBindings.add(binding.questionId)
@@ -36,6 +69,7 @@ for (const question of index.questions) {
   if (binding && answer?.answerRef?.sha256 !== binding.answerDocumentSha256) errors.push(`${label}: answer SHA does not match binding`)
   if (question.sourceRef?.sha256 && answer?.answerRef?.sha256 && question.sourceRef.sha256 === answer.answerRef.sha256) errors.push(`${label}: QP and MS cannot share a document SHA`)
   if (binding?.verificationStatus !== 'quarantined' && normaliseQuestionGroup(question, answer).status !== 'verified') errors.push(`${label}: question parts do not reconcile with total marks`)
+  if (binding) errors.push(...reviewedPartEvidenceErrors(question, answer, binding, label))
   if (binding?.verificationStatus !== 'quarantined') {
     const key = [question.qualificationId, question.stageTags.join('+'), question.knowledgeGroupId].join(' | ')
     inventory.set(key, (inventory.get(key) || 0) + 1)

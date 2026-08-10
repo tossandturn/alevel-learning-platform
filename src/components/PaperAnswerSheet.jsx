@@ -1,6 +1,7 @@
 import { useId, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { HandwritingPad } from './HandwritingPad'
+import { sharedAuthUrl } from '../lib/sharedAccount'
 
 const CHOICES = ['A', 'B', 'C', 'D']
 const MODES = new Set(['mcq', 'structured', 'practical'])
@@ -168,6 +169,7 @@ export function PaperAnswerSheet({
   reviewedResponseQuestionNumbers = [],
   sharedMarkingContract = null,
   sharedIdentityConnected = false,
+  aiMarkingInProgress = false,
   disabled = false,
   onAnswerChange,
   onQuestionFocus,
@@ -176,6 +178,7 @@ export function PaperAnswerSheet({
   onLinkPdfInkQuestion,
   onMaxMarkChange,
   onReviewSubmit,
+  onRequestAiMarking,
   onSelfMarkChange,
   onSubmit,
   onRetryMarking,
@@ -199,6 +202,8 @@ export function PaperAnswerSheet({
   const modeLabel = mode === 'mcq' ? `${paperLabel} multiple choice` : mode === 'practical' ? 'Practical paper' : 'Structured paper'
   const [saveNotice, setSaveNotice] = useState('')
   const reviewedResponseSet = new Set(reviewedResponseQuestionNumbers)
+  const submittedResponseQuestionNumbers = questionNumbers.filter((questionNumber, index) => states[index] === 'complete')
+  const allSubmittedResponsesReviewed = submittedResponseQuestionNumbers.length > 0 && reviewedResponseQuestionNumbers.length === submittedResponseQuestionNumbers.length
 
   function saveSelfMark() {
     onReviewSubmit?.()
@@ -232,8 +237,9 @@ export function PaperAnswerSheet({
 
       {submitted && reviewedResponseQuestionNumbers.length > 0 && (
         <section className="paper-answer-sheet__ai-marking-status" aria-live="polite">
-          <strong>AI-assisted marking is limited to reviewed questions and is not an official grade.</strong>
-          <span>{sharedMarkingContract ? (sharedIdentityConnected ? 'Reviewed responses are checked against the shared IELTSist marking service after submission. All other questions remain self-mark only.' : 'Sign in with your IELTSist ID to request AI-assisted marking for the reviewed responses below. All other questions remain self-mark only.') : 'This paper has no server-approved reviewed marking manifest. Use the paired mark scheme to self-mark every response.'}</span>
+          <strong>AI-assisted marking is formative, source-grounded, and not an official grade.</strong>
+          <span>{sharedMarkingContract ? (sharedIdentityConnected ? (allSubmittedResponsesReviewed ? 'Every submitted response in this paper has reviewed question-level marks and can be sent to IELTSist AI marking.' : 'Only submitted responses with reviewed question-level marks can be sent to IELTSist AI marking.') : 'Sign in with your IELTSist ID to mark your submitted reviewed responses. Your saved handwriting will still be here when you return.') : 'This paper has no server-approved reviewed marking manifest. Use the paired mark scheme to self-mark every response.'}</span>
+          {sharedMarkingContract && (sharedIdentityConnected ? <button type="button" className="paper-answer-sheet__ai-marking-action" onClick={() => onRequestAiMarking?.()} disabled={!onRequestAiMarking || aiMarkingInProgress}><Sparkles size={15} />{aiMarkingInProgress ? 'AI marking in progress' : 'Mark submitted answers with AI'}</button> : <a className="paper-answer-sheet__ai-marking-action" href={sharedAuthUrl('login')}><Sparkles size={15} />Sign in to mark with AI</a>)}
         </section>
       )}
 

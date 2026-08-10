@@ -5,6 +5,8 @@ const root = path.resolve(import.meta.dirname, '..')
 const index = JSON.parse(fs.readFileSync(path.join(root, 'src', 'data', 'importedQuestionIndex.json'), 'utf8'))
 const requestedPaperId = process.argv.find((value) => value.startsWith('--paper='))?.slice('--paper='.length)
 const expectedQuestionCounts = Object.freeze({
+  // The official 0580 March 2025 Paper 1 paper has Q1-Q26.
+  'cie-0580-0580_m25_qp_12': 26,
   // The official 9709 March 2025 P1 paper has 11 printed questions.
   'cie-9709-9709_m25_qp_12': 11,
 })

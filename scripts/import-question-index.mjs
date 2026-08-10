@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process'
 import { learningPlan, stagesForComponentTags } from '../src/data/learningPlan.js'
 import { examStructures } from '../src/data/examStructure.js'
 import { normaliseQuestionGroup, questionPartLabel, validateQuestionGroup } from '../src/data/questionParts.js'
+import { isHumanReviewedIndexItem, mergeIndexItemPreservingReview } from './question-index-review-protection.mjs'
 
 const projectRoot = path.resolve(import.meta.dirname, '..')
 const paperCatalogPath = path.join(projectRoot, 'public', 'data', 'papers.json')
@@ -445,6 +446,13 @@ function decoupleIndex(items) {
     const questionGroup = normaliseQuestionGroup({ ...question, questionId }, item)
     const knowledgeGroupId = officialPhysicsTopicId(item)
     const answerId = `${questionId}:answer`
+    const preservedReviewEvidence = answerBinding?.verificationStatus === 'reviewed'
+      ? {
+          reviewedAt: answerBinding.reviewedAt,
+          reviewedBy: answerBinding.reviewedBy,
+          reviewEvidence: answerBinding.reviewEvidence,
+        }
+      : {}
     const config = subjectConfig[item.subjectCode]
     const specificationId = question.specificationId || config?.specificationId || `${item.qualificationId || item.subjectCode}-current`
     const componentTags = question.componentTags || []
@@ -506,6 +514,7 @@ function decoupleIndex(items) {
         : answerBinding?.verificationStatus === 'reviewed' ? 'reviewed' : 'machine-indexed',
       questionDocumentSha256: item.sourceRef?.sha256,
       answerDocumentSha256: answerRef?.sha256,
+      ...preservedReviewEvidence,
     })
   }
   const questionIds = new Set(questions.map((question) => question.questionId))
@@ -557,13 +566,20 @@ function buildItems(paper, markScheme, config, questionGroups, answerGroups) {
       const answerMarks = normalizeMarkValue(answerPart.marks)
       const marks = answerType === 'multiple-choice' && !Number.isInteger(answerMarks) ? 1 : questionMarks
       if (!Number.isInteger(marks) || marks < 1 || (Number.isInteger(answerMarks) && answerMarks !== marks)) return null
+      const explicitMarkSchemePoints = [...(answerPart.markPoints || fragment.markPoints || [])]
+        .map((value) => String(value).trim())
+        .filter(Boolean)
+      const exactAnswer = String(answerPart.exactText || '').trim()
+      const markSchemePoints = explicitMarkSchemePoints.length
+        ? explicitMarkSchemePoints
+        : exactAnswer ? [`Exact answer (${marks} mark${marks === 1 ? '' : 's'}): ${exactAnswer}`] : []
       return {
         partId: `${paper.id}:q${questionNumber}:part-${label}`,
         label,
         promptFragment: String(fragment.promptFragment || fragment.exactText || '').trim(),
         marks,
         answerArea: typeof fragment.answerArea === 'object' ? fragment.answerArea : { type: answerType, input: answerType === 'multiple-choice' ? 'choice' : 'handwriting' },
-        markSchemePoints: [...(answerPart.markPoints || fragment.markPoints || [])].map((value) => String(value).trim()).filter(Boolean),
+        markSchemePoints,
         answerKey: answerPart.correctOption || fragment.answerKey || null,
         answerText: answerPart.exactText || null,
         sourcePage: Number(fragment.sourcePage || fragment.page || question.pages[0]) || null,
@@ -702,6 +718,16 @@ async function indexPaper(paper, markScheme, config, provider, topics) {
         answerPages: answerRecords.map((record) => summarize(record, 'answers')),
       }))
     }
+    if (process.env.QUESTION_INDEX_DEBUG_FILE) {
+      const debugPath = path.resolve(process.env.QUESTION_INDEX_DEBUG_FILE)
+      fs.mkdirSync(path.dirname(debugPath), { recursive: true })
+      fs.writeFileSync(debugPath, `${JSON.stringify({
+        paper: paper.file,
+        markScheme: markScheme.file,
+        questionRecords,
+        answerRecords,
+      }, null, 2)}\n`)
+    }
     const outputDirectory = path.join(assetRoot, paper.id)
     copyRenderedPages(qpPages, outputDirectory, 'qp')
     copyRenderedPages(msPages, outputDirectory, 'ms')
@@ -746,8 +772,14 @@ async function main() {
     console.log(`Indexing ${paper.file} with ${markScheme.file}`)
     const topics = topicsFor(config, paper)
     const items = await indexPaper(paper, markScheme, config, provider, topics)
-    for (const item of items) byBankId.set(item.bankId, item)
+    let protectedReviews = 0
+    for (const item of items) {
+      const existing = byBankId.get(item.bankId)
+      if (isHumanReviewedIndexItem(existing)) protectedReviews += 1
+      byBankId.set(item.bankId, mergeIndexItemPreservingReview(existing, item))
+    }
     console.log(`Indexed ${items.length} verified questions from ${paper.file}`)
+    if (protectedReviews) console.log(`Preserved ${protectedReviews} human-reviewed question${protectedReviews === 1 ? '' : 's'} from reimport.`)
     fs.writeFileSync(outputPath, `${JSON.stringify(decoupleIndex([...byBankId.values()]), null, 2)}\n`)
   }
   const items = [...byBankId.values()].sort((left, right) => left.bankId.localeCompare(right.bankId, undefined, { numeric: true }))

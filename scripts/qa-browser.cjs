@@ -16,7 +16,8 @@ async function assertSessionMarkingDisclosure(page, expectedLabel) {
   const note = page.locator('.setup-marking-note')
   await note.waitFor()
   const copy = (await note.innerText()).replace(/\s+/g, ' ').trim()
-  if (!copy.includes(expectedLabel)) {
+  const matches = expectedLabel instanceof RegExp ? expectedLabel.test(copy) : copy.includes(expectedLabel)
+  if (!matches) {
     throw new Error(`Session setup marking disclosure is incorrect: expected ${expectedLabel}, received ${copy}`)
   }
 }
@@ -44,7 +45,7 @@ async function openHandwritingStarter(page) {
   await practiceButton.click()
   await page.waitForSelector('.session-setup, .question-block')
   if (await page.locator('.session-setup').count()) {
-    await assertSessionMarkingDisclosure(page, 'Self-mark after submission')
+    await assertSessionMarkingDisclosure(page, /^(Self-mark after submission|Mixed marking)\b/)
     await startSession(page)
   }
   else await page.locator('.question-block').waitFor()
@@ -109,6 +110,82 @@ async function open9709March2025P1(page) {
   await row.getByRole('button', { name: 'Open' }).click()
   await page.locator('.paper-workspace').waitFor()
   await page.waitForSelector('.pdf-canvas-scroll canvas')
+  const answerSlotControl = page.getByRole('spinbutton', { name: 'Number of answer slots' })
+  if (await answerSlotControl.count()) {
+    const answerSlots = await answerSlotControl.inputValue()
+    if (answerSlots !== '11') throw new Error(`9709 March 2025 P1 must expose all 11 printed questions, received ${answerSlots}`)
+  }
+  const answerIndexLabels = await page.locator('.paper-answer-sheet__index a').evaluateAll((links) => links.map((link) => link.getAttribute('aria-label')))
+  if (answerIndexLabels.length !== 11 || answerIndexLabels.at(-1) !== 'Question 11, Not answered') throw new Error(`9709 March 2025 P1 must expose its official Q1-Q11 answer index, received ${JSON.stringify(answerIndexLabels)}`)
+}
+
+async function open0580March2025P1(page) {
+  await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: /^Practice$/ }).click()
+  const routePicker = page.locator('.practice-hub .student-route-picker')
+  await routePicker.getByRole('tab', { name: 'IGCSE', exact: true }).click()
+  await routePicker.getByRole('combobox', { name: 'Current course' }).selectOption('cie-0580-igcse-mathematics')
+  await page.getByRole('button', { name: /^Past Papers$/ }).click()
+  await page.locator('.paper-search input').fill('0580_m25_qp_12.pdf')
+  const row = page.locator('.paper-table tbody tr').filter({ hasText: '0580_m25_qp_12.pdf' })
+  await row.getByRole('button', { name: 'Open' }).click()
+  await page.locator('.paper-workspace').waitFor()
+  await page.waitForSelector('.pdf-canvas-scroll canvas')
+  if (await page.getByRole('spinbutton', { name: 'Number of answer slots' }).count()) throw new Error('Reviewed 0580 March 2025 P1 must lock its official 26 answer slots')
+  const answerIndex = page.locator('.paper-answer-sheet__index a')
+  const answerIndexLabels = await answerIndex.evaluateAll((links) => links.map((link) => link.getAttribute('aria-label')))
+  if (answerIndexLabels.length !== 26 || answerIndexLabels.at(-1) !== 'Question 26, Not answered') throw new Error(`Reviewed 0580 March 2025 P1 must expose its official Q1-Q26 answer index, received ${JSON.stringify(answerIndexLabels)}`)
+}
+
+async function submitOnePdfAnswerForSelfMark(page, pointerId, mobile = false) {
+  await ensurePdfWritingEnabled(page)
+  const inkCanvas = page.locator('.pdf-ink-layer').first()
+  await inkCanvas.waitFor()
+  await inkCanvas.scrollIntoViewIfNeeded()
+  const box = await inkCanvas.boundingBox()
+  if (!box) throw new Error('Self-mark PDF ink canvas is not visible')
+  const start = { x: box.x + 64, y: box.y + 106 }
+  await pointerPath(inkCanvas, 'pen', [start, { x: start.x + 48, y: start.y + 16 }, { x: start.x + 98, y: start.y + 31 }], pointerId)
+  if (mobile) await page.locator('.paper-pane-switch [role="tab"]').filter({ hasText: 'Answer sheet' }).click()
+  await page.getByRole('button', { name: 'Link current PDF writing' }).click()
+  await page.getByText(/PDF page \d+ linked to question 1/i).waitFor()
+  await page.getByRole('button', { name: /^Submit paper$/ }).click()
+  await page.getByRole('button', { name: 'Submit anyway' }).click()
+  await page.locator('.paper-answer-sheet__self-mark-summary').waitFor()
+}
+
+async function assert0580ReviewedMarkingEntryFlow(page, { mobile = false, pointerId, label }) {
+  await open0580March2025P1(page)
+  await submitOnePdfAnswerForSelfMark(page, pointerId, mobile)
+  const summary = page.locator('.paper-answer-sheet__self-mark-summary')
+  if (!await summary.isVisible()) throw new Error(`${label} 0580 submission did not show an immediately visible self-mark summary`)
+  if (!/Scored responses\s*0\/1[\s\S]*Current total\s*Not scored/i.test(await summary.innerText())) throw new Error(`${label} 0580 self-mark summary has incorrect initial totals`)
+  const loginAction = page.getByRole('link', { name: 'Sign in to mark with AI' })
+  await loginAction.waitFor()
+  const loginHref = await loginAction.getAttribute('href')
+  if (!loginHref || !/^https:\/\/ieltsist\.com\//.test(loginHref) || !/auth=login/.test(loginHref) || !/returnTo=/.test(loginHref)) throw new Error(`${label} 0580 guest AI-marking action must route through the shared IELTSist login and return here`)
+  if (await page.getByText(/no reviewed question-level mark allocation/i).count()) throw new Error(`${label} 0580 reviewed response incorrectly reports missing marking metadata`)
+  await summary.getByRole('button', { name: 'Open mark scheme' }).click()
+  const markSchemeTab = page.getByRole('button', { name: 'Mark scheme', exact: true })
+  if (!await markSchemeTab.evaluate((button) => button.classList.contains('active'))) throw new Error(`${label} 0580 self-mark action did not open the paired mark scheme`)
+  if (!/0580_m25_ms_12\.pdf/.test(await page.locator('.workspace-title').innerText())) throw new Error(`${label} 0580 self-mark action opened the wrong mark scheme`)
+  if (mobile) await page.locator('.paper-pane-switch [role="tab"]').filter({ hasText: 'Answer sheet' }).click()
+  await page.getByRole('spinbutton', { name: 'Awarded mark for question 1' }).fill('3')
+  await page.getByText('Recorded for this attempt: 1/1 marks.').waitFor()
+  if (!/Scored responses\s*1\/1[\s\S]*Current total\s*1\/1/i.test(await summary.innerText())) throw new Error(`${label} 0580 summary must total only scored responses against the reviewed mark allocation`)
+  const reviewsBeforeSave = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) || '{}').paperReviews?.length || 0, STORAGE_KEY)
+  await summary.getByRole('button', { name: 'Save self-mark' }).click()
+  await page.getByText('Saved result: 1/1 marks.').waitFor()
+  const reviewsAfterSave = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) || '{}').paperReviews?.length || 0, STORAGE_KEY)
+  if (reviewsAfterSave !== reviewsBeforeSave + 1) throw new Error(`${label} 0580 first self-mark save must add exactly one review`)
+  await summary.getByRole('button', { name: 'Save self-mark' }).click()
+  await page.waitForTimeout(100)
+  const reviewsAfterDuplicateSave = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) || '{}').paperReviews?.length || 0, STORAGE_KEY)
+  if (reviewsAfterDuplicateSave !== reviewsAfterSave) throw new Error(`${label} 0580 repeated unchanged self-mark save created duplicate history`)
+  const geometry = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }))
+  if (geometry.scrollWidth > geometry.clientWidth) throw new Error(`${label} 0580 self-mark flow overflows horizontally: ${JSON.stringify(geometry)}`)
+  const shot = path.join(ARTIFACT_DIR, `0580-self-mark-${label}.png`)
+  await page.screenshot({ path: shot, fullPage: false })
+  return shot
 }
 
 async function addPdfInkForFocusedQuestion(page, pointerId) {
@@ -419,6 +496,24 @@ async function run() {
     await assertNoSelfMarkAiCopy(guestMarkingPage, '9709 March 2025 P1 submitted result')
     await guestMarking.close()
 
+    const selfMarkDesktopContext = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+    const selfMarkDesktopPage = await selfMarkDesktopContext.newPage()
+    selfMarkDesktopPage.on('pageerror', (error) => errors.push(`0580 self-mark desktop: ${error.message}`))
+    await selfMarkDesktopPage.goto(APP_URL, { waitUntil: 'domcontentloaded' })
+    await selfMarkDesktopPage.evaluate(() => localStorage.clear())
+    await selfMarkDesktopPage.reload({ waitUntil: 'domcontentloaded' })
+    shots.push(await assert0580ReviewedMarkingEntryFlow(selfMarkDesktopPage, { pointerId: 301, label: 'desktop' }))
+    await selfMarkDesktopContext.close()
+
+    const selfMarkTabletContext = await browser.newContext({ viewport: { width: 820, height: 1180 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true })
+    const selfMarkTabletPage = await selfMarkTabletContext.newPage()
+    selfMarkTabletPage.on('pageerror', (error) => errors.push(`0580 self-mark iPad: ${error.message}`))
+    await selfMarkTabletPage.goto(APP_URL, { waitUntil: 'domcontentloaded' })
+    await selfMarkTabletPage.evaluate(() => localStorage.clear())
+    await selfMarkTabletPage.reload({ waitUntil: 'domcontentloaded' })
+    shots.push(await assert0580ReviewedMarkingEntryFlow(selfMarkTabletPage, { mobile: true, pointerId: 302, label: 'ipad' }))
+    await selfMarkTabletContext.close()
+
     const tabletPaper = await browser.newContext({ viewport: { width: 820, height: 1180 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true })
     const tabletPaperPage = await tabletPaper.newPage()
     tabletPaperPage.on('pageerror', (error) => errors.push(`tablet paper: ${error.message}`))
@@ -618,7 +713,7 @@ async function run() {
     await tablet.close()
 
     if (errors.length) throw new Error(`Browser errors:\n${errors.join('\n')}`)
-    console.log(JSON.stringify({ verifiedPracticeUnits: 142, verifiedQuestionGroups: 891, answerableParts: 932, deterministicMcqMarked: true, focusedRetestQuestions: 1, competitionAndAdmissionsSeparated: true, bphoRoundFiltersVerified: Object.keys(expectedRoundCounts), officialTopic7Unlocked: true, officialTopic9Unlocked: true, mobileMetrics, pencilMetrics, pdfInkMetrics, shots }, null, 2))
+    console.log(JSON.stringify({ verifiedPracticeUnits: 145, verifiedQuestionGroups: 917, answerableParts: 978, reviewed0580Paper: { questionGroups: 26, answerableParts: 46, totalMarks: 80, sharedLoginEntryVerified: true }, deterministicMcqMarked: true, focusedRetestQuestions: 1, competitionAndAdmissionsSeparated: true, bphoRoundFiltersVerified: Object.keys(expectedRoundCounts), officialTopic7Unlocked: true, officialTopic9Unlocked: true, mobileMetrics, pencilMetrics, pdfInkMetrics, shots }, null, 2))
   } finally {
     await browser.close()
   }

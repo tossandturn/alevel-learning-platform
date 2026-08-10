@@ -65,7 +65,30 @@ function markSchemePointForPart(metadata, part) {
   }
 }
 
-export function buildSharedMarkingSubmission({ attemptId, routeId, qualification, specificationVersion, paperId, organizationId, classroomId, responses = [] }) {
+export function reviewedManifestQuestion({ routeId, qualification, specificationVersion, paperId, questionNumber, metadata, part }) {
+  const markSchemePoint = markSchemePointForPart(metadata, part)
+  if (!markSchemePoint) return null
+  const sourcePage = part.sourcePage || metadata.sourceRef.pageStart
+  return {
+    routeId,
+    qualification,
+    specificationVersion,
+    paperId,
+    questionPartId: part.id,
+    prompt: part.prompt || metadata.prompt,
+    availableMarks: Number(part.marks),
+    markSchemePoints: [markSchemePoint],
+    assets: [{
+      assetId: `${metadata.sourceRef.paperId}:page-${sourcePage}`,
+      kind: 'pdf-page',
+      label: 'Question page',
+      checksum: `sha256:${metadata.sourceRef.sha256}`,
+      sourceEvidence: { page: sourcePage, quote: `Question paper Q${questionNumber}${metadata.parts.length > 1 ? `(${part.label})` : ''}` },
+    }],
+  }
+}
+
+export function buildSharedMarkingSubmission({ attemptId, routeId, qualification, specificationVersion, paperId, organizationId, classroomId, submissionSuffix = '', responses = [] }) {
   const missingQuestionNumbers = []
   const questionNumberByPartId = {}
   const questions = []
@@ -76,24 +99,19 @@ export function buildSharedMarkingSubmission({ attemptId, routeId, qualification
       continue
     }
     const sourceQuestions = metadata.parts.flatMap((part) => {
-      const markSchemePoint = markSchemePointForPart(metadata, part)
-      if (!markSchemePoint) return []
+      const manifestQuestion = reviewedManifestQuestion({ routeId, qualification, specificationVersion, paperId, questionNumber: response.questionNumber, metadata, part })
+      if (!manifestQuestion) return []
       questionNumberByPartId[part.id] = Number(response.questionNumber)
+      const { routeId: _routeId, qualification: _qualification, specificationVersion: _specificationVersion, paperId: _paperId, ...canonicalQuestion } = manifestQuestion
       return [{
-        questionPartId: part.id,
-        prompt: part.prompt || metadata.prompt,
-        availableMarks: Number(part.marks),
-        assets: [{
-          assetId: `${metadata.sourceRef.paperId}:page-${part.sourcePage || metadata.sourceRef.pageStart}`,
-          kind: 'pdf-page',
-          label: 'Question page',
-          checksum: `sha256:${metadata.sourceRef.sha256}`,
+        ...canonicalQuestion,
+        assets: canonicalQuestion.assets.map((asset) => ({
+          ...asset,
           ...(response.questionAsset?.imageDataUrl ? { imageDataUrl: response.questionAsset.imageDataUrl } : {}),
-        }],
+        })),
         visualContext: response.questionAsset?.status === 'available'
           ? { status: 'available' }
           : { status: 'missing', reason: response.questionAsset?.reason || 'question_asset_not_indexed', reviewRequired: true, confidenceCap: 0.5 },
-        markSchemePoints: [markSchemePoint],
         answer: {
           typedText: String(response.typedText || '').trim(),
           handwritingImageDataUrl: response.handwritingImageDataUrl || undefined,
@@ -103,7 +121,8 @@ export function buildSharedMarkingSubmission({ attemptId, routeId, qualification
     if (sourceQuestions.length !== metadata.parts.length) missingQuestionNumbers.push(Number(response.questionNumber))
     else questions.push(...sourceQuestions)
   }
-  const submissionId = `stem-paper-${attemptId}`
+  const normalizedSuffix = String(submissionSuffix || '').trim().replace(/[^A-Za-z0-9._:-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80)
+  const submissionId = `stem-paper-${attemptId}${normalizedSuffix ? `-${normalizedSuffix}` : ''}`
   return {
     ok: questions.length > 0,
     missingQuestionNumbers: [...new Set(missingQuestionNumbers)].filter(Number.isFinite),
