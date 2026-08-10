@@ -3,7 +3,7 @@ import { AlertTriangle, ArrowLeft, CheckCircle2, Clock3, Columns2, Eraser, Exter
 import { getExamPaperProfile } from '../data/examStructure'
 import { paperQuestionMarkingMetadata } from '../data/questionBank'
 import { deletePaperEvidence, getPaperEvidence, putPaperEvidence } from '../lib/evidenceStorage'
-import { buildSharedMarkingSubmission, completedMarksByQuestion, createSharedMarkingSubmission, loadQuestionAsset, paperSubmissionMarkingSummary, retrySharedMarkingSubmission, waitForSharedMarkingSubmission } from '../lib/paperMarking'
+import { buildSharedMarkingSubmission, completedMarksByQuestion, createSharedMarkingSubmission, loadQuestionAsset, paperSubmissionMarkingSummary, readSharedMarkingAvailability, retrySharedMarkingSubmission, sharedMarkingIsAvailable, waitForSharedMarkingSubmission } from '../lib/paperMarking'
 import { AiCoach } from './AiCoach'
 import { PaperAnswerSheet, SelfMarkSummary } from './PaperAnswerSheet'
 import { PdfViewer } from './PdfViewer'
@@ -20,6 +20,20 @@ function hasResponse(profile, answer = {}) {
 
 function responseText(answer = {}) {
   return String(answer.response || [answer.working, answer.finalAnswer].filter(Boolean).join('\n\n') || '')
+}
+
+const REVIEWED_0580_MARKING_CONTRACT = Object.freeze({
+  paperId: 'cie-0580-0580_m25_qp_12',
+  routeId: 'cie-0580-igcse-mathematics',
+  qualification: 'IGCSE',
+  specificationVersion: 'cambridge-0580-2025-2027',
+  answerSlots: 24,
+})
+
+function sharedMarkingContractForPaper(paper) {
+  return paper?.id === REVIEWED_0580_MARKING_CONTRACT.paperId
+    ? REVIEWED_0580_MARKING_CONTRACT
+    : null
 }
 
 function blobToDataUrl(blob) {
@@ -76,7 +90,8 @@ function storedAnswerPaneWidth() {
   return Number.isFinite(value) ? Math.max(MIN_ANSWER_PANE_WIDTH, value) : DEFAULT_ANSWER_PANE_WIDTH
 }
 
-function defaultQuestionCount(profile) {
+function defaultQuestionCount(profile, paperId) {
+  if (paperId === REVIEWED_0580_MARKING_CONTRACT.paperId) return REVIEWED_0580_MARKING_CONTRACT.answerSlots
   if (profile.defaultQuestionCount) return profile.defaultQuestionCount
   if (profile.subject === 'bpho') return profile.questionCountRange?.[0] || 1
   if (profile.mode === 'practical') return 2
@@ -103,6 +118,7 @@ export function PaperWorkspace({ paper, catalog, draft, sharedIdentityToken = ''
     stages: [],
   }, [sourcePaper])
   const questionMetadataByNumber = useMemo(() => paperQuestionMarkingMetadata({ paperId: sourcePaper.id, routeId: sourcePaper.routeId }), [sourcePaper.id, sourcePaper.routeId])
+  const sharedMarkingContract = useMemo(() => sharedMarkingContractForPaper({ id: sourcePaper.id }), [sourcePaper.id])
   const reviewedMaxMarks = useMemo(() => Object.fromEntries(Object.entries(questionMetadataByNumber).map(([number, metadata]) => [number, metadata.maxMarks])), [questionMetadataByNumber])
   const [attemptId] = useState(() => draft?.attemptId || `paper-attempt-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`)
   const [elapsedSec, setElapsedSec] = useState(draft?.elapsedSec || 0)
@@ -115,7 +131,7 @@ export function PaperWorkspace({ paper, catalog, draft, sharedIdentityToken = ''
   const [aiMarks, setAiMarks] = useState(draft?.aiMarks || {})
   const [focusedQuestion, setFocusedQuestion] = useState(draft?.focusedQuestion || 1)
   const [coachRequest, setCoachRequest] = useState(0)
-  const [questionCount, setQuestionCount] = useState(draft?.questionCount || defaultQuestionCount(profile))
+  const [questionCount, setQuestionCount] = useState(draft?.questionCount || defaultQuestionCount(profile, sourcePaper.id))
   const [documentMode, setDocumentMode] = useState(paper.kind === 'ms' ? 'mark' : paper.kind === 'er' ? 'report' : 'question')
   const [pdfWritingEnabled, setPdfWritingEnabled] = useState(() => Boolean(draft?.pdfWritingEnabled) && profile.mode !== 'mcq' && !draft?.submitted)
   const [pdfInkTool, setPdfInkTool] = useState('pen')
@@ -145,6 +161,7 @@ export function PaperWorkspace({ paper, catalog, draft, sharedIdentityToken = ''
     ...Object.entries(answers).filter(([, answer]) => hasResponse(profile, answer)).map(([number]) => Number(number)),
     ...pdfInkQuestionNumbers,
   ])].filter(Number.isFinite), [answers, pdfInkQuestionNumbers, profile])
+  const reviewedResponseQuestionNumbers = useMemo(() => responseQuestionNumbers.filter((number) => questionMetadataByNumber[number]?.reviewStatus === 'reviewed'), [questionMetadataByNumber, responseQuestionNumbers])
   const markingSummary = paperSubmissionMarkingSummary({ submitted, aiMarks, responseQuestionNumbers })
   const answeredCount = Array.from({ length: questionCount }, (_, index) => index + 1).filter((questionNumber) => hasResponse(profile, answers[questionNumber]) || pdfInkQuestionNumbers.includes(questionNumber)).length
   const displayPaper = documentMode === 'mark' ? markScheme : documentMode === 'report' ? examinerReport : questionPaper || paper
@@ -398,9 +415,10 @@ export function PaperWorkspace({ paper, catalog, draft, sharedIdentityToken = ''
       const responses = await Promise.all(questionNumbers.map(responseForSharedMarking))
       const contract = buildSharedMarkingSubmission({
         attemptId,
-        routeId: sourcePaper.routeId,
-        specificationVersion: profile.title,
-        paperId: sourcePaper.id,
+        routeId: sharedMarkingContract?.routeId,
+        qualification: sharedMarkingContract?.qualification,
+        specificationVersion: sharedMarkingContract?.specificationVersion,
+        paperId: sharedMarkingContract?.paperId,
         responses,
       })
       if (contract.missingQuestionNumbers.length) {
@@ -408,8 +426,17 @@ export function PaperWorkspace({ paper, catalog, draft, sharedIdentityToken = ''
       }
       const queuedQuestionNumbers = [...new Set(Object.values(contract.questionNumberByPartId))]
       if (!contract.ok) return
-      if (!sharedIdentityToken) {
+      if (!sharedMarkingContract) {
+        setAiMarks((current) => ({ ...current, ...Object.fromEntries(queuedQuestionNumbers.map((number) => [number, { status: 'missing_metadata', code: 'trusted_manifest_not_available' }])) }))
+        return
+      }
+      const availability = await readSharedMarkingAvailability({ token: sharedIdentityToken })
+      if (availability.authenticationRequired || !sharedIdentityToken) {
         setAiMarks((current) => ({ ...current, ...Object.fromEntries(queuedQuestionNumbers.map((number) => [number, { status: 'failed', failureCode: 'identity_required', loginRequired: true }])) }))
+        return
+      }
+      if (!sharedMarkingIsAvailable(availability)) {
+        setAiMarks((current) => ({ ...current, ...Object.fromEntries(queuedQuestionNumbers.map((number) => [number, { status: 'failed', failureCode: 'service_unavailable', retryable: true }])) }))
         return
       }
       setAiMarks((current) => ({ ...current, ...Object.fromEntries(queuedQuestionNumbers.map((number) => [number, { status: 'queued', submissionId: contract.payload.submissionId }])) }))
@@ -505,7 +532,7 @@ export function PaperWorkspace({ paper, catalog, draft, sharedIdentityToken = ''
       retestOf: paper.retestOf || null,
       submittedAt,
     })
-    setAiMarks((current) => ({ ...current, ...Object.fromEntries(responseQuestionNumbers.map((questionNumber) => [questionNumber, questionMetadataByNumber[questionNumber] ? { status: 'queued' } : { status: 'missing_metadata', code: 'question_metadata_missing' }])) }))
+    setAiMarks((current) => ({ ...current, ...Object.fromEntries(responseQuestionNumbers.map((questionNumber) => [questionNumber, questionMetadataByNumber[questionNumber]?.reviewStatus === 'reviewed' ? { status: 'checking_availability' } : { status: 'missing_metadata', code: 'question_metadata_missing' }])) }))
     void markAllResponses()
   }
 
@@ -623,6 +650,9 @@ export function PaperWorkspace({ paper, catalog, draft, sharedIdentityToken = ''
             maxMarksByQuestion={maxMarksByQuestion}
             aiMarks={aiMarks}
             questionMetadataByNumber={questionMetadataByNumber}
+            reviewedResponseQuestionNumbers={reviewedResponseQuestionNumbers}
+            sharedMarkingContract={sharedMarkingContract}
+            sharedIdentityConnected={Boolean(sharedIdentityToken)}
             onRetryMarking={retryMarking}
             disabled={!isAttempt}
             onAnswerChange={updateAnswer}

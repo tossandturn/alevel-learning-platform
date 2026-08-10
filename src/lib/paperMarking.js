@@ -65,7 +65,7 @@ function markSchemePointForPart(metadata, part) {
   }
 }
 
-export function buildSharedMarkingSubmission({ attemptId, routeId, specificationVersion, paperId, organizationId, classroomId, responses = [] }) {
+export function buildSharedMarkingSubmission({ attemptId, routeId, qualification, specificationVersion, paperId, organizationId, classroomId, responses = [] }) {
   const missingQuestionNumbers = []
   const questionNumberByPartId = {}
   const questions = []
@@ -112,6 +112,7 @@ export function buildSharedMarkingSubmission({ attemptId, routeId, specification
       submissionId,
       idempotencyKey: `${submissionId}:${paperId}:${PAPER_MARKING_SCHEMA_VERSION}`,
       routeId,
+      qualification,
       specificationVersion,
       paperId,
       attemptId,
@@ -158,6 +159,41 @@ export async function sharedMarkingRequest({ token, resource, method = 'GET', bo
   }
   if (!SHARED_MARKING_STATUSES.includes(submission.status)) throw new SharedMarkingError('invalid_response', 'The shared marking service returned an invalid status. Your answer remains saved.', { retryable: true })
   return submission
+}
+
+/**
+ * Read the shared service capability before a student response is queued. This
+ * endpoint receives no answer content, so the UI can distinguish sign-in from
+ * provider downtime before any reviewed response is submitted for marking.
+ */
+export async function readSharedMarkingAvailability({ token = '', fetchImpl = fetch, origin = 'https://ieltsist.com' } = {}) {
+  let response
+  try {
+    response = await fetchImpl(`${origin.replace(/\/+$/, '')}/api/stem/marking/availability`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: token ? { 'X-Stem-Identity': token } : {},
+    })
+  } catch {
+    throw new SharedMarkingError('service_unavailable', 'The shared marking service is unavailable. Your answer remains saved.', { retryable: true })
+  }
+  const payload = await response.json().catch(() => ({}))
+  if (response.status === 401 || response.status === 403) {
+    return { enabled: false, modelConfigured: false, queueAvailable: false, authenticationRequired: true }
+  }
+  if (!response.ok || !payload || typeof payload !== 'object') {
+    throw new SharedMarkingError('service_unavailable', 'The shared marking service is unavailable. Your answer remains saved.', { retryable: response.status >= 500 })
+  }
+  return {
+    enabled: payload.enabled === true,
+    modelConfigured: payload.modelConfigured === true,
+    queueAvailable: payload.queueAvailable === true,
+    authenticationRequired: payload.authenticationRequired === true,
+  }
+}
+
+export function sharedMarkingIsAvailable(availability) {
+  return Boolean(availability?.enabled && availability?.modelConfigured && availability?.queueAvailable && !availability?.authenticationRequired)
 }
 
 export function createSharedMarkingSubmission(options) {
@@ -217,13 +253,19 @@ export function completedMarksByQuestion(submission, questionNumberByPartId) {
 export function paperSubmissionMarkingSummary({ submitted, aiMarks = {}, responseQuestionNumbers = [] }) {
   if (!submitted) return null
   const results = responseQuestionNumbers.map((number) => aiMarks[number]).filter(Boolean)
+  const checking = results.filter((result) => result.status === 'checking_availability').length
   const pending = results.filter((result) => result.status === 'queued' || result.status === 'processing').length
   const successful = results.filter((result) => result.status === 'completed').length
   const missingMetadata = results.filter((result) => result.status === 'missing_metadata').length
   const failed = results.filter((result) => result.status === 'failed').length
-  if (pending) return { tone: 'pending', text: `Answer sheet submitted. Shared AI marking is ${results.some((result) => result.status === 'processing') ? 'processing' : 'queued'} for ${pending} sourced response${pending === 1 ? '' : 's'}; the paired mark scheme is unlocked.` }
-  if (successful) return { tone: failed || missingMetadata ? 'mixed' : 'success', text: `Answer sheet submitted. ${successful} response${successful === 1 ? '' : 's'} received structured AI-assisted marks${missingMetadata ? `; ${missingMetadata} question${missingMetadata === 1 ? '' : 's'} need reviewed metadata` : ''}${failed ? `; ${failed} review${failed === 1 ? '' : 's'} failed and can be retried` : ''}.` }
-  if (missingMetadata) return { tone: 'missing', text: `Answer sheet submitted. ${missingMetadata} response${missingMetadata === 1 ? '' : 's'} has no reviewed question-level mark allocation. Your handwriting is saved; use the paired mark scheme to self-mark.` }
+  const loginRequired = results.filter((result) => result.status === 'failed' && result.loginRequired).length
+  const unavailable = results.filter((result) => result.status === 'failed' && result.failureCode === 'service_unavailable').length
+  if (checking) return { tone: 'pending', text: `Answer sheet submitted. Checking whether AI-assisted marking is available for ${checking} reviewed response${checking === 1 ? '' : 's'}; the paired mark scheme is unlocked.` }
+  if (pending) return { tone: 'pending', text: `Answer sheet submitted. Shared AI marking is ${results.some((result) => result.status === 'processing') ? 'processing' : 'queued'} for ${pending} reviewed response${pending === 1 ? '' : 's'}; the paired mark scheme is unlocked.` }
+  if (successful) return { tone: failed || missingMetadata ? 'mixed' : 'success', text: `Answer sheet submitted. ${successful} response${successful === 1 ? '' : 's'} received structured AI-assisted marks${missingMetadata ? `; ${missingMetadata} question${missingMetadata === 1 ? '' : 's'} need reviewed metadata` : ''}${loginRequired ? `; ${loginRequired} reviewed response${loginRequired === 1 ? '' : 's'} need IELTSist ID sign-in` : ''}${unavailable ? `; AI-assisted marking is temporarily unavailable for ${unavailable} reviewed response${unavailable === 1 ? '' : 's'}` : ''}${failed && !loginRequired && !unavailable ? `; ${failed} review${failed === 1 ? '' : 's'} failed and can be retried` : ''}.` }
+  if (missingMetadata) return { tone: 'missing', text: `Answer sheet submitted. ${missingMetadata} response${missingMetadata === 1 ? '' : 's'} ${missingMetadata === 1 ? 'has' : 'have'} no reviewed question-level mark allocation. Your handwriting is saved; use the paired mark scheme to self-mark.` }
+  if (loginRequired) return { tone: 'error', text: `Answer sheet submitted. Sign in with your IELTSist ID to request AI-assisted marking for ${loginRequired} reviewed response${loginRequired === 1 ? '' : 's'}; your work remains saved and the paired mark scheme is available.` }
+  if (unavailable) return { tone: 'error', text: `Answer sheet submitted. AI-assisted marking is temporarily unavailable for ${unavailable} reviewed response${unavailable === 1 ? '' : 's'}; your work remains saved and the paired mark scheme is available.` }
   if (failed) return { tone: 'error', text: `Answer sheet submitted. Shared AI marking failed for ${failed} response${failed === 1 ? '' : 's'}; your work remains saved and the paired mark scheme is available.` }
   return { tone: 'saved', text: 'Answer sheet submitted. Your handwriting is saved and the paired mark scheme is unlocked for self-marking.' }
 }

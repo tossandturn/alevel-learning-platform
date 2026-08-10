@@ -3159,6 +3159,22 @@ textarea:focus-visible {
 .vision-mark li { display: grid; grid-template-columns: 80px 1fr; gap: 7px; }
 .vision-mark li[data-awarded='true'] strong { color: #08775a; }
 
+.paper-answer-sheet__ai-marking-status {
+  display: grid;
+  gap: 4px;
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #c9bdf0;
+  border-left: 4px solid #7357e8;
+  border-radius: 6px;
+  color: #40356b;
+  background: #f6f3ff;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.paper-answer-sheet__ai-marking-status strong { color: #35225e; font-size: 12px; }
+
 .handwriting-self-mark-note {
   display: grid;
   gap: 5px;
