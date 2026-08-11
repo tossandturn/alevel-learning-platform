@@ -54,6 +54,17 @@ npm run catalog
 
 The GitHub source mirror intentionally excludes the generated catalog and rendered source-page images. They are deployed with the private content release only, so verified question images and mark-scheme crops do not become repository artifacts. Run the catalog/index commands against the authorised local library before creating a fresh content release.
 
+### Private Content Release Gate
+
+`git archive` is code-only. Before a release can be activated, materialise the authorised `public/question-assets` and `public/data/papers.json` inside the extracted release root, then verify the release root itself. Do not regenerate or relax the source manifest on the server.
+
+```powershell
+node scripts/prepare-stem-release.mjs --release-root D:\path\to\release --assets-dir D:\authorised-content\question-assets --catalog-file D:\authorised-content\papers.json
+node scripts/verify-stem-release.mjs --release-root D:\path\to\release
+```
+
+The verifier runs `node scripts/audit-question-bank.mjs` from the release root and fails if the private assets, catalog, source manifest, or source identity are absent or stale.
+
 Index new papers at question level. Re-running the same command is idempotent; use `--all` only for an intentional historical backfill:
 
 ```powershell

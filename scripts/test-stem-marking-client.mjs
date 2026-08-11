@@ -51,6 +51,35 @@ assert.ok(fullPaper.payload.questions.every((question) => (
   && Number.isInteger(question.sourceEvidence?.page)
 )), 'every shared marking question must carry the manifest-v2 reviewed-source provenance tuple')
 
+const q14Metadata = metadata[14]
+const q14LoadedAssets = Object.fromEntries(q14Metadata.parts.map((part) => [
+  part.id,
+  {
+    status: 'available',
+    assets: [{
+      status: 'available',
+      assetUrl: part.markingProvenance.sourceEvidence.assetUrl,
+      page: part.markingProvenance.sourceEvidence.page,
+      sha256: part.markingProvenance.sourceEvidence.assetSha256,
+      imageDataUrl: 'data:image/jpeg;base64,fixture',
+    }],
+  },
+]))
+const q14Paper = buildSharedMarkingSubmission({
+  attemptId: 'cross-page-q14-client-contract',
+  ...tuple,
+  responses: [{ questionNumber: 14, typedText: 'cross-page response', questionMetadata: q14Metadata, questionAssetsByPart: q14LoadedAssets }],
+})
+assert.equal(q14Paper.ok, true)
+const q14cPayload = q14Paper.payload.questions.find((question) => question.questionPartId.endsWith(':part-c'))
+assert.deepEqual(q14cPayload.assets.map((asset) => [asset.sourceEvidence.page, asset.assetUrl, asset.checksum]), [[
+  9,
+  '/question-assets/cie-0580-0580_m25_qp_12/qp-09.jpg',
+  `sha256:${q14Metadata.parts.find((part) => part.id.endsWith(':part-c')).markingProvenance.sourceEvidence.assetSha256}`,
+]], 'full-paper Q14(c) must carry the exact page-9 URL and reviewed SHA, never page-8 assetUrls[0]')
+assert.equal(q14cPayload.assets[0].imageDataUrl, 'data:image/jpeg;base64,fixture')
+assert.deepEqual(q14cPayload.visualContext, { status: 'available', pages: [9] })
+
 // This mirrors the student's screenshot: four handwritten top-level answers
 // must queue all of Q1-Q4's eight reviewed parts, rather than fall back to self-marking.
 const screenshotPath = buildSharedMarkingSubmission({

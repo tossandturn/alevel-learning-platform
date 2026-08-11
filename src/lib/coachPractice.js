@@ -3,7 +3,7 @@ import { learningPlan } from '../data/learningPlan.js'
 import { questionInventory, selectTaggedQuestions, sourceMixForQuestions, unifiedQuestionBank } from '../data/questionBank.js'
 import { courseRoutes, routeById, routesForSubject } from '../data/routeRegistry.js'
 import { requiresSourceVisual, stripSourceVisualPlaceholders } from './questionContent.js'
-import { canonicalSourceMarkingProvenance } from './sourceContentContract.js'
+import { canonicalSourceMarkingProvenance, canonicalSourceQuestionId } from './sourceContentContract.js'
 
 const EXTERNAL_GROUPS = Object.freeze({
   bpho: [
@@ -297,7 +297,7 @@ export function buildCoachPractice({ routeId, subjectId, stage, knowledgeGroupId
 }
 
 function persistedPartReference(part) {
-  const sourceQuestionId = String(part?.sourceQuestionId || part?.questionGroupId || part?.bankId || '').split('@')[0]
+  const sourceQuestionId = canonicalSourceQuestionId(part?.sourceQuestionId || part?.questionGroupId || part?.bankId)
   const questionPartId = String(part?.questionPartId || part?.partId || '')
   return sourceQuestionId && questionPartId ? { sourceQuestionId, questionPartId } : null
 }

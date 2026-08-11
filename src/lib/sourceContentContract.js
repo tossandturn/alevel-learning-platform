@@ -8,9 +8,16 @@ export const STEM_SOURCE_REVIEW_SCHEMA_VERSION = 'stem-source-review.v1'
 const SOURCE_PAGE_ASSET = /\/qp-(\d+)\.(?:png|jpe?g|webp)$/i
 const DOCUMENT_PAGE_ASSET = /\/(?:qp|ms)-(\d+)\.(?:png|jpe?g|webp)$/i
 
+export function canonicalSourceQuestionId(value) {
+  const candidate = typeof value === 'object' && value !== null
+    ? value.sourceQuestionId || value.questionId || value.bankId || value.questionGroupId || ''
+    : value
+  const normalized = String(candidate || '').trim()
+  return normalized && !normalized.includes('@') && !/\s/.test(normalized) ? normalized : ''
+}
+
 export function sourceQuestionId(question = {}) {
-  const candidate = question.sourceQuestionId || question.questionId || question.bankId || question.questionGroupId || ''
-  return String(candidate).split('@')[0]
+  return canonicalSourceQuestionId(question)
 }
 
 export function sourcePageFromAssetUrl(url) {

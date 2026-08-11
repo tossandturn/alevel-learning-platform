@@ -57,13 +57,14 @@ function identityToken(userId = 42) {
   return `${header}.${payload}.${signature}`
 }
 
-function canonicalRequest(questionNumber, partLabel) {
+function canonicalRequest(questionNumber, partLabel, { mode = 'topic', paperId = '' } = {}) {
   const question = unifiedQuestionBank.find((item) => item.sourceQuestionId === `cie-0580-0580_m25_qp_12:q${questionNumber}`)
   const part = question?.parts.find((item) => item.label === partLabel)
   assert.ok(question && part, `reviewed Q${questionNumber}(${partLabel}) fixture must exist`)
   return {
     attemptId: 'source-image-attempt',
-    mode: 'topic',
+    mode,
+    paperId,
     submitted: true,
     imageDataUrl: blankPng,
     typedResponse: 'student handwriting transcription',
@@ -84,6 +85,12 @@ function officialImagesFromCall(call) {
   }
 }
 
+function sha256ForDataUrl(dataUrl) {
+  const match = String(dataUrl || '').match(/^data:[^;]+;base64,(.+)$/)
+  assert.ok(match, 'provider official image must be a base64 data URL in the capture fixture')
+  return crypto.createHash('sha256').update(Buffer.from(match[1], 'base64')).digest('hex')
+}
+
 async function post(url, body, token = '') {
   const response = await fetch(`${url}/api/ai/mark-handwriting`, {
     method: 'POST',
@@ -101,7 +108,7 @@ async function issueCapability(url, request, token, overrides = {}) {
       attemptId: request.attemptId,
       mode: request.mode,
       submitted: request.submitted,
-      paperId: '',
+      paperId: request.paperId || '',
       parts: [{ provenance: { ...request.provenance } }],
       ...overrides,
     }),
@@ -155,19 +162,22 @@ const tamperedAssetRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'stem-source-ass
 const tamperedPaperRoot = path.join(tamperedAssetRoot, 'cie-0580-0580_m25_qp_12')
 const trustedPaperRoot = path.join(root, 'public', 'question-assets', 'cie-0580-0580_m25_qp_12')
 fs.mkdirSync(tamperedPaperRoot, { recursive: true })
-for (const fileName of ['ms-07.jpg']) {
+for (const fileName of ['ms-07.jpg', 'qp-09.jpg', 'ms-08.jpg']) {
   fs.copyFileSync(path.join(trustedPaperRoot, fileName), path.join(tamperedPaperRoot, fileName))
 }
 const tamperedQpBytes = fs.readFileSync(path.join(trustedPaperRoot, 'qp-04.jpg'))
 tamperedQpBytes[tamperedQpBytes.length - 2] ^= 1
 fs.writeFileSync(path.join(tamperedPaperRoot, 'qp-04.jpg'), tamperedQpBytes)
+const tamperedQ14Bytes = fs.readFileSync(path.join(trustedPaperRoot, 'qp-09.jpg'))
+tamperedQ14Bytes[tamperedQ14Bytes.length - 2] ^= 1
+fs.writeFileSync(path.join(tamperedPaperRoot, 'qp-09.jpg'), tamperedQ14Bytes)
 const tamperedApi = createAiApi({ env, libraryRoot: sourceLibraryRoot, allowedSubjects, sourceAssetRoot: tamperedAssetRoot })
 const tamperedServer = requestHandler(stemApi, tamperedApi)
 const tamperedBase = await listen(tamperedServer)
 const signedIdentity = identityToken()
 
-async function authorizedRequest(url, questionNumber, partLabel) {
-  const request = canonicalRequest(questionNumber, partLabel)
+async function authorizedRequest(url, questionNumber, partLabel, options = {}) {
+  const request = canonicalRequest(questionNumber, partLabel, options)
   const capability = await issueCapability(url, request, signedIdentity)
   assert.equal(capability.response.status, 201, `Q${questionNumber}(${partLabel}) capability must be issued for the submitted reviewed attempt`)
   const markingGrant = capability.payload.capabilities?.[0]?.markingGrant
@@ -203,6 +213,17 @@ try {
   ], 'Q14(c) must include its exact QP page 9 and paired MS page, without borrowing Q14(a-b) page 8')
   assert.equal(q14Images.images.length, 3, 'provider receives the exact Q14(c) QP page, MS and student response')
   assert.ok(q14Images.context.officialSourceImages.every((item) => /^[a-f0-9]{64}$/.test(item.sha256)), 'every official image descriptor must carry its verified file SHA-256')
+  assert.equal(sha256ForDataUrl(q14Images.images[0]), q14Request.request.provenance.sourceEvidence.assetSha256, 'provider must receive Q14(c) page-9 bytes matching the reviewed source evidence hash')
+  assert.equal(sha256ForDataUrl(q14Images.images[0]), crypto.createHash('sha256').update(fs.readFileSync(path.join(trustedPaperRoot, 'qp-09.jpg'))).digest('hex'), 'provider Q14(c) page-9 bytes must equal the trusted local asset')
+  assert.equal(sha256ForDataUrl(q14Images.images[1]), crypto.createHash('sha256').update(fs.readFileSync(path.join(trustedPaperRoot, 'ms-08.jpg'))).digest('hex'), 'provider Q14(c) mark-scheme bytes must equal the trusted local asset')
+
+  const fullPaperRequest = await authorizedRequest(appBase, 5, 'a', {
+    mode: 'full-paper',
+    paperId: 'cie-0580-0580_m25_qp_12',
+  })
+  const fullPaper = await post(appBase, fullPaperRequest.request, fullPaperRequest.token)
+  assert.equal(fullPaper.response.status, 200, 'a submitted full-paper capability must reach the provider')
+  assert.equal(providerCalls.length, 3)
 
   const callsBeforeForgedBinding = providerCalls.length
   const forgedBinding = { ...q5Request.request }
@@ -278,6 +299,13 @@ try {
   assert.equal(tampered.response.status, 422, 'a one-byte official image mutation must fail closed')
   assert.equal(tampered.payload.code, 'source_asset_checksum_mismatch')
   assert.equal(providerCalls.length, callsBeforeTamperedAsset, 'a tampered official image must make zero provider calls')
+
+  const tamperedQ14Request = await authorizedRequest(tamperedBase, 14, 'c')
+  const callsBeforeTamperedQ14 = providerCalls.length
+  const tamperedQ14 = await post(tamperedBase, tamperedQ14Request.request, tamperedQ14Request.token)
+  assert.equal(tamperedQ14.response.status, 422, 'a one-byte mutation of the Q14(c) page-9 URL must fail closed')
+  assert.equal(tamperedQ14.payload.code, 'source_asset_checksum_mismatch')
+  assert.equal(providerCalls.length, callsBeforeTamperedQ14, 'a tampered Q14(c) page-9 image must make zero provider calls')
 } finally {
   await Promise.all([close(appServer), close(missingServer), close(tamperedServer), close(providerServer)])
   closeStemDatabaseForTests()

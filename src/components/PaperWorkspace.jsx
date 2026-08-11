@@ -3,7 +3,7 @@ import { AlertTriangle, ArrowLeft, CheckCircle2, Clock3, Columns2, Eraser, Exter
 import { getExamPaperProfile } from '../data/examStructure'
 import { paperQuestionMarkingMetadata } from '../data/questionBank'
 import { deletePaperEvidence, getPaperEvidence, putPaperEvidence } from '../lib/evidenceStorage'
-import { buildSharedMarkingSubmission, completedMarksByQuestion, createSharedMarkingSubmission, loadQuestionAsset, paperSubmissionMarkingSummary, readSharedMarkingAvailability, retrySharedMarkingSubmission, sharedMarkingIsAvailable, waitForSharedMarkingSubmission } from '../lib/paperMarking'
+import { buildSharedMarkingSubmission, completedMarksByQuestion, createSharedMarkingSubmission, loadQuestionAssets, paperSubmissionMarkingSummary, readSharedMarkingAvailability, retrySharedMarkingSubmission, sharedMarkingIsAvailable, waitForSharedMarkingSubmission } from '../lib/paperMarking'
 import { requestMarkingCapabilities } from '../lib/markingCapabilityClient'
 import { AiCoach } from './AiCoach'
 import { PaperAnswerSheet, SelfMarkSummary } from './PaperAnswerSheet'
@@ -483,11 +483,9 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
       handwritingImageDataUrl,
       questionAssetsByPart: Object.fromEntries(await Promise.all((questionMetadata?.parts || []).map(async (part) => [
         part.id,
-        await loadQuestionAsset({
+        await loadQuestionAssets({
           sourceRef: questionMetadata?.sourceRef,
           part,
-          page: part.sourcePage,
-          expectedSha256: part.markingProvenance?.sourceEvidence?.assetSha256,
         }),
       ]))),
     }

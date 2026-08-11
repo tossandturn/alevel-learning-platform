@@ -11,6 +11,8 @@
     "questions:source-manifest": "node scripts/audit-question-bank.mjs --write-manifest",
     "questions:source-completeness": "node scripts/audit-question-bank.mjs --write-report",
     "questions:coverage": "node scripts/question-coverage-matrix.mjs",
+    "release:prepare-content": "node scripts/prepare-stem-release.mjs",
+    "release:verify-content": "node scripts/verify-stem-release.mjs",
     "test:source-identity": "node scripts/test-source-identity.mjs",
     "test:marking-pilot": "node scripts/test-reviewed-marking-pilot.mjs",
     "build": "npm run questions:audit && vite build",

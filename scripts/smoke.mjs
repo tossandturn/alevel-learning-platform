@@ -27,7 +27,7 @@ import { ARCHIVE_SOURCES, BPHO_ROUNDS, archiveSeasonLabel, buildArchiveStats } f
 import { stagesForSubject } from '../src/data/audience.js'
 import sourceContentManifest from '../src/data/sourceContentManifest.json' with { type: 'json' }
 import importedQuestionIndex from '../src/data/importedQuestionIndex.json' with { type: 'json' }
-import { canonicalSourceMarkingProvenance, sourceBindingSignature, sourceBindingStatus } from '../src/lib/sourceContentContract.js'
+import { canonicalSourceMarkingProvenance, canonicalSourceQuestionId, sourceBindingSignature, sourceBindingStatus, sourceQuestionId } from '../src/lib/sourceContentContract.js'
 import { HIGH_PRIORITY_SOURCE_RANGE_REVIEW_IDS, RESOLVED_NON_CONTENT_PAGE_GAPS, SEMANTIC_REVIEW_FIXTURES } from '../src/lib/sourceSemanticContract.js'
 import { reviewedSourceFocusBinding, sourceContentStatus } from '../src/lib/questionContent.js'
 
@@ -118,6 +118,8 @@ const staleBphoUnit = {
   parts: [{ sourceKind: 'past-paper', sourceQuestionId: 'bpho-2025_IPC:q13', questionPartId: 'bpho-2025_IPC:q13:part-a', sourceContentComplete: true, reviewStatus: 'reviewed', aiAssistedMarkingAvailable: true }],
 }
 assert.equal(rebindVerifiedPracticeUnit(staleBphoUnit), null, 'a stale persisted BPhO unit must not be rebound from client capability flags')
+assert.equal(canonicalSourceQuestionId('bpho-2025_IPC:q13@forged-version'), '', 'canonical source IDs must reject forged @ versions instead of truncating them')
+assert.equal(sourceQuestionId({ sourceQuestionId: 'bpho-2025_IPC:q13@forged-version' }), '', 'question provenance must not normalize a suffixed source ID into an older reviewed record')
 const validProvenance = canonicalSourceMarkingProvenance(focusedQ1, focusedQ1?.parts?.[0])
 const validCanonicalContext = canonicalHandwritingMarkingContext({ provenance: { ...validProvenance, routeId: focusedQ1?.routeId } })
 assert.equal(validCanonicalContext.ok, true, 'a current reviewed source part must be accepted by the server canonical marking gate')
@@ -552,6 +554,9 @@ const changedSignatureUnit = structuredClone(mixedPhysicsUnit)
 changedSignatureUnit.parts[0].markingProvenance.bindingSignature = 'fnv1a64:0000000000000000'
 assert.equal(hasCurrentSourceBindingForAttempt(sourceBoundAttempt, changedSignatureUnit), false, 'a same-unit ID with changed source binding must be read-only')
 assert.equal(isScoredAttempt(sourceBoundAttempt, changedSignatureUnit), false, 'a stale source-bound score must not contribute to progress')
+const forgedSourceUnit = structuredClone(mixedPhysicsUnit)
+forgedSourceUnit.parts[0].sourceQuestionId = `${forgedSourceUnit.parts[0].sourceQuestionId}@forged-version`
+assert.equal(sourceBindingSnapshotForUnit(forgedSourceUnit), null, 'attempt source snapshots must fail closed for forged suffixed source IDs')
 const staleBindingProgress = buildLearningProgress({
   attempts: [sourceBoundAttempt],
   units: [changedSignatureUnit],

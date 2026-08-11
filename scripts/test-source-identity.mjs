@@ -6,78 +6,85 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { canonicalTextSha256, canonicalUtf8LfText } from './canonical-text.mjs'
 
 const repoRoot = path.resolve(import.meta.dirname, '..')
-const auditScript = path.join(repoRoot, 'scripts', 'audit-question-bank.mjs')
 const indexRelativePath = path.join('src', 'data', 'importedQuestionIndex.json')
 const sourceAssetRoot = path.join(repoRoot, 'public', 'question-assets')
+const sourceCatalogPath = path.join(repoRoot, 'public', 'data', 'papers.json')
+const archiveRef = String(process.env.SOURCE_IDENTITY_ARCHIVE_REF || 'HEAD').trim()
 const scratchParent = process.env.SOURCE_IDENTITY_TEST_ROOT
   || (process.platform === 'win32' && fs.existsSync('D:\\CodexWork') ? 'D:\\CodexWork' : os.tmpdir())
 const scratchRoot = fs.mkdtempSync(path.join(scratchParent, 'stem-source-identity-'))
 
-function writeFixture(name, indexText) {
-  const fixtureRoot = path.join(scratchRoot, name)
-  const dataRoot = path.join(fixtureRoot, 'src', 'data')
-  fs.mkdirSync(dataRoot, { recursive: true })
-  fs.writeFileSync(path.join(dataRoot, 'importedQuestionIndex.json'), indexText, 'utf8')
-  return fixtureRoot
+function archiveReleaseRoot(name) {
+  const releaseRoot = path.join(scratchRoot, name)
+  const archivePath = path.join(scratchRoot, `${name}.tar`)
+  execFileSync('git', ['archive', '--format=tar', '--output', archivePath, archiveRef], {
+    cwd: repoRoot,
+    stdio: 'ignore',
+  })
+  fs.mkdirSync(releaseRoot, { recursive: true })
+  execFileSync(process.platform === 'win32' ? 'tar.exe' : 'tar', ['-xf', archivePath, '-C', releaseRoot], { stdio: 'ignore' })
+  fs.rmSync(archivePath, { force: true })
+  return releaseRoot
 }
 
-function runAudit(name, indexText) {
-  const fixtureRoot = writeFixture(name, indexText)
-  const result = spawnSync(process.execPath, [auditScript, '--write-manifest'], {
-    cwd: repoRoot,
-    env: {
-      ...process.env,
-      SOURCE_AUDIT_ROOT: fixtureRoot,
-      SOURCE_AUDIT_ASSET_ROOT: sourceAssetRoot,
-    },
+function materializePrivateContent(releaseRoot) {
+  assert.ok(fs.existsSync(sourceAssetRoot), 'source question-assets must exist for a release-artifact audit')
+  assert.ok(fs.existsSync(sourceCatalogPath), 'source papers.json must exist for a release-artifact audit')
+  const targetAssets = path.join(releaseRoot, 'public', 'question-assets')
+  const targetCatalog = path.join(releaseRoot, 'public', 'data', 'papers.json')
+  fs.mkdirSync(path.dirname(targetAssets), { recursive: true })
+  fs.mkdirSync(path.dirname(targetCatalog), { recursive: true })
+  fs.cpSync(sourceAssetRoot, targetAssets, { recursive: true, dereference: true, force: false, errorOnExist: true })
+  fs.copyFileSync(sourceCatalogPath, targetCatalog, fs.constants.COPYFILE_EXCL)
+}
+
+function runDirectAudit(label, releaseRoot, args = []) {
+  const env = { ...process.env }
+  delete env.SOURCE_AUDIT_ROOT
+  delete env.SOURCE_AUDIT_ASSET_ROOT
+  const result = spawnSync(process.execPath, [path.join(releaseRoot, 'scripts', 'audit-question-bank.mjs'), ...args], {
+    cwd: releaseRoot,
+    env,
     encoding: 'utf8',
     maxBuffer: 32 * 1024 * 1024,
   })
-  assert.equal(result.status, 0, `${name} audit must pass:\n${result.stdout}\n${result.stderr}`)
-  const manifest = JSON.parse(fs.readFileSync(path.join(fixtureRoot, 'src', 'data', 'sourceContentManifest.json'), 'utf8'))
-  const identity = fs.readFileSync(path.join(fixtureRoot, 'src', 'data', 'sourceContentIdentity.js'), 'utf8')
+  assert.equal(result.status, 0, `${label} audit must pass:\n${result.stdout}\n${result.stderr}`)
+  const manifest = JSON.parse(fs.readFileSync(path.join(releaseRoot, 'src', 'data', 'sourceContentManifest.json'), 'utf8'))
+  const identity = fs.readFileSync(path.join(releaseRoot, 'src', 'data', 'sourceContentIdentity.js'), 'utf8')
   return { manifest, identity }
 }
 
 try {
-  const worktreeIndexText = fs.readFileSync(path.join(repoRoot, indexRelativePath), 'utf8')
-  const lfIndexText = canonicalUtf8LfText(worktreeIndexText)
-  const crlfIndexText = lfIndexText.replace(/\n/g, '\r\n')
+  const archiveRoot = archiveReleaseRoot('archive-lf')
+  materializePrivateContent(archiveRoot)
+  const archiveRun = runDirectAudit('git archive with private content', archiveRoot)
+  const archiveIndexPath = path.join(archiveRoot, indexRelativePath)
+  const archiveIndexText = fs.readFileSync(archiveIndexPath, 'utf8')
+  const crlfIndexText = canonicalUtf8LfText(archiveIndexText).replace(/\n/g, '\r\n')
 
-  assert.equal(
-    canonicalTextSha256(lfIndexText),
-    canonicalTextSha256(crlfIndexText),
-    'LF and CRLF source index fixtures must have the same canonical digest',
-  )
-
-  const archivePath = path.join(scratchRoot, 'head.tar')
-  execFileSync('git', ['archive', '--format=tar', '--output', archivePath, 'HEAD', '--', indexRelativePath], {
-    cwd: repoRoot,
-    stdio: 'ignore',
-  })
-  const archiveRoot = path.join(scratchRoot, 'archive')
-  fs.mkdirSync(archiveRoot, { recursive: true })
-  execFileSync(process.platform === 'win32' ? 'tar.exe' : 'tar', ['-xf', archivePath, '-C', archiveRoot], { stdio: 'ignore' })
-  const archiveIndexText = fs.readFileSync(path.join(archiveRoot, indexRelativePath), 'utf8')
   assert.equal(
     canonicalTextSha256(archiveIndexText),
     canonicalTextSha256(crlfIndexText),
     'git archive LF content and a CRLF checkout must have the same canonical digest',
   )
 
-  const archiveRun = runAudit('archive-lf', archiveIndexText)
-  const lfRun = runAudit('working-lf', lfIndexText)
-  const crlfRun = runAudit('working-crlf', crlfIndexText)
-  assert.deepEqual(crlfRun.manifest, lfRun.manifest, 'CRLF and LF audits must produce identical runtime manifests')
-  assert.deepEqual(archiveRun.manifest, lfRun.manifest, 'git archive and working-tree audits must produce identical runtime manifests')
-  assert.equal(crlfRun.identity, lfRun.identity, 'CRLF and LF audits must produce identical source identity files')
-  assert.equal(archiveRun.identity, lfRun.identity, 'git archive and working-tree audits must produce identical source identity files')
+  fs.writeFileSync(archiveIndexPath, crlfIndexText, 'utf8')
+  const crlfWriteRun = runDirectAudit('git archive CRLF manifest generation', archiveRoot, ['--write-manifest'])
+  const crlfRun = runDirectAudit('git archive CRLF with private content', archiveRoot)
+  assert.deepEqual(crlfWriteRun.manifest, archiveRun.manifest, 'CRLF regeneration must not alter the audited runtime manifest')
+  assert.deepEqual(crlfRun.manifest, archiveRun.manifest, 'CRLF archive audit must match the original LF archive manifest')
+  assert.equal(
+    canonicalUtf8LfText(crlfRun.identity),
+    canonicalUtf8LfText(archiveRun.identity),
+    'CRLF archive audit must retain the original source identity values regardless of checkout line endings',
+  )
 
   console.log(JSON.stringify({
     ok: true,
-    sourceIndexSha256: lfRun.manifest.sourceIndexSha256,
-    manifestChecksum: lfRun.manifest.checksum,
-    variants: ['git-archive-lf', 'working-lf', 'working-crlf'],
+    archiveRef,
+    sourceIndexSha256: archiveRun.manifest.sourceIndexSha256,
+    manifestChecksum: archiveRun.manifest.checksum,
+    variants: ['git-archive-with-private-content', 'git-archive-crlf-with-private-content'],
   }, null, 2))
 } finally {
   fs.rmSync(scratchRoot, { recursive: true, force: true })

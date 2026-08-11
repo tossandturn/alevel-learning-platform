@@ -1,5 +1,6 @@
 const EXPORT_SCHEMA_VERSION = 'alevel-learning-export-v2'
 export const ATTEMPT_SOURCE_BINDING_SCHEMA_VERSION = 'attempt-source-binding.v1'
+import { canonicalSourceQuestionId } from './sourceContentContract.js'
 
 export { EXPORT_SCHEMA_VERSION }
 
@@ -14,7 +15,7 @@ function sourceBoundPart(part) {
 
 function partSourceSnapshot(part) {
   const provenance = part?.markingProvenance || {}
-  const sourceQuestionId = String(part?.sourceQuestionId || '').split('@')[0]
+  const sourceQuestionId = canonicalSourceQuestionId(part?.sourceQuestionId)
   const questionPartId = String(part?.questionPartId || '')
   const bindingSignature = String(provenance.bindingSignature || '')
   const reviewVersion = String(provenance.reviewVersion || '')

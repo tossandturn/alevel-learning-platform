@@ -28,18 +28,40 @@ async function sha256ForBlob(blob) {
   return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, '0')).join('')
 }
 
-function sourceAssetForPart(sourceRef = {}, part = {}) {
-  const page = Number(part.sourcePage)
-  const evidence = requiredSourceAssetEvidence(part).find((entry) => entry.page === page)
-    || (Number(part.markingProvenance?.sourceEvidence?.page) === page ? part.markingProvenance.sourceEvidence : null)
-  const assetUrl = trustedSourceAssetUrls(sourceRef).find((url) => sourcePageFromAssetUrl(url) === page)
-  if (!Number.isInteger(page) || !evidence?.assetSha256 || !assetUrl) return null
-  return { page, assetUrl, sha256: evidence.assetSha256 }
+function sourceAssetEvidenceForPart(sourceRef = {}, part = {}) {
+  const trustedAssets = trustedSourceAssetUrls(sourceRef)
+  const evidence = [...requiredSourceAssetEvidence(part)]
+  const provenanceEvidence = part.markingProvenance?.sourceEvidence
+  if (provenanceEvidence?.assetSha256 && Number.isInteger(Number(provenanceEvidence.page))) {
+    evidence.push({
+      page: Number(provenanceEvidence.page),
+      assetUrl: String(provenanceEvidence.assetUrl || ''),
+      assetSha256: String(provenanceEvidence.assetSha256).toLowerCase(),
+    })
+  }
+  const byPageAndHash = new Map()
+  for (const entry of evidence) {
+    const page = Number(entry.page)
+    const declaredUrl = String(entry.assetUrl || '')
+    const assetUrl = declaredUrl
+      ? trustedAssets.find((url) => url === declaredUrl && sourcePageFromAssetUrl(url) === page) || ''
+      : trustedAssets.find((url) => sourcePageFromAssetUrl(url) === page) || ''
+    const sha256 = String(entry.assetSha256 || '').toLowerCase()
+    const key = `${page}\u0000${sha256}`
+    const existing = byPageAndHash.get(key)
+    if (!existing || (!existing.assetUrl && assetUrl)) byPageAndHash.set(key, { page, assetUrl, sha256 })
+  }
+  return [...byPageAndHash.values()]
+    .filter((entry) => Number.isInteger(entry.page) && /^[a-f0-9]{64}$/.test(entry.sha256) && entry.assetUrl)
+    .toSorted((left, right) => left.page - right.page || left.assetUrl.localeCompare(right.assetUrl))
 }
 
-export async function loadQuestionAsset({ sourceRef, part, page, expectedSha256, fetchImpl = fetch, origin = typeof window === 'undefined' ? '' : window.location.origin } = {}) {
+export async function loadQuestionAsset({ sourceRef, part, page, assetUrl: requestedAssetUrl = '', expectedSha256, fetchImpl = fetch, origin = typeof window === 'undefined' ? '' : window.location.origin } = {}) {
   const pageNumber = Number(page || part?.sourcePage)
-  const assetUrl = trustedSourceAssetUrls(sourceRef || {}).find((url) => documentPageFromAssetUrl(url) === pageNumber)
+  const trustedAssets = trustedSourceAssetUrls(sourceRef || {})
+  const assetUrl = requestedAssetUrl
+    ? trustedAssets.find((url) => url === requestedAssetUrl && documentPageFromAssetUrl(url) === pageNumber) || ''
+    : trustedAssets.find((url) => documentPageFromAssetUrl(url) === pageNumber) || ''
   if (!assetUrl) return { status: 'missing', reason: 'question_asset_not_indexed', imageDataUrl: '' }
   let url
   try {
@@ -63,6 +85,24 @@ export async function loadQuestionAsset({ sourceRef, part, page, expectedSha256,
   } catch {
     return { status: 'missing', reason: 'question_asset_fetch_failed', imageDataUrl: '' }
   }
+}
+
+export async function loadQuestionAssets({ sourceRef, part, fetchImpl = fetch, origin = typeof window === 'undefined' ? '' : window.location.origin } = {}) {
+  const evidence = sourceAssetEvidenceForPart(sourceRef, part)
+  if (!evidence.length) return { status: 'missing', reason: 'question_asset_evidence_missing', assets: [] }
+  const assets = await Promise.all(evidence.map((entry) => loadQuestionAsset({
+    sourceRef,
+    part,
+    page: entry.page,
+    assetUrl: entry.assetUrl,
+    expectedSha256: entry.sha256,
+    fetchImpl,
+    origin,
+  })))
+  const failed = assets.find((asset) => asset.status !== 'available')
+  return failed
+    ? { status: 'missing', reason: failed.reason, assets }
+    : { status: 'available', assets }
 }
 
 function reviewedQuestion(questionMetadata) {
@@ -93,7 +133,8 @@ export function reviewedManifestQuestion({ routeId, qualification, specification
   const provenance = part.markingProvenance
   if (!markSchemePoint || !provenance || provenance.manifestSchemaVersion !== STEM_MARKING_MANIFEST_SCHEMA_VERSION || provenance.reviewSchemaVersion !== STEM_SOURCE_REVIEW_SCHEMA_VERSION) return null
   const sourcePage = part.sourcePage || metadata.sourceRef.pageStart
-  const sourceAsset = sourceAssetForPart(metadata.sourceRef, part)
+  const sourceAssets = sourceAssetEvidenceForPart(metadata.sourceRef, part)
+  const sourceAsset = sourceAssets.find((entry) => entry.page === sourcePage)
   if (!sourceAsset || sourceAsset.sha256 !== provenance.sourceEvidence?.assetSha256 || sourceAsset.assetUrl !== provenance.sourceEvidence?.assetUrl) return null
   return {
     routeId,
@@ -114,14 +155,14 @@ export function reviewedManifestQuestion({ routeId, qualification, specification
     prompt: part.prompt || metadata.prompt,
     availableMarks: Number(part.marks),
     markSchemePoints: [markSchemePoint],
-    assets: [{
-      assetId: `${metadata.sourceRef.paperId}:page-${sourcePage}`,
+    assets: sourceAssets.map((asset) => ({
+      assetId: `${metadata.sourceRef.paperId}:page-${asset.page}`,
       kind: 'pdf-page',
-      label: 'Question page',
-      assetUrl: sourceAsset.assetUrl,
-      checksum: `sha256:${sourceAsset.sha256}`,
-      sourceEvidence: { page: sourcePage, assetUrl: sourceAsset.assetUrl, assetSha256: sourceAsset.sha256, quote: `Question paper Q${questionNumber}${metadata.parts.length > 1 ? `(${part.label})` : ''}` },
-    }],
+      label: `Question page ${asset.page}`,
+      assetUrl: asset.assetUrl,
+      checksum: `sha256:${asset.sha256}`,
+      sourceEvidence: { page: asset.page, assetUrl: asset.assetUrl, assetSha256: asset.sha256, quote: `Question paper Q${questionNumber}${metadata.parts.length > 1 ? `(${part.label})` : ''}` },
+    })),
   }
 }
 
@@ -142,17 +183,33 @@ export function buildSharedMarkingSubmission({ attemptId, routeId, qualification
       const { routeId: _routeId, qualification: _qualification, specificationVersion: _specificationVersion, paperId: _paperId, ...canonicalQuestion } = manifestQuestion
       return [{
         ...canonicalQuestion,
-        assets: canonicalQuestion.assets.map((asset) => ({
-          ...asset,
-          ...(response.questionAssetsByPart?.[part.id]?.status === 'available'
-            && response.questionAssetsByPart[part.id].assetUrl === asset.assetUrl
-            && response.questionAssetsByPart[part.id].sha256 === String(asset.checksum || '').replace(/^sha256:/, '')
-            ? { imageDataUrl: response.questionAssetsByPart[part.id].imageDataUrl }
-            : {}),
-        })),
-        visualContext: response.questionAssetsByPart?.[part.id]?.status === 'available'
-          ? { status: 'available' }
-          : { status: 'missing', reason: response.questionAssetsByPart?.[part.id]?.reason || 'question_asset_not_indexed', reviewRequired: true, confidenceCap: 0.5 },
+        assets: canonicalQuestion.assets.map((asset) => {
+          const loaded = response.questionAssetsByPart?.[part.id]
+          const loadedAssets = Array.isArray(loaded?.assets)
+            ? loaded.assets
+            : loaded?.status === 'available' ? [loaded] : []
+          const loadedAsset = loadedAssets.find((candidate) => (
+            candidate?.status === 'available'
+            && candidate.assetUrl === asset.assetUrl
+            && candidate.sha256 === String(asset.checksum || '').replace(/^sha256:/, '')
+          ))
+          return { ...asset, ...(loadedAsset?.imageDataUrl ? { imageDataUrl: loadedAsset.imageDataUrl } : {}) }
+        }),
+        visualContext: (() => {
+          const loaded = response.questionAssetsByPart?.[part.id]
+          const loadedAssets = Array.isArray(loaded?.assets)
+            ? loaded.assets
+            : loaded?.status === 'available' ? [loaded] : []
+          const allLoaded = canonicalQuestion.assets.every((asset) => loadedAssets.some((candidate) => (
+            candidate?.status === 'available'
+            && candidate.assetUrl === asset.assetUrl
+            && candidate.sha256 === String(asset.checksum || '').replace(/^sha256:/, '')
+            && candidate.imageDataUrl
+          )))
+          return allLoaded
+            ? { status: 'available', pages: canonicalQuestion.assets.map((asset) => asset.sourceEvidence.page) }
+            : { status: 'missing', reason: loaded?.reason || 'question_asset_not_indexed', reviewRequired: true, confidenceCap: 0.5 }
+        })(),
         markingGrant: markingCapabilities[part.id] || null,
         answer: {
           typedText: String(response.typedText || '').trim(),
