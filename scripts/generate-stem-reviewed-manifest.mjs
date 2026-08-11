@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
-import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { paperQuestionMarkingMetadata } from '../src/data/questionBank.js'
 import { reviewedManifestQuestion } from '../src/lib/paperMarking.js'
+import { canonicalTextFileSha256 } from './canonical-text.mjs'
 
 const contract = Object.freeze({
   routeId: 'cie-0580-igcse-mathematics',
@@ -16,10 +16,6 @@ function outputPath(argv) {
   const index = argv.indexOf('--output')
   assert.ok(index >= 0 && argv[index + 1], 'Pass --output <manifest-path>')
   return path.resolve(argv[index + 1])
-}
-
-function sha256File(filePath) {
-  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex')
 }
 
 const metadataByQuestion = paperQuestionMarkingMetadata({ paperId: contract.paperId, routeId: contract.routeId })
@@ -43,7 +39,7 @@ fs.writeFileSync(destination, `${JSON.stringify({
   generatedAt: new Date().toISOString(),
   source: {
     reviewedSet: path.basename(reviewedSetPath),
-    sha256: sha256File(reviewedSetPath),
+    sha256: canonicalTextFileSha256(reviewedSetPath),
     questionCount: 26,
     partCount: questions.length,
     totalMarks: 80,
