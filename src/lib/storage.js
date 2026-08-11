@@ -1,6 +1,6 @@
 import { courseRoutes, LEGACY_UNSCOPED_ROUTE_ID, routeById } from '../data/routeRegistry.js'
 import { migrateLearningState, normalizeAcademicStage, resolveRouteBinding } from './routeMigration.js'
-import { rebindVerifiedPracticeUnit } from './coachPractice.js'
+import { rebindVerifiedPracticeUnit } from './verifiedPracticeCatalog.js'
 
 const STORAGE_KEY = 'alevel-learning-platform-v2'
 const GUEST_STORAGE_KEY = `${STORAGE_KEY}:guest`

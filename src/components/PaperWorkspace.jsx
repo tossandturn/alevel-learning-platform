@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, ArrowLeft, CheckCircle2, Clock3, Columns2, Eraser, ExternalLink, FileCheck2, FileText, GripVertical, Hand, Maximize2, Minimize2, Minus, NotebookPen, NotebookText, PenTool, Plus, Save, Trash2 } from 'lucide-react'
 import { getExamPaperProfile } from '../data/examStructure'
-import { paperQuestionMarkingMetadata } from '../data/questionBank'
+import { paperQuestionMarkingMetadata } from '../lib/verifiedPracticeCatalog'
 import { deletePaperEvidence, getPaperEvidence, putPaperEvidence } from '../lib/evidenceStorage'
 import { buildSharedMarkingSubmission, completedMarksByQuestion, createSharedMarkingSubmission, loadQuestionAssets, paperSubmissionMarkingSummary, readSharedMarkingAvailability, retrySharedMarkingSubmission, sharedMarkingIsAvailable, waitForSharedMarkingSubmission } from '../lib/paperMarking'
 import { requestMarkingCapabilities } from '../lib/markingCapabilityClient'
@@ -117,7 +117,7 @@ function questionBatches(questionNumbers, size = SHARED_MARKING_BATCH_SIZE) {
   return batches
 }
 
-export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null, sharedIdentityToken = '', stateOwnerId = '', onBack, onSaveDraft, onFinish, onFinishReview }) {
+export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null, sharedIdentityToken = '', stateOwnerId = '', onBack, onSaveDraft, onFinish, onFinishReview, immersive = false, onToggleImmersive = () => {} }) {
   const itemById = useMemo(() => new Map((catalog?.items || []).map((item) => [item.id, item])), [catalog])
   const questionPaper = itemById.get(paper.questionPaperId) || (paper.kind === 'qp' ? paper : null)
   const markScheme = itemById.get(paper.markSchemeId)
@@ -163,7 +163,6 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
   const [pdfInkQuestionMap, setPdfInkQuestionMap] = useState(() => paperDraft?.pdfInkMapVersion === 2 ? (paperDraft?.pdfInkQuestionMap || {}) : {})
   const [lastPdfInkPage, setLastPdfInkPage] = useState(null)
   const [mobilePane, setMobilePane] = useState('paper')
-  const [immersive, setImmersive] = useState(false)
   const [answerPaneWidth, setAnswerPaneWidth] = useState(storedAnswerPaneWidth)
   const [saveStatus, setSaveStatus] = useState(paperDraft ? 'Restored' : 'Ready')
   const [showSubmitCheck, setShowSubmitCheck] = useState(false)
@@ -731,7 +730,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
           <span className="timer"><Clock3 size={16} />{formatTime(elapsedSec)}</span>
           <span className="save-state" aria-live="polite"><Save size={16} /><span>{saveStatus}</span></span>
           <a className="icon-button" href={(displayPaper || paper).localUrl} target="_blank" rel="noreferrer" aria-label="Open PDF in a new tab"><ExternalLink size={18} /></a>
-          <button type="button" className="paper-focus-button" onClick={() => setImmersive((value) => !value)} aria-label={immersive ? 'Exit paper focus mode' : 'Enter paper focus mode'} aria-pressed={immersive} title={immersive ? 'Exit paper focus mode' : 'Enter paper focus mode'}>{immersive ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>
+          <button type="button" className="paper-focus-button" onClick={() => onToggleImmersive(!immersive)} aria-label={immersive ? 'Exit paper focus mode' : 'Enter paper focus mode'} aria-pressed={immersive} title={immersive ? 'Exit paper focus mode' : 'Enter paper focus mode'}>{immersive ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>
           {isAttempt && <button type="button" className="submit-button" onClick={requestSubmit} disabled={submitted}>{submitted ? 'Submitted' : 'Submit paper'}</button>}
         </div>
       </header>

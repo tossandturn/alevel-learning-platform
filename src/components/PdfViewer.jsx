@@ -325,11 +325,13 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, questionNumb
 
 export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage = {}, inkTool = 'pen', questionNumber = 1, onInkChange, registerInkFlush }) {
   const containerRef = useRef(null)
+  const scrollRef = useRef(null)
   const canvasRefs = useRef(new Map())
   const [document, setDocument] = useState(null)
   const [containerWidth, setContainerWidth] = useState(900)
   const [zoom, setZoom] = useState(1)
   const [pageSizes, setPageSizes] = useState({})
+  const [requestedPages, setRequestedPages] = useState(() => new Set([1, 2]))
   const [status, setStatus] = useState('loading')
   const [error, setError] = useState('')
   const zoomFromTouch = useCallback((scale) => {
@@ -355,6 +357,7 @@ export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage 
     setError('')
     setDocument(null)
     setPageSizes({})
+    setRequestedPages(new Set([1, 2]))
     task.promise
       .then((nextDocument) => {
         if (!active) return nextDocument.destroy()
@@ -374,6 +377,24 @@ export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage 
   }, [file.id, file.localUrl])
 
   useEffect(() => {
+    const root = scrollRef.current
+    if (!root || !document) return undefined
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.filter((entry) => entry.isIntersecting)
+        .map((entry) => Number(entry.target.getAttribute('data-page-number')))
+        .filter(Number.isInteger)
+      if (!visible.length) return
+      setRequestedPages((current) => {
+        const next = new Set(current)
+        visible.forEach((pageNumber) => next.add(pageNumber))
+        return next.size === current.size ? current : next
+      })
+    }, { root, rootMargin: '720px 0px' })
+    root.querySelectorAll('[data-page-number]').forEach((node) => observer.observe(node))
+    return () => observer.disconnect()
+  }, [document])
+
+  useEffect(() => {
     if (!document) return undefined
     let cancelled = false
     const renderTasks = []
@@ -382,6 +403,7 @@ export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage 
     async function renderAllPages() {
       for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
         if (cancelled) return
+        if (!requestedPages.has(pageNumber)) continue
         const canvas = canvasRefs.current.get(pageNumber)
         if (!canvas) continue
         const page = await document.getPage(pageNumber)
@@ -416,7 +438,7 @@ export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage 
       cancelled = true
       renderTasks.forEach((renderTask) => renderTask.cancel())
     }
-  }, [containerWidth, document, zoom])
+  }, [containerWidth, document, requestedPages, zoom])
 
   return (
     <div className="pdf-viewer" ref={containerRef}>
@@ -428,16 +450,20 @@ export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage 
         <button type="button" onClick={() => setZoom((value) => Math.min(2, value + 0.15))} aria-label="Zoom in"><ZoomIn size={17} /></button>
         <a href={file.localUrl} download={file.file} aria-label="Download PDF"><Download size={17} /></a>
       </div>
-      <div className="pdf-canvas-scroll">
+      <div className="pdf-canvas-scroll" ref={scrollRef}>
         {status === 'loading' && <div className="pdf-loading"><span className="loading-line" />Rendering verified PDF...</div>}
         {status === 'error' && <div className="pdf-loading error">Could not render this PDF. <a href={file.localUrl} target="_blank" rel="noreferrer">Open it directly</a><small>{error}</small></div>}
         {document && <div className="pdf-page-stack">{Array.from({ length: document.numPages }, (_, index) => {
           const pageNumber = index + 1
           const size = pageSizes[pageNumber]
+          const placeholderStyle = size
+            ? { width: size.width, height: size.height }
+            : { width: 'min(100%, 760px)', minHeight: 280 }
           return <figure className="pdf-page" key={pageNumber}>
             <figcaption>Page {pageNumber}</figcaption>
-            <div className="pdf-page-layer" style={size ? { width: size.width, height: size.height } : undefined}>
+            <div className="pdf-page-layer" data-page-number={pageNumber} style={placeholderStyle}>
               <canvas ref={(canvas) => { if (canvas) canvasRefs.current.set(pageNumber, canvas); else canvasRefs.current.delete(pageNumber) }} aria-label={`${file.file}, page ${pageNumber}`} />
+              {!size && <span className="pdf-page-placeholder">Scroll to render this page</span>}
               {annotate && size && <PdfInkCanvas pageNumber={pageNumber} baseCanvas={canvasRefs.current.get(pageNumber)} width={size.width} height={size.height} ink={inkByPage[pageNumber]} tool={inkTool} questionNumber={questionNumber} onChange={onInkChange} onTouchZoom={zoomFromTouch} registerInkFlush={registerInkFlush} readOnly={readOnly} panMode={inkTool === 'hand'} />}
             </div>
           </figure>

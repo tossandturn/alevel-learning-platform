@@ -17,10 +17,13 @@ import {
 } from "lucide-react";
 import { dataChain, learningTracks, workspaceRoles } from "../data/audience";
 import { learningPlan } from "../data/learningPlan";
-import { questionInventory } from "../data/questionBank";
 import { courseRoutes, formatRouteComponents, routeById, topicsForRoute } from "../data/routeRegistry";
 import { COURSE_STAGE_ORDER } from "../data/stages";
-import { coachPracticeOptions } from "../lib/coachPractice";
+import {
+  coachPracticeOptions,
+  MIN_VERIFIED_GROUPS_FOR_PRACTICE,
+  questionInventory,
+} from "../lib/verifiedPracticeCatalog";
 import { sharedAccountRequest } from "../lib/sharedAccount";
 
 const DEFAULT_ASSIGNMENT_ROUTE_ID = "cie-9702-as-physics";
@@ -1505,7 +1508,7 @@ function TeacherRoute({
                 !selectedRoute ||
                 !assignmentDraft.topicId ||
                 !assignmentDraft.classroomId ||
-                indexedCount < 1
+                indexedCount < MIN_VERIFIED_GROUPS_FOR_PRACTICE
               }
             >
               <Link2 size={17} />

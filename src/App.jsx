@@ -29,9 +29,7 @@ import { fullPaperUnits, importedPdfLibrary, subjects, topicUnits } from './data
 import { learningPlan, stagesForComponentTags } from './data/learningPlan'
 import { courseRoutes, formatRouteComponents, routeById, routesForSubject } from './data/routeRegistry'
 import { COURSE_STAGE_ORDER } from './data/stages'
-import { HistoryView } from './components/HistoryView'
 import { AiCoach } from './components/AiCoach'
-import { RoleWorkspace } from './components/RoleWorkspace'
 import { PaperLibrary } from './components/PaperLibrary'
 import { PracticeWorkspace } from './components/PracticeWorkspace'
 import { usePaperCatalog } from './hooks/usePaperCatalog'
@@ -47,19 +45,26 @@ import {
   markingCapabilityForUnit,
   pendingPartsForLifecycle,
 } from './lib/markingLifecycle'
-import { buildCoachPractice, buildVerifiedPracticeCatalog, coachPracticeOptions, previewCoachPracticeSourceMix, rebindVerifiedPracticeUnit } from './lib/coachPractice'
+import { buildCoachPractice, buildVerifiedPracticeCatalog, coachPracticeOptions, MIN_VERIFIED_GROUPS_FOR_PRACTICE, previewCoachPracticeSourceMix, rebindVerifiedPracticeUnit, resolveVerifiedPracticeSelection } from './lib/verifiedPracticeCatalog'
 import { latestBphoSpcPaper } from './lib/coachIntent'
 import { buildCompletionByUnit, buildLearningProgress, recommendForRoute } from './lib/learningProgress'
 import { professionalTermsUrl, requestSharedAccount, requestSharedWorkspace, sharedAccountRequest, sharedAuthUrl, sharedLogoutUrl } from './lib/sharedAccount'
 import { requestMarkingCapabilities } from './lib/markingCapabilityClient'
 import { parseProductContext, termIdsForStemContext } from './lib/productContext'
-import { unifiedQuestionBank } from './data/questionBank'
+import { vocabularyCoverageForRoute } from './data/stemVocabularyTaxonomy'
+import { verifiedPracticeQuestionGroups } from './lib/verifiedPracticeCatalog'
 import './App.css'
 import './StudentV2.css'
 import './TabletNavFix.css'
 
 const PaperWorkspace = lazy(() =>
   import('./components/PaperWorkspace').then((module) => ({ default: module.PaperWorkspace })),
+)
+const HistoryView = lazy(() =>
+  import('./components/HistoryView').then((module) => ({ default: module.HistoryView })),
+)
+const RoleWorkspace = lazy(() =>
+  import('./components/RoleWorkspace').then((module) => ({ default: module.RoleWorkspace })),
 )
 
 const EMPTY_SELF_MARKS = Object.freeze({})
@@ -576,6 +581,10 @@ function App() {
     setAppState((state) => ({ ...state, profile: { ...state.profile, ...patch } }))
   }
 
+  function setImmersiveLearning(value) {
+    updateProfile({ immersiveLearning: Boolean(value) })
+  }
+
   function toggleFavoriteUnit(unitId) {
     setAppState((state) => {
       const current = state.favoriteUnitIds || []
@@ -781,6 +790,7 @@ function App() {
   function generateCoachPractice(selection) {
     const unit = buildCoachPractice({
       ...selection,
+      agentGenerated: true,
       allowPartial: selection.allowPartial ?? true,
     })
     setAppState((state) => ({
@@ -821,14 +831,19 @@ function App() {
 
     if (intent.type === 'build-topic-practice') {
       try {
-        const subjectRoutes = routesForSubject(intent.subjectId)
-        const matchingRoutes = intent.routeId
-          ? subjectRoutes.filter((route) => route.routeId === intent.routeId)
-          : subjectRoutes.filter((route) => route.stage === intent.stage)
-        if (matchingRoutes.length !== 1) {
-          return { handled: true, message: 'Please choose the exact paper route first so the set cannot mix stages or component combinations.' }
-        }
-        const unit = generateCoachPractice({ ...intent, routeId: matchingRoutes[0].routeId })
+        const selection = resolveVerifiedPracticeSelection({
+          routeId: intent.routeId,
+          subjectId: intent.subjectId,
+          stage: intent.stage,
+          topicId: intent.topicId || intent.knowledgeGroupId,
+        })
+        const unit = generateCoachPractice({
+          ...intent,
+          routeId: selection.subject.routeId,
+          stage: selection.subject.stage,
+          topicId: selection.group.id,
+          knowledgeGroupId: selection.group.id,
+        })
         return {
           handled: true,
           message: `已生成 ${unit.title}。共 ${unit.parts.length} 道真实来源题，每题绑定原卷和对应 mark scheme；提交后自动批改，手写图像会进入 AI 复核。`,
@@ -1195,7 +1210,7 @@ function App() {
         />
       )}
 
-      {view === 'workspace' && <RoleWorkspace profile={appState.profile} updateProfile={updateProfile} assignments={sharedAccount.workspace?.assignments || []} classrooms={sharedAccount.workspace?.classrooms || []} submissions={sharedAccount.workspace?.submissions || []} serverSummaries={sharedAccount.workspace?.serverSummaries || {}} attempts={appState.attempts} learningProgress={learningProgress} account={sharedAccount} onRefreshAccount={refreshSharedAccount} onCreateClassroom={createClassroom} onJoinClassroom={joinClassroom} onCreateAssignment={createAssignment} onStartAssignedAssignment={startAssignedAssignment} />}
+      {view === 'workspace' && <Suspense fallback={<div className="workspace-loading"><span className="loading-line" />Loading workspace...</div>}><RoleWorkspace profile={appState.profile} updateProfile={updateProfile} assignments={sharedAccount.workspace?.assignments || []} classrooms={sharedAccount.workspace?.classrooms || []} submissions={sharedAccount.workspace?.submissions || []} serverSummaries={sharedAccount.workspace?.serverSummaries || {}} attempts={appState.attempts} learningProgress={learningProgress} account={sharedAccount} onRefreshAccount={refreshSharedAccount} onCreateClassroom={createClassroom} onJoinClassroom={joinClassroom} onCreateAssignment={createAssignment} onStartAssignedAssignment={startAssignedAssignment} /></Suspense>}
 
       {view === 'notebook' && (
         <StudentNotebook
@@ -1258,7 +1273,7 @@ function App() {
       )}
 
       {view === 'history' && (
-        <HistoryView
+        <Suspense fallback={<div className="workspace-loading"><span className="loading-line" />Loading history...</div>}><HistoryView
           attempts={routeAttempts}
           paperSessions={routePaperSessions}
           paperReviews={routePaperReviews}
@@ -1270,7 +1285,7 @@ function App() {
           units={routePracticeUnits}
           onExport={exportLearningData}
           exportState={exportState}
-        />
+        /></Suspense>
       )}
 
       {view === 'paper' && activePaper && paperCatalogState.catalog && (
@@ -1285,6 +1300,8 @@ function App() {
             })()}
             sharedIdentityToken={sharedAccount.token}
             stateOwnerId={stateOwnerId}
+            immersive={Boolean(appState.profile?.immersiveLearning)}
+            onToggleImmersive={setImmersiveLearning}
             onBack={() => {
               returnToLibrary('papers')
             }}
@@ -1305,6 +1322,8 @@ function App() {
           submitAttempt={submitAttempt}
             deferredMarking={markingCapabilityForUnit(currentUnit).mode !== 'deterministic'}
             stateOwnerId={stateOwnerId}
+          immersive={Boolean(appState.profile?.immersiveLearning)}
+          onToggleImmersive={setImmersiveLearning}
           goBack={() => returnToLibrary('topics')}
         />
       )}
@@ -1998,6 +2017,7 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, lea
   const mastery = progress?.mastery ?? null
   const available = topic?.inventory || 0
   const questionCount = Math.min(10, available)
+  const practiceReady = available >= MIN_VERIFIED_GROUPS_FOR_PRACTICE
   const topicPracticeUnits = practiceUnits
     .filter((unit) => unit.knowledgeGroupId === topicId)
     .toSorted((left, right) => (left.sourceSetIndex || 0) - (right.sourceSetIndex || 0))
@@ -2012,7 +2032,7 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, lea
   }, { practice: 0, deterministic: 0, aiAssisted: 0, selfMark: 0 })
   const nextPracticeUnit = topicPracticeUnits.find((unit) => !completionByUnit[unit.id]?.completed) || topicPracticeUnits[0]
   const topicMistakes = mistakes.filter((mistake) => mistake.unit.knowledgeGroupId === topicId).length
-  const topicQuestions = unifiedQuestionBank
+  const topicQuestions = verifiedPracticeQuestionGroups
     .filter((question) => topicQuestionMatches(question, activeRouteId, topicId))
     .toSorted((left, right) => (
       (Number(right.sourceRef?.year) || 0) - (Number(left.sourceRef?.year) || 0)
@@ -2041,6 +2061,9 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, lea
   function startTopicPractice() {
     try {
       setStartError('')
+      if (!available) {
+        throw new Error('This topic has no verified source question yet. Source indexing is still in progress.')
+      }
       if (nextPracticeUnit) startPractice(nextPracticeUnit)
       else startKnowledgeDrill({ routeId: activeRouteId, knowledgeGroupId: topicId, questionCount: Math.max(10, questionCount), allowPartial: true })
     } catch (error) {
@@ -2063,9 +2086,9 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, lea
           <section className="topic-detail__concepts"><header><div><p className="section-label">Topic content</p><h2>Chapters inside this topic</h2><p>Each chapter is a syllabus skill cluster. The question bank stays separate, then links real exam questions back to the right chapter.</p></div></header><div>{chapterItems.map(({ theme, index, count }) => <div key={theme}><span>{String(index + 1).padStart(2, '0')}</span><strong>{theme}</strong><small>{count ? `${count} linked question${count === 1 ? '' : 's'}` : 'No indexed source question yet'}</small></div>)}</div></section>
           {checkpoints.length > 0 && <section className="topic-detail__checkpoints"><header><div><p className="section-label">Progression</p><h2>What good looks like</h2></div><span>Move from recall to exam application</span></header><div>{checkpoints.map((checkpoint) => <article key={checkpoint.id}><strong>{checkpoint.label}</strong><p>{checkpoint.description}</p></article>)}</div></section>}
           <section className="topic-detail__past-papers"><header><div><p className="section-label">Real exam collection</p><h2>Past-paper questions by chapter</h2><p>These are question-level records, grouped by their original paper. Open the source page or mark scheme without losing the topic mapping.</p></div><strong>{topicQuestions.length} questions · {topicPaperGroups.length} paper{topicPaperGroups.length === 1 ? '' : 's'}</strong></header>{topicPaperGroups.length ? <div className="topic-detail__paper-groups">{topicPaperGroups.map((paperQuestions) => { const first = paperQuestions[0]; const source = first.sourceRef || {}; return <article className="topic-detail__paper-group" key={source.paperId || source.paper}><header><div><strong>{sourcePaperLabel(first)}</strong><span>{source.component ? `Component ${source.component}` : 'Official source'} · {paperQuestions.length} linked question{paperQuestions.length === 1 ? '' : 's'}</span></div><div><a href={`${source.localUrl}#page=${source.pageStart || 1}`} target="_blank" rel="noreferrer">Open QP</a><a href={`${first.answerRef?.localUrl || '#'}#page=${first.answerRef?.pageStart || 1}`} target="_blank" rel="noreferrer">Open MS</a></div></header><div>{paperQuestions.map((question) => <div className="topic-detail__question-row" key={question.questionGroupId || question.bankId}><span>{question.sourceRef?.question || 'Question'}</span><p>{sourceQuestionPreview(question) || 'Indexed question text is available in the source paper.'}</p><small>{question.totalMarks || question.marks || 1} mark{(question.totalMarks || question.marks || 1) === 1 ? '' : 's'} · QP p.{question.sourceRef?.pageStart || '?'} · MS p.{question.answerRef?.pageStart || '?'}</small></div>)}</div></article> })}</div> : <div className="topic-detail__empty-source"><FileText size={20} /><strong>No question-level source records yet</strong><p>This topic is in the syllabus map, but its verified paper index has not been attached to this route.</p></div>}</section>
-          <section className="topic-detail__source"><FileText size={20} /><div><strong>Verified source questions</strong><p>Questions and answers stay paired with their original paper. No cross-stage items and no unverified generated questions.</p></div><span>{available} available</span></section>
+          <section className="topic-detail__source"><FileText size={20} /><div><strong>Verified source questions</strong><p>Questions and answers stay paired with their original paper. No cross-stage items and no unverified generated questions.</p></div><span>{available} available{practiceReady ? '' : ` · ${MIN_VERIFIED_GROUPS_FOR_PRACTICE - available} more needed`}</span></section>
         </main>
-        <aside className="topic-detail__start"><p className="section-label">Next session</p><h2>{questionCount || 0} source question{questionCount === 1 ? '' : 's'}</h2><ul><li>{topicPracticeUnits.length} practice set{topicPracticeUnits.length === 1 ? '' : 's'} · {available} verified groups</li><li>{markingCapabilityCounts.practice} answer parts: {markingCapabilityCounts.selfMark} self-mark, {markingCapabilityCounts.deterministic} deterministic, {markingCapabilityCounts.aiAssisted} AI-assisted</li><li>{topicMistakes ? `${topicMistakes} mistake${topicMistakes === 1 ? '' : 's'} linked` : 'Hints available in practice mode'}</li></ul>{available > 0 ? <button type="button" className="primary-action" onClick={startTopicPractice}><PlayIcon />{nextPracticeUnit ? `Start set ${nextPracticeUnit.sourceSetIndex}` : `Practice ${questionCount}`}</button> : <button type="button" className="primary-action" disabled>Still indexing this topic</button>}{topicPracticeUnits.length > 1 && <div className="topic-detail__set-list" aria-label="Past-paper practice sets">{topicPracticeUnits.map((unit) => <button type="button" key={unit.id} data-completed={Boolean(completionByUnit[unit.id]?.completed)} onClick={() => startPractice(unit)}><span>Set {unit.sourceSetIndex}</span><small>{unit.questionGroupCount} source groups · {unit.parts.length} answer parts · {unit.referencePapers.length} papers</small></button>)}</div>}<button type="button" className="topic-detail__ai" onClick={onOpenCoach}><Sparkles size={16} />Ask AI Tutor about this topic</button>{startError && <p className="topic-detail__error" role="alert">{startError}</p>}</aside>
+        <aside className="topic-detail__start"><p className="section-label">Next session</p><h2>{questionCount || 0} source question{questionCount === 1 ? '' : 's'}</h2><ul><li>{topicPracticeUnits.length} practice set{topicPracticeUnits.length === 1 ? '' : 's'} · {available} verified groups</li><li>{markingCapabilityCounts.practice} answer parts: {markingCapabilityCounts.selfMark} self-mark, {markingCapabilityCounts.deterministic} deterministic, {markingCapabilityCounts.aiAssisted} AI-assisted</li><li>{topicMistakes ? `${topicMistakes} mistake${topicMistakes === 1 ? '' : 's'} linked` : practiceReady ? 'Ready for a ten-question source set' : available ? `Limited source inventory · ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} groups needed for a full set` : 'Source indexing in progress'}</li></ul>{available > 0 ? <button type="button" className="primary-action" onClick={startTopicPractice}><PlayIcon />{practiceReady ? (nextPracticeUnit ? `Start set ${nextPracticeUnit.sourceSetIndex}` : `Practice ${questionCount}`) : `Limited · practice ${questionCount} verified`}</button> : <button type="button" className="primary-action" disabled>Still indexing this topic</button>}{topicPracticeUnits.length > 1 && <div className="topic-detail__set-list" aria-label="Past-paper practice sets">{topicPracticeUnits.map((unit) => <button type="button" key={unit.id} data-completed={Boolean(completionByUnit[unit.id]?.completed)} onClick={() => startPractice(unit)}><span>Set {unit.sourceSetIndex}</span><small>{unit.questionGroupCount} source groups · {unit.parts.length} answer parts · {unit.referencePapers.length} papers</small></button>)}</div>}<button type="button" className="topic-detail__ai" onClick={onOpenCoach}><Sparkles size={16} />Ask AI Tutor about this topic</button>{startError && <p className="topic-detail__error" role="alert">{startError}</p>}</aside>
       </div>
     </section>
   )
@@ -2152,6 +2175,7 @@ LegacyKnowledgeMap.displayName = 'LegacyKnowledgeMap'
 function KnowledgeMap({ activeRoute, activeRouteId, selectRoute, completionByUnit, startPractice, startKnowledgeDrill, openPapers, verifiedUnits, practiceOptions }) {
   const [inventoryError, setInventoryError] = useState('')
   const routeOption = practiceOptions.find((item) => item.routeId === activeRouteId)
+  const vocabularyCoverage = vocabularyCoverageForRoute(activeRoute)
   const qualificationRoutes = courseRoutes.filter((route) => route.qualification === activeRoute.qualification)
   const subjectRoutes = qualificationRoutes.filter((route) => route.subjectId === activeRoute.subjectId)
   const stageRoutes = subjectRoutes.filter((route) => route.stage === activeRoute.stage)
@@ -2174,7 +2198,7 @@ function KnowledgeMap({ activeRoute, activeRouteId, selectRoute, completionByUni
 
   return <section className="knowledge-map">
     <header>
-      <div><p className="section-label">Syllabus practice</p><h2>{activeRoute.stage} {activeRoute.subject} · choose a syllabus topic.</h2><p>All drills are restricted to this route. Each question remains bound to its original question paper and exact mark scheme.</p><div className="knowledge-links">{activeRoute.syllabus.url && <a className="syllabus-link" href={activeRoute.syllabus.url} target="_blank" rel="noreferrer">Cambridge {activeRoute.subjectCode} official syllabus <ChevronRight size={14} /></a>}<a className="syllabus-link" href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer">Professional terms <ChevronRight size={14} /></a></div></div>
+      <div><p className="section-label">Syllabus practice</p><h2>{activeRoute.stage} {activeRoute.subject} · choose a syllabus topic.</h2><p>All drills are restricted to this route. Each question remains bound to its original question paper and exact mark scheme.</p><div className="knowledge-links">{activeRoute.syllabus.url && <a className="syllabus-link" href={activeRoute.syllabus.url} target="_blank" rel="noreferrer">Cambridge {activeRoute.subjectCode} official syllabus <ChevronRight size={14} /></a>}<a className="syllabus-link" href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer">Vocabulary <ChevronRight size={14} /></a></div><div className="knowledge-vocabulary-band" data-vocabulary-taxonomy={vocabularyCoverage.taxonomyId}><Brain size={17} /><div><strong>{vocabularyCoverage.label}</strong><span>{vocabularyCoverage.sourceStatus} · {vocabularyCoverage.termInventoryStatus}</span></div><small>{vocabularyCoverage.coverageNote}</small></div></div>
       <div className="route-selector-grid" aria-label="Choose learning route">
         <label><span>Qualification</span><select value={activeRoute.qualification} onChange={(event) => chooseFirst(courseRoutes.filter((route) => route.qualification === event.target.value))}>{[...new Set(courseRoutes.map((route) => route.qualification))].map((qualification) => <option value={qualification} key={qualification}>{qualification}</option>)}</select></label>
         <label><span>Subject</span><select value={activeRoute.subjectId} onChange={(event) => chooseFirst(qualificationRoutes.filter((route) => route.subjectId === event.target.value))}>{[...new Map(qualificationRoutes.map((route) => [route.subjectId, route])).values()].map((route) => <option value={route.subjectId} key={route.subjectId}>{route.subjectCode.toUpperCase()} {route.subject}</option>)}</select></label>
@@ -2190,7 +2214,7 @@ function KnowledgeMap({ activeRoute, activeRouteId, selectRoute, completionByUni
       const percentage = Math.max(...units.map((unit) => completionByUnit[unit.id]?.best?.percentage).filter((value) => value != null), -1)
       const status = percentage < 0 ? 'Not started' : percentage >= 80 ? 'Secure' : 'Practising'
       const available = topic.inventory || 0
-      return <article className="knowledge-row" key={topic.id}><div className="knowledge-stage"><span>{status}</span><small>{activeRoute.stage}</small><div className="mini-progress"><i style={{ width: `${percentage < 0 ? 4 : percentage}%` }} /></div></div><div className="knowledge-copy"><h3>{topic.label}</h3><p>{metadata?.description || `${activeRoute.syllabus.board} syllabus topic.`}</p><div className="knowledge-themes">{(metadata?.themes || []).slice(0, 5).map((theme) => <span key={theme}>{theme}</span>)}</div><div className="knowledge-source-preview"><span className={available ? available < 10 ? 'partial' : 'ready' : 'not-ready'}><strong>{activeRoute.stage}</strong>{available} verified</span></div></div><div className="knowledge-action"><strong>{percentage < 0 ? `${available} verified questions` : `${percentage}% best`}</strong><button type="button" className="card-action" disabled={!available} onClick={() => startDrill(topic, units[0])}>{available ? `Build ${activeRoute.stage} drill · ${Math.min(10, available)} questions` : 'No source indexed'}<ChevronRight size={15} /></button><button type="button" className="text-action" onClick={() => openPapers(appSubject?.id || 'all')}>Open {activeRoute.subjectCode} papers</button></div></article>
+      return <article className="knowledge-row" key={topic.id}><div className="knowledge-stage"><span>{status}</span><small>{activeRoute.stage}</small><div className="mini-progress"><i style={{ width: `${percentage < 0 ? 4 : percentage}%` }} /></div></div><div className="knowledge-copy"><h3>{topic.label}</h3><p>{metadata?.description || `${activeRoute.syllabus.board} syllabus topic.`}</p><div className="knowledge-themes">{(metadata?.themes || []).slice(0, 5).map((theme) => <span key={theme}>{theme}</span>)}</div><div className="knowledge-source-preview"><span className={available ? available < MIN_VERIFIED_GROUPS_FOR_PRACTICE ? 'partial' : 'ready' : 'not-ready'}><strong>{activeRoute.stage}</strong>{available} verified</span></div></div><div className="knowledge-action"><strong>{percentage < 0 ? `${available} verified questions` : `${percentage}% best`}</strong><button type="button" className="card-action" disabled={!available} onClick={() => startDrill(topic, units[0])}>{available >= MIN_VERIFIED_GROUPS_FOR_PRACTICE ? `Build ${activeRoute.stage} drill · ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} questions` : available ? `Limited · practice ${available} verified` : 'No source indexed'}<ChevronRight size={15} /></button><button type="button" className="text-action" onClick={() => openPapers(appSubject?.id || 'all')}>Open {activeRoute.subjectCode} papers</button></div></article>
     })}</div>
   </section>
 }

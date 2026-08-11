@@ -194,10 +194,9 @@ function MultipleChoiceAnswer({ part, selected, onChange }) {
   )
 }
 
-export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, updateEvidence, submitAttempt, deferredMarking = false, stateOwnerId = '', goBack }) {
+export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, updateEvidence, submitAttempt, deferredMarking = false, stateOwnerId = '', goBack, immersive = false, onToggleImmersive = () => {} }) {
   const [showSubmitCheck, setShowSubmitCheck] = useState(false)
   const [coachRequest, setCoachRequest] = useState(0)
-  const [immersive, setImmersive] = useState(false)
   const [sourceAssetIndex, setSourceAssetIndex] = useState(0)
   const [sourceViewMode, setSourceViewMode] = useState('focus')
   const [sourceZoomOpen, setSourceZoomOpen] = useState(false)
@@ -382,7 +381,7 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
           <span className="qp-status-item"><CheckCircle2 size={16} />{answered}/{parts.length}</span>
           <span className="qp-status-item qp-timer"><Clock3 size={16} />{settings.timing === 'untimed' ? formatTime(attempt.elapsedSec) : formatTime(remaining)}</span>
           <span className="qp-status-item qp-save" aria-live="polite"><Save size={15} />{attempt.saveStatus || 'Saved'}</span>
-          <button type="button" className="qp-focus-button" onClick={() => setImmersive((value) => !value)} aria-label={immersive ? 'Exit focus mode' : 'Enter focus mode'} aria-pressed={immersive} title={immersive ? 'Exit focus mode' : 'Enter focus mode'}>
+          <button type="button" className="qp-focus-button" onClick={() => onToggleImmersive(!immersive)} aria-label={immersive ? 'Exit focus mode' : 'Enter focus mode'} aria-pressed={immersive} title={immersive ? 'Exit focus mode' : 'Enter focus mode'}>
             {immersive ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
           </button>
           <button type="button" className="qp-submit-button" onClick={requestSubmit} disabled={attempt.submitting || flushing || !unitSourceComplete}>

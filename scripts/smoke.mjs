@@ -8,6 +8,7 @@ import { reviewAttempt } from '../src/lib/aiReview.js'
 import { latestBphoSpcPaper, parseCoachIntent } from '../src/lib/coachIntent.js'
 import { isHumanReviewedPastPaperItem, isVerifiedPastPaperItem, paperQuestionMarkingMetadata, selectTaggedQuestions, unifiedQuestionBank } from '../src/data/questionBank.js'
 import { PracticeInventoryError, buildCoachPractice, buildVerifiedPracticeCatalog, rebindVerifiedPracticeUnit, verifiedPracticeCatalogMetrics } from '../src/lib/coachPractice.js'
+import { buildCoachPractice as buildRuntimeCoachPractice, buildVerifiedPracticeCatalog as buildRuntimeVerifiedPracticeCatalog, rebindVerifiedPracticeUnit as rebindRuntimeVerifiedPracticeUnit, resolveVerifiedPracticeSelection, verifiedPracticeQuestionGroups as runtimeVerifiedPracticeQuestionGroups } from '../src/lib/verifiedPracticeCatalog.js'
 import { pointerSamples } from '../src/lib/inkStroke.js'
 import { HANDWRITING_HISTORY_MAX_BYTES, HANDWRITING_HISTORY_MAX_ENTRIES, handwritingHistorySize, trimHandwritingHistory } from '../src/lib/inkHistory.js'
 import { buildSharedMarkingSubmission, completedMarksByQuestion, createSharedMarkingSubmission, paperSubmissionMarkingSummary, readSharedMarkingAvailability, retrySharedMarkingSubmission, waitForSharedMarkingSubmission } from '../src/lib/paperMarking.js'
@@ -257,7 +258,8 @@ assert.ok(handwritingPadSource.includes('self-mark with the paired mark scheme a
 
 const appSource = fs.readFileSync(path.resolve(import.meta.dirname, '..', 'src', 'App.jsx'), 'utf8')
 const markingLifecycleSource = fs.readFileSync(path.resolve(import.meta.dirname, '..', 'src', 'lib', 'markingLifecycle.js'), 'utf8')
-assert.ok(appSource.includes('unifiedQuestionBank'), 'topic detail must read the decoupled question bank')
+assert.ok(appSource.includes('verifiedPracticeQuestionGroups'), 'topic detail must read the compact reviewed runtime catalog')
+assert.ok(!appSource.includes("from './data/questionBank"), 'the client App entry must not statically import the full question index')
 assert.ok(appSource.includes('topic-detail__paper-group'), 'topic detail must render grouped real-paper questions')
 assert.ok(appSource.includes('onAgentAction={handleCoachAgentAction}'), 'Coach agent actions must be available from every current student route')
 assert.ok(!appSource.includes("onAgentAction={activeRoute.stage === 'Competition'"), 'Coach actions must not be disabled merely because the current route is not Competition')
@@ -283,6 +285,8 @@ assert.equal(practiceUnits.length, 0, 'formal practice must not expose generated
 const verifiedPracticeCatalog = buildVerifiedPracticeCatalog()
 const verifiedCatalogMetrics = verifiedPracticeCatalogMetrics(verifiedPracticeCatalog)
 assert.deepEqual(verifiedCatalogMetrics, { units: 8, questionGroups: 26, answerableParts: 46, referencedPapers: 1, routes: 1, topics: 7 }, 'only source-semantically reviewed question groups may be exposed as stable route/topic practice units')
+assert.equal(runtimeVerifiedPracticeQuestionGroups.length, 26, 'the compact runtime catalog must expose only current reviewed groups')
+assert.deepEqual(verifiedPracticeCatalogMetrics(buildRuntimeVerifiedPracticeCatalog()), verifiedCatalogMetrics, 'compact runtime catalog must preserve the reviewed practice inventory')
 assert.equal(new Set(verifiedPracticeCatalog.map((unit) => unit.id)).size, verifiedPracticeCatalog.length, 'verified practice unit IDs must be stable and unique')
 assert.ok(verifiedPracticeCatalog.every((unit) => unit.parts.every((part) => part.routeId === unit.routeId && part.stage === unit.stage && part.sourceRef?.sha256 && part.answerRef?.sha256)), 'catalog practice units must preserve route, stage and independent QP/MS provenance')
 assert.ok(unifiedQuestionBank.every((item) => item.sourceContent?.complete === true), 'runtime inventory must fail closed for stale, missing, or incomplete source audits')
@@ -527,6 +531,21 @@ assert.ok(mixedPhysicsDrill.every((item) => item.routeId === 'cie-0580-igcse-mat
 const mixedPhysicsUnit = buildCoachPractice({ routeId: 'cie-0580-igcse-mathematics', knowledgeGroupId: 'math-0580-number', questionCount: 10 })
 assert.ok(mixedPhysicsUnit.parts.every((part) => part.displayLabel), 'practice parts must expose a readable source label')
 assert.equal(new Set(mixedPhysicsUnit.parts.map((part) => part.displayLabel)).size, mixedPhysicsUnit.parts.length, 'practice labels must remain unique when printed question numbers repeat')
+const crossRouteCoachSelection = resolveVerifiedPracticeSelection({ subjectId: 'igcse-math', stage: 'IGCSE', topicId: 'math-0580-number' })
+assert.equal(crossRouteCoachSelection.subject.routeId, 'cie-0580-igcse-mathematics', 'Coach must resolve IGCSE Number through the canonical verified catalog route resolver')
+assert.equal(crossRouteCoachSelection.group.id, 'math-0580-number', 'Coach must retain its canonical topic ID across a route switch')
+const crossRouteCoachUnit = buildRuntimeCoachPractice({
+  subjectId: 'igcse-math',
+  stage: 'IGCSE',
+  topicId: 'math-0580-number',
+  questionCount: 10,
+  agentGenerated: true,
+  unitId: 'coach-cross-route-igcse-number',
+})
+assert.equal(crossRouteCoachUnit.agentGenerated, true, 'Coach-created sets must remain visible after persistence')
+assert.equal(crossRouteCoachUnit.routeId, 'cie-0580-igcse-mathematics', 'Coach-created sets must retain their canonical IGCSE route')
+assert.equal(crossRouteCoachUnit.topicId, 'math-0580-number', 'Coach-created sets must retain their canonical topic context')
+assert.equal(rebindRuntimeVerifiedPracticeUnit(crossRouteCoachUnit)?.agentGenerated, true, 'runtime rebinding must preserve the Coach-generated visibility contract')
 const nextPhysicsDrill = selectTaggedQuestions({ routeId: 'cie-0580-igcse-mathematics', qualificationId: 'cambridge-0580', stage: 'IGCSE', knowledgeGroupId: 'math-0580-number', questionCount: 10, questionOffset: 10 })
 assert.ok(nextPhysicsDrill.length > 0, 'a topic with more than ten reviewed questions must expose a second distinct set')
 assert.equal(new Set([...mixedPhysicsDrill, ...nextPhysicsDrill].map((item) => item.sourceQuestionId)).size, mixedPhysicsDrill.length + nextPhysicsDrill.length, 'successive practice sets must not repeat source question groups')
