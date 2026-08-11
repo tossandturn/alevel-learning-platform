@@ -12,7 +12,6 @@ import {
   GraduationCap,
   Heart,
   BookOpen,
-  Library,
   ListFilter,
   LogIn,
   LogOut,
@@ -22,6 +21,7 @@ import {
   Sparkles,
   Target,
   TimerReset,
+  Trash2,
   Trophy,
   Users,
 } from 'lucide-react'
@@ -36,12 +36,23 @@ import { PaperLibrary } from './components/PaperLibrary'
 import { PracticeWorkspace } from './components/PracticeWorkspace'
 import { usePaperCatalog } from './hooks/usePaperCatalog'
 import { loadState, makeAttemptId, normalizeState, saveState } from './lib/storage'
-import { scoreAttempt } from './lib/scoring'
-import { reviewAttempt } from './lib/aiReview'
-import { buildCoachPractice, buildVerifiedPracticeCatalog, coachPracticeOptions, previewCoachPracticeSourceMix } from './lib/coachPractice'
+import { hasAttemptResponse, hasCurrentSourceBindingForAttempt, isPendingSelfMarkAttempt, isScoredAttempt, prepareLearningExport, sourceBindingSnapshotForUnit } from './lib/attemptAudit'
+import { mergeNotebookNote, notebookNoteRequest } from './lib/privateNotes'
+import { stripSourceVisualPlaceholders } from './lib/questionContent'
+import {
+  buildPartMarkingLifecycle,
+  canUseAiAssistedMarking,
+  finalizePartMarking,
+  hasCompleteStudentMarks,
+  markingCapabilityForUnit,
+  pendingPartsForLifecycle,
+} from './lib/markingLifecycle'
+import { buildCoachPractice, buildVerifiedPracticeCatalog, coachPracticeOptions, previewCoachPracticeSourceMix, rebindVerifiedPracticeUnit } from './lib/coachPractice'
 import { latestBphoSpcPaper } from './lib/coachIntent'
 import { buildCompletionByUnit, buildLearningProgress, recommendForRoute } from './lib/learningProgress'
-import { requestSharedAccount, requestSharedWorkspace, sharedAccountRequest, sharedAuthUrl, sharedLogoutUrl } from './lib/sharedAccount'
+import { professionalTermsUrl, requestSharedAccount, requestSharedWorkspace, sharedAccountRequest, sharedAuthUrl, sharedLogoutUrl } from './lib/sharedAccount'
+import { requestMarkingCapabilities } from './lib/markingCapabilityClient'
+import { parseProductContext, termIdsForStemContext } from './lib/productContext'
 import { unifiedQuestionBank } from './data/questionBank'
 import './App.css'
 import './StudentV2.css'
@@ -50,6 +61,8 @@ import './TabletNavFix.css'
 const PaperWorkspace = lazy(() =>
   import('./components/PaperWorkspace').then((module) => ({ default: module.PaperWorkspace })),
 )
+
+const EMPTY_SELF_MARKS = Object.freeze({})
 
 function formatTime(totalSec) {
   const minutes = Math.floor(totalSec / 60)
@@ -98,152 +111,78 @@ function focusedRetestUnit(unit, partId) {
   }
 }
 
-function getUnitAttempts(attempts, unitId) {
-  return attempts.filter((attempt) => attempt.unitId === unitId && (attempt.attemptStatus === 'result' || attempt.stage === 'result'))
+function getUnitAttempts(attempts, unit) {
+  const unitId = typeof unit === 'string' ? unit : unit?.id
+  return attempts.filter((attempt) => attempt.unitId === unitId && isScoredAttempt(attempt, typeof unit === 'string' ? null : unit))
 }
 
-function bestResultFor(attempts, unitId) {
-  return getUnitAttempts(attempts, unitId)
+function bestResultFor(attempts, unit) {
+  return getUnitAttempts(attempts, unit)
     .map((attempt) => attempt.scoreResult)
     .sort((a, b) => b.percentage - a.percentage)[0]
 }
 
-function gradeEstimate(percentage) {
-  return percentage >= 80 ? 'A/A* range' : percentage >= 65 ? 'B range' : percentage >= 50 ? 'C range' : 'Needs rebuild'
-}
-
-function canUseAiAssistedMarking(part) {
-  return Boolean(part?.aiAssistedMarkingAvailable && part?.reviewStatus === 'reviewed')
-}
-
-function isSelfMarkOnlyUnit(unit) {
-  return Boolean(unit?.parts?.length) && unit.parts.every((part) => !part?.deterministicScoringAvailable && !canUseAiAssistedMarking(part))
-}
-
-function markingCapabilityForUnit(unit) {
-  const parts = unit?.parts || []
-  const deterministic = parts.filter((part) => Boolean(part?.deterministicScoringAvailable || part?.answerKey)).length
-  const aiAssisted = parts.filter((part) => canUseAiAssistedMarking(part)).length
-  const selfMark = Math.max(0, parts.length - deterministic - aiAssisted)
-  if (selfMark && !deterministic && !aiAssisted) {
+async function requestVisionReviews(unit, attempt, identityToken = '') {
+  const eligibleParts = (unit.parts || []).filter(canUseAiAssistedMarking)
+  const reviews = Object.fromEntries(eligibleParts.map((part) => [part.id, {
+    status: attempt.evidence?.[part.id]?.dataUrl ? 'queued' : 'no_evidence',
+  }]))
+  const eligibleEntries = eligibleParts
+    .map((part) => [part.id, attempt.evidence?.[part.id]])
+    .filter(([, evidence]) => Boolean(evidence?.dataUrl))
+  if (!eligibleEntries.length) return reviews
+  let capabilityByPartId
+  try {
+    const capabilityPayload = await requestMarkingCapabilities({
+      token: identityToken,
+      attemptId: attempt.id,
+      mode: 'topic',
+      submitted: true,
+      parts: eligibleEntries.map(([partId]) => {
+        const part = eligibleParts.find((candidate) => candidate.id === partId)
+        return { provenance: { routeId: unit.routeId, ...(part?.markingProvenance || {}) } }
+      }),
+    })
+    capabilityByPartId = Object.fromEntries((capabilityPayload.capabilities || []).map((item) => [item.questionPartId, item.markingGrant]))
+  } catch (error) {
     return {
-      mode: 'self-mark',
-      label: 'Self-mark after submission',
-      description: 'Compare each response with the paired official mark scheme and record marks. No automatic result is created until you confirm them.',
+      ...reviews,
+      ...Object.fromEntries(eligibleEntries.map(([partId]) => [partId, {
+        status: 'error',
+        error: error.message || 'This submitted attempt could not be verified for AI marking.',
+        loginRequired: Boolean(error.loginRequired),
+      }])),
     }
   }
-  if (aiAssisted && !selfMark && !deterministic) {
-    return {
-      mode: 'ai-assisted',
-      label: 'AI-assisted review after submission',
-      description: 'Written work is reviewed with confidence and evidence; objective answers are not treated as official grades.',
-    }
-  }
-  if (selfMark) {
-    return {
-      mode: 'mixed',
-      label: 'Mixed marking',
-      description: `${deterministic} objective answer${deterministic === 1 ? '' : 's'} score automatically; ${selfMark} response${selfMark === 1 ? '' : 's'} need official mark-scheme self-marking.`,
-    }
-  }
-  return {
-    mode: 'deterministic',
-    label: 'Instant objective marking',
-    description: 'Answers are checked against the verified answer key after submission.',
-  }
-}
-
-function scoreRecordedSelfMark(unit, marksByPart, elapsedSec) {
-  const criteria = unit.parts.map((part) => {
-    const awarded = Math.max(0, Math.min(part.marks, Number(marksByPart[part.id])))
-    return {
-      partId: part.id,
-      awarded,
-      maxMarks: part.marks,
-      status: awarded >= part.marks ? 'secure' : awarded > 0 ? 'partial' : 'review-needed',
-      feedback: 'Student self-mark recorded against the paired mark scheme.',
-      evidence: (part.markPoints || []).map((point, index) => ({ pointId: `${part.id}-self-${index + 1}`, awarded: index < awarded, point })),
-      scoringSource: 'student-self-mark',
-    }
-  })
-  const rawMarks = criteria.reduce((total, criterion) => total + criterion.awarded, 0)
-  const percentage = unit.maxMarks ? Math.round((rawMarks / unit.maxMarks) * 100) : 0
-  const weakest = criteria.find((criterion) => criterion.awarded < criterion.maxMarks)
-  return {
-    schemaVersion: 'student-self-mark-v1',
-    routeId: unit.routeId,
-    stage: unit.stage,
-    rawMarks,
-    maxMarks: unit.maxMarks,
-    percentage,
-    gradeEstimate: gradeEstimate(percentage),
-    estimateSource: 'Student-recorded self-mark, not an official grade boundary',
-    elapsedSec,
-    criteria,
-    weakestPartId: weakest?.partId || null,
-    confidence: 1,
-    selfMarked: true,
-  }
-}
-
-async function requestVisionReviews(unit, attempt) {
-  const entries = Object.entries(attempt.evidence || {}).filter(([, evidence]) => Boolean(evidence?.dataUrl))
-  if (!entries.length) return {}
-  const selfMarkOnly = Object.fromEntries(entries
-    .filter(([partId]) => !canUseAiAssistedMarking(unit.parts.find((part) => part.id === partId)))
-    .map(([partId]) => [partId, { status: 'self_mark_only' }]))
-  const eligibleEntries = entries.filter(([partId]) => canUseAiAssistedMarking(unit.parts.find((part) => part.id === partId)))
-  if (!eligibleEntries.length) return selfMarkOnly
   try {
     const statusResponse = await fetch('/api/ai/status')
     const status = await statusResponse.json()
-    if (!status.visionEnabled) return { ...selfMarkOnly, ...Object.fromEntries(eligibleEntries.map(([partId]) => [partId, { status: 'unconfigured' }])) }
+    if (!status.visionEnabled) return { ...reviews, ...Object.fromEntries(eligibleEntries.map(([partId]) => [partId, { status: 'unconfigured' }])) }
   } catch {
-    return { ...selfMarkOnly, ...Object.fromEntries(eligibleEntries.map(([partId]) => [partId, { status: 'error', error: 'AI service status could not be checked.' }])) }
+    return { ...reviews, ...Object.fromEntries(eligibleEntries.map(([partId]) => [partId, { status: 'error', error: 'AI service status could not be checked.' }])) }
   }
 
-  const subjectCode = subjects.find((subject) => subject.id === unit.subjectId)?.code || String(unit.specification || '').match(/\b\d{4}\b/)?.[0] || ''
   const results = await Promise.all(eligibleEntries.map(async ([partId, evidence]) => {
     const part = unit.parts.find((item) => item.id === partId)
     if (!part) return [partId, { status: 'error', error: 'Question context is unavailable.' }]
     try {
-      const [questionImageDataUrls, markSchemeImageDataUrls] = await Promise.all([
-        Promise.all((part.sourceRef?.assetUrls || []).slice(0, 2).map(assetToDataUrl)),
-        Promise.all((part.answerRef?.assetUrls || []).slice(0, 2).map(assetToDataUrl)),
-      ])
       const response = await fetch('/api/ai/mark-handwriting', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          Authorization: `Bearer ${identityToken}`,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
+          attemptId: attempt.id,
+          mode: 'topic',
+          submitted: true,
+          markingGrant: capabilityByPartId?.[part.markingProvenance?.questionPartId] || '',
           imageDataUrl: evidence.dataUrl,
-          questionImageDataUrls,
-          markSchemeImageDataUrls,
-          subject: subjectCode,
-          syllabus: unit.specification,
-          questionNumber: Number(String(part.sourceRef?.question || '').match(/\d+/)?.[0]) || unit.parts.indexOf(part) + 1,
-          question: {
-            prompt: part.prompt,
-            answerType: part.answerType,
-            acceptedValue: part.acceptedValue,
-            acceptedUnits: part.acceptedUnits,
-            tolerance: part.tolerance,
-            officialAnswer: part.exactAnswer,
-          },
-          expectedMarkPoints: part.markPoints,
-          maxMarks: part.marks,
           typedResponse: attempt.answers[partId] || attempt.working?.[partId] || '',
-          paper: part.sourceRef && part.answerRef ? {
-            subject: subjectCode,
-            questionFile: part.sourceRef.paper,
-            markSchemeFile: part.answerRef.file,
-          } : undefined,
-          provenance: part.answerBinding ? {
-            questionId: part.bankId,
-            answerId: part.answerBinding.answerId,
-            verificationStatus: part.answerBinding.verificationStatus,
-            questionDocumentSha256: part.answerBinding.questionDocumentSha256,
-            answerDocumentSha256: part.answerBinding.answerDocumentSha256,
-          } : undefined,
+          provenance: {
+            routeId: unit.routeId,
+            ...(part.markingProvenance || {}),
+          },
         }),
       })
       const payload = await response.json().catch(() => ({}))
@@ -254,55 +193,7 @@ async function requestVisionReviews(unit, attempt) {
       return [partId, { status: 'error', error: 'AI review could not be reached. Your response remains saved.' }]
     }
   }))
-  return { ...selfMarkOnly, ...Object.fromEntries(results) }
-}
-
-async function assetToDataUrl(url) {
-  const response = await fetch(url)
-  if (!response.ok) throw new Error('An indexed source page is unavailable.')
-  const blob = await response.blob()
-  return await new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result || ''))
-    reader.onerror = () => reject(new Error('An indexed source page could not be prepared.'))
-    reader.readAsDataURL(blob)
-  })
-}
-
-function mergeVisionScore(scoreResult, unit, answers, visionReviews) {
-  const criteria = scoreResult.criteria.map((criterion) => {
-    const part = unit.parts.find((item) => item.id === criterion.partId)
-    const review = visionReviews[criterion.partId]
-    const typed = Boolean(String(answers[criterion.partId] || '').trim())
-    const canUseVision = review?.status === 'success'
-      && review.confidence >= 0.55
-      && (!typed || ['written', 'handwritten'].includes(part.answerType))
-    if (!canUseVision) return criterion
-    return {
-      ...criterion,
-      awarded: Math.min(part.marks, review.rawMarks),
-      status: review.reviewRequired ? 'review-needed' : review.rawMarks >= part.marks ? 'secure' : review.rawMarks > 0 ? 'partial' : 'missed',
-      feedback: review.summary,
-      confidence: review.confidence,
-      evidence: review.markPoints?.length
-        ? review.markPoints.map((point, index) => ({ pointId: point.id || `${part.id}-AI${index + 1}`, awarded: point.awarded, point: point.reason }))
-        : criterion.evidence,
-      scoringSource: 'vision-assisted',
-    }
-  })
-  const rawMarks = criteria.reduce((sum, criterion) => sum + criterion.awarded, 0)
-  const percentage = Math.round((rawMarks / unit.maxMarks) * 100)
-  const weakest = criteria.find((criterion) => criterion.awarded < criterion.maxMarks)
-  return {
-    ...scoreResult,
-    schemaVersion: Object.values(visionReviews).some((review) => review.status === 'success') ? 'deterministic-plus-vision-v1' : scoreResult.schemaVersion,
-    rawMarks,
-    percentage,
-    gradeEstimate: gradeEstimate(percentage),
-    weakestPartId: weakest?.partId || null,
-    confidence: criteria.length ? Number((criteria.reduce((sum, criterion) => sum + (criterion.confidence ?? 0.9), 0) / criteria.length).toFixed(2)) : 0,
-    criteria,
-  }
+  return { ...reviews, ...Object.fromEntries(results) }
 }
 
 function migratePracticeAnswers(unit, draft) {
@@ -322,16 +213,17 @@ function migratePracticeAnswers(unit, draft) {
 
 function getIncomingProductContext() {
   if (typeof window === 'undefined') return { from: '', focus: '', subjectId: 'all' }
-  const params = new URLSearchParams(window.location.search)
-  const focus = params.get('focus') || ''
+  const context = parseProductContext(window.location.search)
+  const focus = context.focus
+  const route = routeById(context.routeId)
   const subjectId = {
     physics: 'physics',
     biology: 'biology',
     mathematics: 'math',
     chemistry: 'chemistry',
     economics: 'economics',
-  }[focus] || 'all'
-  return { from: params.get('from') || '', focus, subjectId }
+  }[focus] || route?.subjectId || 'all'
+  return { ...context, subjectId }
 }
 
 function App() {
@@ -340,8 +232,9 @@ function App() {
   const incomingContext = getIncomingProductContext()
   const [view, setView] = useState(() => incomingContext.from === 'ieltsist' || incomingContext.focus ? 'library' : 'dashboard')
   const [activeTab, setActiveTab] = useState('recommended')
-  const [selectedTopicId, setSelectedTopicId] = useState(null)
+  const [selectedTopicId, setSelectedTopicId] = useState(() => incomingContext.topicId || null)
   const [activeRouteId, setActiveRouteId] = useState(() => {
+    if (routeById(incomingContext.routeId)) return incomingContext.routeId
     if (routeById(appState.profile?.activeRouteId)) return appState.profile.activeRouteId
     return routesForSubject(incomingContext.subjectId).find((route) => route.stage === 'AS')?.routeId
       || routesForSubject(incomingContext.subjectId)[0]?.routeId
@@ -358,11 +251,17 @@ function App() {
   const [pendingSession, setPendingSession] = useState(null)
   const [coachOpenRequest, setCoachOpenRequest] = useState(0)
   const [sharedAccount, setSharedAccount] = useState({ status: 'loading', token: '', workspace: null, error: '' })
+  const [stateOwnerId, setStateOwnerId] = useState('')
+  const [exportState, setExportState] = useState({ status: 'idle', error: '', exportedAt: '', checksum: '' })
   const migrationAttemptedRef = useRef(false)
   const notebookSyncTimerRef = useRef(null)
+  const stateOwnerIdRef = useRef('')
   const verifiedCatalogUnits = useMemo(() => buildVerifiedPracticeCatalog(), [])
   const visibleVerifiedUnits = useMemo(() => {
-    const persisted = (appState.generatedUnits || []).filter((unit) => (unit.agentGenerated || unit.focusedRetestOf) && unit.parts?.length > 0 && unit.parts.every((part) => part.sourceKind === 'past-paper' && part.sourceRef?.sha256 && part.answerRef?.sha256 && part.answerBinding?.answerId))
+    const persisted = (appState.generatedUnits || [])
+      .filter((unit) => unit.agentGenerated || unit.focusedRetestOf)
+      .map((unit) => rebindVerifiedPracticeUnit(unit))
+      .filter(Boolean)
     const labelled = [...persisted, ...verifiedCatalogUnits.filter((catalogUnit) => !persisted.some((unit) => unit.id === catalogUnit.id))]
     return labelled.map((unit) => {
       const route = routeById(unit.routeId)
@@ -404,8 +303,28 @@ function App() {
   }, [activeRoute.subjectId, activeRouteId, aiPracticeOptions, learningProgress.topicProgress])
 
   useEffect(() => {
-    saveState(appState)
-  }, [appState])
+    if (sharedAccount.status === 'loading') return
+    const nextOwnerId = sharedAccount.status === 'ready' ? String(sharedAccount.identity?.id || '') : ''
+    if (nextOwnerId === stateOwnerId) return
+    if (notebookSyncTimerRef.current) window.clearTimeout(notebookSyncTimerRef.current)
+    const nextState = loadState({ userId: nextOwnerId })
+    const nextRouteId = routeById(nextState.profile?.activeRouteId)?.routeId || 'cie-9702-as-physics'
+    stateOwnerIdRef.current = nextOwnerId
+    migrationAttemptedRef.current = false
+    setStateOwnerId(nextOwnerId)
+    setAppState(nextState)
+    setActiveRouteId(nextRouteId)
+    setCurrentAttempt(null)
+    setResultAttempt(null)
+    setActivePaper(null)
+    setPendingSession(null)
+    setSelectedTopicId(null)
+    if (stateOwnerId) setView('dashboard')
+  }, [sharedAccount.identity?.id, sharedAccount.status, stateOwnerId])
+
+  useEffect(() => {
+    saveState(appState, { userId: stateOwnerId })
+  }, [appState, stateOwnerId])
 
   useEffect(() => {
     if (migrationAttemptedRef.current) return
@@ -454,20 +373,27 @@ function App() {
   }, [refreshSharedAccount])
 
   useEffect(() => {
-    if (sharedAccount.status !== 'ready' || !sharedAccount.token) return undefined
+    const accountUserId = String(sharedAccount.identity?.id || '')
+    if (sharedAccount.status !== 'ready' || !sharedAccount.token || !accountUserId || accountUserId !== stateOwnerId) return undefined
     let cancelled = false
     sharedAccountRequest(sharedAccount.token, `/api/stem/notebook/notes?routeId=${encodeURIComponent(activeRouteId)}`)
       .then((payload) => {
-        if (cancelled || !payload.note) return
+        if (cancelled || stateOwnerIdRef.current !== accountUserId) return
         setAppState((state) => {
+          if (!payload.note) {
+            if (!Object.prototype.hasOwnProperty.call(state.notebookNotes || {}, activeRouteId)) return state
+            const { [activeRouteId]: _removed, ...notebookNotes } = state.notebookNotes || {}
+            return { ...state, notebookNotes }
+          }
           const current = state.notebookNotes?.[activeRouteId]
-          if (current?.updatedAt && Date.parse(current.updatedAt) >= Date.parse(payload.note.updatedAt)) return state
-          return { ...state, notebookNotes: { ...(state.notebookNotes || {}), [activeRouteId]: { body: payload.note.body, updatedAt: payload.note.updatedAt, syncStatus: 'synced' } } }
+          const note = mergeNotebookNote(current, payload.note, { preferTombstone: true })
+          if (!note || note === current) return state
+          return { ...state, notebookNotes: { ...(state.notebookNotes || {}), [activeRouteId]: note } }
         })
       })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [activeRouteId, sharedAccount.status, sharedAccount.token])
+  }, [activeRouteId, sharedAccount.identity?.id, sharedAccount.status, sharedAccount.token, stateOwnerId])
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -511,11 +437,13 @@ function App() {
 
   const mistakes = useMemo(() => {
     const attemptById = new Map(appState.attempts.map((attempt) => [attempt.id, attempt]))
+    const unitById = new Map(allPracticeUnits.map((unit) => [unit.id, unit]))
     const latestRetestCriterion = (sourceAttempt, partId) => [...appState.attempts].reverse().find((candidate) => {
       let parentId = candidate.retestOf
       while (parentId) {
         if (parentId === sourceAttempt.id) {
-          return candidate.scoreResult?.criteria?.some((criterion) => criterion.partId === partId)
+          return isScoredAttempt(candidate, unitById.get(candidate.unitId))
+            && candidate.scoreResult?.criteria?.some((criterion) => criterion.partId === partId)
         }
         parentId = attemptById.get(parentId)?.retestOf
       }
@@ -524,8 +452,9 @@ function App() {
 
     return appState.attempts.flatMap((attempt) => {
       const unit = allPracticeUnits.find((item) => item.id === attempt.unitId)
-      if (!unit || unit.routeId !== activeRouteId || !attempt.scoreResult) return []
+      if (!unit || unit.routeId !== activeRouteId || !isScoredAttempt(attempt, unit)) return []
       return attempt.scoreResult.criteria
+        .filter((criterion) => hasAttemptResponse(attempt, criterion.partId))
         .filter((criterion) => criterion.awarded < criterion.maxMarks)
         .filter((criterion) => {
           const retestCriterion = latestRetestCriterion(attempt, criterion.partId)
@@ -658,30 +587,42 @@ function App() {
   }
 
   function updateNotebookNote(value) {
+    const updatedAt = new Date().toISOString()
+    const request = notebookNoteRequest(value)
+    const deleted = request.method === 'DELETE'
+    const noteOwnerId = String(sharedAccount.identity?.id || '')
     setAppState((state) => ({
       ...state,
       notebookNotes: {
         ...(state.notebookNotes || {}),
         [activeRouteId]: {
-          body: value,
-          updatedAt: new Date().toISOString(),
+          body: deleted ? '' : value,
+          updatedAt,
+          ...(deleted ? { deleted: true, deletedAt: updatedAt } : { deleted: false, deletedAt: null }),
           syncStatus: sharedAccount.status === 'ready' ? 'pending' : 'local-only',
         },
       },
     }))
     if (notebookSyncTimerRef.current) window.clearTimeout(notebookSyncTimerRef.current)
-    if (sharedAccount.status === 'ready' && sharedAccount.token) {
+    if (sharedAccount.status === 'ready' && sharedAccount.token && noteOwnerId) {
       notebookSyncTimerRef.current = window.setTimeout(async () => {
+        if (stateOwnerIdRef.current !== noteOwnerId) return
         try {
-          await sharedAccountRequest(sharedAccount.token, `/api/stem/notebook/notes/${encodeURIComponent(activeRouteId)}`, { method: 'PUT', body: JSON.stringify({ body: value }) })
-          setAppState((state) => ({
-            ...state,
-            notebookNotes: {
-              ...(state.notebookNotes || {}),
-              [activeRouteId]: { ...(state.notebookNotes?.[activeRouteId] || {}), syncStatus: 'synced' },
-            },
-          }))
+          const payload = await sharedAccountRequest(sharedAccount.token, `/api/stem/notebook/notes/${encodeURIComponent(activeRouteId)}`, request)
+          if (stateOwnerIdRef.current !== noteOwnerId) return
+          setAppState((state) => {
+            const current = state.notebookNotes?.[activeRouteId]
+            const syncedNote = mergeNotebookNote(current, payload.note)
+            return {
+              ...state,
+              notebookNotes: {
+                ...(state.notebookNotes || {}),
+                [activeRouteId]: syncedNote || { ...(current || {}), syncStatus: 'synced' },
+              },
+            }
+          })
         } catch {
+          if (stateOwnerIdRef.current !== noteOwnerId) return
           setAppState((state) => ({
             ...state,
             notebookNotes: {
@@ -759,9 +700,19 @@ function App() {
   }
 
   function startPractice(unit, options = {}) {
-    if (!routeById(unit.routeId)) throw new Error('This question set is not bound to a current learning route.')
-    selectRoute(unit.routeId)
-    const sessionUnit = focusedRetestUnit(unit, options.onlyPartId)
+    const hasSourceParts = Array.isArray(unit?.parts) && unit.parts.some((part) => part?.sourceKind === 'past-paper')
+    const currentBoundUnit = hasSourceParts ? rebindVerifiedPracticeUnit(unit) : unit
+    if (!currentBoundUnit || !routeById(currentBoundUnit.routeId)) {
+      throw new Error('This saved question set is no longer source-complete and cannot be resumed or marked.')
+    }
+    const sourceAttempt = options.retestOf
+      ? appState.attempts.find((attempt) => attempt.id === options.retestOf)
+      : null
+    if (sourceAttempt && !hasCurrentSourceBindingForAttempt(sourceAttempt, currentBoundUnit)) {
+      throw new Error('This saved attempt is linked to an older source review and is available only as read-only history.')
+    }
+    selectRoute(currentBoundUnit.routeId)
+    const sessionUnit = focusedRetestUnit(currentBoundUnit, options.onlyPartId)
     if (!options.confirmed) {
       setPendingSession({
         unit: sessionUnit,
@@ -805,6 +756,7 @@ function App() {
       saveStatus: draft ? 'Restored draft' : 'Ready',
       retestOf: options.retestOf || null,
       assignmentId: options.assignmentId || null,
+      sourceBinding: sourceBindingSnapshotForUnit(sessionUnit),
       settings: options.settings || draft?.settings || { mode: sessionUnit.type === 'paper' ? 'exam' : 'practice', timing: 'recommended', hints: true },
     })
     setPendingSession(null)
@@ -845,7 +797,10 @@ function App() {
 
   async function handleCoachAgentAction(intent) {
     if (intent.type === 'open-latest-paper' && intent.contest === 'bpho-spc') {
-      if (activeRoute.stage !== 'Competition') return { handled: true, message: 'Competition papers are available only in the Competition route.' }
+      const bphoRoute = routeById(intent.routeId)
+      if (!bphoRoute || bphoRoute.subjectId !== 'bpho' || bphoRoute.stage !== 'Competition') {
+        return { handled: true, message: 'This Competition paper request is not bound to a verified learning route.' }
+      }
       const paper = latestBphoSpcPaper(paperCatalogState.catalog?.items || [])
       if (!paper) {
         return {
@@ -853,7 +808,6 @@ function App() {
           message: 'BPhO SPC 的本地 PDF 目录还没有加载好，或没有找到已配对的最新 QP/MS。请稍后再试。',
         }
       }
-      const bphoRoute = routeById('bpho-admissions-physics')
       selectRoute(bphoRoute.routeId)
       openPaper({
         ...paper,
@@ -867,7 +821,10 @@ function App() {
 
     if (intent.type === 'build-topic-practice') {
       try {
-        const matchingRoutes = routesForSubject(intent.subjectId).filter((route) => route.stage === intent.stage)
+        const subjectRoutes = routesForSubject(intent.subjectId)
+        const matchingRoutes = intent.routeId
+          ? subjectRoutes.filter((route) => route.routeId === intent.routeId)
+          : subjectRoutes.filter((route) => route.stage === intent.stage)
         if (matchingRoutes.length !== 1) {
           return { handled: true, message: 'Please choose the exact paper route first so the set cannot mix stages or component combinations.' }
         }
@@ -923,14 +880,22 @@ function App() {
     }))
   }
 
-  function exportLearningData() {
-    const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), ...appState }, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = `alevel-studio-export-${new Date().toISOString().slice(0, 10)}.json`
-    anchor.click()
-    URL.revokeObjectURL(url)
+  async function exportLearningData() {
+    setExportState({ status: 'preparing', error: '', exportedAt: '', checksum: '' })
+    try {
+      const prepared = await prepareLearningExport(appState, { units: allPracticeUnits })
+      const checksum = prepared.checksum
+      const blob = new Blob([prepared.json], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `alevel-studio-export-${new Date().toISOString().slice(0, 10)}.json`
+      anchor.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 0)
+      setExportState({ status: 'ready', error: '', exportedAt: prepared.payload.exportedAt, checksum })
+    } catch {
+      setExportState({ status: 'failed', error: 'Your export could not be prepared. Try again.', exportedAt: '', checksum: '' })
+    }
   }
 
   function updateAnswer(partId, value) {
@@ -1019,31 +984,46 @@ function App() {
     })
   }
 
-  async function submitAttempt() {
+  async function submitAttempt(evidencePatch = {}) {
     if (!currentAttempt) return
     if (currentAttempt.submitting) return
-    const attemptSnapshot = { ...currentAttempt, submitting: true }
+    const attemptSnapshot = { ...currentAttempt, evidence: { ...(currentAttempt.evidence || {}), ...evidencePatch }, submitting: true }
     setCurrentAttempt(attemptSnapshot)
     const unit = allPracticeUnits.find((item) => item.id === currentAttempt.unitId)
-    const selfMarkOnly = isSelfMarkOnlyUnit(unit)
-    const visionReviews = selfMarkOnly ? {} : await requestVisionReviews(unit, attemptSnapshot)
-    const scoreResult = selfMarkOnly
-      ? null
-      : mergeVisionScore(scoreAttempt(unit, attemptSnapshot.answers, attemptSnapshot.elapsedSec), unit, attemptSnapshot.answers, visionReviews)
-    const assistedReview = selfMarkOnly ? null : reviewAttempt(unit, attemptSnapshot.answers, attemptSnapshot.working)
+    if (!unit) {
+      setCurrentAttempt(null)
+      setView('library')
+      return
+    }
+    const capability = markingCapabilityForUnit(unit)
+    const sourceBinding = sourceBindingSnapshotForUnit(unit)
+    if ((unit.parts || []).some((part) => part.sourceKind === 'past-paper') && !sourceBinding) {
+      setCurrentAttempt({ ...attemptSnapshot, submitting: false, saveStatus: 'Source review changed. Reopen this set before submitting.' })
+      return
+    }
+    const submittedAt = new Date().toISOString()
+    const submittedAttempt = { ...attemptSnapshot, submittedAt, submitting: false }
+    const visionReviews = capability.counts['ai-assisted'] ? await requestVisionReviews(unit, submittedAttempt, sharedAccount.token) : {}
+    const markingLifecycle = buildPartMarkingLifecycle(unit, attemptSnapshot.answers, attemptSnapshot.elapsedSec, visionReviews)
+    const scoreResult = markingLifecycle.complete
+      ? finalizePartMarking(unit, markingLifecycle, {}, attemptSnapshot.elapsedSec)
+      : null
+    const pendingStatus = capability.mode === 'self-mark' ? 'self-mark-pending' : 'marking-pending'
     const imageEvidence = Object.entries(attemptSnapshot.evidence || {}).filter(([, evidence]) => Boolean(evidence)).map(([partId, evidence]) => ({ partId, ...evidence }))
     const completedAttempt = {
       ...attemptSnapshot,
       submitting: false,
       routeId: unit.routeId,
       stage: unit.stage,
-      attemptStatus: selfMarkOnly ? 'self-mark-pending' : 'result',
-      submittedAt: new Date().toISOString(),
+      attemptStatus: scoreResult ? 'result' : pendingStatus,
+      submittedAt,
+      sourceBinding,
       ...(scoreResult ? { scoreResult } : {}),
-      assistedReview,
+      assistedReview: null,
       imageEvidence,
       visionReviews,
-      selfMarkPending: selfMarkOnly,
+      markingLifecycle,
+      selfMarkPending: !scoreResult,
       contentScope: {
         unitId: unit.id,
         title: unit.title,
@@ -1057,7 +1037,7 @@ function App() {
       },
     }
     const previousScores = appState.attempts
-      .filter((attempt) => (attempt.attemptStatus === 'result' || attempt.stage === 'result') && attempt.routeId === unit.routeId && attempt.unitId === unit.id && Number.isFinite(attempt.scoreResult?.percentage))
+      .filter((attempt) => isScoredAttempt(attempt, unit) && attempt.routeId === unit.routeId && attempt.unitId === unit.id)
       .map((attempt) => attempt.scoreResult.percentage)
     const masteryBefore = previousScores.length
       ? Math.round(previousScores.reduce((total, score) => total + score, 0) / previousScores.length)
@@ -1086,6 +1066,7 @@ function App() {
             markingMode: Object.keys(visionReviews).length ? 'assisted-vision' : 'deterministic',
             reviewRequired: Object.values(visionReviews).some((review) => review.reviewRequired),
           }),
+          storageUserId: stateOwnerId,
         })
         completedAttempt.serverSync = 'synced'
       } catch (error) {
@@ -1107,35 +1088,66 @@ function App() {
     setView('result')
   }
 
+  function saveSelfMarkDraft(attemptId, marksByPart) {
+    setAppState((state) => ({
+      ...state,
+      selfMarkDrafts: {
+        ...(state.selfMarkDrafts || {}),
+        [attemptId]: { ...marksByPart, updatedAt: new Date().toISOString() },
+      },
+    }))
+  }
+
   function recordSelfMark(attemptId, marksByPart) {
     const pending = appState.attempts.find((attempt) => attempt.id === attemptId)
     const unit = pending && allPracticeUnits.find((item) => item.id === pending.unitId)
-    if (!pending || !unit || !isSelfMarkOnlyUnit(unit)) return
-    if (!unit.parts.every((part) => Number.isFinite(Number(marksByPart[part.id])))) return
-    const scoreResult = scoreRecordedSelfMark(unit, marksByPart, pending.elapsedSec)
+    if (!pending || !unit || !isPendingSelfMarkAttempt(pending) || !hasCurrentSourceBindingForAttempt(pending, unit)) return
+    const existingFinal = appState.attempts.find((attempt) => attempt.finalizedFromAttemptId === attemptId && isScoredAttempt(attempt, unit))
+    if (existingFinal) {
+      setResultAttempt(existingFinal)
+      return
+    }
+    const markingLifecycle = pending.markingLifecycle || buildPartMarkingLifecycle(unit, pending.answers, pending.elapsedSec, pending.visionReviews)
+    if (!hasCompleteStudentMarks(unit, markingLifecycle, marksByPart)) return
+    const scoreResult = finalizePartMarking(unit, markingLifecycle, marksByPart, pending.elapsedSec)
     const previousScores = appState.attempts
-      .filter((attempt) => attempt.id !== attemptId && attempt.attemptStatus === 'result' && attempt.routeId === unit.routeId && attempt.unitId === unit.id && Number.isFinite(attempt.scoreResult?.percentage))
+      .filter((attempt) => attempt.id !== attemptId && isScoredAttempt(attempt, unit) && attempt.routeId === unit.routeId && attempt.unitId === unit.id)
       .map((attempt) => attempt.scoreResult.percentage)
     const masteryBefore = previousScores.length ? Math.round(previousScores.reduce((total, score) => total + score, 0) / previousScores.length) : null
     const recorded = {
       ...pending,
+      id: makeAttemptId(),
+      finalizedFromAttemptId: pending.id,
       attemptStatus: 'result',
       selfMarkPending: false,
-      studentSelfMarks: marksByPart,
+      studentSelfMarks: Object.fromEntries(pendingPartsForLifecycle(unit, markingLifecycle).map((part) => [part.id, Number(marksByPart[part.id])])),
       selfMarkRecordedAt: new Date().toISOString(),
       scoreResult,
+      markingResolution: {
+        finalizedAt: new Date().toISOString(),
+        studentMarkedPartIds: pendingPartsForLifecycle(unit, markingLifecycle).map((part) => part.id),
+      },
       learningSignal: {
         masteryBefore,
         masteryAfter: scoreResult.percentage,
         masteryDelta: masteryBefore == null ? null : scoreResult.percentage - masteryBefore,
       },
     }
-    setAppState((state) => ({ ...state, attempts: state.attempts.map((attempt) => attempt.id === attemptId ? recorded : attempt) }))
+    setAppState((state) => {
+      const { [attemptId]: _removedDraft, ...selfMarkDrafts } = state.selfMarkDrafts || {}
+      return { ...state, attempts: [...state.attempts, recorded], selfMarkDrafts }
+    })
     setResultAttempt(recorded)
   }
 
   const currentUnit = currentAttempt ? allPracticeUnits.find((unit) => unit.id === currentAttempt.unitId) : null
   const resultUnit = resultAttempt ? allPracticeUnits.find((unit) => unit.id === resultAttempt.unitId) : null
+  const resultIsPendingSelfMark = Boolean(resultAttempt && resultUnit && isPendingSelfMarkAttempt(resultAttempt))
+  const resultCoachPart = resultAttempt && resultUnit
+    ? resultUnit.parts.find((part) => !resultIsPendingSelfMark && part.id === resultAttempt.scoreResult?.weakestPartId)
+      || resultUnit.parts.find((part) => hasAttemptResponse(resultAttempt, part.id))
+      || resultUnit.parts[0]
+    : null
 
   function returnToLibrary(tab = 'recommended') {
     setCurrentAttempt(null)
@@ -1148,7 +1160,7 @@ function App() {
   }
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell app-shell--${view}`}>
       {view !== 'practice' && view !== 'paper' && <TopNav view={view} activeTab={activeTab} setView={setView} profile={appState.profile} sharedAccount={sharedAccount} onRefreshSharedAccount={refreshSharedAccount} onDisconnectSharedAccount={disconnectSharedAccount} openNotebook={() => setView('notebook')} openRoleWorkspace={() => setView('workspace')} openPractice={() => { setActiveTab('recommended'); setView('library') }} openPapers={() => { setActiveTab('papers'); setView('library') }} />}
 
       {view === 'dashboard' && (
@@ -1196,6 +1208,7 @@ function App() {
           paperMistakes={paperMistakes}
           note={appState.notebookNotes?.[activeRouteId] || null}
           onChangeNote={updateNotebookNote}
+          onDeleteNote={() => updateNotebookNote('')}
           startPractice={startPractice}
           retestPaper={retestPaper}
           openPractice={() => { setActiveTab('topics'); setView('library') }}
@@ -1250,8 +1263,13 @@ function App() {
           paperSessions={routePaperSessions}
           paperReviews={routePaperReviews}
           onRetest={startPractice}
+          onContinuePending={(attempt) => {
+            setResultAttempt(attempt)
+            setView('result')
+          }}
           units={routePracticeUnits}
           onExport={exportLearningData}
+          exportState={exportState}
         />
       )}
 
@@ -1261,7 +1279,12 @@ function App() {
             paper={activePaper}
             catalog={paperCatalogState.catalog}
             draft={appState.paperDrafts[activePaper.pairKey || activePaper.id]}
+            assignmentContext={(() => {
+              const assignment = sharedAccount.workspace?.assignments?.find((item) => item.id === activePaper.assignmentId)
+              return assignment ? { assignmentId: assignment.id, classroomId: assignment.classroomId, organizationId: assignment.organizationId || null } : null
+            })()}
             sharedIdentityToken={sharedAccount.token}
+            stateOwnerId={stateOwnerId}
             onBack={() => {
               returnToLibrary('papers')
             }}
@@ -1280,6 +1303,8 @@ function App() {
           updateAnswer={updateAnswer}
           updateEvidence={updateEvidence}
           submitAttempt={submitAttempt}
+            deferredMarking={markingCapabilityForUnit(currentUnit).mode !== 'deterministic'}
+            stateOwnerId={stateOwnerId}
           goBack={() => returnToLibrary('topics')}
         />
       )}
@@ -1288,9 +1313,12 @@ function App() {
           <ResultView
             attempt={resultAttempt}
             unit={resultUnit}
+            sourceCurrent={hasCurrentSourceBindingForAttempt(resultAttempt, resultUnit)}
             startPractice={startPractice}
             goLibrary={() => returnToLibrary('recommended')}
             recordSelfMark={recordSelfMark}
+            initialSelfMarks={appState.selfMarkDrafts?.[resultAttempt.id] || resultAttempt.studentSelfMarks}
+            onSelfMarksChange={(marks) => saveSelfMarkDraft(resultAttempt.id, marks)}
         />
       )}
 
@@ -1313,23 +1341,27 @@ function App() {
       {view !== 'practice' && view !== 'paper' && !(view === 'library' && activeTab === 'papers') && (
         <AiCoach
           key={`${activeRouteId}:${view}:${resultAttempt?.id || 'general'}`}
+          stateOwnerId={stateOwnerId}
           context={{
             attemptId: resultAttempt?.id,
+            stateOwnerId,
             view,
             routeId: resultUnit?.routeId || activeRouteId,
             subject: activeSubject,
             stage: resultUnit?.stage || activeRoute.stage,
             question: resultAttempt && resultUnit ? {
-              label: 'Latest result',
-              prompt: resultUnit.parts.find((part) => part.id === resultAttempt.scoreResult.weakestPartId)?.prompt || resultUnit.title,
+              id: resultCoachPart?.id || '',
+              label: resultIsPendingSelfMark ? 'Submitted response pending self-mark' : 'Latest scored result',
+              prompt: resultCoachPart?.prompt || resultUnit.title,
             } : null,
-            response: resultAttempt && resultUnit ? resultAttempt.answers[resultAttempt.scoreResult.weakestPartId] || '' : '',
+            response: resultAttempt && resultCoachPart ? resultAttempt.answers?.[resultCoachPart.id] || resultAttempt.working?.[resultCoachPart.id] || '' : '',
             submitted: view === 'result',
+            markingStatus: resultIsPendingSelfMark ? 'self-mark-pending' : resultAttempt?.scoreResult ? 'scored' : 'not-scored',
           }}
           openRequest={coachOpenRequest}
           practiceOptions={aiPracticeOptions}
           onGeneratePractice={generateCoachPractice}
-          onAgentAction={activeRoute.stage === 'Competition' ? handleCoachAgentAction : undefined}
+          onAgentAction={handleCoachAgentAction}
         />
       )}
     </main>
@@ -1429,7 +1461,7 @@ function TopNav({ view, activeTab, setView, profile, sharedAccount, onRefreshSha
           Notebook
         </button>
       </nav>
-      <div className="nav-context"><a className="vocabulary-link" href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer"><Brain size={15} />Terms</a><button type="button" className="notification-button" aria-label="Notifications"><span /></button><div className="account-menu"><button type="button" className={`account-trigger ${sharedAccount.status !== 'ready' ? 'account-trigger--guest' : ''}`} aria-label={sharedAccount.status === 'ready' ? `Account: ${accountName}` : 'Connect IELTSist account'} title={sharedAccount.status === 'ready' ? `Account: ${accountName}` : 'Connect IELTSist account'} aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}><span className="account-avatar">{firstName.slice(0, 1).toUpperCase()}</span><span>{sharedAccount.status === 'ready' ? accountName : 'Connect account'}</span><ChevronRight size={14} /></button>{accountOpen && <div className="account-popover"><strong>{sharedAccount.status === 'ready' ? accountName : 'IELTSist ID'}</strong><small>{sharedAccount.status === 'ready' ? 'Shared account connected' : 'One account for IELTS + STEM'}</small>{sharedAccount.status !== 'ready' ? <><p className="account-popover__hint">STEM does not create a second password. Continue to IELTSist to log in or register, then return here.</p><a className="account-popover__primary" href={sharedAuthUrl('login')}><LogIn size={15} />Log in to IELTSist <ChevronRight size={14} /></a><a href={sharedAuthUrl('register')}><Users size={15} />Create an IELTSist account <ChevronRight size={14} /></a>{sharedAccount.error && <p className="account-popover__error" role="alert">{sharedAccount.error}</p>}<button type="button" onClick={() => onRefreshSharedAccount()}><RefreshCcw size={15} />Check shared session <ChevronRight size={14} /></button></> : <><div><span>Student</span><b>STEM</b></div><span className="account-popover__privacy">Private notes are visible only to you.</span><a href="https://ieltsist.com/?from=stem#mine" target="_blank" rel="noreferrer">Open IELTSist account <ChevronRight size={14} /></a><button type="button" onClick={() => { openRoleWorkspace(); setAccountOpen(false) }}>Teacher &amp; school workspace <ChevronRight size={14} /></button><button type="button" className="account-popover__logout" onClick={() => { setAccountOpen(false); onDisconnectSharedAccount() }}><LogOut size={15} />Sign out of shared account <ChevronRight size={14} /></button></>}</div>}</div></div>
+      <div className="nav-context"><a className="vocabulary-link" href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer"><Brain size={15} />Vocabulary</a><button type="button" className="notification-button" aria-label="Notifications"><span /></button><div className="account-menu"><button type="button" className={`account-trigger ${sharedAccount.status !== 'ready' ? 'account-trigger--guest' : ''}`} aria-label={sharedAccount.status === 'ready' ? `Account: ${accountName}` : 'Connect IELTSist account'} title={sharedAccount.status === 'ready' ? `Account: ${accountName}` : 'Connect IELTSist account'} aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}><span className="account-avatar">{firstName.slice(0, 1).toUpperCase()}</span><span>{sharedAccount.status === 'ready' ? accountName : 'Connect account'}</span><ChevronRight size={14} /></button>{accountOpen && <div className="account-popover"><strong>{sharedAccount.status === 'ready' ? accountName : 'IELTSist ID'}</strong><small>{sharedAccount.status === 'ready' ? 'Shared account connected' : 'One account for IELTS + STEM'}</small>{sharedAccount.status !== 'ready' ? <><p className="account-popover__hint">STEM does not create a second password. Continue to IELTSist to log in or register, then return here.</p><a className="account-popover__primary" href={sharedAuthUrl('login')}><LogIn size={15} />Log in to IELTSist <ChevronRight size={14} /></a><a href={sharedAuthUrl('register')}><Users size={15} />Create an IELTSist account <ChevronRight size={14} /></a>{sharedAccount.error && <p className="account-popover__error" role="alert">{sharedAccount.error}</p>}<button type="button" onClick={() => onRefreshSharedAccount()}><RefreshCcw size={15} />Check shared session <ChevronRight size={14} /></button></> : <><div><span>Student</span><b>STEM</b></div><span className="account-popover__privacy">Private notes are visible only to you.</span><a href="https://ieltsist.com/?from=stem#mine" target="_blank" rel="noreferrer">Open IELTSist account <ChevronRight size={14} /></a><button type="button" onClick={() => { openRoleWorkspace(); setAccountOpen(false) }}>Teacher &amp; school workspace <ChevronRight size={14} /></button><button type="button" className="account-popover__logout" onClick={() => { setAccountOpen(false); onDisconnectSharedAccount() }}><LogOut size={15} />Sign out of shared account <ChevronRight size={14} /></button></>}<div className="account-popover__legal"><a href="https://ieltsist.com/terms" target="_blank" rel="noreferrer">Terms</a><a href="https://ieltsist.com/privacy" target="_blank" rel="noreferrer">Privacy</a></div></div>}</div></div>
     </header>
   )
 }
@@ -1451,8 +1483,13 @@ function Dashboard({
   openWorkspace,
   learningProgress,
   syllabusRoadmap,
+  allPracticeUnits = [],
 }) {
-  const verifiedAttempts = attempts.filter((attempt) => completionByUnit[attempt.unitId])
+  const unitById = new Map(allPracticeUnits.map((unit) => [unit.id, unit]))
+  const verifiedAttempts = attempts.filter((attempt) => {
+    const unit = unitById.get(attempt.unitId)
+    return Boolean(unit && isScoredAttempt(attempt, unit) && completionByUnit[attempt.unitId]?.completed)
+  })
   const completedCount = Object.values(completionByUnit).filter((item) => item.completed).length
   const latest = verifiedAttempts.at(-1)
   const average = verifiedAttempts.length
@@ -1626,11 +1663,15 @@ function Dashboard({
 /* oxlint-enable no-unused-vars */
 function StudentDashboard({ activeRoute, routeOptions, selectRoute, profile, attempts, completionByUnit, recommendation, topicMastery, mistakes, paperMistakes, startPractice, setView, setActiveTab, setSubjectFilter, setQuery, allPracticeUnits, recentPractice, favoriteUnitIds, openNotebook, learningProgress, syllabusRoadmap, sharedAccount, onRefreshSharedAccount }) {
   const nextUnit = recommendation.unit
-  const latest = attempts.filter((attempt) => completionByUnit[attempt.unitId]).at(-1)
-  const average = latest ? Math.round(attempts.filter((attempt) => completionByUnit[attempt.unitId]).reduce((total, attempt) => total + attempt.scoreResult.percentage, 0) / attempts.filter((attempt) => completionByUnit[attempt.unitId]).length) : null
+  const unitById = new Map(allPracticeUnits.map((unit) => [unit.id, unit]))
+  const scoredAttempts = attempts.filter((attempt) => {
+    const unit = unitById.get(attempt.unitId)
+    return Boolean(unit && isScoredAttempt(attempt, unit) && completionByUnit[attempt.unitId]?.completed)
+  })
+  const latest = scoredAttempts.at(-1)
+  const average = scoredAttempts.length ? Math.round(scoredAttempts.reduce((total, attempt) => total + attempt.scoreResult.percentage, 0) / scoredAttempts.length) : null
   const weeklyPercent = Math.min(100, Math.round((learningProgress.week.completedQuestions / learningProgress.week.targetQuestions) * 100))
   const goalComplete = learningProgress.week.completedQuestions >= learningProgress.week.targetQuestions
-  const unitById = new Map(allPracticeUnits.map((unit) => [unit.id, unit]))
   const recentUnits = recentPractice.map((item) => unitById.get(item.unitId)).filter((unit) => unit?.routeId === activeRoute.routeId).slice(0, 3)
   const favoriteUnits = favoriteUnitIds.map((id) => unitById.get(id)).filter((unit) => unit?.routeId === activeRoute.routeId).slice(0, 3)
   const firstName = String(profile.learnerName || '').trim().split(/\s+/)[0]
@@ -1881,7 +1922,7 @@ function topicQuestionMatches(question, routeId, topicId) {
 }
 
 function sourceQuestionPreview(question) {
-  return String(question.prompt || question.parts?.[0]?.promptFragment || '')
+  return stripSourceVisualPlaceholders(question.prompt || question.parts?.[0]?.promptFragment || '')
     .replace(/\s+/g, ' ')
     .trim()
 }
@@ -2187,7 +2228,7 @@ function UnitCard({ unit, completion, startPractice, favorite, onToggleFavorite 
   )
 }
 
-function StudentNotebook({ activeRoute, routeOptions, selectRoute, attempts, units, mistakes, paperMistakes, note, onChangeNote, startPractice, retestPaper, openPractice }) {
+function StudentNotebook({ activeRoute, routeOptions, selectRoute, attempts, units, mistakes, paperMistakes, note, onChangeNote, onDeleteNote, startPractice, retestPaper, openPractice }) {
   const [query, setQuery] = useState('')
   const [severity, setSeverity] = useState('all')
   const unitById = new Map(units.map((unit) => [unit.id, unit]))
@@ -2197,13 +2238,21 @@ function StudentNotebook({ activeRoute, routeOptions, selectRoute, attempts, uni
     return (!search || searchable.includes(search)) && (severity === 'all' || mistake.severity.toLowerCase() === severity)
   })
   const filteredPaperMistakes = paperMistakes.filter((mistake) => !search || `${mistake.session.file} ${mistake.status}`.toLowerCase().includes(search))
-  const recentAttempts = [...attempts].sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt)).slice(0, 4)
+  const recentAttempts = attempts
+    .filter((attempt) => {
+      const unit = unitById.get(attempt.unitId)
+      return Boolean(unit && isScoredAttempt(attempt, unit))
+    })
+    .toSorted((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt))
+    .slice(0, 4)
   const savedNote = note?.body || ''
   const masteredTopics = new Set(units.filter((unit) => {
-    const best = getUnitAttempts(attempts, unit.id).map((attempt) => attempt.scoreResult?.percentage).filter(Number.isFinite).sort((a, b) => b - a)[0]
+    const best = getUnitAttempts(attempts, unit).map((attempt) => attempt.scoreResult?.percentage).filter(Number.isFinite).sort((a, b) => b - a)[0]
     return best >= 80
   }).map((unit) => unit.knowledgeGroupId || unit.topic)).size
-  const noteStatus = note?.syncStatus === 'error' ? 'Sync failed; your local note is safe' : note?.syncStatus === 'pending' ? 'Syncing privately…' : note?.syncStatus === 'synced' ? 'Synced to your IELTSist ID' : 'Saved on this device'
+  const noteStatus = note?.deleted
+    ? note.syncStatus === 'error' ? 'Server deletion failed; the note stays hidden on this device' : note.syncStatus === 'pending' ? 'Deleting privately…' : note.syncStatus === 'synced' ? 'Deleted from this device and your IELTSist ID' : 'Deleted from this device'
+    : note?.syncStatus === 'error' ? 'Sync failed; your local note is safe' : note?.syncStatus === 'pending' ? 'Syncing privately…' : note?.syncStatus === 'synced' ? 'Synced to your IELTSist ID' : 'Saved on this device'
 
   return (
     <section className="notebook-view page-band">
@@ -2230,15 +2279,16 @@ function StudentNotebook({ activeRoute, routeOptions, selectRoute, attempts, uni
           {filteredMistakes.length || filteredPaperMistakes.length ? <div className="notebook-mistake-list">
             {filteredMistakes.map((mistake) => {
               const response = mistake.attempt.answers?.[mistake.part.id] || mistake.attempt.working?.[mistake.part.id] || 'No typed response saved'
-              const missedPoints = mistake.criterion.evidence?.filter((point) => !point.awarded) || []
-              return <article className="notebook-mistake" key={mistake.id}><header><span className={`status-pill danger ${mistake.severity.toLowerCase()}`}>{mistake.severity} priority</span><span>{mistake.status}</span></header><h3>{mistake.unit.title} - part {displayPartLabel(mistake.part)}</h3><p className="notebook-mistake__topic">{mistake.unit.topic} - {mistake.part.marks} marks - {formatDate(mistake.attempt.submittedAt)}</p><p>{mistake.criterion.feedback}</p><details><summary>Review your response and missed points</summary><div className="notebook-evidence-copy"><strong>Your response</strong><pre>{response}</pre>{missedPoints.length > 0 && <><strong>Mark points to add next time</strong><ul>{missedPoints.map((point) => <li key={point.pointId}>{point.point}</li>)}</ul></>}</div></details><footer><span>{mistake.criterion.awarded}/{mistake.criterion.maxMarks} marks</span><button type="button" className="primary-action compact-action" onClick={() => startPractice(mistake.unit, { clearDraft: true, retestOf: mistake.attempt.id, onlyPartId: mistake.part.id })}><RefreshCcw size={15} />Retest this part</button></footer></article>
+              const pointEvidenceMissing = mistake.criterion.scoringSource === 'student-self-mark' && mistake.criterion.evidenceStatus === 'not-recorded'
+              const missedPoints = pointEvidenceMissing ? [] : mistake.criterion.evidence?.filter((point) => !point.awarded) || []
+              return <article className="notebook-mistake" key={mistake.id}><header><span className={`status-pill danger ${mistake.severity.toLowerCase()}`}>{mistake.severity} priority</span><span>{mistake.status}</span></header><h3>{mistake.unit.title} - part {displayPartLabel(mistake.part)}</h3><p className="notebook-mistake__topic">{mistake.unit.topic} - {mistake.part.marks} marks - {formatDate(mistake.attempt.submittedAt)}</p><p>{mistake.criterion.feedback}</p><details><summary>{pointEvidenceMissing ? 'Review your response and official mark scheme' : 'Review your response and missed points'}</summary><div className="notebook-evidence-copy"><strong>Your response</strong><pre>{response}</pre>{pointEvidenceMissing && <><p className="self-mark-evidence-note">Your total self-mark is saved, but the specific awarded and missed mark-scheme points were not recorded.</p>{mistake.part.answerRef?.localUrl && <a className="mark-scheme-link" href={mistake.part.answerRef.localUrl} target="_blank" rel="noreferrer">Open exact mark scheme for {displayPartLabel(mistake.part)}</a>}{mistake.part.markPoints?.length > 0 && <><strong>Official mark-scheme points</strong><ul>{mistake.part.markPoints.map((point, index) => <li key={`${mistake.part.id}-official-${index + 1}`}>{point}</li>)}</ul></>}</>}{missedPoints.length > 0 && <><strong>Mark points to add next time</strong><ul>{missedPoints.map((point) => <li key={point.pointId}>{point.point}</li>)}</ul></>}</div></details><footer><span>{mistake.criterion.awarded}/{mistake.criterion.maxMarks} marks</span><button type="button" className="primary-action compact-action" onClick={() => startPractice(mistake.unit, { clearDraft: true, retestOf: mistake.attempt.id, onlyPartId: mistake.part.id })}><RefreshCcw size={15} />Retest this part</button></footer></article>
             })}
             {filteredPaperMistakes.map((mistake) => <article className="notebook-mistake" key={mistake.id}><header><span className="status-pill danger">Paper review</span><span>{mistake.status}</span></header><h3>{mistake.session.file} - question {mistake.questionNumber}</h3><p className="notebook-mistake__topic">{mistake.paper.subject} - {formatDate(mistake.session.completedAt)}</p><p>{mistake.status === 'Blank response' ? 'No final response was submitted for this printed question.' : 'Compare your response with the exact mark scheme and record the awarded marks.'}</p><footer><span>{mistake.awarded == null ? 'Not self-marked' : `${mistake.awarded}/${mistake.maxMarks} marks`}</span><button type="button" className="primary-action compact-action" onClick={() => retestPaper(mistake.paper, mistake.session.attemptId)}><RefreshCcw size={15} />Retest paper</button></footer></article>)}
           </div> : <div className="empty-state notebook-empty"><CheckCircle2 size={28} /><h2>{search || severity !== 'all' ? 'No notebook items match' : 'Your review queue is clear'}</h2><p>{search || severity !== 'all' ? 'Try a different search or priority.' : 'Complete a practice set and missed mark points will be saved here.'}</p>{(search || severity !== 'all') && <button type="button" className="secondary-action" onClick={() => { setQuery(''); setSeverity('all') }}>Clear filters</button>}</div>}
         </section>
 
         <aside className="notebook-side">
-           <section className="notebook-note-tool"><header><div><p className="section-label">Private note</p><h2>What will you remember?</h2></div><BookOpen size={18} /></header><textarea value={savedNote} onChange={(event) => onChangeNote(event.target.value)} placeholder="Write a short method, formula, or reminder for this route..." aria-label="Private route notebook note" /><small>{note?.updatedAt ? `${noteStatus} · ${formatDate(note.updatedAt)}` : noteStatus}</small></section>
+           <section className="notebook-note-tool"><header><div><p className="section-label">Private note</p><h2>What will you remember?</h2></div><div className="notebook-note-tool__actions"><BookOpen size={18} />{savedNote && <button type="button" className="icon-button" onClick={onDeleteNote} aria-label="Delete private note" title="Delete private note"><Trash2 size={16} /></button>}</div></header><textarea value={savedNote} onChange={(event) => onChangeNote(event.target.value)} placeholder="Write a short method, formula, or reminder for this route..." aria-label="Private route notebook note" /><small>{note?.updatedAt ? `${noteStatus} · ${formatDate(note.updatedAt)}` : noteStatus}</small></section>
           <section className="notebook-recent"><header><div><p className="section-label">Progress</p><h2>Recent results</h2></div><BarChart3 size={18} /></header>{recentAttempts.length ? <div>{recentAttempts.map((attempt) => { const unit = unitById.get(attempt.unitId); return <div className="notebook-result-row" key={attempt.id}><span><strong>{unit?.topic || 'Practice set'}</strong><small>{unit?.title || 'Verified question set'}</small></span><b>{attempt.scoreResult.percentage}%</b></div> })}</div> : <p className="notebook-side-empty">Your completed sets will appear here.</p>}</section>
         </aside>
       </div>
@@ -2297,41 +2347,99 @@ function MistakeList({ mistakes, paperMistakes, startPractice, retestPaper }) {
   )
 }
 
-function ResultView({ attempt, unit, startPractice, goLibrary, recordSelfMark }) {
-  const [selfMarks, setSelfMarks] = useState(() => attempt.studentSelfMarks || {})
+function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibrary, recordSelfMark, initialSelfMarks, onSelfMarksChange }) {
+  const safeInitialSelfMarks = initialSelfMarks || EMPTY_SELF_MARKS
+  const [selfMarks, setSelfMarks] = useState(() => safeInitialSelfMarks)
   const result = attempt.scoreResult || null
-  const assisted = attempt.assistedReview
-  const weakest = result?.weakestPartId ? unit.parts.find((part) => part.id === result.weakestPartId) : null
   const answeredParts = unit.parts.filter((part) => Boolean(String(attempt.answers?.[part.id] || attempt.working?.[part.id] || '').trim()) || Boolean(attempt.evidence?.[part.id])).length
-  const assessmentState = answeredParts ? (result.percentage >= 80 ? 'Secure' : result.percentage >= 50 ? 'In progress' : 'Needs review') : 'Not assessed'
-  const assessmentCopy = answeredParts ? `${answeredParts}/${unit.parts.length} responses submitted` : 'No answer evidence was submitted'
-  const stemReturnUrl = typeof window === 'undefined' ? '' : `${window.location.origin}/?from=ieltsist&focus=${encodeURIComponent(unit.subjectId || '')}&return_attempt=${encodeURIComponent(attempt.id)}`
-  const termsUrl = `https://ieltsist.com/?from=stem&focus=language&subject=${encodeURIComponent(unit.code || unit.board || '')}&topic=${encodeURIComponent(unit.topic || '')}&term_ids=${encodeURIComponent((weakest?.topicTags || []).join(','))}&return_to=${encodeURIComponent(stemReturnUrl)}#vocabulary`
-  const hasAiReview = Object.values(attempt.visionReviews || {}).some((review) => ['success', 'unconfigured', 'error'].includes(review?.status))
-  const hasSavedHandwriting = attempt.imageEvidence?.length > 0
+  const pendingSelfMark = isPendingSelfMarkAttempt(attempt)
 
-  if (!result || attempt.selfMarkPending) {
-    const marksComplete = unit.parts.every((part) => Number.isFinite(Number(selfMarks[part.id])))
+  useEffect(() => {
+    setSelfMarks(safeInitialSelfMarks)
+  }, [attempt.id, safeInitialSelfMarks])
+
+  if (!sourceCurrent) {
+    return (
+      <section className="result-view page-band">
+        <div className="result-hero" role="status">
+          <div>
+            <p className="section-label">Saved record</p>
+            <h1>Source review has changed</h1>
+            <p>Your answers and handwriting remain in this private record, but this attempt cannot be self-marked, retested, scored or counted because its original QP/MS binding is no longer current.</p>
+          </div>
+          <div className="result-actions"><button type="button" className="secondary-action" onClick={goLibrary}><ArrowLeft size={18} />Back to library</button></div>
+        </div>
+      </section>
+    )
+  }
+
+  if (pendingSelfMark) {
+    const markingLifecycle = attempt.markingLifecycle || buildPartMarkingLifecycle(unit, attempt.answers, attempt.elapsedSec, attempt.visionReviews)
+    const pendingParts = pendingPartsForLifecycle(unit, markingLifecycle)
+    const marksComplete = hasCompleteStudentMarks(unit, markingLifecycle, selfMarks)
+    const resolvedCount = markingLifecycle.provisionalCriteria?.length || 0
+    const updateSelfMark = (part, raw) => {
+      const nextValue = raw === '' ? '' : Math.max(0, Math.min(part.marks, Number(raw)))
+      setSelfMarks((current) => {
+        const next = { ...current, [part.id]: nextValue }
+        onSelfMarksChange?.(next)
+        return next
+      })
+    }
     return (
       <section className="result-view page-band self-mark-result">
         <div className="result-hero">
           <div>
             <p className="section-label">Submission saved</p>
             <h1>Ready to self-mark</h1>
-            <p><span className="result-status result-status--in-progress">Pending</span>Your responses are saved. This set has no reviewed automatic marking rule, so it has not changed mastery, mistakes or your study history.</p>
+            <p><span className="result-status result-status--in-progress">Pending</span>Your responses are saved. No total score, mastery, mistake or learning event is created until every pending part has a valid mark.</p>
           </div>
-          <div className="result-actions"><button type="button" className="secondary-action" onClick={goLibrary}><Library size={18} />Back to library</button></div>
+          <div className="result-actions"><button type="button" className="secondary-action" onClick={goLibrary}><ArrowLeft size={18} />Back to library</button></div>
         </div>
         <section className="self-mark-result__guide" aria-label="Record self-mark">
-          <div><p className="section-label">Paired mark scheme</p><h2>Record your own mark before it counts.</h2><p>Compare each answer with its exact paired mark scheme. Only this explicit record creates a score, mastery update or retest suggestion.</p></div>
+          <header className="self-mark-result__heading"><div><p className="section-label">Paired mark scheme</p><h2>Finish the unresolved parts</h2><p>Use the exact paired mark scheme. AI failures and missing handwriting stay pending instead of becoming automatic zeroes.</p></div>{resolvedCount > 0 && <div className="self-mark-result__subtotal"><span>Checked so far</span><strong>{markingLifecycle.provisionalRawMarks}/{markingLifecycle.provisionalMaxMarks}</strong><small>Provisional only; not in progress</small></div>}</header>
           <div className="self-mark-result__rows">
-            {unit.parts.map((part, index) => <label key={part.id}><span><strong>{displayPartLabel(part, `Question ${index + 1}`)}</strong><small>{part.marks} {part.marks === 1 ? 'mark' : 'marks'}</small></span><input type="number" min="0" max={part.marks} step="1" inputMode="numeric" aria-label={`Self-mark for ${displayPartLabel(part, `Question ${index + 1}`)}`} value={selfMarks[part.id] ?? ''} onChange={(event) => setSelfMarks((current) => ({ ...current, [part.id]: event.target.value === '' ? '' : Math.max(0, Math.min(part.marks, Number(event.target.value))) }))} />{part.answerRef?.localUrl && <a href={part.answerRef.localUrl} target="_blank" rel="noreferrer">Mark scheme</a>}</label>)}
+            {pendingParts.map((part) => {
+              const index = unit.parts.findIndex((item) => item.id === part.id)
+              const partState = markingLifecycle.partStates?.[part.id]
+              const isAiPending = partState?.capability === 'ai-assisted'
+              return <div className="self-mark-result__row" key={part.id}><div className="self-mark-result__question"><span className={`self-mark-result__state self-mark-result__state--${isAiPending ? 'ai' : 'manual'}`}>{isAiPending ? 'AI unresolved' : 'Self-mark'}</span><strong>{displayPartLabel(part, `Question ${index + 1}`)}</strong><small>{partState?.reason || 'Compare your response with the paired mark scheme.'}</small></div><label className="self-mark-result__input"><span>Mark</span><span><input type="number" min="0" max={part.marks} step="1" inputMode="numeric" aria-label={`Self-mark for ${displayPartLabel(part, `Question ${index + 1}`)}`} value={selfMarks[part.id] ?? ''} onChange={(event) => updateSelfMark(part, event.target.value)} /><b>/ {part.marks}</b></span></label>{part.answerRef?.localUrl ? <a className="self-mark-result__scheme" href={part.answerRef.localUrl} target="_blank" rel="noreferrer"><BookOpen size={16} />Mark scheme</a> : <span className="self-mark-result__scheme is-missing">Scheme unavailable</span>}</div>
+            })}
           </div>
-          <button type="button" className="primary-action" disabled={!marksComplete} onClick={() => recordSelfMark?.(attempt.id, selfMarks)}>Record self-mark</button>
+          <footer className="self-mark-result__footer"><p className={marksComplete ? 'self-mark-result__validation is-complete' : 'self-mark-result__validation'} role="status">{marksComplete ? 'Every unresolved part has an explicit mark. Saving appends a canonical scored result.' : `Enter all ${pendingParts.length} pending marks. Blank or partial entries remain unscored.`}</p><button type="button" className="primary-action" disabled={!marksComplete} onClick={() => recordSelfMark?.(attempt.id, selfMarks)}>Record self-mark</button></footer>
         </section>
       </section>
     )
   }
+
+  if (!result) {
+    return (
+      <section className="result-view page-band">
+        <div className="result-hero" role="alert"><div><p className="section-label">Result unavailable</p><h1>This attempt has no valid score record.</h1><p>Your submitted work remains saved, but this attempt cannot update mastery or mistakes. Return to the library and start a fresh attempt.</p></div><div className="result-actions"><button type="button" className="secondary-action" onClick={goLibrary}><ArrowLeft size={18} />Back to library</button></div></div>
+      </section>
+    )
+  }
+
+  const assisted = attempt.assistedReview
+  const weakest = result.weakestPartId ? unit.parts.find((part) => part.id === result.weakestPartId) : null
+  const assessmentState = answeredParts ? (result.percentage >= 80 ? 'Secure' : result.percentage >= 50 ? 'In progress' : 'Needs review') : 'Not assessed'
+  const assessmentCopy = answeredParts ? `${answeredParts}/${unit.parts.length} responses submitted` : 'No answer evidence was submitted'
+  const stemReturnUrl = typeof window === 'undefined' ? '' : `${window.location.origin}/?from=ieltsist&focus=${encodeURIComponent(unit.subjectId || '')}&routeId=${encodeURIComponent(unit.routeId || '')}&topicId=${encodeURIComponent(unit.topicId || unit.syllabusTopic || '')}&attemptId=${encodeURIComponent(attempt.id)}`
+  const termsUrl = professionalTermsUrl({
+    subject: unit.code || unit.board || '',
+    topic: unit.topic || '',
+    routeId: unit.routeId,
+    topicId: unit.topicId || unit.syllabusTopic || '',
+    termIds: termIdsForStemContext({ topicId: unit.topicId || unit.syllabusTopic || '', topicTags: weakest?.topicTags || [] }),
+    attemptId: attempt.id,
+    returnTo: stemReturnUrl,
+  })
+  const hasAiReview = Object.values(attempt.visionReviews || {}).some((review) => ['success', 'unconfigured', 'error'].includes(review?.status))
+  const hasSavedHandwriting = attempt.imageEvidence?.length > 0
+  const hasCanonicalAiMarks = result.criteria.some((criterion) => criterion.scoringSource === 'vision-assisted')
+  const markingLabel = result.selfMarked
+    ? (hasCanonicalAiMarks ? 'AI-reviewed + student self-mark' : 'Student self-mark from official scheme')
+    : hasCanonicalAiMarks ? 'AI-reviewed handwriting' : 'Objective answer check'
 
   return (
     <section className="result-view page-band">
@@ -2347,7 +2455,7 @@ function ResultView({ attempt, unit, startPractice, goLibrary, recordSelfMark })
             Retest
           </button>
           <button type="button" className="secondary-action" onClick={goLibrary}>
-            <Library size={18} />
+            <ArrowLeft size={18} />
             Back to library
           </button>
         </div>
@@ -2402,7 +2510,8 @@ function ResultView({ attempt, unit, startPractice, goLibrary, recordSelfMark })
                     {part.answerRef && <div className="official-answer"><header><strong>Official mark scheme</strong><a className="mark-scheme-link" href={part.answerRef.localUrl} target="_blank" rel="noreferrer">Open {part.answerRef.file}</a></header>{part.answerRef.assetUrls?.map((url) => <img src={url} alt={`${part.answerRef.file}, answer for ${part.sourceRef?.question}`} loading="lazy" key={url} />)}{part.exactAnswer && <details><summary>Extracted mark-scheme text</summary><p>{part.exactAnswer}</p></details>}</div>}
                   </div>
                   <div className="mark-points">
-                    {criterion.evidence.map((point) => (
+                    {criterion.evidenceStatus === 'not-recorded' && <p className="self-mark-evidence-note">Specific awarded and missed mark-scheme points were not recorded for this self-mark. Review the official mark scheme without treating any individual point as awarded.</p>}
+                    {(criterion.evidence || []).map((point) => (
                       <span className={point.awarded ? 'awarded' : ''} key={point.pointId}>
                         {point.awarded ? '✓' : '○'} {point.point}
                       </span>
@@ -2428,12 +2537,9 @@ function ResultView({ attempt, unit, startPractice, goLibrary, recordSelfMark })
             </div>
             <div>
               <dt>Scoring</dt>
-              <dd>{result.schemaVersion}</dd>
+              <dd>{markingLabel}</dd>
             </div>
-            <div>
-              <dt>Confidence</dt>
-              <dd>{Math.round(result.confidence * 100)}%</dd>
-            </div>
+            {hasCanonicalAiMarks && Number.isFinite(result.confidence) && <div><dt>AI confidence</dt><dd>{Math.round(result.confidence * 100)}%</dd></div>}
           </dl>
         </aside>
       </div>

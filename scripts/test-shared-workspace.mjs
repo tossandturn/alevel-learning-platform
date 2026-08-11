@@ -4,11 +4,29 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { Readable } from 'node:stream'
-import { closeStemDatabaseForTests, createStemApi } from '../server/stemApi.js'
+import { assignableQuestionIdsForBank, closeStemDatabaseForTests, createStemApi } from '../server/stemApi.js'
+import { unifiedQuestionBank } from '../src/data/questionBank.js'
 
 const signingKey = 'shared-workspace-test-signing-key'
 const databasePath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'stem-workspace-test-')), 'stem.sqlite')
 const legacyDatabasePath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'stem-workspace-legacy-test-')), 'stem.sqlite')
+const stageDriftDatabasePath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'stem-workspace-stage-drift-test-')), 'stem.sqlite')
+const testOnlyAssignableQuestionBank = Object.freeze([
+  ...unifiedQuestionBank,
+  ...[
+    'bpho-spc-q1@bpho-admissions-physics',
+    'amc12-q1@maa-amc12-admissions-mathematics',
+    'as-qp-1@cie-9702-as-physics',
+    'as-qp-2@cie-9702-as-physics',
+    'a2-qp-1@cie-9702-a2-physics',
+    'igcse-qp-1@cie-0625-igcse-physics',
+    'archived-qp-1@cie-9700-as-biology',
+    'post-migration-qp@cie-9702-as-physics',
+  ].map((bankId) => ({ bankId })),
+])
+const knownSourceIncompleteBankId = 'esat-ENGAA_2023_S1_QuestionPaper:q24@uatuk-esat-admissions'
+
+assert.equal(assignableQuestionIdsForBank().has(knownSourceIncompleteBankId), false, 'a source-incomplete raw index record must not enter the production assignment allowlist')
 
 function tokenFor(userId, username, roles = []) {
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
@@ -37,7 +55,7 @@ function call(api, { method, url, token, body }) {
 }
 
 try {
-  const api = createStemApi({ env: { STEM_IDENTITY_SIGNING_KEY: signingKey, STEM_DB_PATH: databasePath } })
+  const api = createStemApi({ env: { STEM_IDENTITY_SIGNING_KEY: signingKey, STEM_DB_PATH: databasePath }, questionBank: testOnlyAssignableQuestionBank })
   const teacherToken = tokenFor(1, 'teacher_one', ['teacher'])
   const assistantTeacherToken = tokenFor(5, 'teacher_two', ['teacher'])
   const studentToken = tokenFor(2, 'student_one')
@@ -52,6 +70,12 @@ try {
   assert.equal(authConfig.body.session.tokenStorage, 'memory-only')
   assert.match(authConfig.body.browserFlow.login, /auth=login/)
   assert.match(authConfig.body.browserFlow.register, /auth=register/)
+  for (const [mode, href] of Object.entries(authConfig.body.browserFlow)) {
+    const browserFlowUrl = new URL(href)
+    assert.equal(browserFlowUrl.searchParams.get('auth'), mode, `${mode} browser flow must identify its action`)
+    assert.equal(browserFlowUrl.searchParams.get('returnTo'), 'https://stem.ieltsist.com', `${mode} browser flow must emit the canonical camelCase return target`)
+    assert.equal(browserFlowUrl.searchParams.has('return_to'), false, `${mode} browser flow must not emit the legacy snake_case return target`)
+  }
   assert.equal(authConfig.body.responses.duplicateIdentifier, 409)
   const deniedClass = await call(api, { method: 'POST', url: '/api/stem/classrooms', token: unverifiedStaffToken, body: { name: 'Should be denied' } })
   assert.equal(deniedClass.statusCode, 403)
@@ -79,6 +103,57 @@ try {
   assert.equal(schoolOwnerJoined.statusCode, 200)
   assert.equal(schoolOwnerJoined.body.classroom.role, 'school')
 
+  const competitionClass = await call(api, { method: 'POST', url: '/api/stem/classrooms', token: teacherToken, body: { name: 'Competition Physics and Mathematics' } })
+  assert.equal(competitionClass.statusCode, 201, competitionClass.body.error)
+  const competitionStudent = await call(api, { method: 'POST', url: '/api/stem/classrooms/join', token: studentToken, body: { inviteCode: competitionClass.body.classroom.inviteCode } })
+  assert.equal(competitionStudent.statusCode, 200)
+  const studentCompetitionAssignment = await call(api, {
+    method: 'POST', url: '/api/stem/assignments', token: studentToken,
+    body: { classroomId: competitionClass.body.classroom.id, subjectId: 'bpho', routeId: 'bpho-admissions-physics', stage: 'Competition', syllabusPointId: 'bpho-mechanics', title: 'Student must not publish', sourceScope: { questionIds: ['bpho-denied@bpho-admissions-physics'], routeId: 'bpho-admissions-physics', stage: 'Competition' } },
+  })
+  assert.equal(studentCompetitionAssignment.statusCode, 403)
+  const wrongCompetitionStage = await call(api, {
+    method: 'POST', url: '/api/stem/assignments', token: teacherToken,
+    body: { classroomId: competitionClass.body.classroom.id, subjectId: 'bpho', routeId: 'bpho-admissions-physics', stage: 'Admissions', syllabusPointId: 'bpho-mechanics', title: 'Wrong BPhO stage', sourceScope: { questionIds: ['bpho-wrong-stage@bpho-admissions-physics'], routeId: 'bpho-admissions-physics', stage: 'Admissions' } },
+  })
+  assert.equal(wrongCompetitionStage.statusCode, 400)
+  assert.match(wrongCompetitionStage.body.error, /same learning route/)
+  const bphoAssignment = await call(api, {
+    method: 'POST', url: '/api/stem/assignments', token: teacherToken,
+    body: { classroomId: competitionClass.body.classroom.id, subjectId: 'bpho', routeId: 'bpho-admissions-physics', stage: 'Competition', syllabusPointId: 'bpho-mechanics', title: 'BPhO Mechanics evidence set', sourceScope: { questionIds: ['bpho-spc-q1@bpho-admissions-physics'], routeId: 'bpho-admissions-physics', stage: 'Competition' } },
+  })
+  assert.equal(bphoAssignment.statusCode, 201, bphoAssignment.body.error)
+  assert.deepEqual([bphoAssignment.body.assignment.routeId, bphoAssignment.body.assignment.stage], ['bpho-admissions-physics', 'Competition'])
+  const amcAssignment = await call(api, {
+    method: 'POST', url: '/api/stem/assignments', token: teacherToken,
+    body: { classroomId: competitionClass.body.classroom.id, subjectId: 'amc12', routeId: 'maa-amc12-admissions-mathematics', stage: 'Competition', syllabusPointId: 'amc12-algebra', title: 'AMC12 Algebra evidence set', sourceScope: { questionIds: ['amc12-q1@maa-amc12-admissions-mathematics'], routeId: 'maa-amc12-admissions-mathematics', stage: 'Competition' } },
+  })
+  assert.equal(amcAssignment.statusCode, 201, amcAssignment.body.error)
+  assert.equal(amcAssignment.body.assignment.stage, 'Competition')
+  const teacherCompetitionSubmission = await call(api, {
+    method: 'POST', url: `/api/stem/assignments/${bphoAssignment.body.assignment.id}/submissions`, token: teacherToken,
+    body: { idempotencyKey: 'teacher-competition-denied', routeId: 'bpho-admissions-physics', stage: 'Competition', rawMarks: 8, maxMarks: 10, percentage: 80 },
+  })
+  assert.equal(teacherCompetitionSubmission.statusCode, 403)
+  const crossStageCompetitionSubmission = await call(api, {
+    method: 'POST', url: `/api/stem/assignments/${bphoAssignment.body.assignment.id}/submissions`, token: studentToken,
+    body: { idempotencyKey: 'student-competition-wrong-stage', routeId: 'bpho-admissions-physics', stage: 'Admissions', rawMarks: 8, maxMarks: 10, percentage: 80 },
+  })
+  assert.equal(crossStageCompetitionSubmission.statusCode, 400)
+  const bphoSubmission = await call(api, {
+    method: 'POST', url: `/api/stem/assignments/${bphoAssignment.body.assignment.id}/submissions`, token: studentToken,
+    body: { idempotencyKey: 'student-bpho-attempt-one', attemptId: 'bpho-attempt-1', routeId: 'bpho-admissions-physics', stage: 'Competition', rawMarks: 8, maxMarks: 10, percentage: 80 },
+  })
+  assert.equal(bphoSubmission.statusCode, 201, bphoSubmission.body.error)
+  assert.deepEqual([bphoSubmission.body.routeId, bphoSubmission.body.stage], ['bpho-admissions-physics', 'Competition'])
+  const competitionTeacherWorkspace = await call(api, { method: 'GET', url: '/api/stem/workspace', token: teacherToken })
+  assert.equal(competitionTeacherWorkspace.statusCode, 200)
+  assert.ok(competitionTeacherWorkspace.body.assignments.some((item) => item.id === bphoAssignment.body.assignment.id && item.stage === 'Competition'))
+  assert.ok(competitionTeacherWorkspace.body.assignments.some((item) => item.id === amcAssignment.body.assignment.id && item.stage === 'Competition'))
+  const competitionStudentWorkspace = await call(api, { method: 'GET', url: '/api/stem/workspace', token: studentToken })
+  assert.equal(competitionStudentWorkspace.statusCode, 200)
+  assert.ok(competitionStudentWorkspace.body.assignments.some((item) => item.id === bphoAssignment.body.assignment.id && item.routeId === 'bpho-admissions-physics'))
+
   const emptyPrivateNote = await call(api, { method: 'GET', url: '/api/stem/notebook/notes?routeId=cie-9702-as-physics', token: studentToken })
   assert.equal(emptyPrivateNote.statusCode, 200)
   assert.equal(emptyPrivateNote.body.note, null)
@@ -94,7 +169,14 @@ try {
   assert.equal(loadedPrivateNote.body.note.body, 'Use momentum conservation after defining the system.')
   const deletedPrivateNote = await call(api, { method: 'DELETE', url: '/api/stem/notebook/notes/cie-9702-as-physics', token: studentToken })
   assert.equal(deletedPrivateNote.statusCode, 200)
-  assert.equal(deletedPrivateNote.body.note, null)
+  assert.equal(deletedPrivateNote.body.note.body, '')
+  assert.equal(deletedPrivateNote.body.note.deleted, true)
+  assert.ok(deletedPrivateNote.body.note.deletedAt)
+  const tombstonePrivateNote = await call(api, { method: 'GET', url: '/api/stem/notebook/notes?routeId=cie-9702-as-physics', token: studentToken })
+  assert.equal(tombstonePrivateNote.statusCode, 200)
+  assert.equal(tombstonePrivateNote.body.note.body, '')
+  assert.equal(tombstonePrivateNote.body.note.deleted, true)
+  assert.equal(tombstonePrivateNote.body.note.updatedAt, tombstonePrivateNote.body.note.deletedAt)
 
   const missingRoute = await call(api, {
     method: 'POST', url: '/api/stem/assignments', token: teacherToken,
@@ -165,6 +247,12 @@ try {
     body: { classroomId: createdClass.body.classroom.id, subjectId: 'physics-0625', routeId: 'cie-0625-igcse-physics', stage: 'IGCSE', syllabusPointId: 'physics-electricity', title: 'IGCSE Electricity evidence set', sourceScope: { questionIds: ['igcse-qp-1@cie-0625-igcse-physics'], routeId: 'cie-0625-igcse-physics', stage: 'IGCSE' } },
   })
   assert.equal(igcseAssignment.statusCode, 201, igcseAssignment.body.error)
+  const sourceIncompleteAssignment = await call(api, {
+    method: 'POST', url: '/api/stem/assignments', token: teacherToken,
+    body: { classroomId: createdClass.body.classroom.id, subjectId: 'esat', routeId: 'uatuk-esat-admissions', stage: 'Admissions', syllabusPointId: 'esat-mathematics', title: 'Must reject incomplete source record', sourceScope: { questionIds: [knownSourceIncompleteBankId], routeId: 'uatuk-esat-admissions', stage: 'Admissions' } },
+  })
+  assert.equal(sourceIncompleteAssignment.statusCode, 400)
+  assert.match(sourceIncompleteAssignment.body.error, /verified and source-complete/)
 
   const ownerSubmission = await call(api, {
     method: 'POST', url: `/api/stem/assignments/${assignment.body.assignment.id}/submissions`, token: teacherToken,
@@ -269,6 +357,30 @@ try {
   const reportedSubmission = teacherSubmissions.body.submissions.find((item) => item.attemptId === 'attempt-1')
   assert.equal(reportedSubmission.scoreStatus, 'reported')
   assert.equal(reportedSubmission.markingMode, 'student-reported')
+  const studentCannotVerify = await call(api, {
+    method: 'POST', url: `/api/stem/submissions/${reportedSubmission.id}/verify`, token: studentToken,
+    body: { reviewerNote: 'Students cannot promote their own browser score.' },
+  })
+  assert.equal(studentCannotVerify.statusCode, 403)
+  const verifiedSubmission = await call(api, {
+    method: 'POST', url: `/api/stem/submissions/${reportedSubmission.id}/verify`, token: teacherToken,
+    body: { rawMarks: 7, maxMarks: 10, reviewerNote: 'Checked against the source-bound response.' },
+  })
+  assert.equal(verifiedSubmission.statusCode, 201, verifiedSubmission.body.error)
+  assert.equal(verifiedSubmission.body.submission.scoreStatus, 'verified')
+  assert.equal(verifiedSubmission.body.submission.markingMode, 'teacher-reviewed')
+  assert.equal(verifiedSubmission.body.submission.percentage, 70)
+  assert.equal(verifiedSubmission.body.submission.verifiedFromEventId, reportedSubmission.id)
+  const verifiedSummary = await call(api, { method: 'GET', url: `/api/stem/classrooms/${createdClass.body.classroom.id}/summary?routeId=cie-9702-as-physics&stage=AS`, token: teacherToken })
+  assert.equal(verifiedSummary.statusCode, 200)
+  assert.equal(verifiedSummary.body.summary.totalSubmissionCount, 1, 'verification must promote the current result without double-counting completion')
+  assert.equal(verifiedSummary.body.summary.verifiedScoreCount, 1)
+  assert.equal(verifiedSummary.body.summary.reportedScoreCount, 0)
+  assert.equal(verifiedSummary.body.summary.averagePercentage, 70)
+  const refreshedTeacherSubmissions = await call(api, { method: 'GET', url: `/api/stem/classrooms/${createdClass.body.classroom.id}/submissions`, token: teacherToken })
+  const currentVerified = refreshedTeacherSubmissions.body.submissions.find((item) => item.attemptId === 'attempt-1')
+  assert.equal(currentVerified.id, verifiedSubmission.body.submission.id, 'teacher workspace must return the promoted current event')
+  assert.equal(refreshedTeacherSubmissions.body.submissions.filter((item) => item.attemptId === 'attempt-1').length, 1, 'teacher review must not show source and promotion as duplicate submissions')
 
   const reminder = await call(api, {
     method: 'POST', url: `/api/stem/assignments/${assignment.body.assignment.id}/reminders`, token: teacherToken,
@@ -356,6 +468,10 @@ try {
       event_type TEXT NOT NULL, payload_json TEXT NOT NULL, occurred_at TEXT NOT NULL,
       UNIQUE (student_user_id, idempotency_key)
     );
+    CREATE TABLE private_notes (
+      user_id TEXT NOT NULL, route_id TEXT NOT NULL, body TEXT NOT NULL, updated_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, route_id)
+    );
   `)
   const legacyAt = '2026-01-01T00:00:00.000Z'
   legacyDatabase.prepare('INSERT INTO classrooms VALUES (?, ?, ?, ?, ?, ?)').run('legacy-class', 'ielts:1', 'Legacy Physics', 'legacy-code', legacyAt, null)
@@ -364,9 +480,17 @@ try {
   legacyDatabase.prepare('INSERT INTO class_memberships VALUES (?, ?, ?, ?)').run('legacy-class', 'ielts:3', 'school', legacyAt)
   legacyDatabase.prepare('INSERT INTO assignments VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run('legacy-assignment', 'legacy-class', 'ielts:1', 'physics', 'AS', 'physics-waves', 'Old mixed assignment', JSON.stringify({ questionIds: ['old-question'] }), null, 'active', legacyAt)
   legacyDatabase.prepare('INSERT INTO submission_events VALUES (?, ?, ?, ?, ?, ?, ?)').run('legacy-event', 'legacy-assignment', 'ielts:2', 'legacy-key', 'submitted', JSON.stringify({ rawMarks: 4, maxMarks: 10, percentage: 40 }), legacyAt)
+  legacyDatabase.prepare('INSERT INTO private_notes VALUES (?, ?, ?, ?)').run('ielts:1', 'cie-9702-as-physics', 'Legacy private note', legacyAt)
   legacyDatabase.close()
 
-  const legacyApi = createStemApi({ env: { STEM_IDENTITY_SIGNING_KEY: signingKey, STEM_DB_PATH: legacyDatabasePath } })
+  const legacyApi = createStemApi({ env: { STEM_IDENTITY_SIGNING_KEY: signingKey, STEM_DB_PATH: legacyDatabasePath }, questionBank: testOnlyAssignableQuestionBank })
+  const migratedLegacyNote = await call(legacyApi, { method: 'GET', url: '/api/stem/notebook/notes?routeId=cie-9702-as-physics', token: teacherToken })
+  assert.equal(migratedLegacyNote.statusCode, 200, migratedLegacyNote.body.error)
+  assert.equal(migratedLegacyNote.body.note.body, 'Legacy private note', 'legacy private notes must survive the additive deleted_at migration')
+  assert.equal(migratedLegacyNote.body.note.deleted, false)
+  const deletedLegacyNote = await call(legacyApi, { method: 'DELETE', url: '/api/stem/notebook/notes/cie-9702-as-physics', token: teacherToken })
+  assert.equal(deletedLegacyNote.statusCode, 200, deletedLegacyNote.body.error)
+  assert.equal(deletedLegacyNote.body.note.deleted, true, 'the migrated private note table must accept tombstones')
   const legacyWorkspace = await call(legacyApi, { method: 'GET', url: '/api/stem/workspace', token: teacherToken })
   assert.equal(legacyWorkspace.statusCode, 200, legacyWorkspace.body.error)
   assert.equal(legacyWorkspace.body.assignments[0].routeId, 'legacy-unscoped')
@@ -404,9 +528,54 @@ try {
   })
   assert.equal(legacySubmission.statusCode, 409)
   assert.match(legacySubmission.body.error, /Legacy unscoped assignments/)
+
+  closeStemDatabaseForTests()
+  const stageDriftDatabase = new DatabaseSync(stageDriftDatabasePath)
+  stageDriftDatabase.exec(`
+    CREATE TABLE classrooms (id TEXT PRIMARY KEY, owner_user_id TEXT NOT NULL, name TEXT NOT NULL, invite_code TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, archived_at TEXT);
+    CREATE TABLE class_memberships (classroom_id TEXT NOT NULL, user_id TEXT NOT NULL, role TEXT NOT NULL, joined_at TEXT NOT NULL, PRIMARY KEY (classroom_id, user_id));
+    CREATE TABLE assignments (
+      id TEXT PRIMARY KEY, classroom_id TEXT NOT NULL, created_by_user_id TEXT NOT NULL, subject_id TEXT NOT NULL,
+      stage TEXT NOT NULL, route_id TEXT NOT NULL, syllabus_point_id TEXT NOT NULL, title TEXT NOT NULL,
+      source_scope_json TEXT NOT NULL, due_at TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL
+    );
+    CREATE TABLE submission_events (
+      id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL, student_user_id TEXT NOT NULL, idempotency_key TEXT NOT NULL,
+      event_type TEXT NOT NULL, route_id TEXT NOT NULL, stage TEXT NOT NULL, payload_json TEXT NOT NULL, occurred_at TEXT NOT NULL,
+      UNIQUE (assignment_id, student_user_id, idempotency_key)
+    );
+  `)
+  stageDriftDatabase.prepare('INSERT INTO classrooms VALUES (?, ?, ?, ?, ?, ?)').run('stage-drift-class', 'ielts:1', 'Competition migration', 'stage-drift', legacyAt, null)
+  stageDriftDatabase.prepare('INSERT INTO class_memberships VALUES (?, ?, ?, ?)').run('stage-drift-class', 'ielts:1', 'owner', legacyAt)
+  stageDriftDatabase.prepare('INSERT INTO class_memberships VALUES (?, ?, ?, ?)').run('stage-drift-class', 'ielts:2', 'student', legacyAt)
+  for (const [id, routeId, subjectId, topicId] of [
+    ['old-bpho-assignment', 'bpho-admissions-physics', 'bpho', 'bpho-mechanics'],
+    ['old-amc-assignment', 'maa-amc12-admissions-mathematics', 'amc12', 'amc12-algebra'],
+  ]) {
+    const sourceScope = JSON.stringify({ questionIds: [`${id}-q1@${routeId}`], routeId, stage: 'Admissions' })
+    stageDriftDatabase.prepare('INSERT INTO assignments VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(id, 'stage-drift-class', 'ielts:1', subjectId, 'Admissions', routeId, topicId, `Old ${subjectId} assignment`, sourceScope, null, 'active', legacyAt)
+  }
+  stageDriftDatabase.prepare('INSERT INTO submission_events VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run('old-bpho-event', 'old-bpho-assignment', 'ielts:2', 'old-bpho-key', 'submitted', 'bpho-admissions-physics', 'Admissions', JSON.stringify({ rawMarks: 7, maxMarks: 10, percentage: 70 }), legacyAt)
+  stageDriftDatabase.close()
+
+  const stageDriftApi = createStemApi({ env: { STEM_IDENTITY_SIGNING_KEY: signingKey, STEM_DB_PATH: stageDriftDatabasePath }, questionBank: testOnlyAssignableQuestionBank })
+  const stageDriftWorkspace = await call(stageDriftApi, { method: 'GET', url: '/api/stem/workspace', token: teacherToken })
+  assert.equal(stageDriftWorkspace.statusCode, 200, stageDriftWorkspace.body.error)
+  const migratedCompetitionAssignments = stageDriftWorkspace.body.assignments.filter((assignment) => assignment.classroomId === 'stage-drift-class')
+  assert.deepEqual(migratedCompetitionAssignments.map((assignment) => [assignment.routeId, assignment.stage, assignment.sourceScope.stage]).sort(), [
+    ['bpho-admissions-physics', 'Competition', 'Competition'],
+    ['maa-amc12-admissions-mathematics', 'Competition', 'Competition'],
+  ], 'registered BPhO and AMC12 route IDs must migrate from the obsolete Admissions stage without mixing routes')
+  const migratedCompetitionSubmission = await call(stageDriftApi, {
+    method: 'POST', url: '/api/stem/assignments/old-bpho-assignment/submissions', token: studentToken,
+    body: { idempotencyKey: 'new-bpho-competition-key', routeId: 'bpho-admissions-physics', stage: 'Competition', rawMarks: 8, maxMarks: 10, percentage: 80 },
+  })
+  assert.equal(migratedCompetitionSubmission.statusCode, 201, migratedCompetitionSubmission.body.error)
+  assert.equal(migratedCompetitionSubmission.body.stage, 'Competition')
   console.log('Shared workspace API checks passed')
 } finally {
   closeStemDatabaseForTests()
   fs.rmSync(path.dirname(databasePath), { recursive: true, force: true })
   fs.rmSync(path.dirname(legacyDatabasePath), { recursive: true, force: true })
+  fs.rmSync(path.dirname(stageDriftDatabasePath), { recursive: true, force: true })
 }

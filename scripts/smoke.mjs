@@ -7,21 +7,147 @@ import { getExamPaperProfile, getRouteOptions, getStageGuidance } from '../src/d
 import { reviewAttempt } from '../src/lib/aiReview.js'
 import { latestBphoSpcPaper, parseCoachIntent } from '../src/lib/coachIntent.js'
 import { isHumanReviewedPastPaperItem, isVerifiedPastPaperItem, paperQuestionMarkingMetadata, selectTaggedQuestions, unifiedQuestionBank } from '../src/data/questionBank.js'
-import { buildCoachPractice, buildVerifiedPracticeCatalog, verifiedPracticeCatalogMetrics } from '../src/lib/coachPractice.js'
+import { PracticeInventoryError, buildCoachPractice, buildVerifiedPracticeCatalog, rebindVerifiedPracticeUnit, verifiedPracticeCatalogMetrics } from '../src/lib/coachPractice.js'
 import { pointerSamples } from '../src/lib/inkStroke.js'
-import { buildSharedMarkingSubmission, completedMarksByQuestion, createSharedMarkingSubmission, paperSubmissionMarkingSummary, retrySharedMarkingSubmission, waitForSharedMarkingSubmission } from '../src/lib/paperMarking.js'
+import { HANDWRITING_HISTORY_MAX_BYTES, HANDWRITING_HISTORY_MAX_ENTRIES, handwritingHistorySize, trimHandwritingHistory } from '../src/lib/inkHistory.js'
+import { buildSharedMarkingSubmission, completedMarksByQuestion, createSharedMarkingSubmission, paperSubmissionMarkingSummary, readSharedMarkingAvailability, retrySharedMarkingSubmission, waitForSharedMarkingSubmission } from '../src/lib/paperMarking.js'
 import { buildCompletionByUnit, buildLearningEvents, buildLearningProgress, recommendForRoute } from '../src/lib/learningProgress.js'
+import { answeredQuestionCount, buildLearningExport, hasAttemptResponse, hasCurrentSourceBindingForAttempt, isPendingSelfMarkAttempt, isScoredAttempt, prepareLearningExport, sourceBindingSnapshotForUnit } from '../src/lib/attemptAudit.js'
+import { mergeNotebookNote, notebookNoteRequest } from '../src/lib/privateNotes.js'
 import { scoreAttempt } from '../src/lib/scoring.js'
-import { buildCoachSystemPrompt, normalizeMarkResult, parseStructuredJson, providerConfig } from '../server/aiApi.js'
+import { buildPartMarkingLifecycle, finalizePartMarking, hasCompleteStudentMarks, markingCapabilityForUnit, pendingPartsForLifecycle } from '../src/lib/markingLifecycle.js'
+import { normalizeState } from '../src/lib/storage.js'
+import { canonicalReturnUrl, sharedAuthUrl } from '../src/lib/sharedAccount.js'
+import { configuredIdentityOrigin } from '../src/lib/identityOrigin.js'
+import { applyProductContext, parseProductContext, termIdsForStemContext, topicIdForTermIds } from '../src/lib/productContext.js'
+import { buildCoachSystemPrompt, canonicalHandwritingMarkingContext, normalizeMarkResult, parseStructuredJson, providerConfig } from '../server/aiApi.js'
 import { buildLegacyQuestionGroup, normalisePartLabel, normaliseQuestionGroup, validateQuestionGroup } from '../src/data/questionParts.js'
 import { COURSE_STAGE_ORDER } from '../src/data/stages.js'
 import { ARCHIVE_SOURCES, BPHO_ROUNDS, archiveSeasonLabel, buildArchiveStats } from '../src/data/competitionArchive.js'
 import { stagesForSubject } from '../src/data/audience.js'
+import sourceContentManifest from '../src/data/sourceContentManifest.json' with { type: 'json' }
+import importedQuestionIndex from '../src/data/importedQuestionIndex.json' with { type: 'json' }
+import { canonicalSourceMarkingProvenance, sourceBindingSignature, sourceBindingStatus } from '../src/lib/sourceContentContract.js'
+import { HIGH_PRIORITY_SOURCE_RANGE_REVIEW_IDS, RESOLVED_NON_CONTENT_PAGE_GAPS, SEMANTIC_REVIEW_FIXTURES } from '../src/lib/sourceSemanticContract.js'
+import { reviewedSourceFocusBinding, sourceContentStatus } from '../src/lib/questionContent.js'
 
 const unitIds = new Set(practiceUnits.map((unit) => unit.id))
 assert.equal(unitIds.size, practiceUnits.length, 'practice unit IDs must be unique')
 
+const missingMiddleSourcePage = sourceBindingStatus({
+  questionId: 'fixture-source-gap',
+  sourceRef: {
+    paperId: 'fixture-paper',
+    sha256: 'fixture-sha',
+    pageStart: 8,
+    pageEnd: 10,
+    assetUrls: [
+      '/question-assets/fixture-paper/qp-08.jpg',
+      '/question-assets/fixture-paper/qp-10.jpg',
+    ],
+  },
+  parts: [{ partId: 'fixture-source-gap:a', sourcePage: 8 }],
+})
+assert.deepEqual(missingMiddleSourcePage.sourcePages, [8, 9, 10], 'source page ranges must expand every inclusive page, not only the endpoints')
+assert.ok(missingMiddleSourcePage.reasons.includes('missing-page-asset:9'), 'a missing intermediate source page must quarantine the item')
+const partOutsideSourcePage = sourceBindingStatus({
+  questionId: 'fixture-source-part-range',
+  sourceRef: {
+    paperId: 'fixture-paper',
+    sha256: 'fixture-sha',
+    pageStart: 8,
+    pageEnd: 10,
+    assetUrls: [
+      '/question-assets/fixture-paper/qp-08.jpg',
+      '/question-assets/fixture-paper/qp-09.jpg',
+      '/question-assets/fixture-paper/qp-10.jpg',
+    ],
+  },
+  parts: [{ partId: 'fixture-source-part-range:a', sourcePage: 11 }],
+})
+assert.ok(partOutsideSourcePage.reasons.includes('part-source-page-outside-range:fixture-source-part-range:a:11'), 'every part page must remain inside the declared source page range')
+assert.equal(sourceContentManifest.schemaVersion, 'source-content-audit-v2', 'client source manifest must use the audited schema')
+assert.equal(Object.keys(sourceContentManifest.items).length, 1320, 'every imported source question must receive an explicit runtime audit state')
+assert.equal(Object.values(sourceContentManifest.items).filter((item) => !item.fileComplete).length, 430, 'source audit must preserve the 427 index quarantines plus 3 source-file quarantines')
+assert.equal(Object.values(sourceContentManifest.items).filter((item) => !item.complete).length, 1294, 'effective practice gate must exclude every unreviewed or semantically quarantined source record')
+assert.equal(Object.values(sourceContentManifest.items).filter((item) => item.complete).length, 26, 'only the reviewed source-complete fixture set may enter the effective practice bank')
+
+const semanticFixtureIds = ['bpho-2025_IPC:q13', 'bpho-2025_IPC:q14']
+for (const questionId of semanticFixtureIds) {
+  assert.equal(sourceContentManifest.items[questionId]?.semanticStatus, 'semantic-quarantined', `${questionId} must remain fail-closed until its QP/MS semantics are rebuilt and reviewed`)
+  assert.equal(sourceContentManifest.items[questionId]?.complete, false, `${questionId} must not be practice-available from the old truncated record`)
+}
+for (const questionId of Object.keys(RESOLVED_NON_CONTENT_PAGE_GAPS)) {
+  const item = sourceContentManifest.items[questionId]
+  assert.ok(item, `${questionId} blank/working-space counterexample must remain in the audit manifest`)
+  assert.equal(item?.fileComplete, true, `${questionId} non-content page must not create a false file-missing failure`)
+  assert.doesNotMatch((item?.reasons || []).join('|'), /source-range-ends-before-next-question/, `${questionId} must not be quarantined merely because a blank/working-space page is omitted`)
+  assert.notEqual(item?.semanticStatus, 'semantic-quarantined', `${questionId} must not receive a semantic range quarantine from a resolved non-content page`)
+}
+for (const questionId of HIGH_PRIORITY_SOURCE_RANGE_REVIEW_IDS) {
+  assert.equal(sourceContentManifest.items[questionId]?.complete, false, `${questionId} high-priority range candidate must fail closed pending semantic review`)
+}
+
+const focusedQ1 = unifiedQuestionBank.find((question) => question.sourceQuestionId === 'cie-0580-0580_m25_qp_12:q1')
+const focusedQ2 = unifiedQuestionBank.find((question) => question.sourceQuestionId === 'cie-0580-0580_m25_qp_12:q2')
+assert.equal(focusedQ1?.parts?.[0]?.sourceFocus, null, 'a reviewed item without explicit display-bound review must default to the full original page')
+assert.equal(focusedQ2?.parts?.[0]?.sourceFocus, null, 'multi-part items without explicit display-bound review must default to the full original page')
+const focusedQ10 = unifiedQuestionBank.find((question) => question.sourceQuestionId === 'cie-0580-0580_m25_qp_12:q10')
+const focusedQ14 = unifiedQuestionBank.find((question) => question.sourceQuestionId === 'cie-0580-0580_m25_qp_12:q14')
+const focusedQ16 = unifiedQuestionBank.find((question) => question.sourceQuestionId === 'cie-0580-0580_m25_qp_12:q16')
+const focusedQ18 = unifiedQuestionBank.find((question) => question.sourceQuestionId === 'cie-0580-0580_m25_qp_12:q18')
+const focusedQ5 = unifiedQuestionBank.find((question) => question.sourceQuestionId === 'cie-0580-0580_m25_qp_12:q5')
+assert.deepEqual(focusedQ5?.parts?.[0]?.sourceFocus?.pages?.[0]?.region, [80, 98, 930, 660], 'reviewed shape Q5 must use the padded safe display crop')
+assert.equal(focusedQ10?.parts?.[0]?.sourceFocus, null, 'Q10 must default to its complete original page when a source crop cannot provide a safe visual boundary')
+assert.deepEqual(focusedQ14?.parts?.[0]?.sourceFocus?.pages?.map((page) => page.page), [8, 9], 'reviewed cross-page Q14 must bind both QP pages into every dependent part')
+assert.deepEqual(focusedQ14?.parts?.[2]?.sourceFocus?.pages?.[1]?.region, [88, 92, 930, 1030], 'reviewed Q14(c) must use the padded safe net crop')
+assert.deepEqual(focusedQ16?.parts?.[0]?.sourceFocus?.pages?.[0]?.region, [84, 96, 930, 670], 'reviewed scatter Q16 must use the padded safe display crop')
+assert.deepEqual(focusedQ18?.parts?.[0]?.sourceFocus?.pages?.[0]?.region, [80, 92, 940, 1090], 'reviewed table-and-grid Q18 must use the padded safe display crop')
+assert.deepEqual(focusedQ18?.parts?.[0]?.sourceFocus?.pages?.[0]?.safetyMargin, [40, 6, 38, 30], 'reviewed display bounds must retain auditable padding from raw evidence')
+
+const rawQ1 = importedQuestionIndex.questions.find((question) => question.questionId === 'cie-0580-0580_m25_qp_12:q1')
+const rawQ1Binding = importedQuestionIndex.bindings.find((binding) => binding.questionId === rawQ1?.questionId)
+const malformedFocus = structuredClone({ ...rawQ1, answerBinding: rawQ1Binding })
+malformedFocus.answerBinding.reviewEvidence.partAllocations[0].questionRegion = [0, 0, 99999, 99999]
+assert.equal(reviewedSourceFocusBinding(malformedFocus).complete, false, 'an out-of-bounds reviewed crop must fall back to the full page')
+
+const staleBphoUnit = {
+  id: 'stale-bpho-q13-unit',
+  routeId: 'bpho-competition',
+  type: 'topic',
+  parts: [{ sourceKind: 'past-paper', sourceQuestionId: 'bpho-2025_IPC:q13', questionPartId: 'bpho-2025_IPC:q13:part-a', sourceContentComplete: true, reviewStatus: 'reviewed', aiAssistedMarkingAvailable: true }],
+}
+assert.equal(rebindVerifiedPracticeUnit(staleBphoUnit), null, 'a stale persisted BPhO unit must not be rebound from client capability flags')
+const validProvenance = canonicalSourceMarkingProvenance(focusedQ1, focusedQ1?.parts?.[0])
+const validCanonicalContext = canonicalHandwritingMarkingContext({ provenance: { ...validProvenance, routeId: focusedQ1?.routeId } })
+assert.equal(validCanonicalContext.ok, true, 'a current reviewed source part must be accepted by the server canonical marking gate')
+const missingCanonicalContext = canonicalHandwritingMarkingContext({ provenance: { sourceQuestionId: focusedQ1?.sourceQuestionId, questionPartId: focusedQ1?.parts?.[0]?.partId, routeId: focusedQ1?.routeId } })
+assert.equal(missingCanonicalContext.code, 'source_provenance_missing', 'AI marking must require a complete manifest-v2 provenance tuple')
+const staleCanonicalContext = canonicalHandwritingMarkingContext({ provenance: { ...validProvenance, routeId: focusedQ1?.routeId, bindingSignature: 'fnv1a64:0000000000000000' } })
+assert.equal(staleCanonicalContext.code, 'source_provenance_mismatch', 'a stale binding signature must not enter AI marking')
+const forgedCanonicalContext = canonicalHandwritingMarkingContext({ provenance: {
+  ...validProvenance,
+  sourceQuestionId: 'bpho-2025_IPC:q13',
+  questionPartId: 'bpho-2025_IPC:q13:part-a',
+  routeId: 'bpho-competition',
+} })
+assert.equal(forgedCanonicalContext.ok, false, 'a forged reviewed capability must be rejected before an AI provider call')
+const tamperedAnswerSource = structuredClone(focusedQ1)
+tamperedAnswerSource.answerRef.sha256 = 'f'.repeat(64)
+assert.notEqual(sourceBindingSignature(tamperedAnswerSource), sourceBindingSignature(focusedQ1), 'the canonical source signature must include the current answer-document checksum')
+assert.equal(sourceContentStatus(tamperedAnswerSource).complete, false, 'a changed answer-document checksum must fail the runtime source-content gate')
+assert.ok(sourceContentStatus(tamperedAnswerSource).reasons.includes('source-audit-stale'), 'a changed answer-document checksum must not remain eligible through a stale audit record')
+for (const questionId of Object.keys(SEMANTIC_REVIEW_FIXTURES)) {
+  assert.equal(sourceContentManifest.items[questionId]?.complete, false, `${questionId} semantic fixture must remain unavailable`)
+}
+
 assert.equal(pointerSamples({ nativeEvent: { clientX: 10, clientY: 12, getCoalescedEvents: () => [] } }).length, 1, 'an empty Safari coalesced-event list must retain the current pointer sample')
+const iPadHistorySnapshot = handwritingHistorySize(2048, 2732)
+assert.ok(iPadHistorySnapshot.bytes < 2 * 1024 * 1024, 'one iPad undo snapshot must stay below 2 MB instead of retaining a full-DPR canvas')
+assert.equal(iPadHistorySnapshot.fullDpr, false, 'iPad undo history must use bounded preview snapshots')
+const boundedHistory = trimHandwritingHistory(Array.from({ length: 40 }, () => ({ bytes: iPadHistorySnapshot.bytes })))
+assert.ok(boundedHistory.entries.length <= HANDWRITING_HISTORY_MAX_ENTRIES, 'undo history must have a hard entry cap')
+assert.ok(boundedHistory.bytes <= HANDWRITING_HISTORY_MAX_BYTES, 'undo history must have a measurable byte budget')
 
 assert.deepEqual(parseStructuredJson('```json\n{"rawMarks":2}\n```'), { rawMarks: 2 }, 'AI JSON parser must accept fenced structured output')
 assert.match(buildCoachSystemPrompt({ verifiedSubmitted: false, hintLevel: 4 }), /Do not reveal the final answer or a complete worked solution/, 'unverified Coach prompt must forbid answer leakage')
@@ -45,10 +171,55 @@ assert.equal(qwenProviders.coach.apiKey, 'test-only', 'Coach must inherit the IE
 assert.equal(qwenProviders.coach.model, 'qwen-coach-test', 'Coach must use its Qwen model override')
 assert.equal(qwenProviders.vision.model, 'qwen-vision-test', 'Vision marking must use its Qwen vision model override')
 assert.equal(providerConfig({ OPENAI_API_KEY: 'legacy-only' }).coach.apiKey, '', 'OpenAI credentials must not silently replace Qwen')
+const localIdentityOrigin = configuredIdentityOrigin('http://127.0.0.1:4999/auth/path')
+let markingAvailabilityRequestUrl = ''
+await readSharedMarkingAvailability({
+  token: 'test-token',
+  origin: localIdentityOrigin,
+  fetchImpl: async (url) => {
+    markingAvailabilityRequestUrl = String(url)
+    return { ok: true, status: 200, json: async () => ({ enabled: true, modelConfigured: true, queueAvailable: true, authenticationRequired: false }) }
+  },
+})
+assert.equal(markingAvailabilityRequestUrl, 'http://127.0.0.1:4999/api/stem/marking/availability', 'local marking availability must use the configured identity origin')
+assert.doesNotMatch(markingAvailabilityRequestUrl, /https:\/\/ieltsist\.com/, 'local or staging marking checks must not silently target production')
+
+const dirtyStemReturn = 'https://stem.ieltsist.com/practice?routeId=cie-9702-as-physics&from=ieltsist&focus=account&returnTo=https%3A%2F%2Fevil.example%2F&token=secret&view=topic#session'
+const canonicalStemReturn = canonicalReturnUrl(dirtyStemReturn, 'https://stem.ieltsist.com/')
+assert.equal(canonicalStemReturn, 'https://stem.ieltsist.com/practice?routeId=cie-9702-as-physics&view=topic#session', 'shared auth returns must remove transient bridge and credential parameters')
+let roundTripAuthUrl = sharedAuthUrl('login', dirtyStemReturn)
+const firstRoundTripLength = roundTripAuthUrl.length
+assert.equal(new URL(roundTripAuthUrl).searchParams.has('return_to'), false, 'auth bridges must emit one canonical return parameter')
+for (let index = 0; index < 10; index += 1) {
+  const returnTo = new URL(roundTripAuthUrl).searchParams.get('returnTo')
+  assert.ok(returnTo && !/[?&](?:returnTo|return_to|auth|bridge|token|code|state)=/i.test(returnTo), 'canonical return URLs must not nest auth bridge parameters')
+  roundTripAuthUrl = sharedAuthUrl('login', returnTo)
+}
+assert.equal(roundTripAuthUrl.length, firstRoundTripLength, 'ten IELTSist/STEM auth round trips must not grow the URL')
+assert.equal(canonicalReturnUrl('https://evil.example/steal?token=x', 'https://stem.ieltsist.com/practice?routeId=cie-9702-as-physics'), 'https://stem.ieltsist.com/practice?routeId=cie-9702-as-physics', 'external return origins must be rejected in favour of a canonical STEM URL')
+assert.equal(canonicalReturnUrl('https://stem.ieltsist.com/practice#attempt?token=secret', 'https://stem.ieltsist.com/'), 'https://stem.ieltsist.com/practice', 'fragment credentials and nested query text must be removed from return URLs')
+assert.equal(canonicalReturnUrl('https://stem.ieltsist.com/practice#attempt/saved-attempt-1', 'https://stem.ieltsist.com/'), 'https://stem.ieltsist.com/practice#attempt/saved-attempt-1', 'known in-app route fragments may survive the auth bridge')
+assert.equal(canonicalReturnUrl('https://stem.ieltsist.com/practice#untrusted-fragment', 'https://stem.ieltsist.com/'), 'https://stem.ieltsist.com/practice', 'unknown fragments must not cross the auth bridge')
+assert.equal(canonicalReturnUrl('https://stem.ieltsist.com/practice#attempt%3Fcode%3Dsecret', 'https://stem.ieltsist.com/'), 'https://stem.ieltsist.com/practice', 'encoded fragment credentials must not cross the auth bridge')
+assert.equal(canonicalReturnUrl('https://stem.ieltsist.com/practice?routeId=cie-9702-as-physics&access_token=secret&refresh_token=secret&session=secret&callback=secret&redirect=https%3A%2F%2Fevil.example#attempt?refresh_token=secret', 'https://stem.ieltsist.com/'), 'https://stem.ieltsist.com/practice?routeId=cie-9702-as-physics', 'all credential and callback parameters must be removed from shared return URLs')
+assert.ok(canonicalReturnUrl(`https://stem.ieltsist.com/${'a'.repeat(2_000)}?view=topic#attempt`, 'https://stem.ieltsist.com/').length <= 1_200, 'canonical return URLs must enforce the length limit even when the pathname is oversized')
+const legacyProductContext = parseProductContext('?from=ieltsist&route_id=cie-9702-as-physics&topic_id=physics-9702-topic-03&term_ids=stem.physics.dynamics,stem.physics.forces-momentum&return_attempt=att-123&return_to=https%3A%2F%2Fstem.ieltsist.com%2F%3Fview%3Dpractice')
+assert.deepEqual(legacyProductContext, {
+  from: 'ieltsist', focus: '', routeId: 'cie-9702-as-physics', topicId: 'physics-9702-topic-03', termIds: ['stem.physics.dynamics', 'stem.physics.forces-momentum'], attemptId: 'att-123', returnTo: 'https://stem.ieltsist.com/?view=practice',
+}, 'STEM must parse legacy IELTS product context without guessing display labels')
+assert.deepEqual(termIdsForStemContext({ topicId: 'physics-9702-topic-03', topicTags: ['dynamics'] }), ['stem.physics.dynamics', 'stem.physics.forces-momentum'], 'topic and term mapping must use explicit stable IDs')
+assert.equal(topicIdForTermIds(['stem.physics.dynamics']), 'physics-9702-topic-03', 'known IELTS term IDs must return to their exact STEM topic')
+const canonicalProductUrl = applyProductContext(new URL('https://ieltsist.com/?from=stem&focus=language'), {
+  routeId: 'cie-9702-as-physics', topicId: 'physics-9702-topic-03', termIds: ['stem.physics.dynamics'], attemptId: 'att-123', returnTo: 'https://stem.ieltsist.com/?view=practice',
+}).href
+assert.match(canonicalProductUrl, /routeId=cie-9702-as-physics/, 'outbound product context must use canonical camelCase routeId')
+assert.match(canonicalProductUrl, /termIds=stem.physics.dynamics/, 'outbound product context must use canonical camelCase termIds')
+assert.doesNotMatch(canonicalProductUrl, /(?:return_attempt|term_ids|return_to)=/, 'outbound product context must not emit legacy snake_case fields')
 
 assert.deepEqual(parseCoachIntent('给我一套最新的bpho的spc的真题 带答案'), {
   type: 'open-latest-paper',
   contest: 'bpho-spc',
+  routeId: 'bpho-admissions-physics',
   label: 'BPhO Senior Physics Challenge',
 }, 'BPhO SPC Coach request must become a platform action')
 assert.deepEqual(parseCoachIntent('帮我组织一套 AS 物理波章节的 10 道真题'), {
@@ -63,8 +234,11 @@ assert.deepEqual(parseCoachIntent('帮我组织一套 AS 物理波章节的 10 �
 assert.equal(parseCoachIntent('A2 化学有机专题 15 道真题').knowledgeGroupId, 'chemistry-9701-organic', 'Coach must route Chemistry by syllabus topic')
 assert.equal(parseCoachIntent('A2 经济国际经济专题 10 道题').knowledgeGroupId, 'economics-9708-international', 'Coach must route Economics by syllabus topic')
 assert.equal(parseCoachIntent('BPhO 力学 10 道练习').knowledgeGroupId, 'bpho-mechanics', 'BPhO must remain a parallel olympiad qualification')
+assert.equal(parseCoachIntent('BPhO 力学 10 道练习').routeId, 'bpho-admissions-physics', 'BPhO Coach intent must carry its exact Competition route')
 assert.equal(parseCoachIntent('ESAT Physics 10 questions').knowledgeGroupId, 'esat-physics', 'ESAT modules must route independently')
+assert.equal(parseCoachIntent('ESAT Physics 10 questions').routeId, 'uatuk-esat-admissions', 'ESAT Coach intent must carry its exact Admissions route')
 assert.equal(parseCoachIntent('TMUA proof 10 questions').knowledgeGroupId, 'tmua-proof', 'TMUA topics must route independently')
+assert.equal(parseCoachIntent('TMUA proof 10 questions').routeId, 'uatuk-tmua-admissions', 'TMUA Coach intent must carry its exact Admissions route')
 assert.equal(parseCoachIntent('0610 IGCSE Biology cells 10 questions').subjectCode, '0610', 'IGCSE Biology must route to 0610')
 assert.equal(parseCoachIntent('9700 AS Biology transport 10 questions').subjectCode, '9700', 'A-Level Biology must route to 9700')
 assert.equal(parseCoachIntent('Give me an AS Physics past-paper set').type, 'clarify-practice', 'an ambiguous subject request must ask for a topic instead of guessing')
@@ -80,26 +254,36 @@ assert.ok(handwritingPadSource.includes('aiReviewEligible ?'), 'handwriting stat
 assert.ok(handwritingPadSource.includes('self-mark with the paired mark scheme after submission'), 'unreviewed handwriting must direct students to the paired mark scheme')
 
 const appSource = fs.readFileSync(path.resolve(import.meta.dirname, '..', 'src', 'App.jsx'), 'utf8')
+const markingLifecycleSource = fs.readFileSync(path.resolve(import.meta.dirname, '..', 'src', 'lib', 'markingLifecycle.js'), 'utf8')
 assert.ok(appSource.includes('unifiedQuestionBank'), 'topic detail must read the decoupled question bank')
 assert.ok(appSource.includes('topic-detail__paper-group'), 'topic detail must render grouped real-paper questions')
+assert.ok(appSource.includes('onAgentAction={handleCoachAgentAction}'), 'Coach agent actions must be available from every current student route')
+assert.ok(!appSource.includes("onAgentAction={activeRoute.stage === 'Competition'"), 'Coach actions must not be disabled merely because the current route is not Competition')
+assert.ok(markingLifecycleSource.includes("evidenceStatus: 'not-recorded'"), 'student-recorded total marks must explicitly declare that point-level evidence was not captured')
+assert.ok(!markingLifecycleSource.includes('awarded: index < awarded'), 'a student-recorded total must never fabricate which mark-scheme points were awarded')
 const paperLibrarySource = fs.readFileSync(path.resolve(import.meta.dirname, '..', 'src', 'components', 'PaperLibrary.jsx'), 'utf8')
 assert.ok(paperLibrarySource.includes("activeRoute?.stage === 'Competition'"), 'competition archives must bypass Cambridge component filtering')
 assert.ok(paperLibrarySource.includes("filters.subject === 'bpho' ? 'Round'"), 'BPhO archive must expose a first-class Round filter')
 assert.ok(paperLibrarySource.includes('routeComponents.includes(component)'), 'route-scoped Paper selectors must be built from the route component allowlist')
 const coachSource = fs.readFileSync(path.resolve(import.meta.dirname, '..', 'src', 'components', 'AiCoach.jsx'), 'utf8')
-assert.ok(coachSource.includes('context.routeId') && coachSource.includes('context.stage') && coachSource.includes('context.view'), 'Coach storage keys must include route, stage and view')
+assert.ok(coachSource.includes('context.stateOwnerId') && coachSource.includes('context.routeId') && coachSource.includes('context.stage') && coachSource.includes('context.view'), 'Coach storage keys must include owner, route, stage and view')
 assert.ok(coachSource.includes('canOpenBphoSpc'), 'BPhO Coach quick action must be guarded by the Competition route')
 const paperWorkspaceSource = fs.readFileSync(path.resolve(import.meta.dirname, '..', 'src', 'components', 'PaperWorkspace.jsx'), 'utf8')
+const pdfViewerSource = fs.readFileSync(path.resolve(import.meta.dirname, '..', 'src', 'components', 'PdfViewer.jsx'), 'utf8')
 assert.ok(paperWorkspaceSource.includes('pdfInkMapVersion === 2'), 'legacy inferred PDF ink mappings must be quarantined')
 assert.ok(paperWorkspaceSource.includes('linkPdfInkToQuestion'), 'PDF ink must require an explicit answer-slot link before it counts as a response')
 assert.ok(!paperWorkspaceSource.includes('Number(ink.questionNumber) || focusedQuestion'), 'PDF ink must not infer a question number from current focus')
+assert.ok(!pdfViewerSource.includes('.toDataURL('), 'PDF pointer-up persistence must never use synchronous canvas serialization')
+assert.ok(pdfViewerSource.includes('encodingPromiseRef'), 'PDF ink flushes must coalesce concurrent autosave and submit encodes')
+assert.ok(handwritingPadSource.includes('dataset.historyBytes') && handwritingPadSource.includes('dataset.lastEncodeMs'), 'handwriting QA must expose measurable memory and encode-latency metrics')
 
 assert.equal(practiceUnits.length, 0, 'formal practice must not expose generated seed questions')
 const verifiedPracticeCatalog = buildVerifiedPracticeCatalog()
 const verifiedCatalogMetrics = verifiedPracticeCatalogMetrics(verifiedPracticeCatalog)
-assert.deepEqual(verifiedCatalogMetrics, { units: 145, questionGroups: 917, answerableParts: 978, referencedPapers: 52, routes: 25, topics: 89 }, 'all verified indexed question groups must be exposed as stable route/topic practice units')
+assert.deepEqual(verifiedCatalogMetrics, { units: 8, questionGroups: 26, answerableParts: 46, referencedPapers: 1, routes: 1, topics: 7 }, 'only source-semantically reviewed question groups may be exposed as stable route/topic practice units')
 assert.equal(new Set(verifiedPracticeCatalog.map((unit) => unit.id)).size, verifiedPracticeCatalog.length, 'verified practice unit IDs must be stable and unique')
 assert.ok(verifiedPracticeCatalog.every((unit) => unit.parts.every((part) => part.routeId === unit.routeId && part.stage === unit.stage && part.sourceRef?.sha256 && part.answerRef?.sha256)), 'catalog practice units must preserve route, stage and independent QP/MS provenance')
+assert.ok(unifiedQuestionBank.every((item) => item.sourceContent?.complete === true), 'runtime inventory must fail closed for stale, missing, or incomplete source audits')
 const catalogAnswerParts = verifiedPracticeCatalog.flatMap((unit) => unit.parts)
 const reviewed0580Parts = catalogAnswerParts.filter((part) => part.sourceRef?.paperId === 'cie-0580-0580_m25_qp_12')
 const reviewed0580QuestionIds = [...new Set(reviewed0580Parts.map((part) => part.sourceQuestionId))].sort((left, right) => Number(left.split(':q')[1]) - Number(right.split(':q')[1]))
@@ -108,17 +292,24 @@ assert.equal(reviewed0580Parts.length, 46, 'reviewed 0580 March 2025 Paper 1 mus
 assert.equal(reviewed0580Parts.reduce((sum, part) => sum + (Number(part.marks) || 0), 0), 80, 'reviewed 0580 March 2025 Paper 1 mark allocations must total 80')
 assert.ok(reviewed0580Parts.every((part) => part.aiAssistedMarkingAvailable && part.answerBinding?.verificationStatus === 'reviewed'), 'every reviewed 0580 part must be eligible for AI-assisted marking and retain reviewed provenance')
 assert.equal(catalogAnswerParts.filter((part) => part.aiAssistedMarkingAvailable).length, 46, 'only the reviewed 0580 marking pilot parts may unlock AI-assisted marking')
-assert.equal(catalogAnswerParts.filter((part) => part.deterministicScoringAvailable).length, 769, 'only source-bound objective answers may use deterministic scoring')
-assert.equal(catalogAnswerParts.filter((part) => !part.aiAssistedMarkingAvailable && !part.deterministicScoringAvailable).length, 163, 'unreviewed structured items must remain explicitly self-mark only')
+assert.equal(catalogAnswerParts.filter((part) => part.deterministicScoringAvailable).length, 0, 'unreviewed objective answers must not enter the reviewed practice catalog')
+assert.equal(catalogAnswerParts.filter((part) => !part.aiAssistedMarkingAvailable && !part.deterministicScoringAvailable).length, 0, 'unreviewed structured items must remain outside the practice catalog rather than masquerading as self-mark units')
 const asPhysicsRecommendation = recommendForRoute({
   units: verifiedPracticeCatalog,
   routeId: 'cie-9702-as-physics',
 })
-assert.ok(asPhysicsRecommendation.unit.parts.length >= 10, 'a new student must be recommended a complete verified set when their route contains one')
-assert.equal(asPhysicsRecommendation.unit.routeId, 'cie-9702-as-physics', 'recommendations must remain route-isolated')
-const verifiedFixture = unifiedQuestionBank.find((item) => item.routeId === 'cie-9702-as-physics' && item.answerType === 'multiple-choice' && item.answerKey)
-assert.ok(verifiedFixture, 'a real 9702 MCQ fixture must be indexed')
-const verifiedUnit = { routeId: verifiedFixture.routeId, stage: verifiedFixture.stage, maxMarks: verifiedFixture.marks, parts: [{ ...verifiedFixture, id: 'verified-fixture' }] }
+assert.equal(asPhysicsRecommendation.unit, null, 'a route without semantically reviewed inventory must expose an honest no-data recommendation')
+assert.match(asPhysicsRecommendation.reason, /No additional verified set/, 'empty route recommendations must explain the source-indexing gap')
+const reviewedFixtureSource = unifiedQuestionBank.find((item) => item.sourceQuestionId === 'cie-0580-0580_m25_qp_12:q1')
+assert.ok(reviewedFixtureSource, 'the reviewed 0580 pilot must provide an isolated scoring fixture')
+const verifiedFixture = {
+  ...reviewedFixtureSource,
+  answerType: 'multiple-choice',
+  answerKey: 'B',
+  marks: 1,
+  parts: [{ ...reviewedFixtureSource.parts[0], id: 'verified-fixture', partId: 'verified-fixture', answerType: 'multiple-choice', answerKey: 'B', answer: 'B', options: ['A', 'B'], marks: 1, markPoints: ['correct option'] }],
+}
+const verifiedUnit = { routeId: verifiedFixture.routeId, stage: verifiedFixture.stage, maxMarks: verifiedFixture.marks, parts: verifiedFixture.parts }
 const blankResult = scoreAttempt(verifiedUnit, {}, 0)
 assert.equal(blankResult.rawMarks, 0, 'blank attempt must score zero')
 assert.equal(blankResult.maxMarks, verifiedUnit.maxMarks)
@@ -138,47 +329,247 @@ const selfMarkUnit = {
   maxMarks: 4,
   parts: [{ id: 'self-mark-part', marks: 4, answerType: 'written', deterministicScoringAvailable: false, aiAssistedMarkingAvailable: false, markPoints: ['point 1', 'point 2', 'point 3', 'point 4'] }],
 }
+const pureSelfMarkLifecycle = buildPartMarkingLifecycle(selfMarkUnit, { 'self-mark-part': 'A written response containing every tempting keyword.' }, 30, {})
+assert.equal(pureSelfMarkLifecycle.complete, false, 'a pure self-mark response must remain pending after submission')
+assert.deepEqual(pureSelfMarkLifecycle.provisionalCriteria, [], 'self-mark parts must never enter keyword-based provisional scoring')
+assert.equal(pureSelfMarkLifecycle.partStates['self-mark-part'].status, 'student-self-mark-pending')
+assert.equal(hasCompleteStudentMarks(selfMarkUnit, pureSelfMarkLifecycle, { 'self-mark-part': '' }), false, 'blank explicit marks must not finalize a self-mark attempt')
+const pureSelfMarkResult = finalizePartMarking(selfMarkUnit, pureSelfMarkLifecycle, { 'self-mark-part': 3 }, 30)
+assert.equal(pureSelfMarkResult.rawMarks, 3)
+assert.deepEqual(pureSelfMarkResult.criteria[0].evidence, [], 'student totals must not invent mark-point evidence')
+assert.equal(pureSelfMarkResult.criteria[0].evidenceStatus, 'not-recorded')
+
+const mixedSourceUnit = verifiedPracticeCatalog.find((unit) => unit.parts.length >= 2)
+assert.ok(mixedSourceUnit, 'the reviewed catalog must provide source-bound parts for a mixed lifecycle fixture')
+const realMixedUnit = {
+  ...mixedSourceUnit,
+  id: 'fixture-mixed-reviewed-source',
+  maxMarks: 2,
+  parts: [
+    {
+      ...mixedSourceUnit.parts[0],
+      id: 'mixed-deterministic-part',
+      deterministicScoringAvailable: true,
+      aiAssistedMarkingAvailable: false,
+      answerType: 'numeric',
+      acceptedValue: 20,
+      tolerance: 0,
+      acceptedUnits: [],
+      marks: 1,
+      markPoints: ['deterministic value'],
+    },
+    {
+      ...mixedSourceUnit.parts[1],
+      id: 'mixed-self-mark-part',
+      deterministicScoringAvailable: false,
+      aiAssistedMarkingAvailable: false,
+      marks: 1,
+      markPoints: ['student-recorded total only'],
+    },
+  ],
+}
+assert.equal(markingCapabilityForUnit(realMixedUnit).mode, 'mixed')
+const realMixedLifecycle = buildPartMarkingLifecycle(realMixedUnit, { 'mixed-deterministic-part': '20' }, 90, {})
+const realMixedPendingParts = pendingPartsForLifecycle(realMixedUnit, realMixedLifecycle)
+assert.equal(realMixedLifecycle.provisionalCriteria.length, 1, 'only deterministic parts may score provisionally in a mixed unit')
+assert.equal(realMixedPendingParts.length, 1, 'the unreviewed written 0625 part must stay pending')
+assert.ok(realMixedLifecycle.provisionalCriteria.every((criterion) => criterion.scoringSource === 'deterministic'))
+assert.equal(realMixedLifecycle.provisionalCriteria.some((criterion) => criterion.partId === realMixedPendingParts[0].id), false, 'the mixed self-mark part must never be keyword scored')
+assert.equal(hasCompleteStudentMarks(realMixedUnit, realMixedLifecycle, {}), false)
+const realMixedResult = finalizePartMarking(realMixedUnit, realMixedLifecycle, { [realMixedPendingParts[0].id]: realMixedPendingParts[0].marks }, 90)
+assert.equal(realMixedResult.criteria.length, realMixedUnit.parts.length)
+assert.equal(realMixedResult.maxMarks, realMixedUnit.parts.reduce((total, part) => total + part.marks, 0))
+assert.equal(realMixedResult.criteria.find((criterion) => criterion.partId === realMixedPendingParts[0].id).scoringSource, 'student-self-mark')
+assert.deepEqual(realMixedResult.criteria.find((criterion) => criterion.partId === realMixedPendingParts[0].id).evidence, [])
+const reloadedMixedState = normalizeState({
+  profile: { activeRouteId: realMixedUnit.routeId },
+  attempts: [{
+    id: 'mixed-route-reload',
+    unitId: realMixedUnit.id,
+    routeId: realMixedUnit.routeId,
+    qualification: realMixedUnit.qualification,
+    courseStage: realMixedUnit.stage,
+    stage: realMixedUnit.stage,
+    attemptStatus: 'marking-pending',
+    contentScope: {
+      routeId: realMixedUnit.routeId,
+      qualification: realMixedUnit.qualification,
+      stage: realMixedUnit.stage,
+      subject: realMixedUnit.subject,
+    },
+  }],
+}, { units: [{ id: realMixedUnit.id, routeId: realMixedUnit.routeId, stage: realMixedUnit.stage, qualification: realMixedUnit.qualification, subject: realMixedUnit.subject }] })
+assert.equal(reloadedMixedState.attempts[0].routeId, realMixedUnit.routeId, 'a route-bound mixed pending attempt must remain visible after storage migration and reload')
+assert.equal(reloadedMixedState.attempts[0].attemptStatus, 'marking-pending')
+
+const reviewedAiPart = reviewed0580Parts[0]
+const reviewedAiUnit = { ...verifiedPracticeCatalog.find((unit) => unit.parts.some((part) => part.id === reviewedAiPart.id)), id: 'reviewed-ai-fixture', parts: [reviewedAiPart], maxMarks: reviewedAiPart.marks }
+const noEvidenceLifecycle = buildPartMarkingLifecycle(reviewedAiUnit, { [reviewedAiPart.id]: 'typed working without an image' }, 45, { [reviewedAiPart.id]: { status: 'no_evidence' } })
+assert.equal(noEvidenceLifecycle.complete, false, 'typed text alone must not silently score a handwriting-reviewed part')
+assert.equal(noEvidenceLifecycle.partStates[reviewedAiPart.id].status, 'ai-retry-pending')
+assert.equal(noEvidenceLifecycle.provisionalRawMarks, 0)
+const providerFailureLifecycle = buildPartMarkingLifecycle(reviewedAiUnit, {}, 45, { [reviewedAiPart.id]: { status: 'error', error: 'Provider unavailable.' } })
+assert.equal(providerFailureLifecycle.partStates[reviewedAiPart.id].status, 'ai-retry-pending', 'provider failure must remain retryable and unscored')
+const reviewRequiredLifecycle = buildPartMarkingLifecycle(reviewedAiUnit, {}, 45, { [reviewedAiPart.id]: { status: 'success', rawMarks: reviewedAiPart.marks, confidence: 0.4, reviewRequired: true, markPoints: [{ awarded: true, reason: 'candidate point' }] } })
+assert.equal(reviewRequiredLifecycle.partStates[reviewedAiPart.id].status, 'ai-review-pending', 'low-confidence AI output must not become canonical')
+const reviewedMarkPoints = (reviewedAiPart.markPoints || []).map((point, index) => ({ id: `${reviewedAiPart.id}-T${index + 1}`, awarded: true, reason: point }))
+const aiScoredLifecycle = buildPartMarkingLifecycle(reviewedAiUnit, {}, 45, { [reviewedAiPart.id]: { status: 'success', rawMarks: reviewedAiPart.marks, confidence: 0.91, reviewRequired: false, markPoints: reviewedMarkPoints } })
+assert.equal(aiScoredLifecycle.complete, true, 'reviewed AI evidence with sufficient confidence may complete a part')
+const aiScoredResult = finalizePartMarking(reviewedAiUnit, aiScoredLifecycle, {}, 45)
+assert.equal(aiScoredResult.rawMarks, reviewedAiPart.marks)
+assert.equal(aiScoredResult.criteria[0].scoringSource, 'vision-assisted')
+assert.ok(aiScoredResult.criteria[0].evidence.length > 0, 'AI marks must retain point-level evidence')
 const selfMarkPendingAttempt = { id: 'pending-self-mark', unitId: selfMarkUnit.id, routeId: selfMarkUnit.routeId, stage: selfMarkUnit.stage, attemptStatus: 'self-mark-pending', submittedAt: '2026-08-10T00:00:00.000Z', selfMarkPending: true }
 assert.equal(buildLearningEvents({ attempts: [selfMarkPendingAttempt], units: [selfMarkUnit], routeId: selfMarkUnit.routeId }).length, 0, 'self-mark-pending submissions must not create learning events')
 assert.equal(buildLearningProgress({ attempts: [selfMarkPendingAttempt], units: [selfMarkUnit], routeId: selfMarkUnit.routeId }).completedSets, 0, 'self-mark-pending submissions must not change mastery or weekly completion')
 assert.equal(buildCompletionByUnit({ attempts: [selfMarkPendingAttempt], units: [selfMarkUnit], routeId: selfMarkUnit.routeId })[selfMarkUnit.id].completed, false, 'self-mark-pending submissions must not mark a unit complete')
+const partialAnsweredAttempt = {
+  id: 'partial-answered', unitId: selfMarkUnit.id, routeId: selfMarkUnit.routeId, stage: selfMarkUnit.stage, attemptStatus: 'result', submittedAt: '2026-08-10T00:00:00.000Z',
+  answers: { 'self-mark-part': 'Use the resultant force.' },
+  scoreResult: { percentage: 25, rawMarks: 1, maxMarks: 4, criteria: [{ partId: 'self-mark-part', awarded: 1, maxMarks: 4 }] },
+}
+const blankScoredAttempt = {
+  id: 'blank-scored', unitId: selfMarkUnit.id, routeId: selfMarkUnit.routeId, stage: selfMarkUnit.stage, attemptStatus: 'result', submittedAt: '2026-08-10T00:00:00.000Z',
+  answers: {}, scoreResult: { percentage: 0, rawMarks: 0, maxMarks: 4, criteria: [{ partId: 'self-mark-part', awarded: 0, maxMarks: 4, status: 'blank' }] },
+}
+assert.equal(hasAttemptResponse(partialAnsweredAttempt, 'self-mark-part'), true, 'non-empty answers must be auditable as a response')
+assert.equal(hasAttemptResponse(blankScoredAttempt, 'self-mark-part'), false, 'scoring a blank must not invent a response')
+assert.equal(answeredQuestionCount(partialAnsweredAttempt, selfMarkUnit.parts), 1, 'only answered parts count as questions done')
+assert.equal(answeredQuestionCount(blankScoredAttempt, selfMarkUnit.parts), 0, 'blank scored criteria must not count as questions done')
+assert.equal(buildLearningProgress({ attempts: [partialAnsweredAttempt, blankScoredAttempt], units: [selfMarkUnit], routeId: selfMarkUnit.routeId }).week.completedQuestions, 1, 'weekly progress must count answered questions rather than scored criteria')
+const retiredSourceAttempt = {
+  ...partialAnsweredAttempt,
+  id: 'retired-source-attempt',
+  unitId: 'retired-source-unit',
+  contentScope: { ...partialAnsweredAttempt.contentScope, title: 'Retired source record' },
+}
+const currentSourceProgress = buildLearningProgress({
+  attempts: [partialAnsweredAttempt, retiredSourceAttempt],
+  units: [selfMarkUnit],
+  routeId: selfMarkUnit.routeId,
+})
+assert.equal(currentSourceProgress.completedSets, 1, 'a source-retired historical attempt must not enter current completion or mastery')
+assert.equal(buildLearningEvents({
+  attempts: [partialAnsweredAttempt, retiredSourceAttempt],
+  units: [selfMarkUnit],
+  routeId: selfMarkUnit.routeId,
+}).filter((event) => event.attemptId === retiredSourceAttempt.id).length, 0, 'a source-retired attempt must remain raw history rather than generate learning events')
+const auditExport = buildLearningExport({ attempts: [partialAnsweredAttempt, blankScoredAttempt] }, { units: [selfMarkUnit], exportedAt: '2026-08-10T01:00:00.000Z' })
+assert.equal(auditExport.schemaVersion, 'alevel-learning-export-v2', 'exports must declare a stable schema version')
+assert.equal(auditExport.audit.answeredQuestionCount, 1, 'exports must expose an auditable answered-question total')
+assert.deepEqual(Object.keys(auditExport.data).sort(), ['attempts', 'consents', 'drafts', 'goals', 'notebook', 'paperReviews', 'paperSessions', 'responses', 'vocabulary'], 'exports must include every private learning data category without a duplicate state mirror')
+assert.equal(auditExport.data.attempts.length, 2, 'exports must include every original and retest attempt explicitly')
+assert.equal(auditExport.data.responses.length, 1, 'exports must omit blank criteria from response records')
+assert.equal('state' in auditExport, false, 'exports must not duplicate the entire application state')
+assert.equal('answers' in auditExport.data.attempts[0], false, 'attempt metadata must not duplicate response payloads')
+const readyExport = await prepareLearningExport({ attempts: [partialAnsweredAttempt, blankScoredAttempt] }, { units: [selfMarkUnit], exportedAt: '2026-08-10T01:00:00.000Z' })
+assert.match(readyExport.payload.integrity.checksum, /^[a-f0-9]{64}$/, 'ready exports must include a SHA-256 checksum')
+assert.equal(JSON.parse(readyExport.json).integrity.checksum, readyExport.payload.integrity.checksum, 'the prepared JSON and payload must carry the same checksum')
+const checksumSentinelAnswer = '0'.repeat(64)
+const collisionExport = await prepareLearningExport({
+  attempts: [{
+    ...partialAnsweredAttempt,
+    id: 'checksum-sentinel-answer',
+    answers: { 'self-mark-part': checksumSentinelAnswer },
+  }],
+}, { units: [selfMarkUnit], exportedAt: '2026-08-10T01:00:00.000Z' })
+const parsedCollisionExport = JSON.parse(collisionExport.json)
+assert.equal(parsedCollisionExport.data.responses[0].answer, checksumSentinelAnswer, 'checksum embedding must not mutate an answer containing the old sentinel text')
+assert.equal(parsedCollisionExport.integrity.checksum, collisionExport.checksum, 'checksum must be written only to the integrity field')
+let serializationCount = 0
+await prepareLearningExport({ attempts: [partialAnsweredAttempt] }, {
+  units: [selfMarkUnit],
+  exportedAt: '2026-08-10T01:00:00.000Z',
+  serialize: (value) => {
+    serializationCount += 1
+    return JSON.stringify(value)
+  },
+})
+assert.equal(serializationCount, 2, 'export preparation must serialize an unsigned checksum scope and a separate signed payload without string replacement')
+await assert.rejects(
+  prepareLearningExport({}, { digest: async () => { throw new Error('provider-secret-and-stack') } }),
+  (error) => error.message === 'Your export could not be prepared. Try again.' && !error.message.includes('provider-secret'),
+  'export preparation failures must be safe and retryable without leaking low-level details',
+)
+assert.equal(notebookNoteRequest('', '2026-08-10T01:00:00.000Z').method, 'DELETE', 'clearing a private note must issue a tombstone request')
+assert.deepEqual(mergeNotebookNote({ body: 'old note', updatedAt: '2026-08-10T00:00:00.000Z' }, { body: '', updatedAt: '2026-08-10T01:00:00.000Z', deleted: true, deletedAt: '2026-08-10T01:00:00.000Z' }), { body: '', updatedAt: '2026-08-10T01:00:00.000Z', deleted: true, deletedAt: '2026-08-10T01:00:00.000Z', syncStatus: 'synced' }, 'a newer deletion tombstone must clear stale local note text')
+assert.deepEqual(mergeNotebookNote({ body: 'stale offline note', updatedAt: '2026-08-10T02:00:00.000Z' }, { body: '', updatedAt: '2026-08-10T01:00:00.000Z', deleted: true, deletedAt: '2026-08-10T01:00:00.000Z' }, { preferTombstone: true }), { body: '', updatedAt: '2026-08-10T01:00:00.000Z', deleted: true, deletedAt: '2026-08-10T01:00:00.000Z', syncStatus: 'synced' }, 'a server tombstone must not let a stale offline device restore deleted note text')
 assert.ok(learningPlan.knowledgeGroups.length >= 10, 'learning plan should expose a usable subject knowledge map')
 assert.ok(learningPlan.practiceModes.some((mode) => mode.id === 'mock-exam'), 'learning plan should expose mock exam mode')
 assert.deepEqual(new Set(learningPlan.subjects.map((subject) => subject.code)), new Set(['0580', '0606', '0610', '0625', '9231', '9700', '9701', '9702', '9708', '9709']), 'knowledge map must expose all requested Cambridge subjects')
-assert.ok(unifiedQuestionBank.length >= 40, 'question-level index must contain a real starter bank')
+assert.equal(unifiedQuestionBank.length, 26, 'question-level index must expose only the currently reviewed source-complete starter bank')
 assert.ok(unifiedQuestionBank.every(isVerifiedPastPaperItem), 'formal topic drills must contain only QP/MS-bound items')
 assert.ok(unifiedQuestionBank.every((item) => item.sourceRef.sha256 !== item.answerRef.sha256), 'question and answer documents must remain independently bound')
 
-const mixedPhysicsDrill = selectTaggedQuestions({
+const emptyPhysicsDrill = selectTaggedQuestions({
   routeId: 'cie-9702-as-physics',
   qualificationId: 'cambridge-9702',
   stage: 'AS',
   knowledgeGroupId: 'physics-9702-topic-03',
   questionCount: 10,
 })
-assert.equal(mixedPhysicsDrill.length, 10, 'a verified topic drill must contain the requested item count')
+assert.equal(emptyPhysicsDrill.length, 0, 'an AS route without semantically reviewed inventory must not expose a practice drill')
+assert.throws(() => buildCoachPractice({ routeId: 'cie-9702-as-physics', knowledgeGroupId: 'physics-9702-topic-03', questionCount: 10 }), PracticeInventoryError, 'an empty AS route must block its Start CTA')
+const mixedPhysicsDrill = selectTaggedQuestions({
+  routeId: 'cie-0580-igcse-mathematics',
+  qualificationId: 'cambridge-0580',
+  stage: 'IGCSE',
+  knowledgeGroupId: 'math-0580-number',
+  questionCount: 10,
+})
+assert.equal(mixedPhysicsDrill.length, 10, 'the reviewed source fixture must provide the requested topic item count')
 assert.ok(new Set(mixedPhysicsDrill.map((item) => item.answerType)).size >= 1, 'topic drills should expose at least one validated answer surface')
-assert.ok(new Set(mixedPhysicsDrill.map((item) => item.sourceRef.paperId)).size >= 2, 'topic drills should draw from more than one official paper when available')
+assert.equal(new Set(mixedPhysicsDrill.map((item) => item.sourceRef.paperId)).size, 1, 'a one-paper reviewed fixture must report its actual paper provenance')
 assert.ok(mixedPhysicsDrill.every((item) => item.answerBinding && item.answerRef), 'every selected question must retain its paired answer binding')
-assert.ok(mixedPhysicsDrill.every((item) => item.routeId === 'cie-9702-as-physics' && item.stage === 'AS'), 'AS drills must never contain A2 or IGCSE questions')
-const mixedPhysicsUnit = buildCoachPractice({ routeId: 'cie-9702-as-physics', knowledgeGroupId: 'physics-9702-topic-03', questionCount: 10 })
-assert.ok(mixedPhysicsUnit.parts.every((part) => part.displayLabel), 'mixed-paper practice parts must expose a readable source label')
-assert.equal(new Set(mixedPhysicsUnit.parts.map((part) => part.displayLabel)).size, mixedPhysicsUnit.parts.length, 'mixed-paper practice labels must remain unique when printed question numbers repeat')
-const nextPhysicsDrill = selectTaggedQuestions({ routeId: 'cie-9702-as-physics', qualificationId: 'cambridge-9702', stage: 'AS', knowledgeGroupId: 'physics-9702-topic-03', questionCount: 10, questionOffset: 10 })
-assert.ok(nextPhysicsDrill.length > 0, 'a topic with more than ten verified questions must expose a second distinct set')
+assert.ok(mixedPhysicsDrill.every((item) => item.routeId === 'cie-0580-igcse-mathematics' && item.stage === 'IGCSE'), 'reviewed drills must never cross route or stage boundaries')
+const mixedPhysicsUnit = buildCoachPractice({ routeId: 'cie-0580-igcse-mathematics', knowledgeGroupId: 'math-0580-number', questionCount: 10 })
+assert.ok(mixedPhysicsUnit.parts.every((part) => part.displayLabel), 'practice parts must expose a readable source label')
+assert.equal(new Set(mixedPhysicsUnit.parts.map((part) => part.displayLabel)).size, mixedPhysicsUnit.parts.length, 'practice labels must remain unique when printed question numbers repeat')
+const nextPhysicsDrill = selectTaggedQuestions({ routeId: 'cie-0580-igcse-mathematics', qualificationId: 'cambridge-0580', stage: 'IGCSE', knowledgeGroupId: 'math-0580-number', questionCount: 10, questionOffset: 10 })
+assert.ok(nextPhysicsDrill.length > 0, 'a topic with more than ten reviewed questions must expose a second distinct set')
 assert.equal(new Set([...mixedPhysicsDrill, ...nextPhysicsDrill].map((item) => item.sourceQuestionId)).size, mixedPhysicsDrill.length + nextPhysicsDrill.length, 'successive practice sets must not repeat source question groups')
+const sourceBindingSnapshot = sourceBindingSnapshotForUnit(mixedPhysicsUnit)
+assert.ok(sourceBindingSnapshot?.parts?.length, 'a scored source unit must capture a per-part canonical binding snapshot')
+const sourceBoundAttempt = {
+  id: 'source-binding-fixture',
+  unitId: mixedPhysicsUnit.id,
+  routeId: mixedPhysicsUnit.routeId,
+  stage: mixedPhysicsUnit.stage,
+  attemptStatus: 'result',
+  submittedAt: '2026-08-11T10:00:00.000Z',
+  sourceBinding: sourceBindingSnapshot,
+  answers: { [mixedPhysicsUnit.parts[0].id]: 'source-bound response' },
+  scoreResult: {
+    rawMarks: 1,
+    maxMarks: mixedPhysicsUnit.maxMarks,
+    percentage: 10,
+    criteria: [{ partId: mixedPhysicsUnit.parts[0].id, awarded: 0, maxMarks: mixedPhysicsUnit.parts[0].marks, feedback: 'Fixture evidence.' }],
+  },
+}
+assert.equal(hasCurrentSourceBindingForAttempt(sourceBoundAttempt, mixedPhysicsUnit), true, 'a current attempt binding snapshot must remain score-eligible')
+assert.equal(isScoredAttempt(sourceBoundAttempt, mixedPhysicsUnit), true, 'a current source-bound attempt may contribute to progress')
+const changedSignatureUnit = structuredClone(mixedPhysicsUnit)
+changedSignatureUnit.parts[0].markingProvenance.bindingSignature = 'fnv1a64:0000000000000000'
+assert.equal(hasCurrentSourceBindingForAttempt(sourceBoundAttempt, changedSignatureUnit), false, 'a same-unit ID with changed source binding must be read-only')
+assert.equal(isScoredAttempt(sourceBoundAttempt, changedSignatureUnit), false, 'a stale source-bound score must not contribute to progress')
+const staleBindingProgress = buildLearningProgress({
+  attempts: [sourceBoundAttempt],
+  units: [changedSignatureUnit],
+  routeId: changedSignatureUnit.routeId,
+})
+assert.equal(staleBindingProgress.week.completedQuestions, 0, 'a stale source-bound score must not enter the progress denominator')
+const staleBindingExport = buildLearningExport({ attempts: [sourceBoundAttempt] }, { units: [changedSignatureUnit], exportedAt: '2026-08-11T10:00:00.000Z' })
+assert.equal(staleBindingExport.audit.attempts[0].sourceBindingStatus, 'stale-or-missing', 'exports must retain stale attempts only as audit evidence')
+assert.equal(staleBindingExport.audit.attempts[0].score, null, 'exports must omit a stale score from its canonical scored-attempt projection')
+assert.equal(staleBindingExport.data.notebook.items.length, 0, 'a stale score must not create notebook mistakes')
 
 const march2025P1Metadata = paperQuestionMarkingMetadata({ paperId: 'cie-9709-9709_m25_qp_12', routeId: 'cie-9709-as-p1-p2' })
 assert.equal(march2025P1Metadata[1], undefined, 'machine-indexed 9709 March 2025 P1 Q1 must remain self-mark only until a human review is recorded')
-const reviewedMarch2025Fixture = {
-  ...unifiedQuestionBank.find((item) => item.sourceQuestionId === 'cie-9709-9709_m25_qp_12:q1' && item.routeId === 'cie-9709-as-p1-p2'),
-  answerBinding: { ...unifiedQuestionBank.find((item) => item.sourceQuestionId === 'cie-9709-9709_m25_qp_12:q1' && item.routeId === 'cie-9709-as-p1-p2').answerBinding, verificationStatus: 'reviewed' },
-}
-assert.equal(isHumanReviewedPastPaperItem(reviewedMarch2025Fixture), true, 'only a reviewed binding may become AI-marking metadata')
-const reviewedMarch2025Metadata = paperQuestionMarkingMetadata({ paperId: 'cie-9709-9709_m25_qp_12', routeId: 'cie-9709-as-p1-p2', questionBank: [reviewedMarch2025Fixture] })
-assert.equal(reviewedMarch2025Metadata[1].maxMarks, 4, 'a reviewed Q1 fixture must hydrate its exact four-mark allocation')
-assert.equal(reviewedMarch2025Metadata[1].answerRef.file, '9709_m25_ms_12.pdf', 'a reviewed fixture must bind the exact paired mark scheme')
-assert.ok(reviewedMarch2025Metadata[1].expectedMarkPoints.length >= 4, 'a reviewed fixture must provide structured mark points')
+const reviewedMarch2025Metadata = paperQuestionMarkingMetadata({ paperId: reviewedFixtureSource.sourceRef.paperId, routeId: reviewedFixtureSource.routeId, questionBank: [reviewedFixtureSource] })
+assert.equal(isHumanReviewedPastPaperItem(reviewedFixtureSource), true, 'only a reviewed binding may become AI-marking metadata')
+assert.equal(reviewedMarch2025Metadata[1].maxMarks, 1, 'a reviewed source fixture must hydrate its exact part allocation')
+assert.equal(reviewedMarch2025Metadata[1].answerRef.paperId, reviewedFixtureSource.answerRef.paperId, 'a reviewed fixture must bind the exact paired mark scheme')
+assert.ok(reviewedMarch2025Metadata[1].expectedMarkPoints.length >= 1, 'a reviewed fixture must provide structured mark points')
 const march2025P1Submission = buildSharedMarkingSubmission({
   attemptId: 'fixture-attempt',
   routeId: 'cie-9709-as-p1-p2',
@@ -188,12 +579,19 @@ const march2025P1Submission = buildSharedMarkingSubmission({
     questionNumber: 1,
     questionMetadata: reviewedMarch2025Metadata[1],
     typedText: 'Use the discriminant and require it to be less than zero.',
-    questionAsset: { status: 'available', imageDataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+1P6Q6QAAAABJRU5ErkJggg==' },
+    questionAssetsByPart: {
+      [reviewedMarch2025Metadata[1].parts[0].id]: {
+        status: 'available',
+        assetUrl: reviewedMarch2025Metadata[1].parts[0].markingProvenance.sourceEvidence.assetUrl,
+        sha256: reviewedMarch2025Metadata[1].parts[0].markingProvenance.sourceEvidence.assetSha256,
+        imageDataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+1P6Q6QAAAABJRU5ErkJggg==',
+      },
+    },
   }],
 })
 assert.equal(march2025P1Submission.ok, true, 'reviewed paper metadata and a typed response must build a shared structured marking submission')
-assert.equal(march2025P1Submission.payload.questions[0].availableMarks, 4, 'shared marking requests must carry the reviewed available marks')
-assert.equal(march2025P1Submission.payload.questions[0].assets[0].checksum, `sha256:${reviewedMarch2025Metadata[1].sourceRef.sha256}`, 'shared marking requests must carry the exact question-paper checksum')
+assert.equal(march2025P1Submission.payload.questions[0].availableMarks, 1, 'shared marking requests must carry the reviewed available marks')
+assert.equal(march2025P1Submission.payload.questions[0].assets[0].checksum, `sha256:${reviewedMarch2025Metadata[1].parts[0].markingProvenance.sourceEvidence.assetSha256}`, 'shared marking requests must carry the exact question-page image checksum')
 assert.ok(march2025P1Submission.payload.questions[0].assets[0].imageDataUrl.startsWith('data:image/png'), 'shared marking requests must carry the same QuestionPart page image alongside handwriting')
 assert.equal(march2025P1Submission.payload.questions[0].visualContext.status, 'available', 'available source imagery must be declared to the shared marker')
 assert.deepEqual(buildSharedMarkingSubmission({ attemptId: 'fixture-attempt', responses: [{ questionNumber: 2, questionMetadata: null, typedText: 'answer' }] }).missingQuestionNumbers, [2], 'missing question metadata must be explicit before any shared marking call')
@@ -220,6 +618,46 @@ assert.equal(sharedFetchCalls[0].options.credentials, 'include', 'shared marking
 assert.equal(sharedFetchCalls[0].options.headers['X-Stem-Identity'], 'shared-test-token', 'shared marking must send the short-lived STEM identity')
 assert.deepEqual(JSON.parse(sharedFetchCalls[0].options.body), JSON.parse(JSON.stringify(march2025P1Submission.payload)), 'shared marking body must preserve the stable submission contract')
 
+const stagingMarkingOrigin = configuredIdentityOrigin('https://staging.ieltsist.test/auth/bridge')
+const stagingMarkingUrls = []
+const stagingCreate = await createSharedMarkingSubmission({
+  token: 'staging-test-token',
+  submission: march2025P1Submission.payload,
+  origin: stagingMarkingOrigin,
+  fetchImpl: async (url) => {
+    stagingMarkingUrls.push(String(url))
+    return new Response(JSON.stringify({ submission: { submissionId: 'staging-fixture', status: 'queued' } }), { status: 202 })
+  },
+})
+assert.equal(stagingCreate.status, 'queued', 'staging marking submission must retain the shared response contract')
+const stagingPoll = await waitForSharedMarkingSubmission({
+  token: 'staging-test-token',
+  submissionId: 'staging-fixture',
+  origin: stagingMarkingOrigin,
+  attempts: 1,
+  fetchImpl: async (url) => {
+    stagingMarkingUrls.push(String(url))
+    return new Response(JSON.stringify({ submission: { submissionId: 'staging-fixture', status: 'completed', result: { questions: [] } } }), { status: 200 })
+  },
+})
+assert.equal(stagingPoll.status, 'completed', 'staging marking polling must use the configured service')
+const stagingRetry = await retrySharedMarkingSubmission({
+  token: 'staging-test-token',
+  submissionId: 'staging-fixture',
+  origin: stagingMarkingOrigin,
+  fetchImpl: async (url) => {
+    stagingMarkingUrls.push(String(url))
+    return new Response(JSON.stringify({ submission: { submissionId: 'staging-fixture', status: 'queued' } }), { status: 202 })
+  },
+})
+assert.equal(stagingRetry.status, 'queued', 'staging marking retry must retain the shared response contract')
+assert.deepEqual(stagingMarkingUrls, [
+  'https://staging.ieltsist.test/api/stem/marking/submissions',
+  'https://staging.ieltsist.test/api/stem/marking/submissions/staging-fixture',
+  'https://staging.ieltsist.test/api/stem/marking/submissions/staging-fixture/retry',
+], 'submission, polling and retry must all use the same configured identity origin')
+assert.ok(stagingMarkingUrls.every((url) => !url.startsWith('https://ieltsist.com/')), 'local or staging marking operations must never fall through to production')
+
 const missingMetadataShared = await createSharedMarkingSubmission({
   token: 'shared-test-token',
   submission: march2025P1Submission.payload,
@@ -234,7 +672,7 @@ const statusFlow = async (_url, _options = {}) => {
     ? { submissionId: 'status-fixture', status: 'queued' }
     : statusRead === 2
       ? { submissionId: 'status-fixture', status: 'processing' }
-      : { submissionId: 'status-fixture', status: 'completed', result: { questions: [{ questionPartId: march2025P1Submission.payload.questions[0].questionPartId, awardedMarks: 4, maxMarks: 4, confidence: 0.95, reviewRequired: false, markPoints: [] }] } }
+      : { submissionId: 'status-fixture', status: 'completed', result: { questions: [{ questionPartId: march2025P1Submission.payload.questions[0].questionPartId, awardedMarks: 1, maxMarks: 1, confidence: 0.95, reviewRequired: false, markPoints: [] }] } }
   return new Response(JSON.stringify({ submission }), { status: 200, headers: { 'Content-Type': 'application/json' } })
 }
 const completedShared = await waitForSharedMarkingSubmission({ token: 'shared-test-token', submissionId: 'status-fixture', fetchImpl: statusFlow, attempts: 4, intervalMs: 1 })
@@ -247,12 +685,8 @@ const retriedShared = await retrySharedMarkingSubmission({ token: 'shared-test-t
 } })
 assert.equal(retriedShared.status, 'queued', 'failed shared submissions must be retryable through the shared service')
 
-const igcseBiologyDrill = buildCoachPractice({ routeId: 'cie-0610-igcse-biology', knowledgeGroupId: 'biology-0610-cell', questionCount: 10 })
-assert.equal(igcseBiologyDrill.parts.length, 10, '0610 Cells must unlock a ten-question verified drill')
-assert.ok(igcseBiologyDrill.parts.every(isVerifiedPastPaperItem), '0610 drill must retain verified question bindings')
-const a2BiologyDrill = buildCoachPractice({ routeId: 'cie-9700-a2-biology', knowledgeGroupId: 'biology-9700-a2-energy', questionCount: 10, allowPartial: true })
-assert.ok(a2BiologyDrill.parts.length >= 1, '9700 A2 Energy must expose its currently verified inventory')
-assert.ok(a2BiologyDrill.parts.every((item) => item.routeId === 'cie-9700-a2-biology'), 'A2 Biology drill cannot contain AS or IGCSE questions')
+assert.throws(() => buildCoachPractice({ routeId: 'cie-0610-igcse-biology', knowledgeGroupId: 'biology-0610-cell', questionCount: 10 }), PracticeInventoryError, '0610 Cells must remain blocked while its source inventory is unreviewed')
+assert.throws(() => buildCoachPractice({ routeId: 'cie-9700-a2-biology', knowledgeGroupId: 'biology-9700-a2-energy', questionCount: 10, allowPartial: true }), PracticeInventoryError, '9700 A2 Energy must remain blocked while its source inventory is unreviewed')
 
 const questionIndex = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, '..', 'src', 'data', 'importedQuestionIndex.json'), 'utf8'))
 assert.equal(questionIndex.schemaVersion, 2, 'question index must use the decoupled schema')
@@ -265,6 +699,10 @@ assert.ok(questionIndex.questions.every((item) => !('answer' in item) && !('answ
 assert.ok(questionIndex.answers.every((item) => !('prompt' in item) && !('sourceRef' in item)), 'answer entities must not embed question text')
 assert.ok(questionIndex.bindings.every((item) => ['machine-indexed', 'reviewed', 'quarantined'].includes(item.verificationStatus)), 'bindings must disclose their verification state')
 assert.ok(questionIndex.bindings.some((item) => item.verificationStatus === 'quarantined'), 'legacy multi-part records must be disclosed as quarantined')
+const missingPageRecord = questionIndex.questions.find((item) => item.questionId === 'cie-0606-0606_m25_qp_12:q9')
+assert.ok(missingPageRecord, 'known multi-page source fixture must be present in the raw import')
+assert.ok(sourceBindingStatus(missingPageRecord).reasons.includes('missing-page-asset:10'), 'raw source records with a missing intermediate page must be quarantined')
+assert.equal(sourceContentManifest.items[missingPageRecord.questionId]?.complete, false, 'the client gate must retain the audit quarantine for a missing source page')
 assert.ok(unifiedQuestionBank.every((item) => validateQuestionGroup(item).valid), 'every formal item must have reconciled question parts')
 assert.ok(!unifiedQuestionBank.some((item) => item.sourceQuestionId === 'cie-0625-0625_m25_qp_42:q1'), 'the known 0625 multi-part OCR record must stay out of the scored bank')
 assert.ok(!unifiedQuestionBank.some((item) => item.sourceQuestionId === 'cie-9702-9702_m25_qp_22:q1'), 'the known 9702 multi-part OCR record must stay out of the scored bank')
@@ -306,17 +744,18 @@ const multiPartScore = scoreAttempt({ routeId: 'cie-9702-a2-physics', stage: 'A2
   markPoints: part.markSchemePoints,
 })) }, { 'fixture-q3:part-a': 'correct explain', 'fixture-q3:part-b(i)': 'value' }, 10)
 assert.equal(multiPartScore.rawMarks, 3, 'multi-part scoring must accumulate marks per QuestionPart')
-const a2Group = unifiedQuestionBank.find((item) => item.routeId === 'cie-9702-a2-physics' && item.parts.length > 1)
-assert.ok(a2Group, '9702 A2 must expose at least one verified multi-part QuestionGroup')
-const a2Practice = buildCoachPractice({ routeId: 'cie-9702-a2-physics', knowledgeGroupId: a2Group.knowledgeGroupId, questionCount: 10, allowPartial: true })
-assert.ok(a2Practice.parts.length >= a2Group.parts.length, 'Coach practice must flatten a verified group into explicit QuestionParts')
-assert.ok(a2Practice.parts.every((part) => part.routeId === 'cie-9702-a2-physics' && part.stage === 'A2'), 'A2 Coach practice must never contain AS or IGCSE parts')
-assert.ok(a2Practice.parts.every((part) => part.questionGroupId && part.questionPartId && part.sourceRef.page && part.answerRef.page), 'every Coach item must preserve group, part, QP page, and MS page bindings')
-const exactAssignedPractice = buildCoachPractice({ routeId: 'cie-9702-a2-physics', knowledgeGroupId: a2Group.knowledgeGroupId, sourceQuestionIds: [a2Group.bankId], unitId: 'assignment-test' })
+const reviewedGroup = unifiedQuestionBank.find((item) => item.routeId === 'cie-0580-igcse-mathematics' && item.parts.length > 1)
+assert.ok(reviewedGroup, 'the reviewed 0580 pilot must provide a structured multi-part QuestionGroup fixture')
+const reviewedPractice = buildCoachPractice({ routeId: reviewedGroup.routeId, knowledgeGroupId: reviewedGroup.knowledgeGroupId, questionCount: 10, allowPartial: true })
+assert.ok(reviewedPractice.parts.length >= reviewedGroup.parts.length, 'Coach practice must flatten a reviewed multi-part group into explicit QuestionParts')
+assert.ok(reviewedPractice.parts.every((part) => part.routeId === reviewedGroup.routeId && part.stage === reviewedGroup.stage), 'reviewed practice must remain route and stage isolated')
+assert.ok(reviewedPractice.parts.every((part) => part.questionGroupId && part.questionPartId && part.sourceRef.page && part.answerRef.page), 'every Coach item must preserve group, part, QP page, and MS page bindings')
+assert.throws(() => buildCoachPractice({ routeId: 'cie-9702-a2-physics', knowledgeGroupId: 'physics-9702-topic-01', questionCount: 10 }), PracticeInventoryError, 'a route without reviewed source inventory must not start a practice set')
+const exactAssignedPractice = buildCoachPractice({ routeId: reviewedGroup.routeId, knowledgeGroupId: reviewedGroup.knowledgeGroupId, sourceQuestionIds: [reviewedGroup.bankId], unitId: 'assignment-test' })
 assert.equal(exactAssignedPractice.questionGroupCount, 1, 'an assigned source list must not be expanded to the normal ten-question drill minimum')
-assert.equal(exactAssignedPractice.parts.length, a2Group.parts.length, 'an assignment must reopen the exact saved question group, including every QuestionPart')
-assert.deepEqual(exactAssignedPractice.assignmentSourceIds, [a2Group.bankId], 'an assignment must retain its immutable source question IDs')
-assert.throws(() => buildCoachPractice({ routeId: 'cie-9702-a2-physics', knowledgeGroupId: a2Group.knowledgeGroupId, sourceQuestionIds: [a2Group.bankId, a2Group.bankId] }), /duplicate question IDs/, 'duplicate assignment sources must be rejected')
+assert.equal(exactAssignedPractice.parts.length, reviewedGroup.parts.length, 'an assignment must reopen the exact saved question group, including every QuestionPart')
+assert.deepEqual(exactAssignedPractice.assignmentSourceIds, [reviewedGroup.bankId], 'an assignment must retain its immutable source question IDs')
+assert.throws(() => buildCoachPractice({ routeId: reviewedGroup.routeId, knowledgeGroupId: reviewedGroup.knowledgeGroupId, sourceQuestionIds: [reviewedGroup.bankId, reviewedGroup.bankId] }), /duplicate question IDs/, 'duplicate assignment sources must be rejected')
 
 const physicsPaper1 = getExamPaperProfile('9702', '12')
 assert.equal(physicsPaper1.mode, 'mcq', '9702 Paper 1 must use the MCQ answer sheet')
@@ -454,8 +893,7 @@ console.log('Smoke checks passed')
 
 const { courseRoutes: routeContractRegistry, resolveRouteId } = await import('../src/data/routeRegistry.js')
 const { LEGACY_UNSCOPED_ROUTE_ID: unscopedRouteId, resolveRouteBinding: resolveRouteContract } = await import('../src/lib/routeMigration.js')
-const { mergeStoredState, normalizeState: normalizeStoredState, normalizeSyncItem } = await import('../src/lib/storage.js')
-
+const { GUEST_STORAGE_CLAIM_KEY, LEGACY_STORAGE_OWNER_KEY, loadState: loadStoredState, mergeStoredState, normalizeState: normalizeStoredState, normalizeSyncItem, saveState: saveStoredState, storageKeyForUser } = await import('../src/lib/storage.js')
 assert.deepEqual(COURSE_STAGE_ORDER, ['IGCSE', 'AS', 'A2', 'Competition', 'Admissions'], 'student, teacher and school selectors must share separate Competition and Admissions stages')
 assert.deepEqual(stagesForSubject('bpho'), ['Competition'], 'BPhO must only appear under Competition')
 assert.deepEqual(stagesForSubject('amc12'), ['Competition'], 'AMC12 must only appear under Competition')
@@ -501,17 +939,77 @@ const validRouteScore = scoreAttempt({ routeId: 'cie-9702-as-physics', maxMarks:
 assert.deepEqual([validRouteScore.routeId, validRouteScore.stage], ['cie-9702-as-physics', 'AS'], 'scoring must bind a registered route to its canonical stage')
 const conflictingRouteScore = scoreAttempt({ routeId: 'cie-9702-as-physics', stage: 'A2', maxMarks: 1, parts: [routeScoringPart] }, { 'route-score': 'A' }, 10)
 assert.deepEqual([conflictingRouteScore.routeId, conflictingRouteScore.stage], [unscopedRouteId, null], 'scoring must reject a route/stage mismatch')
-const legacyTopicIdUnit = buildCoachPractice({ routeId: 'cie-9702-as-physics', knowledgeGroupId: 'physics-9702-topic-03', questionCount: 1, allowPartial: true })
+const legacyTopicIdUnit = { routeId: 'cie-9702-as-physics', knowledgeGroupId: 'physics-9702-topic-03', maxMarks: 1, parts: [{ id: 'legacy-topic-part', marks: 1, answerType: 'multiple-choice', answer: 'A', markPoints: ['A'] }] }
 assert.deepEqual(
   [scoreAttempt(legacyTopicIdUnit, {}, 1).routeId, scoreAttempt(legacyTopicIdUnit, {}, 1).stage],
   ['cie-9702-as-physics', 'AS'],
   'registered route validation must accept a legacy knowledge-group ID when its syllabus topic title matches',
 )
-const generatedMathUnit = buildCoachPractice({ routeId: 'cie-9709-a2-after-p1-p5-p3-p4', knowledgeGroupId: 'math-9709-pure', questionCount: 10, allowPartial: true })
-const normalizedGeneratedMathState = normalizeStoredState({ generatedUnits: [generatedMathUnit] })
-assert.equal(normalizedGeneratedMathState.generatedUnits[0].routeId, generatedMathUnit.routeId, 'Topic drills must retain their registered route when persisted')
-assert.equal(normalizedGeneratedMathState.generatedUnits[0].stage, generatedMathUnit.stage, 'Topic drills must retain their canonical academic stage when persisted')
-assert.ok(normalizedGeneratedMathState.generatedUnits[0].parts.every((part) => part.routeId === generatedMathUnit.routeId), 'persisted Topic drill parts must remain route-isolated')
+const generatedReviewedUnit = mixedPhysicsUnit
+const normalizedGeneratedReviewedState = normalizeStoredState({ generatedUnits: [generatedReviewedUnit] })
+assert.equal(normalizedGeneratedReviewedState.generatedUnits[0].routeId, generatedReviewedUnit.routeId, 'reviewed Topic drills must retain their registered route when persisted')
+assert.equal(normalizedGeneratedReviewedState.generatedUnits[0].stage, generatedReviewedUnit.stage, 'reviewed Topic drills must retain their canonical academic stage when persisted')
+assert.ok(normalizedGeneratedReviewedState.generatedUnits[0].parts.every((part) => part.routeId === generatedReviewedUnit.routeId), 'persisted reviewed Topic drill parts must remain route-isolated')
+assert.throws(() => buildCoachPractice({ routeId: 'cie-9709-a2-after-p1-p5-p3-p4', knowledgeGroupId: 'math-9709-pure', questionCount: 10, allowPartial: true }), PracticeInventoryError, '9709 Topic drills must remain blocked until their source index receives semantic review')
+assert.throws(() => buildCoachPractice({ routeId: 'uatuk-esat-admissions', knowledgeGroupId: 'esat-physics', questionCount: 10, allowPartial: true }), PracticeInventoryError, 'ESAT Topic drills must remain blocked until their source index receives semantic review')
+
+assert.equal(isScoredAttempt({ attemptStatus: 'self-mark-pending', selfMarkPending: true, submittedAt: '2026-08-10T00:00:00.000Z' }), false, 'a self-mark-pending attempt must never enter score consumers')
+assert.equal(isPendingSelfMarkAttempt({ attemptStatus: 'self-mark-pending' }), true, 'pending self-mark attempts must remain identifiable for append-only history')
+assert.equal(isScoredAttempt({ attemptStatus: 'result', submittedAt: '2026-08-10T00:00:00.000Z', scoreResult: { rawMarks: 4, maxMarks: 5, percentage: 80 } }), true, 'a valid finalized result must enter score consumers')
+assert.equal(isScoredAttempt({ attemptStatus: 'result', submittedAt: '2026-08-10T00:00:00.000Z', scoreResult: { rawMarks: 0, maxMarks: 0, percentage: 0 } }), false, 'an invalid zero-mark score shell must not enter score consumers')
+const pendingAuditExport = buildLearningExport({ attempts: [selfMarkPendingAttempt] }, { units: [selfMarkUnit], exportedAt: '2026-08-10T01:00:00.000Z' })
+assert.equal(pendingAuditExport.data.attempts.length, 1, 'append-only export must preserve the pending source attempt')
+assert.equal(pendingAuditExport.audit.attempts[0].status, 'self-mark-pending', 'export must identify the pending lifecycle state')
+assert.equal(pendingAuditExport.audit.attempts[0].score, null, 'export must not manufacture a score for pending self-mark work')
+assert.equal(pendingAuditExport.data.notebook.items.length, 0, 'pending self-mark work must not create scored mistake rows')
+
+const storageValues = new Map()
+const testLocalStorage = {
+  getItem: (key) => storageValues.has(key) ? storageValues.get(key) : null,
+  setItem: (key, value) => storageValues.set(String(key), String(value)),
+  removeItem: (key) => storageValues.delete(String(key)),
+}
+const previousWindow = globalThis.window
+globalThis.window = { localStorage: testLocalStorage }
+try {
+  const legacyState = normalizeStoredState({
+    profile: { activeRouteId: 'cie-9702-as-physics', learningTrack: 'AS' },
+    notebookNotes: { 'cie-9702-as-physics': { body: 'Legacy note claimed by A', updatedAt: '2026-08-10T00:00:00.000Z', syncStatus: 'local-only' } },
+    attempts: [{ id: 'legacy-a-attempt', unitId: 'legacy-unit', routeId: 'cie-9702-as-physics', stage: 'AS', attemptStatus: 'self-mark-pending' }],
+  })
+  testLocalStorage.setItem('alevel-learning-platform-v2', JSON.stringify(legacyState))
+  const accountA = loadStoredState({ userId: 'ielts:101' })
+  assert.equal(accountA.notebookNotes['cie-9702-as-physics'].body, 'Legacy note claimed by A', 'the first identified account must claim existing legacy learning state once')
+  assert.equal(testLocalStorage.getItem(LEGACY_STORAGE_OWNER_KEY), 'ielts:101', 'legacy state migration must record its exact owner')
+  assert.ok(testLocalStorage.getItem(storageKeyForUser('ielts:101', testLocalStorage)), 'legacy state must be copied into account A namespace')
+  saveStoredState({ ...accountA, notebookNotes: { 'cie-9702-as-physics': { body: 'A private note', updatedAt: '2026-08-10T01:00:00.000Z' } } }, { userId: 'ielts:101', replaceSyncQueue: true })
+
+  const accountBEmpty = loadStoredState({ userId: 'ielts:202' })
+  assert.equal(accountBEmpty.notebookNotes?.['cie-9702-as-physics'], undefined, 'account B must not receive legacy or account A private notes')
+  saveStoredState({ ...accountBEmpty, notebookNotes: { 'cie-9702-as-physics': { body: 'B private note', updatedAt: '2026-08-10T02:00:00.000Z' } } }, { userId: 'ielts:202', replaceSyncQueue: true })
+  assert.equal(loadStoredState().notebookNotes?.['cie-9702-as-physics'], undefined, 'guest state must be isolated after legacy data receives an account owner')
+  assert.equal(loadStoredState({ userId: 'ielts:101' }).notebookNotes['cie-9702-as-physics'].body, 'A private note', 'switching back to A must restore only A state')
+
+  testLocalStorage.setItem('alevel-learning-platform-v2', JSON.stringify({ ...legacyState, notebookNotes: { 'cie-9702-as-physics': { body: 'stale legacy pollution', updatedAt: '2026-08-11T00:00:00.000Z' } } }))
+  assert.equal(loadStoredState({ userId: 'ielts:202' }).notebookNotes['cie-9702-as-physics'].body, 'B private note', 'the legacy key must never merge into another account after ownership is recorded')
+  assert.equal(loadStoredState({ userId: 'ielts:101' }).notebookNotes['cie-9702-as-physics'].body, 'A private note', 'later legacy-key changes must not overwrite the owning account namespace')
+  saveStoredState({
+    profile: { activeRouteId: 'cie-9702-as-physics', learningTrack: 'AS' },
+    attempts: [{ id: 'guest-after-legacy-claim', unitId: 'guest-unit', routeId: 'cie-9702-as-physics', stage: 'AS', attemptStatus: 'self-mark-pending' }],
+    notebookNotes: { 'cie-9702-as-physics': { body: 'Guest note must not replace A', updatedAt: '2026-08-09T00:00:00.000Z' } },
+  }, { userId: '', replaceSyncQueue: true })
+  assert.ok(testLocalStorage.getItem(storageKeyForUser('', testLocalStorage)), 'guest work created after a legacy claim must use the guest namespace')
+  const accountAWithGuest = loadStoredState({ userId: 'ielts:101' })
+  assert.ok(accountAWithGuest.attempts.some((attempt) => attempt.id === 'guest-after-legacy-claim'), 'the next authenticated owner must receive later guest work once')
+  assert.equal(accountAWithGuest.notebookNotes['cie-9702-as-physics'].body, 'A private note', 'guest notes must not overwrite an existing owner note for the same route')
+  assert.equal(testLocalStorage.getItem(storageKeyForUser('', testLocalStorage)), null, 'claimed guest work must be removed so it cannot pollute a later account')
+  assert.equal(JSON.parse(testLocalStorage.getItem(GUEST_STORAGE_CLAIM_KEY)).userId, 'ielts:101', 'guest claim audit marker must name the consuming account')
+  assert.equal(loadStoredState({ userId: 'ielts:101' }).attempts.filter((attempt) => attempt.id === 'guest-after-legacy-claim').length, 1, 'reloading the owner must not merge the consumed guest work again')
+  assert.equal(loadStoredState({ userId: 'ielts:202' }).attempts.some((attempt) => attempt.id === 'guest-after-legacy-claim'), false, 'consumed guest work must not leak from A into B')
+} finally {
+  if (previousWindow === undefined) delete globalThis.window
+  else globalThis.window = previousWindow
+}
 
 const oldIgcseState = normalizeStoredState({ profile: { role: 'student', learningTrack: 'IGCSE' } })
 assert.equal(oldIgcseState.profile.activeRouteId, null, 'legacy profiles without a unique active route must not silently switch to AS Physics')

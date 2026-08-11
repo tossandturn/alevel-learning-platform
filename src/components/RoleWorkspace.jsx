@@ -863,6 +863,7 @@ function TeacherReview({ submissions, assignments, onAssignmentAction }) {
   const [feedback, setFeedback] = useState("");
   const [feedbackRows, setFeedbackRows] = useState([]);
   const [status, setStatus] = useState("");
+  const [verifying, setVerifying] = useState(false);
   const selected =
     submissions.find((item) => item.id === selectedSubmissionId) ||
     submissions[0];
@@ -911,6 +912,30 @@ function TeacherReview({ submissions, assignments, onAssignmentAction }) {
       );
     } catch (error) {
       setStatus(error.message || "Feedback could not be sent.");
+    }
+  }
+
+  async function verifyScore() {
+    if (!selected || hasVerifiedScore(selected)) return;
+    setStatus("");
+    setVerifying(true);
+    try {
+      await onAssignmentAction(
+        `/api/stem/submissions/${encodeURIComponent(selected.id)}/verify`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            rawMarks: selected.rawMarks,
+            maxMarks: selected.maxMarks,
+            reviewerNote: feedback.trim(),
+          }),
+        },
+      );
+      setStatus("Score verified. Teacher and school analytics now use this reviewed result.");
+    } catch (error) {
+      setStatus(error.message || "This score could not be verified.");
+    } finally {
+      setVerifying(false);
     }
   }
 
@@ -985,6 +1010,17 @@ function TeacherReview({ submissions, assignments, onAssignmentAction }) {
               placeholder="Give a concise next step based on the submitted result."
               rows="3"
             />
+            {!hasVerifiedScore(selected) && (
+              <button
+                type="button"
+                className="secondary-action compact-action"
+                disabled={verifying}
+                onClick={verifyScore}
+              >
+                <ShieldCheck size={16} />
+                {verifying ? "Verifying..." : "Verify score"}
+              </button>
+            )}
             <button
               type="button"
               className="primary-action compact-action"

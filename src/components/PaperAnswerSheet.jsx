@@ -42,10 +42,11 @@ function legacyResponse(answer) {
 
 function AiMarkResult({ result, questionNumber, onRetryMarking }) {
   if (!result) return null
-  if (result.status === 'checking_availability') return <div className="vision-mark vision-mark--loading"><Sparkles size={16} /><span>Checking shared AI-assisted marking availability for this reviewed response.</span></div>
-  if (result.status === 'queued') return <div className="vision-mark vision-mark--loading"><Sparkles size={16} /><span>Queued by the shared IELTSist marking service with reviewed question metadata.</span></div>
-  if (result.status === 'processing') return <div className="vision-mark vision-mark--loading"><Sparkles size={16} /><span>Shared AI marking is processing this sourced response...</span></div>
-  if (result.status === 'failed') return <div className="vision-mark vision-mark--error"><span>{result.loginRequired ? 'Sign in with your IELTSist ID to request AI-assisted marking for this reviewed response. Your response remains saved.' : result.failureCode === 'service_unavailable' ? 'AI-assisted marking is temporarily unavailable. Your response remains saved; use the paired mark scheme to self-mark.' : 'Shared AI marking failed. Your response remains saved; use the paired mark scheme or retry later.'}</span>{result.retryable && result.submissionId && onRetryMarking && <button type="button" onClick={() => onRetryMarking(questionNumber)}>Retry shared marking</button>}</div>
+  if (result.status === 'checking_availability') return <div className="vision-mark vision-mark--loading"><Sparkles size={16} /><span>Checking availability</span></div>
+  if (result.status === 'queued') return <div className="vision-mark vision-mark--loading"><Sparkles size={16} /><span>Marking queued</span></div>
+  if (result.status === 'processing') return <div className="vision-mark vision-mark--loading"><Sparkles size={16} /><span>Marking in progress</span></div>
+  if (result.status === 'failed' && result.loginRequired) return <div className="vision-mark vision-mark--inactive"><span>AI mark pending sign-in.</span></div>
+  if (result.status === 'failed') return <div className="vision-mark vision-mark--error"><span>{result.failureCode === 'service_unavailable' ? 'Marking service unavailable; response saved.' : 'Marking failed; response saved.'}</span>{result.retryable && result.submissionId && onRetryMarking && <button type="button" onClick={() => onRetryMarking(questionNumber)}>Retry shared marking</button>}</div>
   if (result.status === 'missing_metadata' || result.status === 'review-only') return <div className="vision-mark vision-mark--inactive"><span>This question has no reviewed question-level mark allocation in the current index. Your response is saved; use the paired mark scheme for self-marking.</span></div>
   if (result.status !== 'completed') return null
   return (

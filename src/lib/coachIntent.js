@@ -18,6 +18,13 @@ const QUALIFICATIONS = Object.freeze([
   qualification('additional-math', '0606', 'IGCSE', /0606|additional\s*math(?:ematics)?|IG附加数学/i),
 ])
 
+const SPECIALIST_ROUTE_BY_SUBJECT = Object.freeze({
+  bpho: 'bpho-admissions-physics',
+  amc12: 'maa-amc12-admissions-mathematics',
+  esat: 'uatuk-esat-admissions',
+  tmua: 'uatuk-tmua-admissions',
+})
+
 function qualification(subjectId, code, defaultStage, pattern) {
   return Object.freeze({ subjectId, code, defaultStage, pattern })
 }
@@ -176,12 +183,14 @@ function parseSource(source) {
     ? officialPhysicsIntentTopic(source, rawSelectedTopic)
     : rawSelectedTopic
   if (!resolvedQualification) return null
+  const routeId = SPECIALIST_ROUTE_BY_SUBJECT[resolvedQualification.subjectId]
   if (!PRACTICE_PATTERN.test(source) && source.replace(/\s+/g, '').length > 10) return null
   if (!selectedTopic) {
     return {
       type: 'clarify-practice',
       subjectId: resolvedQualification.subjectId,
       subjectCode: resolvedQualification.code,
+      ...(routeId ? { routeId } : {}),
       stage: stageFor(source, resolvedQualification),
       questionCount: questionCount(source),
       topicOptions: TOPICS.filter((item) => item.subjectId === resolvedQualification.subjectId).map((item) => item.knowledgeGroupId),
@@ -192,6 +201,7 @@ function parseSource(source) {
     type: 'build-topic-practice',
     subjectId: resolvedQualification.subjectId,
     subjectCode: resolvedQualification.code,
+    ...(routeId ? { routeId } : {}),
     stage: stageFor(source, resolvedQualification),
     knowledgeGroupId: selectedTopic.knowledgeGroupId,
     questionCount: questionCount(source),
@@ -204,7 +214,7 @@ export function parseCoachIntent(message) {
   if (!source) return null
   const bpho = QUALIFICATIONS.find((item) => item.subjectId === 'bpho')
   if (bpho.pattern.test(source) && /SPC|senior physics challenge/i.test(source) && (LATEST_PATTERN.test(source) || /真题|paper/i.test(source))) {
-    return { type: 'open-latest-paper', contest: 'bpho-spc', label: 'BPhO Senior Physics Challenge' }
+    return { type: 'open-latest-paper', contest: 'bpho-spc', routeId: SPECIALIST_ROUTE_BY_SUBJECT.bpho, label: 'BPhO Senior Physics Challenge' }
   }
   return parseSource(source)
 }

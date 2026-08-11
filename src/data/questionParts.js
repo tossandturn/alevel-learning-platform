@@ -56,6 +56,28 @@ function answerAreaFor(question, part) {
   }
 }
 
+function cloneEvidenceEntries(value) {
+  if (!Array.isArray(value)) return Object.freeze([])
+  return Object.freeze(value
+    .filter((item) => item && typeof item === 'object')
+    .map((item) => Object.freeze({
+      ...item,
+      imageSize: Array.isArray(item.imageSize) ? Object.freeze([...item.imageSize]) : item.imageSize,
+      region: Array.isArray(item.region) ? Object.freeze([...item.region]) : item.region,
+      sourceRegion: Array.isArray(item.sourceRegion) ? Object.freeze([...item.sourceRegion]) : item.sourceRegion,
+      answerDiagramRegion: Array.isArray(item.answerDiagramRegion) ? Object.freeze([...item.answerDiagramRegion]) : item.answerDiagramRegion,
+    })))
+}
+
+function cloneSourceRegion(value) {
+  if (!value || typeof value !== 'object') return null
+  return Object.freeze({
+    ...value,
+    pixelBounds: Array.isArray(value.pixelBounds) ? Object.freeze([...value.pixelBounds]) : value.pixelBounds,
+    normalizedBounds: Array.isArray(value.normalizedBounds) ? Object.freeze([...value.normalizedBounds]) : value.normalizedBounds,
+  })
+}
+
 function structuredPart(question, answer, part, index) {
   const label = questionPartLabel(part, index === 0 ? 'a' : String(index + 1))
   const marks = partMarks(part.marks)
@@ -70,7 +92,16 @@ function structuredPart(question, answer, part, index) {
     answerKey: answerPart?.answerKey || answerPart?.correctOption || part.answerKey || part.correctOption || null,
     answerText: answerPart?.answerText || answerPart?.exactText || part.answerText || null,
     sourcePage: Number(part.sourcePage || part.page || question.sourceRef?.pageStart) || null,
-    answerSourcePage: Number(answerPart?.sourcePage || answerPart?.page || question.answerRef?.pageStart) || null,
+    // A structured answer part must carry its own reviewed MS page. Falling
+    // back to the document's first page can silently bind a mark to the wrong
+    // source when an imported record is incomplete.
+    answerSourcePage: Number(answerPart?.sourcePage ?? answerPart?.page) || null,
+    // Keep the reviewer-bound image proof on the normalized runtime part.
+    // The source-content gate and server marker must verify these bytes again;
+    // this does not authorize a client-supplied image.
+    sourceEvidence: cloneEvidenceEntries(part.sourceEvidence),
+    sourceRegion: cloneSourceRegion(part.sourceRegion),
+    markSchemeEvidence: cloneEvidenceEntries(answerPart?.markSchemeEvidence || part.markSchemeEvidence),
   }
 }
 

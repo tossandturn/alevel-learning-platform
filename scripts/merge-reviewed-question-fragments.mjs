@@ -2,10 +2,13 @@ import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import { spawnSync } from 'node:child_process'
 import { normaliseQuestionGroup } from '../src/data/questionParts.js'
 
 const projectRoot = path.resolve(import.meta.dirname, '..')
 const outputPath = path.join(projectRoot, 'src', 'data', 'importedQuestionIndex.json')
+const sourceManifestPath = path.join(projectRoot, 'src', 'data', 'sourceContentManifest.json')
+const sourceAuditPath = path.join(projectRoot, 'scripts', 'audit-question-bank.mjs')
 const reviewedSetsRoot = path.join(projectRoot, 'src', 'data', 'reviewedQuestionSets')
 const libraryRoot = path.resolve(process.env.CIE_LIBRARY_ROOT || 'D:/CodexWork/cie-fraft-fetcher/output/pdf')
 
@@ -23,6 +26,18 @@ function parseArgs(argv) {
 function sha256File(filePath) {
   assert.ok(fs.existsSync(filePath), `Missing source file ${filePath}`)
   return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex')
+}
+
+function writeIndexAndRefreshSourceManifest(index) {
+  const nextIndex = `${JSON.stringify(index, null, 2)}\n`
+  const previousIndex = fs.existsSync(outputPath) ? fs.readFileSync(outputPath) : null
+  const previousManifest = fs.existsSync(sourceManifestPath) ? fs.readFileSync(sourceManifestPath) : null
+  fs.writeFileSync(outputPath, nextIndex, 'utf8')
+  const result = spawnSync(process.execPath, [sourceAuditPath, '--write-manifest'], { cwd: projectRoot, encoding: 'utf8', shell: false })
+  if (result.status === 0) return
+  if (previousIndex) fs.writeFileSync(outputPath, previousIndex)
+  if (previousManifest) fs.writeFileSync(sourceManifestPath, previousManifest)
+  throw new Error(`Could not refresh the source completeness manifest: ${String(result.stderr || result.stdout).slice(0, 500)}`)
 }
 
 function questionNumber(value) {
@@ -170,6 +185,6 @@ fs.writeFileSync(reviewedSetPath, `${JSON.stringify(reviewedSet, null, 2)}\n`)
 
 const index = JSON.parse(fs.readFileSync(outputPath, 'utf8'))
 const merged = mergeIntoIndex(index, paperId, reviewedSet.questions, reviewedSet.answers, reviewedSet.bindings)
-fs.writeFileSync(outputPath, `${JSON.stringify(merged, null, 2)}\n`)
+writeIndexAndRefreshSourceManifest(merged)
 console.log(`Merged ${numbers.length} reviewed questions (${paperMarks} marks) for ${paperId}.`)
 console.log(`Canonical reviewed set: ${reviewedSetPath}`)

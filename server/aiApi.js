@@ -2,6 +2,16 @@ import fs from 'node:fs'
 import crypto from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
+import { isHumanReviewedPastPaperItem, unifiedQuestionBank } from '../src/data/questionBank.js'
+import {
+  canonicalSourceMarkingProvenance,
+  documentPageFromAssetUrl,
+  requiredMarkSchemeAssetEvidence,
+  requiredSourceAssetEvidence,
+  STEM_MARKING_MANIFEST_SCHEMA_VERSION,
+  STEM_SOURCE_REVIEW_SCHEMA_VERSION,
+} from '../src/lib/sourceContentContract.js'
+import { verifyMarkingCapability } from './markingCapability.js'
 
 const IMAGE_PATTERN = /^data:image\/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=]+)$/
 const MAX_BODY_BYTES = 16 * 1024 * 1024
@@ -9,6 +19,7 @@ const MAX_IMAGE_BYTES = 12 * 1024 * 1024
 const TEMP_IMAGE_TTL_MS = 5 * 60 * 1000
 const pdfTextCache = new Map()
 const CIE_SUBJECTS = new Set(['0580', '0606', '0625', '9231', '9701', '9702', '9708', '9709'])
+const DEFAULT_SOURCE_ASSET_ROOT = path.resolve(import.meta.dirname, '..', 'public', 'question-assets')
 let extraSourceCache = null
 const temporaryImages = new Map()
 
@@ -233,6 +244,194 @@ function questionExcerpt(text, questionNumber) {
   return compactText(source.slice(start, start + 12000), 12000)
 }
 
+function subjectCodeForQuestion(question) {
+  const match = String(question?.sourceRef?.paper || '').match(/^(\d{4})[_-]/)
+  return match?.[1] || String(question?.subjectId || '')
+}
+
+function sourceAssetPath(assetRoot, assetUrl) {
+  let pathname
+  try {
+    pathname = decodeURIComponent(new URL(String(assetUrl || ''), 'https://stem.local').pathname)
+  } catch {
+    return null
+  }
+  const prefix = '/question-assets/'
+  if (!pathname.startsWith(prefix)) return null
+  const parts = pathname.slice(prefix.length).split('/')
+  if (!parts.length || parts.some((part) => !part || part === '.' || part === '..' || part.includes('\\'))) return null
+  const root = path.resolve(assetRoot)
+  const resolved = path.resolve(root, ...parts)
+  const relative = path.relative(root, resolved)
+  return relative && !relative.startsWith('..') && !path.isAbsolute(relative) ? resolved : null
+}
+
+function imageMimeType(assetUrl) {
+  const extension = path.extname(String(assetUrl || '')).toLowerCase()
+  if (extension === '.png') return 'image/png'
+  if (extension === '.webp') return 'image/webp'
+  if (extension === '.jpg' || extension === '.jpeg') return 'image/jpeg'
+  return ''
+}
+
+function sourceContextFailure(code) {
+  return Object.assign(new Error('The paired official source images are unavailable for this reviewed response.'), {
+    statusCode: 422,
+    code,
+  })
+}
+
+function evidenceByPage(parts, evidenceForPart, documentSha256) {
+  const byPage = new Map()
+  for (const part of parts || []) {
+    for (const evidence of evidenceForPart(part)) {
+      if (evidence.documentSha256 && evidence.documentSha256 !== documentSha256) {
+        throw sourceContextFailure('source_asset_document_mismatch')
+      }
+      const existing = byPage.get(evidence.page)
+      if (existing && existing.assetSha256 !== evidence.assetSha256) {
+        throw sourceContextFailure('source_asset_checksum_conflict')
+      }
+      byPage.set(evidence.page, evidence)
+    }
+  }
+  return byPage
+}
+
+function assetUrlByPage(assetUrls, page) {
+  return (assetUrls || []).find((url) => documentPageFromAssetUrl(url) === Number(page)) || ''
+}
+
+function localOfficialImage({ assetRoot, assetUrl, page, expectedSha256, role, region = null }) {
+  const filePath = sourceAssetPath(assetRoot, assetUrl)
+  const mimeType = imageMimeType(assetUrl)
+  if (!filePath || !mimeType || !fs.existsSync(filePath)) throw sourceContextFailure('source_asset_unavailable')
+  const bytes = fs.readFileSync(filePath)
+  if (!bytes.length) throw sourceContextFailure('source_asset_unavailable')
+  const sha256 = crypto.createHash('sha256').update(bytes).digest('hex')
+  if (sha256 !== expectedSha256) throw sourceContextFailure('source_asset_checksum_mismatch')
+  return Object.freeze({
+    role,
+    page: Number(page),
+    sha256,
+    region: Array.isArray(region) ? [...region] : null,
+    dataUrl: `data:${mimeType};base64,${bytes.toString('base64')}`,
+  })
+}
+
+/**
+ * Resolve official QP/MS images from the current reviewed server binding.
+ * The request never supplies source URLs, hashes or image bytes for official
+ * material, so a stale or forged client capability cannot alter AI context.
+ */
+export function canonicalHandwritingMarkingImages(canonical, { assetRoot = DEFAULT_SOURCE_ASSET_ROOT } = {}) {
+  if (!canonical?.ok || !canonical.question || !canonical.part) throw sourceContextFailure('source_provenance_missing')
+  const question = canonical.question
+  const sourceRef = question.sourceRef || {}
+  const answerRef = question.answerRef || {}
+  const sourceEvidence = evidenceByPage([canonical.part], requiredSourceAssetEvidence, String(sourceRef.sha256 || ''))
+  const questionImages = [...sourceEvidence.entries()].map(([page, evidence]) => {
+    const assetUrl = assetUrlByPage(sourceRef.assetUrls, page)
+    if (!assetUrl) throw sourceContextFailure('source_asset_evidence_missing')
+    return localOfficialImage({
+      assetRoot,
+      assetUrl,
+      page,
+      expectedSha256: evidence.assetSha256,
+      role: 'question-paper',
+    })
+  })
+  if (!questionImages.length) throw sourceContextFailure('source_asset_evidence_missing')
+
+  const markSchemeEvidence = evidenceByPage([canonical.part], requiredMarkSchemeAssetEvidence, String(answerRef.sha256 || ''))
+  const markSchemeImages = [...markSchemeEvidence.entries()].map(([page, evidence]) => {
+    const assetUrl = assetUrlByPage(answerRef.assetUrls, page)
+    if (!assetUrl) throw sourceContextFailure('mark_scheme_asset_evidence_missing')
+    return localOfficialImage({
+      assetRoot,
+      assetUrl,
+      page,
+      expectedSha256: evidence.assetSha256,
+      role: 'mark-scheme',
+    })
+  })
+  if (!markSchemeImages.length) throw sourceContextFailure('mark_scheme_asset_evidence_missing')
+
+  return Object.freeze({
+    questionImages: Object.freeze(questionImages),
+    markSchemeImages: Object.freeze(markSchemeImages),
+  })
+}
+
+/**
+ * Client supplied flags and mark points are display data only. This resolves
+ * the exact source group and part against the server's current effective bank
+ * before a provider request can be made.
+ */
+export function canonicalHandwritingMarkingContext(payload = {}) {
+  const provenance = payload?.provenance || {}
+  const sourceQuestionId = String(provenance.sourceQuestionId || '').trim()
+  const questionPartId = String(provenance.questionPartId || '')
+  const routeId = String(provenance.routeId || '')
+  const bindingSignature = String(provenance.bindingSignature || '')
+  const reviewSchemaVersion = String(provenance.reviewSchemaVersion || '')
+  const reviewVersion = String(provenance.reviewVersion || '')
+  const sourceDocumentSha256 = String(provenance.sourceDocumentSha256 || '')
+  const answerDocumentSha256 = String(provenance.answerDocumentSha256 || '')
+  const sourceIndexSha256 = String(provenance.sourceIndexSha256 || '')
+  const sourceManifestChecksum = String(provenance.sourceManifestChecksum || '')
+  if (!sourceQuestionId || sourceQuestionId.includes('@') || !questionPartId || !routeId || !bindingSignature || !reviewSchemaVersion || !reviewVersion || !sourceDocumentSha256 || !answerDocumentSha256 || !sourceIndexSha256 || !sourceManifestChecksum || !provenance.sourceEvidence) {
+    return Object.freeze({ ok: false, code: 'source_provenance_missing' })
+  }
+  if (provenance.manifestSchemaVersion !== STEM_MARKING_MANIFEST_SCHEMA_VERSION || reviewSchemaVersion !== STEM_SOURCE_REVIEW_SCHEMA_VERSION) {
+    return Object.freeze({ ok: false, code: 'source_provenance_mismatch' })
+  }
+
+  const question = unifiedQuestionBank.find((item) => (
+    item.routeId === routeId
+    && item.sourceQuestionId === sourceQuestionId
+    && isHumanReviewedPastPaperItem(item)
+  ))
+  if (!question) return Object.freeze({ ok: false, code: 'source_question_unreviewed' })
+  const part = (question.parts || []).find((item) => item.partId === questionPartId)
+  if (!part || !Number.isFinite(Number(part.marks)) || Number(part.marks) <= 0) {
+    return Object.freeze({ ok: false, code: 'source_question_unknown' })
+  }
+  if (!Number.isInteger(Number(part.answerSourcePage)) || Number(part.answerSourcePage) <= 0) {
+    return Object.freeze({ ok: false, code: 'source_question_unreviewed' })
+  }
+  const canonicalProvenance = canonicalSourceMarkingProvenance(question, part)
+  if (!canonicalProvenance) return Object.freeze({ ok: false, code: 'source_question_unreviewed' })
+  const sourceEvidence = provenance.sourceEvidence || {}
+  const sourceMatches = sourceEvidence.assetId === canonicalProvenance.sourceEvidence.assetId
+    && Number(sourceEvidence.page) === canonicalProvenance.sourceEvidence.page
+    && String(sourceEvidence.assetUrl || '') === canonicalProvenance.sourceEvidence.assetUrl
+    && String(sourceEvidence.assetSha256 || '') === canonicalProvenance.sourceEvidence.assetSha256
+    && String(sourceEvidence.quote || '') === canonicalProvenance.sourceEvidence.quote
+  if (bindingSignature !== canonicalProvenance.bindingSignature
+    || reviewVersion !== canonicalProvenance.reviewVersion
+    || sourceDocumentSha256 !== canonicalProvenance.sourceDocumentSha256
+    || answerDocumentSha256 !== canonicalProvenance.answerDocumentSha256
+    || sourceIndexSha256 !== canonicalProvenance.sourceIndexSha256
+    || sourceManifestChecksum !== canonicalProvenance.sourceManifestChecksum
+    || !sourceMatches) {
+    return Object.freeze({ ok: false, code: 'source_provenance_mismatch' })
+  }
+
+  const questionNumber = Number(String(question.sourceRef?.question || '').match(/\d+/)?.[0])
+  const subject = subjectCodeForQuestion(question)
+  if (!questionNumber || !subject) return Object.freeze({ ok: false, code: 'canonical_question_context_missing' })
+  return Object.freeze({
+    ok: true,
+    sourceQuestionId,
+    questionPartId,
+    question,
+    part,
+    subject,
+    questionNumber,
+  })
+}
+
 export function providerConfig(env = {}) {
   const workspaceId = env.DASHSCOPE_WORKSPACE_ID || env.QWEN_WORKSPACE_ID || ''
   const region = env.DASHSCOPE_REGION || 'cn-beijing'
@@ -415,57 +614,55 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   }
 }
 
-async function paperContext(payload, libraryRoot, allowedSubjects) {
-  if (!payload.paper?.questionFile || !payload.paper?.markSchemeFile) return { questionText: '', markSchemeText: '' }
-  const subject = String(payload.paper.subject || '')
-  const questionReference = resolvePdfReference(libraryRoot, allowedSubjects, subject, String(payload.paper.questionFile || ''))
-  const markSchemeReference = resolvePdfReference(libraryRoot, allowedSubjects, subject, String(payload.paper.markSchemeFile || ''))
-  const [questionText, markSchemeText] = await Promise.all([extractPdfText(questionReference), extractPdfText(markSchemeReference)])
-  return {
-    questionText: questionExcerpt(questionText, payload.questionNumber),
-    markSchemeText: questionExcerpt(markSchemeText, payload.questionNumber),
-  }
-}
-
-async function handleHandwritingMark(request, response, provider, libraryRoot, allowedSubjects) {
+async function handleHandwritingMark(request, response, provider, libraryRoot, allowedSubjects, sourceAssetRoot, env) {
   const payload = await readJsonBody(request)
-  imageBytes(payload.imageDataUrl)
-  const questionImages = Array.isArray(payload.questionImageDataUrls) ? payload.questionImageDataUrls.slice(0, 2) : []
-  const markSchemeImages = Array.isArray(payload.markSchemeImageDataUrls) ? payload.markSchemeImageDataUrls.slice(0, 2) : []
-  for (const image of [...questionImages, ...markSchemeImages]) imageBytes(image)
-  const requestedMaxMarks = Number(payload.maxMarks)
-  if (!Number.isFinite(requestedMaxMarks) || requestedMaxMarks <= 0) {
-    return sendJson(response, 200, {
-      mode: 'vision',
-      status: 'review-only',
-      marksAvailable: false,
+  const capability = verifyMarkingCapability({
+    request,
+    payload,
+    identitySigningKey: env.STEM_IDENTITY_SIGNING_KEY,
+    capabilitySigningKey: env.STEM_MARKING_CAPABILITY_SIGNING_KEY || env.STEM_IDENTITY_SIGNING_KEY,
+  })
+  if (!capability.ok) {
+    return sendJson(response, capability.statusCode || 403, {
+      code: capability.code,
+      error: capability.message,
       reviewRequired: true,
-      confidence: 0,
-      rawMarks: null,
-      maxMarks: null,
-      summary: 'The official question-level mark allocation is not available for this PDF item.',
-      nextAction: 'Review the handwriting against the paired mark scheme and enter self-marked marks manually.',
-      markPoints: [],
     })
   }
-  if (!provider.apiKey) return sendJson(response, 503, { code: 'vision_not_configured', error: 'Qwen vision marking is not configured on this local server.' })
-  let source
-  try {
-    source = await paperContext(payload, libraryRoot, allowedSubjects)
-  } catch (error) {
-    if (error.statusCode) throw error
-    return sendJson(response, 200, { mode: 'offline', code: 'vision_context_failed', provider: 'qwen', providerStatus: 'error', error: providerMessage(error), retryable: true })
+  const canonical = canonicalHandwritingMarkingContext(payload)
+  if (!canonical.ok) {
+    return sendJson(response, 422, {
+      code: canonical.code,
+      error: 'This response is no longer backed by a current reviewed source record. It remains saved for student self-review.',
+      reviewRequired: true,
+    })
   }
+  imageBytes(payload.imageDataUrl)
+  let officialImages
+  try {
+    officialImages = canonicalHandwritingMarkingImages(canonical, { assetRoot: sourceAssetRoot })
+  } catch (error) {
+    return sendJson(response, error.statusCode || 422, {
+      code: error.code || 'source_asset_unavailable',
+      error: 'The paired official source images are unavailable for this response. Your work remains saved for self-review.',
+      reviewRequired: true,
+    })
+  }
+  const { questionImages, markSchemeImages } = officialImages
+  const requestedMaxMarks = Number(canonical.part.marks)
+  if (!provider.apiKey) return sendJson(response, 503, { code: 'vision_not_configured', error: 'Qwen vision marking is not configured on this local server.' })
   const context = {
-    subject: compactText(payload.subject, 80),
-    syllabus: compactText(payload.syllabus, 200),
-    questionNumber: Number(payload.questionNumber) || null,
-    question: payload.question || null,
-    expectedMarkPoints: payload.expectedMarkPoints || [],
-    requestedMaxMarks: Number(payload.maxMarks) || null,
+    subject: canonical.subject,
+    syllabus: compactText(canonical.question.specification || canonical.question.qualification, 200),
+    questionNumber: canonical.questionNumber,
+    question: { prompt: canonical.part.promptFragment, answerType: canonical.part.answerArea?.type || canonical.question.answerType },
+    expectedMarkPoints: canonical.part.markSchemePoints || [],
+    requestedMaxMarks,
     typedResponse: compactText(payload.typedResponse, 6000),
-    questionPaperExtract: source.questionText,
-    exactMarkSchemeExtract: source.markSchemeText,
+    officialSourceImages: [
+      ...questionImages.map((image) => ({ role: image.role, page: image.page, sha256: image.sha256 })),
+      ...markSchemeImages.map((image) => ({ role: image.role, page: image.page, sha256: image.sha256 })),
+    ],
   }
   const system = [
     'You are an assisted examiner reviewing one handwritten response for the exact qualification and subject supplied in context.',
@@ -478,14 +675,24 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
   ].join('\n')
   try {
     const publicBase = imagePublicBase(provider, request)
+    const officialSourceImages = [...questionImages, ...markSchemeImages]
     const [providerImage, ...sourceImages] = await Promise.all([
       temporaryImageUrl(payload.imageDataUrl, publicBase),
-      ...questionImages.map((image) => temporaryImageUrl(image, publicBase)),
-      ...markSchemeImages.map((image) => temporaryImageUrl(image, publicBase)),
+      ...officialSourceImages.map((image) => temporaryImageUrl(image.dataUrl, publicBase)),
     ])
+    const questionProviderImages = sourceImages.slice(0, questionImages.length)
+    const markSchemeProviderImages = sourceImages.slice(questionImages.length)
     const content = [
       { type: 'text', text: compactText(JSON.stringify({ ...context, imageOrder: { questionPaperPages: questionImages.length, markSchemePages: markSchemeImages.length, studentResponsePages: 1 } }), 30000) },
-      ...sourceImages.map((image) => ({ type: 'image_url', image_url: { url: image.url } })),
+      ...questionProviderImages.flatMap((image, index) => [
+        { type: 'text', text: `Official question-paper page ${questionImages[index].page}; SHA-256 ${questionImages[index].sha256}.` },
+        { type: 'image_url', image_url: { url: image.url } },
+      ]),
+      ...markSchemeProviderImages.flatMap((image, index) => [
+        { type: 'text', text: `Official mark-scheme page ${markSchemeImages[index].page}; SHA-256 ${markSchemeImages[index].sha256}.` },
+        { type: 'image_url', image_url: { url: image.url } },
+      ]),
+      { type: 'text', text: 'Student handwritten response.' },
       { type: 'image_url', image_url: { url: providerImage.url } },
     ]
     // Qwen-VL accepts the OpenAI-compatible image message, but some DashScope
@@ -493,7 +700,7 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
     // parseStructuredJson validates the returned structure server-side.
     try {
       const raw = await callCompatibleAi(provider, { messages: [{ role: 'system', content: system }, { role: 'user', content }], temperature: 0.05 })
-      const result = normalizeMarkResult(parseStructuredJson(raw), payload.maxMarks)
+      const result = normalizeMarkResult(parseStructuredJson(raw), requestedMaxMarks)
       return sendJson(response, 200, { mode: 'vision', provider: 'qwen', providerStatus: 'connected', model: provider.model, ...result })
     } finally {
       providerImage.cleanup()
@@ -505,7 +712,7 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
   }
 }
 
-export function createAiApi({ env = process.env, libraryRoot, allowedSubjects }) {
+export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT }) {
   const config = providerConfig(env)
   return async function aiApi(request, response, next) {
     const requestUrl = new URL(request.url, 'http://127.0.0.1')
@@ -522,7 +729,7 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects })
         })
       }
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach') return await handleCoach(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env)
-      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/mark-handwriting') return await handleHandwritingMark(request, response, config.vision, libraryRoot, allowedSubjects)
+      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/mark-handwriting') return await handleHandwritingMark(request, response, config.vision, libraryRoot, allowedSubjects, sourceAssetRoot, env)
       return sendJson(response, 404, { error: 'AI route not found.' })
     } catch (error) {
       return sendJson(response, error.statusCode || 500, { error: error.statusCode ? error.message : 'The AI request could not be completed.' })

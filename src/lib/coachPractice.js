@@ -2,6 +2,8 @@ import { subjects } from '../data/catalog.js'
 import { learningPlan } from '../data/learningPlan.js'
 import { questionInventory, selectTaggedQuestions, sourceMixForQuestions, unifiedQuestionBank } from '../data/questionBank.js'
 import { courseRoutes, routeById, routesForSubject } from '../data/routeRegistry.js'
+import { requiresSourceVisual, stripSourceVisualPlaceholders } from './questionContent.js'
+import { canonicalSourceMarkingProvenance } from './sourceContentContract.js'
 
 const EXTERNAL_GROUPS = Object.freeze({
   bpho: [
@@ -11,11 +13,11 @@ const EXTERNAL_GROUPS = Object.freeze({
     externalGroup('bpho-thermal-modern', 'Thermal and modern physics'),
   ],
   esat: [
-    externalGroup('esat-mathematics-1', 'Mathematics 1'),
-    externalGroup('esat-mathematics-2', 'Mathematics 2'),
-    externalGroup('esat-physics', 'Physics'),
-    externalGroup('esat-chemistry', 'Chemistry'),
-    externalGroup('esat-biology', 'Biology'),
+    externalGroup('esat-mathematics-1', 'Mathematics 1', { paperComponent: 'mathematics-1', routeSyllabusTopic: 'esat-topic-01' }),
+    externalGroup('esat-mathematics-2', 'Mathematics 2', { paperComponent: 'mathematics-2', routeSyllabusTopic: 'esat-topic-02' }),
+    externalGroup('esat-physics', 'Physics', { paperComponent: 'physics', routeSyllabusTopic: 'esat-topic-03' }),
+    externalGroup('esat-chemistry', 'Chemistry', { paperComponent: 'chemistry', routeSyllabusTopic: 'esat-topic-04' }),
+    externalGroup('esat-biology', 'Biology', { paperComponent: 'biology', routeSyllabusTopic: 'esat-topic-05' }),
   ],
   tmua: [
     externalGroup('tmua-algebra', 'Algebra and functions'),
@@ -32,8 +34,8 @@ const EXTERNAL_GROUPS = Object.freeze({
   ],
 })
 
-function externalGroup(id, name) {
-  return Object.freeze({ id, name, stageTags: [] })
+function externalGroup(id, name, routeMetadata = {}) {
+  return Object.freeze({ id, name, stageTags: [], ...routeMetadata })
 }
 
 function compactSourcePaperLabel(sourceRef) {
@@ -205,7 +207,13 @@ export function buildCoachPractice({ routeId, subjectId, stage, knowledgeGroupId
     questionPartId: questionPart.partId,
     label: `${group.sourceRef.question || groupIndex + 1}${questionPart.label ? `(${questionPart.label})` : ''}`,
     displayLabel: `${compactSourcePaperLabel(group.sourceRef) ? `${compactSourcePaperLabel(group.sourceRef)} · ` : ''}${group.sourceRef.question || groupIndex + 1}${questionPart.label ? `(${questionPart.label})` : ''}`,
-    prompt: questionPart.promptFragment,
+    sourceVisualRequired: requiresSourceVisual(questionPart.promptFragment),
+    sourceContentComplete: group.sourceContent?.complete === true,
+    sourceContentReasons: group.sourceContent?.reasons || [],
+    sourcePages: group.sourceContent?.sourcePages || [],
+    sourceAssetUrls: group.sourceContent?.assetUrls || group.sourceRef?.assetUrls || [],
+    markingProvenance: canonicalSourceMarkingProvenance(group, questionPart),
+    prompt: stripSourceVisualPlaceholders(questionPart.promptFragment),
     marks: questionPart.marks,
     answerType: questionPart.answerArea?.type || group.answerType || 'handwritten',
     answerKey: questionPart.answerKey,
@@ -248,7 +256,10 @@ export function buildCoachPractice({ routeId, subjectId, stage, knowledgeGroupId
     routeId: subject.routeId,
     qualification: subject.qualification,
     subject: routeById(subject.routeId)?.subject,
-    subjectId: subject.subjectId,
+    // Persist the route registry's canonical subject code. The app subject ID
+    // is a UI taxonomy key (for example `igcse-math`) and cannot safely bind a
+    // stored attempt back to a Cambridge route on reload.
+    subjectId: routeById(subject.routeId)?.subjectId || subject.subjectId,
     qualificationId: subject.qualificationId,
     knowledgeGroupId: group.id,
     topicId: group.id,
@@ -261,8 +272,10 @@ export function buildCoachPractice({ routeId, subjectId, stage, knowledgeGroupId
     specification: `${subject.stage} · official past-paper questions`,
     inventoryStatus: parts.length < requestedCount ? 'partial-source-inventory' : 'verified-source-inventory',
     stage: subject.stage,
-    paperComponent: [...new Set(parts.map((part) => part.paperComponent).filter((value) => value != null))],
-    syllabusTopic: group.id,
+    paperComponent: group.paperComponent
+      ? [group.paperComponent]
+      : [...new Set(parts.map((part) => part.paperComponent).filter((value) => value != null))],
+    syllabusTopic: group.routeSyllabusTopic || group.id,
     sourcePaper: [...new Set(parts.map((part) => part.sourcePaper).filter(Boolean))],
     durationSec: Math.max(20, parts.length * 4) * 60,
     maxMarks: parts.reduce((sum, part) => sum + part.marks, 0),
@@ -280,6 +293,71 @@ export function buildCoachPractice({ routeId, subjectId, stage, knowledgeGroupId
     questionOffset: Math.max(0, Math.floor(Number(questionOffset) || 0)),
     referencePapers: [...sourcePapers.values()],
     parts,
+  }
+}
+
+function persistedPartReference(part) {
+  const sourceQuestionId = String(part?.sourceQuestionId || part?.questionGroupId || part?.bankId || '').split('@')[0]
+  const questionPartId = String(part?.questionPartId || part?.partId || '')
+  return sourceQuestionId && questionPartId ? { sourceQuestionId, questionPartId } : null
+}
+
+/**
+ * Persisted topic units are convenience records, never an authority for source
+ * availability or marking capability. Rebuild the exact part scope from the
+ * current effective question bank before exposing, resuming, or scoring it.
+ */
+export function rebindVerifiedPracticeUnit(unit, { questionBank = unifiedQuestionBank } = {}) {
+  const suppliedParts = Array.isArray(unit?.parts) ? unit.parts : []
+  if (!suppliedParts.length || suppliedParts.some((part) => part?.sourceKind !== 'past-paper')) return null
+  const route = routeById(unit?.routeId)
+  if (!route) return null
+
+  const references = suppliedParts.map(persistedPartReference)
+  if (references.some((reference) => !reference)) return null
+  const uniquePartKeys = new Set(references.map((reference) => `${reference.sourceQuestionId}\u0000${reference.questionPartId}`))
+  if (uniquePartKeys.size !== references.length) return null
+
+  const canonicalGroups = new Map(questionBank
+    .filter((question) => question.routeId === route.routeId)
+    .map((question) => [question.sourceQuestionId, question]))
+  const groups = references.map((reference) => canonicalGroups.get(reference.sourceQuestionId))
+  if (groups.some((group) => !group)) return null
+  const knowledgeGroupId = groups[0]?.knowledgeGroupId
+  if (!knowledgeGroupId || groups.some((group) => group.knowledgeGroupId !== knowledgeGroupId)) return null
+
+  let rebuilt
+  try {
+    rebuilt = buildCoachPractice({
+      routeId: route.routeId,
+      knowledgeGroupId,
+      sourceQuestionIds: [...new Set(groups.map((group) => group.bankId))],
+      allowPartial: true,
+      unitId: String(unit.id || ''),
+    })
+  } catch {
+    return null
+  }
+
+  const canonicalParts = new Map(rebuilt.parts.map((part) => [`${part.sourceQuestionId}\u0000${part.questionPartId}`, part]))
+  const parts = references.map((reference) => canonicalParts.get(`${reference.sourceQuestionId}\u0000${reference.questionPartId}`))
+  if (parts.some((part) => !part)) return null
+
+  const totalMarks = parts.reduce((sum, part) => sum + Number(part.marks || 0), 0)
+  const ratio = parts.length / Math.max(1, rebuilt.parts.length)
+  return {
+    ...rebuilt,
+    id: String(unit.id || rebuilt.id),
+    parts,
+    maxMarks: totalMarks,
+    durationSec: Math.max(300, Math.ceil(Number(rebuilt.durationSec || 600) * ratio)),
+    estimatedMinutes: Math.max(5, Math.ceil(Number(rebuilt.estimatedMinutes || 10) * ratio)),
+    questionGroupCount: new Set(references.map((reference) => reference.sourceQuestionId)).size,
+    agentGenerated: Boolean(unit.agentGenerated),
+    focusedRetestOf: unit.focusedRetestOf || null,
+    sourceSetIndex: unit.sourceSetIndex || null,
+    sourceSetCount: unit.sourceSetCount || null,
+    sourceGateVersion: 'current-reviewed-source-v1',
   }
 }
 

@@ -1,6 +1,8 @@
 import importedQuestionIndex from './importedQuestionIndex.json' with { type: 'json' }
 import { LEGACY_UNSCOPED_ROUTE_ID, resolveRouteId, routeById, routesForSubject } from './routeRegistry.js'
 import { normaliseQuestionGroup } from './questionParts.js'
+import { hasCompleteSourceContent, hasRequiredSourceVisual, reviewedSourceFocusBinding, sourceContentStatus } from '../lib/questionContent.js'
+import { canonicalSourceMarkingProvenance } from '../lib/sourceContentContract.js'
 
 const REQUIRED_SOURCE_FIELDS = ['paperId', 'paper', 'question', 'localUrl', 'pageStart', 'sha256']
 const REQUIRED_ANSWER_FIELDS = ['documentId', 'file', 'localUrl', 'pageStart', 'sha256']
@@ -38,6 +40,8 @@ export function isVerifiedPastPaperItem(question) {
     && question.questionGroupId
     && question.questionGroupStatus !== 'quarantined'
     && groupValidation.status === 'verified'
+    && hasCompleteSourceContent(question)
+    && hasRequiredSourceVisual(question)
     && route
     && route.stage === question.stage
     && route.qualification === question.qualification
@@ -75,6 +79,14 @@ export function normalizeImportedQuestion(question, route = null) {
   const answerRef = question.answerRef || {}
   const sourceQuestionId = question.bankId || question.questionId
   const questionGroup = normaliseQuestionGroup(question, question)
+  const sourceContent = sourceContentStatus({ ...question, parts: questionGroup.parts })
+  const reviewedSourceFocus = sourceContent.complete ? reviewedSourceFocusBinding(question) : null
+  const normalizedParts = (questionGroup.parts || []).map((part) => Object.freeze({
+    ...part,
+    // This is intentionally populated only from matching human-reviewed QP
+    // region evidence. The player uses the full source page otherwise.
+    sourceFocus: reviewedSourceFocus?.complete ? reviewedSourceFocus.parts?.[part.partId] || null : null,
+  }))
   const routeId = route?.routeId || LEGACY_UNSCOPED_ROUTE_ID
   const sourceKnowledgeGroupId = question.knowledgeGroupId || question.topicId || null
   const sourceTopicRouteId = resolveRouteId({ subjectId: question.subjectId, knowledgeGroupId: sourceKnowledgeGroupId })
@@ -88,7 +100,7 @@ export function normalizeImportedQuestion(question, route = null) {
     questionGroupId: questionGroup.questionGroupId || sourceQuestionId,
     questionGroupStatus: questionGroup.status,
     totalMarks: questionGroup.totalMarks || 0,
-    parts: Object.freeze((questionGroup.parts || []).map((part) => Object.freeze(part))),
+    parts: Object.freeze(normalizedParts),
     routeId,
     qualification: route?.qualification || null,
     stage: route?.stage || null,
@@ -100,6 +112,7 @@ export function normalizeImportedQuestion(question, route = null) {
     sourceKnowledgeGroupId,
     sourcePaper: sourceRef.paper || null,
     sourceKind: 'past-paper',
+    sourceContent,
     answerType: question.answerType || 'handwritten',
     marks: questionGroup.totalMarks || Math.max(1, Number(question.marks) || 1),
     stageTags: [...new Set(question.stageTags || [])],
@@ -245,6 +258,9 @@ export function paperQuestionMarkingMetadata({ paperId, routeId, questionBank = 
       markSchemePoints: [...(part.markSchemePoints || [])],
       sourcePage: part.sourcePage || question.sourceRef.pageStart,
       markSchemePage: part.answerSourcePage || question.answerRef.pageStart,
+      sourceEvidence: [...(part.sourceEvidence || [])],
+      markSchemeEvidence: [...(part.markSchemeEvidence || [])],
+      markingProvenance: canonicalSourceMarkingProvenance(question, part),
     }))
     const maxMarks = parts.reduce((sum, part) => sum + part.marks, 0) || Number(question.totalMarks) || Number(question.marks) || 0
     if (!maxMarks) return []
@@ -252,6 +268,7 @@ export function paperQuestionMarkingMetadata({ paperId, routeId, questionBank = 
       schemaVersion: 'paper-question-marking-v1',
       reviewStatus: 'reviewed',
       questionId: question.sourceQuestionId || question.questionGroupId,
+      bindingSignature: question.sourceContent?.bindingSignature || '',
       questionGroupId: question.questionGroupId,
       number,
       maxMarks,

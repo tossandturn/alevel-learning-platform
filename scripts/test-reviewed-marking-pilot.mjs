@@ -6,6 +6,7 @@ import importedQuestionIndex from '../src/data/importedQuestionIndex.json' with 
 import { paperQuestionMarkingMetadata } from '../src/data/questionBank.js'
 import { normaliseQuestionGroup } from '../src/data/questionParts.js'
 import { buildSharedMarkingSubmission } from '../src/lib/paperMarking.js'
+import { sourceContentStatus } from '../src/lib/questionContent.js'
 
 const paperId = 'cie-0580-0580_m25_qp_12'
 const tuple = {
@@ -37,10 +38,13 @@ assert.equal(questions.reduce((sum, question) => sum + question.parts.length, 0)
 for (const question of questions) {
   const binding = bindingsByQuestionId.get(question.questionId)
   const answer = answersById.get(binding?.answerId)
+  const sourceContent = sourceContentStatus({ ...question, answerBinding: binding, answerParts: answer?.answerParts, answerRef: answer?.answerRef })
   assert.equal(binding?.verificationStatus, 'reviewed', `${question.questionId} must be human reviewed`)
   assert.match(binding.reviewedAt, /^\d{4}-\d{2}-\d{2}T/)
   assert.ok(binding.reviewedBy)
   assert.equal(binding.reviewEvidence?.method, 'paired-qp-ms-page-review')
+  assert.equal(sourceContent.semanticStatus, 'verified-complete', `${question.questionId} must have a complete human semantic review`)
+  assert.equal(sourceContent.complete, true, `${question.questionId} must pass the effective source completeness gate`)
   assert.equal(binding.reviewEvidence.questionPaper.sha256, question.sourceRef.sha256)
   assert.equal(binding.reviewEvidence.markScheme.sha256, answer.answerRef.sha256)
   const group = normaliseQuestionGroup(question, answer)

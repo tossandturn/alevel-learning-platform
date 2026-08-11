@@ -1,5 +1,6 @@
 import { courseRoutes } from '../data/routeRegistry.js'
 import { LEGACY_UNSCOPED_ROUTE_ID, resolveRouteBinding } from './routeMigration.js'
+import { answeredQuestionCount, isScoredAttempt } from './attemptAudit.js'
 
 function dayKey(value) {
   if (!value) return ''
@@ -8,17 +9,12 @@ function dayKey(value) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
-function isCompletedAttempt(attempt) {
-  const status = attempt?.attemptStatus || attempt?.submissionStatus || attempt?.status
-  return Boolean(attempt?.scoreResult) && Boolean(attempt?.submittedAt) && (
-    ['result', 'submitted', 'completed'].includes(status) ||
-    attempt?.stage === 'result' ||
-    status == null
-  )
+function isCompletedAttempt(attempt, unit) {
+  return isScoredAttempt(attempt, unit) && Boolean(attempt?.submittedAt)
 }
 
-function questionCountForAttempt(attempt) {
-  return attempt.scoreResult?.criteria?.length || attempt.scoreResult?.maxMarks || 0
+function questionCountForAttempt(attempt, unit) {
+  return answeredQuestionCount(attempt, unit?.parts || [])
 }
 
 function average(values) {
@@ -27,7 +23,7 @@ function average(values) {
 }
 
 function recentDayKeys(attempts) {
-  return new Set(attempts.filter(isCompletedAttempt).map((attempt) => dayKey(attempt.submittedAt)).filter(Boolean))
+  return new Set(attempts.map((attempt) => dayKey(attempt.submittedAt)).filter(Boolean))
 }
 
 function countConsecutiveDays(dayKeys) {
@@ -74,13 +70,14 @@ function routeForRecord(record, unit, routes) {
 function scopedAttempts(attempts, units, routes) {
   const unitsById = unitMap(units)
   return attempts
-    .filter(isCompletedAttempt)
     .map((attempt) => {
       const unit = unitsById.get(attempt.unitId)
       const binding = routeForRecord(attempt, unit, routes)
       return { attempt, unit, ...binding }
     })
-    .filter((item) => item.routeId !== LEGACY_UNSCOPED_ROUTE_ID)
+    // Historical attempts remain exportable, but they cannot affect progress
+    // after their source unit is retired by the current semantic content gate.
+    .filter((item) => item.unit && isCompletedAttempt(item.attempt, item.unit) && item.routeId !== LEGACY_UNSCOPED_ROUTE_ID)
 }
 
 function emptyRouteProgress(routeId, stage, weeklyTarget, drafts = {}) {
@@ -120,7 +117,7 @@ function progressForRoute({ routeId, stage, scoped, drafts, weeklyTarget, units,
       lastActivity: null,
     }
     record.attempts += 1
-    record.questions += questionCountForAttempt(attempt)
+    record.questions += questionCountForAttempt(attempt, unit)
     record.scores.push(attempt.scoreResult.percentage)
     record.lastActivity = record.lastActivity && record.lastActivity > attempt.submittedAt ? record.lastActivity : attempt.submittedAt
     topicById.set(topicId, record)
@@ -134,7 +131,7 @@ function progressForRoute({ routeId, stage, scoped, drafts, weeklyTarget, units,
       status: mastery == null ? 'Not started' : mastery >= 80 ? 'Secure' : mastery >= 60 ? 'Practising' : 'Rebuild',
     }
   })
-  const correctedMistakes = attempts.reduce((total, attempt) => total + (attempt.retestOf ? questionCountForAttempt(attempt) : 0), 0)
+  const correctedMistakes = records.reduce((total, { attempt, unit }) => total + (attempt.retestOf ? questionCountForAttempt(attempt, unit) : 0), 0)
   const milestones = [
     { id: 'first-set', label: 'Complete your first verified set', value: attempts.length, target: 1, unit: 'set' },
     { id: 'three-days', label: 'Study on 3 different days', value: new Set(attempts.map((attempt) => dayKey(attempt.submittedAt))).size, target: 3, unit: 'days' },
@@ -151,7 +148,7 @@ function progressForRoute({ routeId, stage, scoped, drafts, weeklyTarget, units,
     routeId,
     stage: stage || records[0]?.stage || null,
     week: {
-      completedQuestions: currentWeek.reduce((total, item) => total + questionCountForAttempt(item.attempt), 0),
+      completedQuestions: currentWeek.reduce((total, item) => total + questionCountForAttempt(item.attempt, item.unit), 0),
       targetQuestions: Math.max(1, Number(weeklyTarget) || 18),
       completedSets: currentWeek.length,
       average: average(currentWeek.map((item) => item.attempt.scoreResult.percentage)),
@@ -225,7 +222,9 @@ export function buildLearningProgress({ attempts = [], drafts = {}, units = [], 
   const selected = routeId
     ? (byRoute[routeId] || emptyRouteProgress(routeId, routes.find((route) => route.routeId === routeId || route.id === routeId)?.stage, weeklyTarget, drafts))
     : emptyRouteProgress(null, null, weeklyTarget, drafts)
-  const excludedLegacyAttempts = attempts.filter(isCompletedAttempt).length - scoped.length
+  const unitsById = unitMap(units)
+  const eligibleAttemptCount = attempts.filter((attempt) => isCompletedAttempt(attempt, unitsById.get(attempt.unitId))).length
+  const excludedLegacyAttempts = eligibleAttemptCount - scoped.length
 
   return {
     ...selected,

@@ -104,7 +104,7 @@ The smoke test validates the decoupled question/answer/binding schema, determini
 
 ## Boundaries
 
-- Student attempts are local-first; no shared account database is currently part of the practice contract.
+- Student practice drafts and attempts are local-first. Authenticated class submissions and private route notes use the STEM shared-workspace database; drafts, handwriting evidence and Coach chats remain private to the browser unless an explicit assignment summary is submitted.
 - A topic unlocks only after at least ten QP/MS-bound questions are indexed for that qualification, stage and syllabus group.
 - Notebook images are compressed and stored locally as visual evidence. Automatic handwriting OCR/vision marking requires a configured vision provider; the product never claims that an image was recognized when no provider is configured.
 - Notebook image blobs are stored in IndexedDB and are not included in the JSON state export. Structured PDF answer slots represent whole printed question numbers; subparts and mark allocations are not extracted automatically.

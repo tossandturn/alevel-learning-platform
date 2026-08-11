@@ -8,13 +8,14 @@ const EMPTY_PRACTICE_OPTIONS = Object.freeze([])
 function conversationKey(context) {
   // Coach history is learning-context data. It must never cross a route, stage,
   // course or workspace simply because the question label happens to match.
+  const owner = String(context.stateOwnerId || 'guest').trim() || 'guest'
   const route = context.routeId || 'unscoped-route'
   const stage = context.stage || 'unscoped-stage'
   const course = context.subject?.code || context.subject?.id || 'unscoped-course'
   const view = context.view || 'general'
   const attempt = context.attemptId || 'no-attempt'
   const question = context.question?.id || context.question?.number || context.question?.label || 'overview'
-  return `${STORAGE_PREFIX}:${route}:${stage}:${course}:${view}:${attempt}:${question}`
+  return `${STORAGE_PREFIX}:${encodeURIComponent(owner)}:${route}:${stage}:${course}:${view}:${attempt}:${question}`
 }
 
 function loadMessages(key) {
@@ -37,13 +38,14 @@ function fileToDataUrl(file) {
 
 export function AiCoach({
   context = {},
+  stateOwnerId = '',
   openRequest = 0,
   showTrigger = true,
   practiceOptions = EMPTY_PRACTICE_OPTIONS,
   onGeneratePractice,
   onAgentAction,
 }) {
-  const storageKey = conversationKey(context)
+  const storageKey = conversationKey({ ...context, stateOwnerId: context.stateOwnerId || stateOwnerId || 'guest' })
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState(() => loadMessages(storageKey))
   const [draft, setDraft] = useState('')
@@ -60,6 +62,7 @@ export function AiCoach({
   const endRef = useRef(null)
   const triggerRef = useRef(null)
   const lastOpenRequestRef = useRef(openRequest)
+  const hydratedStorageKeyRef = useRef(storageKey)
   const canOpenBphoSpc = Boolean(onAgentAction && (context.stage === 'Competition' || context.routeId === 'bpho-admissions-physics'))
 
   const builderSubject = useMemo(
@@ -79,9 +82,24 @@ export function AiCoach({
   }, [builderSubject, builderTopics])
 
   useEffect(() => {
+    // Do not write A's in-memory messages into B's storage key during an
+    // account switch. The reset effect below hydrates the new scoped history.
+    if (hydratedStorageKeyRef.current !== storageKey) return
     window.localStorage.setItem(storageKey, JSON.stringify(messages.slice(-30)))
     endRef.current?.scrollIntoView({ block: 'nearest' })
   }, [messages, storageKey])
+
+  useEffect(() => {
+    if (hydratedStorageKeyRef.current === storageKey) return
+    hydratedStorageKeyRef.current = storageKey
+    setMessages(loadMessages(storageKey))
+    setDraft('')
+    setHintLevel(1)
+    setImageDataUrl('')
+    setError('')
+    setLoading(false)
+    setBuilderOpen(false)
+  }, [storageKey])
 
   useEffect(() => {
     if (openRequest === lastOpenRequestRef.current) return

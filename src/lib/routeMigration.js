@@ -50,6 +50,7 @@ function metadataFor(value, unit) {
     value?.syllabusTopic,
     value?.contentScope?.syllabusTopic,
     value?.syllabusTopic ? value?.topic : null,
+    value?.contentScope?.syllabusTopic ? value?.contentScope?.topic : null,
     unit?.syllabusTopic,
     unit?.syllabusTopic ? unit?.topic : null,
   ].filter(Boolean)

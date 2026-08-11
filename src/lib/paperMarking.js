@@ -1,4 +1,8 @@
+import { SHARED_IDENTITY_ORIGIN } from './identityOrigin.js'
+import { documentPageFromAssetUrl, requiredSourceAssetEvidence, sourcePageFromAssetUrl, STEM_MARKING_MANIFEST_SCHEMA_VERSION, STEM_SOURCE_REVIEW_SCHEMA_VERSION, trustedSourceAssetUrls } from './sourceContentContract.js'
+
 export const PAPER_MARKING_SCHEMA_VERSION = 'stem-marking.v1'
+export const TRUSTED_MARKING_MANIFEST_SCHEMA_VERSION = STEM_MARKING_MANIFEST_SCHEMA_VERSION
 export const SHARED_MARKING_STATUSES = Object.freeze(['queued', 'processing', 'completed', 'failed', 'missing_metadata'])
 const QUESTION_ASSET_MAX_BYTES = 2 * 1024 * 1024
 const QUESTION_ASSET_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
@@ -17,8 +21,25 @@ function dataUrlForImage(blob) {
  * image. This avoids sending arbitrary remote URLs while preserving diagrams
  * and graph context for the matching QuestionPart.
  */
-export async function loadQuestionAsset({ sourceRef, fetchImpl = fetch, origin = typeof window === 'undefined' ? '' : window.location.origin } = {}) {
-  const assetUrl = sourceRef?.assetUrls?.[0]
+async function sha256ForBlob(blob) {
+  const bytes = new Uint8Array(await blob.arrayBuffer())
+  if (!globalThis.crypto?.subtle) throw new Error('Browser SHA-256 verification is unavailable.')
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes)
+  return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, '0')).join('')
+}
+
+function sourceAssetForPart(sourceRef = {}, part = {}) {
+  const page = Number(part.sourcePage)
+  const evidence = requiredSourceAssetEvidence(part).find((entry) => entry.page === page)
+    || (Number(part.markingProvenance?.sourceEvidence?.page) === page ? part.markingProvenance.sourceEvidence : null)
+  const assetUrl = trustedSourceAssetUrls(sourceRef).find((url) => sourcePageFromAssetUrl(url) === page)
+  if (!Number.isInteger(page) || !evidence?.assetSha256 || !assetUrl) return null
+  return { page, assetUrl, sha256: evidence.assetSha256 }
+}
+
+export async function loadQuestionAsset({ sourceRef, part, page, expectedSha256, fetchImpl = fetch, origin = typeof window === 'undefined' ? '' : window.location.origin } = {}) {
+  const pageNumber = Number(page || part?.sourcePage)
+  const assetUrl = trustedSourceAssetUrls(sourceRef || {}).find((url) => documentPageFromAssetUrl(url) === pageNumber)
   if (!assetUrl) return { status: 'missing', reason: 'question_asset_not_indexed', imageDataUrl: '' }
   let url
   try {
@@ -35,8 +56,10 @@ export async function loadQuestionAsset({ sourceRef, fetchImpl = fetch, origin =
     if (!response.ok || !QUESTION_ASSET_TYPES.has(contentType)) return { status: 'missing', reason: 'question_asset_unavailable', imageDataUrl: '' }
     const blob = await response.blob()
     if (!blob.size || blob.size > QUESTION_ASSET_MAX_BYTES) return { status: 'missing', reason: 'question_asset_size_limit', imageDataUrl: '' }
+    const sha256 = await sha256ForBlob(blob)
+    if (!expectedSha256 || sha256 !== String(expectedSha256).toLowerCase()) return { status: 'missing', reason: 'question_asset_checksum_mismatch', imageDataUrl: '', assetUrl, page: pageNumber, sha256 }
     const imageDataUrl = await dataUrlForImage(blob)
-    return { status: 'available', imageDataUrl }
+    return { status: 'available', imageDataUrl, assetUrl, page: pageNumber, sha256 }
   } catch {
     return { status: 'missing', reason: 'question_asset_fetch_failed', imageDataUrl: '' }
   }
@@ -67,14 +90,27 @@ function markSchemePointForPart(metadata, part) {
 
 export function reviewedManifestQuestion({ routeId, qualification, specificationVersion, paperId, questionNumber, metadata, part }) {
   const markSchemePoint = markSchemePointForPart(metadata, part)
-  if (!markSchemePoint) return null
+  const provenance = part.markingProvenance
+  if (!markSchemePoint || !provenance || provenance.manifestSchemaVersion !== STEM_MARKING_MANIFEST_SCHEMA_VERSION || provenance.reviewSchemaVersion !== STEM_SOURCE_REVIEW_SCHEMA_VERSION) return null
   const sourcePage = part.sourcePage || metadata.sourceRef.pageStart
+  const sourceAsset = sourceAssetForPart(metadata.sourceRef, part)
+  if (!sourceAsset || sourceAsset.sha256 !== provenance.sourceEvidence?.assetSha256 || sourceAsset.assetUrl !== provenance.sourceEvidence?.assetUrl) return null
   return {
     routeId,
     qualification,
     specificationVersion,
     paperId,
     questionPartId: part.id,
+    sourceQuestionId: provenance.sourceQuestionId,
+    review: {
+      status: 'approved',
+      schemaVersion: provenance.reviewSchemaVersion,
+      version: provenance.reviewVersion,
+      sourceEvidence: provenance.sourceEvidence,
+    },
+    reviewSchemaVersion: provenance.reviewSchemaVersion,
+    reviewVersion: provenance.reviewVersion,
+    sourceEvidence: provenance.sourceEvidence,
     prompt: part.prompt || metadata.prompt,
     availableMarks: Number(part.marks),
     markSchemePoints: [markSchemePoint],
@@ -82,13 +118,14 @@ export function reviewedManifestQuestion({ routeId, qualification, specification
       assetId: `${metadata.sourceRef.paperId}:page-${sourcePage}`,
       kind: 'pdf-page',
       label: 'Question page',
-      checksum: `sha256:${metadata.sourceRef.sha256}`,
-      sourceEvidence: { page: sourcePage, quote: `Question paper Q${questionNumber}${metadata.parts.length > 1 ? `(${part.label})` : ''}` },
+      assetUrl: sourceAsset.assetUrl,
+      checksum: `sha256:${sourceAsset.sha256}`,
+      sourceEvidence: { page: sourcePage, assetUrl: sourceAsset.assetUrl, assetSha256: sourceAsset.sha256, quote: `Question paper Q${questionNumber}${metadata.parts.length > 1 ? `(${part.label})` : ''}` },
     }],
   }
 }
 
-export function buildSharedMarkingSubmission({ attemptId, routeId, qualification, specificationVersion, paperId, organizationId, classroomId, submissionSuffix = '', responses = [] }) {
+export function buildSharedMarkingSubmission({ attemptId, routeId, qualification, specificationVersion, paperId, organizationId, classroomId, assignmentId, submissionSuffix = '', markingCapabilities = {}, responses = [] }) {
   const missingQuestionNumbers = []
   const questionNumberByPartId = {}
   const questions = []
@@ -107,11 +144,16 @@ export function buildSharedMarkingSubmission({ attemptId, routeId, qualification
         ...canonicalQuestion,
         assets: canonicalQuestion.assets.map((asset) => ({
           ...asset,
-          ...(response.questionAsset?.imageDataUrl ? { imageDataUrl: response.questionAsset.imageDataUrl } : {}),
+          ...(response.questionAssetsByPart?.[part.id]?.status === 'available'
+            && response.questionAssetsByPart[part.id].assetUrl === asset.assetUrl
+            && response.questionAssetsByPart[part.id].sha256 === String(asset.checksum || '').replace(/^sha256:/, '')
+            ? { imageDataUrl: response.questionAssetsByPart[part.id].imageDataUrl }
+            : {}),
         })),
-        visualContext: response.questionAsset?.status === 'available'
+        visualContext: response.questionAssetsByPart?.[part.id]?.status === 'available'
           ? { status: 'available' }
-          : { status: 'missing', reason: response.questionAsset?.reason || 'question_asset_not_indexed', reviewRequired: true, confidenceCap: 0.5 },
+          : { status: 'missing', reason: response.questionAssetsByPart?.[part.id]?.reason || 'question_asset_not_indexed', reviewRequired: true, confidenceCap: 0.5 },
+        markingGrant: markingCapabilities[part.id] || null,
         answer: {
           typedText: String(response.typedText || '').trim(),
           handwritingImageDataUrl: response.handwritingImageDataUrl || undefined,
@@ -137,6 +179,7 @@ export function buildSharedMarkingSubmission({ attemptId, routeId, qualification
       attemptId,
       ...(organizationId ? { organizationId } : {}),
       ...(classroomId ? { classroomId } : {}),
+      ...(assignmentId ? { assignmentId } : {}),
       questions,
     },
   }
@@ -156,7 +199,7 @@ export class SharedMarkingError extends Error {
   }
 }
 
-export async function sharedMarkingRequest({ token, resource, method = 'GET', body, fetchImpl = fetch, origin = 'https://ieltsist.com' }) {
+export async function sharedMarkingRequest({ token, resource, method = 'GET', body, fetchImpl = fetch, origin = SHARED_IDENTITY_ORIGIN }) {
   if (!token) throw new SharedMarkingError('identity_required', 'Sign in with your IELTSist account to use AI-assisted marking.', { loginRequired: true })
   let response
   try {
@@ -185,7 +228,7 @@ export async function sharedMarkingRequest({ token, resource, method = 'GET', bo
  * endpoint receives no answer content, so the UI can distinguish sign-in from
  * provider downtime before any reviewed response is submitted for marking.
  */
-export async function readSharedMarkingAvailability({ token = '', fetchImpl = fetch, origin = 'https://ieltsist.com' } = {}) {
+export async function readSharedMarkingAvailability({ token = '', fetchImpl = fetch, origin = SHARED_IDENTITY_ORIGIN } = {}) {
   let response
   try {
     response = await fetchImpl(`${origin.replace(/\/+$/, '')}/api/stem/marking/availability`, {

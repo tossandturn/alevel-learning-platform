@@ -39,7 +39,7 @@ const reviewedSetPath = path.resolve(import.meta.dirname, '..', 'src', 'data', '
 const destination = outputPath(process.argv.slice(2))
 fs.mkdirSync(path.dirname(destination), { recursive: true })
 fs.writeFileSync(destination, `${JSON.stringify({
-  schemaVersion: 'stem-marking-manifest.v1',
+  schemaVersion: 'stem-marking-manifest.v2',
   generatedAt: new Date().toISOString(),
   source: {
     reviewedSet: path.basename(reviewedSetPath),

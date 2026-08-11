@@ -10,6 +10,8 @@ import { isHumanReviewedIndexItem, mergeIndexItemPreservingReview } from './ques
 const projectRoot = path.resolve(import.meta.dirname, '..')
 const paperCatalogPath = path.join(projectRoot, 'public', 'data', 'papers.json')
 const outputPath = path.join(projectRoot, 'src', 'data', 'importedQuestionIndex.json')
+const sourceManifestPath = path.join(projectRoot, 'src', 'data', 'sourceContentManifest.json')
+const sourceAuditPath = path.join(projectRoot, 'scripts', 'audit-question-bank.mjs')
 const assetRoot = path.join(projectRoot, 'public', 'question-assets')
 const libraryRoot = path.resolve(process.env.CIE_LIBRARY_ROOT || 'D:/CodexWork/cie-fraft-fetcher/output/pdf')
 const visionConcurrency = Math.min(6, Math.max(1, Number(process.env.QUESTION_INDEX_CONCURRENCY) || 3))
@@ -102,6 +104,20 @@ function run(command, args, options = {}) {
   const result = spawnSync(command, args, { encoding: 'utf8', shell: false, ...options })
   if (result.status !== 0) throw new Error(`${command} failed: ${String(result.stderr || result.stdout).slice(0, 500)}`)
   return result
+}
+
+function writeIndexAndRefreshSourceManifest(items) {
+  const nextIndex = `${JSON.stringify(decoupleIndex(items), null, 2)}\n`
+  const previousIndex = fs.existsSync(outputPath) ? fs.readFileSync(outputPath) : null
+  const previousManifest = fs.existsSync(sourceManifestPath) ? fs.readFileSync(sourceManifestPath) : null
+  fs.writeFileSync(outputPath, nextIndex, 'utf8')
+  try {
+    run(process.execPath, [sourceAuditPath, '--write-manifest'], { cwd: projectRoot })
+  } catch (error) {
+    if (previousIndex) fs.writeFileSync(outputPath, previousIndex)
+    if (previousManifest) fs.writeFileSync(sourceManifestPath, previousManifest)
+    throw error
+  }
 }
 
 function popplerExecutable() {
@@ -755,7 +771,7 @@ async function main() {
   const imported = JSON.parse(fs.readFileSync(outputPath, 'utf8'))
   const byBankId = new Map(joinStoredIndex(imported).map((item) => [item.bankId || item.questionId, item]))
   if (args.migrateOnly) {
-    fs.writeFileSync(outputPath, `${JSON.stringify(decoupleIndex([...byBankId.values()]), null, 2)}\n`)
+    writeIndexAndRefreshSourceManifest([...byBankId.values()])
     console.log(`Migrated ${byBankId.size} question/answer bindings to schema v2.`)
     return
   }
@@ -780,10 +796,9 @@ async function main() {
     }
     console.log(`Indexed ${items.length} verified questions from ${paper.file}`)
     if (protectedReviews) console.log(`Preserved ${protectedReviews} human-reviewed question${protectedReviews === 1 ? '' : 's'} from reimport.`)
-    fs.writeFileSync(outputPath, `${JSON.stringify(decoupleIndex([...byBankId.values()]), null, 2)}\n`)
   }
   const items = [...byBankId.values()].sort((left, right) => left.bankId.localeCompare(right.bankId, undefined, { numeric: true }))
-  fs.writeFileSync(outputPath, `${JSON.stringify(decoupleIndex(items), null, 2)}\n`)
+  writeIndexAndRefreshSourceManifest(items)
   const subjectCount = items.filter((item) => item.subjectCode === args.subject).length
   console.log(`Question index now contains ${subjectCount} ${args.subject} items (${items.length} total).`)
   if (subjectCount < args.minQuestions) process.exitCode = 2

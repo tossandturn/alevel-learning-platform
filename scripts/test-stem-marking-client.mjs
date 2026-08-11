@@ -24,16 +24,32 @@ assert.doesNotMatch(metadata[22].expectedMarkPoints.map((point) => point.point).
 
 const fullPaper = buildSharedMarkingSubmission({
   attemptId: 'client-contract-fixture',
+  organizationId: 'school-42',
+  classroomId: 'class-12',
+  assignmentId: 'assignment-0580-m25',
   ...tuple,
   submissionSuffix: 'batch-1',
   responses: questionNumbers.map((questionNumber) => ({ questionNumber, typedText: `fixture response ${questionNumber}`, questionMetadata: metadata[questionNumber] })),
 })
 assert.equal(fullPaper.ok, true)
 assert.equal(fullPaper.payload.submissionId, 'stem-paper-client-contract-fixture-batch-1')
+assert.deepEqual(
+  [fullPaper.payload.organizationId, fullPaper.payload.classroomId, fullPaper.payload.assignmentId],
+  ['school-42', 'class-12', 'assignment-0580-m25'],
+  'paper AI marking must retain its organization, classroom and assignment authorization chain',
+)
 assert.deepEqual(fullPaper.missingQuestionNumbers, [])
 assert.equal(fullPaper.payload.questions.length, 46)
 assert.equal(fullPaper.payload.questions.reduce((sum, question) => sum + question.availableMarks, 0), 80)
 assert.equal(new Set(fullPaper.payload.questions.map((question) => question.questionPartId)).size, 46)
+assert.ok(fullPaper.payload.questions.every((question) => (
+  question.sourceQuestionId
+  && question.review?.status === 'approved'
+  && question.reviewSchemaVersion === 'stem-source-review.v1'
+  && question.reviewVersion
+  && question.sourceEvidence?.assetId
+  && Number.isInteger(question.sourceEvidence?.page)
+)), 'every shared marking question must carry the manifest-v2 reviewed-source provenance tuple')
 
 // This mirrors the student's screenshot: four handwritten top-level answers
 // must queue all of Q1-Q4's eight reviewed parts, rather than fall back to self-marking.

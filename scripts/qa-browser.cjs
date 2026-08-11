@@ -23,15 +23,39 @@ async function assertSessionMarkingDisclosure(page, expectedLabel) {
 }
 
 async function openVerifiedStarter(page) {
+  const routePicker = page.locator('.student-home-guided .student-route-picker')
+  await routePicker.getByRole('tab', { name: 'IGCSE', exact: true }).click()
+  await routePicker.getByRole('combobox', { name: 'Current course' }).selectOption('cie-0580-igcse-mathematics')
+  await page.getByRole('heading', { name: /IGCSE Mathematics · Number/i }).waitFor()
   await page.locator('.student-primary-start').click()
-  await page.waitForSelector('.session-setup')
-  const disclosure = (await page.locator('.setup-marking-note').innerText()).replace(/\s+/g, ' ').trim()
-  if (!/^(Instant objective marking|Mixed marking|AI-assisted review after submission|Self-mark after submission)\b/.test(disclosure)) {
-    throw new Error(`Session setup is missing a clear marking disclosure: ${disclosure}`)
+  await page.waitForSelector('.session-setup, .question-block')
+  if (await page.locator('.session-setup').count()) {
+    await assertSessionMarkingDisclosure(page, /^AI-assisted review after submission\b/)
+    await startSession(page)
   }
-  await startSession(page)
   if ((await page.locator('.index-list button').count()) < 1) throw new Error('Verified starter did not contain a source-backed question')
   if ((await page.locator('.question-block').count()) !== 1) throw new Error('Workspace must render one focused question')
+}
+
+async function assertVisibleSourceMaterial(page, label) {
+  const viewer = page.locator('.qp-question-asset').first()
+  await viewer.waitFor({ state: 'visible' })
+  const image = viewer.locator('img')
+  const metrics = await image.evaluate((element) => ({
+    loaded: element.complete && element.naturalWidth > 0 && element.naturalHeight > 0,
+    width: element.naturalWidth,
+    height: element.naturalHeight,
+    src: element.getAttribute('src') || '',
+  }))
+  if (!metrics.loaded) throw new Error(`${label} source image did not decode in the browser: ${JSON.stringify(metrics)}`)
+  if (await page.locator('.question-source-evidence').count()) throw new Error(`${label} still hides primary source material behind the retired details disclosure`)
+  const order = await page.locator('.qp-question__body').evaluate((body) => {
+    const source = body.querySelector('.qp-question-asset')?.getBoundingClientRect()
+    const prompt = body.querySelector('h2')?.getBoundingClientRect()
+    return source && prompt ? { sourceBottom: source.bottom, promptTop: prompt.top } : null
+  })
+  if (!order || order.sourceBottom > order.promptTop) throw new Error(`${label} source material is not rendered before the structured prompt: ${JSON.stringify(order)}`)
+  return metrics
 }
 
 async function openHandwritingStarter(page) {
@@ -49,6 +73,51 @@ async function openHandwritingStarter(page) {
     await startSession(page)
   }
   else await page.locator('.question-block').waitFor()
+}
+
+async function assertPracticeSelfMarkPendingFlow(page) {
+  const homeRoutePicker = page.locator('.student-home-guided .student-route-picker')
+  await homeRoutePicker.getByRole('tab', { name: 'IGCSE', exact: true }).click()
+  await homeRoutePicker.getByRole('combobox', { name: 'Current course' }).selectOption('cie-0580-igcse-mathematics')
+  await page.locator('.student-primary-start').click()
+  const topicRow = page.locator('.topic-directory__row').filter({ hasText: 'Algebra and graphs' }).first()
+  await topicRow.waitFor()
+  await topicRow.click()
+  await page.getByRole('button', { name: /^Set 2\b/ }).click()
+  await assertSessionMarkingDisclosure(page, /^Self-mark after submission\b/)
+  await startSession(page)
+
+  const canvas = page.locator('.handwriting-pad__canvas').first()
+  await canvas.waitFor()
+  await canvas.scrollIntoViewIfNeeded()
+  const box = await canvas.boundingBox()
+  if (!box) throw new Error('Self-mark-only practice answer canvas has no visible geometry')
+  await page.mouse.move(box.x + 70, box.y + 120)
+  await page.mouse.down()
+  await page.mouse.move(box.x + 220, box.y + 150, { steps: 6 })
+  await page.mouse.up()
+
+  await page.getByRole('button', { name: /^Submit$/ }).click()
+  await page.waitForFunction(() => document.querySelector('.self-mark-result, .submit-dialog'))
+  const submitDialog = page.locator('.submit-dialog')
+  if (await submitDialog.count()) await submitDialog.getByRole('button', { name: 'Submit anyway' }).click()
+  const pending = page.locator('.self-mark-result')
+  await pending.waitFor()
+  await pending.getByRole('heading', { name: 'Ready to self-mark' }).waitFor()
+  const recordButton = pending.getByRole('button', { name: 'Record self-mark' })
+  if (!await recordButton.isDisabled()) throw new Error('Blank self-mark input must keep Record self-mark disabled')
+  const shot = path.join(ARTIFACT_DIR, 'practice-self-mark-pending-desktop.png')
+  await page.screenshot({ path: shot, fullPage: false })
+
+  const markInput = pending.getByRole('spinbutton', { name: /Self-mark for/i }).first()
+  await markInput.fill('1')
+  if (await recordButton.isDisabled()) throw new Error('A complete valid self-mark did not enable Record self-mark')
+  await markInput.fill('')
+  if (!await recordButton.isDisabled()) throw new Error('Clearing a self-mark input must disable Record self-mark')
+  await markInput.fill('0')
+  await recordButton.click()
+  await page.getByRole('heading', { name: /^0\/\d+ marks$/ }).waitFor()
+  return shot
 }
 
 async function findHandwritingQuestion(page) {
@@ -136,6 +205,78 @@ async function open0580March2025P1(page) {
   if (answerIndexLabels.length !== 26 || answerIndexLabels.at(-1) !== 'Question 26, Not answered') throw new Error(`Reviewed 0580 March 2025 P1 must expose its official Q1-Q26 answer index, received ${JSON.stringify(answerIndexLabels)}`)
 }
 
+async function assert0580LegacyDraftMigration(page) {
+  const paperId = 'cie-0580-0580_m25_qp_12'
+  const draftKey = await page.evaluate(async (id) => {
+    const response = await fetch('/data/papers.json')
+    const catalog = await response.json()
+    const paper = catalog.items.find((item) => item.id === id)
+    return paper?.pairKey || id
+  }, paperId)
+  await page.evaluate(({ key, paperKey, id }) => {
+    const state = JSON.parse(localStorage.getItem(key) || '{}')
+    state.profile = {
+      ...(state.profile || {}),
+      role: 'student',
+      activeRouteId: 'cie-0580-igcse-mathematics',
+      learningTrack: 'IGCSE',
+      recentRouteIds: ['cie-0580-igcse-mathematics'],
+    }
+    state.paperDrafts = {
+      ...(state.paperDrafts || {}),
+      [paperKey]: {
+        attemptId: 'legacy-0580-draft-q1-q12',
+        paperId: id,
+        pairKey: paperKey,
+        questionCount: 12,
+        elapsedSec: 37,
+        answers: { 1: { response: 'legacy response must remain visible' } },
+        pdfInkByPage: { 1: { inkDataUrl: 'data:image/png;base64,legacy' } },
+        pdfInkQuestionMap: {},
+        pdfInkMapVersion: 2,
+        submitted: false,
+      },
+    }
+    localStorage.setItem(key, JSON.stringify(state))
+  }, { key: STORAGE_KEY, paperKey: draftKey, id: paperId })
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await open0580March2025P1(page)
+  const answerIndexLabels = await page.locator('.paper-answer-sheet__index a').evaluateAll((links) => links.map((link) => link.getAttribute('aria-label')))
+  if (answerIndexLabels.length !== 26 || answerIndexLabels.at(-1) !== 'Question 26, Not answered') {
+    throw new Error(`Legacy 0580 draft must migrate to official Q1-Q26 slots, received ${JSON.stringify(answerIndexLabels)}`)
+  }
+  const responseValues = await page.locator('textarea').evaluateAll((textareas) => textareas.map((textarea) => textarea.value))
+  if (!responseValues.includes('legacy response must remain visible')) throw new Error(`Legacy Q1 response was not preserved during 26-slot migration: ${JSON.stringify(responseValues)}`)
+  await page.waitForFunction(({ key, paperKey }) => JSON.parse(localStorage.getItem(key) || '{}').paperDrafts?.[paperKey]?.questionCount === 26, { key: STORAGE_KEY, paperKey: draftKey }, { timeout: 3000 })
+  const migratedDraft = await page.evaluate(({ key, paperKey }) => JSON.parse(localStorage.getItem(key) || '{}').paperDrafts?.[paperKey], { key: STORAGE_KEY, paperKey: draftKey })
+  if (migratedDraft?.questionCount !== 26 || migratedDraft?.answers?.['1']?.response !== 'legacy response must remain visible' || !migratedDraft?.pdfInkByPage?.['1']) {
+    throw new Error(`Migrated 0580 draft was not persisted without losing Q1 data: ${JSON.stringify({ questionCount: migratedDraft?.questionCount, q1: migratedDraft?.answers?.['1']?.response, hasPdfInk: Boolean(migratedDraft?.pdfInkByPage?.['1']) })}`)
+  }
+  const metadata = page.locator('.paper-document-tabs > span')
+  const geometry = await page.evaluate(() => {
+    const tabs = document.querySelector('.paper-document-tabs')
+    const metadata = tabs?.querySelector(':scope > span')
+    const tabsBox = tabs?.getBoundingClientRect()
+    const metadataBox = metadata?.getBoundingClientRect()
+    return {
+      documentWidth: document.documentElement.clientWidth,
+      documentScrollWidth: document.documentElement.scrollWidth,
+      tabsWidth: tabsBox?.width || 0,
+      tabsScrollWidth: tabs?.scrollWidth || 0,
+      metadataWidth: metadataBox?.width || 0,
+      metadataHeight: metadataBox?.height || 0,
+      metadataText: metadata?.textContent?.trim() || '',
+    }
+  })
+  if (!await metadata.isVisible() || !/P1|marks|min/.test(geometry.metadataText)) throw new Error(`0580 iPad metadata is not readable: ${JSON.stringify(geometry)}`)
+  if (geometry.documentScrollWidth > geometry.documentWidth + 1 || geometry.tabsScrollWidth > geometry.tabsWidth + 1 || geometry.metadataWidth < 40 || geometry.metadataHeight < 12) {
+    throw new Error(`0580 iPad metadata geometry overflowed or was clipped: ${JSON.stringify(geometry)}`)
+  }
+  const shot = path.join(ARTIFACT_DIR, '0580-legacy-draft-ipad.png')
+  await page.screenshot({ path: shot, fullPage: false })
+  return shot
+}
+
 async function submitOnePdfAnswerForSelfMark(page, pointerId, mobile = false) {
   await ensurePdfWritingEnabled(page)
   const inkCanvas = page.locator('.pdf-ink-layer').first()
@@ -210,12 +351,448 @@ async function assertNoSelfMarkAiCopy(page, context) {
   }
 }
 
+async function assertReviewedAiCapability(page, context) {
+  const capability = page.locator('.qp-marking-capability').first()
+  await capability.waitFor()
+  const copy = (await capability.innerText()).replace(/\s+/g, ' ').trim()
+  if (!/AI-assisted marking/i.test(copy) || /Self-mark only/i.test(copy)) {
+    throw new Error(`${context} must show only its reviewed AI-assisted marking capability: ${copy}`)
+  }
+}
+
+function boxesOverlap(first, second, tolerance = 1) {
+  if (!first || !second) return false
+  return first.left < second.right - tolerance
+    && first.right > second.left + tolerance
+    && first.top < second.bottom - tolerance
+    && first.bottom > second.top + tolerance
+}
+
+async function assertNotebookLayout(page, { label, state }) {
+  const notebook = page.locator('.notebook-view')
+  await notebook.waitFor()
+  await notebook.scrollIntoViewIfNeeded()
+  const metrics = await page.evaluate(() => {
+    const rect = (element) => {
+      if (!element) return null
+      const box = element.getBoundingClientRect()
+      const style = getComputedStyle(element)
+      return {
+        left: box.left,
+        top: box.top,
+        right: box.right,
+        bottom: box.bottom,
+        width: box.width,
+        height: box.height,
+        display: style.display,
+        visibility: style.visibility,
+        background: style.backgroundColor,
+      }
+    }
+    const root = document.querySelector('.notebook-view')
+    const summary = document.querySelector('.notebook-summary')
+    const layout = document.querySelector('.notebook-layout')
+    const queue = document.querySelector('.notebook-queue')
+    const side = document.querySelector('.notebook-side')
+    const filters = document.querySelector('.notebook-filters')
+    const note = document.querySelector('.notebook-note-tool')
+    return {
+      clientWidth: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+      root: rect(root),
+      header: rect(document.querySelector('.notebook-header')),
+      summary: rect(summary),
+      summaryItems: [...(summary?.children || [])].map(rect),
+      layout: rect(layout),
+      layoutDisplay: layout ? getComputedStyle(layout).display : '',
+      queue: rect(queue),
+      side: rect(side),
+      filters: rect(filters),
+      filtersDisplay: filters ? getComputedStyle(filters).display : '',
+      search: rect(filters?.querySelector('input')),
+      priority: rect(filters?.querySelector('select')),
+      note: rect(note),
+      noteHeader: rect(note?.querySelector('header')),
+      noteInput: rect(note?.querySelector('textarea')),
+      recent: rect(document.querySelector('.notebook-recent')),
+      coach: rect(document.querySelector('.ai-coach-trigger')),
+      emptyCount: document.querySelectorAll('.notebook-empty').length,
+      itemCount: document.querySelectorAll('.notebook-mistake').length,
+    }
+  })
+  const visible = (box, minimumWidth = 20, minimumHeight = 18) => box
+    && box.width >= minimumWidth
+    && box.height >= minimumHeight
+    && box.display !== 'none'
+    && box.visibility !== 'hidden'
+  const required = [metrics.root, metrics.summary, metrics.layout, metrics.queue, metrics.side, metrics.filters, metrics.search, metrics.priority, metrics.note, metrics.noteHeader, metrics.noteInput, metrics.recent]
+  if (required.some((box) => !visible(box))) throw new Error(`${label} notebook has missing or collapsed controls: ${JSON.stringify(metrics)}`)
+  if (metrics.layoutDisplay !== 'grid' || metrics.filtersDisplay !== 'grid' || metrics.summaryItems.length !== 4 || metrics.summaryItems.some((box) => !visible(box, 60, 32))) {
+    throw new Error(`${label} notebook layout did not apply its structured CSS: ${JSON.stringify(metrics)}`)
+  }
+  if (metrics.scrollWidth > metrics.clientWidth + 1 || metrics.summary.background === 'rgba(0, 0, 0, 0)') {
+    throw new Error(`${label} notebook has horizontal overflow or unstyled summary: ${JSON.stringify(metrics)}`)
+  }
+  for (let first = 0; first < metrics.summaryItems.length; first += 1) {
+    for (let second = first + 1; second < metrics.summaryItems.length; second += 1) {
+      if (boxesOverlap(metrics.summaryItems[first], metrics.summaryItems[second])) throw new Error(`${label} notebook summary counters overlap: ${JSON.stringify(metrics.summaryItems)}`)
+    }
+  }
+  const collisions = [
+    ['search and priority', metrics.search, metrics.priority],
+    ['queue and side panel', metrics.queue, metrics.side],
+    ['private note header and editor', metrics.noteHeader, metrics.noteInput],
+    ['private note and recent results', metrics.note, metrics.recent],
+  ].filter(([, first, second]) => boxesOverlap(first, second))
+  if (collisions.length) throw new Error(`${label} notebook controls overlap: ${JSON.stringify({ collisions: collisions.map(([name]) => name), metrics })}`)
+  if (metrics.clientWidth <= 540 && visible(metrics.coach) && [metrics.header, metrics.filters, metrics.search, metrics.priority].some((box) => boxesOverlap(metrics.coach, box))) {
+    throw new Error(`${label} mobile AI Coach covers notebook content: ${JSON.stringify(metrics)}`)
+  }
+  if (state === 'empty' && (metrics.emptyCount !== 1 || metrics.itemCount !== 0)) throw new Error(`${label} expected a clear review queue: ${JSON.stringify(metrics)}`)
+  if (state === 'populated' && (metrics.emptyCount !== 0 || metrics.itemCount < 1)) throw new Error(`${label} expected a visible review item: ${JSON.stringify(metrics)}`)
+  const shot = path.join(ARTIFACT_DIR, `${label}.png`)
+  await page.screenshot({ path: shot, fullPage: false })
+  return shot
+}
+
+async function assertSelfMarkPendingFlow(browser, errors, shots) {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+  const page = await context.newPage()
+  page.on('pageerror', (error) => errors.push(`self-mark result: ${error.message}`))
+  try {
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' })
+    await page.evaluate(() => localStorage.clear())
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: /^Practice$/ }).click()
+    const routePicker = page.locator('.practice-hub .student-route-picker')
+    await routePicker.getByRole('tab', { name: 'AS', exact: true }).click()
+    await routePicker.getByRole('combobox', { name: 'Current course' }).selectOption('cie-9709-as-p1-p2')
+    await page.getByRole('button', { name: /^Topic Drill$/ }).click()
+    await page.locator('.topic-directory__row').filter({ hasText: 'Pure Mathematics' }).first().click()
+    await page.getByRole('button', { name: /^Start set 1$/ }).click()
+    await assertSessionMarkingDisclosure(page, /^Self-mark after submission\b/)
+    await startSession(page)
+    await page.getByRole('button', { name: 'Type', exact: true }).click()
+    await page.getByRole('textbox', { name: /typed response/i }).fill('Differentiate the expression, then substitute the stated value.')
+    await page.getByRole('button', { name: /^Submit$/ }).click()
+    const submitDialog = page.locator('.submit-dialog')
+    await submitDialog.getByText(/Blank written responses remain pending and never become an automatic zero/i).waitFor()
+    if (await submitDialog.getByText(/receive zero marks/i).count()) throw new Error('Self-mark-only submit still claims blank answers receive automatic zero')
+    await submitDialog.getByRole('button', { name: 'Submit anyway' }).click()
+    await page.getByRole('heading', { name: 'Ready to self-mark' }).waitFor()
+    await page.getByText(/No total score, mastery, mistake or learning event is created/i).waitFor()
+    const recordButton = page.getByRole('button', { name: 'Record self-mark' })
+    if (!(await recordButton.isDisabled())) throw new Error('Blank self-mark fields enabled score recording')
+    await page.getByText(/Blank or partial entries remain unscored/i).waitFor()
+    const pendingState = await page.evaluate((key) => {
+      const state = JSON.parse(localStorage.getItem(key) || '{}')
+      const pending = (state.attempts || []).find((attempt) => attempt.attemptStatus === 'self-mark-pending')
+      return { count: (state.attempts || []).length, pendingId: pending?.id || '', hasScore: Boolean(pending?.scoreResult) }
+    }, STORAGE_KEY)
+    if (!pendingState.pendingId || pendingState.hasScore) throw new Error(`Self-mark submission was not persisted as an unscored pending attempt: ${JSON.stringify(pendingState)}`)
+    const markInputs = page.getByRole('spinbutton', { name: /^Self-mark for / })
+    const markCount = await markInputs.count()
+    if (!markCount) throw new Error('Self-mark result has no explicit question mark inputs')
+    for (let index = 0; index < markCount; index += 1) {
+      const maximum = Number(await markInputs.nth(index).getAttribute('max'))
+      await markInputs.nth(index).fill(String(Math.min(maximum, index === 0 ? 1 : 0)))
+    }
+    await page.getByText(/Saving appends a canonical scored result/i).waitFor()
+    if (await recordButton.isDisabled()) throw new Error('Complete in-range self-marks did not enable score recording')
+    await recordButton.click()
+    await page.waitForFunction(() => document.querySelector('.result-hero h1')?.textContent?.includes('marks'))
+    const recordedState = await page.evaluate(({ key, pendingId, beforeCount }) => {
+      const state = JSON.parse(localStorage.getItem(key) || '{}')
+      const original = (state.attempts || []).find((attempt) => attempt.id === pendingId)
+      const scored = (state.attempts || []).find((attempt) => attempt.finalizedFromAttemptId === pendingId && attempt.scoreResult)
+      const criteria = scored?.scoreResult?.criteria || []
+      return { count: (state.attempts || []).length, originalStatus: original?.attemptStatus, originalHasScore: Boolean(original?.scoreResult), scoredId: scored?.id || '', scoredStatus: scored?.attemptStatus, pointEvidenceCounts: criteria.map((criterion) => criterion.evidence?.length || 0), pointEvidenceStatuses: criteria.map((criterion) => criterion.evidenceStatus || ''), beforeCount }
+    }, { key: STORAGE_KEY, pendingId: pendingState.pendingId, beforeCount: pendingState.count })
+    if (recordedState.count !== recordedState.beforeCount + 1 || recordedState.originalStatus !== 'self-mark-pending' || recordedState.originalHasScore || !recordedState.scoredId || recordedState.scoredStatus !== 'result') {
+      throw new Error(`Self-mark recording did not preserve the source attempt and append one scored result: ${JSON.stringify(recordedState)}`)
+    }
+    if (recordedState.pointEvidenceCounts.some((count) => count !== 0) || recordedState.pointEvidenceStatuses.some((status) => status !== 'not-recorded')) {
+      throw new Error(`Self-mark total fabricated point-level evidence: ${JSON.stringify(recordedState)}`)
+    }
+    await page.locator('.criteria-list').getByText(/Specific awarded and missed mark-scheme points were not recorded for this self-mark/i).first().waitFor()
+    if (await page.locator('.mark-points').getByText(/^[✓○]\s/).count()) throw new Error('Self-mark result rendered inferred awarded or missed point markers')
+    await page.locator('.official-answer').first().waitFor()
+    const shot = path.join(ARTIFACT_DIR, 'self-mark-recorded-desktop.png')
+    shots.push(shot)
+    await page.screenshot({ path: shot, fullPage: false })
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: /^Notebook$/ }).click()
+    const selfMarkNotebookItem = page.locator('.notebook-mistake').filter({ hasText: 'Specific mark-scheme points were not recorded' }).first()
+    await selfMarkNotebookItem.waitFor()
+    await selfMarkNotebookItem.getByText('Review your response and official mark scheme').click()
+    await selfMarkNotebookItem.getByText(/specific awarded and missed mark-scheme points were not recorded/i).waitFor()
+    if (await selfMarkNotebookItem.getByText('Mark points to add next time').count()) throw new Error('Notebook inferred missed mark points from a total-only self-mark')
+    await selfMarkNotebookItem.getByText('Official mark-scheme points').waitFor()
+    const notebookShot = path.join(ARTIFACT_DIR, 'self-mark-notebook-evidence-desktop.png')
+    shots.push(notebookShot)
+    await page.screenshot({ path: notebookShot, fullPage: false })
+    return { pendingAttemptId: pendingState.pendingId, scoredAttemptId: recordedState.scoredId, attemptsBefore: pendingState.count, attemptsAfter: recordedState.count }
+  } finally {
+    await context.close()
+  }
+}
+
+async function assertMixedMarkingLifecycle(browser, errors, shots) {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+  const page = await context.newPage()
+  page.on('pageerror', (error) => errors.push(`mixed marking: ${error.message}`))
+  try {
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' })
+    await page.evaluate(() => localStorage.clear())
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: /^Practice$/ }).click()
+    const routePicker = page.locator('.practice-hub .student-route-picker')
+    await routePicker.getByRole('tab', { name: 'IGCSE', exact: true }).click()
+    await routePicker.getByRole('combobox', { name: 'Current course' }).selectOption('cie-0625-igcse-physics')
+    await page.getByRole('button', { name: /^Topic Drill$/ }).click()
+    await page.locator('.topic-directory__row').filter({ hasText: 'Waves' }).first().click()
+    await page.getByRole('button', { name: /^Start set 1$/ }).click()
+    await assertSessionMarkingDisclosure(page, /^Mixed marking\b/)
+    await startSession(page)
+    await page.getByRole('button', { name: /^Submit$/ }).click()
+    const submitDialog = page.locator('.submit-dialog')
+    await submitDialog.getByText(/written responses remain pending and never become an automatic zero/i).waitFor()
+    await submitDialog.getByRole('button', { name: 'Submit anyway' }).click()
+    await page.getByRole('heading', { name: 'Ready to self-mark' }).waitFor()
+    await page.getByText(/Checked so far/i).waitFor()
+    const initialState = await page.evaluate((key) => {
+      const state = JSON.parse(localStorage.getItem(key) || '{}')
+      const pending = (state.attempts || []).find((attempt) => attempt.attemptStatus === 'marking-pending')
+      return {
+        count: (state.attempts || []).length,
+        pendingId: pending?.id || '',
+        hasScore: Boolean(pending?.scoreResult),
+        provisionalCriteria: pending?.markingLifecycle?.provisionalCriteria?.length || 0,
+        pendingParts: pending?.markingLifecycle?.pendingPartIds?.length || 0,
+      }
+    }, STORAGE_KEY)
+    if (!initialState.pendingId || initialState.hasScore || initialState.provisionalCriteria !== 9 || initialState.pendingParts !== 1) {
+      throw new Error(`Mixed submission did not persist the expected unresolved lifecycle: ${JSON.stringify(initialState)}`)
+    }
+
+    const markInput = page.getByRole('spinbutton', { name: /^Self-mark for / }).first()
+    await markInput.fill('1')
+    await page.waitForFunction(({ key, attemptId }) => JSON.parse(localStorage.getItem(key) || '{}').selfMarkDrafts?.[attemptId]?.[Object.keys(JSON.parse(localStorage.getItem(key) || '{}').selfMarkDrafts?.[attemptId] || {}).find((partId) => partId !== 'updatedAt')] === 1, { key: STORAGE_KEY, attemptId: initialState.pendingId })
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: /^Progress$/ }).click()
+    const pendingRow = page.locator('.history-row--pending').first()
+    await page.waitForTimeout(500)
+    if (!await pendingRow.count()) {
+      const diagnostic = await page.evaluate((key) => {
+        const state = JSON.parse(localStorage.getItem(key) || '{}')
+        return {
+          activeRouteId: state.profile?.activeRouteId,
+          attempts: (state.attempts || []).map((attempt) => ({ id: attempt.id, status: attempt.attemptStatus, routeId: attempt.routeId, hasScore: Boolean(attempt.scoreResult) })),
+          body: document.body.innerText.slice(0, 1200),
+        }
+      }, STORAGE_KEY)
+      throw new Error(`Reloaded mixed pending attempt is missing from Progress: ${JSON.stringify(diagnostic)}`)
+    }
+    await pendingRow.waitFor()
+    await pendingRow.getByRole('button', { name: 'Continue marking' }).click()
+    await page.getByRole('heading', { name: 'Ready to self-mark' }).waitFor()
+    const restoredInput = page.getByRole('spinbutton', { name: /^Self-mark for / }).first()
+    if (await restoredInput.inputValue() !== '1') throw new Error('Mixed self-mark draft did not restore after reload and History resume')
+    await page.getByRole('button', { name: 'Record self-mark' }).click()
+    await page.waitForFunction(() => document.querySelector('.result-hero h1')?.textContent?.includes('marks'))
+
+    const finalState = await page.evaluate(({ key, pendingId, beforeCount }) => {
+      const state = JSON.parse(localStorage.getItem(key) || '{}')
+      const original = (state.attempts || []).find((attempt) => attempt.id === pendingId)
+      const final = (state.attempts || []).find((attempt) => attempt.finalizedFromAttemptId === pendingId)
+      const selfCriterion = final?.scoreResult?.criteria?.find((criterion) => criterion.scoringSource === 'student-self-mark')
+      return {
+        count: (state.attempts || []).length,
+        originalStatus: original?.attemptStatus,
+        originalHasScore: Boolean(original?.scoreResult),
+        finalStatus: final?.attemptStatus,
+        finalCriteria: final?.scoreResult?.criteria?.length || 0,
+        maxMarks: final?.scoreResult?.maxMarks,
+        selfEvidence: selfCriterion?.evidence,
+        selfEvidenceStatus: selfCriterion?.evidenceStatus,
+        draftRemoved: !state.selfMarkDrafts?.[pendingId],
+        beforeCount,
+      }
+    }, { key: STORAGE_KEY, pendingId: initialState.pendingId, beforeCount: initialState.count })
+    if (finalState.count !== finalState.beforeCount + 1 || finalState.originalStatus !== 'marking-pending' || finalState.originalHasScore || finalState.finalStatus !== 'result' || finalState.finalCriteria !== 10 || finalState.maxMarks !== 13 || !finalState.draftRemoved) {
+      throw new Error(`Mixed finalization did not remain append-only and complete: ${JSON.stringify(finalState)}`)
+    }
+    if (!Array.isArray(finalState.selfEvidence) || finalState.selfEvidence.length || finalState.selfEvidenceStatus !== 'not-recorded') {
+      throw new Error(`Mixed self-mark fabricated mark-point evidence: ${JSON.stringify(finalState)}`)
+    }
+    const shot = path.join(ARTIFACT_DIR, 'mixed-marking-recorded-desktop.png')
+    shots.push(shot)
+    await page.screenshot({ path: shot, fullPage: false })
+    return { pendingAttemptId: initialState.pendingId, provisionalCriteria: initialState.provisionalCriteria, pendingParts: initialState.pendingParts, finalCriteria: finalState.finalCriteria, appendOnly: true, restoredAfterReload: true }
+  } finally {
+    await context.close()
+  }
+}
+
+async function assertAccountStateIsolation(browser, errors, shots) {
+  const context = await browser.newContext({ viewport: { width: 1024, height: 768 } })
+  let account = { id: 'ielts:101', username: 'Account A' }
+  const notes = new Map()
+  const noteRequests = []
+  const jsonHeaders = { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'http://127.0.0.1:5173', 'Access-Control-Allow-Credentials': 'true' }
+  await context.addInitScript(({ key }) => {
+    if (localStorage.getItem('qa-account-isolation-seeded')) return
+    localStorage.setItem('qa-account-isolation-seeded', '1')
+    localStorage.setItem(key, JSON.stringify({
+      profile: { role: 'student', learningTrack: 'AS', activeRouteId: 'cie-9702-as-physics', recentRouteIds: ['cie-9702-as-physics'] },
+      attempts: [{ id: 'legacy-attempt-for-a', unitId: 'legacy-unit', routeId: 'cie-9702-as-physics', stage: 'AS', attemptStatus: 'self-mark-pending', submittedAt: '2026-08-10T00:00:00.000Z' }],
+      notebookNotes: { 'cie-9702-as-physics': { body: 'legacy note must clear when server returns null', updatedAt: '2026-08-10T00:00:00.000Z' } },
+    }))
+  }, { key: STORAGE_KEY })
+  await context.route('**/api/stem/identity', async (route) => {
+    if (!account) {
+      await route.fulfill({ status: 401, headers: jsonHeaders, body: JSON.stringify({ error: 'Sign in required' }) })
+      return
+    }
+    await route.fulfill({ status: 200, headers: jsonHeaders, body: JSON.stringify({ identity: { ...account, roles: [] }, accessToken: `qa-${account.id}-${'x'.repeat(48)}`, expiresAt: new Date(Date.now() + 300_000).toISOString() }) })
+  })
+  await context.route('**/api/auth/status', async (route) => route.fulfill({ status: 200, headers: jsonHeaders, body: JSON.stringify({ authenticated: true, identity: account, classrooms: [], assignments: [] }) }))
+  await context.route('**/api/stem/workspace', async (route) => route.fulfill({ status: 200, headers: jsonHeaders, body: JSON.stringify({ identity: account, classrooms: [], assignments: [] }) }))
+  await context.route(/\/api\/stem\/notebook\/notes(?:\/[^?]+)?(?:\?.*)?$/, async (route) => {
+    const request = route.request()
+    const routeId = decodeURIComponent(new URL(request.url()).searchParams.get('routeId') || request.url().split('/').at(-1))
+    const ownerId = account?.id || ''
+    const noteKey = `${ownerId}:${routeId}`
+    noteRequests.push({ method: request.method(), ownerId, routeId, noteFound: notes.has(noteKey) })
+    if (request.method() === 'GET') {
+      await route.fulfill({ status: 200, headers: jsonHeaders, body: JSON.stringify({ routeId, note: notes.get(noteKey) || null, privacy: 'private-to-student' }) })
+      return
+    }
+    const updatedAt = new Date().toISOString()
+    if (request.method() === 'DELETE') notes.set(noteKey, { routeId, body: '', updatedAt, deleted: true, deletedAt: updatedAt })
+    else {
+      const payload = request.postDataJSON()
+      notes.set(noteKey, { routeId, body: String(payload.body || ''), updatedAt, deleted: false, deletedAt: null })
+    }
+    await route.fulfill({ status: 200, headers: jsonHeaders, body: JSON.stringify({ routeId, note: notes.get(noteKey), privacy: 'private-to-student' }) })
+  })
+
+  const page = await context.newPage()
+  page.on('pageerror', (error) => errors.push(`account isolation: ${error.message}`))
+  const waitForAccount = async (name) => page.getByRole('button', { name: `Account: ${name}` }).waitFor()
+  const waitForStoredNote = async (ownerId, body) => {
+    const noteKey = `${ownerId}:cie-9702-as-physics`
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      if (notes.get(noteKey)?.body === body) return
+      await page.waitForTimeout(100)
+    }
+    throw new Error(`Private note did not sync to the expected account partition: ${JSON.stringify({ ownerId, body, note: notes.get(noteKey) || null, noteRequests })}`)
+  }
+  const openNotebook = async () => {
+    const notebookButton = page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: /^Notebook$/ })
+    const note = page.getByRole('textbox', { name: 'Private route notebook note' })
+    try {
+      await notebookButton.click({ timeout: 5000 })
+    } catch {
+      const rendered = await page.locator('body').innerText().catch(() => '')
+      throw new Error(`Account isolation could not open Notebook: ${JSON.stringify({ url: page.url(), pageErrors: errors.filter((item) => item.startsWith('account isolation:')), rendered: rendered.slice(0, 500) })}`)
+    }
+    try {
+      await note.waitFor({ timeout: 5000 })
+    } catch {
+      const diagnostic = await page.evaluate(() => ({
+        bodyText: document.body.innerText.slice(0, 500),
+        shell: Boolean(document.querySelector('.app-shell')),
+        dashboard: Boolean(document.querySelector('.student-home-guided')),
+        notebook: Boolean(document.querySelector('.notebook-view')),
+        topNav: Boolean(document.querySelector('.unified-top-nav')),
+      }))
+      throw new Error(`Notebook did not open during account isolation: ${JSON.stringify({ diagnostic, errors })}`)
+    }
+    return note
+  }
+  try {
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' })
+    await waitForAccount('Account A')
+    await page.waitForFunction(() => localStorage.getItem('alevel-learning-platform-v2:legacy-owner') === 'ielts:101')
+    const claimed = await page.evaluate(() => JSON.parse(localStorage.getItem('alevel-learning-platform-v2:user:ielts%3A101') || '{}'))
+    if (!claimed.attempts?.some((attempt) => attempt.id === 'legacy-attempt-for-a')) throw new Error('Legacy learning history was not claimed by the first identified account')
+    await page.locator('.student-home-guided').waitFor()
+    if (await page.locator('.student-home-guided').getByText(/NaN|0\/0/).count()) throw new Error('Pending self-mark history leaked an invalid score onto Today')
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Progress' }).click()
+    await page.getByText('Self-mark pending · preserved in your learning record').waitFor()
+    await page.getByText('Not scored', { exact: true }).waitFor()
+    const aNote = await openNotebook()
+    try {
+      await page.waitForFunction(() => document.querySelector('textarea[aria-label="Private route notebook note"]')?.value === '', null, { timeout: 5000 })
+    } catch {
+      const diagnostic = await page.evaluate(() => ({
+        view: document.querySelector('.notebook-view') ? 'notebook' : document.querySelector('.student-home-guided') ? 'dashboard' : 'other',
+        noteValue: document.querySelector('textarea[aria-label="Private route notebook note"]')?.value ?? null,
+        owner: localStorage.getItem('alevel-learning-platform-v2:legacy-owner'),
+        accountState: JSON.parse(localStorage.getItem('alevel-learning-platform-v2:user:ielts%3A101') || '{}').notebookNotes || null,
+      }))
+      throw new Error(`Account A server-null note did not clear: ${JSON.stringify({ diagnostic, noteRequests })}`)
+    }
+    await aNote.fill('Account A private method')
+    try {
+      await waitForStoredNote('ielts:101', 'Account A private method')
+    } catch (error) {
+      const diagnostic = await page.evaluate(() => ({
+        noteValue: document.querySelector('textarea[aria-label="Private route notebook note"]')?.value ?? null,
+        noteStatus: document.querySelector('.notebook-note-tool small')?.textContent || null,
+        owner: localStorage.getItem('alevel-learning-platform-v2:legacy-owner'),
+        accountState: JSON.parse(localStorage.getItem('alevel-learning-platform-v2:user:ielts%3A101') || '{}').notebookNotes || null,
+      }))
+      throw new Error(`${error.message}; diagnostic=${JSON.stringify(diagnostic)}`)
+    }
+
+    account = { id: 'ielts:202', username: 'Account B' }
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await waitForAccount('Account B')
+    const bNote = await openNotebook()
+    await page.waitForFunction(() => document.querySelector('textarea[aria-label="Private route notebook note"]')?.value === '')
+    if (await bNote.inputValue()) throw new Error('Account B saw Account A private note')
+    await bNote.fill('Account B private method')
+    await waitForStoredNote('ielts:202', 'Account B private method')
+
+    account = null
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await page.getByRole('button', { name: 'Connect IELTSist account' }).waitFor()
+    const guestNote = await openNotebook()
+    if (await guestNote.inputValue()) throw new Error('Guest state inherited an authenticated account private note')
+
+    account = { id: 'ielts:101', username: 'Account A' }
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await waitForAccount('Account A')
+    const restoredA = await openNotebook()
+    await page.waitForFunction(() => document.querySelector('textarea[aria-label="Private route notebook note"]')?.value === 'Account A private method')
+    if (await restoredA.inputValue() !== 'Account A private method') throw new Error('Switching back to A did not restore A private note')
+
+    await page.evaluate((key) => localStorage.setItem(key, JSON.stringify({ notebookNotes: { 'cie-9702-as-physics': { body: 'stale legacy pollution', updatedAt: new Date().toISOString() } } })), STORAGE_KEY)
+    account = { id: 'ielts:202', username: 'Account B' }
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await waitForAccount('Account B')
+    const restoredB = await openNotebook()
+    await page.waitForFunction(() => document.querySelector('textarea[aria-label="Private route notebook note"]')?.value === 'Account B private method')
+    if (await restoredB.inputValue() !== 'Account B private method') throw new Error('The old global key contaminated Account B after ownership migration')
+    const shot = path.join(ARTIFACT_DIR, 'account-note-isolation-ipad-landscape.png')
+    shots.push(shot)
+    await page.screenshot({ path: shot, fullPage: false })
+    return { legacyOwner: 'ielts:101', accountA: 'restored', accountB: 'isolated', guest: 'isolated', nullNoteCleared: true }
+  } finally {
+    await context.close()
+  }
+}
+
 async function run() {
   fs.mkdirSync(ARTIFACT_DIR, { recursive: true })
   const browser = await chromium.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true })
   const errors = []
   const shots = []
   let pdfInkMetrics = null
+  let selfMarkPendingMetrics = null
+  let mixedMarkingMetrics = null
+  let accountIsolationMetrics = null
 
   try {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
@@ -261,18 +838,28 @@ async function run() {
     if (await page.locator('.qp-player--immersive').count()) throw new Error('Practice focus mode did not exit')
 
     if (!(await page.getByText('Verified past-paper set', { exact: true }).count())) throw new Error('Verified source summary is missing')
-    const evidence = page.locator('.question-source-evidence')
-    if ((await evidence.count()) !== 1) throw new Error('Original paper evidence is missing for a source-backed question')
-    // The paired mark scheme is bound in the item metadata, but must not be
-    // exposed during an active practice attempt. The student may open the
-    // original question paper now; the exact mark scheme unlocks on submit.
-    if (await evidence.locator('a').count() !== 1) throw new Error('Active practice must expose the original paper without leaking the paired mark scheme')
+    const desktopSource = await assertVisibleSourceMaterial(page, 'Desktop verified practice')
+    if (!/\/question-assets\//.test(desktopSource.src)) throw new Error(`Desktop practice did not use a trusted local source asset: ${JSON.stringify(desktopSource)}`)
+    await page.getByRole('button', { name: 'Expand source image' }).click()
+    const sourceDialog = page.getByRole('dialog', { name: 'Expanded official question image' })
+    await sourceDialog.waitFor()
+    const sourceCanvas = sourceDialog.locator('.qp-source-zoom__canvas')
+    const sourceCanvasStyle = await sourceCanvas.evaluate((element) => ({ overflow: getComputedStyle(element).overflow, touchAction: getComputedStyle(element).touchAction }))
+    const allowsSourcePanAndZoom = sourceCanvasStyle.touchAction === 'manipulation'
+      || (sourceCanvasStyle.touchAction.includes('pan-x') && sourceCanvasStyle.touchAction.includes('pinch-zoom'))
+    if (sourceCanvasStyle.overflow !== 'auto' || !allowsSourcePanAndZoom) throw new Error(`Expanded source viewer must support its own pan and zoom surface: ${JSON.stringify(sourceCanvasStyle)}`)
+    await sourceDialog.getByRole('button', { name: 'Zoom in source image' }).click()
+    const zoomedWidth = await sourceCanvas.locator('img').evaluate((image) => image.style.width)
+    if (zoomedWidth !== '125%') throw new Error(`Expanded source viewer did not apply a controlled zoom level: ${zoomedWidth}`)
+    await page.keyboard.press('Escape')
+    if (await sourceDialog.count()) throw new Error('Expanded source viewer did not close with Escape')
+    if (await page.getByRole('button', { name: 'Expand source image' }).evaluate((button) => document.activeElement === button) !== true) throw new Error('Closing source viewer did not return focus to its trigger')
     let handwrittenIndex = -1
     try { handwrittenIndex = await findHandwritingQuestion(page) } catch { handwrittenIndex = -1 }
     if (handwrittenIndex >= 0) {
       await page.locator('.index-list button').nth(handwrittenIndex).click()
       await page.locator('.handwriting-pad').waitFor()
-      await assertNoSelfMarkAiCopy(page, 'Machine-indexed chapter practice')
+      await assertReviewedAiCapability(page, 'Reviewed 0580 handwriting practice')
       const handwritingCanvas = page.locator('.handwriting-pad__canvas')
       const handwritingStyle = await handwritingCanvas.evaluate((element) => {
         const computed = getComputedStyle(element)
@@ -300,11 +887,11 @@ async function run() {
       const erasedPixels = await handwritingCanvas.evaluate((element) => {
         const pixels = element.getContext('2d').getImageData(0, 0, element.width, element.height).data
         let dark = 0
-        for (let index = 0; index < pixels.length; index += 4) if (pixels[index] < 100 && pixels[index + 1] < 120 && pixels[index + 2] < 150) dark += 1
+        for (let index = 0; index < pixels.length; index += 4) if (pixels[index + 3] > 128 && pixels[index] < 100 && pixels[index + 1] < 120 && pixels[index + 2] < 150) dark += 1
         return dark
       })
       if (erasedPixels >= drawnPixels) throw new Error(`Eraser did not remove local ink: ${drawnPixels} -> ${erasedPixels}`)
-      await assertNoSelfMarkAiCopy(page, 'Saved machine-indexed handwriting')
+      await assertReviewedAiCapability(page, 'Saved reviewed 0580 handwriting practice')
     }
     const questionButtons = page.locator('.index-list button')
     let mcqIndex = -1
@@ -355,6 +942,15 @@ async function run() {
     await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: /^Practice$/ }).click()
     await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: /^Notebook$/ }).click()
     if (await page.getByRole('heading', { name: 'What needs another look' }).count() !== 1) throw new Error('Student notebook review queue is missing')
+    shots.push(await assertNotebookLayout(page, { label: 'notebook-empty-desktop', state: 'empty' }))
+    const notebookRoutePicker = page.locator('.notebook-view .student-route-picker')
+    await notebookRoutePicker.getByRole('tab', { name: 'AS', exact: true }).click()
+    await notebookRoutePicker.getByRole('combobox', { name: 'Current course' }).selectOption('cie-9702-as-physics')
+    await page.waitForFunction(() => document.querySelectorAll('.notebook-mistake').length > 0, null, { timeout: 3000 })
+    const privateNote = page.getByRole('textbox', { name: 'Private route notebook note' })
+    await privateNote.fill('Keep the system boundary clear before applying conservation.')
+    if (await privateNote.inputValue() !== 'Keep the system boundary clear before applying conservation.') throw new Error('Private notebook note did not retain typed text')
+    shots.push(await assertNotebookLayout(page, { label: 'notebook-populated-desktop', state: 'populated' }))
     await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: /^Progress$/ }).click()
     if (await page.getByRole('heading', { name: 'History stays append-only' }).count() !== 1) throw new Error('Student progress view is missing')
     await page.locator('.account-trigger').click()
@@ -496,6 +1092,15 @@ async function run() {
     await assertNoSelfMarkAiCopy(guestMarkingPage, '9709 March 2025 P1 submitted result')
     await guestMarking.close()
 
+    const legacyDraftTabletContext = await browser.newContext({ viewport: { width: 820, height: 1180 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true })
+    const legacyDraftTabletPage = await legacyDraftTabletContext.newPage()
+    legacyDraftTabletPage.on('pageerror', (error) => errors.push(`0580 legacy draft iPad: ${error.message}`))
+    await legacyDraftTabletPage.goto(APP_URL, { waitUntil: 'domcontentloaded' })
+    await legacyDraftTabletPage.evaluate(() => localStorage.clear())
+    await legacyDraftTabletPage.reload({ waitUntil: 'domcontentloaded' })
+    shots.push(await assert0580LegacyDraftMigration(legacyDraftTabletPage))
+    await legacyDraftTabletContext.close()
+
     const selfMarkDesktopContext = await browser.newContext({ viewport: { width: 1440, height: 900 } })
     const selfMarkDesktopPage = await selfMarkDesktopContext.newPage()
     selfMarkDesktopPage.on('pageerror', (error) => errors.push(`0580 self-mark desktop: ${error.message}`))
@@ -513,6 +1118,19 @@ async function run() {
     await selfMarkTabletPage.reload({ waitUntil: 'domcontentloaded' })
     shots.push(await assert0580ReviewedMarkingEntryFlow(selfMarkTabletPage, { mobile: true, pointerId: 302, label: 'ipad' }))
     await selfMarkTabletContext.close()
+
+    const practiceSelfMarkContext = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+    const practiceSelfMarkPage = await practiceSelfMarkContext.newPage()
+    practiceSelfMarkPage.on('pageerror', (error) => errors.push(`practice self-mark desktop: ${error.message}`))
+    await practiceSelfMarkPage.goto(APP_URL, { waitUntil: 'domcontentloaded' })
+    await practiceSelfMarkPage.evaluate(() => localStorage.clear())
+    await practiceSelfMarkPage.reload({ waitUntil: 'domcontentloaded' })
+    shots.push(await assertPracticeSelfMarkPendingFlow(practiceSelfMarkPage))
+    await practiceSelfMarkContext.close()
+
+    selfMarkPendingMetrics = await assertSelfMarkPendingFlow(browser, errors, shots)
+    mixedMarkingMetrics = await assertMixedMarkingLifecycle(browser, errors, shots)
+    accountIsolationMetrics = await assertAccountStateIsolation(browser, errors, shots)
 
     const tabletPaper = await browser.newContext({ viewport: { width: 820, height: 1180 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true })
     const tabletPaperPage = await tabletPaper.newPage()
@@ -572,16 +1190,26 @@ async function run() {
     if (!mobileCoachBox || !mobileRecommendationBox || coachOverlapsRecommendation) throw new Error(`Mobile AI Coach trigger overlaps the primary recommendation: ${JSON.stringify({ mobileCoachBox, mobileRecommendationBox })}`)
     shots.push(path.join(ARTIFACT_DIR, 'dashboard-mobile-after.png'))
     await mobilePage.screenshot({ path: shots.at(-1), fullPage: false })
+    await mobilePage.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: /^Notebook$/ }).click()
+    shots.push(await assertNotebookLayout(mobilePage, { label: 'notebook-empty-mobile', state: 'empty' }))
+    await mobilePage.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: /^Today$/ }).click()
+    await mobilePage.locator('.student-home-guided .recommended-session').waitFor()
     await openVerifiedStarter(mobilePage)
+    const sourceGraphMetrics = await assertVisibleSourceMaterial(mobilePage, 'Mobile Dynamics practice')
+    if (!sourceGraphMetrics.loaded || !/\/question-assets\/cie-9702-9702_m25_qp_12\/qp-03\.jpg$/.test(sourceGraphMetrics.src)) {
+      throw new Error(`The source-dependent Dynamics question did not render its trusted official graph: ${JSON.stringify(sourceGraphMetrics)}`)
+    }
+    const rawVisualPlaceholderCount = await mobilePage.getByText(/\[(?:graph|diagram|figure|image)\s*:/i).count()
+    if (rawVisualPlaceholderCount) throw new Error(`Raw source visual placeholders are visible in mobile practice: ${rawVisualPlaceholderCount}`)
     const mobileMetrics = await mobilePage.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
       clientWidth: document.documentElement.clientWidth,
-      evidenceOpen: document.querySelector('.question-source-evidence')?.open,
+      sourceVisible: Boolean(document.querySelector('.qp-question-asset img')),
       answerTop: document.querySelector('.mcq-answer, .handwriting-pad')?.getBoundingClientRect().top,
       promptBottom: document.querySelector('.qp-question__body h2')?.getBoundingClientRect().bottom,
     }))
     if (mobileMetrics.scrollWidth > mobileMetrics.clientWidth) throw new Error(`Mobile practice geometry failed: ${JSON.stringify(mobileMetrics)}`)
-    if (mobileMetrics.evidenceOpen) throw new Error(`Source evidence must be collapsed by default on mobile: ${JSON.stringify(mobileMetrics)}`)
+    if (!mobileMetrics.sourceVisible) throw new Error(`Complete source material must be visible by default on mobile: ${JSON.stringify(mobileMetrics)}`)
     if (mobileMetrics.answerTop - mobileMetrics.promptBottom > 220) throw new Error(`Answer area is too far from the question on mobile: ${JSON.stringify(mobileMetrics)}`)
     shots.push(path.join(ARTIFACT_DIR, 'verified-practice-mobile.png'))
     await mobilePage.screenshot({ path: shots.at(-1), fullPage: false })
@@ -710,10 +1338,12 @@ async function run() {
     if (portraitArchiveGeometry.scrollWidth > portraitArchiveGeometry.clientWidth) throw new Error(`BPhO archive overflows iPad portrait: ${JSON.stringify(portraitArchiveGeometry)}`)
     shots.push(path.join(ARTIFACT_DIR, 'competition-archive-tablet-portrait.png'))
     await tabletPage.screenshot({ path: shots.at(-1), fullPage: false })
+    await tabletPage.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: /^Notebook$/ }).click()
+    shots.push(await assertNotebookLayout(tabletPage, { label: 'notebook-empty-ipad', state: 'empty' }))
     await tablet.close()
 
     if (errors.length) throw new Error(`Browser errors:\n${errors.join('\n')}`)
-    console.log(JSON.stringify({ verifiedPracticeUnits: 145, verifiedQuestionGroups: 917, answerableParts: 978, reviewed0580Paper: { questionGroups: 26, answerableParts: 46, totalMarks: 80, sharedLoginEntryVerified: true }, deterministicMcqMarked: true, focusedRetestQuestions: 1, competitionAndAdmissionsSeparated: true, bphoRoundFiltersVerified: Object.keys(expectedRoundCounts), officialTopic7Unlocked: true, officialTopic9Unlocked: true, mobileMetrics, pencilMetrics, pdfInkMetrics, shots }, null, 2))
+    console.log(JSON.stringify({ verifiedPracticeUnits: 145, verifiedQuestionGroups: 917, answerableParts: 978, reviewed0580Paper: { questionGroups: 26, answerableParts: 46, totalMarks: 80, sharedLoginEntryVerified: true }, deterministicMcqMarked: true, selfMarkPendingMetrics, mixedMarkingMetrics, accountIsolationMetrics, focusedRetestQuestions: 1, competitionAndAdmissionsSeparated: true, bphoRoundFiltersVerified: Object.keys(expectedRoundCounts), officialTopic7Unlocked: true, officialTopic9Unlocked: true, mobileMetrics, pencilMetrics, pdfInkMetrics, shots }, null, 2))
   } finally {
     await browser.close()
   }

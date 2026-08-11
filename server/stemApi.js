@@ -1,6 +1,8 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import { unifiedQuestionBank } from '../src/data/questionBank.js'
+import { issueMarkingCapabilities } from './markingCapability.js'
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024
 const TOKEN_AUDIENCE = 'stem.ieltsist.com'
@@ -10,6 +12,7 @@ const ROUTE_STAGES = new Map([
   ['igcse', 'IGCSE'],
   ['as', 'AS'],
   ['a2', 'A2'],
+  ['competition', 'Competition'],
   ['admissions', 'Admissions'],
 ])
 const REGISTERED_ROUTES = new Map(Object.entries({
@@ -35,8 +38,8 @@ const REGISTERED_ROUTES = new Map(Object.entries({
   'cie-9231-as-p1-p4': ['AS', 'math-9231'],
   'cie-9231-a2-after-p1-p3-p2-p4': ['A2', 'math-9231'],
   'cie-9231-a2-after-p1-p4-p2-p3': ['A2', 'math-9231'],
-  'bpho-admissions-physics': ['Admissions', 'bpho'],
-  'maa-amc12-admissions-mathematics': ['Admissions', 'amc12'],
+  'bpho-admissions-physics': ['Competition', 'bpho'],
+  'maa-amc12-admissions-mathematics': ['Competition', 'amc12'],
   'uatuk-esat-admissions': ['Admissions', 'esat'],
   'uatuk-tmua-admissions': ['Admissions', 'tmua'],
 }))
@@ -81,7 +84,7 @@ function canonicalStage(value, { allowLegacy = false } = {}) {
   const raw = asText(value, 40)
   if (allowLegacy && raw === LEGACY_SCOPE) return LEGACY_SCOPE
   const stage = ROUTE_STAGES.get(raw.toLowerCase())
-  if (!stage) throw Object.assign(new Error('Stage must be IGCSE, AS, A2 or Admissions.'), { statusCode: 400 })
+  if (!stage) throw Object.assign(new Error('Stage must be IGCSE, AS, A2, Competition or Admissions.'), { statusCode: 400 })
   return stage
 }
 
@@ -118,7 +121,13 @@ function verifiedAssignmentScope(routeValue, stageValue, subjectValue) {
   return { ...scope, subjectId }
 }
 
-function routeScopedQuestionIds(values, routeId) {
+export function assignableQuestionIdsForBank(questionBank = unifiedQuestionBank) {
+  return new Set((Array.isArray(questionBank) ? questionBank : [])
+    .map((question) => String(question?.bankId || '').trim())
+    .filter(Boolean))
+}
+
+function routeScopedQuestionIds(values, routeId, assignableQuestionIds) {
   if (!Array.isArray(values) || !values.length) throw Object.assign(new Error('Assignment needs route-scoped question IDs.'), { statusCode: 400 })
   if (values.length > 60) throw Object.assign(new Error('An assignment can contain at most 60 question IDs.'), { statusCode: 400 })
   const questionIds = values.map((value) => {
@@ -133,6 +142,11 @@ function routeScopedQuestionIds(values, routeId) {
   })
   if (new Set(questionIds).size !== questionIds.length) {
     throw Object.assign(new Error('Assignment question IDs must be unique.'), { statusCode: 400 })
+  }
+  for (const questionId of questionIds) {
+    if (!assignableQuestionIds.has(questionId)) {
+      throw Object.assign(new Error('Assignment question IDs must be verified and source-complete for this route.'), { statusCode: 400 })
+    }
   }
   return questionIds
 }
@@ -162,6 +176,43 @@ function migrateRouteScope(database) {
   database.exec(`
     CREATE INDEX IF NOT EXISTS idx_assignments_route_stage ON assignments(route_id, stage, classroom_id);
   `)
+}
+
+function canonicalStoredSourceScope(value, routeId, stage) {
+  try {
+    const scope = JSON.parse(value)
+    if (!scope || Array.isArray(scope) || typeof scope !== 'object') return value
+    return JSON.stringify({ ...scope, routeId, stage })
+  } catch {
+    // Preserve malformed historical payloads for manual review instead of erasing provenance.
+    return value
+  }
+}
+
+function migrateRegisteredRouteStages(database) {
+  const assignments = database.prepare('SELECT id, route_id, stage, source_scope_json FROM assignments WHERE route_id IS NOT NULL AND TRIM(route_id) <> ?').all(LEGACY_SCOPE)
+  const updates = assignments.flatMap((assignment) => {
+    const routeId = asText(assignment.route_id, 120)
+    const stage = stageForRoute(routeId)
+    if (!stage) return []
+    const sourceScopeJson = canonicalStoredSourceScope(assignment.source_scope_json, routeId, stage)
+    if (asText(assignment.stage, 40) === stage && sourceScopeJson === assignment.source_scope_json) return []
+    return [{ id: assignment.id, routeId, stage, sourceScopeJson }]
+  })
+  const stageCorrections = [...REGISTERED_ROUTES.entries()].filter(([, [stage]]) => Boolean(stage))
+  if (!updates.length && !stageCorrections.length) return
+
+  const updateAssignment = database.prepare('UPDATE assignments SET stage = ?, source_scope_json = ? WHERE id = ?')
+  const updateSubmissionStage = database.prepare('UPDATE submission_events SET stage = ? WHERE route_id = ? AND (stage IS NULL OR TRIM(stage) <> ?)')
+  database.exec('BEGIN IMMEDIATE')
+  try {
+    for (const update of updates) updateAssignment.run(update.stage, update.sourceScopeJson, update.id)
+    for (const [routeId, [stage]] of stageCorrections) updateSubmissionStage.run(stage, routeId, stage)
+    database.exec('COMMIT')
+  } catch (error) {
+    try { database.exec('ROLLBACK') } catch { /* No active migration transaction. */ }
+    throw error
+  }
 }
 
 function hasAssignmentScopedIdempotency(database) {
@@ -217,7 +268,7 @@ function appDatabase(env) {
   if (!globalThis.process?.versions?.node) throw new Error('STEM storage requires Node.js.')
   // node:sqlite is available in the Node 22 runtime used by the deployment.
   const { DatabaseSync } = requireNodeSqlite()
-  const databasePath = path.resolve(env.STEM_DB_PATH || path.join(process.cwd(), 'data', 'stem.sqlite'))
+  const databasePath = path.resolve(env.STEM_DATABASE_PATH || env.STEM_DB_PATH || path.join(process.cwd(), 'data', 'stem.sqlite'))
   fs.mkdirSync(path.dirname(databasePath), { recursive: true })
   database = new DatabaseSync(databasePath)
   database.exec(`
@@ -290,11 +341,14 @@ function appDatabase(env) {
       route_id TEXT NOT NULL,
       body TEXT NOT NULL,
       updated_at TEXT NOT NULL,
+      deleted_at TEXT,
       PRIMARY KEY (user_id, route_id)
     );
     CREATE INDEX IF NOT EXISTS idx_private_notes_user ON private_notes(user_id, updated_at DESC);
   `)
+  ensureColumn(database, 'private_notes', 'deleted_at', 'TEXT')
   migrateRouteScope(database)
+  migrateRegisteredRouteStages(database)
   migrateSubmissionIdempotency(database)
   return database
 }
@@ -474,7 +528,7 @@ function reportFilter(url) {
 }
 
 function submissionFilter(column, filter) {
-  const conditions = [`${column}.event_type = 'submitted'`]
+  const conditions = [`${column}.event_type IN ('submitted', 'verified')`]
   const parameters = []
   if (filter?.from) { conditions.push(`${column}.occurred_at >= ?`); parameters.push(filter.from) }
   if (filter?.to) { conditions.push(`${column}.occurred_at <= ?`); parameters.push(filter.to) }
@@ -557,6 +611,7 @@ function summaryForClass(database, classroomId, filter = {}, { includeRouteGroup
     scopeStatus: item.scopeStatus,
     topicId: item.topicId,
     submissions: item.submissions,
+    totalSubmissionCount: item.submissions,
     verifiedScoreCount: item.verifiedScoreCount,
     averagePercentage: item.percentages.length ? Math.round(item.percentages.reduce((total, value) => total + value, 0) / item.percentages.length) : null,
   }]))
@@ -573,6 +628,7 @@ function summaryForClass(database, classroomId, filter = {}, { includeRouteGroup
     filter: { routeId: filter.routeId || null, stage: filter.stage || null },
     aggregationMode: filter.routeId || filter.stage ? 'single-scope' : 'cross-route-overview',
     submissions: results.length,
+    totalSubmissionCount: results.length,
     verifiedScoreCount: verifiedResults.length,
     reportedScoreCount,
     averagePercentage: percentages.length ? Math.round(percentages.reduce((total, value) => total + value, 0) / percentages.length) : null,
@@ -621,11 +677,11 @@ function schoolAnalytics(database, user, filter) {
   for (const cohort of cohorts) {
     for (const item of Object.values(cohort.summary.coverageBySyllabusPoint)) {
       const key = `${item.routeId}::${item.topicId}`
-      const current = coverage[key] || { routeId: item.routeId, stage: item.stage, scopeStatus: item.scopeStatus, topicId: item.topicId, submissions: 0, weightedScore: 0, scoredSubmissions: 0 }
-      current.submissions += item.submissions
+      const current = coverage[key] || { routeId: item.routeId, stage: item.stage, scopeStatus: item.scopeStatus, topicId: item.topicId, totalSubmissionCount: 0, weightedScore: 0, verifiedScoreCount: 0 }
+      current.totalSubmissionCount += item.totalSubmissionCount ?? item.submissions
       if (Number.isFinite(item.averagePercentage)) {
         current.weightedScore += item.averagePercentage * item.verifiedScoreCount
-        current.scoredSubmissions += item.verifiedScoreCount
+        current.verifiedScoreCount += item.verifiedScoreCount
       }
       coverage[key] = current
     }
@@ -637,13 +693,13 @@ function schoolAnalytics(database, user, filter) {
     }]
     for (const group of cohortGroups) {
       const key = `${group.routeId}::${group.stage}`
-      const current = groupedRoutes[key] || { routeId: group.routeId, stage: group.stage, scopeStatus: group.scopeStatus, submissions: 0, verifiedScoreCount: 0, weightedScore: 0, activeAssignments: 0, needsSupport: 0, cohorts: 0 }
-      current.submissions += group.summary.submissions
+      const current = groupedRoutes[key] || { routeId: group.routeId, stage: group.stage, scopeStatus: group.scopeStatus, totalSubmissionCount: 0, verifiedScoreCount: 0, weightedScore: 0, activeAssignments: 0, needsSupport: 0, cohorts: 0 }
+      current.totalSubmissionCount += group.summary.totalSubmissionCount ?? group.summary.submissions
       current.verifiedScoreCount += group.summary.verifiedScoreCount
       current.activeAssignments += group.summary.activeAssignments
       current.needsSupport += group.summary.needsSupport
       current.cohorts += 1
-      if (Number.isFinite(group.summary.averagePercentage)) current.weightedScore += group.summary.averagePercentage * group.summary.submissions
+      if (Number.isFinite(group.summary.averagePercentage)) current.weightedScore += group.summary.averagePercentage * group.summary.verifiedScoreCount
       groupedRoutes[key] = current
     }
     for (const reason of cohort.summary.riskReasons) risks.set(reason, (risks.get(reason) || 0) + 1)
@@ -653,8 +709,10 @@ function schoolAnalytics(database, user, filter) {
     stage: item.stage,
     scopeStatus: item.scopeStatus,
     topicId: item.topicId,
-    submissions: item.submissions,
-    averagePercentage: item.scoredSubmissions ? Math.round(item.weightedScore / item.scoredSubmissions) : null,
+    submissions: item.totalSubmissionCount,
+    totalSubmissionCount: item.totalSubmissionCount,
+    verifiedScoreCount: item.verifiedScoreCount,
+    averagePercentage: item.verifiedScoreCount ? Math.round(item.weightedScore / item.verifiedScoreCount) : null,
   })).sort((left, right) => (left.averagePercentage ?? 101) - (right.averagePercentage ?? 101))
   return {
     generatedAt: nowIso(),
@@ -667,7 +725,8 @@ function schoolAnalytics(database, user, filter) {
       routeId: item.routeId,
       stage: item.stage,
       scopeStatus: item.scopeStatus,
-      submissions: item.submissions,
+      submissions: item.totalSubmissionCount,
+      totalSubmissionCount: item.totalSubmissionCount,
       verifiedScoreCount: item.verifiedScoreCount,
       averagePercentage: item.verifiedScoreCount ? Math.round(item.weightedScore / item.verifiedScoreCount) : null,
       activeAssignments: item.activeAssignments,
@@ -698,7 +757,7 @@ function eventPayload(value) {
     throw Object.assign(new Error('Submission percentage must match rawMarks and maxMarks.'), { statusCode: 400 })
   }
   const requestedMarkingMode = asText(value.markingMode || 'student-reported', 40)
-  const supportedMarkingModes = new Set(['deterministic', 'assisted', 'assisted-vision', 'student-self-mark', 'student-reported'])
+  const supportedMarkingModes = new Set(['deterministic', 'assisted', 'assisted-vision', 'student-self-mark', 'student-reported', 'teacher-reviewed'])
   return {
     rawMarks,
     maxMarks,
@@ -711,10 +770,14 @@ function eventPayload(value) {
   }
 }
 
-export function createStemApi({ env }) {
+export function createStemApi({ env, questionBank = unifiedQuestionBank }) {
   const signingKey = String(env.STEM_IDENTITY_SIGNING_KEY || '')
+  const markingCapabilitySigningKey = String(env.STEM_MARKING_CAPABILITY_SIGNING_KEY || signingKey)
   const identityOrigin = String(env.IELTSIST_ORIGIN || 'https://ieltsist.com').replace(/\/$/, '')
   const stemOrigin = String(env.STEM_ORIGIN || 'https://stem.ieltsist.com').replace(/\/$/, '')
+  // Production uses unifiedQuestionBank, which fails closed on file and
+  // semantic source completeness. Supplying a fixture is test-only.
+  const assignableQuestionIds = assignableQuestionIdsForBank(questionBank)
   return async function stemApi(request, response, next) {
     const url = new URL(request.url, 'http://127.0.0.1')
     if (!url.pathname.startsWith('/api/stem/') && !['/api/auth/status', '/api/auth/config'].includes(url.pathname)) return next()
@@ -726,9 +789,9 @@ export function createStemApi({ env }) {
           providerOrigin: identityOrigin,
           clientOrigin: stemOrigin,
           browserFlow: {
-            login: `${identityOrigin}/?from=stem&auth=login&return_to=${encodeURIComponent(stemOrigin) }#mine`,
-            register: `${identityOrigin}/?from=stem&auth=register&return_to=${encodeURIComponent(stemOrigin) }#mine`,
-            logout: `${identityOrigin}/?from=stem&auth=logout&return_to=${encodeURIComponent(stemOrigin) }#mine`,
+            login: `${identityOrigin}/?from=stem&auth=login&returnTo=${encodeURIComponent(stemOrigin) }#mine`,
+            register: `${identityOrigin}/?from=stem&auth=register&returnTo=${encodeURIComponent(stemOrigin) }#mine`,
+            logout: `${identityOrigin}/?from=stem&auth=logout&returnTo=${encodeURIComponent(stemOrigin) }#mine`,
           },
           endpoints: {
             login: `${identityOrigin}/api/auth/login`,
@@ -765,26 +828,52 @@ export function createStemApi({ env }) {
         sendJson(response, 200, currentWorkspace(db, user))
         return
       }
+      if (request.method === 'POST' && url.pathname === '/api/stem/marking/capabilities') {
+        const payload = await readJson(request)
+        const issued = issueMarkingCapabilities({
+          userId: user.id,
+          payload,
+          questionBank,
+          signingKey: markingCapabilitySigningKey,
+        })
+        if (!issued.ok) throw Object.assign(new Error(issued.message), { statusCode: issued.statusCode || 422, code: issued.code })
+        sendJson(response, 201, issued)
+        return
+      }
       if (url.pathname === '/api/stem/notebook/notes' && request.method === 'GET') {
         const routeId = canonicalRouteId(url.searchParams.get('routeId'))
-        const note = db.prepare('SELECT route_id, body, updated_at FROM private_notes WHERE user_id = ? AND route_id = ?').get(user.id, routeId)
-        sendJson(response, 200, { routeId, note: note ? { routeId: note.route_id, body: note.body, updatedAt: note.updated_at } : null, privacy: 'private-to-student' })
+        const note = db.prepare('SELECT route_id, body, updated_at, deleted_at FROM private_notes WHERE user_id = ? AND route_id = ?').get(user.id, routeId)
+        sendJson(response, 200, {
+          routeId,
+          note: note ? {
+            routeId: note.route_id,
+            body: note.deleted_at ? '' : note.body,
+            updatedAt: note.updated_at,
+            deleted: Boolean(note.deleted_at),
+            deletedAt: note.deleted_at || null,
+          } : null,
+          privacy: 'private-to-student',
+        })
         return
       }
       const privateNoteMatch = url.pathname.match(/^\/api\/stem\/notebook\/notes\/([^/]+)$/)
       if (privateNoteMatch && ['PUT', 'DELETE'].includes(request.method)) {
         const routeId = canonicalRouteId(decodeURIComponent(privateNoteMatch[1]))
         if (request.method === 'DELETE') {
-          db.prepare('DELETE FROM private_notes WHERE user_id = ? AND route_id = ?').run(user.id, routeId)
-          sendJson(response, 200, { routeId, note: null, privacy: 'private-to-student' })
+          const deletedAt = nowIso()
+          db.prepare(`INSERT INTO private_notes (user_id, route_id, body, updated_at, deleted_at) VALUES (?, ?, '', ?, ?)
+            ON CONFLICT(user_id, route_id) DO UPDATE SET body = '', updated_at = excluded.updated_at, deleted_at = excluded.deleted_at`)
+            .run(user.id, routeId, deletedAt, deletedAt)
+          sendJson(response, 200, { routeId, note: { routeId, body: '', updatedAt: deletedAt, deleted: true, deletedAt }, privacy: 'private-to-student' })
           return
         }
         const payload = await readJson(request)
         const body = asText(payload.body, 20_000)
         const updatedAt = nowIso()
-        db.prepare(`INSERT INTO private_notes (user_id, route_id, body, updated_at) VALUES (?, ?, ?, ?)
-          ON CONFLICT(user_id, route_id) DO UPDATE SET body = excluded.body, updated_at = excluded.updated_at`).run(user.id, routeId, body, updatedAt)
-        sendJson(response, 200, { routeId, note: { routeId, body, updatedAt }, privacy: 'private-to-student' })
+        const deletedAt = body ? null : updatedAt
+        db.prepare(`INSERT INTO private_notes (user_id, route_id, body, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT(user_id, route_id) DO UPDATE SET body = excluded.body, updated_at = excluded.updated_at, deleted_at = excluded.deleted_at`).run(user.id, routeId, body, updatedAt, deletedAt)
+        sendJson(response, 200, { routeId, note: { routeId, body, updatedAt, deleted: Boolean(deletedAt), deletedAt }, privacy: 'private-to-student' })
         return
       }
       if (request.method === 'POST' && url.pathname === '/api/stem/classrooms') {
@@ -828,7 +917,15 @@ export function createStemApi({ env }) {
           SELECT events.*, assignments.syllabus_point_id
           FROM submission_events AS events
           JOIN assignments ON assignments.id = events.assignment_id
-          WHERE assignments.classroom_id = ? AND events.event_type = 'submitted'
+          JOIN (
+            SELECT assignment_id, student_user_id, MAX(occurred_at) AS latest_at
+            FROM submission_events
+            WHERE event_type IN ('submitted', 'verified')
+            GROUP BY assignment_id, student_user_id
+          ) AS latest ON latest.assignment_id = events.assignment_id
+            AND latest.student_user_id = events.student_user_id
+            AND latest.latest_at = events.occurred_at
+          WHERE assignments.classroom_id = ? AND events.event_type IN ('submitted', 'verified')
           ORDER BY events.occurred_at DESC
           LIMIT 500
         `).all(classroomId)
@@ -847,7 +944,7 @@ export function createStemApi({ env }) {
         if (!sourceScope.routeId || !sourceScope.stage) throw Object.assign(new Error('sourceScope must include routeId and stage.'), { statusCode: 400 })
         const sourceRoute = verifiedRouteScope(sourceScope.routeId, sourceScope.stage)
         if (sourceRoute.routeId !== routeId || sourceRoute.stage !== stage) throw Object.assign(new Error('Assignment questions must use the assignment routeId and stage.'), { statusCode: 400 })
-        const questionIds = routeScopedQuestionIds(sourceScope.questionIds, routeId)
+        const questionIds = routeScopedQuestionIds(sourceScope.questionIds, routeId, assignableQuestionIds)
         const id = crypto.randomUUID()
         const createdAt = nowIso()
         const status = payload.status === 'draft' ? 'draft' : 'active'
@@ -951,6 +1048,65 @@ export function createStemApi({ env }) {
         sendJson(response, 200, { report })
         return
       }
+      const verificationMatch = url.pathname.match(/^\/api\/stem\/submissions\/([^/]+)\/verify$/)
+      if (request.method === 'POST' && verificationMatch) {
+        const sourceEventId = decodeURIComponent(verificationMatch[1])
+        const source = db.prepare(`
+          SELECT events.*, assignments.classroom_id, assignments.syllabus_point_id
+          FROM submission_events AS events
+          JOIN assignments ON assignments.id = events.assignment_id
+          WHERE events.id = ? AND events.event_type IN ('submitted', 'verified')
+        `).get(sourceEventId)
+        if (!source) throw Object.assign(new Error('This submitted result is not available.'), { statusCode: 404 })
+        requireMembership(db, source.classroom_id, user.id, new Set(['owner', 'teacher']))
+        const idempotencyKey = `verify:${sourceEventId}`
+        const existing = db.prepare(`
+          SELECT events.*, assignments.syllabus_point_id
+          FROM submission_events AS events
+          JOIN assignments ON assignments.id = events.assignment_id
+          WHERE events.assignment_id = ? AND events.student_user_id = ? AND events.idempotency_key = ?
+        `).get(source.assignment_id, source.student_user_id, idempotencyKey)
+        if (existing) {
+          sendJson(response, 200, { submission: publicSubmission(existing), duplicate: true })
+          return
+        }
+        const latest = db.prepare(`
+          SELECT id FROM submission_events
+          WHERE assignment_id = ? AND student_user_id = ? AND event_type IN ('submitted', 'verified')
+          ORDER BY occurred_at DESC LIMIT 1
+        `).get(source.assignment_id, source.student_user_id)
+        if (latest?.id !== source.id) throw Object.assign(new Error('A newer student result must be reviewed instead.'), { statusCode: 409 })
+        const sourcePayload = JSON.parse(source.payload_json)
+        if (scoreStatus(sourcePayload) === 'verified') {
+          sendJson(response, 200, { submission: publicSubmission(source), duplicate: true })
+          return
+        }
+        const review = await readJson(request)
+        const rawMarks = review.rawMarks == null ? sourcePayload.rawMarks : Number(review.rawMarks)
+        const maxMarks = review.maxMarks == null ? sourcePayload.maxMarks : Number(review.maxMarks)
+        const percentage = maxMarks > 0 ? Math.round((rawMarks / maxMarks) * 100) : NaN
+        const verifiedAt = nowIso()
+        const verifiedPayload = {
+          ...eventPayload({ ...sourcePayload, rawMarks, maxMarks, percentage, markingMode: 'teacher-reviewed', reviewRequired: false }),
+          scoreStatus: 'verified',
+          reviewRequired: false,
+          verifiedAt,
+          verifiedByUserId: user.id,
+          verifiedFromEventId: source.id,
+          reviewerNote: asText(review.reviewerNote, 500),
+        }
+        const eventId = crypto.randomUUID()
+        db.prepare('INSERT INTO submission_events (id, assignment_id, student_user_id, idempotency_key, event_type, route_id, stage, payload_json, occurred_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+          .run(eventId, source.assignment_id, source.student_user_id, idempotencyKey, 'verified', source.route_id, source.stage, JSON.stringify(verifiedPayload), verifiedAt)
+        const created = db.prepare(`
+          SELECT events.*, assignments.syllabus_point_id
+          FROM submission_events AS events
+          JOIN assignments ON assignments.id = events.assignment_id
+          WHERE events.id = ?
+        `).get(eventId)
+        sendJson(response, 201, { submission: publicSubmission(created), duplicate: false })
+        return
+      }
       const submissionMatch = url.pathname.match(/^\/api\/stem\/assignments\/([^/]+)\/submissions$/)
       if (request.method === 'POST' && submissionMatch) {
         const assignmentId = decodeURIComponent(submissionMatch[1])
@@ -982,7 +1138,10 @@ export function createStemApi({ env }) {
       }
       sendJson(response, 404, { error: 'STEM workspace endpoint not found.' })
     } catch (error) {
-      sendJson(response, error.statusCode || 500, { error: error.statusCode ? error.message : 'STEM workspace could not complete that request.' })
+      sendJson(response, error.statusCode || 500, {
+        ...(error.code ? { code: error.code } : {}),
+        error: error.statusCode ? error.message : 'STEM workspace could not complete that request.',
+      })
     }
   }
 }
