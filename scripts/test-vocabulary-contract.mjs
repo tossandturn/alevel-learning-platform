@@ -3,6 +3,7 @@ import { routeById } from '../src/data/routeRegistry.js'
 import { buildStemVocabularyContext, vocabularyCoverageForRoute } from '../src/data/stemVocabularyTaxonomy.js'
 import { professionalTermsUrl } from '../src/lib/sharedAccount.js'
 import { parseProductContext } from '../src/lib/productContext.js'
+import { topicQueryForRoute } from '../src/lib/verifiedPracticeCatalog.js'
 
 const route = routeById('cie-9702-as-physics')
 assert.ok(route, 'A canonical STEM route is required')
@@ -32,6 +33,8 @@ const liveVocabularyReturn = parseProductContext('?from=ieltsist&contractVersion
 assert.equal(liveVocabularyReturn.routeId, 'cie-9702-as-physics', 'the complete canonical IELTSist URL must preserve its explicit route over any saved STEM route')
 assert.equal(routeById(liveVocabularyReturn.routeId)?.stage, 'AS', 'the explicit canonical route must retain its registered stage')
 assert.equal(liveVocabularyReturn.topicId, 'physics-9702-topic-03', 'the canonical topic must survive URL parsing')
+assert.equal(topicQueryForRoute(liveVocabularyReturn.routeId, liveVocabularyReturn.topicId), '3 Dynamics', 'the exact incoming route and topic must restore the Topic focus select value')
+assert.equal(topicQueryForRoute('bpho-admissions-physics', liveVocabularyReturn.topicId), '', 'a topic from another route must not leak into the Topic focus select')
 assert.equal(routeById('not-a-stem-route'), null, 'unknown product routes must not override a persisted STEM route')
 
 const url = new URL(professionalTermsUrl({

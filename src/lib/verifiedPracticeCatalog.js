@@ -145,6 +145,12 @@ export function coachPracticeOptions() {
   }))
 }
 
+export function topicQueryForRoute(routeId, topicId) {
+  const canonicalTopicId = String(topicId || '').split('@')[0]
+  const subject = coachPracticeSubjects.find((item) => item.routeId === routeId)
+  return planGroupsFor(subject).find((topic) => topic.id === canonicalTopicId)?.name || ''
+}
+
 export class PracticeInventoryError extends Error {
   constructor({ subject, stage, group, available, requested }) {
     super(`${subject.code} ${stage} ${group.name} has no verified question available yet. The source inventory is still being indexed.`)

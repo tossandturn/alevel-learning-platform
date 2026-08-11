@@ -45,7 +45,7 @@ import {
   markingCapabilityForUnit,
   pendingPartsForLifecycle,
 } from './lib/markingLifecycle'
-import { buildCoachPractice, buildVerifiedPracticeCatalog, coachPracticeOptions, MIN_VERIFIED_GROUPS_FOR_PRACTICE, previewCoachPracticeSourceMix, rebindVerifiedPracticeUnit, resolveVerifiedPracticeSelection } from './lib/verifiedPracticeCatalog'
+import { buildCoachPractice, buildVerifiedPracticeCatalog, coachPracticeOptions, MIN_VERIFIED_GROUPS_FOR_PRACTICE, previewCoachPracticeSourceMix, rebindVerifiedPracticeUnit, resolveVerifiedPracticeSelection, topicQueryForRoute } from './lib/verifiedPracticeCatalog'
 import { latestBphoSpcPaper } from './lib/coachIntent'
 import { buildCompletionByUnit, buildLearningProgress, recommendForRoute } from './lib/learningProgress'
 import { professionalTermsUrl, requestSharedAccount, requestSharedWorkspace, sharedAccountRequest, sharedAuthUrl, sharedLogoutUrl } from './lib/sharedAccount'
@@ -235,6 +235,7 @@ function App() {
   const [appState, setAppState] = useState(() => loadState())
   const paperCatalogState = usePaperCatalog()
   const incomingContext = getIncomingProductContext()
+  const incomingTopicQuery = topicQueryForRoute(incomingContext.routeId, incomingContext.topicId)
   const [view, setView] = useState(() => incomingContext.from === 'ieltsist' || incomingContext.focus ? 'library' : 'dashboard')
   const [activeTab, setActiveTab] = useState('recommended')
   const [selectedTopicId, setSelectedTopicId] = useState(() => incomingContext.topicId || null)
@@ -249,7 +250,7 @@ function App() {
   const activeSubject = subjects.find((subject) => subject.routeIds?.includes(activeRoute.routeId)) || subjects[0]
   const [_subjectFilter, setSubjectFilter] = useState(() => activeSubject.id)
   const [completionFilter] = useState('all')
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(() => incomingTopicQuery)
   const [currentAttempt, setCurrentAttempt] = useState(null)
   const [resultAttempt, setResultAttempt] = useState(null)
   const [activePaper, setActivePaper] = useState(null)
@@ -261,6 +262,7 @@ function App() {
   const migrationAttemptedRef = useRef(false)
   const notebookSyncTimerRef = useRef(null)
   const stateOwnerIdRef = useRef('')
+  const incomingTopicManuallyChangedRef = useRef(false)
   const verifiedCatalogUnits = useMemo(() => buildVerifiedPracticeCatalog(), [])
   const visibleVerifiedUnits = useMemo(() => {
     const persisted = (appState.generatedUnits || [])
@@ -328,6 +330,7 @@ function App() {
     setActivePaper(null)
     setPendingSession(null)
     setSelectedTopicId(incomingContext.topicId || null)
+    if (!incomingTopicManuallyChangedRef.current) setQuery(topicQueryForRoute(nextRouteId, incomingContext.topicId))
     if (stateOwnerId) setView('dashboard')
   }, [incomingContext.routeId, incomingContext.topicId, sharedAccount.identity?.id, sharedAccount.status, stateOwnerId])
 
@@ -1242,7 +1245,7 @@ function App() {
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           query={query}
-          setQuery={setQuery}
+          onTopicQueryChange={(nextQuery) => { incomingTopicManuallyChangedRef.current = true; setQuery(nextQuery) }}
           visibleUnits={visibleUnits}
           completionByUnit={completionByUnit}
           favoriteUnitIds={appState.favoriteUnitIds || []}
@@ -1843,7 +1846,7 @@ function LibraryView({
   activeTab,
   setActiveTab,
   query,
-  setQuery,
+  onTopicQueryChange,
   visibleUnits,
   completionByUnit,
   favoriteUnitIds,
@@ -1872,7 +1875,7 @@ function LibraryView({
         </div>
         <div className="practice-hub__controls">
           <StudentRoutePicker activeRoute={activeRoute} routes={courseRoutes} selectRoute={selectRoute} compact />
-          <label className="practice-topic-filter"><span>Topic focus</span><select aria-label="Topic focus" value={selectedTopic} onChange={(event) => setQuery(event.target.value)}><option value="">All topics in this route</option>{practiceTopics.map((topic) => <option value={topic.label} key={topic.id}>{topic.label.replace(/^\d+\s+/, '')}</option>)}</select></label>
+          <label className="practice-topic-filter"><span>Topic focus</span><select aria-label="Topic focus" value={selectedTopic} onChange={(event) => onTopicQueryChange(event.target.value)}><option value="">All topics in this route</option>{practiceTopics.map((topic) => <option value={topic.label} key={topic.id}>{topic.label.replace(/^\d+\s+/, '')}</option>)}</select></label>
         </div>
       </header>
 
