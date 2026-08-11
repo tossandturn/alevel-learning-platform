@@ -263,6 +263,8 @@ assert.ok(!appSource.includes("from './data/questionBank"), 'the client App entr
 assert.ok(appSource.includes('topic-detail__paper-group'), 'topic detail must render grouped real-paper questions')
 assert.ok(appSource.includes('onAgentAction={handleCoachAgentAction}'), 'Coach agent actions must be available from every current student route')
 assert.ok(!appSource.includes("onAgentAction={activeRoute.stage === 'Competition'"), 'Coach actions must not be disabled merely because the current route is not Competition')
+assert.ok(appSource.includes("routeById(incomingContext.routeId)?.routeId"), 'An explicit IELTSist return route must take priority over the saved STEM route')
+assert.ok(appSource.includes('setSelectedTopicId(incomingContext.topicId || null)'), 'An explicit IELTSist return topic must survive shared-account state restoration')
 assert.ok(markingLifecycleSource.includes("evidenceStatus: 'not-recorded'"), 'student-recorded total marks must explicitly declare that point-level evidence was not captured')
 assert.ok(!markingLifecycleSource.includes('awarded: index < awarded'), 'a student-recorded total must never fabricate which mark-scheme points were awarded')
 const paperLibrarySource = fs.readFileSync(path.resolve(import.meta.dirname, '..', 'src', 'components', 'PaperLibrary.jsx'), 'utf8')

@@ -313,7 +313,11 @@ function App() {
     if (nextOwnerId === stateOwnerId) return
     if (notebookSyncTimerRef.current) window.clearTimeout(notebookSyncTimerRef.current)
     const nextState = loadState({ userId: nextOwnerId })
-    const nextRouteId = routeById(nextState.profile?.activeRouteId)?.routeId || 'cie-9702-as-physics'
+    // A cross-product URL is an explicit navigation request and must not be
+    // overwritten by the user's most recently saved STEM route.
+    const nextRouteId = routeById(incomingContext.routeId)?.routeId
+      || routeById(nextState.profile?.activeRouteId)?.routeId
+      || 'cie-9702-as-physics'
     stateOwnerIdRef.current = nextOwnerId
     migrationAttemptedRef.current = false
     setStateOwnerId(nextOwnerId)
@@ -323,9 +327,9 @@ function App() {
     setResultAttempt(null)
     setActivePaper(null)
     setPendingSession(null)
-    setSelectedTopicId(null)
+    setSelectedTopicId(incomingContext.topicId || null)
     if (stateOwnerId) setView('dashboard')
-  }, [sharedAccount.identity?.id, sharedAccount.status, stateOwnerId])
+  }, [incomingContext.routeId, incomingContext.topicId, sharedAccount.identity?.id, sharedAccount.status, stateOwnerId])
 
   useEffect(() => {
     saveState(appState, { userId: stateOwnerId })
