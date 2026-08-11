@@ -6,6 +6,10 @@ const FAMILY_BY_STAGE = Object.freeze({
   Admissions: 'admissions',
 })
 
+const VOCABULARY_FAMILIES = Object.freeze(['exam', 'competition', 'admissions'])
+const VOCABULARY_SOURCE_STATUSES = Object.freeze(['taxonomy-mapped', 'source-backed', 'pending'])
+const VOCABULARY_INVENTORY_STATUSES = Object.freeze(['not-imported', 'imported', 'pending'])
+
 const MAPPED_TERM_IDS_BY_ROUTE = Object.freeze({
   'cie-9702-as-physics': ['stem.physics.dynamics', 'stem.physics.electricity', 'stem.physics.waves'],
   'cie-9702-a2-physics': ['stem.physics.electric-fields', 'stem.physics.gravitational-fields', 'stem.physics.waves'],
@@ -21,6 +25,8 @@ function clean(value, fallback = '') {
 }
 
 export const STEM_VOCABULARY_CONTRACT_VERSION = 'stem-vocabulary-context-v1'
+
+export { VOCABULARY_FAMILIES, VOCABULARY_SOURCE_STATUSES, VOCABULARY_INVENTORY_STATUSES }
 
 export const STEM_VOCABULARY_TAXONOMY = Object.freeze({
   exam: Object.freeze({
@@ -59,11 +65,14 @@ export function vocabularyCoverageForRoute(route, { topicId = '', termIds = [] }
     mappedTermIds: Object.freeze(mappedTermIds),
     source: clean(route?.syllabus?.url || route?.syllabus?.board || 'source registry'),
     sourceStatus: 'taxonomy-mapped',
-    termInventoryStatus: 'IELTSist glossary sync pending',
+    // Machine-readable state; IELTSist owns the glossary and supplies the
+    // human-facing "IELTSist glossary sync pending" label.
+    termInventoryStatus: 'not-imported',
     availableCount: null,
     coverageNote: 'No local term count is reported until the shared glossary import provides source-backed entries.',
     label: taxonomy?.label || 'Vocabulary',
     description: taxonomy?.description || 'Route vocabulary',
+    termInventoryStatusLabel: 'IELTSist glossary sync pending',
   })
 }
 

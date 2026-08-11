@@ -25,6 +25,7 @@
     "test": "node scripts/smoke.mjs && node scripts/test-ai-source-images.mjs && node scripts/test-source-identity.mjs",
     "test:ai-source-images": "node scripts/test-ai-source-images.mjs",
     "test:shared-workspace": "node scripts/test-shared-workspace.mjs",
+    "test:vocabulary-contract": "node scripts/test-vocabulary-contract.mjs",
     "qa:browser": "node scripts/qa-source-gate.cjs",
     "qa:coach": "node scripts/qa-coach-generated.cjs",
     "preview": "vite preview"

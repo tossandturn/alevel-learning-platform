@@ -263,10 +263,25 @@ export function sharedLogoutUrl(returnTo = window.location.href) {
   return url.href
 }
 
-export function professionalTermsUrl({ subject = '', topic = '', routeId = '', topicId = '', termIds = [], attemptId = '', returnTo = window.location.href } = {}) {
+export function professionalTermsUrl({ subject = '', subjectCode = '', stage = '', topic = '', routeId = '', taxonomyId = '', topicId = '', termIds = [], attemptId = '', returnTo = window.location.href, source = 'stem-reviewed-glossary', sourceStatus = 'taxonomy-mapped', termInventoryStatus = 'not-imported', availableCount = null } = {}) {
   const url = new URL('/', IDENTITY_ORIGIN)
+  const normalizedStage = String(stage || '').trim()
+  const family = normalizedStage === 'Competition' ? 'competition' : normalizedStage === 'Admissions' ? 'admissions' : 'exam'
+  const normalizedSubjectCode = String(subjectCode || subject || '').trim()
+  const normalizedTaxonomyId = String(taxonomyId || `${family}.${normalizedSubjectCode.toLowerCase()}.${normalizedStage.toLowerCase() || 'route'}`).trim()
   url.searchParams.set('from', 'stem')
   url.searchParams.set('focus', 'language')
+  url.searchParams.set('contractVersion', 'stem-vocabulary-context-v1')
+  url.searchParams.set('family', family)
+  url.searchParams.set('taxonomyId', normalizedTaxonomyId)
+  url.searchParams.set('subjectCode', normalizedSubjectCode)
+  url.searchParams.set('stage', normalizedStage)
+  url.searchParams.set('source', String(source || 'stem-reviewed-glossary').trim())
+  url.searchParams.set('sourceStatus', String(sourceStatus || 'taxonomy-mapped').trim().toLowerCase())
+  url.searchParams.set('termInventoryStatus', String(termInventoryStatus || 'not-imported').trim().toLowerCase())
+  if (String(sourceStatus || '').trim().toLowerCase() === 'source-backed' && Number.isFinite(Number(availableCount)) && Number(availableCount) >= 0) {
+    url.searchParams.set('availableCount', String(Math.floor(Number(availableCount))))
+  }
   if (subject) url.searchParams.set('subject', String(subject))
   if (topic) url.searchParams.set('topic', String(topic))
   applyProductContext(url, {
