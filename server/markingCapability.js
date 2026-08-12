@@ -134,6 +134,9 @@ export function canonicalMarkingCapabilityRequest(payload = {}, questionBank = [
     if (mode === 'full-paper' && String(question.sourceRef?.paperId || '') !== paperId) {
       return rejected('paper_context_mismatch', 'The requested part is not in this submitted paper.')
     }
+    if (mode === 'topic' && paperId && String(question.sourceRef?.paperId || '') !== paperId) {
+      return rejected('paper_context_mismatch', 'The requested part is not in this submitted paper.')
+    }
     const part = (question.parts || []).find((candidate) => String(candidate?.questionPartId || candidate?.partId || candidate?.id || '') === questionPartId)
     if (!part) return rejected('source_question_unknown', 'The reviewed answer part is unavailable.')
     const canonical = canonicalSourceMarkingProvenance(question, part)
@@ -146,7 +149,7 @@ export function canonicalMarkingCapabilityRequest(payload = {}, questionBank = [
 export function issueMarkingCapabilities({ userId, payload, questionBank, signingKey }) {
   const request = canonicalMarkingCapabilityRequest(payload, questionBank)
   if (!request.ok) return request
-  const capabilities = request.parts.map(({ canonical }) => ({
+  const capabilities = request.parts.map(({ canonical, question }) => ({
     sourceQuestionId: canonical.sourceQuestionId,
     questionPartId: canonical.questionPartId,
     markingGrant: signHmacJwt({
@@ -155,7 +158,7 @@ export function issueMarkingCapabilities({ userId, payload, questionBank, signin
       attemptId: request.attemptId,
       mode: request.mode,
       submitted: true,
-      paperId: request.paperId,
+      paperId: String(question?.sourceRef?.paperId || request.paperId || ''),
       routeId: payload.parts.find((part) => (part.provenance || part).questionPartId === canonical.questionPartId)?.provenance?.routeId
         || payload.parts.find((part) => (part.provenance || part).questionPartId === canonical.questionPartId)?.routeId
         || '',
@@ -202,6 +205,7 @@ export function verifyMarkingCapability({ request, payload = {}, identitySigning
   const matches = payload.submitted === true
     && String(payload.mode || '') === String(grant.mode || '')
     && String(payload.attemptId || '') === String(grant.attemptId || '')
+    && String(payload.paperId || '') === String(grant.paperId || '')
     && String(provenance.routeId || '') === String(grant.routeId || '')
     && String(provenance.sourceQuestionId || '') === String(grant.sourceQuestionId || '')
     && String(provenance.questionPartId || '') === String(grant.questionPartId || '')

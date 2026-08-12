@@ -188,6 +188,7 @@ async function requestVisionReviews(unit, attempt, identityToken = '') {
             routeId: unit.routeId,
             ...(part.markingProvenance || {}),
           },
+          paperId: part.sourceRef?.paperId || '',
         }),
       })
       const payload = await response.json().catch(() => ({}))

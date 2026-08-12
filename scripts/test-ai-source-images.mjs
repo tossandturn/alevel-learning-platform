@@ -64,7 +64,7 @@ function canonicalRequest(questionNumber, partLabel, { mode = 'topic', paperId =
   return {
     attemptId: 'source-image-attempt',
     mode,
-    paperId,
+    paperId: paperId || question.sourceRef.paperId,
     submitted: true,
     imageDataUrl: blankPng,
     typedResponse: 'student handwriting transcription',
@@ -225,13 +225,30 @@ try {
   assert.equal(fullPaper.response.status, 200, 'a submitted full-paper capability must reach the provider')
   assert.equal(providerCalls.length, 3)
 
+  const callsBeforeForgedPaper = providerCalls.length
+  const forgedPaper = {
+    ...fullPaperRequest.request,
+    paperId: 'cie-0580-0580_m25_qp_22',
+  }
+  const forgedPaperResponse = await post(appBase, forgedPaper, fullPaperRequest.token)
+  assert.equal(forgedPaperResponse.response.status, 422, 'a full-paper marking request with a different paper must be rejected')
+  assert.equal(forgedPaperResponse.payload.code, 'marking_capability_mismatch')
+  assert.equal(providerCalls.length, callsBeforeForgedPaper, 'a forged full-paper ID must make zero provider calls')
+
   const callsBeforeForgedBinding = providerCalls.length
+  const forgedTopicPaper = { ...q5Request.request, paperId: 'cie-0580-0580_m25_qp_22' }
+  const forgedTopicPaperResponse = await post(appBase, forgedTopicPaper, q5Request.token)
+  assert.equal(forgedTopicPaperResponse.response.status, 422, 'a topic marking request with a different paper binding must be rejected')
+  assert.equal(forgedTopicPaperResponse.payload.code, 'marking_capability_mismatch')
+  assert.equal(providerCalls.length, callsBeforeForgedBinding, 'a forged topic paper binding must make zero provider calls')
+
+  const callsBeforeForgedBindingAfterPaper = providerCalls.length
   const forgedBinding = { ...q5Request.request }
   forgedBinding.provenance = { ...forgedBinding.provenance, bindingSignature: 'fnv1a64:0000000000000000' }
   const forgedBindingResponse = await post(appBase, forgedBinding, q5Request.token)
   assert.equal(forgedBindingResponse.response.status, 422, 'a stale source binding must be rejected before vision marking')
   assert.equal(forgedBindingResponse.payload.code, 'marking_capability_mismatch')
-  assert.equal(providerCalls.length, callsBeforeForgedBinding, 'a stale source binding must make zero provider calls')
+  assert.equal(providerCalls.length, callsBeforeForgedBindingAfterPaper, 'a stale source binding must make zero provider calls')
 
   const callsBeforeStaleManifest = providerCalls.length
   const staleManifest = {
