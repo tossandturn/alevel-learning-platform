@@ -1141,7 +1141,7 @@ function App() {
       ...pending,
       id: makeAttemptId(),
       finalizedFromAttemptId: pending.id,
-      attemptStatus: 'result',
+      attemptStatus: scoreResult.partial ? 'provisional-result' : 'result',
       selfMarkPending: false,
       studentSelfMarks: Object.fromEntries(pendingPartsForLifecycle(unit, markingLifecycle).map((part) => [part.id, Number(marksByPart[part.id])])),
       selfMarkRecordedAt: new Date().toISOString(),
@@ -1150,11 +1150,11 @@ function App() {
         finalizedAt: new Date().toISOString(),
         studentMarkedPartIds: pendingPartsForLifecycle(unit, markingLifecycle).map((part) => part.id),
       },
-      learningSignal: {
+      ...(scoreResult.partial ? {} : { learningSignal: {
         masteryBefore,
         masteryAfter: scoreResult.percentage,
         masteryDelta: masteryBefore == null ? null : scoreResult.percentage - masteryBefore,
-      },
+      } }),
     }
     setAppState((state) => {
       const { [attemptId]: _removedDraft, ...selfMarkDrafts } = state.selfMarkDrafts || {}
@@ -2455,9 +2455,12 @@ function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibr
   }
 
   const assisted = attempt.assistedReview
+  const isProvisional = result.partial === true
   const weakest = result.weakestPartId ? unit.parts.find((part) => part.id === result.weakestPartId) : null
-  const assessmentState = answeredParts ? (result.percentage >= 80 ? 'Secure' : result.percentage >= 50 ? 'In progress' : 'Needs review') : 'Not assessed'
-  const assessmentCopy = answeredParts ? `${answeredParts}/${unit.parts.length} responses submitted` : 'No answer evidence was submitted'
+  const assessmentState = isProvisional ? 'Provisional' : answeredParts ? (result.percentage >= 80 ? 'Secure' : result.percentage >= 50 ? 'In progress' : 'Needs review') : 'Not assessed'
+  const assessmentCopy = isProvisional
+    ? `${answeredParts}/${unit.parts.length} responses submitted · ${result.unansweredPartCount} unanswered`
+    : answeredParts ? `${answeredParts}/${unit.parts.length} responses submitted` : 'No answer evidence was submitted'
   const stemReturnUrl = typeof window === 'undefined' ? '' : `${window.location.origin}/?from=ieltsist&focus=${encodeURIComponent(unit.subjectId || '')}&routeId=${encodeURIComponent(unit.routeId || '')}&topicId=${encodeURIComponent(unit.topicId || unit.syllabusTopic || '')}&attemptId=${encodeURIComponent(attempt.id)}`
   const termsUrl = professionalTermsUrl({
     subject: unit.code || unit.board || '',
@@ -2481,9 +2484,9 @@ function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibr
     <section className="result-view page-band">
       <div className="result-hero">
         <div>
-          <p className="section-label">Result</p>
+          <p className="section-label">{isProvisional ? 'Provisional result' : 'Result'}</p>
           <h1>{result.rawMarks}/{result.maxMarks} marks</h1>
-          <p><span className={`result-status result-status--${assessmentState.toLowerCase().replaceAll(' ', '-')}`}>{assessmentState}</span>{assessmentCopy} · {result.gradeEstimate}</p>
+          <p><span className={`result-status result-status--${assessmentState.toLowerCase().replaceAll(' ', '-')}`}>{assessmentState}</span>{assessmentCopy}{isProvisional ? ' · Not included in mastery or grade estimates' : ` · ${result.gradeEstimate}`}</p>
         </div>
         <div className="result-actions">
           <button type="button" className="primary-action" onClick={() => startPractice(unit, { clearDraft: true, retestOf: attempt.id })}>
@@ -2497,11 +2500,13 @@ function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibr
         </div>
       </div>
 
-      <section className="result-learning-signal" aria-label="Mastery change">
+      {!isProvisional && <section className="result-learning-signal" aria-label="Mastery change">
         <div><p className="section-label">Learning signal</p><h2>What changed after this attempt</h2><p>{attempt.learningSignal?.masteryBefore == null ? 'This is the first verified result for this set. Keep the evidence and compare it after your retest.' : 'The change is based on your prior submitted attempts for this same verified set.'}</p></div>
         <div className="mastery-delta"><span>Mastery</span><strong>{attempt.learningSignal?.masteryBefore == null ? `${result.percentage}%` : `${attempt.learningSignal.masteryBefore}% → ${attempt.learningSignal.masteryAfter}%`}</strong><small className={attempt.learningSignal?.masteryDelta > 0 ? 'up' : attempt.learningSignal?.masteryDelta < 0 ? 'down' : ''}>{attempt.learningSignal?.masteryDelta == null ? 'Baseline recorded' : `${attempt.learningSignal.masteryDelta > 0 ? '+' : ''}${attempt.learningSignal.masteryDelta}% from your previous average`}</small></div>
         <a className="terms-recommendation" href={termsUrl} target="_blank" rel="noreferrer"><Brain size={18} /><span><strong>Professional terms for this question</strong><small>{(weakest?.topicTags || [unit.topic]).slice(0, 3).join(' · ')}</small></span><ChevronRight size={16} /></a>
-      </section>
+      </section>}
+
+      {isProvisional && <section className="result-learning-signal" aria-label="Provisional result notice"><div><p className="section-label">Saved evidence</p><h2>Finish the remaining questions before mastery updates</h2><p>This score covers only the answered parts. It does not update mastery, grade estimates, mistakes, streaks, weekly goals or class analytics.</p></div><div className="mastery-delta"><span>Answered</span><strong>{answeredParts}/{unit.parts.length}</strong><small>{result.unansweredPartCount} unanswered part{result.unansweredPartCount === 1 ? '' : 's'} remain unmarked</small></div><a className="terms-recommendation" href={termsUrl} target="_blank" rel="noreferrer"><Brain size={18} /><span><strong>Professional terms for this question</strong><small>{(weakest?.topicTags || [unit.topic]).slice(0, 3).join(' · ')}</small></span><ChevronRight size={16} /></a></section>}
 
       {hasAiReview && assisted && (
         <section className="ai-review-summary">
@@ -2519,7 +2524,7 @@ function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibr
           <div className="panel-heading">
             <div>
               <p className="section-label">Evidence</p>
-              <h2>{weakest ? `Weakest part: ${displayPartLabel(weakest)}` : 'All seed checks secure'}</h2>
+              <h2>{isProvisional ? 'Answered-part evidence' : weakest ? `Weakest part: ${displayPartLabel(weakest)}` : 'All seed checks secure'}</h2>
             </div>
             <strong>{result.percentage}%</strong>
           </div>

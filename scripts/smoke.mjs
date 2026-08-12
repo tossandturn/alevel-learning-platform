@@ -365,6 +365,7 @@ assert.deepEqual(partialSelfMarkResult.answeredPartIds, ['self-mark-part'], 'par
 assert.equal(partialSelfMarkResult.unansweredPartCount, 1, 'partial results must keep the blank-part count explicit')
 assert.equal(partialSelfMarkResult.rawMarks, 3, 'blank parts must never become automatic zeroes')
 assert.equal(partialSelfMarkResult.maxMarks, 4, 'partial score denominator must include only explicitly marked answers')
+assert.equal(partialSelfMarkResult.partial, true, 'a subset score must remain provisional')
 
 const mixedSourceUnit = verifiedPracticeCatalog.find((unit) => unit.parts.length >= 2)
 assert.ok(mixedSourceUnit, 'the reviewed catalog must provide source-bound parts for a mixed lifecycle fixture')
@@ -1000,6 +1001,7 @@ assert.throws(() => buildCoachPractice({ routeId: 'uatuk-esat-admissions', knowl
 assert.equal(isScoredAttempt({ attemptStatus: 'self-mark-pending', selfMarkPending: true, submittedAt: '2026-08-10T00:00:00.000Z' }), false, 'a self-mark-pending attempt must never enter score consumers')
 assert.equal(isPendingSelfMarkAttempt({ attemptStatus: 'self-mark-pending' }), true, 'pending self-mark attempts must remain identifiable for append-only history')
 assert.equal(isScoredAttempt({ attemptStatus: 'result', submittedAt: '2026-08-10T00:00:00.000Z', scoreResult: { rawMarks: 4, maxMarks: 5, percentage: 80 } }), true, 'a valid finalized result must enter score consumers')
+assert.equal(isScoredAttempt({ attemptStatus: 'provisional-result', submittedAt: '2026-08-10T00:00:00.000Z', scoreResult: { rawMarks: 1, maxMarks: 1, percentage: 100, partial: true } }), false, 'a partial result must never enter mastery, grade, mistake or progress consumers')
 assert.equal(isScoredAttempt({ attemptStatus: 'result', submittedAt: '2026-08-10T00:00:00.000Z', scoreResult: { rawMarks: 0, maxMarks: 0, percentage: 0 } }), false, 'an invalid zero-mark score shell must not enter score consumers')
 const pendingAuditExport = buildLearningExport({ attempts: [selfMarkPendingAttempt] }, { units: [selfMarkUnit], exportedAt: '2026-08-10T01:00:00.000Z' })
 assert.equal(pendingAuditExport.data.attempts.length, 1, 'append-only export must preserve the pending source attempt')

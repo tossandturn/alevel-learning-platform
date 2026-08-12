@@ -82,6 +82,7 @@ export function sourceBindingStatusForAttempt(attempt, unit) {
 
 export function isScoredAttempt(attempt, unit = null) {
   if (!attempt || isPendingSelfMarkAttempt(attempt)) return false
+  if (attempt.scoreResult?.partial === true || attempt.attemptStatus === 'provisional-result') return false
   if (unit && !hasCurrentSourceBindingForAttempt(attempt, unit)) return false
   const status = attempt.attemptStatus || attempt.submissionStatus || attempt.status
   const hasCompletedStatus = ['result', 'submitted', 'completed'].includes(status)
