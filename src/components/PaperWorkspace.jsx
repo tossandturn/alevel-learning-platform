@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, ArrowLeft, CheckCircle2, Clock3, Columns2, Eraser, ExternalLink, FileCheck2, FileText, GripVertical, Hand, Maximize2, Minimize2, Minus, NotebookPen, NotebookText, PenTool, Plus, Save, Trash2 } from 'lucide-react'
 import { getExamPaperProfile } from '../data/examStructure'
 import { paperQuestionMarkingMetadata } from '../lib/verifiedPracticeCatalog'
@@ -7,7 +7,17 @@ import { buildSharedMarkingSubmission, completedMarksByQuestion, createSharedMar
 import { requestMarkingCapabilities } from '../lib/markingCapabilityClient'
 import { AiCoach } from './AiCoach'
 import { PaperAnswerSheet, SelfMarkSummary } from './PaperAnswerSheet'
-import { PdfViewer } from './PdfViewer'
+
+// pdf.js and its worker are only useful after a student opens a full paper.
+// Keeping this boundary inside the paper desk preserves the answer-sheet and
+// Pencil workflows while keeping PDF parsing out of the initial app payload.
+const PdfViewer = lazy(() =>
+  import('./PdfViewer').then((module) => ({ default: module.PdfViewer })),
+)
+
+function PdfViewerLoading() {
+  return <div className="pdf-viewer-loading" role="status" aria-live="polite">Preparing secure paper viewer...</div>
+}
 
 function formatTime(totalSec) {
   const minutes = Math.floor(totalSec / 60)
@@ -700,6 +710,8 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
     })
     const marks = completedQuestionNumbers.map((questionNumber) => Number(selfMarks[questionNumber]))
     const available = completedQuestionNumbers.map((questionNumber) => Number(maxMarksByQuestion[questionNumber]))
+    const unansweredQuestionNumbers = Array.from({ length: questionCount }, (_, index) => index + 1)
+      .filter((questionNumber) => !responseQuestionNumbers.includes(questionNumber))
     const review = {
       attemptId,
       paperId: sourcePaper.id,
@@ -708,6 +720,9 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
       aiMarks,
       rawMarks: marks.reduce((sum, value) => sum + value, 0),
       maxMarks: profile.mode === 'mcq' ? questionCount : available.reduce((sum, value) => sum + value, 0),
+      scoredQuestionNumbers: completedQuestionNumbers,
+      unansweredQuestionNumbers,
+      partial: completedQuestionNumbers.length < questionCount,
       reviewedAt: new Date().toISOString(),
       officialResult: false,
     }
@@ -715,6 +730,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
       scoredQuestionNumbers: completedQuestionNumbers,
       selfMarks: Object.fromEntries(completedQuestionNumbers.map((questionNumber) => [questionNumber, selfMarks[questionNumber]])),
       maxMarksByQuestion: Object.fromEntries(completedQuestionNumbers.map((questionNumber) => [questionNumber, maxMarksByQuestion[questionNumber]])),
+      unansweredQuestionNumbers,
     })
     if (lastSavedReview?.signature === signature) return
     setLastSavedReview({ savedAt: review.reviewedAt, rawMarks: review.rawMarks, maxMarks: review.maxMarks, signature })
@@ -756,7 +772,11 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
       {showWorkspaceMarkingSummary && <div className={`session-complete session-complete--${markingSummary.tone}`}><CheckCircle2 size={18} />{markingSummary.text}</div>}
       <div ref={paperDeskRef} className={`paper-desk ${documentMode === 'compare' ? 'compare-mode' : ''} ${!isAttempt ? 'reference-mode' : ''}`} style={{ '--answer-pane-width': `${answerPaneWidth}px` }}>
         <div id="paper-document-pane" role="tabpanel" className={`pdf-stage ${documentMode === 'compare' ? 'pdf-stage-compare' : ''} ${mobilePane !== 'paper' ? 'mobile-pane-hidden' : ''}`}>
-          {documentMode === 'compare' ? <div className="pdf-compare"><section><header>Question paper</header><PdfViewer file={questionPaper} annotate={isAttempt && Object.keys(pdfInkByPage).length > 0} readOnly inkByPage={pdfInkByPage} /></section><section><header>Mark scheme</header><PdfViewer file={markScheme} /></section></div> : <PdfViewer file={displayPaper || paper} annotate={isAttempt && documentMode === 'question' && pdfWritingEnabled} inkByPage={pdfInkByPage} inkTool={pdfInkTool} questionNumber={focusedQuestion} onInkChange={updatePdfInk} registerInkFlush={registerPdfInkFlush} />}
+          <Suspense fallback={<PdfViewerLoading />}>
+            {documentMode === 'compare'
+              ? <div className="pdf-compare"><section><header>Question paper</header><PdfViewer file={questionPaper} annotate={isAttempt && Object.keys(pdfInkByPage).length > 0} readOnly inkByPage={pdfInkByPage} /></section><section><header>Mark scheme</header><PdfViewer file={markScheme} /></section></div>
+              : <PdfViewer file={displayPaper || paper} annotate={isAttempt && documentMode === 'question' && pdfWritingEnabled} inkByPage={pdfInkByPage} inkTool={pdfInkTool} questionNumber={focusedQuestion} onInkChange={updatePdfInk} registerInkFlush={registerPdfInkFlush} />}
+          </Suspense>
         </div>
         {isAttempt && <div
           className="paper-splitter"

@@ -349,6 +349,23 @@ assert.equal(pureSelfMarkResult.rawMarks, 3)
 assert.deepEqual(pureSelfMarkResult.criteria[0].evidence, [], 'student totals must not invent mark-point evidence')
 assert.equal(pureSelfMarkResult.criteria[0].evidenceStatus, 'not-recorded')
 
+const partialSelfMarkUnit = {
+  ...selfMarkUnit,
+  parts: [
+    selfMarkUnit.parts[0],
+    { id: 'unanswered-self-mark-part', marks: 5, answerType: 'written', deterministicScoringAvailable: false, aiAssistedMarkingAvailable: false, markPoints: ['point 1'] },
+  ],
+}
+const partialSelfMarkLifecycle = buildPartMarkingLifecycle(partialSelfMarkUnit, { 'self-mark-part': 'Only this answer was submitted.' }, 30, {})
+assert.equal(partialSelfMarkLifecycle.partStates['unanswered-self-mark-part'].status, 'unanswered', 'blank paper parts must remain unmarked rather than becoming self-mark blockers')
+assert.deepEqual(pendingPartsForLifecycle(partialSelfMarkUnit, partialSelfMarkLifecycle).map((part) => part.id), ['self-mark-part'], 'only answered self-mark parts may require a student mark')
+assert.equal(hasCompleteStudentMarks(partialSelfMarkUnit, partialSelfMarkLifecycle, { 'self-mark-part': 3 }), true, 'one independently answered part must be self-markable without entering a score for blank parts')
+const partialSelfMarkResult = finalizePartMarking(partialSelfMarkUnit, partialSelfMarkLifecycle, { 'self-mark-part': 3 }, 30)
+assert.deepEqual(partialSelfMarkResult.answeredPartIds, ['self-mark-part'], 'partial results must retain only explicitly answered parts')
+assert.equal(partialSelfMarkResult.unansweredPartCount, 1, 'partial results must keep the blank-part count explicit')
+assert.equal(partialSelfMarkResult.rawMarks, 3, 'blank parts must never become automatic zeroes')
+assert.equal(partialSelfMarkResult.maxMarks, 4, 'partial score denominator must include only explicitly marked answers')
+
 const mixedSourceUnit = verifiedPracticeCatalog.find((unit) => unit.parts.length >= 2)
 assert.ok(mixedSourceUnit, 'the reviewed catalog must provide source-bound parts for a mixed lifecycle fixture')
 const realMixedUnit = {
@@ -382,15 +399,14 @@ assert.equal(markingCapabilityForUnit(realMixedUnit).mode, 'mixed')
 const realMixedLifecycle = buildPartMarkingLifecycle(realMixedUnit, { 'mixed-deterministic-part': '20' }, 90, {})
 const realMixedPendingParts = pendingPartsForLifecycle(realMixedUnit, realMixedLifecycle)
 assert.equal(realMixedLifecycle.provisionalCriteria.length, 1, 'only deterministic parts may score provisionally in a mixed unit')
-assert.equal(realMixedPendingParts.length, 1, 'the unreviewed written 0625 part must stay pending')
+assert.equal(realMixedPendingParts.length, 0, 'an unanswered written part must remain unmarked without blocking a submitted answered part')
+assert.equal(realMixedLifecycle.partStates['mixed-self-mark-part'].status, 'unanswered', 'blank mixed parts must remain explicitly unmarked')
 assert.ok(realMixedLifecycle.provisionalCriteria.every((criterion) => criterion.scoringSource === 'deterministic'))
-assert.equal(realMixedLifecycle.provisionalCriteria.some((criterion) => criterion.partId === realMixedPendingParts[0].id), false, 'the mixed self-mark part must never be keyword scored')
-assert.equal(hasCompleteStudentMarks(realMixedUnit, realMixedLifecycle, {}), false)
-const realMixedResult = finalizePartMarking(realMixedUnit, realMixedLifecycle, { [realMixedPendingParts[0].id]: realMixedPendingParts[0].marks }, 90)
-assert.equal(realMixedResult.criteria.length, realMixedUnit.parts.length)
-assert.equal(realMixedResult.maxMarks, realMixedUnit.parts.reduce((total, part) => total + part.marks, 0))
-assert.equal(realMixedResult.criteria.find((criterion) => criterion.partId === realMixedPendingParts[0].id).scoringSource, 'student-self-mark')
-assert.deepEqual(realMixedResult.criteria.find((criterion) => criterion.partId === realMixedPendingParts[0].id).evidence, [])
+assert.equal(hasCompleteStudentMarks(realMixedUnit, realMixedLifecycle, {}), false, 'no pending self-mark inputs must not be treated as an empty self-mark completion')
+const realMixedResult = finalizePartMarking(realMixedUnit, realMixedLifecycle, {}, 90)
+assert.equal(realMixedResult.criteria.length, 1)
+assert.equal(realMixedResult.maxMarks, 1)
+assert.equal(realMixedResult.unansweredPartCount, 1)
 const reloadedMixedState = normalizeState({
   profile: { activeRouteId: realMixedUnit.routeId },
   attempts: [{
@@ -418,12 +434,12 @@ const noEvidenceLifecycle = buildPartMarkingLifecycle(reviewedAiUnit, { [reviewe
 assert.equal(noEvidenceLifecycle.complete, false, 'typed text alone must not silently score a handwriting-reviewed part')
 assert.equal(noEvidenceLifecycle.partStates[reviewedAiPart.id].status, 'ai-retry-pending')
 assert.equal(noEvidenceLifecycle.provisionalRawMarks, 0)
-const providerFailureLifecycle = buildPartMarkingLifecycle(reviewedAiUnit, {}, 45, { [reviewedAiPart.id]: { status: 'error', error: 'Provider unavailable.' } })
+const providerFailureLifecycle = buildPartMarkingLifecycle(reviewedAiUnit, { [reviewedAiPart.id]: 'submitted handwriting evidence' }, 45, { [reviewedAiPart.id]: { status: 'error', error: 'Provider unavailable.' } })
 assert.equal(providerFailureLifecycle.partStates[reviewedAiPart.id].status, 'ai-retry-pending', 'provider failure must remain retryable and unscored')
-const reviewRequiredLifecycle = buildPartMarkingLifecycle(reviewedAiUnit, {}, 45, { [reviewedAiPart.id]: { status: 'success', rawMarks: reviewedAiPart.marks, confidence: 0.4, reviewRequired: true, markPoints: [{ awarded: true, reason: 'candidate point' }] } })
+const reviewRequiredLifecycle = buildPartMarkingLifecycle(reviewedAiUnit, { [reviewedAiPart.id]: 'submitted handwriting evidence' }, 45, { [reviewedAiPart.id]: { status: 'success', rawMarks: reviewedAiPart.marks, confidence: 0.4, reviewRequired: true, markPoints: [{ awarded: true, reason: 'candidate point' }] } })
 assert.equal(reviewRequiredLifecycle.partStates[reviewedAiPart.id].status, 'ai-review-pending', 'low-confidence AI output must not become canonical')
 const reviewedMarkPoints = (reviewedAiPart.markPoints || []).map((point, index) => ({ id: `${reviewedAiPart.id}-T${index + 1}`, awarded: true, reason: point }))
-const aiScoredLifecycle = buildPartMarkingLifecycle(reviewedAiUnit, {}, 45, { [reviewedAiPart.id]: { status: 'success', rawMarks: reviewedAiPart.marks, confidence: 0.91, reviewRequired: false, markPoints: reviewedMarkPoints } })
+const aiScoredLifecycle = buildPartMarkingLifecycle(reviewedAiUnit, { [reviewedAiPart.id]: 'submitted handwriting evidence' }, 45, { [reviewedAiPart.id]: { status: 'success', rawMarks: reviewedAiPart.marks, confidence: 0.91, reviewRequired: false, markPoints: reviewedMarkPoints } })
 assert.equal(aiScoredLifecycle.complete, true, 'reviewed AI evidence with sufficient confidence may complete a part')
 const aiScoredResult = finalizePartMarking(reviewedAiUnit, aiScoredLifecycle, {}, 45)
 assert.equal(aiScoredResult.rawMarks, reviewedAiPart.marks)

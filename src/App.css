@@ -4648,6 +4648,16 @@ button:disabled {
   background: #fff;
 }
 
+.pdf-viewer-loading {
+  display: grid;
+  min-height: 100%;
+  place-items: center;
+  padding: 24px;
+  color: #526276;
+  font-size: 14px;
+  background: repeating-linear-gradient(-45deg, #f8fafc, #f8fafc 12px, #f2f5f8 12px, #f2f5f8 24px);
+}
+
 .pdf-stage-compare {
   min-width: 0;
 }

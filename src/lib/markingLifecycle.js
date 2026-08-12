@@ -117,6 +117,15 @@ function deterministicCriteria(unit, answers, elapsedSec) {
   }))
 }
 
+function hasPartResponse(answers, partId) {
+  const value = answers?.[partId]
+  if (typeof value === 'string') return value.trim().length > 0
+  if (typeof value === 'number') return Number.isFinite(value)
+  if (Array.isArray(value)) return value.length > 0
+  if (!value || typeof value !== 'object') return false
+  return Object.values(value).some((item) => String(item ?? '').trim().length > 0)
+}
+
 export function buildPartMarkingLifecycle(unit, answers = {}, elapsedSec = 0, visionReviews = {}) {
   const deterministicByPart = new Map(deterministicCriteria(unit, answers, elapsedSec).map((criterion) => [criterion.partId, criterion]))
   const partStates = {}
@@ -124,6 +133,15 @@ export function buildPartMarkingLifecycle(unit, answers = {}, elapsedSec = 0, vi
 
   for (const part of unit?.parts || []) {
     const capability = partMarkingCapability(part)
+    if (!hasPartResponse(answers, part.id)) {
+      partStates[part.id] = {
+        capability,
+        status: 'unanswered',
+        maxMarks: Number(part.marks),
+        reason: 'No response was submitted for this part. It remains unmarked and is not treated as zero.',
+      }
+      continue
+    }
     if (capability === 'deterministic') {
       const criterion = deterministicByPart.get(part.id)
       if (!criterion) throw new Error(`Deterministic score is unavailable for ${part.id}.`)
@@ -169,7 +187,10 @@ export function buildPartMarkingLifecycle(unit, answers = {}, elapsedSec = 0, vi
     }
   }
 
-  const pendingPartIds = (unit?.parts || []).map((part) => part.id).filter((partId) => !partStates[partId]?.status.endsWith('-scored'))
+  const pendingPartIds = (unit?.parts || []).map((part) => part.id).filter((partId) => {
+    const status = partStates[partId]?.status || ''
+    return status !== 'unanswered' && !status.endsWith('-scored')
+  })
   const provisionalRawMarks = provisionalCriteria.reduce((total, criterion) => total + Number(criterion.awarded || 0), 0)
   const provisionalMaxMarks = provisionalCriteria.reduce((total, criterion) => total + Number(criterion.maxMarks || 0), 0)
   const totalMaxMarks = (unit?.parts || []).reduce((total, part) => total + Number(part.marks || 0), 0)
@@ -226,9 +247,9 @@ export function finalizePartMarking(unit, lifecycle, marksByPart = {}, elapsedSe
     })
   }
 
-  const criteria = (unit?.parts || []).map((part) => criteriaByPart.get(part.id))
-  if (criteria.some((criterion) => !criterion || boundedMark(criterion.awarded, criterion.maxMarks) == null)) {
-    throw new Error('A complete, valid mark is required for every question part.')
+  const criteria = (unit?.parts || []).map((part) => criteriaByPart.get(part.id)).filter(Boolean)
+  if (!criteria.length || criteria.some((criterion) => boundedMark(criterion.awarded, criterion.maxMarks) == null)) {
+    throw new Error('A complete, valid mark is required for every answered question part.')
   }
   const maxMarks = criteria.reduce((total, criterion) => total + criterion.maxMarks, 0)
   const rawMarks = criteria.reduce((total, criterion) => total + criterion.awarded, 0)
@@ -250,5 +271,8 @@ export function finalizePartMarking(unit, lifecycle, marksByPart = {}, elapsedSe
     weakestPartId: weakest?.partId || null,
     confidence: hasStudentMarks ? null : criteria.length ? Number((criteria.reduce((total, criterion) => total + Number(criterion.confidence ?? 0.9), 0) / criteria.length).toFixed(2)) : null,
     selfMarked: hasStudentMarks,
+    partial: criteria.length < (unit?.parts || []).length,
+    answeredPartIds: criteria.map((criterion) => criterion.partId),
+    unansweredPartCount: Math.max(0, (unit?.parts || []).length - criteria.length),
   }
 }

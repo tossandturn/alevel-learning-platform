@@ -141,7 +141,7 @@ export function SelfMarkSummary({ responseQuestionNumbers, selfMarks, maxMarksBy
         <div><dt>Current total</dt><dd>{hasScore ? `${totals.awarded}/${totals.available}` : 'Not scored'}</dd></div>
       </dl>
       <div className="paper-answer-sheet__self-mark-summary-actions">
-        <p role="status">{lastSavedReview ? `Saved result: ${lastSavedReview.rawMarks}/${lastSavedReview.maxMarks} marks.` : hasScore ? (allSubmittedResponsesScored ? 'All submitted responses are ready to save.' : 'Progress is saved in this attempt; score the remaining responses when ready.') : 'Start with the mark scheme total for an answered question.'}</p>
+        <p role="status">{lastSavedReview ? `${lastSavedReview.partial ? 'Saved provisional result' : 'Saved result'}: ${lastSavedReview.rawMarks}/${lastSavedReview.maxMarks} marks. ${lastSavedReview.unansweredQuestionNumbers?.length ? `${lastSavedReview.unansweredQuestionNumbers.length} unanswered question${lastSavedReview.unansweredQuestionNumbers.length === 1 ? '' : 's'} remain unmarked.` : ''}` : hasScore ? (allSubmittedResponsesScored ? 'All submitted responses are ready to save. Unanswered questions remain unmarked.' : 'Progress is saved in this attempt; score the remaining responses when ready.') : 'Start with the mark scheme total for an answered question.'}</p>
         <div>
           <button type="button" className="paper-answer-sheet__mark-scheme-action" onClick={onOpenMarkScheme}>Open mark scheme</button>
           <button type="button" onClick={onReviewSubmit} disabled={!hasScore}>Save self-mark</button>
