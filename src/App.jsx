@@ -1378,12 +1378,12 @@ function App() {
             stage: resultUnit?.stage || activeRoute.stage,
             question: resultAttempt && resultUnit ? {
               id: resultCoachPart?.id || '',
-              label: resultIsPendingSelfMark ? 'Submitted response pending self-mark' : 'Latest scored result',
+              label: resultIsPendingSelfMark ? 'Submitted response pending self-mark' : resultAttempt.scoreResult?.partial ? 'Provisional result' : 'Latest scored result',
               prompt: resultCoachPart?.prompt || resultUnit.title,
             } : null,
             response: resultAttempt && resultCoachPart ? resultAttempt.answers?.[resultCoachPart.id] || resultAttempt.working?.[resultCoachPart.id] || '' : '',
             submitted: view === 'result',
-            markingStatus: resultIsPendingSelfMark ? 'self-mark-pending' : resultAttempt?.scoreResult ? 'scored' : 'not-scored',
+            markingStatus: resultIsPendingSelfMark ? 'self-mark-pending' : resultAttempt?.scoreResult?.partial ? 'provisional' : resultAttempt?.scoreResult ? 'scored' : 'not-scored',
           }}
           openRequest={coachOpenRequest}
           practiceOptions={aiPracticeOptions}
@@ -2526,7 +2526,7 @@ function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibr
               <p className="section-label">Evidence</p>
               <h2>{isProvisional ? 'Answered-part evidence' : weakest ? `Weakest part: ${displayPartLabel(weakest)}` : 'All seed checks secure'}</h2>
             </div>
-            <strong>{result.percentage}%</strong>
+            <strong>{isProvisional ? `${result.rawMarks}/${result.maxMarks}` : `${result.percentage}%`}</strong>
           </div>
           <div className="criteria-list">
             {result.criteria.map((criterion, criterionIndex) => {
