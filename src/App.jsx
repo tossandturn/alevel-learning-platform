@@ -1897,7 +1897,7 @@ function LibraryView({
 
       {activeTab === 'exams' && <PaperLibrary catalogState={paperCatalogState} initialSubject={activeRoute.subjectCode} activeRoute={activeRoute} onOpenPaper={openPaper} />}
 
-      {activeTab === 'topics' && <PracticeTopicDirectory activeRoute={activeRoute} activeRouteId={activeRouteId} practiceOptions={coachPracticeOptions()} visibleUnits={visibleUnits} completionByUnit={completionByUnit} query={query} onOpenTopic={onOpenTopic} />}
+      {activeTab === 'topics' && <PracticeTopicDirectory activeRoute={activeRoute} activeRouteId={activeRouteId} practiceOptions={coachPracticeOptions()} visibleUnits={visibleUnits} completionByUnit={completionByUnit} query={query} onOpenTopic={onOpenTopic} onOpenPapers={() => setActiveTab('papers')} />}
 
       {activeTab === 'mistakes' ? (
         <MistakeList mistakes={mistakes} paperMistakes={paperMistakes} startPractice={startPractice} retestPaper={retestPaper} />
@@ -1989,7 +1989,7 @@ function PracticeOverview({ recommendation, visibleUnits, completionByUnit, mist
   )
 }
 
-function PracticeTopicDirectory({ activeRoute, activeRouteId, practiceOptions, visibleUnits, completionByUnit, query, onOpenTopic }) {
+function PracticeTopicDirectory({ activeRoute, activeRouteId, practiceOptions, visibleUnits, completionByUnit, query, onOpenTopic, onOpenPapers }) {
   const routeOption = practiceOptions.find((option) => option.routeId === activeRouteId)
   const normalizedQuery = query.trim().toLowerCase()
   const topics = (routeOption?.topics || []).filter((topic) => {
@@ -2011,7 +2011,7 @@ function PracticeTopicDirectory({ activeRoute, activeRouteId, practiceOptions, v
           <span className="topic-directory__available">{available} verified question{available === 1 ? '' : 's'}</span>
           <ChevronRight size={18} />
         </button>
-      })}</div> : <div className="empty-state"><Search size={28} /><h2>No syllabus topic matches</h2><p>Try a shorter topic or concept name.</p></div>}
+      })}</div> : <div className="empty-state"><Search size={28} /><h2>{normalizedQuery ? 'No topic matches this filter' : 'Topic drills are being reviewed'}</h2><p>{normalizedQuery ? 'Try a shorter topic or clear the topic filter.' : `Past papers are available for ${activeRoute.subject}, but no question set has passed the topic-level source and marking review yet.`}</p>{!normalizedQuery && <button type="button" className="card-action" onClick={onOpenPapers}>Browse verified past papers <ChevronRight size={15} /></button>}</div>}
     </section>
   )
 }

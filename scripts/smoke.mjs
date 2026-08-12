@@ -263,6 +263,8 @@ assert.ok(!appSource.includes("from './data/questionBank"), 'the client App entr
 assert.ok(appSource.includes('topic-detail__paper-group'), 'topic detail must render grouped real-paper questions')
 assert.ok(appSource.includes('onAgentAction={handleCoachAgentAction}'), 'Coach agent actions must be available from every current student route')
 assert.ok(!appSource.includes("onAgentAction={activeRoute.stage === 'Competition'"), 'Coach actions must not be disabled merely because the current route is not Competition')
+assert.ok(appSource.includes('Topic drills are being reviewed'), 'routes with archived papers but no reviewed topic inventory must explain the source-review state')
+assert.ok(appSource.includes('Browse verified past papers'), 'an empty Competition or Admissions topic directory must offer a usable paper-library route')
 assert.ok(appSource.includes("routeById(incomingContext.routeId)?.routeId"), 'An explicit IELTSist return route must take priority over the saved STEM route')
 assert.ok(appSource.includes('setSelectedTopicId(incomingContext.topicId || null)'), 'An explicit IELTSist return topic must survive shared-account state restoration')
 assert.ok(markingLifecycleSource.includes("evidenceStatus: 'not-recorded'"), 'student-recorded total marks must explicitly declare that point-level evidence was not captured')
