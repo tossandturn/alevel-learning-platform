@@ -4,6 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { unifiedQuestionBank } from '../src/data/questionBank.js'
 import { SOURCE_CONTENT_MANIFEST_CHECKSUM, SOURCE_INDEX_SHA256 } from '../src/data/sourceContentIdentity.js'
+import { canonicalUtf8LfText } from './canonical-text.mjs'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const outputPath = path.join(projectRoot, 'src', 'data', 'verifiedPracticeCatalog.json')
@@ -23,7 +24,7 @@ const payload = {
   sourceContentManifestChecksum: SOURCE_CONTENT_MANIFEST_CHECKSUM,
   groups: unifiedQuestionBank.map(compactQuestion),
 }
-const expected = `${JSON.stringify(payload, null, 2)}\n`
+const expected = canonicalUtf8LfText(`${JSON.stringify(payload, null, 2)}\n`)
 
 if (write) {
   fs.writeFileSync(outputPath, expected, 'utf8')
@@ -36,7 +37,7 @@ if (write) {
 }
 
 assert.ok(fs.existsSync(outputPath), 'verified practice catalog is missing; run npm run questions:write-runtime-catalog')
-const actual = fs.readFileSync(outputPath, 'utf8')
+const actual = canonicalUtf8LfText(fs.readFileSync(outputPath, 'utf8'))
 assert.equal(actual, expected, 'verified practice catalog is stale; run npm run questions:write-runtime-catalog')
 console.log(JSON.stringify({
   status: 'current',

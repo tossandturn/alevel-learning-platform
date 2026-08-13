@@ -96,6 +96,24 @@ try {
     'CRLF archive audit must retain the original source identity values regardless of checkout line endings',
   )
 
+  const runtimeCatalogPath = path.join(archiveRoot, 'src', 'data', 'verifiedPracticeCatalog.json')
+  const runtimeCatalogText = fs.readFileSync(runtimeCatalogPath, 'utf8')
+  const runtimeCatalogCrlf = `\uFEFF${canonicalUtf8LfText(runtimeCatalogText).replace(/\n/g, '\r\n')}`
+  fs.writeFileSync(runtimeCatalogPath, runtimeCatalogCrlf, 'utf8')
+  const runtimeCatalogCheck = spawnSync(process.execPath, [
+    path.join(archiveRoot, 'scripts', 'generate-verified-practice-catalog.mjs'),
+  ], {
+    cwd: archiveRoot,
+    env: process.env,
+    encoding: 'utf8',
+    maxBuffer: 32 * 1024 * 1024,
+  })
+  assert.equal(
+    runtimeCatalogCheck.status,
+    0,
+    `CRLF/BOM runtime catalog must pass stale validation:\n${runtimeCatalogCheck.stdout}\n${runtimeCatalogCheck.stderr}`,
+  )
+
   console.log(JSON.stringify({
     ok: true,
     archiveRef,
