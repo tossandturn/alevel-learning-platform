@@ -498,7 +498,8 @@ async function verifyReviewedSourceMatrix(browser) {
           if (message.type() === 'error' && !/Failed to load resource: the server responded with a status of 401/i.test(message.text())) errors.push(`console:${message.text()}`)
         })
         page.on('response', (response) => {
-          if (response.status() >= 400 && !/\/api\/stem\/identity$/.test(response.url())) errors.push(`http:${response.status()} ${response.url()}`)
+          const expectedGuestIdentity = response.status() === 401 && /\/api\/auth\/status$/.test(new URL(response.url()).pathname)
+          if (response.status() >= 400 && !expectedGuestIdentity) errors.push(`http:${response.status()} ${response.url()}`)
         })
         for (let repeat = 1; repeat <= sourceQaRepeats; repeat += 1) {
           for (const sourceCase of sourceQaCases) {

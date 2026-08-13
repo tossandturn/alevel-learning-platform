@@ -54,10 +54,27 @@ function runDirectAudit(label, releaseRoot, args = []) {
   return { manifest, identity }
 }
 
+function runReleaseVerification(releaseRoot) {
+  const result = spawnSync(process.execPath, [
+    path.join(releaseRoot, 'scripts', 'verify-stem-release.mjs'),
+    '--release-root',
+    releaseRoot,
+    '--pdf-library-root',
+    process.env.CIE_LIBRARY_ROOT || 'D:/CodexWork/cie-fraft-fetcher/output/pdf',
+  ], {
+    cwd: releaseRoot,
+    env: { ...process.env, CIE_LIBRARY_ROOT: process.env.CIE_LIBRARY_ROOT || 'D:/CodexWork/cie-fraft-fetcher/output/pdf' },
+    encoding: 'utf8',
+    maxBuffer: 32 * 1024 * 1024,
+  })
+  assert.equal(result.status, 0, `git archive release verification must pass:\n${result.stdout}\n${result.stderr}`)
+}
+
 try {
   const archiveRoot = archiveReleaseRoot('archive-lf')
   materializePrivateContent(archiveRoot)
   const archiveRun = runDirectAudit('git archive with private content', archiveRoot)
+  runReleaseVerification(archiveRoot)
   const archiveIndexPath = path.join(archiveRoot, indexRelativePath)
   const archiveIndexText = fs.readFileSync(archiveIndexPath, 'utf8')
   const crlfIndexText = canonicalUtf8LfText(archiveIndexText).replace(/\n/g, '\r\n')

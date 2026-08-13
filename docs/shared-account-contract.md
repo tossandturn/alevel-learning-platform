@@ -1,46 +1,59 @@
-# STEM shared account contract
+# STEM native account contract
 
-STEM uses the IELTSist account as its identity provider. STEM does not create a second password, copy the IELTSist database, or persist the provider access token.
+STEM and IELTSist use the same account database. Each product owns its own
+browser login screen and session cookie: STEM never redirects a learner to
+IELTSist to authenticate.
+
+## Student flow
+
+1. The student opens the STEM account dialog on `stem.ieltsist.com`.
+2. STEM posts credentials to its own `/api/auth/login` or `/api/auth/register`.
+3. STEM verifies those credentials server-to-server against the shared
+   IELTSist account database using a signed loopback request.
+4. STEM creates only a `stem_session` HttpOnly cookie for this origin and
+   returns a short-lived in-memory STEM API token.
+5. STEM logout clears only `stem_session`. It does not navigate to or clear
+   an IELTSist browser session.
+
+Credentials, upstream account cookies, internal signatures, and upstream
+tokens must never reach client storage, URLs, exports, screenshots, or logs.
 
 ## Public discovery
 
-`GET https://stem.ieltsist.com/api/auth/config`
+`GET /api/auth/config` returns the stable `stem-native-account-v1` contract:
 
-The response declares the provider origin, browser login/register/logout URLs, provider API paths, session cookie ownership, token storage rules, and stable response status codes. This endpoint contains no secrets and is safe to cache only for the current browser session.
+- browser endpoints: `/api/auth/login`, `/api/auth/register`, `/api/auth/logout`
+- session restore endpoint: `/api/auth/status`
+- cookie owner: `stem.ieltsist.com`
+- token storage: memory only
 
-## Browser flow
+## Server configuration
 
-1. STEM sends the student to the IELTSist Mine page with `from=stem`, `auth=login` or `auth=register`, `return_to`, and `#mine`.
-2. IELTSist owns username/password validation, duplicate identifier handling, the `ieltsist_session` HttpOnly cookie, and logout.
-3. After the student returns to STEM, STEM calls `GET https://ieltsist.com/api/stem/identity` with `credentials: include`.
-4. IELTSist returns a five-minute HS256 handoff token. STEM keeps it in memory only and uses it as a Bearer token for `/api/auth/status` and `/api/stem/*`.
+Set the same dedicated value on both product servers:
 
-The token must have `iss=ieltsist.com`, `aud=stem.ieltsist.com`, a subject in the form `ielts:<numeric id>`, and a future `exp`. STEM verifies the signature, issuer, audience, subject and expiry before any class or private-note operation.
+```text
+STEM_INTERNAL_AUTH_KEY=<shared server-only secret>
+```
 
-## Provider API contract
+During migration, `STEM_IDENTITY_SIGNING_KEY` is accepted as the fallback.
+`STEM_AUTH_INTERNAL_ORIGIN` may only be a loopback HTTP origin such as
+`http://127.0.0.1:4321`; production browser traffic never uses that origin.
 
-- `POST /api/auth/login`: `{ "username": string, "password": string }` -> `200` with `{ token, expiresAt, user }`; invalid credentials -> `401`.
-- `POST /api/auth/register`: `{ "username": string, "password": string }` -> `200` with `{ token, expiresAt, user }`; validation -> `400`; duplicate identifier -> `409`.
-- `POST /api/auth/logout`: provider clears `ieltsist_session` and returns `200 { "ok": true }`.
-- `GET /api/me`: authenticated provider session -> `200 { user }`; absent/expired session -> `401`.
-- `GET /api/stem/identity`: `Origin: https://stem.ieltsist.com`, `credentials: include` -> `200 { identity, accessToken, expiresAt }`; absent/expired session -> `401`.
+The durable STEM database path is configured with:
 
-The identity exchange must return `Access-Control-Allow-Origin: https://stem.ieltsist.com`, `Access-Control-Allow-Credentials: true`, `Vary: Origin`, and allow only `GET, OPTIONS`. It must never use `*` with credentials. Provider logout is a browser navigation until the provider also allows a credentialed, origin-restricted POST from STEM.
+```text
+STEM_DATABASE_PATH=/stable/shared/data/stem.sqlite
+```
 
-## STEM private Notebook API
-
-- `GET /api/stem/notebook/notes?routeId=<registered routeId>` -> `{ routeId, note, privacy: "private-to-student" }`.
-- `PUT /api/stem/notebook/notes/<registered routeId>` with `{ "body": string }` -> the same note shape.
-- `DELETE /api/stem/notebook/notes/<registered routeId>` -> `{ routeId, note: null, privacy: "private-to-student" }`.
-
-Notes are keyed by `(provider user id, routeId)`, are excluded from workspace/report responses, and are never readable by teachers or school admins through their own identity. The client keeps an offline copy and syncs after a debounced edit when the shared session is connected.
+`STEM_DB_PATH` remains supported for existing installations. Do not store the
+database under a release directory.
 
 ## Verification
 
 ```powershell
+node scripts/test-stem-native-auth.mjs
 npm run test:shared-workspace
-curl.exe -sS https://stem.ieltsist.com/api/auth/config
-curl.exe -i -X OPTIONS https://ieltsist.com/api/stem/identity -H "Origin: https://stem.ieltsist.com"
 ```
 
-The last command is a provider-side integration check. A credentialed response must include the restricted origin and credentials headers described above.
+The native auth test covers invalid credentials, same-origin session restore,
+STEM-only logout, and absence of credential or upstream-token echoes.

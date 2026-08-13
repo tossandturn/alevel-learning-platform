@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Download, ZoomIn, ZoomOut } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ChevronLeft, ChevronRight, Download, ZoomIn, ZoomOut } from 'lucide-react'
 import * as pdfjs from 'pdfjs-dist'
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { canvasPoint, createInkMetrics, drawDot, drawSegment, exposeInkMetrics, pointDistance, pointerSamples } from '../lib/inkStroke'
@@ -324,6 +324,8 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, questionNumb
 }
 
 export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage = {}, inkTool = 'pen', questionNumber = 1, onInkChange, registerInkFlush }) {
+  const PAGE_WINDOW_BUFFER = 2
+  const PAGE_CAPTION_HEIGHT = 30
   const containerRef = useRef(null)
   const scrollRef = useRef(null)
   const canvasRefs = useRef(new Map())
@@ -332,12 +334,35 @@ export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage 
   const [zoom, setZoom] = useState(1)
   const [pageSizes, setPageSizes] = useState({})
   const [requestedPages, setRequestedPages] = useState(() => new Set([1, 2]))
+  const [activePage, setActivePage] = useState(1)
   const [status, setStatus] = useState('loading')
   const [error, setError] = useState('')
+  const pageWidth = Math.max(280, Math.floor(Math.min(1.55, Math.max(0.35, (containerWidth - 40) / 595)) * 595 * zoom))
+  const defaultPageHeight = Math.max(360, Math.floor(pageWidth * 1.414))
+  const pageHeight = useCallback((pageNumber) => (pageSizes[pageNumber]?.height || defaultPageHeight) + PAGE_CAPTION_HEIGHT, [defaultPageHeight, pageSizes])
+  const pageOffset = useCallback((pageNumber) => {
+    let offset = 0
+    for (let index = 1; index < pageNumber; index += 1) offset += pageHeight(index) + 18
+    return offset
+  }, [pageHeight])
+  const pageWindow = useMemo(() => {
+    if (!document) return []
+    const start = Math.max(1, activePage - PAGE_WINDOW_BUFFER)
+    const end = Math.min(document.numPages, activePage + PAGE_WINDOW_BUFFER)
+    return Array.from({ length: end - start + 1 }, (_, index) => start + index)
+  }, [activePage, document])
   const zoomFromTouch = useCallback((scale) => {
     if (!Number.isFinite(scale) || scale <= 0) return
     setZoom((value) => Math.min(2, Math.max(0.7, value * scale)))
   }, [])
+
+  const scrollToPage = useCallback((pageNumber, behavior = 'smooth') => {
+    const root = scrollRef.current
+    if (!document || !root) return
+    const next = Math.min(document.numPages, Math.max(1, Number(pageNumber) || 1))
+    setActivePage(next)
+    root.scrollTo({ top: pageOffset(next), behavior })
+  }, [document, pageOffset])
 
   useEffect(() => {
     const observer = new ResizeObserver(([entry]) => setContainerWidth(entry.contentRect.width))
@@ -358,6 +383,7 @@ export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage 
     setDocument(null)
     setPageSizes({})
     setRequestedPages(new Set([1, 2]))
+    setActivePage(1)
     task.promise
       .then((nextDocument) => {
         if (!active) return nextDocument.destroy()
@@ -379,20 +405,36 @@ export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage 
   useEffect(() => {
     const root = scrollRef.current
     if (!root || !document) return undefined
-    const observer = new IntersectionObserver((entries) => {
-      const visible = entries.filter((entry) => entry.isIntersecting)
-        .map((entry) => Number(entry.target.getAttribute('data-page-number')))
-        .filter(Number.isInteger)
-      if (!visible.length) return
-      setRequestedPages((current) => {
-        const next = new Set(current)
-        visible.forEach((pageNumber) => next.add(pageNumber))
-        return next.size === current.size ? current : next
+    let frame = 0
+    const onScroll = () => {
+      window.cancelAnimationFrame(frame)
+      frame = window.requestAnimationFrame(() => {
+        const target = root.scrollTop + Math.max(1, root.clientHeight * 0.3)
+        let cursor = 0
+        let nextPage = 1
+        for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+          cursor += pageHeight(pageNumber) + 18
+          if (target < cursor) {
+            nextPage = pageNumber
+            break
+          }
+          nextPage = pageNumber
+        }
+        setActivePage((current) => current === nextPage ? current : nextPage)
       })
-    }, { root, rootMargin: '720px 0px' })
-    root.querySelectorAll('[data-page-number]').forEach((node) => observer.observe(node))
-    return () => observer.disconnect()
-  }, [document])
+    }
+    root.addEventListener('scroll', onScroll, { passive: true })
+    onScroll()
+    return () => {
+      window.cancelAnimationFrame(frame)
+      root.removeEventListener('scroll', onScroll)
+    }
+  }, [document, pageHeight])
+
+  useEffect(() => {
+    if (!pageWindow.length) return
+    setRequestedPages(new Set(pageWindow))
+  }, [pageWindow])
 
   useEffect(() => {
     if (!document) return undefined
@@ -400,10 +442,9 @@ export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage 
     const renderTasks = []
     const outputScale = Math.min(window.devicePixelRatio || 1, 2)
 
-    async function renderAllPages() {
-      for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+    async function renderVisiblePages() {
+      for (const pageNumber of requestedPages) {
         if (cancelled) return
-        if (!requestedPages.has(pageNumber)) continue
         const canvas = canvasRefs.current.get(pageNumber)
         if (!canvas) continue
         const page = await document.getPage(pageNumber)
@@ -433,17 +474,24 @@ export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage 
       }
     }
 
-    renderAllPages()
+    renderVisiblePages()
     return () => {
       cancelled = true
       renderTasks.forEach((renderTask) => renderTask.cancel())
     }
   }, [containerWidth, document, requestedPages, zoom])
 
+  const beforePages = pageWindow[0] ? pageWindow[0] - 1 : 0
+  const afterPages = document && pageWindow.length ? document.numPages - pageWindow.at(-1) : 0
+  const beforeHeight = beforePages ? pageOffset(beforePages + 1) : 0
+  const afterHeight = afterPages ? Array.from({ length: afterPages }, (_, index) => pageHeight(pageWindow.at(-1) + index + 1) + 18).reduce((sum, height) => sum + height, 0) : 0
+
   return (
-    <div className="pdf-viewer" ref={containerRef}>
+    <div className="pdf-viewer" ref={containerRef} data-rendered-page-window={pageWindow.join(',')}>
       <div className="pdf-viewer-toolbar">
-        <span className="pdf-continuous-status">Continuous view <strong>{document?.numPages || '...'} pages</strong></span>
+        <span className="pdf-continuous-status">Page <strong>{document ? `${activePage} of ${document.numPages}` : '...'}</strong></span>
+        <button type="button" onClick={() => scrollToPage(activePage - 1)} disabled={!document || activePage <= 1} aria-label="Previous PDF page"><ChevronLeft size={17} /></button>
+        <button type="button" onClick={() => scrollToPage(activePage + 1)} disabled={!document || activePage >= document.numPages} aria-label="Next PDF page"><ChevronRight size={17} /></button>
         <span className="pdf-toolbar-spacer" />
         <button type="button" onClick={() => setZoom((value) => Math.max(0.7, value - 0.15))} aria-label="Zoom out"><ZoomOut size={17} /></button>
         <span>{Math.round(zoom * 100)}%</span>
@@ -453,21 +501,24 @@ export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage 
       <div className="pdf-canvas-scroll" ref={scrollRef}>
         {status === 'loading' && <div className="pdf-loading"><span className="loading-line" />Rendering verified PDF...</div>}
         {status === 'error' && <div className="pdf-loading error">Could not render this PDF. <a href={file.localUrl} target="_blank" rel="noreferrer">Open it directly</a><small>{error}</small></div>}
-        {document && <div className="pdf-page-stack">{Array.from({ length: document.numPages }, (_, index) => {
-          const pageNumber = index + 1
+        {document && <div className="pdf-page-stack" data-virtualized-pages="true">
+          {beforeHeight > 0 && <div className="pdf-page-spacer" aria-hidden="true" style={{ height: beforeHeight }} />}
+          {pageWindow.map((pageNumber) => {
           const size = pageSizes[pageNumber]
           const placeholderStyle = size
             ? { width: size.width, height: size.height }
-            : { width: 'min(100%, 760px)', minHeight: 280 }
-          return <figure className="pdf-page" key={pageNumber}>
+            : { width: pageWidth, height: defaultPageHeight }
+          return <figure className="pdf-page" key={pageNumber} data-page-number={pageNumber}>
             <figcaption>Page {pageNumber}</figcaption>
-            <div className="pdf-page-layer" data-page-number={pageNumber} style={placeholderStyle}>
+            <div className="pdf-page-layer" style={placeholderStyle}>
               <canvas ref={(canvas) => { if (canvas) canvasRefs.current.set(pageNumber, canvas); else canvasRefs.current.delete(pageNumber) }} aria-label={`${file.file}, page ${pageNumber}`} />
               {!size && <span className="pdf-page-placeholder">Scroll to render this page</span>}
               {annotate && size && <PdfInkCanvas pageNumber={pageNumber} baseCanvas={canvasRefs.current.get(pageNumber)} width={size.width} height={size.height} ink={inkByPage[pageNumber]} tool={inkTool} questionNumber={questionNumber} onChange={onInkChange} onTouchZoom={zoomFromTouch} registerInkFlush={registerInkFlush} readOnly={readOnly} panMode={inkTool === 'hand'} />}
             </div>
           </figure>
-        })}</div>}
+          })}
+          {afterHeight > 0 && <div className="pdf-page-spacer" aria-hidden="true" style={{ height: afterHeight }} />}
+        </div>}
       </div>
     </div>
   )

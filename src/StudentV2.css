@@ -1882,6 +1882,10 @@
   color: var(--v2-primary);
 }
 
+.account-menu {
+  z-index: 115;
+}
+
 .account-popover__hint,
 .account-popover__error,
 .account-popover__privacy {

@@ -127,7 +127,7 @@ function questionBatches(questionNumbers, size = SHARED_MARKING_BATCH_SIZE) {
   return batches
 }
 
-export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null, sharedIdentityToken = '', stateOwnerId = '', onBack, onSaveDraft, onFinish, onFinishReview, immersive = false, onToggleImmersive = () => {} }) {
+export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null, sharedIdentityToken = '', stateOwnerId = '', onBack, onSaveDraft, onFinish, onFinishReview, onOpenAccount, onAttemptReady, immersive = false, onToggleImmersive = () => {} }) {
   const itemById = useMemo(() => new Map((catalog?.items || []).map((item) => [item.id, item])), [catalog])
   const questionPaper = itemById.get(paper.questionPaperId) || (paper.kind === 'qp' ? paper : null)
   const markScheme = itemById.get(paper.markSchemeId)
@@ -150,7 +150,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
   const sharedMarkingContract = useMemo(() => sharedMarkingContractForPaper({ id: sourcePaper.id }), [sourcePaper.id])
   const paperDraft = useMemo(() => migratePaperDraftForOfficialSlots(draft, sharedMarkingContract?.answerSlots), [draft, sharedMarkingContract])
   const reviewedMaxMarks = useMemo(() => Object.fromEntries(Object.entries(questionMetadataByNumber).map(([number, metadata]) => [number, metadata.maxMarks])), [questionMetadataByNumber])
-  const [attemptId] = useState(() => paperDraft?.attemptId || `paper-attempt-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`)
+  const [attemptId] = useState(() => paper.attemptId || paperDraft?.attemptId || `paper-attempt-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`)
   const [elapsedSec, setElapsedSec] = useState(paperDraft?.elapsedSec || 0)
   const [notes, setNotes] = useState(paperDraft?.notes || '')
   const [answers, setAnswers] = useState(paperDraft?.answers || {})
@@ -272,6 +272,10 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
     const timer = window.setInterval(() => setElapsedSec((value) => value + 1), 1000)
     return () => window.clearInterval(timer)
   }, [])
+
+  useEffect(() => {
+    onAttemptReady?.(attemptId)
+  }, [attemptId, onAttemptReady])
 
   useEffect(() => {
     let active = true
@@ -825,6 +829,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
             reviewedResponseQuestionNumbers={reviewedResponseQuestionNumbers}
             sharedMarkingContract={sharedMarkingContract}
             sharedIdentityConnected={Boolean(sharedIdentityToken)}
+            onOpenAccount={onOpenAccount}
             aiMarkingInProgress={aiMarkingInProgress}
             onRequestAiMarking={markAllResponses}
             onRetryMarking={retryMarking}

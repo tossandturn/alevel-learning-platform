@@ -42,6 +42,8 @@ function requestHandler(...middlewares) {
   })
 }
 
+const testSigningKey = 'source-image-test-internal-key'
+
 function identityToken(userId = 42) {
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
   const now = Math.floor(Date.now() / 1000)
@@ -53,7 +55,7 @@ function identityToken(userId = 42) {
     iat: now,
     exp: now + 3600,
   })).toString('base64url')
-  const signature = crypto.createHmac('sha256', 'source-image-test-signing-key').update(`${header}.${payload}`).digest('base64url')
+  const signature = crypto.createHmac('sha256', testSigningKey).update(`${header}.${payload}`).digest('base64url')
   return `${header}.${payload}.${signature}`
 }
 
@@ -144,7 +146,7 @@ const env = {
   VISION_AI_API_KEY: 'test-only-provider-key',
   VISION_AI_BASE_URL: providerBase,
   VISION_AI_MODEL: 'qwen-test-vision',
-  STEM_IDENTITY_SIGNING_KEY: 'source-image-test-signing-key',
+  STEM_INTERNAL_AUTH_KEY: testSigningKey,
   STEM_MARKING_CAPABILITY_SIGNING_KEY: 'source-image-test-capability-key',
   STEM_DB_PATH: path.join(testDbRoot, 'stem.sqlite'),
 }

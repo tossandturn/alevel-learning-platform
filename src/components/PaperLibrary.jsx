@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, ExternalLink, FileCheck2, FileText, Search, 
 import { examStructures, getRouteGuidance, getRouteOptions, getStageGuidance, getStageOptions } from '../data/examStructure'
 import { ARCHIVE_SOURCES, SPECIAL_ARCHIVE_SUBJECTS, archiveSeasonLabel, buildArchiveStats } from '../data/competitionArchive'
 import { formatRouteComponents } from '../data/routeRegistry'
+import { isPaperAvailableToStudents } from '../lib/paperGovernance'
 
 const PAGE_SIZE = 20
 const EMPTY_ITEMS = []
@@ -45,7 +46,7 @@ function filterDefaults(subject) {
 export function PaperLibrary({ catalogState, initialSubject = 'all', activeRoute = null, onOpenPaper }) {
   const [filters, setFilters] = useState(() => filterDefaults(initialSubject))
   const [page, setPage] = useState(1)
-  const items = catalogState.catalog?.items || EMPTY_ITEMS
+  const items = (catalogState.catalog?.items || EMPTY_ITEMS).filter(isPaperAvailableToStudents)
 
   useEffect(() => {
     const subject = initialSubject || 'all'
@@ -157,14 +158,14 @@ export function PaperLibrary({ catalogState, initialSubject = 'all', activeRoute
   const routeComponents = activeRoute ? formatRouteComponents(activeRoute.paperComponents) : ''
   const routeSummary = activeRoute
     ? [activeRoute.stage, activeRoute.subjectCode, activeRoute.subject, routeComponents].filter(Boolean).join(' / ')
-    : `${catalogState.catalog.totals.pairedQuestionPapers.toLocaleString()} question papers have an exact mark scheme.`
+    : `${items.filter((item) => item.kind === 'qp' && item.markSchemeId).length.toLocaleString()} locally approved question papers have an exact answer file.`
 
   return (
     <div className="paper-library">
       <div className="paper-summary">
         <div>
           <strong>{(archiveStats?.questionPapers ?? catalogState.catalog.totals.files).toLocaleString()}</strong>
-          <span>{archiveStats ? 'historical question papers' : 'verified PDFs'}</span>
+          <span>{archiveStats ? 'historical question papers' : 'approved local PDFs'}</span>
         </div>
         <div>
           <strong>{archiveStats?.yearLabel || `${(catalogState.catalog.totals.bytes / 1_000_000_000).toFixed(2)} GB`}</strong>
@@ -207,7 +208,7 @@ export function PaperLibrary({ catalogState, initialSubject = 'all', activeRoute
             <thead><tr><th>Paper</th><th>Subject</th><th>{filters.subject === 'bpho' ? 'Round / year' : 'Session'}</th><th>Type</th><th>Answer</th><th>Size</th><th><span className="sr-only">Action</span></th></tr></thead>
             <tbody>{visible.map((item) => (
               <tr key={item.id}>
-                <td><strong>{item.file}</strong><small>{item.examProfile ? `${item.examProfile.paperNumber ? `P${item.examProfile.paperNumber} ` : ''}${item.examProfile.title}` : `Variant ${item.variant || 'general'}`} / {item.sha256.slice(0, 10)}</small></td>
+                <td><strong>{item.file}</strong><small>{item.examProfile ? `${item.examProfile.paperNumber ? `P${item.examProfile.paperNumber} ` : ''}${item.examProfile.title}` : `Variant ${item.variant || 'general'}`} / {item.sha256.slice(0, 10)} / {item.governance?.sourcePolicyId === 'cie-mirror-restricted-v1' ? 'restricted study access' : 'source-governed access'}</small></td>
                 <td><span className="subject-code">{item.subject}</span><small>{SUBJECT_NAMES[item.subject]}</small></td>
                 <td>{archiveSeasonLabel(item.subject, item.season)} {Number(item.year) > 0 ? item.year : 'Specimen'}</td>
                 <td><span className={`document-kind ${item.kind}`}>{KIND_NAMES[item.kind] || item.kind.toUpperCase()}</span></td>

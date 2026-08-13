@@ -17,7 +17,7 @@ export class SharedAccountError extends Error {
 }
 
 function responseError(response, payload, fallback) {
-  if (response.status === 401 || response.status === 403) return new SharedAccountError('session_expired', 'Your IELTSist session has expired. Sign in again to continue.', { loginRequired: true })
+  if (response.status === 401 || response.status === 403) return new SharedAccountError('session_expired', 'Your STEM session has expired. Sign in here to continue.', { loginRequired: true })
   if (response.status === 429 || response.status >= 500) return new SharedAccountError('service_unavailable', payload?.error || fallback, { retryable: true })
   return new SharedAccountError('request_rejected', payload?.error || fallback)
 }
@@ -59,8 +59,8 @@ async function jsonFetch(url, options = {}, timeoutMs = IDENTITY_TIMEOUT_MS) {
     const payload = await response.json().catch(() => ({}))
     return { response, payload }
   } catch (error) {
-    if (error?.name === 'AbortError') throw new SharedAccountError('network_timeout', 'The IELTSist account service took too long to respond. Your work remains on this device.', { retryable: true, cause: error })
-    throw new SharedAccountError('network_unavailable', 'The IELTSist account service is unavailable. Your work remains on this device.', { retryable: true, cause: error })
+    if (error?.name === 'AbortError') throw new SharedAccountError('network_timeout', 'The STEM account service took too long to respond. Your work remains on this device.', { retryable: true, cause: error })
+    throw new SharedAccountError('network_unavailable', 'The STEM account service is unavailable. Your work remains on this device.', { retryable: true, cause: error })
   } finally {
     window.clearTimeout(timer)
   }
@@ -107,23 +107,50 @@ function queueSubmission(resource, options, error, userId = '') {
   }
 }
 
-/**
- * Exchanges an existing IELTSist browser session for a short-lived STEM session.
- * Tokens stay in memory; only non-sensitive sync metadata is persisted for retry.
- */
-export async function requestSharedAccount({ flushPending = true } = {}) {
-  const { response: identityResponse, payload: identityPayload } = await jsonFetch(`${IDENTITY_ORIGIN}/api/stem/identity`, { credentials: 'include', redirect: 'error' })
-  if (!identityResponse.ok) throw responseError(identityResponse, identityPayload, 'Sign in to IELTSist to use shared STEM classes.')
-  const identity = parseIdentity(identityPayload)
-  const workspace = await sharedAccountRequest(identity.token, '/api/auth/status', { method: 'GET', skipSyncQueue: true })
+async function hydrateNativeAccount(payload, { flushPending = true } = {}) {
+  const identity = parseIdentity(payload)
+  const workspace = {
+    identity: identity.identity,
+    classrooms: Array.isArray(payload?.classrooms) ? payload.classrooms : [],
+    assignments: Array.isArray(payload?.assignments) ? payload.assignments : [],
+  }
   const sync = flushPending
     ? await flushPendingSharedSync(identity.token, { userId: identity.identity.id })
     : { synced: [], pending: listPendingSharedSync({ userId: identity.identity.id }).length }
   return { ...identity, workspace, sync }
 }
 
+/** Restores the STEM-origin browser session. No browser request is sent to IELTSist. */
+export async function requestSharedAccount({ flushPending = true } = {}) {
+  const { response, payload } = await jsonFetch('/api/auth/status', { credentials: 'same-origin', redirect: 'error' })
+  if (!response.ok) throw responseError(response, payload, 'Sign in to STEM to use shared classes and notes.')
+  return hydrateNativeAccount(payload, { flushPending })
+}
+
+/**
+ * STEM owns the browser form and cookie. Its server verifies the credentials
+ * against the shared IELTSist account database over a signed local channel.
+ */
+export async function signInSharedAccount({ mode = 'login', username, password, flushPending = true } = {}) {
+  const endpoint = mode === 'register' ? '/api/auth/register' : '/api/auth/login'
+  const { response, payload } = await jsonFetch(endpoint, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: String(username || '').trim(), password: String(password || '') }),
+  })
+  if (!response.ok) throw responseError(response, payload, 'STEM could not sign in with this shared account.')
+  return hydrateNativeAccount(payload, { flushPending })
+}
+
+export async function signOutSharedAccount() {
+  const { response, payload } = await jsonFetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' })
+  if (!response.ok) throw responseError(response, payload, 'STEM could not sign out.')
+  return payload
+}
+
 export async function sharedAccountRequest(token, resource, options = {}) {
-  if (!token) throw new SharedAccountError('session_missing', 'Sign in with your IELTSist account to continue.', { loginRequired: true })
+  if (!token) throw new SharedAccountError('session_missing', 'Sign in to STEM to continue.', { loginRequired: true })
   const { storageUserId = '', ...requestOptions } = options
   const method = (requestOptions.method || 'GET').toUpperCase()
   const headers = {
@@ -236,31 +263,6 @@ export function canonicalReturnUrl(value, currentHref = typeof window !== 'undef
   } catch {
     return safeCurrent
   }
-}
-
-export function sharedAuthUrl(mode = 'login', returnTo = window.location.href) {
-  const url = new URL('/', IDENTITY_ORIGIN)
-  const canonicalReturn = canonicalReturnUrl(returnTo)
-  url.searchParams.set('returnTo', canonicalReturn)
-  url.searchParams.set('from', 'stem')
-  url.searchParams.set('auth', mode === 'register' ? 'register' : 'login')
-  url.searchParams.set('focus', 'account')
-  url.hash = 'mine'
-  return url.href
-}
-
-export function sharedLoginUrl(returnTo = window.location.href) {
-  return sharedAuthUrl('login', returnTo)
-}
-
-export function sharedLogoutUrl(returnTo = window.location.href) {
-  const url = new URL('/', IDENTITY_ORIGIN)
-  url.searchParams.set('from', 'stem')
-  const canonicalReturn = canonicalReturnUrl(returnTo)
-  url.searchParams.set('returnTo', canonicalReturn)
-  url.searchParams.set('auth', 'logout')
-  url.hash = 'mine'
-  return url.href
 }
 
 export function professionalTermsUrl({ subject = '', subjectCode = '', stage = '', topic = '', routeId = '', taxonomyId = '', topicId = '', termIds = [], attemptId = '', returnTo = window.location.href, source = 'stem-reviewed-glossary', sourceStatus = 'taxonomy-mapped', termInventoryStatus = 'not-imported', availableCount = null } = {}) {

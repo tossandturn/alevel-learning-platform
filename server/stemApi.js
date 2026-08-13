@@ -7,6 +7,9 @@ import { issueMarkingCapabilities } from './markingCapability.js'
 const MAX_BODY_BYTES = 2 * 1024 * 1024
 const TOKEN_AUDIENCE = 'stem.ieltsist.com'
 const TOKEN_ISSUER = 'ieltsist.com'
+const STEM_SESSION_COOKIE = 'stem_session'
+const STEM_SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000
+const INTERNAL_AUTH_PATH = '/api/stem/internal/authenticate'
 const LEGACY_SCOPE = 'legacy-unscoped'
 const ROUTE_STAGES = new Map([
   ['igcse', 'IGCSE'],
@@ -268,8 +271,9 @@ function appDatabase(env) {
   if (!globalThis.process?.versions?.node) throw new Error('STEM storage requires Node.js.')
   // node:sqlite is available in the Node 22 runtime used by the deployment.
   const { DatabaseSync } = requireNodeSqlite()
-  const databasePath = path.resolve(env.STEM_DATABASE_PATH || env.STEM_DB_PATH || path.join(process.cwd(), 'data', 'stem.sqlite'))
-  fs.mkdirSync(path.dirname(databasePath), { recursive: true })
+  const configuredDatabasePath = String(env.STEM_DATABASE_PATH || env.STEM_DB_PATH || path.join(process.cwd(), 'data', 'stem.sqlite'))
+  const databasePath = configuredDatabasePath === ':memory:' ? configuredDatabasePath : path.resolve(configuredDatabasePath)
+  if (databasePath !== ':memory:') fs.mkdirSync(path.dirname(databasePath), { recursive: true })
   database = new DatabaseSync(databasePath)
   database.exec(`
     PRAGMA journal_mode = WAL;
@@ -345,6 +349,17 @@ function appDatabase(env) {
       PRIMARY KEY (user_id, route_id)
     );
     CREATE INDEX IF NOT EXISTS idx_private_notes_user ON private_notes(user_id, updated_at DESC);
+    CREATE TABLE IF NOT EXISTS stem_sessions (
+      token_hash TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      username TEXT NOT NULL,
+      avatar_data_url TEXT NOT NULL,
+      roles_json TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      last_seen_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_stem_sessions_user ON stem_sessions(user_id, expires_at DESC);
   `)
   ensureColumn(database, 'private_notes', 'deleted_at', 'TEXT')
   migrateRouteScope(database)
@@ -398,6 +413,180 @@ function identityFromRequest(request, signingKey) {
     throw Object.assign(new Error('Your shared sign-in has expired. Please refresh and try again.'), { statusCode: 401 })
   }
   return { id: payload.sub, username: asText(payload.username, 80), avatarDataUrl: String(payload.avatarDataUrl || '').slice(0, 500_000), roles: verifiedRoleClaims(payload) }
+}
+
+function identityToken(identity, signingKey) {
+  const issuedAt = Math.floor(Date.now() / 1000)
+  const expiresAt = issuedAt + 5 * 60
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
+  const payload = Buffer.from(JSON.stringify({
+    iss: TOKEN_ISSUER,
+    aud: TOKEN_AUDIENCE,
+    sub: identity.id,
+    username: identity.username,
+    avatarDataUrl: identity.avatarDataUrl || '',
+    roles: identity.roles || [],
+    workspaceRoles: identity.roles || [],
+    iat: issuedAt,
+    exp: expiresAt,
+  })).toString('base64url')
+  const signature = crypto.createHmac('sha256', signingKey).update(`${header}.${payload}`).digest('base64url')
+  return {
+    accessToken: `${header}.${payload}.${signature}`,
+    expiresAt: new Date(expiresAt * 1000).toISOString(),
+  }
+}
+
+function requestCookie(request, name) {
+  const raw = String(request.headers.cookie || '')
+    .split(/;\s*/)
+    .find((item) => item.startsWith(`${name}=`))
+    ?.slice(name.length + 1) || ''
+  try {
+    return decodeURIComponent(raw)
+  } catch {
+    return ''
+  }
+}
+
+function sessionCookie(value, expiresAt, env) {
+  const secure = String(env.STEM_SESSION_SECURE || '1').trim() !== '0' ? '; Secure' : ''
+  return `${STEM_SESSION_COOKIE}=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax${secure}; Expires=${expiresAt.toUTCString()}`
+}
+
+function clearSessionCookie(env) {
+  const secure = String(env.STEM_SESSION_SECURE || '1').trim() !== '0' ? '; Secure' : ''
+  return `${STEM_SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax${secure}; Max-Age=0`
+}
+
+function nativeSessionIdentity(request, database) {
+  const token = requestCookie(request, STEM_SESSION_COOKIE)
+  if (!token) return null
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
+  const row = database.prepare(`
+    SELECT user_id, username, avatar_data_url, roles_json, expires_at
+    FROM stem_sessions
+    WHERE token_hash = ?
+  `).get(tokenHash)
+  if (!row || Date.parse(row.expires_at) <= Date.now()) {
+    if (row) database.prepare('DELETE FROM stem_sessions WHERE token_hash = ?').run(tokenHash)
+    return null
+  }
+  let roles = []
+  try {
+    roles = verifiedRoleClaims({ roles: JSON.parse(row.roles_json) })
+  } catch {
+    return null
+  }
+  database.prepare('UPDATE stem_sessions SET last_seen_at = ? WHERE token_hash = ?').run(nowIso(), tokenHash)
+  return {
+    id: asText(row.user_id, 80),
+    username: asText(row.username, 80),
+    avatarDataUrl: String(row.avatar_data_url || '').slice(0, 500_000),
+    roles,
+  }
+}
+
+function createNativeSession(database, identity) {
+  const token = crypto.randomBytes(32).toString('base64url')
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
+  const createdAt = nowIso()
+  const expiresAt = new Date(Date.now() + STEM_SESSION_TTL_MS)
+  database.prepare(`
+    INSERT INTO stem_sessions (token_hash, user_id, username, avatar_data_url, roles_json, expires_at, created_at, last_seen_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    tokenHash,
+    identity.id,
+    identity.username,
+    identity.avatarDataUrl || '',
+    JSON.stringify(identity.roles || []),
+    expiresAt.toISOString(),
+    createdAt,
+    createdAt,
+  )
+  return { token, expiresAt }
+}
+
+function removeNativeSession(request, database) {
+  const token = requestCookie(request, STEM_SESSION_COOKIE)
+  if (!token) return
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
+  database.prepare('DELETE FROM stem_sessions WHERE token_hash = ?').run(tokenHash)
+}
+
+function canonicalInternalAuthPayload({ mode, username, password }) {
+  return JSON.stringify({
+    mode: asText(mode, 20),
+    username: asText(username, 80).toLowerCase(),
+    password: String(password || ''),
+  })
+}
+
+function internalAuthEndpoint(origin) {
+  let url
+  try {
+    url = new URL(origin || 'http://127.0.0.1:4321')
+  } catch {
+    throw Object.assign(new Error('STEM account sign-in is not configured.'), { statusCode: 503 })
+  }
+  const hostname = url.hostname.toLowerCase()
+  if (url.protocol !== 'http:' || !['127.0.0.1', '::1', 'localhost'].includes(hostname)) {
+    throw Object.assign(new Error('STEM account sign-in is not configured.'), { statusCode: 503 })
+  }
+  url.pathname = INTERNAL_AUTH_PATH
+  url.search = ''
+  url.hash = ''
+  return url.toString()
+}
+
+async function authenticateNativeAccount({ mode, username, password, env, fetchImpl = fetch }) {
+  const normalizedMode = mode === 'register' ? 'register' : 'login'
+  const body = canonicalInternalAuthPayload({ mode: normalizedMode, username, password })
+  const signingKey = String(env.STEM_INTERNAL_AUTH_KEY || env.STEM_IDENTITY_SIGNING_KEY || '')
+  if (!signingKey) throw Object.assign(new Error('STEM account sign-in is not configured.'), { statusCode: 503 })
+  const timestamp = String(Date.now())
+  const digest = crypto.createHash('sha256').update(body).digest('hex')
+  const signature = crypto.createHmac('sha256', signingKey).update(`${timestamp}.${digest}`).digest('base64url')
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 12_000)
+  try {
+    const response = await fetchImpl(internalAuthEndpoint(env.STEM_AUTH_INTERNAL_ORIGIN), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Stem-Auth-Timestamp': timestamp,
+        'X-Stem-Auth-Signature': signature,
+      },
+      body,
+      signal: controller.signal,
+    })
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      const message = response.status === 401
+        ? 'Invalid username or password.'
+        : response.status === 409
+          ? 'Username already exists.'
+          : response.status === 400
+            ? String(payload.error || 'Check your account details.')
+            : 'The shared account service is unavailable. Try again shortly.'
+      throw Object.assign(new Error(message), { statusCode: response.status === 401 || response.status === 409 || response.status === 400 ? response.status : 503 })
+    }
+    const identity = payload?.identity
+    const id = asText(identity?.id, 80)
+    if (!/^ielts:\d+$/.test(id)) throw Object.assign(new Error('The shared account service returned an invalid identity.'), { statusCode: 503 })
+    return {
+      id,
+      username: asText(identity.username, 80),
+      avatarDataUrl: String(identity.avatarDataUrl || '').slice(0, 500_000),
+      roles: verifiedRoleClaims(identity),
+    }
+  } catch (error) {
+    if (error?.statusCode) throw error
+    throw Object.assign(new Error('The shared account service is unavailable. Try again shortly.'), { statusCode: 503 })
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 function requireVerifiedStaffClaim(user) {
@@ -770,8 +959,11 @@ function eventPayload(value) {
   }
 }
 
-export function createStemApi({ env, questionBank = unifiedQuestionBank }) {
-  const signingKey = String(env.STEM_IDENTITY_SIGNING_KEY || '')
+export function createStemApi({ env, questionBank = unifiedQuestionBank, fetchImpl = fetch }) {
+  // A single shared server key is sufficient for both the internal account
+  // request and the short-lived STEM API token. Keep the legacy identity key
+  // as the preferred value when both are configured.
+  const signingKey = String(env.STEM_IDENTITY_SIGNING_KEY || env.STEM_INTERNAL_AUTH_KEY || '')
   const markingCapabilitySigningKey = String(env.STEM_MARKING_CAPABILITY_SIGNING_KEY || signingKey)
   const identityOrigin = String(env.IELTSIST_ORIGIN || 'https://ieltsist.com').replace(/\/$/, '')
   const stemOrigin = String(env.STEM_ORIGIN || 'https://stem.ieltsist.com').replace(/\/$/, '')
@@ -780,30 +972,29 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank }) {
   const assignableQuestionIds = assignableQuestionIdsForBank(questionBank)
   return async function stemApi(request, response, next) {
     const url = new URL(request.url, 'http://127.0.0.1')
-    if (!url.pathname.startsWith('/api/stem/') && !['/api/auth/status', '/api/auth/config'].includes(url.pathname)) return next()
+    if (!url.pathname.startsWith('/api/stem/') && !['/api/auth/status', '/api/auth/config', '/api/auth/login', '/api/auth/register', '/api/auth/logout'].includes(url.pathname)) return next()
     try {
       if (request.method === 'GET' && url.pathname === '/api/auth/config') {
         sendJson(response, 200, {
-          protocol: 'stem-sso-v1',
+          protocol: 'stem-native-account-v1',
           provider: 'ieltsist',
           providerOrigin: identityOrigin,
           clientOrigin: stemOrigin,
           browserFlow: {
-            login: `${identityOrigin}/?from=stem&auth=login&returnTo=${encodeURIComponent(stemOrigin) }#mine`,
-            register: `${identityOrigin}/?from=stem&auth=register&returnTo=${encodeURIComponent(stemOrigin) }#mine`,
-            logout: `${identityOrigin}/?from=stem&auth=logout&returnTo=${encodeURIComponent(stemOrigin) }#mine`,
+            login: '/api/auth/login',
+            register: '/api/auth/register',
+            logout: '/api/auth/logout',
           },
           endpoints: {
-            login: `${identityOrigin}/api/auth/login`,
-            register: `${identityOrigin}/api/auth/register`,
-            logout: `${identityOrigin}/api/auth/logout`,
-            currentUser: `${identityOrigin}/api/me`,
-            identityExchange: `${identityOrigin}/api/stem/identity`,
+            login: '/api/auth/login',
+            register: '/api/auth/register',
+            logout: '/api/auth/logout',
+            currentUser: '/api/auth/status',
           },
           session: {
-            browserCookie: 'ieltsist_session',
-            cookieOwner: 'ieltsist.com',
-            exchange: 'short-lived-hmac-jwt',
+            browserCookie: STEM_SESSION_COOKIE,
+            cookieOwner: 'stem.ieltsist.com',
+            identityAuthority: 'ieltsist.com-server',
             tokenStorage: 'memory-only',
           },
           responses: {
@@ -814,16 +1005,44 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank }) {
             validationError: 400,
             logoutSuccess: 200,
           },
-          note: 'STEM never accepts or stores the IELTSist password. The provider owns account creation and browser logout.',
+          note: 'STEM signs in on this origin and keeps a separate local browser session. Credentials are checked server-to-server against the shared IELTSist account database and are never persisted by STEM.',
         })
         return
       }
-      const user = identityFromRequest(request, signingKey)
       const db = appDatabase(env)
       if (request.method === 'GET' && url.pathname === '/api/auth/status') {
-        sendJson(response, 200, { authenticated: true, ...currentWorkspace(db, user) })
+        const user = nativeSessionIdentity(request, db)
+        if (!user) throw Object.assign(new Error('Sign in to STEM to continue.'), { statusCode: 401 })
+        if (!signingKey) throw Object.assign(new Error('STEM account sessions are not configured.'), { statusCode: 503 })
+        sendJson(response, 200, { authenticated: true, ...identityToken(user, signingKey), ...currentWorkspace(db, user) })
         return
       }
+      if (request.method === 'POST' && (url.pathname === '/api/auth/login' || url.pathname === '/api/auth/register')) {
+        if (!signingKey) throw Object.assign(new Error('STEM account sessions are not configured.'), { statusCode: 503 })
+        const payload = await readJson(request)
+        const identity = await authenticateNativeAccount({
+          mode: url.pathname.endsWith('/register') ? 'register' : 'login',
+          username: payload.username,
+          password: payload.password,
+          env,
+          fetchImpl,
+        })
+        const session = createNativeSession(db, identity)
+        response.setHeader('Set-Cookie', sessionCookie(session.token, session.expiresAt, env))
+        sendJson(response, 200, {
+          authenticated: true,
+          ...identityToken(identity, signingKey),
+          ...currentWorkspace(db, identity),
+        })
+        return
+      }
+      if (request.method === 'POST' && url.pathname === '/api/auth/logout') {
+        removeNativeSession(request, db)
+        response.setHeader('Set-Cookie', clearSessionCookie(env))
+        sendJson(response, 200, { ok: true })
+        return
+      }
+      const user = identityFromRequest(request, signingKey)
       if (request.method === 'GET' && url.pathname === '/api/stem/workspace') {
         sendJson(response, 200, currentWorkspace(db, user))
         return

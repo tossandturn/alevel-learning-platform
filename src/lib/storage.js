@@ -12,7 +12,7 @@ const DEFAULT_ROUTE_ID = 'cie-9702-as-physics'
 
 const fallbackState = {
   profile: { role: 'student', learningTrack: 'AS', activeRouteId: DEFAULT_ROUTE_ID, recentRouteIds: [DEFAULT_ROUTE_ID], learnerName: '', schoolName: '', targetGrade: 'A', examBoard: 'Cambridge International', weeklyQuestions: 18, deadline: '2026-10-15', preferredMode: 'Topics' },
-  attempts: [], drafts: {}, selfMarkDrafts: {}, paperDrafts: {}, paperSessions: [], paperReviews: [], recentPapers: [], recentPractice: [], favoriteUnitIds: [], generatedUnits: [], assignments: [], classrooms: [], syncQueue: [], completedSyncKeys: [],
+  attempts: [], drafts: {}, selfMarkDrafts: {}, paperDrafts: {}, paperSessions: [], paperReviews: [], reviewQueueAudit: [], recentPapers: [], recentPractice: [], favoriteUnitIds: [], generatedUnits: [], assignments: [], classrooms: [], syncQueue: [], completedSyncKeys: [],
 }
 
 function canUseStorage() {
@@ -136,6 +136,19 @@ export function normalizeState(value, options = {}) {
 
   state.generatedUnits = (state.generatedUnits || []).map(normalizeGeneratedUnit)
   state.selfMarkDrafts = state.selfMarkDrafts && typeof state.selfMarkDrafts === 'object' ? state.selfMarkDrafts : {}
+  state.reviewQueueAudit = Array.isArray(state.reviewQueueAudit)
+    ? state.reviewQueueAudit
+      .filter((event) => event && typeof event === 'object' && String(event.reviewItemId || '') && String(event.action || ''))
+      .map((event) => ({
+        id: String(event.id || ''),
+        reviewItemId: String(event.reviewItemId),
+        action: ['ignored', 'archived', 'snoozed', 'dismissed', 'manual-mastered', 'deleted'].includes(String(event.action)) ? String(event.action) : 'dismissed',
+        reason: String(event.reason || '').slice(0, 300),
+        at: String(event.at || ''),
+        snoozeUntil: event.snoozeUntil ? String(event.snoozeUntil) : null,
+      }))
+      .slice(-500)
+    : []
   const suppliedUnits = Array.isArray(options.units) ? options.units : []
   const hasStaticUnitContext = Object.prototype.hasOwnProperty.call(options, 'units')
   const contextUnits = [...new Map([...state.generatedUnits, ...suppliedUnits].filter(Boolean).map((unit) => [unit.id, unit])).values()]

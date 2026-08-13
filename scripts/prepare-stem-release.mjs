@@ -22,6 +22,7 @@ function targetInsideRelease(releaseRoot, target) {
 const releaseRoot = requiredOption('--release-root')
 const sourceAssets = requiredOption('--assets-dir')
 const sourceCatalog = requiredOption('--catalog-file')
+const sourcePdfLibrary = requiredOption('--pdf-library-root')
 const targetAssets = path.join(releaseRoot, 'public', 'question-assets')
 const targetCatalog = path.join(releaseRoot, 'public', 'data', 'papers.json')
 const verifier = path.join(releaseRoot, 'scripts', 'verify-stem-release.mjs')
@@ -29,6 +30,7 @@ const verifier = path.join(releaseRoot, 'scripts', 'verify-stem-release.mjs')
 assert.ok(fs.existsSync(releaseRoot) && fs.statSync(releaseRoot).isDirectory(), `Release root is missing: ${releaseRoot}`)
 assert.ok(fs.existsSync(sourceAssets) && fs.statSync(sourceAssets).isDirectory(), `Source assets are missing: ${sourceAssets}`)
 assert.ok(fs.existsSync(sourceCatalog) && fs.statSync(sourceCatalog).isFile(), `Source catalog is missing: ${sourceCatalog}`)
+assert.ok(fs.existsSync(sourcePdfLibrary) && fs.statSync(sourcePdfLibrary).isDirectory(), `Governed PDF library is missing: ${sourcePdfLibrary}`)
 assert.ok(targetInsideRelease(releaseRoot, targetAssets) && targetInsideRelease(releaseRoot, targetCatalog), 'Release content target escapes release root')
 assert.ok(!fs.existsSync(targetAssets), `Release already has question-assets: ${targetAssets}`)
 assert.ok(!fs.existsSync(targetCatalog), `Release already has papers.json: ${targetCatalog}`)
@@ -39,7 +41,7 @@ fs.mkdirSync(path.dirname(targetCatalog), { recursive: true })
 fs.cpSync(sourceAssets, targetAssets, { recursive: true, dereference: true, force: false, errorOnExist: true })
 fs.copyFileSync(sourceCatalog, targetCatalog, fs.constants.COPYFILE_EXCL)
 
-const result = spawnSync(process.execPath, [verifier, '--release-root', releaseRoot], {
+const result = spawnSync(process.execPath, [verifier, '--release-root', releaseRoot, '--pdf-library-root', sourcePdfLibrary], {
   cwd: releaseRoot,
   env: process.env,
   encoding: 'utf8',

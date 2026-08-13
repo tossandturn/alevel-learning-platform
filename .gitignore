@@ -19,6 +19,9 @@ artifacts/
 tmp/
 public/question-assets/
 public/data/papers.json
+data/*.sqlite
+data/*.sqlite-shm
+data/*.sqlite-wal
 
 # Editor directories and files
 .vscode/*

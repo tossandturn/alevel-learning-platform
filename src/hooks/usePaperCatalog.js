@@ -15,7 +15,7 @@ export function usePaperCatalog() {
         return response.json()
       })
       .then((catalog) => {
-        if (!Array.isArray(catalog.items) || !catalog.totals?.files) {
+        if (catalog.schemaVersion !== 2 || !catalog.paperGovernance?.schemaVersion || !Array.isArray(catalog.items) || !catalog.totals?.files) {
           throw new Error('Catalog response is missing the verified paper inventory.')
         }
         setState({ status: 'ready', catalog, error: null })

@@ -2,6 +2,14 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
 import { getExamPaperProfile } from '../src/data/examStructure.js'
+import {
+  PAPER_ACCESS_POLICIES,
+  PAPER_CATALOG_SCHEMA_VERSION,
+  PAPER_GOVERNANCE_POLICIES,
+  PAPER_GOVERNANCE_SCHEMA_VERSION,
+  paperGovernanceForItem,
+} from '../src/lib/paperGovernance.js'
+import { PAPER_GOVERNANCE_OVERRIDES } from '../src/data/paperGovernanceOverrides.js'
 
 const projectRoot = path.resolve(import.meta.dirname, '..')
 const sourceRoot = path.resolve(process.env.CIE_SOURCE_ROOT || 'D:/CodexWork/cie-fraft-fetcher/output')
@@ -216,11 +224,33 @@ function resolveMarkSchemeId(item) {
   return general.length === 1 ? general[0].id : null
 }
 
-const items = prepared.map((item) => ({
+const preGovernanceItems = prepared.map((item) => ({
   ...item,
   questionPaperId: item.pairKey ? byPairAndKind.get(`${item.pairKey}:qp`) || null : null,
   markSchemeId: resolveMarkSchemeId(item),
 }))
+const firstByChecksum = new Map()
+for (const item of preGovernanceItems) {
+  if (!firstByChecksum.has(item.sha256)) firstByChecksum.set(item.sha256, item.id)
+}
+const itemsById = new Map(preGovernanceItems.map((item) => [item.id, item]))
+const items = preGovernanceItems.map((item) => {
+  const answerStatus = item.kind !== 'qp'
+    ? 'not-applicable'
+    : !item.markSchemeId
+      ? 'missing'
+      : ['ms', 'ak'].includes(itemsById.get(item.markSchemeId)?.kind)
+        ? 'exact-pair'
+        : 'invalid-link'
+  return {
+    ...item,
+    governance: paperGovernanceForItem(item, {
+      duplicateOf: firstByChecksum.get(item.sha256) === item.id ? null : firstByChecksum.get(item.sha256),
+      answerStatus,
+      override: PAPER_GOVERNANCE_OVERRIDES[item.id] || null,
+    }),
+  }
+})
 
 const totals = items.reduce(
   (acc, item) => {
@@ -241,6 +271,18 @@ const totals = items.reduce(
 fs.mkdirSync(path.dirname(outputPath), { recursive: true })
 fs.writeFileSync(
   outputPath,
-  `${JSON.stringify({ schemaVersion: 1, generatedAt: new Date().toISOString(), sourceRoot, totals, items }, null, 2)}\n`,
+  `${JSON.stringify({
+    schemaVersion: PAPER_CATALOG_SCHEMA_VERSION,
+    generatedAt: new Date().toISOString(),
+    sourceRoot,
+    paperGovernance: {
+      schemaVersion: PAPER_GOVERNANCE_SCHEMA_VERSION,
+      sourcePolicies: PAPER_GOVERNANCE_POLICIES,
+      accessPolicies: PAPER_ACCESS_POLICIES,
+      policy: 'Catalogue records provenance and local-access constraints; a source URL is not a redistribution licence.',
+    },
+    totals,
+    items,
+  }, null, 2)}\n`,
 )
 console.log(`Wrote ${items.length} records to ${outputPath}`)

@@ -84,8 +84,19 @@ export function isScoredAttempt(attempt, unit = null) {
   if (!attempt || isPendingSelfMarkAttempt(attempt)) return false
   if (attempt.scoreResult?.partial === true || attempt.attemptStatus === 'provisional-result') return false
   if (unit && !hasCurrentSourceBindingForAttempt(attempt, unit)) return false
+  return hasValidAttemptScore(attempt)
+}
+
+export function isProvisionalAttempt(attempt, unit = null) {
+  if (!attempt || isPendingSelfMarkAttempt(attempt)) return false
+  if (!(attempt.scoreResult?.partial === true || attempt.attemptStatus === 'provisional-result')) return false
+  if (unit && !hasCurrentSourceBindingForAttempt(attempt, unit)) return false
+  return hasValidAttemptScore(attempt)
+}
+
+function hasValidAttemptScore(attempt) {
   const status = attempt.attemptStatus || attempt.submissionStatus || attempt.status
-  const hasCompletedStatus = ['result', 'submitted', 'completed'].includes(status)
+  const hasCompletedStatus = ['result', 'submitted', 'completed', 'provisional-result'].includes(status)
     || attempt.stage === 'result'
     || (status == null && Boolean(attempt.submittedAt))
   if (!hasCompletedStatus) return false
@@ -126,11 +137,156 @@ export function answeredQuestionCount(attempt, parts = []) {
   return answeredPartIds(attempt, parts).length
 }
 
+export function attemptResponseProjection(attempt, unit = {}) {
+  const parts = Array.isArray(unit?.parts) ? unit.parts : []
+  const criteria = Array.isArray(attempt?.scoreResult?.criteria) ? attempt.scoreResult.criteria : []
+  const knownPartIds = parts.length
+    ? parts.map((part) => part.id)
+    : [...new Set([
+      ...criteria.map((criterion) => criterion?.partId),
+      ...Object.keys(attempt?.answers || {}),
+      ...Object.keys(attempt?.working || {}),
+      ...Object.keys(attempt?.evidence || {}),
+      ...(attempt?.imageEvidence || []).map((evidence) => evidence?.partId),
+    ].filter(Boolean))]
+  const criteriaByPartId = new Map(criteria.filter((criterion) => criterion?.partId).map((criterion) => [criterion.partId, criterion]))
+  const answeredPartIdsForAttempt = knownPartIds.filter((partId) => hasAttemptResponse(attempt, partId))
+  const unansweredPartIds = knownPartIds.filter((partId) => !hasAttemptResponse(attempt, partId))
+  const incorrectCriteria = answeredPartIdsForAttempt
+    .map((partId) => criteriaByPartId.get(partId))
+    .filter((criterion) => Number.isFinite(Number(criterion?.awarded))
+      && Number.isFinite(Number(criterion?.maxMarks))
+      && Number(criterion.maxMarks) > 0
+      && Number(criterion.awarded) < Number(criterion.maxMarks))
+  const correctPartIds = answeredPartIdsForAttempt.filter((partId) => {
+    const criterion = criteriaByPartId.get(partId)
+    return Number.isFinite(Number(criterion?.awarded))
+      && Number.isFinite(Number(criterion?.maxMarks))
+      && Number(criterion.maxMarks) > 0
+      && Number(criterion.awarded) >= Number(criterion.maxMarks)
+  })
+  const awaitingMarkPartIds = answeredPartIdsForAttempt.filter((partId) => !criteriaByPartId.has(partId))
+  return {
+    answeredPartIds: answeredPartIdsForAttempt,
+    unansweredPartIds,
+    incorrectPartIds: incorrectCriteria.map((criterion) => criterion.partId),
+    incorrectCriteria,
+    correctPartIds,
+    awaitingMarkPartIds,
+    answeredQuestionCount: answeredPartIdsForAttempt.length,
+    incorrectQuestionCount: incorrectCriteria.length,
+    unansweredQuestionCount: unansweredPartIds.length,
+  }
+}
+
+const REVIEW_ACTIONS = new Set(['ignored', 'archived', 'snoozed', 'dismissed', 'manual-mastered', 'deleted'])
+
+function reviewEventTime(value) {
+  const parsed = Date.parse(value || '')
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+export function reviewQueueState(reviewItemId, reviewQueueAudit = [], now = Date.now()) {
+  const latest = [...(Array.isArray(reviewQueueAudit) ? reviewQueueAudit : [])]
+    .filter((event) => String(event?.reviewItemId || '') === String(reviewItemId || '') && REVIEW_ACTIONS.has(String(event?.action || '')))
+    .toSorted((left, right) => reviewEventTime(left.at) - reviewEventTime(right.at))
+    .at(-1) || null
+  if (!latest) return { status: 'open', event: null }
+  if (latest.action === 'snoozed' && Date.parse(latest.snoozeUntil || '') > now) return { status: 'snoozed', event: latest }
+  if (latest.action === 'snoozed') return { status: 'open', event: latest }
+  return { status: latest.action, event: latest }
+}
+
+function retestCriterionForSource({ attempts, attemptsById, unitsById, sourceAttempt, partId }) {
+  return [...attempts].reverse().find((candidate) => {
+    let parentId = candidate?.retestOf
+    while (parentId) {
+      if (parentId === sourceAttempt.id) {
+        return isScoredAttempt(candidate, unitsById.get(candidate.unitId))
+          && candidate.scoreResult?.criteria?.some((criterion) => criterion.partId === partId)
+      }
+      parentId = attemptsById.get(parentId)?.retestOf
+    }
+    return false
+  })?.scoreResult?.criteria?.find((criterion) => criterion.partId === partId) || null
+}
+
+/**
+ * The review queue is an attempt projection. Blank parts are not incorrect:
+ * they remain unfinished until the student actually submits a response.
+ */
+export function buildAttemptReviewQueue({ attempts = [], units = [], routeId = '', reviewQueueAudit = [], now = Date.now(), includeProvisional = false } = {}) {
+  const attemptsById = new Map(attempts.map((attempt) => [attempt.id, attempt]))
+  const unitsById = new Map(units.map((unit) => [unit.id, unit]))
+  return attempts.flatMap((attempt) => {
+    const unit = unitsById.get(attempt.unitId)
+    const provisional = isProvisionalAttempt(attempt, unit)
+    if (!unit || (routeId && unit.routeId !== routeId) || !(isScoredAttempt(attempt, unit) || (includeProvisional && provisional))) return []
+    const projection = attemptResponseProjection(attempt, unit)
+    return projection.incorrectCriteria
+      .filter((criterion) => {
+        const retestCriterion = retestCriterionForSource({ attempts, attemptsById, unitsById, sourceAttempt: attempt, partId: criterion.partId })
+        return !retestCriterion || Number(retestCriterion.awarded) < Number(retestCriterion.maxMarks)
+      })
+      .flatMap((criterion) => {
+        const part = unit.parts?.find((item) => item.id === criterion.partId)
+        if (!part) return []
+        const id = `${attempt.id}-${criterion.partId}`
+        const review = reviewQueueState(id, reviewQueueAudit, now)
+        if (review.status !== 'open') return []
+        const sourcePaperId = String(part.sourceRef?.paperId || part.sourceRef?.paper || part.sourceQuestionId || '')
+        const sourceQuestion = String(part.sourceRef?.question || part.displayLabel || part.label || criterion.partId)
+        const markPoints = [
+          ...(criterion.evidence || []).map((point) => point?.point || ''),
+          ...(part.markPoints || []),
+        ].filter(Boolean).join(' ')
+        return [{
+          id,
+          attempt,
+          unit,
+          part,
+          criterion,
+          severity: Number(criterion.awarded) === 0 ? 'High' : 'Medium',
+          status: provisional ? 'Provisional review' : criterion.status === 'review-needed' ? 'Review needed' : 'Open',
+          sourcePaperId,
+          sourceQuestion,
+          searchText: `${unit.title} ${unit.topic} ${part.label || ''} ${part.displayLabel || ''} ${sourcePaperId} ${sourceQuestion} ${criterion.feedback || ''} ${markPoints}`.toLowerCase(),
+          responseProjection: {
+            answeredQuestionCount: projection.answeredQuestionCount,
+            incorrectQuestionCount: projection.incorrectQuestionCount,
+            unansweredQuestionCount: projection.unansweredQuestionCount,
+          },
+          review,
+        }]
+      })
+  })
+}
+
+export function buildProvisionalAttemptEvidence({ attempts = [], units = [], routeId = '' } = {}) {
+  const unitsById = new Map(units.map((unit) => [unit.id, unit]))
+  return attempts.flatMap((attempt) => {
+    const unit = unitsById.get(attempt?.unitId)
+    if (!unit || (routeId && unit.routeId !== routeId) || !isProvisionalAttempt(attempt, unit)) return []
+    const responseProjection = attemptResponseProjection(attempt, unit)
+    if (responseProjection.answeredQuestionCount === 0) return []
+    return [{
+      attempt,
+      unit,
+      projection: {
+        answeredQuestionCount: responseProjection.answeredQuestionCount,
+        incorrectQuestionCount: responseProjection.incorrectQuestionCount,
+        unansweredQuestionCount: responseProjection.unansweredQuestionCount,
+      },
+    }]
+  }).toSorted((left, right) => Date.parse(left.attempt.submittedAt || '') - Date.parse(right.attempt.submittedAt || ''))
+}
+
 export function buildAttemptAudit(attempt, unit) {
-  const answeredPartIdsForAttempt = answeredPartIds(attempt, unit?.parts || [])
+  const projection = attemptResponseProjection(attempt, unit)
   const sourceBindingStatus = sourceBindingStatusForAttempt(attempt, unit)
   const scored = isScoredAttempt(attempt, unit)
-  const criteria = scored ? attempt.scoreResult.criteria || [] : []
+  const provisional = isProvisionalAttempt(attempt, unit)
+  const criteria = scored || provisional ? attempt.scoreResult.criteria || [] : []
   return {
     attemptId: attempt?.id || null,
     sourceAttemptId: attempt?.retestOf || null,
@@ -141,10 +297,20 @@ export function buildAttemptAudit(attempt, unit) {
     submittedAt: attempt?.submittedAt || null,
     status: attempt?.attemptStatus || attempt?.stage || 'unknown',
     sourceBindingStatus,
-    answeredPartIds: answeredPartIdsForAttempt,
-    answeredQuestionCount: answeredPartIdsForAttempt.length,
+    answeredPartIds: projection.answeredPartIds,
+    unansweredPartIds: projection.unansweredPartIds,
+    incorrectPartIds: projection.incorrectPartIds,
+    awaitingMarkPartIds: projection.awaitingMarkPartIds,
+    answeredQuestionCount: projection.answeredQuestionCount,
+    incorrectQuestionCount: projection.incorrectQuestionCount,
+    unansweredQuestionCount: projection.unansweredQuestionCount,
     scoredPartIds: criteria.map((criterion) => criterion.partId).filter(Boolean),
     score: scored ? {
+      rawMarks: attempt.scoreResult.rawMarks,
+      maxMarks: attempt.scoreResult.maxMarks,
+      percentage: attempt.scoreResult.percentage,
+    } : null,
+    provisionalScore: provisional ? {
       rawMarks: attempt.scoreResult.rawMarks,
       maxMarks: attempt.scoreResult.maxMarks,
       percentage: attempt.scoreResult.percentage,
@@ -190,23 +356,39 @@ export function buildLearningExport(state, { units = [], exportedAt = new Date()
       evidence: attempt.evidence?.[partId] || attempt.imageEvidence?.find((item) => item?.partId === partId) || null,
     }))
   })
-  const notebookItems = attempts.flatMap((attempt) => {
-    const unit = unitById.get(attempt.unitId)
-    if (!isScoredAttempt(attempt, unit)) return []
-    return (attempt.scoreResult.criteria || [])
-      .filter((criterion) => hasAttemptResponse(attempt, criterion.partId))
-      .filter((criterion) => Number(criterion.awarded) < Number(criterion.maxMarks))
-      .map((criterion) => ({
-        id: `${attempt.id}-${criterion.partId}`,
-        attemptId: attempt.id,
-        unitId: attempt.unitId || unit?.id || null,
-        partId: criterion.partId,
-        awarded: criterion.awarded,
-        maxMarks: criterion.maxMarks,
-        status: criterion.status || 'open',
-        feedback: criterion.feedback || '',
-      }))
-  })
+  const notebookItems = buildAttemptReviewQueue({
+    attempts,
+    units,
+    reviewQueueAudit: state?.reviewQueueAudit || [],
+  }).map((item) => ({
+    id: item.id,
+    attemptId: item.attempt.id,
+    unitId: item.unit.id,
+    partId: item.part.id,
+    awarded: item.criterion.awarded,
+    maxMarks: item.criterion.maxMarks,
+    status: item.status,
+    feedback: item.criterion.feedback || '',
+    sourcePaperId: item.sourcePaperId || null,
+    sourceQuestion: item.sourceQuestion || null,
+  }))
+  const provisionalNotebookItems = buildAttemptReviewQueue({
+    attempts,
+    units,
+    reviewQueueAudit: state?.reviewQueueAudit || [],
+    includeProvisional: true,
+  }).filter((item) => isProvisionalAttempt(item.attempt, item.unit)).map((item) => ({
+    id: item.id,
+    attemptId: item.attempt.id,
+    unitId: item.unit.id,
+    partId: item.part.id,
+    awarded: item.criterion.awarded,
+    maxMarks: item.criterion.maxMarks,
+    status: item.status,
+    feedback: item.criterion.feedback || '',
+    sourcePaperId: item.sourcePaperId || null,
+    sourceQuestion: item.sourceQuestion || null,
+  }))
   const profile = state?.profile || {}
   return {
     schemaVersion: EXPORT_SCHEMA_VERSION,
@@ -216,7 +398,7 @@ export function buildLearningExport(state, { units = [], exportedAt = new Date()
     data: {
       attempts: attempts.map(exportAttemptRecord),
       responses,
-      notebook: { items: notebookItems, notes: state?.notebookNotes || {} },
+      notebook: { items: notebookItems, provisionalItems: provisionalNotebookItems, notes: state?.notebookNotes || {}, reviewQueueAudit: state?.reviewQueueAudit || [] },
       vocabulary: state?.vocabulary || state?.savedVocabulary || [],
       goals: {
         targetGrade: profile.targetGrade || null,

@@ -22,17 +22,22 @@ function hasRenderedAsset(assetRoot) {
 }
 
 const releaseRoot = path.resolve(option('--release-root') || process.env.STEM_RELEASE_ROOT || process.cwd())
+const paperLibraryRoot = option('--pdf-library-root') || process.env.CIE_LIBRARY_ROOT || ''
 const assetRoot = path.join(releaseRoot, 'public', 'question-assets')
 const catalogPath = path.join(releaseRoot, 'public', 'data', 'papers.json')
 const auditScript = path.join(releaseRoot, 'scripts', 'audit-question-bank.mjs')
+const paperAuditScript = path.join(releaseRoot, 'scripts', 'audit-paper-catalog.mjs')
 const manifestPath = path.join(releaseRoot, 'src', 'data', 'sourceContentManifest.json')
 const identityPath = path.join(releaseRoot, 'src', 'data', 'sourceContentIdentity.js')
 
 assert.ok(fs.existsSync(auditScript), `Release audit script is missing: ${auditScript}`)
+assert.ok(fs.existsSync(paperAuditScript), `Release paper catalog audit script is missing: ${paperAuditScript}`)
 assert.ok(fs.existsSync(assetRoot) && fs.statSync(assetRoot).isDirectory(), 'Release is missing public/question-assets')
 assert.ok(hasRenderedAsset(assetRoot), 'Release public/question-assets contains no rendered source pages')
 assert.ok(fs.existsSync(catalogPath) && fs.statSync(catalogPath).size > 0, 'Release is missing public/data/papers.json')
 JSON.parse(fs.readFileSync(catalogPath, 'utf8'))
+assert.ok(paperLibraryRoot, 'Pass --pdf-library-root <path> for the governed local PDF library')
+assert.ok(fs.existsSync(paperLibraryRoot) && fs.statSync(paperLibraryRoot).isDirectory(), `Governed PDF library is missing: ${paperLibraryRoot}`)
 
 const env = { ...process.env }
 delete env.SOURCE_AUDIT_ROOT
@@ -44,6 +49,13 @@ const result = spawnSync(process.execPath, [auditScript], {
   maxBuffer: 32 * 1024 * 1024,
 })
 assert.equal(result.status, 0, `Release source audit failed:\n${result.stdout}\n${result.stderr}`)
+const paperAudit = spawnSync(process.execPath, [paperAuditScript], {
+  cwd: releaseRoot,
+  env: { ...env, CIE_LIBRARY_ROOT: paperLibraryRoot },
+  encoding: 'utf8',
+  maxBuffer: 32 * 1024 * 1024,
+})
+assert.equal(paperAudit.status, 0, `Release paper catalog audit failed:\n${paperAudit.stdout}\n${paperAudit.stderr}`)
 
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
 const identity = fs.readFileSync(identityPath, 'utf8')
@@ -56,4 +68,5 @@ console.log(JSON.stringify({
   sourceIndexSha256: manifest.sourceIndexSha256,
   manifestChecksum: manifest.checksum,
   catalogBytes: fs.statSync(catalogPath).size,
+  paperLibraryRoot,
 }, null, 2))

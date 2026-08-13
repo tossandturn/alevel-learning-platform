@@ -83,7 +83,8 @@ function validHmacJwt(token, key, { issuer, audience, maxLifetimeSeconds = 900 }
 
 function authenticatedStemUser(request, env) {
   const token = String(request.headers.authorization || '').match(/^Bearer\s+(.+)$/i)?.[1]
-  const claims = validHmacJwt(token, env.STEM_IDENTITY_SIGNING_KEY, { issuer: 'ieltsist.com', audience: 'stem.ieltsist.com', maxLifetimeSeconds: 60 * 60 })
+  const identitySigningKey = env.STEM_IDENTITY_SIGNING_KEY || env.STEM_INTERNAL_AUTH_KEY
+  const claims = validHmacJwt(token, identitySigningKey, { issuer: 'ieltsist.com', audience: 'stem.ieltsist.com', maxLifetimeSeconds: 60 * 60 })
   return claims && /^ielts:\d+$/.test(String(claims.sub)) ? String(claims.sub) : null
 }
 
@@ -616,11 +617,12 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
 
 async function handleHandwritingMark(request, response, provider, libraryRoot, allowedSubjects, sourceAssetRoot, env) {
   const payload = await readJsonBody(request)
+  const identitySigningKey = env.STEM_IDENTITY_SIGNING_KEY || env.STEM_INTERNAL_AUTH_KEY
   const capability = verifyMarkingCapability({
     request,
     payload,
-    identitySigningKey: env.STEM_IDENTITY_SIGNING_KEY,
-    capabilitySigningKey: env.STEM_MARKING_CAPABILITY_SIGNING_KEY || env.STEM_IDENTITY_SIGNING_KEY,
+    identitySigningKey,
+    capabilitySigningKey: env.STEM_MARKING_CAPABILITY_SIGNING_KEY || identitySigningKey,
   })
   if (!capability.ok) {
     return sendJson(response, capability.statusCode || 403, {

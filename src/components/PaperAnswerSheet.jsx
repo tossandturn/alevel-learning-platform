@@ -1,10 +1,10 @@
 import { useId, useState } from 'react'
-import { Sparkles } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react'
 import { HandwritingPad } from './HandwritingPad'
-import { sharedAuthUrl } from '../lib/sharedAccount'
 
 const CHOICES = ['A', 'B', 'C', 'D']
 const MODES = new Set(['mcq', 'structured', 'practical'])
+const QUESTION_INDEX_WINDOW = 11
 
 function hasText(value) {
   return Boolean(String(value ?? '').trim())
@@ -170,6 +170,7 @@ export function PaperAnswerSheet({
   reviewedResponseQuestionNumbers = [],
   sharedMarkingContract = null,
   sharedIdentityConnected = false,
+  onOpenAccount,
   aiMarkingInProgress = false,
   disabled = false,
   onAnswerChange,
@@ -197,7 +198,9 @@ export function PaperAnswerSheet({
   const pdfInkQuestions = new Set(pdfInkQuestionNumbers)
   const states = questionNumbers.map((questionNumber) => questionState(mode, draftAnswers[questionNumber] || {}, pdfInkQuestions.has(questionNumber)))
   const completedCount = states.filter((state) => state === 'complete').length
-  const renderedQuestionNumbers = mode === 'mcq' || pdfInkActive ? [currentQuestion] : questionNumbers
+  const renderedQuestionNumbers = [currentQuestion]
+  const questionIndexStart = Math.max(1, Math.min(Math.max(1, totalQuestions - QUESTION_INDEX_WINDOW + 1), currentQuestion - Math.floor(QUESTION_INDEX_WINDOW / 2)))
+  const visibleQuestionNumbers = questionNumbers.slice(questionIndexStart - 1, questionIndexStart - 1 + QUESTION_INDEX_WINDOW)
   const answersLocked = disabled || submitted
   const paperLabel = profile.paperNumber ? `Paper ${profile.paperNumber}` : profile.title || 'Paper'
   const modeLabel = mode === 'mcq' ? `${paperLabel} multiple choice` : mode === 'practical' ? 'Practical paper' : 'Structured paper'
@@ -239,22 +242,28 @@ export function PaperAnswerSheet({
       {submitted && reviewedResponseQuestionNumbers.length > 0 && (
         <section className="paper-answer-sheet__ai-marking-status" aria-live="polite">
           <strong>AI-assisted marking is formative, source-grounded, and not an official grade.</strong>
-          <span>{sharedMarkingContract ? (sharedIdentityConnected ? (allSubmittedResponsesReviewed ? 'Every submitted response in this paper has reviewed question-level marks and can be sent to IELTSist AI marking.' : 'Only submitted responses with reviewed question-level marks can be sent to IELTSist AI marking.') : 'Sign in with your IELTSist ID to mark your submitted reviewed responses. Your saved handwriting will still be here when you return.') : 'This paper has no server-approved reviewed marking manifest. Use the paired mark scheme to self-mark every response.'}</span>
-          {sharedMarkingContract && (sharedIdentityConnected ? <button type="button" className="paper-answer-sheet__ai-marking-action" onClick={() => onRequestAiMarking?.()} disabled={!onRequestAiMarking || aiMarkingInProgress}><Sparkles size={15} />{aiMarkingInProgress ? 'AI marking in progress' : 'Mark submitted answers with AI'}</button> : <a className="paper-answer-sheet__ai-marking-action" href={sharedAuthUrl('login')}><Sparkles size={15} />Sign in to mark with AI</a>)}
+          <span>{sharedMarkingContract ? (sharedIdentityConnected ? (allSubmittedResponsesReviewed ? 'Every submitted response in this paper has reviewed question-level marks and can be sent to AI marking.' : 'Only submitted responses with reviewed question-level marks can be sent to AI marking.') : 'Sign in to STEM with your shared account to mark submitted reviewed responses. Your saved handwriting stays here.') : 'This paper has no server-approved reviewed marking manifest. Use the paired mark scheme to self-mark every response.'}</span>
+          {sharedMarkingContract && (sharedIdentityConnected ? <button type="button" className="paper-answer-sheet__ai-marking-action" onClick={() => onRequestAiMarking?.()} disabled={!onRequestAiMarking || aiMarkingInProgress}><Sparkles size={15} />{aiMarkingInProgress ? 'AI marking in progress' : 'Mark submitted answers with AI'}</button> : <button type="button" className="paper-answer-sheet__ai-marking-action" onClick={() => onOpenAccount?.('login')}><Sparkles size={15} />Sign in to mark with AI</button>)}
         </section>
       )}
 
       <nav className="paper-answer-sheet__index" aria-label="Question completion">
+        <button type="button" className="paper-answer-sheet__index-step" aria-label="Previous answer question" disabled={currentQuestion <= 1} onClick={() => onQuestionFocus?.(currentQuestion - 1)}><ChevronLeft size={15} /></button>
         <ol>
-          {questionNumbers.map((questionNumber, index) => (
+          {visibleQuestionNumbers.map((questionNumber) => {
+            const index = questionNumber - 1
+            return (
             <li key={questionNumber} data-state={states[index]}>
               <a href={`#${instanceId}-question-${questionNumber}`} aria-current={questionNumber === currentQuestion ? 'step' : undefined} aria-label={`Question ${questionNumber}, ${stateLabel(states[index])}`} onClick={(event) => { event.preventDefault(); onQuestionFocus?.(questionNumber) }}>
                 <span aria-hidden="true">{questionNumber}</span>
                 <span className="sr-only">{stateLabel(states[index])}</span>
               </a>
             </li>
-          ))}
+            )
+          })}
         </ol>
+        <button type="button" className="paper-answer-sheet__index-step" aria-label="Next answer question" disabled={currentQuestion >= totalQuestions} onClick={() => onQuestionFocus?.(currentQuestion + 1)}><ChevronRight size={15} /></button>
+        <span className="paper-answer-sheet__index-range">{questionIndexStart}-{Math.min(totalQuestions, questionIndexStart + QUESTION_INDEX_WINDOW - 1)} of {totalQuestions}</span>
       </nav>
 
       <div className="paper-answer-sheet__questions">

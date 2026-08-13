@@ -11,6 +11,7 @@ import {
   Flag,
   GraduationCap,
   Heart,
+  History,
   BookOpen,
   ListFilter,
   LogIn,
@@ -34,7 +35,7 @@ import { PaperLibrary } from './components/PaperLibrary'
 import { PracticeWorkspace } from './components/PracticeWorkspace'
 import { usePaperCatalog } from './hooks/usePaperCatalog'
 import { loadState, makeAttemptId, normalizeState, saveState } from './lib/storage'
-import { hasAttemptResponse, hasCurrentSourceBindingForAttempt, isPendingSelfMarkAttempt, isScoredAttempt, prepareLearningExport, sourceBindingSnapshotForUnit } from './lib/attemptAudit'
+import { buildAttemptReviewQueue, buildProvisionalAttemptEvidence, hasAttemptResponse, hasCurrentSourceBindingForAttempt, isPendingSelfMarkAttempt, isProvisionalAttempt, isScoredAttempt, prepareLearningExport, sourceBindingSnapshotForUnit } from './lib/attemptAudit'
 import { mergeNotebookNote, notebookNoteRequest } from './lib/privateNotes'
 import { stripSourceVisualPlaceholders } from './lib/questionContent'
 import {
@@ -48,9 +49,10 @@ import {
 import { buildCoachPractice, buildVerifiedPracticeCatalog, coachPracticeOptions, MIN_VERIFIED_GROUPS_FOR_PRACTICE, previewCoachPracticeSourceMix, rebindVerifiedPracticeUnit, resolveVerifiedPracticeSelection, topicQueryForRoute } from './lib/verifiedPracticeCatalog'
 import { latestBphoSpcPaper } from './lib/coachIntent'
 import { buildCompletionByUnit, buildLearningProgress, recommendForRoute } from './lib/learningProgress'
-import { professionalTermsUrl, requestSharedAccount, requestSharedWorkspace, sharedAccountRequest, sharedAuthUrl, sharedLogoutUrl } from './lib/sharedAccount'
+import { professionalTermsUrl, requestSharedAccount, requestSharedWorkspace, sharedAccountRequest, signInSharedAccount, signOutSharedAccount } from './lib/sharedAccount'
 import { requestMarkingCapabilities } from './lib/markingCapabilityClient'
 import { parseProductContext, termIdsForStemContext } from './lib/productContext'
+import { studentNavigationFromLocation, studentNavigationHref } from './lib/studentNavigation'
 import { buildStemVocabularyContext, vocabularyCoverageForRoute } from './data/stemVocabularyTaxonomy'
 import { verifiedPracticeQuestionGroups } from './lib/verifiedPracticeCatalog'
 import './App.css'
@@ -233,14 +235,16 @@ function getIncomingProductContext() {
 }
 
 function App() {
+  const [initialNavigation] = useState(() => studentNavigationFromLocation())
   const [appState, setAppState] = useState(() => loadState())
   const paperCatalogState = usePaperCatalog()
   const incomingContext = getIncomingProductContext()
   const incomingTopicQuery = topicQueryForRoute(incomingContext.routeId, incomingContext.topicId)
-  const [view, setView] = useState(() => incomingContext.from === 'ieltsist' || incomingContext.focus ? 'library' : 'dashboard')
-  const [activeTab, setActiveTab] = useState('recommended')
-  const [selectedTopicId, setSelectedTopicId] = useState(() => incomingContext.topicId || null)
+  const [view, setView] = useState(() => initialNavigation.view !== 'dashboard' ? initialNavigation.view : incomingContext.from === 'ieltsist' || incomingContext.focus ? 'library' : 'dashboard')
+  const [activeTab, setActiveTab] = useState(() => initialNavigation.tab)
+  const [selectedTopicId, setSelectedTopicId] = useState(() => initialNavigation.topicId || incomingContext.topicId || null)
   const [activeRouteId, setActiveRouteId] = useState(() => {
+    if (routeById(initialNavigation.routeId)) return initialNavigation.routeId
     if (routeById(incomingContext.routeId)) return incomingContext.routeId
     if (routeById(appState.profile?.activeRouteId)) return appState.profile.activeRouteId
     return routesForSubject(incomingContext.subjectId).find((route) => route.stage === 'AS')?.routeId
@@ -258,12 +262,15 @@ function App() {
   const [pendingSession, setPendingSession] = useState(null)
   const [coachOpenRequest, setCoachOpenRequest] = useState(0)
   const [sharedAccount, setSharedAccount] = useState({ status: 'loading', token: '', workspace: null, error: '' })
+  const [accountDialogMode, setAccountDialogMode] = useState(null)
   const [stateOwnerId, setStateOwnerId] = useState('')
   const [exportState, setExportState] = useState({ status: 'idle', error: '', exportedAt: '', checksum: '' })
   const migrationAttemptedRef = useRef(false)
   const notebookSyncTimerRef = useRef(null)
   const stateOwnerIdRef = useRef('')
   const incomingTopicManuallyChangedRef = useRef(false)
+  const navigationInitializedRef = useRef(false)
+  const restoredLocationRef = useRef('')
   const verifiedCatalogUnits = useMemo(() => buildVerifiedPracticeCatalog(), [])
   const visibleVerifiedUnits = useMemo(() => {
     const persisted = (appState.generatedUnits || [])
@@ -332,7 +339,7 @@ function App() {
     setPendingSession(null)
     setSelectedTopicId(incomingContext.topicId || null)
     if (!incomingTopicManuallyChangedRef.current) setQuery(topicQueryForRoute(nextRouteId, incomingContext.topicId))
-    if (stateOwnerId) setView('dashboard')
+    restoredLocationRef.current = ''
   }, [incomingContext.routeId, incomingContext.topicId, sharedAccount.identity?.id, sharedAccount.status, stateOwnerId])
 
   useEffect(() => {
@@ -448,45 +455,26 @@ function App() {
     return buildCompletionByUnit({ attempts: appState.attempts, units: allPracticeUnits, routes: courseRoutes, routeId: activeRouteId })
   }, [activeRouteId, allPracticeUnits, appState.attempts])
 
-  const mistakes = useMemo(() => {
-    const attemptById = new Map(appState.attempts.map((attempt) => [attempt.id, attempt]))
-    const unitById = new Map(allPracticeUnits.map((unit) => [unit.id, unit]))
-    const latestRetestCriterion = (sourceAttempt, partId) => [...appState.attempts].reverse().find((candidate) => {
-      let parentId = candidate.retestOf
-      while (parentId) {
-        if (parentId === sourceAttempt.id) {
-          return isScoredAttempt(candidate, unitById.get(candidate.unitId))
-            && candidate.scoreResult?.criteria?.some((criterion) => criterion.partId === partId)
-        }
-        parentId = attemptById.get(parentId)?.retestOf
-      }
-      return false
-    })?.scoreResult?.criteria?.find((criterion) => criterion.partId === partId)
+  const mistakes = useMemo(() => buildAttemptReviewQueue({
+    attempts: appState.attempts,
+    units: allPracticeUnits,
+    routeId: activeRouteId,
+    reviewQueueAudit: appState.reviewQueueAudit,
+  }), [activeRouteId, allPracticeUnits, appState.attempts, appState.reviewQueueAudit])
 
-    return appState.attempts.flatMap((attempt) => {
-      const unit = allPracticeUnits.find((item) => item.id === attempt.unitId)
-      if (!unit || unit.routeId !== activeRouteId || !isScoredAttempt(attempt, unit)) return []
-      return attempt.scoreResult.criteria
-        .filter((criterion) => hasAttemptResponse(attempt, criterion.partId))
-        .filter((criterion) => criterion.awarded < criterion.maxMarks)
-        .filter((criterion) => {
-          const retestCriterion = latestRetestCriterion(attempt, criterion.partId)
-          return !retestCriterion || retestCriterion.awarded < retestCriterion.maxMarks
-        })
-        .map((criterion) => {
-          const part = unit.parts.find((item) => item.id === criterion.partId)
-          return {
-            id: `${attempt.id}-${criterion.partId}`,
-            attempt,
-            unit,
-            part,
-            criterion,
-            severity: criterion.awarded === 0 ? 'High' : 'Medium',
-            status: criterion.status === 'review-needed' ? 'Review needed' : 'Open',
-          }
-        })
-    })
-  }, [activeRouteId, allPracticeUnits, appState.attempts])
+  const provisionalMistakes = useMemo(() => buildAttemptReviewQueue({
+    attempts: appState.attempts,
+    units: allPracticeUnits,
+    routeId: activeRouteId,
+    reviewQueueAudit: appState.reviewQueueAudit,
+    includeProvisional: true,
+  }).filter((item) => isProvisionalAttempt(item.attempt, item.unit)), [activeRouteId, allPracticeUnits, appState.attempts, appState.reviewQueueAudit])
+
+  const provisionalEvidence = useMemo(() => buildProvisionalAttemptEvidence({
+    attempts: appState.attempts,
+    units: allPracticeUnits,
+    routeId: activeRouteId,
+  }), [activeRouteId, allPracticeUnits, appState.attempts])
 
   const paperMistakes = useMemo(() => {
     const reviews = appState.paperReviews || []
@@ -523,9 +511,11 @@ function App() {
 
       return Array.from({ length: session.questionCount || 0 }, (_, index) => index + 1).flatMap((questionNumber) => {
         const answer = activeSession.answers?.[questionNumber] || {}
+        const responseBody = String(answer.response || answer.finalAnswer || answer.working || '').trim()
         const hasResponse = activeSession.profile?.mode === 'mcq'
           ? Boolean(answer.choice)
-          : Boolean(String(answer.finalAnswer || '').trim() || answer.image || pdfInkQuestionNumbers.has(questionNumber))
+          : Boolean(responseBody || answer.image || pdfInkQuestionNumbers.has(questionNumber))
+        if (!hasResponse) return []
         const awardedValue = activeReview.selfMarks?.[questionNumber]
         const maxValue = activeSession.profile?.mode === 'mcq' ? 1 : activeReview.maxMarksByQuestion?.[questionNumber]
         const awarded = awardedValue === '' || awardedValue == null ? null : Number(awardedValue)
@@ -542,7 +532,7 @@ function App() {
           awarded: Number.isFinite(awarded) ? awarded : null,
           maxMarks: Number.isFinite(maxMarks) ? maxMarks : null,
           severity: Number.isFinite(awarded) && awarded === 0 ? 'High' : 'Medium',
-          status: !hasResponse ? 'Blank response' : Number.isFinite(awarded) ? 'Open' : 'Self-mark needed',
+          status: Number.isFinite(awarded) ? 'Open' : 'Self-mark needed',
         }]
       })
     })
@@ -652,14 +642,46 @@ function App() {
     }
   }
 
-  function disconnectSharedAccount() {
+  function recordReviewQueueAction(reviewItemId, action, reason = '', snoozeUntil = null) {
+    const allowedActions = new Set(['ignored', 'archived', 'snoozed', 'dismissed', 'manual-mastered', 'deleted'])
+    if (!allowedActions.has(action) || !reviewItemId) return
+    const at = new Date().toISOString()
+    setAppState((state) => ({
+      ...state,
+      reviewQueueAudit: [
+        ...(state.reviewQueueAudit || []),
+        {
+          id: makeAttemptId().replace('att-', 'review-'),
+          reviewItemId,
+          action,
+          reason: String(reason || '').trim().slice(0, 300),
+          at,
+          snoozeUntil: snoozeUntil || null,
+        },
+      ].slice(-500),
+    }))
+  }
+
+  async function disconnectSharedAccount() {
+    try {
+      await signOutSharedAccount()
+    } catch {
+      // The local session is cleared optimistically so an unavailable server
+      // cannot leave a stale signed-in UI on this device.
+    }
     setSharedAccount({ status: 'guest', token: '', workspace: null, error: 'You are signed out of the STEM session.' })
-    window.location.assign(sharedLogoutUrl())
+  }
+
+  async function submitNativeAccount({ mode, username, password }) {
+    const account = await signInSharedAccount({ mode, username, password })
+    const workspace = await requestSharedWorkspace(account.token)
+    setSharedAccount({ status: 'ready', ...account, workspace, error: '' })
+    setAccountDialogMode(null)
   }
 
   async function createClassroom(name) {
     const account = sharedAccount.status === 'ready' ? sharedAccount : await refreshSharedAccount()
-    if (!account?.token) throw new Error('Sign in to IELTS-ist before creating a class.')
+    if (!account?.token) throw new Error('Sign in to STEM before creating a class.')
     const result = await sharedAccountRequest(account.token, '/api/stem/classrooms', { method: 'POST', body: JSON.stringify({ name }) })
     const workspace = await requestSharedWorkspace(account.token)
     setSharedAccount((current) => ({ ...current, status: 'ready', workspace }))
@@ -668,7 +690,7 @@ function App() {
 
   async function joinClassroom(inviteCode) {
     const account = sharedAccount.status === 'ready' ? sharedAccount : await refreshSharedAccount()
-    if (!account?.token) throw new Error('Sign in to IELTS-ist before joining a class.')
+    if (!account?.token) throw new Error('Sign in to STEM before joining a class.')
     await sharedAccountRequest(account.token, '/api/stem/classrooms/join', { method: 'POST', body: JSON.stringify({ inviteCode }) })
     const workspace = await requestSharedWorkspace(account.token)
     setSharedAccount((current) => ({ ...current, status: 'ready', workspace }))
@@ -676,7 +698,7 @@ function App() {
 
   async function createAssignment(draft) {
     const account = sharedAccount.status === 'ready' ? sharedAccount : await refreshSharedAccount()
-    if (!account?.token) throw new Error('Sign in to IELTS-ist before creating an assignment.')
+    if (!account?.token) throw new Error('Sign in to STEM before creating an assignment.')
     const route = routeById(draft.routeId)
     if (!route || route.stage !== draft.stage) throw new Error('Choose a valid registered route before publishing.')
     const subject = subjects.find((item) => item.routeIds?.includes(route.routeId))
@@ -754,7 +776,7 @@ function App() {
       ].slice(0, 8),
     }))
     const draft = options.clearDraft ? null : appState.drafts[sessionUnit.id]
-    setCurrentAttempt({
+    const openedAttempt = {
       id: draft?.attemptId || makeAttemptId(),
       unitId: sessionUnit.id,
       routeId: sessionUnit.routeId,
@@ -775,7 +797,27 @@ function App() {
       assignmentId: options.assignmentId || null,
       sourceBinding: sourceBindingSnapshotForUnit(sessionUnit),
       settings: options.settings || draft?.settings || { mode: sessionUnit.type === 'paper' ? 'exam' : 'practice', timing: 'recommended', hints: true },
-    })
+    }
+    setAppState((state) => ({
+      ...state,
+      drafts: {
+        ...state.drafts,
+        [sessionUnit.id]: {
+          attemptId: openedAttempt.id,
+          startedAt: openedAttempt.startedAt,
+          routeId: openedAttempt.routeId,
+          stage: openedAttempt.stage,
+          answers: openedAttempt.answers,
+          working: openedAttempt.working,
+          evidence: openedAttempt.evidence,
+          elapsedSec: openedAttempt.elapsedSec,
+          activePartId: openedAttempt.activePartId,
+          settings: openedAttempt.settings,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    }))
+    setCurrentAttempt(openedAttempt)
     setPendingSession(null)
     setResultAttempt(null)
     setView('practice')
@@ -1172,6 +1214,149 @@ function App() {
       || resultUnit.parts[0]
     : null
 
+  const restoreStudentNavigation = useCallback((navigation) => {
+    const route = routeById(navigation.routeId)
+    const routeId = route?.routeId || activeRouteId
+    if (route && route.routeId !== activeRouteId) selectRoute(route.routeId)
+    if (navigation.view === 'library') setActiveTab(navigation.tab)
+    if (navigation.topicId) setSelectedTopicId(navigation.topicId)
+
+    if (navigation.view === 'practice') {
+      const unit = allPracticeUnits.find((item) => item.id === navigation.unitId)
+      const draft = unit ? appState.drafts?.[unit.id] : null
+      if (!unit || !draft || (navigation.attemptId && draft.attemptId !== navigation.attemptId)) {
+        setCurrentAttempt(null)
+        setResultAttempt(null)
+        setActivePaper(null)
+        setActiveTab('topics')
+        setView('library')
+        return
+      }
+      const currentBoundUnit = unit.parts?.some((part) => part.sourceKind === 'past-paper') ? rebindVerifiedPracticeUnit(unit) : unit
+      if (!currentBoundUnit) {
+        setCurrentAttempt(null)
+        setView('library')
+        return
+      }
+      const restoredAttempt = {
+        id: draft.attemptId,
+        unitId: currentBoundUnit.id,
+        routeId: currentBoundUnit.routeId,
+        qualification: currentBoundUnit.qualification,
+        courseStage: currentBoundUnit.stage,
+        mode: currentBoundUnit.type,
+        stage: currentBoundUnit.stage,
+        attemptStatus: 'practice',
+        startedAt: draft.startedAt || new Date().toISOString(),
+        elapsedSec: Math.max(0, Number(draft.elapsedSec) || 0),
+        durationSec: currentBoundUnit.durationSec,
+        activePartId: currentBoundUnit.parts.some((part) => part.id === navigation.partId)
+          ? navigation.partId
+          : draft.activePartId || currentBoundUnit.parts[0]?.id,
+        answers: migratePracticeAnswers(currentBoundUnit, draft),
+        working: draft.working || {},
+        evidence: draft.evidence || {},
+        saveStatus: 'Restored draft',
+        retestOf: null,
+        sourceBinding: sourceBindingSnapshotForUnit(currentBoundUnit),
+        settings: draft.settings || { mode: currentBoundUnit.type === 'paper' ? 'exam' : 'practice', timing: 'recommended', hints: true },
+      }
+      setCurrentAttempt(restoredAttempt)
+      setResultAttempt(null)
+      setActivePaper(null)
+      setView('practice')
+      return
+    }
+
+    if (navigation.view === 'result') {
+      const attempt = appState.attempts.find((item) => item.id === navigation.attemptId)
+      const unit = attempt && allPracticeUnits.find((item) => item.id === attempt.unitId)
+      if (attempt && unit && (isPendingSelfMarkAttempt(attempt) || isProvisionalAttempt(attempt, unit) || isScoredAttempt(attempt, unit))) {
+        setResultAttempt(attempt)
+        setCurrentAttempt(null)
+        setActivePaper(null)
+        setView('result')
+        return
+      }
+      setView('history')
+      return
+    }
+
+    if (navigation.view === 'paper') {
+      if (paperCatalogState.status === 'loading') return
+      const paper = paperCatalogState.catalog?.items?.find((item) => item.id === navigation.paperId)
+      if (paper) {
+        const scopedRoute = routeById(routeId) || activeRoute
+        const savedDraft = appState.paperDrafts?.[paper.pairKey || paper.id]
+        const paperAttemptId = navigation.attemptId || savedDraft?.attemptId || ''
+        if (navigation.attemptId && (!savedDraft || savedDraft.attemptId !== navigation.attemptId)) {
+          setActiveTab('papers')
+          setView('library')
+          return
+        }
+        setActivePaper({ ...paper, routeId: scopedRoute.routeId, stage: scopedRoute.stage, qualification: scopedRoute.qualification, ...(paperAttemptId ? { attemptId: paperAttemptId } : {}) })
+        setCurrentAttempt(null)
+        setResultAttempt(null)
+        setView('paper')
+        return
+      }
+      setActiveTab('papers')
+      setView('library')
+      return
+    }
+
+    setCurrentAttempt(null)
+    setResultAttempt(null)
+    setActivePaper(null)
+    setView(navigation.view)
+  }, [activeRoute, activeRouteId, allPracticeUnits, appState.attempts, appState.drafts, appState.paperDrafts, paperCatalogState.catalog, paperCatalogState.status])
+
+  useEffect(() => {
+    const restoreLocation = () => {
+      const currentHref = window.location.href
+      if (restoredLocationRef.current === currentHref) {
+        navigationInitializedRef.current = true
+        return
+      }
+      restoredLocationRef.current = currentHref
+      navigationInitializedRef.current = true
+      restoreStudentNavigation(studentNavigationFromLocation(currentHref))
+    }
+    restoreLocation()
+    window.addEventListener('popstate', restoreLocation)
+    window.addEventListener('hashchange', restoreLocation)
+    return () => {
+      window.removeEventListener('popstate', restoreLocation)
+      window.removeEventListener('hashchange', restoreLocation)
+    }
+  }, [restoreStudentNavigation])
+
+  const navigationHref = studentNavigationHref({
+    view,
+    routeId: activeRoute.routeId,
+    stage: activeRoute.stage,
+    course: activeRoute.subjectCode,
+    tab: activeTab,
+    topicId: view === 'topic' ? selectedTopicId : '',
+    unitId: view === 'practice' ? currentAttempt?.unitId : '',
+    paperId: view === 'paper' ? activePaper?.id : '',
+    attemptId: view === 'practice' ? currentAttempt?.id : view === 'result' ? resultAttempt?.id : view === 'paper' ? activePaper?.attemptId || activePaper?.retestOf || '' : '',
+    partId: view === 'practice' ? currentAttempt?.activePartId : '',
+    mode: view === 'practice' ? currentAttempt?.settings?.mode || currentAttempt?.mode : '',
+  })
+
+  useEffect(() => {
+    const currentHref = `${window.location.pathname}${window.location.search}`
+    if (currentHref === navigationHref) {
+      navigationInitializedRef.current = true
+      return
+    }
+    if (navigationInitializedRef.current) window.history.pushState({}, '', navigationHref)
+    else window.history.replaceState({}, '', navigationHref)
+    navigationInitializedRef.current = true
+    restoredLocationRef.current = window.location.href
+  }, [navigationHref])
+
   function returnToLibrary(tab = 'recommended') {
     setCurrentAttempt(null)
     setPendingSession(null)
@@ -1184,7 +1369,7 @@ function App() {
 
   return (
     <main className={`app-shell app-shell--${view}`}>
-      {view !== 'practice' && view !== 'paper' && <TopNav view={view} activeTab={activeTab} activeRoute={activeRoute} setView={setView} profile={appState.profile} sharedAccount={sharedAccount} onRefreshSharedAccount={refreshSharedAccount} onDisconnectSharedAccount={disconnectSharedAccount} openNotebook={() => setView('notebook')} openRoleWorkspace={() => setView('workspace')} openPractice={() => { setActiveTab('recommended'); setView('library') }} openPapers={() => { setActiveTab('papers'); setView('library') }} />}
+      {view !== 'practice' && view !== 'paper' && <TopNav view={view} activeTab={activeTab} activeRoute={activeRoute} setView={setView} profile={appState.profile} sharedAccount={sharedAccount} onDisconnectSharedAccount={disconnectSharedAccount} onOpenAccount={setAccountDialogMode} openNotebook={() => setView('notebook')} openRoleWorkspace={() => setView('workspace')} openPractice={() => { setActiveTab('recommended'); setView('library') }} openPapers={() => { setActiveTab('papers'); setView('library') }} />}
 
       {view === 'dashboard' && (
         <StudentDashboard
@@ -1198,6 +1383,7 @@ function App() {
           recommendation={recommendation}
           topicMastery={topicMastery}
           mistakes={mistakes}
+          provisionalEvidence={provisionalEvidence}
           practiceUnits={routePracticeUnits}
           paperMistakes={paperMistakes}
           learningProgress={learningProgress}
@@ -1213,6 +1399,7 @@ function App() {
            openCoach={() => setCoachOpenRequest((value) => value + 1)}
            sharedAccount={sharedAccount}
            onRefreshSharedAccount={refreshSharedAccount}
+           onOpenAccount={setAccountDialogMode}
            openNotebook={() => setView('notebook')}
           openRoleWorkspace={() => setView('workspace')}
         />
@@ -1228,12 +1415,15 @@ function App() {
           attempts={routeAttempts}
           units={routePracticeUnits}
           mistakes={mistakes}
+          provisionalMistakes={provisionalMistakes}
           paperMistakes={paperMistakes}
           note={appState.notebookNotes?.[activeRouteId] || null}
           onChangeNote={updateNotebookNote}
           onDeleteNote={() => updateNotebookNote('')}
           startPractice={startPractice}
           retestPaper={retestPaper}
+          onReviewAction={recordReviewQueueAction}
+          reviewQueueAudit={appState.reviewQueueAudit || []}
           openPractice={() => { setActiveTab('topics'); setView('library') }}
         />
       )}
@@ -1307,6 +1497,8 @@ function App() {
               return assignment ? { assignmentId: assignment.id, classroomId: assignment.classroomId, organizationId: assignment.organizationId || null } : null
             })()}
             sharedIdentityToken={sharedAccount.token}
+            onOpenAccount={() => setAccountDialogMode('login')}
+            onAttemptReady={(attemptId) => setActivePaper((current) => current && !current.attemptId ? { ...current, attemptId } : current)}
             stateOwnerId={stateOwnerId}
             immersive={Boolean(appState.profile?.immersiveLearning)}
             onToggleImmersive={setImmersiveLearning}
@@ -1335,6 +1527,13 @@ function App() {
           goBack={() => returnToLibrary('topics')}
         />
       )}
+
+      {accountDialogMode && <SharedAccountDialog
+        mode={accountDialogMode}
+        onClose={() => setAccountDialogMode(null)}
+        onModeChange={setAccountDialogMode}
+        onSubmit={submitNativeAccount}
+      />}
 
       {view === 'result' && resultUnit && resultAttempt && (
           <ResultView
@@ -1440,14 +1639,75 @@ function StudentRoutePicker({ activeRoute, routes = courseRoutes, selectRoute, c
   </div>
 }
 
-function SharedAccountBanner({ sharedAccount, onRefreshSharedAccount }) {
+function SharedAccountBanner({ sharedAccount, onRefreshSharedAccount, onOpenAccount }) {
   if (sharedAccount.status === 'ready') {
-    return <section className="student-account-banner student-account-banner--ready" role="status"><CheckCircle2 size={19} /><div><strong>IELTSist ID connected</strong><span>{sharedAccount.identity?.username || 'Your shared account'} · STEM progress can sync across devices.</span></div><button type="button" className="text-action" onClick={onRefreshSharedAccount}>Refresh session <RefreshCcw size={14} /></button></section>
+    return <section className="student-account-banner student-account-banner--ready" role="status"><CheckCircle2 size={19} /><div><strong>Shared account connected</strong><span>{sharedAccount.identity?.username || 'Your account'} · STEM has its own local session and syncs to the same account database.</span></div><button type="button" className="text-action" onClick={onRefreshSharedAccount}>Refresh session <RefreshCcw size={14} /></button></section>
   }
-  return <section className="student-account-banner" role="status"><LogIn size={19} /><div><strong>Save your learning across devices</strong><span>Use one IELTSist ID for IELTS and STEM. Your private notebook stays private from teachers and schools.</span></div><a className="primary-action compact-action" href={sharedAuthUrl('login')}>Log in or create account <ChevronRight size={15} /></a></section>
+  return <section className="student-account-banner" role="status"><LogIn size={19} /><div><strong>Save your learning across devices</strong><span>Use the same IELTSist account, but sign in directly on STEM. Your private notebook stays private from teachers and schools.</span></div><button type="button" className="primary-action compact-action" onClick={() => onOpenAccount?.('login')}>Log in or create account <ChevronRight size={15} /></button></section>
 }
 
-function TopNav({ view, activeTab, activeRoute, setView, profile, sharedAccount, onRefreshSharedAccount, onDisconnectSharedAccount, openNotebook, openRoleWorkspace, openPractice, openPapers }) {
+function SharedAccountDialog({ mode = 'login', onClose, onModeChange, onSubmit }) {
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const dialogRef = useRef(null)
+
+  useEffect(() => {
+    const firstField = dialogRef.current?.querySelector('input')
+    firstField?.focus?.()
+  }, [])
+
+  async function submit(event) {
+    event.preventDefault()
+    const normalizedUsername = username.trim()
+    if (!normalizedUsername || password.length < 8) {
+      setError('Enter a username and a password of at least 8 characters.')
+      return
+    }
+    if (mode === 'register' && password !== confirmPassword) {
+      setError('Passwords do not match.')
+      return
+    }
+    setError('')
+    setSubmitting(true)
+    try {
+      await onSubmit({ mode, username: normalizedUsername, password })
+    } catch (submitError) {
+      setError(submitError.message || 'STEM could not complete sign in.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="account-dialog-backdrop" role="presentation" onMouseDown={onClose}>
+      <section ref={dialogRef} className="account-dialog" role="dialog" aria-modal="true" aria-labelledby="stem-account-dialog-title" onMouseDown={(event) => event.stopPropagation()}>
+        <header className="account-dialog__header">
+          <div>
+            <p className="section-label">STEM account</p>
+            <h2 id="stem-account-dialog-title">{mode === 'register' ? 'Create your STEM account' : 'Sign in to STEM'}</h2>
+            <p>Use the same username and password as IELTSist. Sign-in stays on this STEM page.</p>
+          </div>
+          <button type="button" className="icon-button" onClick={onClose} aria-label="Close account dialog" title="Close account dialog">×</button>
+        </header>
+        <form onSubmit={submit}>
+          <label><span>Username or email</span><input autoFocus autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} /></label>
+          <label><span>Password</span><input type="password" autoComplete={mode === 'register' ? 'new-password' : 'current-password'} value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+          {mode === 'register' && <label><span>Confirm password</span><input type="password" autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} /></label>}
+          {error && <p className="account-dialog__error" role="alert">{error}</p>}
+          <footer>
+            <button type="button" className="secondary-action" onClick={() => onModeChange(mode === 'register' ? 'login' : 'register')}>{mode === 'register' ? 'Use existing account' : 'Create account'}</button>
+            <button type="submit" className="primary-action" disabled={submitting}>{submitting ? 'Signing in...' : mode === 'register' ? 'Create account' : 'Sign in'}</button>
+          </footer>
+        </form>
+      </section>
+    </div>
+  )
+}
+
+function TopNav({ view, activeTab, activeRoute, setView, profile, sharedAccount, onDisconnectSharedAccount, onOpenAccount, openNotebook, openRoleWorkspace, openPractice, openPapers }) {
   const [campusOpen, setCampusOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
   const learnerName = String(profile?.learnerName || 'Student').trim() || 'Student'
@@ -1490,7 +1750,7 @@ function TopNav({ view, activeTab, activeRoute, setView, profile, sharedAccount,
           Notebook
         </button>
       </nav>
-      <div className="nav-context"><a className="vocabulary-link" href={vocabularyUrl} target="_blank" rel="noreferrer"><Brain size={15} />Vocabulary</a><button type="button" className="notification-button" aria-label="Notifications"><span /></button><div className="account-menu"><button type="button" className={`account-trigger ${sharedAccount.status !== 'ready' ? 'account-trigger--guest' : ''}`} aria-label={sharedAccount.status === 'ready' ? `Account: ${accountName}` : 'Connect IELTSist account'} title={sharedAccount.status === 'ready' ? `Account: ${accountName}` : 'Connect IELTSist account'} aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}><span className="account-avatar">{firstName.slice(0, 1).toUpperCase()}</span><span>{sharedAccount.status === 'ready' ? accountName : 'Connect account'}</span><ChevronRight size={14} /></button>{accountOpen && <div className="account-popover"><strong>{sharedAccount.status === 'ready' ? accountName : 'IELTSist ID'}</strong><small>{sharedAccount.status === 'ready' ? 'Shared account connected' : 'One account for IELTS + STEM'}</small>{sharedAccount.status !== 'ready' ? <><p className="account-popover__hint">STEM does not create a second password. Continue to IELTSist to log in or register, then return here.</p><a className="account-popover__primary" href={sharedAuthUrl('login')}><LogIn size={15} />Log in to IELTSist <ChevronRight size={14} /></a><a href={sharedAuthUrl('register')}><Users size={15} />Create an IELTSist account <ChevronRight size={14} /></a>{sharedAccount.error && <p className="account-popover__error" role="alert">{sharedAccount.error}</p>}<button type="button" onClick={() => onRefreshSharedAccount()}><RefreshCcw size={15} />Check shared session <ChevronRight size={14} /></button></> : <><div><span>Student</span><b>STEM</b></div><span className="account-popover__privacy">Private notes are visible only to you.</span><a href="https://ieltsist.com/?from=stem#mine" target="_blank" rel="noreferrer">Open IELTSist account <ChevronRight size={14} /></a><button type="button" onClick={() => { openRoleWorkspace(); setAccountOpen(false) }}>Teacher &amp; school workspace <ChevronRight size={14} /></button><button type="button" className="account-popover__logout" onClick={() => { setAccountOpen(false); onDisconnectSharedAccount() }}><LogOut size={15} />Sign out of shared account <ChevronRight size={14} /></button></>}<div className="account-popover__legal"><a href="https://ieltsist.com/terms" target="_blank" rel="noreferrer">Terms</a><a href="https://ieltsist.com/privacy" target="_blank" rel="noreferrer">Privacy</a></div></div>}</div></div>
+      <div className="nav-context"><a className="vocabulary-link" href={vocabularyUrl} target="_blank" rel="noreferrer"><Brain size={15} />Vocabulary</a><button type="button" className="notification-button" aria-label="Notifications"><span /></button><div className="account-menu"><button type="button" className={`account-trigger ${sharedAccount.status !== 'ready' ? 'account-trigger--guest' : ''}`} aria-label={sharedAccount.status === 'ready' ? `Account: ${accountName}` : 'Sign in to STEM'} title={sharedAccount.status === 'ready' ? `Account: ${accountName}` : 'Sign in to STEM'} aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}><span className="account-avatar">{firstName.slice(0, 1).toUpperCase()}</span><span>{sharedAccount.status === 'ready' ? accountName : 'Sign in'}</span><ChevronRight size={14} /></button>{accountOpen && <div className="account-popover"><strong>{sharedAccount.status === 'ready' ? accountName : 'STEM account'}</strong><small>{sharedAccount.status === 'ready' ? 'Shared account connected' : 'Same account database as IELTSist'}</small>{sharedAccount.status !== 'ready' ? <><p className="account-popover__hint">Sign in or register directly in STEM. This creates only a local STEM session for the same IELTSist account.</p><button type="button" className="account-popover__primary" onClick={() => { setAccountOpen(false); onOpenAccount?.('login') }}><LogIn size={15} />Sign in <ChevronRight size={14} /></button><button type="button" onClick={() => { setAccountOpen(false); onOpenAccount?.('register') }}><Users size={15} />Create account <ChevronRight size={14} /></button>{sharedAccount.error && <p className="account-popover__error" role="alert">{sharedAccount.error}</p>}</> : <><div><span>Student</span><b>STEM</b></div><span className="account-popover__privacy">Private notes are visible only to you.</span><a href="https://ieltsist.com/#mine" target="_blank" rel="noreferrer">Open IELTSist separately <ChevronRight size={14} /></a><button type="button" onClick={() => { openRoleWorkspace(); setAccountOpen(false) }}>Teacher &amp; school workspace <ChevronRight size={14} /></button><button type="button" className="account-popover__logout" onClick={() => { setAccountOpen(false); onDisconnectSharedAccount() }}><LogOut size={15} />Sign out of STEM <ChevronRight size={14} /></button></>}<div className="account-popover__legal"><a href="https://ieltsist.com/terms" target="_blank" rel="noreferrer">Terms</a><a href="https://ieltsist.com/privacy" target="_blank" rel="noreferrer">Privacy</a></div></div>}</div></div>
     </header>
   )
 }
@@ -1690,7 +1950,7 @@ function Dashboard({
 }
 
 /* oxlint-enable no-unused-vars */
-function StudentDashboard({ activeRoute, routeOptions, selectRoute, profile, attempts, completionByUnit, recommendation, topicMastery, mistakes, paperMistakes, startPractice, setView, setActiveTab, setSubjectFilter, setQuery, allPracticeUnits, recentPractice, favoriteUnitIds, openNotebook, learningProgress, syllabusRoadmap, sharedAccount, onRefreshSharedAccount }) {
+function StudentDashboard({ activeRoute, routeOptions, selectRoute, profile, attempts, completionByUnit, recommendation, topicMastery, mistakes, provisionalEvidence = [], paperMistakes, startPractice, setView, setActiveTab, setSubjectFilter, setQuery, allPracticeUnits, recentPractice, favoriteUnitIds, openNotebook, learningProgress, syllabusRoadmap, sharedAccount, onRefreshSharedAccount, onOpenAccount }) {
   const nextUnit = recommendation.unit
   const unitById = new Map(allPracticeUnits.map((unit) => [unit.id, unit]))
   const scoredAttempts = attempts.filter((attempt) => {
@@ -1713,6 +1973,7 @@ function StudentDashboard({ activeRoute, routeOptions, selectRoute, profile, att
     .sort((a, b) => a.mastery - b.mastery)[0]
   const weakAreaName = weakRoadmapTopic?.name?.replace(/^\d+\s+/, '') || weakTopic?.topic || 'Your first completed topic'
   const weakAreaMastery = weakRoadmapTopic?.mastery ?? weakTopic?.score ?? null
+  const latestProvisionalEvidence = provisionalEvidence.at(-1)
 
   function openPractice({ tab = 'topics', subjectId, query } = {}) {
     if (subjectId) setSubjectFilter(subjectId)
@@ -1739,7 +2000,7 @@ function StudentDashboard({ activeRoute, routeOptions, selectRoute, profile, att
         <div><p>{firstName ? `Hi, ${firstName}.` : 'Your study plan'}</p><h1>Start here today.</h1><span>One focused session for the course you are studying now.</span></div>
         <StudentRoutePicker activeRoute={activeRoute} routes={routeOptions} selectRoute={selectRoute} />
       </header>
-      <SharedAccountBanner sharedAccount={sharedAccount} onRefreshSharedAccount={onRefreshSharedAccount} />
+      <SharedAccountBanner sharedAccount={sharedAccount} onRefreshSharedAccount={onRefreshSharedAccount} onOpenAccount={onOpenAccount} />
 
       <section className="recommended-session" aria-label="Recommended session">
         <div className="recommended-session__copy">
@@ -1805,7 +2066,7 @@ function StudentDashboard({ activeRoute, routeOptions, selectRoute, profile, att
         {recentUnits.length > 0 && <MiniUnitPanel eyebrow="Recent practice" title="Pick up where you left off" empty="" units={recentUnits} icon={<Dumbbell size={19} />} openPractice={startPractice} onManage={() => openPractice()} />}
         {favoriteUnits.length > 0 && <MiniUnitPanel eyebrow="Saved for later" title="Favourite practice" empty="" units={favoriteUnits} icon={<Heart size={19} />} openPractice={startPractice} onManage={() => openPractice({ tab: 'saved' })} favorite />}
       </div>}
-      <div className="dashboard-lower-grid"><section className="dashboard-panel performance-panel"><header><div><p className="section-label">Your performance</p><h2>Evidence from submitted work</h2></div><button type="button" className="text-action" onClick={() => setView('history')}>View progress <ChevronRight size={15} /></button></header><div className="performance-stats"><Stat label="Accuracy" value={average == null ? 'Not scored' : `${average}%`} detail={average == null ? 'Submit a set to start' : 'Submitted practice'} /><Stat label="Questions done" value={learningProgress.week.completedQuestions} detail="In the last 7 days" /><Stat label="Open mistakes" value={mistakes.length + paperMistakes.length} detail={weakTopic ? `${weakTopic.topic} needs attention` : 'Review after each result'} /><Stat label="Last attempt" value={latest ? `${latest.scoreResult.rawMarks}/${latest.scoreResult.maxMarks}` : 'Not started'} detail={latest ? formatDate(latest.submittedAt) : 'No submission yet'} /></div></section><section className="dashboard-panel mistakes-panel"><header><div><p className="section-label">Recent mistakes</p><h2>What to revisit</h2></div><button type="button" className="text-action" onClick={openNotebook}>Open notebook</button></header>{mistakes.length ? <div className="mistakes-compact">{mistakes.slice(0, 3).map((mistake) => <button type="button" key={mistake.id} onClick={() => startPractice(mistake.unit, { clearDraft: true, retestOf: mistake.attempt.id, onlyPartId: mistake.part.id })}><span>{mistake.unit.topic}</span><strong>{mistake.part.label}</strong><em>{mistake.criterion.maxMarks - mistake.criterion.awarded} mark{mistake.criterion.maxMarks - mistake.criterion.awarded === 1 ? '' : 's'}</em></button>)}</div> : <div className="compact-empty"><CheckCircle2 size={19} /><span>No weak points yet. Your next submitted set will create a focused review list.</span></div>}</section></div>
+      <div className="dashboard-lower-grid"><section className="dashboard-panel performance-panel"><header><div><p className="section-label">Your performance</p><h2>Evidence from submitted work</h2></div><button type="button" className="text-action" onClick={() => setView('history')}>View progress <ChevronRight size={15} /></button></header><div className="performance-stats"><Stat label="Accuracy" value={average == null ? 'Not scored' : `${average}%`} detail={average == null ? 'Submit a set to start' : 'Submitted practice'} /><Stat label="Questions done" value={learningProgress.week.completedQuestions} detail="In the last 7 days" /><Stat label="Open mistakes" value={mistakes.length + paperMistakes.length} detail={weakTopic ? `${weakTopic.topic} needs attention` : 'Review after each result'} /><Stat label="Last attempt" value={latest ? `${latest.scoreResult.rawMarks}/${latest.scoreResult.maxMarks}` : 'Not started'} detail={latest ? formatDate(latest.submittedAt) : 'No submission yet'} /></div>{latestProvisionalEvidence && <div className="dashboard-provisional-evidence" role="status"><strong>Provisional attempt</strong><span>{latestProvisionalEvidence.projection.answeredQuestionCount} answered · {latestProvisionalEvidence.projection.incorrectQuestionCount} incorrect · {latestProvisionalEvidence.projection.unansweredQuestionCount} unanswered</span><small>Saved for review only. It does not update mastery, progress, weak areas or the formal mistake queue.</small></div>}</section><section className="dashboard-panel mistakes-panel"><header><div><p className="section-label">Recent mistakes</p><h2>What to revisit</h2></div><button type="button" className="text-action" onClick={openNotebook}>Open notebook</button></header>{mistakes.length ? <div className="mistakes-compact">{mistakes.slice(0, 3).map((mistake) => <button type="button" key={mistake.id} onClick={() => startPractice(mistake.unit, { clearDraft: true, retestOf: mistake.attempt.id, onlyPartId: mistake.part.id })}><span>{mistake.unit.topic}</span><strong>{mistake.part.label}</strong><em>{mistake.criterion.maxMarks - mistake.criterion.awarded} mark{mistake.criterion.maxMarks - mistake.criterion.awarded === 1 ? '' : 's'}</em></button>)}</div> : <div className="compact-empty"><CheckCircle2 size={19} /><span>No weak points yet. Your next submitted set will create a focused review list.</span></div>}</section></div>
       <section className="dashboard-panel roadmap-compact"><header><div><p className="section-label">Skill map</p><h2>Progress through the official syllabus</h2></div><button type="button" className="text-action" onClick={() => openPractice()}>Open all topics <ChevronRight size={15} /></button></header><div>{syllabusRoadmap.slice(0, 6).map((topic, index) => <button type="button" key={topic.id} onClick={() => openPractice({ subjectId: topic.subjectId === 'physics-9702' ? 'physics' : undefined })}><span>{topic.officialTopicNumber || index + 1}</span><strong>{topic.name.replace(/^\d+\s+/, '')}</strong><small>{topic.mastery == null ? 'Not started' : `${topic.mastery}% mastery`}</small><i><b style={{ width: `${topic.mastery || 0}%` }} /></i></button>)}</div></section>
     </main>
   </section>
@@ -1902,7 +2163,7 @@ function LibraryView({
       {activeTab === 'topics' && <PracticeTopicDirectory activeRoute={activeRoute} activeRouteId={activeRouteId} practiceOptions={coachPracticeOptions()} visibleUnits={visibleUnits} completionByUnit={completionByUnit} query={query} onOpenTopic={onOpenTopic} onOpenPapers={() => setActiveTab('papers')} />}
 
       {activeTab === 'mistakes' ? (
-        <MistakeList mistakes={mistakes} paperMistakes={paperMistakes} startPractice={startPractice} retestPaper={retestPaper} />
+          <MistakeList mistakes={mistakes} paperMistakes={paperMistakes} startPractice={startPractice} retestPaper={retestPaper} onReviewAction={recordReviewQueueAction} />
       ) : activeTab === 'papers' || activeTab === 'exams' || activeTab === 'recommended' || activeTab === 'topics' ? null : (activeTab === 'saved' ? visibleUnits.filter((unit) => favoriteUnitIds.includes(unit.id)) : visibleUnits).length ? (
         <div className="unit-grid">
           {(activeTab === 'saved' ? visibleUnits.filter((unit) => favoriteUnitIds.includes(unit.id)) : visibleUnits).map((unit) => (
@@ -2262,16 +2523,33 @@ function UnitCard({ unit, completion, startPractice, favorite, onToggleFavorite 
   )
 }
 
-function StudentNotebook({ activeRoute, routeOptions, selectRoute, attempts, units, mistakes, paperMistakes, note, onChangeNote, onDeleteNote, startPractice, retestPaper, openPractice }) {
+function ReviewQueueActions({ reviewItemId, onReviewAction }) {
+  const [action, setAction] = useState('ignored')
+  const [reason, setReason] = useState('')
+  const [snoozeUntil, setSnoozeUntil] = useState(() => {
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    return tomorrow.toISOString().slice(0, 10)
+  })
+  if (!onReviewAction) return null
+  const label = action === 'manual-mastered' ? 'Manual mastered' : action[0].toUpperCase() + action.slice(1)
+  return <div className="review-queue-actions">
+    <label><span>Action</span><select aria-label="Review queue action" value={action} onChange={(event) => setAction(event.target.value)}><option value="ignored">Ignore</option><option value="archived">Archive</option><option value="snoozed">Snooze</option><option value="dismissed">Dismiss</option><option value="manual-mastered">Manual mastered</option><option value="deleted">Delete from queue</option></select></label>
+    {action === 'snoozed' && <label><span>Until</span><input aria-label="Snooze until" type="date" value={snoozeUntil} onChange={(event) => setSnoozeUntil(event.target.value)} /></label>}
+    <label><span>Reason</span><input aria-label="Review action reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Optional reason" /></label>
+    <button type="button" className="text-action" onClick={() => onReviewAction(reviewItemId, action, reason, action === 'snoozed' && snoozeUntil ? new Date(`${snoozeUntil}T23:59:59`).toISOString() : null)}>{label}</button>
+  </div>
+}
+
+function StudentNotebook({ activeRoute, routeOptions, selectRoute, attempts, units, mistakes, provisionalMistakes = [], paperMistakes, note, onChangeNote, onDeleteNote, startPractice, retestPaper, onReviewAction, reviewQueueAudit = [], openPractice }) {
   const [query, setQuery] = useState('')
   const [severity, setSeverity] = useState('all')
   const unitById = new Map(units.map((unit) => [unit.id, unit]))
   const search = query.trim().toLowerCase()
-  const filteredMistakes = mistakes.filter((mistake) => {
-    const searchable = `${mistake.unit.title} ${mistake.unit.topic} ${mistake.part.label} ${mistake.criterion.feedback}`.toLowerCase()
-    return (!search || searchable.includes(search)) && (severity === 'all' || mistake.severity.toLowerCase() === severity)
-  })
-  const filteredPaperMistakes = paperMistakes.filter((mistake) => !search || `${mistake.session.file} ${mistake.status}`.toLowerCase().includes(search))
+  const noteMatchesSearch = Boolean(search && `${note?.body || ''} ${activeRoute.subjectCode} ${activeRoute.stage}`.toLowerCase().includes(search))
+  const filteredMistakes = mistakes.filter((mistake) => (!search || mistake.searchText?.includes(search)) && (severity === 'all' || mistake.severity.toLowerCase() === severity))
+  const filteredProvisionalMistakes = provisionalMistakes.filter((mistake) => !search || mistake.searchText?.includes(search))
+  const filteredPaperMistakes = paperMistakes.filter((mistake) => !search || `${mistake.session.file} ${mistake.paper?.id || ''} ${mistake.questionNumber} ${mistake.status}`.toLowerCase().includes(search))
   const recentAttempts = attempts
     .filter((attempt) => {
       const unit = unitById.get(attempt.unitId)
@@ -2287,6 +2565,10 @@ function StudentNotebook({ activeRoute, routeOptions, selectRoute, attempts, uni
   const noteStatus = note?.deleted
     ? note.syncStatus === 'error' ? 'Server deletion failed; the note stays hidden on this device' : note.syncStatus === 'pending' ? 'Deleting privately…' : note.syncStatus === 'synced' ? 'Deleted from this device and your IELTSist ID' : 'Deleted from this device'
     : note?.syncStatus === 'error' ? 'Sync failed; your local note is safe' : note?.syncStatus === 'pending' ? 'Syncing privately…' : note?.syncStatus === 'synced' ? 'Synced to your IELTSist ID' : 'Saved on this device'
+  const recentReviewActions = [...reviewQueueAudit]
+    .filter((event) => event?.at)
+    .toSorted((left, right) => Date.parse(right.at) - Date.parse(left.at))
+    .slice(0, 5)
 
   return (
     <section className="notebook-view page-band">
@@ -2310,27 +2592,40 @@ function StudentNotebook({ activeRoute, routeOptions, selectRoute, attempts, uni
         <section className="notebook-queue">
           <header className="notebook-section-heading"><div><p className="section-label">Review queue</p><h2>What needs another look</h2></div><button type="button" className="secondary-action compact-action" onClick={openPractice}><Dumbbell size={16} />Find practice</button></header>
           <div className="notebook-filters"><label className="search-box"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search mistakes" aria-label="Search notebook mistakes" /></label><label><span>Priority</span><select value={severity} onChange={(event) => setSeverity(event.target.value)}><option value="all">All priorities</option><option value="high">High</option><option value="medium">Medium</option></select></label></div>
-          {filteredMistakes.length || filteredPaperMistakes.length ? <div className="notebook-mistake-list">
+          {filteredMistakes.length || filteredPaperMistakes.length || noteMatchesSearch ? <div className="notebook-mistake-list">
+            {noteMatchesSearch && <div className="notebook-search-note" role="status"><BookOpen size={16} /><span>Your private route note matches this search. It is shown only in the private note panel and does not add unrelated review items.</span></div>}
             {filteredMistakes.map((mistake) => {
               const response = mistake.attempt.answers?.[mistake.part.id] || mistake.attempt.working?.[mistake.part.id] || 'No typed response saved'
               const pointEvidenceMissing = mistake.criterion.scoringSource === 'student-self-mark' && mistake.criterion.evidenceStatus === 'not-recorded'
               const missedPoints = pointEvidenceMissing ? [] : mistake.criterion.evidence?.filter((point) => !point.awarded) || []
-              return <article className="notebook-mistake" key={mistake.id}><header><span className={`status-pill danger ${mistake.severity.toLowerCase()}`}>{mistake.severity} priority</span><span>{mistake.status}</span></header><h3>{mistake.unit.title} - part {displayPartLabel(mistake.part)}</h3><p className="notebook-mistake__topic">{mistake.unit.topic} - {mistake.part.marks} marks - {formatDate(mistake.attempt.submittedAt)}</p><p>{mistake.criterion.feedback}</p><details><summary>{pointEvidenceMissing ? 'Review your response and official mark scheme' : 'Review your response and missed points'}</summary><div className="notebook-evidence-copy"><strong>Your response</strong><pre>{response}</pre>{pointEvidenceMissing && <><p className="self-mark-evidence-note">Your total self-mark is saved, but the specific awarded and missed mark-scheme points were not recorded.</p>{mistake.part.answerRef?.localUrl && <a className="mark-scheme-link" href={mistake.part.answerRef.localUrl} target="_blank" rel="noreferrer">Open exact mark scheme for {displayPartLabel(mistake.part)}</a>}{mistake.part.markPoints?.length > 0 && <><strong>Official mark-scheme points</strong><ul>{mistake.part.markPoints.map((point, index) => <li key={`${mistake.part.id}-official-${index + 1}`}>{point}</li>)}</ul></>}</>}{missedPoints.length > 0 && <><strong>Mark points to add next time</strong><ul>{missedPoints.map((point) => <li key={point.pointId}>{point.point}</li>)}</ul></>}</div></details><footer><span>{mistake.criterion.awarded}/{mistake.criterion.maxMarks} marks</span><button type="button" className="primary-action compact-action" onClick={() => startPractice(mistake.unit, { clearDraft: true, retestOf: mistake.attempt.id, onlyPartId: mistake.part.id })}><RefreshCcw size={15} />Retest this part</button></footer></article>
+              return <article className="notebook-mistake" key={mistake.id}><header><span className={`status-pill danger ${mistake.severity.toLowerCase()}`}>{mistake.severity} priority</span><span>{mistake.status}</span></header><h3>{mistake.unit.title} - part {displayPartLabel(mistake.part)}</h3><p className="notebook-mistake__topic">{mistake.unit.topic} - {mistake.sourcePaperId || 'Source paper'} - {mistake.sourceQuestion} - {mistake.part.marks} marks - {formatDate(mistake.attempt.submittedAt)}</p><p>{mistake.criterion.feedback}</p><details><summary>{pointEvidenceMissing ? 'Review your response and official mark scheme' : 'Review your response and missed points'}</summary><div className="notebook-evidence-copy"><strong>Your response</strong><pre>{response}</pre>{pointEvidenceMissing && <><p className="self-mark-evidence-note">Your total self-mark is saved, but the specific awarded and missed mark-scheme points were not recorded.</p>{mistake.part.answerRef?.localUrl && <a className="mark-scheme-link" href={mistake.part.answerRef.localUrl} target="_blank" rel="noreferrer">Open exact mark scheme for {displayPartLabel(mistake.part)}</a>}{mistake.part.markPoints?.length > 0 && <><strong>Official mark-scheme points</strong><ul>{mistake.part.markPoints.map((point, index) => <li key={`${mistake.part.id}-official-${index + 1}`}>{point}</li>)}</ul></>}</>}{missedPoints.length > 0 && <><strong>Mark points to add next time</strong><ul>{missedPoints.map((point) => <li key={point.pointId}>{point.point}</li>)}</ul></>}</div></details><footer><span>{mistake.criterion.awarded}/{mistake.criterion.maxMarks} marks</span><button type="button" className="primary-action compact-action" onClick={() => startPractice(mistake.unit, { clearDraft: true, retestOf: mistake.attempt.id, onlyPartId: mistake.part.id })}><RefreshCcw size={15} />Retest this part</button></footer><ReviewQueueActions reviewItemId={mistake.id} onReviewAction={onReviewAction} /></article>
             })}
             {filteredPaperMistakes.map((mistake) => <article className="notebook-mistake" key={mistake.id}><header><span className="status-pill danger">Paper review</span><span>{mistake.status}</span></header><h3>{mistake.session.file} - question {mistake.questionNumber}</h3><p className="notebook-mistake__topic">{mistake.paper.subject} - {formatDate(mistake.session.completedAt)}</p><p>{mistake.status === 'Blank response' ? 'No final response was submitted for this printed question.' : 'Compare your response with the exact mark scheme and record the awarded marks.'}</p><footer><span>{mistake.awarded == null ? 'Not self-marked' : `${mistake.awarded}/${mistake.maxMarks} marks`}</span><button type="button" className="primary-action compact-action" onClick={() => retestPaper(mistake.paper, mistake.session.attemptId)}><RefreshCcw size={15} />Retest paper</button></footer></article>)}
           </div> : <div className="empty-state notebook-empty"><CheckCircle2 size={28} /><h2>{search || severity !== 'all' ? 'No notebook items match' : 'Your review queue is clear'}</h2><p>{search || severity !== 'all' ? 'Try a different search or priority.' : 'Complete a practice set and missed mark points will be saved here.'}</p>{(search || severity !== 'all') && <button type="button" className="secondary-action" onClick={() => { setQuery(''); setSeverity('all') }}>Clear filters</button>}</div>}
+          {filteredProvisionalMistakes.length > 0 && <section className="notebook-provisional-evidence" aria-label="Provisional attempt evidence">
+            <header className="notebook-section-heading"><div><p className="section-label">Provisional evidence</p><h2>Answered work awaiting completion</h2></div></header>
+            <p className="notebook-provisional-evidence__intro">These answers are saved for review, but unanswered parts keep the attempt outside mastery, progress, weak-area and formal review calculations.</p>
+            <div className="notebook-mistake-list">
+              {filteredProvisionalMistakes.map((mistake) => {
+                const response = mistake.attempt.answers?.[mistake.part.id] || mistake.attempt.working?.[mistake.part.id] || 'No typed response saved'
+                const projection = mistake.responseProjection || {}
+                return <article className="notebook-mistake notebook-mistake--provisional" key={mistake.id}><header><span className="status-pill provisional">Provisional</span><span>{projection.answeredQuestionCount || 0} answered · {projection.incorrectQuestionCount || 0} incorrect · {projection.unansweredQuestionCount || 0} unanswered</span></header><h3>{mistake.unit.title} - part {displayPartLabel(mistake.part)}</h3><p className="notebook-mistake__topic">{mistake.unit.topic} - {mistake.sourcePaperId || 'Source paper'} - {mistake.sourceQuestion} - {mistake.part.marks} marks - {formatDate(mistake.attempt.submittedAt)}</p><p>{mistake.criterion.feedback}</p><details><summary>Review your saved response</summary><div className="notebook-evidence-copy"><strong>Your response</strong><pre>{response}</pre></div></details><footer><span>{mistake.criterion.awarded}/{mistake.criterion.maxMarks} marks recorded</span><span>Finish this attempt before it can become a formal review item.</span></footer></article>
+              })}
+            </div>
+          </section>}
         </section>
 
         <aside className="notebook-side">
            <section className="notebook-note-tool"><header><div><p className="section-label">Private note</p><h2>What will you remember?</h2></div><div className="notebook-note-tool__actions"><BookOpen size={18} />{savedNote && <button type="button" className="icon-button" onClick={onDeleteNote} aria-label="Delete private note" title="Delete private note"><Trash2 size={16} /></button>}</div></header><textarea value={savedNote} onChange={(event) => onChangeNote(event.target.value)} placeholder="Write a short method, formula, or reminder for this route..." aria-label="Private route notebook note" /><small>{note?.updatedAt ? `${noteStatus} · ${formatDate(note.updatedAt)}` : noteStatus}</small></section>
           <section className="notebook-recent"><header><div><p className="section-label">Progress</p><h2>Recent results</h2></div><BarChart3 size={18} /></header>{recentAttempts.length ? <div>{recentAttempts.map((attempt) => { const unit = unitById.get(attempt.unitId); return <div className="notebook-result-row" key={attempt.id}><span><strong>{unit?.topic || 'Practice set'}</strong><small>{unit?.title || 'Verified question set'}</small></span><b>{attempt.scoreResult.percentage}%</b></div> })}</div> : <p className="notebook-side-empty">Your completed sets will appear here.</p>}</section>
+          <section className="notebook-recent"><header><div><p className="section-label">Review audit</p><h2>Queue actions</h2></div><History size={18} /></header>{recentReviewActions.length ? <div>{recentReviewActions.map((event) => <div className="notebook-result-row" key={event.id || `${event.reviewItemId}-${event.at}`}><span><strong>{event.action === 'manual-mastered' ? 'Manual mastered' : event.action === 'deleted' ? 'Deleted from queue' : event.action}</strong><small>{event.reason || 'No reason recorded'} · {formatDate(event.at)}</small></span><b>Audit</b></div>)}</div> : <p className="notebook-side-empty">Ignore, archive, snooze, dismiss, delete and manual-mastery actions are recorded here.</p>}</section>
         </aside>
       </div>
     </section>
   )
 }
 
-function MistakeList({ mistakes, paperMistakes, startPractice, retestPaper }) {
+function MistakeList({ mistakes, paperMistakes, startPractice, retestPaper, onReviewAction }) {
   if (!mistakes.length && !paperMistakes.length) {
     return (
       <div className="empty-state">
@@ -2358,6 +2653,7 @@ function MistakeList({ mistakes, paperMistakes, startPractice, retestPaper }) {
             <RefreshCcw size={16} />
             Retest
           </button>
+          <ReviewQueueActions reviewItemId={mistake.id} onReviewAction={onReviewAction} />
         </article>
       ))}
       {paperMistakes.map((mistake) => (

@@ -59,11 +59,20 @@ The GitHub source mirror intentionally excludes the generated catalog and render
 `git archive` is code-only. Before a release can be activated, materialise the authorised `public/question-assets` and `public/data/papers.json` inside the extracted release root, then verify the release root itself. Do not regenerate or relax the source manifest on the server.
 
 ```powershell
-node scripts/prepare-stem-release.mjs --release-root D:\path\to\release --assets-dir D:\authorised-content\question-assets --catalog-file D:\authorised-content\papers.json
-node scripts/verify-stem-release.mjs --release-root D:\path\to\release
+node scripts/prepare-stem-release.mjs --release-root D:\path\to\release --assets-dir D:\authorised-content\question-assets --catalog-file D:\authorised-content\papers.json --pdf-library-root D:\authorised-content\pdf
+node scripts/verify-stem-release.mjs --release-root D:\path\to\release --pdf-library-root D:\authorised-content\pdf
 ```
 
-The verifier runs `node scripts/audit-question-bank.mjs` from the release root and fails if the private assets, catalog, source manifest, or source identity are absent or stale.
+The verifier runs source-content and governed-PDF audits from the release root. It fails if private source assets, catalog, source manifest, source identity, the governed PDF library, checksums, PDF structure, source policy, withdrawal state, duplicate relationship or QP/MS association are absent or stale. The PDF library is not copied into Git; production must mount or configure the same approved private library explicitly.
+
+Run the paper-governance audit before a content release:
+
+```powershell
+npm run papers:audit
+npm run papers:audit-report
+```
+
+The report distinguishes source policy, restricted/private-study access policy, active/withdrawn/quarantined records, duplicate checksums, local file integrity, and QP-to-answer links. It intentionally does not infer a redistribution licence from an official URL or a mirror.
 
 Index new papers at question level. Re-running the same command is idempotent; use `--all` only for an intentional historical backfill:
 

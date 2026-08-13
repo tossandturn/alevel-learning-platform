@@ -18,7 +18,7 @@ import { mergeNotebookNote, notebookNoteRequest } from '../src/lib/privateNotes.
 import { scoreAttempt } from '../src/lib/scoring.js'
 import { buildPartMarkingLifecycle, finalizePartMarking, hasCompleteStudentMarks, markingCapabilityForUnit, pendingPartsForLifecycle } from '../src/lib/markingLifecycle.js'
 import { normalizeState } from '../src/lib/storage.js'
-import { canonicalReturnUrl, sharedAuthUrl } from '../src/lib/sharedAccount.js'
+import { canonicalReturnUrl } from '../src/lib/sharedAccount.js'
 import { configuredIdentityOrigin } from '../src/lib/identityOrigin.js'
 import { applyProductContext, parseProductContext, termIdsForStemContext, topicIdForTermIds } from '../src/lib/productContext.js'
 import { buildCoachSystemPrompt, canonicalHandwritingMarkingContext, normalizeMarkResult, parseStructuredJson, providerConfig } from '../server/aiApi.js'
@@ -190,15 +190,6 @@ assert.doesNotMatch(markingAvailabilityRequestUrl, /https:\/\/ieltsist\.com/, 'l
 const dirtyStemReturn = 'https://stem.ieltsist.com/practice?routeId=cie-9702-as-physics&from=ieltsist&focus=account&returnTo=https%3A%2F%2Fevil.example%2F&token=secret&view=topic#session'
 const canonicalStemReturn = canonicalReturnUrl(dirtyStemReturn, 'https://stem.ieltsist.com/')
 assert.equal(canonicalStemReturn, 'https://stem.ieltsist.com/practice?routeId=cie-9702-as-physics&view=topic#session', 'shared auth returns must remove transient bridge and credential parameters')
-let roundTripAuthUrl = sharedAuthUrl('login', dirtyStemReturn)
-const firstRoundTripLength = roundTripAuthUrl.length
-assert.equal(new URL(roundTripAuthUrl).searchParams.has('return_to'), false, 'auth bridges must emit one canonical return parameter')
-for (let index = 0; index < 10; index += 1) {
-  const returnTo = new URL(roundTripAuthUrl).searchParams.get('returnTo')
-  assert.ok(returnTo && !/[?&](?:returnTo|return_to|auth|bridge|token|code|state)=/i.test(returnTo), 'canonical return URLs must not nest auth bridge parameters')
-  roundTripAuthUrl = sharedAuthUrl('login', returnTo)
-}
-assert.equal(roundTripAuthUrl.length, firstRoundTripLength, 'ten IELTSist/STEM auth round trips must not grow the URL')
 assert.equal(canonicalReturnUrl('https://evil.example/steal?token=x', 'https://stem.ieltsist.com/practice?routeId=cie-9702-as-physics'), 'https://stem.ieltsist.com/practice?routeId=cie-9702-as-physics', 'external return origins must be rejected in favour of a canonical STEM URL')
 assert.equal(canonicalReturnUrl('https://stem.ieltsist.com/practice#attempt?token=secret', 'https://stem.ieltsist.com/'), 'https://stem.ieltsist.com/practice', 'fragment credentials and nested query text must be removed from return URLs')
 assert.equal(canonicalReturnUrl('https://stem.ieltsist.com/practice#attempt/saved-attempt-1', 'https://stem.ieltsist.com/'), 'https://stem.ieltsist.com/practice#attempt/saved-attempt-1', 'known in-app route fragments may survive the auth bridge')
@@ -267,6 +258,10 @@ assert.ok(appSource.includes('Topic drills are being reviewed'), 'routes with ar
 assert.ok(appSource.includes('Browse verified past papers'), 'an empty Competition or Admissions topic directory must offer a usable paper-library route')
 assert.ok(appSource.includes("routeById(incomingContext.routeId)?.routeId"), 'An explicit IELTSist return route must take priority over the saved STEM route')
 assert.ok(appSource.includes('setSelectedTopicId(incomingContext.topicId || null)'), 'An explicit IELTSist return topic must survive shared-account state restoration')
+assert.ok(appSource.includes('window.history.pushState'), 'student navigation must write meaningful browser history entries')
+assert.ok(appSource.includes("window.addEventListener('popstate'"), 'student navigation must restore view state for browser back and forward')
+assert.ok(appSource.includes('function SharedAccountDialog'), 'STEM must render an on-origin account dialog instead of linking sign-in away')
+assert.ok(!appSource.includes('sharedAuthUrl('), 'STEM app must not generate browser auth redirects to IELTSist')
 assert.ok(markingLifecycleSource.includes("evidenceStatus: 'not-recorded'"), 'student-recorded total marks must explicitly declare that point-level evidence was not captured')
 assert.ok(!markingLifecycleSource.includes('awarded: index < awarded'), 'a student-recorded total must never fabricate which mark-scheme points were awarded')
 const paperLibrarySource = fs.readFileSync(path.resolve(import.meta.dirname, '..', 'src', 'components', 'PaperLibrary.jsx'), 'utf8')
@@ -284,6 +279,8 @@ assert.ok(!paperWorkspaceSource.includes('Number(ink.questionNumber) || focusedQ
 assert.ok(!pdfViewerSource.includes('.toDataURL('), 'PDF pointer-up persistence must never use synchronous canvas serialization')
 assert.ok(pdfViewerSource.includes('encodingPromiseRef'), 'PDF ink flushes must coalesce concurrent autosave and submit encodes')
 assert.ok(handwritingPadSource.includes('dataset.historyBytes') && handwritingPadSource.includes('dataset.lastEncodeMs'), 'handwriting QA must expose measurable memory and encode-latency metrics')
+assert.ok(!paperAnswerSheetSource.includes('sharedAuthUrl'), 'full-paper AI marking must open the native STEM sign-in dialog')
+assert.ok(paperAnswerSheetSource.includes('onOpenAccount?.(\'login\')'), 'full-paper AI marking must request native STEM login in place')
 
 assert.equal(practiceUnits.length, 0, 'formal practice must not expose generated seed questions')
 const verifiedPracticeCatalog = buildVerifiedPracticeCatalog()
@@ -834,8 +831,9 @@ assert.equal(totalImported, 10689, 'downloaded PDF library count changed')
 
 const catalogPath = path.resolve(import.meta.dirname, '..', 'public', 'data', 'papers.json')
 const paperCatalog = JSON.parse(fs.readFileSync(catalogPath, 'utf8'))
-assert.equal(paperCatalog.schemaVersion, 1, 'paper catalog schema changed')
+assert.equal(paperCatalog.schemaVersion, 2, 'paper catalog schema changed')
 assert.equal(paperCatalog.items.length, 10689, 'paper catalog must contain every downloaded file')
+assert.equal(paperCatalog.paperGovernance?.schemaVersion, 'paper-governance-v1', 'paper catalog must carry the governed source policy contract')
 const cieSubjects = new Set(['0580', '0606', '0610', '0625', '9231', '9700', '9701', '9702', '9708', '9709'])
 const cieCatalogItems = paperCatalog.items.filter((paper) => cieSubjects.has(paper.subject))
 assert.equal(cieCatalogItems.length, 10073, 'CIE PDF library count changed')
@@ -872,7 +870,14 @@ assert.equal(new Set(paperCatalog.items.map((item) => item.id)).size, paperCatal
 for (const paper of paperCatalog.items) {
   assert.match(paper.sha256, /^[a-f0-9]{64}$/, `${paper.file} must have a SHA-256 checksum`)
   assert.ok(paper.localUrl.startsWith(`/local-pdf/${paper.subject}/`), `${paper.file} must use the local PDF route`)
+  assert.ok(['active', 'withdrawn', 'quarantined'].includes(paper.governance?.state), `${paper.file} must declare an explicit governance state`)
+  assert.ok(paper.governance?.sourcePolicyId, `${paper.file} must declare a source policy`)
+  assert.ok(paper.governance?.accessPolicyId, `${paper.file} must declare an access policy`)
+  assert.ok(paper.governance?.sourceVersion, `${paper.file} must declare its source version`)
 }
+const paperGovernanceStates = Object.groupBy(paperCatalog.items, (paper) => paper.governance?.state || 'missing')
+assert.equal((paperGovernanceStates.active || []).length, 10688, 'paper catalog must keep only verified-integrity PDFs active for student access')
+assert.deepEqual((paperGovernanceStates.quarantined || []).map((paper) => paper.id), ['cie-9702-9702_w07_ir_32'], 'damaged PDFs must remain explicitly quarantined instead of silently activated')
 
 const currentPhysicsMcq = paperCatalog.items.find((paper) => paper.subject === '9702' && paper.year === 2025 && paper.kind === 'qp' && paper.examProfile?.paperNumber === 1)
 assert.equal(currentPhysicsMcq.examProfile.defaultQuestionCount, 40, 'current 9702 P1 metadata must reach the generated catalog')
