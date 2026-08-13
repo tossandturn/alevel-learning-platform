@@ -1,0 +1,37 @@
+import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import path from 'node:path'
+import { normalizePaperStudyMode, paperDraftKey, paperStudyModeLabel } from '../src/lib/paperStudyMode.js'
+
+const paper = { id: 'paper-0580', pairKey: 'pair-0580' }
+
+assert.equal(normalizePaperStudyMode('exam-simulation'), 'exam-simulation')
+assert.equal(normalizePaperStudyMode('unexpected'), 'past-paper-practice')
+assert.equal(paperStudyModeLabel('exam-simulation'), 'Exam Simulation')
+assert.equal(paperStudyModeLabel('past-paper-practice'), 'Past-paper practice')
+assert.equal(paperDraftKey(paper, 'past-paper-practice'), 'pair-0580')
+assert.equal(paperDraftKey(paper, 'exam-simulation'), 'pair-0580::exam-simulation')
+assert.notEqual(paperDraftKey(paper, 'past-paper-practice'), paperDraftKey(paper, 'exam-simulation'))
+
+const root = path.resolve(import.meta.dirname, '..')
+const appSource = fs.readFileSync(path.join(root, 'src', 'App.jsx'), 'utf8')
+const workspaceSource = fs.readFileSync(path.join(root, 'src', 'components', 'PaperWorkspace.jsx'), 'utf8')
+const answerSheetSource = fs.readFileSync(path.join(root, 'src', 'components', 'PaperAnswerSheet.jsx'), 'utf8')
+const historySource = fs.readFileSync(path.join(root, 'src', 'components', 'HistoryView.jsx'), 'utf8')
+assert.match(appSource, /paperDraftKey\(activePaper, activePaper\.paperStudyMode\)/)
+assert.match(appSource, /paperStudyMode: normalizePaperStudyMode\(paper\.paperStudyMode\)/)
+assert.match(appSource, /const paperStudyMode = normalizePaperStudyMode\(session\.paperStudyMode \|\| activePaper\?\.paperStudyMode\)/)
+assert.match(appSource, /paperSessions:\s*\[[\s\S]*?\{\s*\.\.\.session,\s*paperStudyMode,/)
+assert.match(appSource, /paperReviews:\s*\[[\s\S]*?\{\s*\.\.\.review,\s*paperStudyMode,/)
+assert.match(appSource, /paperMode: view === 'paper' \? normalizePaperStudyMode\(activePaper\?\.paperStudyMode\)/)
+assert.match(appSource, /const handlePaperAttemptReady = useCallback/)
+assert.match(appSource, /onAttemptReady=\{handlePaperAttemptReady\}/)
+assert.match(workspaceSource, /paperStudyMode: studyMode/)
+assert.match(workspaceSource, /paperStudyMode=\{studyMode\}/)
+assert.match(workspaceSource, /onAttemptReady\?\.\(attemptId\)\s+persistLatestDraft\(\)/)
+assert.match(answerSheetSource, /paperStudyModeLabel/)
+assert.match(answerSheetSource, /photo-first handwritten evidence/)
+assert.match(answerSheetSource, /official order and timer/)
+assert.match(historySource, /paperStudyModeLabel\(session\.paperStudyMode\)/)
+
+console.log('Paper practice and exam simulation mode isolation contract passed.')

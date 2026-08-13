@@ -1,5 +1,6 @@
 import { AlertTriangle, CheckCircle2, Download, FileText, History, LoaderCircle, RotateCcw } from 'lucide-react'
 import { attemptResponseProjection, hasCurrentSourceBindingForAttempt, isPendingSelfMarkAttempt, isProvisionalAttempt, isScoredAttempt } from '../lib/attemptAudit'
+import { paperStudyModeLabel } from '../lib/paperStudyMode'
 
 function formatDate(value) {
   const date = new Date(value)
@@ -43,7 +44,7 @@ export function HistoryView({ attempts, paperSessions, paperReviews = [], onRete
           const session = record.value
           const review = paperReviews.filter((item) => item.attemptId === session.attemptId).at(-1)
           const result = review ? `${review.rawMarks}/${review.maxMarks || '?'}` : `${session.answeredCount || 0}/${session.questionCount || '?'} answered`
-          return <article className="history-row" key={session.id}><span className="history-icon"><FileText size={19} /></span><div><strong>{session.file}</strong><small>{session.retestOf ? 'Linked PDF retest' : review ? 'Student self-mark · not an official result' : 'Submitted PDF answer sheet'} · {session.subject}</small></div><span>{result}</span><time>{formatDate(session.completedAt)}</time></article>
+          return <article className="history-row" key={session.id}><span className="history-icon"><FileText size={19} /></span><div><strong>{session.file}</strong><small>{paperStudyModeLabel(session.paperStudyMode)} · {session.retestOf ? 'Linked PDF retest' : review ? 'Student self-mark · not an official result' : 'Submitted PDF answer sheet'} · {session.subject}</small></div><span>{result}</span><time>{formatDate(session.completedAt)}</time></article>
         }
         const attempt = record.value
         const unit = unitById.get(attempt.unitId)

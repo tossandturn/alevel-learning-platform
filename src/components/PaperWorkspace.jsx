@@ -5,6 +5,7 @@ import { paperQuestionMarkingMetadata } from '../lib/verifiedPracticeCatalog'
 import { deletePaperEvidence, getPaperEvidence, putPaperEvidence } from '../lib/evidenceStorage'
 import { buildSharedMarkingSubmission, completedMarksByQuestion, createSharedMarkingSubmission, loadQuestionAssets, paperSubmissionMarkingSummary, readSharedMarkingAvailability, retrySharedMarkingSubmission, sharedMarkingIsAvailable, waitForSharedMarkingSubmission } from '../lib/paperMarking'
 import { requestMarkingCapabilities } from '../lib/markingCapabilityClient'
+import { normalizePaperStudyMode, paperStudyModeLabel } from '../lib/paperStudyMode'
 import { AiCoach } from './AiCoach'
 import { PaperAnswerSheet, SelfMarkSummary } from './PaperAnswerSheet'
 
@@ -207,6 +208,8 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
     : profile.questionCountRange || [1, 30]
   const questionCountFixed = minimumQuestions === maximumQuestions
   const componentLabel = profile.paperNumber ? `P${profile.paperNumber}` : profile.title || sourcePaper.subject.toUpperCase()
+  const studyMode = normalizePaperStudyMode(paper.paperStudyMode || paperDraft?.paperStudyMode)
+  const studyModeLabel = paperStudyModeLabel(studyMode)
 
   pdfInkByPageRef.current = pdfInkByPage
   pdfInkQuestionMapRef.current = pdfInkQuestionMap
@@ -216,6 +219,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
     attemptId,
     paperId: sourcePaper.id,
     pairKey: sourcePaper.pairKey,
+    paperStudyMode: studyMode,
     retestOf: paper.retestOf || null,
     paperRef: { subject: sourcePaper.subject, file: sourcePaper.file, sha256: sourcePaper.sha256, sessionCode: sourcePaper.sessionCode, variant: sourcePaper.variant, questionPaperId: sourcePaper.id, markSchemeId: markScheme?.id || null },
     profile,
@@ -275,6 +279,9 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
 
   useEffect(() => {
     onAttemptReady?.(attemptId)
+    persistLatestDraft()
+    // This is the one-time bootstrap write for refresh-safe paper deep links.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attemptId, onAttemptReady])
 
   useEffect(() => {
@@ -314,7 +321,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
     return () => window.clearTimeout(timeout)
     // Timer checkpoints are saved separately without changing the visible status.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aiMarks, answers, attemptId, focusedQuestion, markScheme?.id, maxMarksByQuestion, notes, onSaveDraft, paper.retestOf, pdfInkByPage, pdfInkQuestionMap, profile, questionCount, selfMarks, sourcePaper, submitted])
+  }, [aiMarks, answers, attemptId, focusedQuestion, markScheme?.id, maxMarksByQuestion, notes, onSaveDraft, paper.retestOf, pdfInkByPage, pdfInkQuestionMap, profile, questionCount, selfMarks, sourcePaper, submitted, studyMode])
 
   useEffect(() => {
     const checkpoint = window.setInterval(persistLatestDraft, 15000)
@@ -684,6 +691,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
       attemptId,
       paperId: sourcePaper.id,
       pairKey: sourcePaper.pairKey,
+      paperStudyMode: studyMode,
       subject: sourcePaper.subject,
       file: sourcePaper.file,
       profile,
@@ -719,6 +727,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
     const review = {
       attemptId,
       paperId: sourcePaper.id,
+      paperStudyMode: studyMode,
       selfMarks,
       maxMarksByQuestion,
       aiMarks,
@@ -745,7 +754,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
     <section className={`paper-workspace ${immersive ? 'paper-workspace--immersive' : ''}`}>
       <header className="paper-workspace-header">
         <button type="button" className="icon-button" onClick={async () => { try { const flushed = await flushPdfInk(); persistLatestDraft({ pdfInkByPage: flushed.pdfInkByPage, pdfInkQuestionMap: pdfInkQuestionMapRef.current }) } catch { persistLatestDraft() } onBack() }} aria-label="Back to paper library"><ArrowLeft size={19} /></button>
-        <div className="workspace-title"><strong>{title}</strong><small>{profile.title} · {paper.season} {paper.year} · verified local PDF</small></div>
+        <div className="workspace-title"><strong>{title}</strong><small>{studyModeLabel} · {profile.title} · {paper.season} {paper.year} · verified local PDF</small></div>
         <div className="paper-workspace-actions">
           <span className="timer"><Clock3 size={16} />{formatTime(elapsedSec)}</span>
           <span className="save-state" aria-live="polite"><Save size={16} /><span>{saveStatus}</span></span>
@@ -763,7 +772,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
         <button type="button" className={documentMode === 'mark' ? 'active' : ''} disabled={!markScheme || !canReview} title={!canReview ? 'Submit your answer sheet before opening the mark scheme' : 'Open the exact mark scheme'} onClick={() => openDocument('mark')}><FileCheck2 size={17} />Mark scheme</button>
         <button type="button" className={documentMode === 'compare' ? 'active' : ''} disabled={!questionPaper || !markScheme || !canReview} title={!canReview ? 'Submit before comparing answers' : 'Review question paper and mark scheme side by side'} onClick={() => openDocument('compare')}><Columns2 size={17} />Compare</button>
         {examinerReport && <button type="button" className={documentMode === 'report' ? 'active' : ''} disabled={!canReview} onClick={() => openDocument('report')}><NotebookText size={17} />Examiner report</button>}
-        <span>{componentLabel} · {profile.durationMinutes ? `${profile.durationMinutes} min` : 'paper timing'} · {profile.maxMarks ? `${profile.maxMarks} marks` : 'source marks'}</span>
+        <span>{studyModeLabel} · {componentLabel} · {profile.durationMinutes ? `${profile.durationMinutes} min` : 'paper timing'} · {profile.maxMarks ? `${profile.maxMarks} marks` : 'source marks'}</span>
       </div>
 
       <div className="paper-pane-switch" role="tablist" aria-label="Mobile paper workspace">
@@ -816,6 +825,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
           {evidenceStatus && <div className="paper-evidence-status" aria-live="polite">{evidenceStatus}</div>}
           <PaperAnswerSheet
             profile={profile}
+            paperStudyMode={studyMode}
             questionCount={questionCount}
             activeQuestion={focusedQuestion}
             draftAnswers={answers}

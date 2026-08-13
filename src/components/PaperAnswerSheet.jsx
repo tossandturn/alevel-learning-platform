@@ -1,6 +1,7 @@
 import { useId, useState } from 'react'
 import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react'
 import { HandwritingPad } from './HandwritingPad'
+import { normalizePaperStudyMode, paperStudyModeLabel } from '../lib/paperStudyMode'
 
 const CHOICES = ['A', 'B', 'C', 'D']
 const MODES = new Set(['mcq', 'structured', 'practical'])
@@ -157,6 +158,7 @@ export function SelfMarkSummary({ responseQuestionNumbers, selfMarks, maxMarksBy
  */
 export function PaperAnswerSheet({
   profile,
+  paperStudyMode = 'past-paper-practice',
   questionCount,
   activeQuestion = 1,
   draftAnswers = {},
@@ -187,6 +189,7 @@ export function PaperAnswerSheet({
 }) {
   const instanceId = useId()
   const mode = profile?.mode
+  const studyModeLabel = paperStudyModeLabel(normalizePaperStudyMode(paperStudyMode))
 
   if (!MODES.has(mode)) {
     throw new TypeError("PaperAnswerSheet profile.mode must be 'mcq', 'structured' or 'practical'.")
@@ -232,7 +235,7 @@ export function PaperAnswerSheet({
         <div>
           <span>{profile.code || modeLabel}</span>
           <h2 id={`${instanceId}-title`}>{profile.title || 'Paper answer sheet'}</h2>
-          <p>{modeLabel}</p>
+          <p>{modeLabel} · {studyModeLabel}: {paperStudyMode === 'exam-simulation' ? 'keep the official order and timer, then review after submission.' : 'work through the official paper independently, with photo-first handwritten evidence.'}</p>
         </div>
         <output aria-live="polite" aria-label="Answer completion">
           {completedCount} of {totalQuestions} complete

@@ -17,7 +17,11 @@ const IMAGE_PATTERN = /^data:image\/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=]+)
 const MAX_BODY_BYTES = 16 * 1024 * 1024
 const MAX_IMAGE_BYTES = 12 * 1024 * 1024
 const TEMP_IMAGE_TTL_MS = 5 * 60 * 1000
+const PDF_TEXT_CACHE_MAX_ENTRIES = 6
+const COACH_CONTEXT_CACHE_MAX_ENTRIES = 48
+const COACH_CONTEXT_MAX_CHARS = 4_800
 const pdfTextCache = new Map()
+const coachContextCache = new Map()
 const CIE_SUBJECTS = new Set(['0580', '0606', '0625', '9231', '9701', '9702', '9708', '9709'])
 const DEFAULT_SOURCE_ASSET_ROOT = path.resolve(import.meta.dirname, '..', 'public', 'question-assets')
 let extraSourceCache = null
@@ -57,6 +61,12 @@ function readJsonBody(request) {
 function compactText(value, maxLength = 18000) {
   const clean = String(value || '').replace(/\r\n?/g, '\n').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim()
   return clean.length > maxLength ? `${clean.slice(0, maxLength)}\n...[truncated]` : clean
+}
+
+function boundedCacheSet(cache, key, value, maxEntries) {
+  if (cache.has(key)) cache.delete(key)
+  cache.set(key, value)
+  while (cache.size > maxEntries) cache.delete(cache.keys().next().value)
 }
 
 function decodeBase64Url(value) {
@@ -215,7 +225,12 @@ async function pdfBytes(reference) {
 
 async function extractPdfText(reference) {
   const { cacheKey, data } = await pdfBytes(reference)
-  if (pdfTextCache.has(cacheKey)) return pdfTextCache.get(cacheKey)
+  if (pdfTextCache.has(cacheKey)) {
+    const cached = pdfTextCache.get(cacheKey)
+    pdfTextCache.delete(cacheKey)
+    pdfTextCache.set(cacheKey, cached)
+    return cached
+  }
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
   const task = pdfjs.getDocument({ data: new Uint8Array(data), disableWorker: true })
   const document = await task.promise
@@ -230,8 +245,7 @@ async function extractPdfText(reference) {
     if (typeof document.destroy === 'function') await document.destroy()
   }
   const text = pages.join('\n\n')
-  pdfTextCache.clear()
-  pdfTextCache.set(cacheKey, text)
+  boundedCacheSet(pdfTextCache, cacheKey, text, PDF_TEXT_CACHE_MAX_ENTRIES)
   return text
 }
 
@@ -576,8 +590,37 @@ async function hydrateCoachPaperContext(context, libraryRoot, allowedSubjects) {
   const questionNumber = Number(context?.question?.number || context?.questionNumber)
   if (!subject || !questionFile || !questionNumber) return context
   const questionReference = resolvePdfReference(libraryRoot, allowedSubjects, subject, questionFile)
-  const questionText = questionExcerpt(await extractPdfText(questionReference), questionNumber)
-  return { ...context, sourceQuestionExtract: questionText }
+  const { cacheKey } = await pdfBytes(questionReference)
+  const contextKey = `${cacheKey}:q${questionNumber}`
+  let questionText = coachContextCache.get(contextKey)
+  if (questionText) {
+    coachContextCache.delete(contextKey)
+    coachContextCache.set(contextKey, questionText)
+  } else {
+    questionText = questionExcerpt(await extractPdfText(questionReference), questionNumber)
+    boundedCacheSet(coachContextCache, contextKey, questionText, COACH_CONTEXT_CACHE_MAX_ENTRIES)
+  }
+  return { ...context, sourceQuestionExtract: compactText(questionText, COACH_CONTEXT_MAX_CHARS) }
+}
+
+function shouldUseLocalCoachFirst({ message, imageDataUrl, hintLevel }) {
+  if (imageDataUrl) return false
+  const clean = String(message || '').trim()
+  if (!clean || clean.length > 180 || Number(hintLevel) > 2) return false
+  return /(?:hint|nudge|next step|what should i practise|check my method|提示|下一步|练什么|方法检查)/i.test(clean)
+}
+
+function coachRequestContext(context, message) {
+  return compactText(JSON.stringify({
+    subject: context.subject,
+    syllabus: context.syllabus,
+    stage: context.stage,
+    topic: context.topic,
+    question: context.question,
+    paper: context.paper,
+    sourceQuestionExtract: context.sourceQuestionExtract,
+    studentRequest: message,
+  }), COACH_CONTEXT_MAX_CHARS)
 }
 
 async function handleCoach(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env) {
@@ -594,12 +637,19 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   if (imageDataUrl) imageBytes(imageDataUrl)
   if (!message && !imageDataUrl) throw Object.assign(new Error('Ask a question or attach an image.'), { statusCode: 400 })
   const localAnswer = localCoachReply(context, hintLevel)
+  if (shouldUseLocalCoachFirst({ message, imageDataUrl, hintLevel })) {
+    return sendJson(response, 200, {
+      mode: 'local',
+      providerStatus: 'skipped',
+      answer: localAnswer,
+      warning: 'Local first hint. Ask for a detailed explanation to escalate to Qwen.',
+      retryable: false,
+      canEscalate: true,
+    })
+  }
   const activeProvider = imageDataUrl && visionProvider?.apiKey ? visionProvider : provider
   if (!activeProvider.apiKey) return sendJson(response, 200, { mode: 'offline', providerStatus: 'not_configured', answer: localAnswer, warning: 'Qwen AI Coach is not configured on this server. This is an offline hint, not an AI review.' })
-  const userText = [
-    `Structured learning context:\n${compactText(JSON.stringify(context), 12000)}`,
-    `Student request:\n${message || 'Explain the attached handwriting or diagram.'}`,
-  ].join('\n\n')
+  const userText = coachRequestContext(context, message)
   const providerImage = imageDataUrl ? await temporaryImageUrl(imageDataUrl, imagePublicBase(activeProvider, request)) : null
   const content = providerImage ? [{ type: 'text', text: userText }, { type: 'image_url', image_url: { url: providerImage.url } }] : userText
   try {
@@ -612,6 +662,167 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
     return sendJson(response, 200, { mode: 'offline', provider: 'qwen', providerStatus: 'error', answer: localAnswer, warning: providerMessage(error), retryable: true })
   } finally {
     providerImage?.cleanup()
+  }
+}
+
+async function callCompatibleAiStream(provider, { messages, temperature = 0.2, onDelta }) {
+  if (!provider.apiKey) return { answer: '', providerStatus: 'not_configured' }
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 60_000)
+  let answer = ''
+  try {
+    const response = await fetch(`${provider.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${provider.apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: provider.model, messages, temperature, stream: true }),
+      signal: controller.signal,
+    })
+    if (!response.ok) {
+      const providerPayload = await response.json().catch(() => ({}))
+      const providerCode = compactText(providerPayload?.error?.code || providerPayload?.code, 80)
+      const providerDetail = compactText(providerPayload?.error?.message || providerPayload?.message, 140)
+      throw new Error(`AI provider returned ${response.status}${providerCode ? ` (${providerCode})` : ''}${providerDetail ? `: ${providerDetail}` : ''}`)
+    }
+
+    const contentType = response.headers.get('content-type') || ''
+    if (!response.body || !contentType.includes('text/event-stream')) {
+      const payload = await response.json().catch(() => ({}))
+      answer = String(payload?.choices?.[0]?.message?.content || '').trim()
+      if (answer) await onDelta?.(answer)
+      return { answer, providerStatus: 'connected' }
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    async function consumeLine(line) {
+      const clean = line.trim()
+      if (!clean || !clean.startsWith('data:')) return
+      const data = clean.slice(5).trim()
+      if (!data || data === '[DONE]') return
+      let payload
+      try {
+        payload = JSON.parse(data)
+      } catch {
+        return
+      }
+      const delta = String(payload?.choices?.[0]?.delta?.content || payload?.choices?.[0]?.message?.content || '')
+      if (!delta) return
+      answer += delta
+      await onDelta?.(delta)
+    }
+
+    while (true) {
+      const { value, done } = await reader.read()
+      buffer += decoder.decode(value || new Uint8Array(), { stream: !done })
+      const lines = buffer.split(/\r?\n/)
+      buffer = lines.pop() || ''
+      for (const line of lines) await consumeLine(line)
+      if (done) break
+    }
+    if (buffer) await consumeLine(buffer)
+    return { answer: answer.trim(), providerStatus: 'connected' }
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+function sendCoachEvent(response, event, value) {
+  response.write(`event: ${event}\ndata: ${JSON.stringify(value)}\n\n`)
+}
+
+async function handleCoachStream(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env) {
+  const payload = await readJsonBody(request)
+  const message = compactText(payload.message, 3000)
+  const history = Array.isArray(payload.history)
+    ? payload.history.slice(-8).map((item) => ({
+      role: item.role === 'assistant' ? 'assistant' : 'user',
+      content: compactText(item.content, 1200),
+    }))
+    : []
+  const suppliedContext = safeCoachContext(payload.context)
+  const context = await hydrateCoachPaperContext(suppliedContext, libraryRoot, allowedSubjects)
+  const verifiedSubmitted = verifiedCoachSubmission(payload, request, env)
+  const hintLevel = Math.min(5, Math.max(1, Number(payload.hintLevel) || 1))
+  const imageDataUrl = payload.imageDataUrl || ''
+  if (imageDataUrl) imageBytes(imageDataUrl)
+  if (!message && !imageDataUrl) throw Object.assign(new Error('Ask a question or attach an image.'), { statusCode: 400 })
+
+  response.statusCode = 200
+  response.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
+  response.setHeader('Cache-Control', 'no-cache, no-transform')
+  response.setHeader('Connection', 'keep-alive')
+  response.flushHeaders?.()
+
+  const localAnswer = localCoachReply(context, hintLevel)
+  if (shouldUseLocalCoachFirst({ message, imageDataUrl, hintLevel })) {
+    sendCoachEvent(response, 'meta', { mode: 'local', providerStatus: 'skipped', canEscalate: true })
+    sendCoachEvent(response, 'delta', { text: localAnswer })
+    sendCoachEvent(response, 'done', {
+      mode: 'local',
+      providerStatus: 'skipped',
+      answer: localAnswer,
+      canEscalate: true,
+      warning: 'Local first hint. Ask for a detailed explanation to escalate to Qwen.',
+    })
+    response.end()
+    return
+  }
+
+  const activeProvider = imageDataUrl && visionProvider?.apiKey ? visionProvider : provider
+  if (!activeProvider.apiKey) {
+    sendCoachEvent(response, 'meta', { mode: 'offline', providerStatus: 'not_configured' })
+    sendCoachEvent(response, 'delta', { text: localAnswer })
+    sendCoachEvent(response, 'done', {
+      mode: 'offline',
+      providerStatus: 'not_configured',
+      answer: localAnswer,
+      warning: 'Qwen AI Coach is not configured on this server. This is an offline hint, not an AI review.',
+    })
+    response.end()
+    return
+  }
+
+  const providerImage = imageDataUrl ? await temporaryImageUrl(imageDataUrl, imagePublicBase(activeProvider, request)) : null
+  const content = providerImage
+    ? [{ type: 'text', text: coachRequestContext(context, message) }, { type: 'image_url', image_url: { url: providerImage.url } }]
+    : coachRequestContext(context, message)
+  let streamedAnswer = ''
+  try {
+    sendCoachEvent(response, 'meta', {
+      mode: 'ai',
+      provider: 'qwen',
+      providerStatus: 'connected',
+      model: activeProvider.model,
+    })
+    const result = await callCompatibleAiStream(activeProvider, {
+      messages: [{ role: 'system', content: buildCoachSystemPrompt({ verifiedSubmitted, hintLevel }) }, ...history, { role: 'user', content }],
+      temperature: 0.2,
+      onDelta: async (delta) => {
+        streamedAnswer += delta
+        sendCoachEvent(response, 'delta', { text: delta })
+      },
+    })
+    const answer = result.answer || streamedAnswer || localAnswer
+    sendCoachEvent(response, 'done', {
+      mode: 'ai',
+      provider: 'qwen',
+      providerStatus: 'connected',
+      answer,
+      model: activeProvider.model,
+    })
+  } catch (error) {
+    sendCoachEvent(response, 'done', {
+      mode: 'offline',
+      provider: 'qwen',
+      providerStatus: 'error',
+      answer: streamedAnswer || localAnswer,
+      warning: providerMessage(error),
+      retryable: true,
+    })
+  } finally {
+    providerImage?.cleanup()
+    response.end()
   }
 }
 
@@ -731,6 +942,7 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
         })
       }
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach') return await handleCoach(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env)
+      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach/stream') return await handleCoachStream(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env)
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/mark-handwriting') return await handleHandwritingMark(request, response, config.vision, libraryRoot, allowedSubjects, sourceAssetRoot, env)
       return sendJson(response, 404, { error: 'AI route not found.' })
     } catch (error) {

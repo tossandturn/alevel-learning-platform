@@ -43,7 +43,7 @@ function filterDefaults(subject) {
   return { subject: subject || 'all', stage: 'all', route: 'all', paperNumber: 'all', year: 'all', season: 'all', kind: 'qp', query: '' }
 }
 
-export function PaperLibrary({ catalogState, initialSubject = 'all', activeRoute = null, onOpenPaper }) {
+export function PaperLibrary({ catalogState, initialSubject = 'all', activeRoute = null, studyMode = 'past-paper-practice', onOpenPaper }) {
   const [filters, setFilters] = useState(() => filterDefaults(initialSubject))
   const [page, setPage] = useState(1)
   const items = (catalogState.catalog?.items || EMPTY_ITEMS).filter(isPaperAvailableToStudents)
@@ -174,6 +174,12 @@ export function PaperLibrary({ catalogState, initialSubject = 'all', activeRoute
         <p>{archiveStats
           ? `${archiveStats.pairedQuestionPapers.toLocaleString()} question papers include a linked answer or mark scheme across ${archiveStats.files.toLocaleString()} verified files.`
           : routeSummary}</p>
+      </div>
+      <div className="paper-study-mode-note" role="status">
+        <strong>{studyMode === 'exam-simulation' ? 'Exam Simulation' : 'Past-paper practice'}</strong>
+        <span>{studyMode === 'exam-simulation'
+          ? 'Full official paper, original order and timed submission. Review unlocks after the paper is submitted.'
+          : 'Choose an official question paper for independent practice. You can write on paper, upload a photo and review each question after submission.'}</span>
       </div>
 
       {archiveStats && <section className="competition-archive" aria-labelledby="competition-archive-title">

@@ -26,6 +26,7 @@ assert.deepEqual(studentNavigationFromLocation(`https://stem.ieltsist.com${href}
   attemptId: 'att_private_123',
   partId: 'q1',
   mode: 'practice',
+  paperMode: '',
 })
 assert.equal(studentNavigationHref({ view: 'notebook', routeId: 'cie-9702-as-physics', stage: 'AS', course: '9702' }), '/notebook?routeId=cie-9702-as-physics&stage=AS&course=9702')
 assert.equal(studentNavigationHref({ view: 'library', routeId: 'cie-0580-igcse-mathematics', stage: 'IGCSE', course: '0580', tab: 'papers' }), '/papers?routeId=cie-0580-igcse-mathematics&stage=IGCSE&course=0580')
@@ -41,8 +42,10 @@ assert.deepEqual(studentNavigationFromLocation('https://stem.ieltsist.com/papers
   attemptId: '',
   partId: '',
   mode: '',
+  paperMode: '',
 }, 'the paper library must have a shareable, refresh-safe route distinct from a paper attempt')
-assert.equal(studentNavigationHref({ view: 'paper', routeId: 'cie-0580-igcse-mathematics', stage: 'IGCSE', course: '0580', paperId: 'cie-0580-0580_m25_qp_12', attemptId: 'paper-attempt-1' }), '/papers?routeId=cie-0580-igcse-mathematics&stage=IGCSE&course=0580&paperId=cie-0580-0580_m25_qp_12&attemptId=paper-attempt-1')
+assert.equal(studentNavigationHref({ view: 'paper', routeId: 'cie-0580-igcse-mathematics', stage: 'IGCSE', course: '0580', paperId: 'cie-0580-0580_m25_qp_12', attemptId: 'paper-attempt-1', paperMode: 'exam-simulation' }), '/papers?routeId=cie-0580-igcse-mathematics&stage=IGCSE&course=0580&paperId=cie-0580-0580_m25_qp_12&attemptId=paper-attempt-1&paperMode=exam-simulation')
+assert.equal(studentNavigationFromLocation('https://stem.ieltsist.com/papers?routeId=cie-0580-igcse-mathematics&stage=IGCSE&course=0580&paperId=paper-1&paperMode=exam-simulation').paperMode, 'exam-simulation')
 assert.equal(studentNavigationFromLocation('https://stem.ieltsist.com/?routeId=cie-9702-as-physics').view, 'dashboard', 'the legacy root URL remains a valid dashboard link')
 assert.equal(studentNavigationHref({ view: 'result', attemptId: 'att-1', routeId: 'bad route with spaces' }), '/result?attemptId=att-1', 'invalid query data must not enter shareable URLs')
 assert.equal(studentNavigationFromLocation('https://stem.ieltsist.com/notebook?routeId=cie-0580-igcse-mathematics&answer=secret&note=private').attemptId, '', 'only documented safe navigation identifiers may be parsed from notebook URLs')
@@ -58,6 +61,21 @@ assert.match(
   appSource,
   /window\.addEventListener\('hashchange', restoreLocation\)/,
   'student navigation must restore state when legacy hash links or vocabulary return fragments change',
+)
+assert.match(
+  appSource,
+  /navigationRestorePendingRef/,
+  'paper deep links must retry restoration after the paper catalog finishes loading',
+)
+assert.match(
+  appSource,
+  /navigation\.view === 'paper' && paperCatalogState\.status === 'loading'/,
+  'paper restoration must wait for catalog readiness instead of falling back to the library',
+)
+assert.match(
+  appSource,
+  /if \(navigationRestorePendingRef\.current\) return/,
+  'URL synchronization must not erase a deep link while its paper catalog is loading',
 )
 assert.match(
   appSource,

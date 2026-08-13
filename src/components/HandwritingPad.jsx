@@ -513,8 +513,9 @@ export function HandwritingPad({
   return (
     <section className="handwriting-pad" aria-labelledby={`${instanceId}-label`} onDragStart={mode === 'handwrite' ? preventSelection : undefined} onContextMenu={mode === 'handwrite' ? preventSelection : undefined}>
       <header className="handwriting-pad__header">
-        <div><strong id={`${instanceId}-label`}>{label}</strong><span>Write the full method and final answer in one place</span></div>
+        <div><strong id={`${instanceId}-label`}>{label}</strong><span>Photo-first: write on paper, then upload or take a clear photo for AI review.</span></div>
         <div className="handwriting-pad__modes" role="group" aria-label="Answer input mode">
+          <button type="button" className="handwriting-pad__capture" disabled={disabled} onClick={() => fileInputRef.current?.click()}><Upload size={15} />Upload photo</button>
           <button type="button" className={mode === 'handwrite' ? 'active' : ''} onClick={() => switchMode('handwrite')}><PenTool size={16} />Handwrite</button>
           <button type="button" className={mode === 'type' ? 'active' : ''} onClick={() => switchMode('type')}><Keyboard size={16} />Type</button>
         </div>
@@ -530,7 +531,7 @@ export function HandwritingPad({
             <button type="button" disabled={disabled || !canRedo} onClick={redo} title="Redo" aria-label="Redo last stroke"><Redo2 size={17} /></button>
             <button type="button" disabled={disabled} onClick={clear} title="Clear" aria-label="Clear handwriting"><Trash2 size={17} /></button>
             <button type="button" disabled={disabled || pageCount >= 4} onClick={addPage} title="Add answer page" aria-label="Add answer page"><FilePlus2 size={17} /></button>
-            <button type="button" disabled={disabled} onClick={() => fileInputRef.current?.click()} title="Import image" aria-label="Import notebook image"><Upload size={17} /></button>
+            <button type="button" disabled={disabled} onClick={() => fileInputRef.current?.click()} title="Upload or take a paper photo" aria-label="Upload or take a paper photo"><Upload size={17} /></button>
             <input ref={fileInputRef} type="file" accept="image/*" capture="environment" hidden onChange={importImage} />
           </div>
           <canvas

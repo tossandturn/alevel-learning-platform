@@ -53,6 +53,7 @@ import { professionalTermsUrl, requestSharedAccount, requestSharedWorkspace, sha
 import { requestMarkingCapabilities } from './lib/markingCapabilityClient'
 import { parseProductContext, termIdsForStemContext } from './lib/productContext'
 import { studentNavigationFromLocation, studentNavigationHref } from './lib/studentNavigation'
+import { normalizePaperStudyMode, paperDraftKey } from './lib/paperStudyMode'
 import { buildStemVocabularyContext, vocabularyCoverageForRoute } from './data/stemVocabularyTaxonomy'
 import { verifiedPracticeQuestionGroups } from './lib/verifiedPracticeCatalog'
 import './App.css'
@@ -271,6 +272,7 @@ function App() {
   const incomingTopicManuallyChangedRef = useRef(false)
   const navigationInitializedRef = useRef(false)
   const restoredLocationRef = useRef('')
+  const navigationRestorePendingRef = useRef(false)
   const verifiedCatalogUnits = useMemo(() => buildVerifiedPracticeCatalog(), [])
   const visibleVerifiedUnits = useMemo(() => {
     const persisted = (appState.generatedUnits || [])
@@ -828,7 +830,13 @@ function App() {
     const routeMatches = String(paper.subject) === String(routeOverride.subjectCode)
       && (paperNumber == null || !Number.isFinite(paperNumber) || !routeOverride.paperComponents.length || routeOverride.paperComponents.includes(paperNumber))
     if (!routeMatches) return
-    const scopedPaper = { ...paper, routeId: routeOverride.routeId, stage: routeOverride.stage, qualification: routeOverride.qualification }
+    const scopedPaper = {
+      ...paper,
+      routeId: routeOverride.routeId,
+      stage: routeOverride.stage,
+      qualification: routeOverride.qualification,
+      paperStudyMode: normalizePaperStudyMode(paper.paperStudyMode),
+    }
     setActivePaper(scopedPaper)
     setAppState((state) => ({
       ...state,
@@ -907,40 +915,49 @@ function App() {
   }
 
   function retestPaper(paper, sourceAttemptId) {
-    const key = paper.pairKey || paper.id
+    const sourceSession = appState.paperSessions.find((session) => session.attemptId === sourceAttemptId)
+    const paperStudyMode = normalizePaperStudyMode(sourceSession?.paperStudyMode || paper.paperStudyMode)
+    const key = paperDraftKey({ ...paper, paperStudyMode }, paperStudyMode)
     setAppState((state) => {
       const { [key]: _removedDraft, ...paperDrafts } = state.paperDrafts
       return { ...state, paperDrafts, recentPapers: [paper.id, ...state.recentPapers.filter((id) => id !== paper.id)].slice(0, 8) }
     })
-    const sourceSession = appState.paperSessions.find((session) => session.attemptId === sourceAttemptId)
-    setActivePaper({ ...paper, routeId: sourceSession?.routeId || activeRouteId, stage: sourceSession?.stage || activeRoute.stage, qualification: sourceSession?.qualification || activeRoute.qualification, retestOf: sourceAttemptId })
+    setActivePaper({ ...paper, routeId: sourceSession?.routeId || activeRouteId, stage: sourceSession?.stage || activeRoute.stage, qualification: sourceSession?.qualification || activeRoute.qualification, paperStudyMode, retestOf: sourceAttemptId })
     setView('paper')
   }
 
   const savePaperDraft = useCallback((draft) => {
-    const key = draft.pairKey || draft.paperId
-    setAppState((state) => ({ ...state, paperDrafts: { ...state.paperDrafts, [key]: draft } }))
+    const paperStudyMode = normalizePaperStudyMode(draft.paperStudyMode)
+    const normalizedDraft = { ...draft, paperStudyMode }
+    const key = paperDraftKey(normalizedDraft, paperStudyMode)
+    setAppState((state) => ({ ...state, paperDrafts: { ...state.paperDrafts, [key]: normalizedDraft } }))
+  }, [])
+
+  const handlePaperAttemptReady = useCallback((attemptId) => {
+    setActivePaper((current) => current && !current.attemptId ? { ...current, attemptId } : current)
   }, [])
 
   function finishPaperSession(session) {
+    const paperStudyMode = normalizePaperStudyMode(session.paperStudyMode || activePaper?.paperStudyMode)
     setAppState((state) => {
       if (state.paperSessions.some((item) => item.attemptId === session.attemptId)) return state
       return {
         ...state,
         paperSessions: [
           ...state.paperSessions,
-          { ...session, routeId: activePaper?.routeId || activeRouteId, stage: activePaper?.stage || activeRoute.stage, qualification: activePaper?.qualification || activeRoute.qualification, id: makeAttemptId().replace('att-', 'paper-'), completedAt: session.submittedAt || new Date().toISOString() },
+          { ...session, paperStudyMode, routeId: activePaper?.routeId || activeRouteId, stage: activePaper?.stage || activeRoute.stage, qualification: activePaper?.qualification || activeRoute.qualification, id: makeAttemptId().replace('att-', 'paper-'), completedAt: session.submittedAt || new Date().toISOString() },
         ],
       }
     })
   }
 
   function finishPaperReview(review) {
+    const paperStudyMode = normalizePaperStudyMode(review.paperStudyMode || activePaper?.paperStudyMode)
     setAppState((state) => ({
       ...state,
       paperReviews: [
         ...(state.paperReviews || []),
-        { ...review, routeId: activePaper?.routeId || activeRouteId, stage: activePaper?.stage || activeRoute.stage, id: makeAttemptId().replace('att-', 'review-'), completedAt: review.reviewedAt || new Date().toISOString() },
+        { ...review, paperStudyMode, routeId: activePaper?.routeId || activeRouteId, stage: activePaper?.stage || activeRoute.stage, id: makeAttemptId().replace('att-', 'review-'), completedAt: review.reviewedAt || new Date().toISOString() },
       ],
     }))
   }
@@ -1287,14 +1304,15 @@ function App() {
       const paper = paperCatalogState.catalog?.items?.find((item) => item.id === navigation.paperId)
       if (paper) {
         const scopedRoute = routeById(routeId) || activeRoute
-        const savedDraft = appState.paperDrafts?.[paper.pairKey || paper.id]
+        const paperStudyMode = normalizePaperStudyMode(navigation.paperMode || navigation.mode || paper.paperStudyMode)
+        const savedDraft = appState.paperDrafts?.[paperDraftKey({ ...paper, paperStudyMode }, paperStudyMode)]
         const paperAttemptId = navigation.attemptId || savedDraft?.attemptId || ''
         if (navigation.attemptId && (!savedDraft || savedDraft.attemptId !== navigation.attemptId)) {
           setActiveTab('papers')
           setView('library')
           return
         }
-        setActivePaper({ ...paper, routeId: scopedRoute.routeId, stage: scopedRoute.stage, qualification: scopedRoute.qualification, ...(paperAttemptId ? { attemptId: paperAttemptId } : {}) })
+        setActivePaper({ ...paper, routeId: scopedRoute.routeId, stage: scopedRoute.stage, qualification: scopedRoute.qualification, paperStudyMode, ...(paperAttemptId ? { attemptId: paperAttemptId } : {}) })
         setCurrentAttempt(null)
         setResultAttempt(null)
         setView('paper')
@@ -1314,13 +1332,20 @@ function App() {
   useEffect(() => {
     const restoreLocation = () => {
       const currentHref = window.location.href
-      if (restoredLocationRef.current === currentHref) {
+      const sameLocation = restoredLocationRef.current === currentHref
+      if (sameLocation && !navigationRestorePendingRef.current) {
         navigationInitializedRef.current = true
         return
       }
+      const navigation = studentNavigationFromLocation(currentHref)
       restoredLocationRef.current = currentHref
+      if (navigation.view === 'paper' && paperCatalogState.status === 'loading') {
+        navigationRestorePendingRef.current = true
+        return
+      }
+      navigationRestorePendingRef.current = false
       navigationInitializedRef.current = true
-      restoreStudentNavigation(studentNavigationFromLocation(currentHref))
+      restoreStudentNavigation(navigation)
     }
     restoreLocation()
     window.addEventListener('popstate', restoreLocation)
@@ -1329,7 +1354,7 @@ function App() {
       window.removeEventListener('popstate', restoreLocation)
       window.removeEventListener('hashchange', restoreLocation)
     }
-  }, [restoreStudentNavigation])
+  }, [restoreStudentNavigation, paperCatalogState.status])
 
   const navigationHref = studentNavigationHref({
     view,
@@ -1343,9 +1368,11 @@ function App() {
     attemptId: view === 'practice' ? currentAttempt?.id : view === 'result' ? resultAttempt?.id : view === 'paper' ? activePaper?.attemptId || activePaper?.retestOf || '' : '',
     partId: view === 'practice' ? currentAttempt?.activePartId : '',
     mode: view === 'practice' ? currentAttempt?.settings?.mode || currentAttempt?.mode : '',
+    paperMode: view === 'paper' ? normalizePaperStudyMode(activePaper?.paperStudyMode) : '',
   })
 
   useEffect(() => {
+    if (navigationRestorePendingRef.current) return
     const currentHref = `${window.location.pathname}${window.location.search}`
     if (currentHref === navigationHref) {
       navigationInitializedRef.current = true
@@ -1491,14 +1518,14 @@ function App() {
           <PaperWorkspace
             paper={activePaper}
             catalog={paperCatalogState.catalog}
-            draft={appState.paperDrafts[activePaper.pairKey || activePaper.id]}
+            draft={appState.paperDrafts[paperDraftKey(activePaper, activePaper.paperStudyMode)]}
             assignmentContext={(() => {
               const assignment = sharedAccount.workspace?.assignments?.find((item) => item.id === activePaper.assignmentId)
               return assignment ? { assignmentId: assignment.id, classroomId: assignment.classroomId, organizationId: assignment.organizationId || null } : null
             })()}
             sharedIdentityToken={sharedAccount.token}
             onOpenAccount={() => setAccountDialogMode('login')}
-            onAttemptReady={(attemptId) => setActivePaper((current) => current && !current.attemptId ? { ...current, attemptId } : current)}
+            onAttemptReady={handlePaperAttemptReady}
             stateOwnerId={stateOwnerId}
             immersive={Boolean(appState.profile?.immersiveLearning)}
             onToggleImmersive={setImmersiveLearning}
@@ -2156,9 +2183,9 @@ function LibraryView({
       {incomingContext.from === 'ieltsist' && <div className="product-bridge-band" role="status"><span className="product-bridge-icon"><Brain size={17} /></span><div><strong>From IELTS-ist Vocabulary</strong><p>{contextSubject ? `You are ready to practise ${contextSubject.name} concepts.` : 'Use IELTS-ist for language support, then practise the subject here.'}</p></div><a href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer">Open IELTS Vocabulary <ChevronRight size={15} /></a></div>}
 
       {activeTab === 'recommended' && <PracticeOverview recommendation={recommendation} visibleUnits={visibleUnits} completionByUnit={completionByUnit} mistakes={mistakes} paperMistakes={paperMistakes} startPractice={startPractice} onOpenTopic={onOpenTopic} onOpenCoach={onOpenCoach} onOpenPapers={() => setActiveTab('papers')} />}
-      {activeTab === 'papers' && <PaperLibrary catalogState={paperCatalogState} initialSubject={activeRoute.subjectCode} activeRoute={activeRoute} onOpenPaper={openPaper} />}
+      {activeTab === 'papers' && <PaperLibrary catalogState={paperCatalogState} initialSubject={activeRoute.subjectCode} activeRoute={activeRoute} studyMode="past-paper-practice" onOpenPaper={openPaper} />}
 
-      {activeTab === 'exams' && <PaperLibrary catalogState={paperCatalogState} initialSubject={activeRoute.subjectCode} activeRoute={activeRoute} onOpenPaper={openPaper} />}
+      {activeTab === 'exams' && <PaperLibrary catalogState={paperCatalogState} initialSubject={activeRoute.subjectCode} activeRoute={activeRoute} studyMode="exam-simulation" onOpenPaper={(paper) => openPaper({ ...paper, paperStudyMode: 'exam-simulation' })} />}
 
       {activeTab === 'topics' && <PracticeTopicDirectory activeRoute={activeRoute} activeRouteId={activeRouteId} practiceOptions={coachPracticeOptions()} visibleUnits={visibleUnits} completionByUnit={completionByUnit} query={query} onOpenTopic={onOpenTopic} onOpenPapers={() => setActiveTab('papers')} />}
 

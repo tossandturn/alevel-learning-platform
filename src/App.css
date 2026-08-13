@@ -3010,7 +3010,7 @@ textarea:focus-visible {
 .handwriting-pad__modes {
   flex: 0 0 auto;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   padding: 3px;
   border: 1px solid #e4e7f0;
   border-radius: 7px;
@@ -3038,6 +3038,15 @@ textarea:focus-visible {
   color: #5638c3;
   background: #fff;
   box-shadow: 0 1px 2px rgba(17, 24, 39, 0.08);
+}
+
+.handwriting-pad__modes .handwriting-pad__capture {
+  color: #075e49;
+  background: #e9f7f1;
+}
+
+.handwriting-pad__modes .handwriting-pad__capture:hover:not(:disabled) {
+  background: #d8f0e7;
 }
 
 .handwriting-pad__surface {
@@ -3358,7 +3367,7 @@ textarea:focus-visible {
 
 @media (max-width: 760px) {
   .handwriting-pad__header { align-items: stretch; flex-direction: column; }
-  .handwriting-pad__modes { width: 100%; }
+  .handwriting-pad__modes { width: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .handwriting-pad__canvas,
   .handwriting-pad__textarea { height: 390px; min-height: 390px; }
   .handwriting-pad > footer { align-items: flex-start; flex-direction: column; }
@@ -3369,6 +3378,8 @@ textarea:focus-visible {
   .ai-coach-trigger span { display: none; }
   .ai-coach-trigger { width: 46px; padding: 0; justify-content: center; }
   .handwriting-pad__toolbar { max-width: calc(100% - 18px); overflow-x: auto; }
+  .handwriting-pad__modes { grid-template-columns: 1fr; }
+  .handwriting-pad__modes button { width: 100%; }
   .handwriting-pad__toolbar button { width: 44px; min-width: 44px; height: 44px; }
   .handwriting-pad__textarea { height: 420px; min-height: 420px; }
   .paper-answer-sheet__question > header { align-items: flex-start; }

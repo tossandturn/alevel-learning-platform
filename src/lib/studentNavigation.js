@@ -13,6 +13,7 @@ const VIEW_PATHS = Object.freeze({
 const PATH_VIEWS = new Map(Object.entries(VIEW_PATHS).map(([view, path]) => [path, view]))
 const SAFE_VALUE = /^[A-Za-z0-9._:@-]{1,320}$/
 const SAFE_TAB = new Set(['recommended', 'topics', 'papers', 'exams', 'mistakes', 'saved'])
+const SAFE_PAPER_MODES = new Set(['past-paper-practice', 'exam-simulation'])
 
 function safeValue(value, fallback = '') {
   const text = String(value || '').trim()
@@ -29,7 +30,7 @@ export function studentNavigationFromLocation(href = typeof window === 'undefine
   try {
     url = new URL(href, 'https://stem.ieltsist.com/')
   } catch {
-    return { view: 'dashboard', routeId: '', stage: '', course: '', tab: 'recommended', topicId: '', unitId: '', paperId: '', attemptId: '', partId: '', mode: '' }
+    return { view: 'dashboard', routeId: '', stage: '', course: '', tab: 'recommended', topicId: '', unitId: '', paperId: '', attemptId: '', partId: '', mode: '', paperMode: '' }
   }
   const pathname = url.pathname.replace(/\/+$/, '') || '/'
   const paperId = safeValue(url.searchParams.get('paperId'))
@@ -49,6 +50,7 @@ export function studentNavigationFromLocation(href = typeof window === 'undefine
     attemptId: safeValue(url.searchParams.get('attemptId')),
     partId: safeValue(url.searchParams.get('partId')),
     mode: safeValue(url.searchParams.get('mode')),
+    paperMode: SAFE_PAPER_MODES.has(url.searchParams.get('paperMode')) ? url.searchParams.get('paperMode') : '',
   }
 }
 
@@ -71,6 +73,7 @@ export function studentNavigationHref(state = {}) {
   append('attemptId', state.attemptId)
   append('partId', state.partId)
   append('mode', state.mode)
+  if (view === 'paper' && SAFE_PAPER_MODES.has(state.paperMode)) params.set('paperMode', state.paperMode)
   const query = params.toString()
   const pathname = view === 'library' && libraryTab === 'papers' ? '/papers' : VIEW_PATHS[view]
   return `${pathname}${query ? `?${query}` : ''}`

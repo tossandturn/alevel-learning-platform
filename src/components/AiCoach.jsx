@@ -61,6 +61,7 @@ export function AiCoach({
   const [error, setError] = useState('')
   const endRef = useRef(null)
   const triggerRef = useRef(null)
+  const requestAbortRef = useRef(null)
   const lastOpenRequestRef = useRef(openRequest)
   const hydratedStorageKeyRef = useRef(storageKey)
   const canOpenBphoSpc = Boolean(onAgentAction && (context.stage === 'Competition' || context.routeId === 'bpho-admissions-physics'))
@@ -91,6 +92,8 @@ export function AiCoach({
 
   useEffect(() => {
     if (hydratedStorageKeyRef.current === storageKey) return
+    requestAbortRef.current?.abort()
+    requestAbortRef.current = null
     hydratedStorageKeyRef.current = storageKey
     setMessages(loadMessages(storageKey))
     setDraft('')
@@ -99,6 +102,7 @@ export function AiCoach({
     setError('')
     setLoading(false)
     setBuilderOpen(false)
+    setOpen(false)
   }, [storageKey])
 
   useEffect(() => {
@@ -106,6 +110,8 @@ export function AiCoach({
     lastOpenRequestRef.current = openRequest
     if (openRequest) setOpen(true)
   }, [openRequest])
+
+  useEffect(() => () => requestAbortRef.current?.abort(), [])
 
   useEffect(() => {
     if (!open) return undefined
@@ -129,15 +135,23 @@ export function AiCoach({
     const studentMessage = { role: 'user', content: clean || 'Please check the attached work.', createdAt: new Date().toISOString() }
     const previous = messages.slice(-10).map(({ role, content }) => ({ role, content }))
     const intent = imageDataUrl ? null : resolveCoachIntent(clean, previous)
+    const assistantId = `coach-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`
     setMessages((current) => [...current, studentMessage])
     setDraft('')
     setLoading(true)
     setError('')
+    requestAbortRef.current?.abort()
+    const controller = new AbortController()
+    requestAbortRef.current = controller
+    const updateAssistant = (patch) => {
+      setMessages((current) => current.map((item) => item.id === assistantId ? { ...item, ...patch } : item))
+    }
     try {
       if (intent && onAgentAction) {
         const action = await onAgentAction(intent)
         if (action?.handled) {
           setMessages((current) => [...current, {
+            id: assistantId,
             role: 'assistant',
             content: action.message,
             mode: 'agent',
@@ -149,28 +163,77 @@ export function AiCoach({
         }
       }
 
-      const response = await fetch('/api/ai/coach', {
+      setMessages((current) => [...current, {
+        id: assistantId,
+        role: 'assistant',
+        content: '',
+        mode: 'streaming',
+        createdAt: new Date().toISOString(),
+      }])
+      const response = await fetch('/api/ai/coach/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: studentMessage.content, history: previous, context: intent?.type === 'clarify-practice' ? { ...context, agentIntent: intent } : context, hintLevel: level, imageDataUrl }),
+        signal: controller.signal,
       })
       const contentType = response.headers.get('content-type') || ''
-      if (!contentType.includes('application/json')) throw new Error('AI Coach endpoint returned an invalid response. Check the STEM server deployment.')
-      const payload = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(payload.error || 'AI Coach could not answer this request.')
-      setMessages((current) => [...current, {
-        role: 'assistant',
-        content: payload.answer,
-        mode: payload.mode,
-        warning: payload.warning || '',
-        createdAt: new Date().toISOString(),
-      }])
-      if (payload.mode === 'offline') setError(payload.warning || 'Qwen is offline. This response is only a controlled offline hint.')
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload.error || 'AI Coach could not answer this request.')
+      }
+      if (!contentType.includes('text/event-stream')) {
+        const payload = await response.json().catch(() => ({}))
+        updateAssistant({ content: payload.answer || '', mode: payload.mode, warning: payload.warning || '' })
+        if (payload.mode === 'offline') setError(payload.warning || 'Qwen is offline. This response is only a controlled offline hint.')
+      } else {
+        const reader = response.body?.getReader()
+        if (!reader) throw new Error('AI Coach returned no stream body.')
+        const decoder = new TextDecoder()
+        let buffer = ''
+        let streamedAnswer = ''
+        const consumeEvent = (rawEvent) => {
+          const lines = rawEvent.split(/\r?\n/)
+          const eventName = lines.find((line) => line.startsWith('event:'))?.slice(6).trim() || 'message'
+          const dataLine = lines.find((line) => line.startsWith('data:'))
+          if (!dataLine) return
+          let payload
+          try {
+            payload = JSON.parse(dataLine.slice(5).trim())
+          } catch {
+            return
+          }
+          if (eventName === 'delta') {
+            streamedAnswer += String(payload.text || '')
+            updateAssistant({ content: streamedAnswer, mode: 'ai' })
+          }
+          if (eventName === 'done') {
+            updateAssistant({
+              content: payload.answer || streamedAnswer,
+              mode: payload.mode,
+              warning: payload.warning || '',
+            })
+            if (payload.mode === 'offline') setError(payload.warning || 'Qwen is offline. This response is only a controlled offline hint.')
+          }
+          if (eventName === 'meta' && payload.mode) updateAssistant({ mode: payload.mode })
+        }
+        while (true) {
+          const { value, done } = await reader.read()
+          buffer += decoder.decode(value || new Uint8Array(), { stream: !done })
+          const events = buffer.split(/\r?\n\r?\n/)
+          buffer = events.pop() || ''
+          events.forEach(consumeEvent)
+          if (done) break
+        }
+        if (buffer) consumeEvent(buffer)
+      }
       setImageDataUrl('')
       if (/hint|提示|下一步|截图|手写/i.test(clean)) setHintLevel((current) => Math.min(5, current + 1))
     } catch (requestError) {
+      if (requestError?.name === 'AbortError') return
+      updateAssistant({ content: 'AI Coach is temporarily unavailable.', mode: 'offline', warning: requestError.message || '' })
       setError(requestError.message || 'AI Coach is temporarily unavailable.')
     } finally {
+      if (requestAbortRef.current === controller) requestAbortRef.current = null
       setLoading(false)
     }
   }
@@ -262,6 +325,7 @@ export function AiCoach({
               <span>{message.role === 'assistant' ? 'Coach' : 'You'}</span>
               <p>{message.content}</p>
               {message.warning && <small>{message.warning}</small>}
+              {message.role === 'assistant' && message.mode === 'local' && <small>Local hint first. Ask for a detailed explanation to use Qwen.</small>}
               {message.role === 'assistant' && message.mode === 'offline' && <small>Offline hint only; retry when Qwen is available.</small>}
             </article>
           ))}
