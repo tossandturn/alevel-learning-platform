@@ -256,7 +256,7 @@ async function startReviewedTopic(page, topic) {
   }
   if (!topicRow) throw new Error(`Could not find the exact ${topic} syllabus row`)
   await topicRow.click()
-  const start = page.getByRole('button', { name: /Start set|Practice \d+/i }).first()
+  const start = page.getByRole('button', { name: /Start set|Practice \d+|Start verified sample/i }).first()
   await start.waitFor()
   if (await start.isDisabled()) throw new Error(`${topic} has no enabled reviewed source set`)
   await start.click()

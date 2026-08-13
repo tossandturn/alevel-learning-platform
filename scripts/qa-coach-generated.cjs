@@ -150,6 +150,66 @@ async function waitForDashboard(page) {
   await page.getByRole('combobox', { name: 'Current course' }).waitFor()
 }
 
+async function assertAccountOverlayOwnsCoachLayer(page) {
+  const coachLayers = page.locator('.ai-coach, .ai-coach-trigger, .ai-coach-backdrop')
+  await page.getByRole('button', { name: 'Sign in to STEM' }).click()
+  await page.locator('.account-popover').waitFor()
+  await page.waitForFunction(() => !document.querySelector('.ai-coach, .ai-coach-trigger, .ai-coach-backdrop'))
+  if (await coachLayers.count()) throw new Error('Account popover left an AI Coach layer above the sign-in controls')
+
+  await page.locator('.account-popover__primary').click()
+  await page.getByRole('dialog', { name: 'Sign in to STEM' }).waitFor()
+  await page.getByText(/Sign-in stays on this STEM page/i).waitFor()
+  await page.waitForFunction(() => !document.querySelector('.ai-coach, .ai-coach-trigger, .ai-coach-backdrop'))
+  if (await coachLayers.count()) throw new Error('Native STEM sign-in dialog left an AI Coach layer mounted behind the modal')
+
+  await page.getByRole('button', { name: 'Close account dialog' }).click()
+  await page.getByRole('button', { name: 'Open AI Coach' }).waitFor()
+}
+
+async function assertCoachScreenshotFlow(page) {
+  let screenshotPayload = null
+  await page.route('**/api/ai/coach/stream', async (route) => {
+    screenshotPayload = JSON.parse(route.request().postData() || '{}')
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/event-stream',
+      body: [
+        'event: meta',
+        'data: {"mode":"ai"}',
+        '',
+        'event: delta',
+        'data: {"text":"**Hint:** $v=f\\\\lambda$"}',
+        '',
+        'event: done',
+        'data: {"answer":"**Hint:** $v=f\\\\lambda$","mode":"ai"}',
+        '',
+      ].join('\n'),
+    })
+  })
+  try {
+    await page.getByRole('button', { name: 'Open AI Coach' }).click()
+    await page.locator('.ai-coach__screenshot input').setInputFiles({
+      name: 'handwritten-working.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64'),
+    })
+    await page.getByText('Image attached', { exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Review screenshot' }).click()
+    await page.waitForFunction(() => [...document.querySelectorAll('.ai-message--assistant')].some((node) => node.textContent.includes('Hint:')))
+    if (!screenshotPayload?.imageDataUrl?.startsWith('data:image/png;base64,')) {
+      throw new Error('Coach screenshot request did not include the attached image data')
+    }
+    const coachText = await page.locator('.ai-message--assistant').last().innerText()
+    if (/\*\*|\$|\\lambda/.test(coachText) || !coachText.includes('λ')) {
+      throw new Error(`Coach screenshot response exposed raw Markdown or TeX: ${coachText}`)
+    }
+    await page.locator('.ai-coach.open').getByRole('button', { name: 'Close AI Coach' }).click()
+  } finally {
+    await page.unroute('**/api/ai/coach/stream')
+  }
+}
+
 async function run() {
   fs.accessSync(path.join(REPO_ROOT, 'src', 'App.jsx'))
   fs.mkdirSync(ARTIFACT_DIR, { recursive: true })
@@ -181,6 +241,7 @@ async function run() {
       await page.reload({ waitUntil: 'domcontentloaded' })
       await page.waitForFunction(() => performance.getEntriesByType('resource').some((entry) => entry.name.endsWith('/data/papers.json')))
       await waitForDashboard(page)
+      await assertAccountOverlayOwnsCoachLayer(page)
 
       const defaultRouteId = await page.getByRole('combobox', { name: 'Current course' }).inputValue()
       if (defaultRouteId !== 'cie-9702-as-physics') throw new Error(`Coach cross-route regression must begin on default AS Physics, received ${defaultRouteId}`)
@@ -268,6 +329,7 @@ async function run() {
       await page.waitForSelector('.ai-coach-backdrop', { state: 'detached' })
       await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: /^Today$/ }).click()
       await waitForDashboard(page)
+      await assertCoachScreenshotFlow(page)
 
       if (errors.length) throw new Error(`Browser errors: ${errors.join(' | ')}`)
       console.log(JSON.stringify({
@@ -280,6 +342,8 @@ async function run() {
         verifiedAnswerParts: 16,
         sourceChanged: true,
         immersivePaperAndTopic: true,
+        nativeStemSignInOverlay: true,
+        coachScreenshotVisionRequest: true,
         screenshot,
       }, null, 2))
       }, FLOW_DEADLINE_MS, () => closeWithDeadline(context, 'Coach cross-route flow'))

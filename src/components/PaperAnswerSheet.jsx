@@ -235,7 +235,7 @@ export function PaperAnswerSheet({
         <div>
           <span>{profile.code || modeLabel}</span>
           <h2 id={`${instanceId}-title`}>{profile.title || 'Paper answer sheet'}</h2>
-          <p>{modeLabel} · {studyModeLabel}: {paperStudyMode === 'exam-simulation' ? 'keep the official order and timer, then review after submission.' : 'work through the official paper independently, with photo-first handwritten evidence.'}</p>
+          <p>{modeLabel} · {studyModeLabel}: {paperStudyMode === 'exam-simulation' ? 'keep the official order and timer, then review after submission.' : 'write on paper first, upload a photo, then submit for AI-assisted marking where reviewed source evidence exists.'}</p>
         </div>
         <output aria-live="polite" aria-label="Answer completion">
           {completedCount} of {totalQuestions} complete
@@ -245,8 +245,8 @@ export function PaperAnswerSheet({
       {submitted && reviewedResponseQuestionNumbers.length > 0 && (
         <section className="paper-answer-sheet__ai-marking-status" aria-live="polite">
           <strong>AI-assisted marking is formative, source-grounded, and not an official grade.</strong>
-          <span>{sharedMarkingContract ? (sharedIdentityConnected ? (allSubmittedResponsesReviewed ? 'Every submitted response in this paper has reviewed question-level marks and can be sent to AI marking.' : 'Only submitted responses with reviewed question-level marks can be sent to AI marking.') : 'Sign in to STEM with your shared account to mark submitted reviewed responses. Your saved handwriting stays here.') : 'This paper has no server-approved reviewed marking manifest. Use the paired mark scheme to self-mark every response.'}</span>
-          {sharedMarkingContract && (sharedIdentityConnected ? <button type="button" className="paper-answer-sheet__ai-marking-action" onClick={() => onRequestAiMarking?.()} disabled={!onRequestAiMarking || aiMarkingInProgress}><Sparkles size={15} />{aiMarkingInProgress ? 'AI marking in progress' : 'Mark submitted answers with AI'}</button> : <button type="button" className="paper-answer-sheet__ai-marking-action" onClick={() => onOpenAccount?.('login')}><Sparkles size={15} />Sign in to mark with AI</button>)}
+          <span>{sharedMarkingContract ? (sharedIdentityConnected ? (allSubmittedResponsesReviewed ? 'Marking starts automatically after submission for every reviewed photo, typed or Pencil response.' : 'Marking starts automatically for reviewed responses; unreviewed questions stay saved for self-marking.') : 'Sign in to STEM with the same account to mark submitted reviewed responses. Your saved handwriting stays here.') : 'This paper has no server-approved reviewed marking manifest. Use the paired mark scheme to self-mark every response.'}</span>
+          {sharedMarkingContract && (sharedIdentityConnected ? <button type="button" className="paper-answer-sheet__ai-marking-action" onClick={() => onRequestAiMarking?.()} disabled={!onRequestAiMarking || aiMarkingInProgress}><Sparkles size={15} />{aiMarkingInProgress ? 'AI marking in progress' : 'Retry AI marking'}</button> : <button type="button" className="paper-answer-sheet__ai-marking-action" onClick={() => onOpenAccount?.('login')}><Sparkles size={15} />Sign in to mark with AI</button>)}
         </section>
       )}
 

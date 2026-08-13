@@ -9,7 +9,7 @@ export class MarkingCapabilityError extends Error {
 }
 
 export async function requestMarkingCapabilities({ token, attemptId, mode, submitted, paperId = '', parts, fetchImpl = fetch } = {}) {
-  if (!token) throw new MarkingCapabilityError('identity_required', 'Sign in with your IELTSist account before requesting AI marking.', { loginRequired: true })
+  if (!token) throw new MarkingCapabilityError('identity_required', 'Sign in to STEM before requesting AI marking.', { loginRequired: true })
   let response
   try {
     response = await fetchImpl('/api/stem/marking/capabilities', {

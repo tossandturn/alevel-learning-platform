@@ -262,6 +262,7 @@ assert.ok(appSource.includes('window.history.pushState'), 'student navigation mu
 assert.ok(appSource.includes("window.addEventListener('popstate'"), 'student navigation must restore view state for browser back and forward')
 assert.ok(appSource.includes('function SharedAccountDialog'), 'STEM must render an on-origin account dialog instead of linking sign-in away')
 assert.ok(!appSource.includes('sharedAuthUrl('), 'STEM app must not generate browser auth redirects to IELTSist')
+assert.ok(appSource.includes('<strong>STEM Studio</strong>'), 'the STEM shell must identify itself as STEM instead of presenting an IELTSist sign-in surface')
 assert.ok(markingLifecycleSource.includes("evidenceStatus: 'not-recorded'"), 'student-recorded total marks must explicitly declare that point-level evidence was not captured')
 assert.ok(!markingLifecycleSource.includes('awarded: index < awarded'), 'a student-recorded total must never fabricate which mark-scheme points were awarded')
 const paperLibrarySource = fs.readFileSync(path.resolve(import.meta.dirname, '..', 'src', 'components', 'PaperLibrary.jsx'), 'utf8')

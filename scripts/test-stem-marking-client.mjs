@@ -135,7 +135,7 @@ const authRequired = await readSharedMarkingAvailability({
 assert.equal(authRequired.authenticationRequired, true)
 assert.equal(sharedMarkingIsAvailable(authRequired), false)
 
-assert.match(paperSubmissionMarkingSummary({ submitted: true, aiMarks: { 1: { status: 'failed', loginRequired: true } }, responseQuestionNumbers: [1] }).text, /Sign in with your IELTSist ID/)
+assert.match(paperSubmissionMarkingSummary({ submitted: true, aiMarks: { 1: { status: 'failed', loginRequired: true } }, responseQuestionNumbers: [1] }).text, /Sign in to STEM/)
 assert.match(paperSubmissionMarkingSummary({ submitted: true, aiMarks: { 1: { status: 'failed', failureCode: 'service_unavailable' } }, responseQuestionNumbers: [1] }).text, /temporarily unavailable/)
 
 console.log('STEM shared marking client contract checks passed for Q1-Q26 (46 parts, 80 marks).')

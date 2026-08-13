@@ -1,9 +1,24 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BrainCircuit, FileText, ImagePlus, Send, Sparkles, X } from 'lucide-react'
 import { resolveCoachIntent } from '../lib/coachIntent'
+import { parseCoachMessage } from '../lib/coachMessage'
+import { MIN_VERIFIED_GROUPS_FOR_PRACTICE } from '../lib/verifiedPracticeCatalog'
 
 const STORAGE_PREFIX = 'alevel-ai-coach-v3'
 const EMPTY_PRACTICE_OPTIONS = Object.freeze([])
+
+function CoachMessage({ content }) {
+  return (
+    <p className="ai-message__content">
+      {parseCoachMessage(content).map((token, index) => {
+        if (token.type === 'break') return <br key={`break-${index}`} />
+        if (token.type === 'bold') return <strong key={`bold-${index}`}>{token.value}</strong>
+        if (token.type === 'math') return <code className="ai-message__math" key={`math-${index}`}>{token.value}</code>
+        return <span key={`text-${index}`}>{token.value}</span>
+      })}
+    </p>
+  )
+}
 
 function conversationKey(context) {
   // Coach history is learning-context data. It must never cross a route, stage,
@@ -44,6 +59,7 @@ export function AiCoach({
   practiceOptions = EMPTY_PRACTICE_OPTIONS,
   onGeneratePractice,
   onAgentAction,
+  disabled = false,
 }) {
   const storageKey = conversationKey({ ...context, stateOwnerId: context.stateOwnerId || stateOwnerId || 'guest' })
   const [open, setOpen] = useState(false)
@@ -74,7 +90,15 @@ export function AiCoach({
   const builderTopic = useMemo(() => builderTopics.find((topic) => topic.id === builderTopicId) || builderTopics[0], [builderTopicId, builderTopics])
   const verifiedCount = builderTopic?.inventoryByStage?.[builderStage] ?? builderTopic?.inventory ?? 0
   const requestedCount = Number(builderCount) || 10
-  const sourceReady = verifiedCount > 0
+  const hasMinimumVerifiedSource = verifiedCount >= MIN_VERIFIED_GROUPS_FOR_PRACTICE
+  const sourceReady = hasMinimumVerifiedSource && verifiedCount >= requestedCount
+  const closeCoach = useCallback(() => {
+    setOpen(false)
+    setBuilderOpen(false)
+    window.requestAnimationFrame(() => {
+      if (!disabled) triggerRef.current?.focus?.()
+    })
+  }, [disabled])
 
   useEffect(() => {
     if (!builderSubject) return
@@ -108,10 +132,22 @@ export function AiCoach({
   useEffect(() => {
     if (openRequest === lastOpenRequestRef.current) return
     lastOpenRequestRef.current = openRequest
-    if (openRequest) setOpen(true)
-  }, [openRequest])
+    if (openRequest && !disabled) setOpen(true)
+  }, [disabled, openRequest])
 
   useEffect(() => () => requestAbortRef.current?.abort(), [])
+
+  useEffect(() => {
+    if (!disabled) return
+    requestAbortRef.current?.abort()
+    requestAbortRef.current = null
+    setOpen(false)
+    setBuilderOpen(false)
+    setLoading(false)
+    setDraft('')
+    setImageDataUrl('')
+    setError('')
+  }, [disabled])
 
   useEffect(() => {
     if (!open) return undefined
@@ -121,13 +157,7 @@ export function AiCoach({
     }
     window.addEventListener('keydown', closeOnEscape)
     return () => window.removeEventListener('keydown', closeOnEscape)
-  }, [open])
-
-  function closeCoach() {
-    setOpen(false)
-    setBuilderOpen(false)
-    window.setTimeout(() => triggerRef.current?.focus(), 0)
-  }
+  }, [closeCoach, open])
 
   async function ask(message, level = hintLevel) {
     const clean = String(message || '').trim()
@@ -254,8 +284,19 @@ export function AiCoach({
     }
   }
 
+  function submitComposer(event) {
+    event?.preventDefault?.()
+    void ask(draft)
+  }
+
   async function generatePractice() {
     if (!onGeneratePractice || !builderSubject || !builderTopicId || generating) return
+    if (!sourceReady) {
+      setError(hasMinimumVerifiedSource
+        ? `This topic currently has ${verifiedCount} verified source questions. Choose an available set size.`
+        : `Source indexing is in progress. At least ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} verified question groups are required before AI can build a set.`)
+      return
+    }
     setGenerating(true)
     setError('')
     try {
@@ -265,7 +306,7 @@ export function AiCoach({
         stage: builderSubject.stage,
         knowledgeGroupId: builderTopicId,
         questionCount: Number(builderCount),
-        allowPartial: true,
+        allowPartial: false,
       })
       setMessages((current) => [...current, {
         role: 'assistant',
@@ -280,6 +321,8 @@ export function AiCoach({
       setGenerating(false)
     }
   }
+
+  if (disabled) return null
 
   return (
     <>
@@ -313,9 +356,9 @@ export function AiCoach({
           <header><div><strong>Build a focused set</strong><span>Choose the syllabus point, then start writing.</span></div><Sparkles size={18} /></header>
           <label><span>Learning route</span><select value={builderSubject?.id || ''} onChange={(event) => setBuilderSubjectId(event.target.value)}>{practiceOptions.map((item) => <option value={item.id} key={item.id}>{item.label}</option>)}</select></label>
           <label><span>Knowledge point</span><select value={builderTopicId} onChange={(event) => setBuilderTopicId(event.target.value)}>{builderTopics.map((topic) => <option value={topic.id} key={topic.id}>{topic.label}</option>)}</select></label>
-          <label><span>Questions</span><select value={builderCount} onChange={(event) => setBuilderCount(event.target.value)}><option value="10">10 questions</option><option value="15">15 questions</option><option value="20">20 questions</option></select></label>
-          <p>Source policy: indexed official paper only. Each question is bound to its own QP and mark scheme. <strong>{verifiedCount} verified for this stage</strong>{sourceReady && verifiedCount < requestedCount ? ' · available questions will be used' : sourceReady ? ' · ready to build' : ' · indexing in progress'}</p>
-          <button type="button" className="primary-action" onClick={generatePractice} disabled={generating || !builderTopicId || !sourceReady}><Sparkles size={16} />{generating ? 'Building...' : sourceReady ? 'Generate and start' : 'No source yet'}</button>
+          <label><span>Questions</span><select value={builderCount} onChange={(event) => setBuilderCount(event.target.value)}><option value="10">10 questions</option><option value="15" disabled={verifiedCount < 15}>15 questions</option><option value="20" disabled={verifiedCount < 20}>20 questions</option></select></label>
+          <p>Source policy: verified official-paper items only. Each question remains bound to its QP and mark scheme. <strong>{verifiedCount} verified for this stage</strong>{sourceReady ? ' · ready to build' : hasMinimumVerifiedSource ? ` · choose ${Math.min(verifiedCount, 10)} verified questions or fewer` : ` · indexing in progress (${MIN_VERIFIED_GROUPS_FOR_PRACTICE} needed for a set)`}</p>
+          <button type="button" className="primary-action" onClick={generatePractice} disabled={generating || !builderTopicId || !sourceReady}><Sparkles size={16} />{generating ? 'Building...' : sourceReady ? 'Generate and start' : hasMinimumVerifiedSource ? 'Choose an available size' : 'Source indexing in progress'}</button>
         </section>}
 
         <div className="ai-coach__messages" aria-live="polite">
@@ -323,7 +366,7 @@ export function AiCoach({
           {messages.map((message, index) => (
             <article className={`ai-message ai-message--${message.role}`} key={`${message.createdAt || index}-${index}`}>
               <span>{message.role === 'assistant' ? 'Coach' : 'You'}</span>
-              <p>{message.content}</p>
+              <CoachMessage content={message.content} />
               {message.warning && <small>{message.warning}</small>}
               {message.role === 'assistant' && message.mode === 'local' && <small>Local hint first. Ask for a detailed explanation to use Qwen.</small>}
               {message.role === 'assistant' && message.mode === 'offline' && <small>Offline hint only; retry when Qwen is available.</small>}
@@ -336,16 +379,16 @@ export function AiCoach({
         <footer>
           {imageDataUrl && <div className="ai-coach__attachment"><img src={imageDataUrl} alt="Attached work" /><span>Image attached</span><button type="button" onClick={() => setImageDataUrl('')} aria-label="Remove attachment"><X size={15} /></button></div>}
           {error && <p className="ai-coach__error" role="alert">{error}</p>}
-          <div className="ai-coach__composer">
+          <form className="ai-coach__composer" onSubmit={submitComposer}>
             <label title="Attach work"><ImagePlus size={18} /><input type="file" accept="image/*" capture="environment" onChange={attachImage} /></label>
             <textarea rows="2" value={draft} placeholder="Ask about a concept or your next step..." onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault()
-                ask(draft)
+                void ask(draft)
               }
             }} />
-            <button type="button" onClick={() => ask(draft)} disabled={loading || (!draft.trim() && !imageDataUrl)} aria-label="Send to AI Coach"><Send size={18} /></button>
-          </div>
+            <button type="submit" disabled={loading || (!draft.trim() && !imageDataUrl)} aria-label="Send to AI Coach"><Send size={18} /></button>
+          </form>
         </footer>
       </aside>
     </>

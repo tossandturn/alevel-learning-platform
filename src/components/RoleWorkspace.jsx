@@ -99,7 +99,7 @@ export function RoleWorkspace({
   async function assignmentAction(resource, options) {
     if (!account?.token)
       throw new Error(
-        "Sign in with your IELTS-ist account to use teacher tools.",
+        "Sign in to STEM with the same account to use teacher tools.",
       );
     const result = await sharedAccountRequest(account.token, resource, options);
     if (options?.method && options.method !== "GET") await onRefreshAccount?.();
@@ -1405,7 +1405,7 @@ function TeacherRoute({
           <div className="role-empty">
             <ShieldCheck size={20} />
             <p>
-              Sign in with IELTS-ist first. A browser role selection never
+              Sign in to STEM first. A browser role selection never
               grants teacher access.
             </p>
           </div>

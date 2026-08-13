@@ -10,6 +10,7 @@ const TOKEN_ISSUER = 'ieltsist.com'
 const STEM_SESSION_COOKIE = 'stem_session'
 const STEM_SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000
 const INTERNAL_AUTH_PATH = '/api/stem/internal/authenticate'
+const DEFAULT_INTERNAL_AUTH_ORIGIN = 'http://127.0.0.1:4321'
 const LEGACY_SCOPE = 'legacy-unscoped'
 const ROUTE_STAGES = new Map([
   ['igcse', 'IGCSE'],
@@ -392,7 +393,7 @@ function verifiedRoleClaims(payload) {
 function identityFromRequest(request, signingKey) {
   const header = String(request.headers.authorization || '')
   const token = header.match(/^Bearer\s+(.+)$/i)?.[1]
-  if (!token || !signingKey) throw Object.assign(new Error('Sign in with your IELTS-ist account to continue.'), { statusCode: 401 })
+  if (!token || !signingKey) throw Object.assign(new Error('Sign in to STEM with the same account to continue.'), { statusCode: 401 })
   const parts = token.split('.')
   if (parts.length !== 3) throw Object.assign(new Error('Your shared sign-in has expired. Please refresh and try again.'), { statusCode: 401 })
   const [encodedHeader, encodedPayload, signature] = parts
@@ -523,16 +524,29 @@ function canonicalInternalAuthPayload({ mode, username, password }) {
   })
 }
 
+function nativeAuthNotConfigured() {
+  return Object.assign(new Error('Native STEM account sign-in is not configured on this server. Your password was not sent.'), {
+    statusCode: 503,
+    code: 'native_auth_not_configured',
+  })
+}
+
+function nativeAuthOrigin(env = {}) {
+  return String(env.STEM_AUTH_INTERNAL_ORIGIN || DEFAULT_INTERNAL_AUTH_ORIGIN).trim()
+}
+
 function internalAuthEndpoint(origin) {
+  const configuredOrigin = String(origin || '').trim()
+  if (!configuredOrigin) throw nativeAuthNotConfigured()
   let url
   try {
-    url = new URL(origin || 'http://127.0.0.1:4321')
+    url = new URL(configuredOrigin)
   } catch {
-    throw Object.assign(new Error('STEM account sign-in is not configured.'), { statusCode: 503 })
+    throw nativeAuthNotConfigured()
   }
   const hostname = url.hostname.toLowerCase()
   if (url.protocol !== 'http:' || !['127.0.0.1', '::1', 'localhost'].includes(hostname)) {
-    throw Object.assign(new Error('STEM account sign-in is not configured.'), { statusCode: 503 })
+    throw nativeAuthNotConfigured()
   }
   url.pathname = INTERNAL_AUTH_PATH
   url.search = ''
@@ -544,14 +558,15 @@ async function authenticateNativeAccount({ mode, username, password, env, fetchI
   const normalizedMode = mode === 'register' ? 'register' : 'login'
   const body = canonicalInternalAuthPayload({ mode: normalizedMode, username, password })
   const signingKey = String(env.STEM_INTERNAL_AUTH_KEY || env.STEM_IDENTITY_SIGNING_KEY || '')
-  if (!signingKey) throw Object.assign(new Error('STEM account sign-in is not configured.'), { statusCode: 503 })
+  if (!signingKey) throw nativeAuthNotConfigured()
+  const endpoint = internalAuthEndpoint(nativeAuthOrigin(env))
   const timestamp = String(Date.now())
   const digest = crypto.createHash('sha256').update(body).digest('hex')
   const signature = crypto.createHmac('sha256', signingKey).update(`${timestamp}.${digest}`).digest('base64url')
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 12_000)
   try {
-    const response = await fetchImpl(internalAuthEndpoint(env.STEM_AUTH_INTERNAL_ORIGIN), {
+    const response = await fetchImpl(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1004,6 +1019,11 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, fetchIm
             duplicateIdentifier: 409,
             validationError: 400,
             logoutSuccess: 200,
+          },
+          readiness: {
+            sessionSigningConfigured: Boolean(signingKey),
+            internalAuthOriginConfigured: Boolean(nativeAuthOrigin(env)),
+            nativeLoginConfigured: Boolean(signingKey && nativeAuthOrigin(env)),
           },
           note: 'STEM signs in on this origin and keeps a separate local browser session. Credentials are checked server-to-server against the shared IELTSist account database and are never persisted by STEM.',
         })

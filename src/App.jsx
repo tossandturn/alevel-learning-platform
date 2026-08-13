@@ -49,7 +49,7 @@ import {
 import { buildCoachPractice, buildVerifiedPracticeCatalog, coachPracticeOptions, MIN_VERIFIED_GROUPS_FOR_PRACTICE, previewCoachPracticeSourceMix, rebindVerifiedPracticeUnit, resolveVerifiedPracticeSelection, topicQueryForRoute } from './lib/verifiedPracticeCatalog'
 import { latestBphoSpcPaper } from './lib/coachIntent'
 import { buildCompletionByUnit, buildLearningProgress, recommendForRoute } from './lib/learningProgress'
-import { professionalTermsUrl, requestSharedAccount, requestSharedWorkspace, sharedAccountRequest, signInSharedAccount, signOutSharedAccount } from './lib/sharedAccount'
+import { professionalTermsUrl, requestNativeAccountReadiness, requestSharedAccount, requestSharedWorkspace, sharedAccountRequest, signInSharedAccount, signOutSharedAccount } from './lib/sharedAccount'
 import { requestMarkingCapabilities } from './lib/markingCapabilityClient'
 import { parseProductContext, termIdsForStemContext } from './lib/productContext'
 import { studentNavigationFromLocation, studentNavigationHref } from './lib/studentNavigation'
@@ -263,6 +263,7 @@ function App() {
   const [pendingSession, setPendingSession] = useState(null)
   const [coachOpenRequest, setCoachOpenRequest] = useState(0)
   const [sharedAccount, setSharedAccount] = useState({ status: 'loading', token: '', workspace: null, error: '' })
+  const [accountPopoverOpen, setAccountPopoverOpen] = useState(false)
   const [accountDialogMode, setAccountDialogMode] = useState(null)
   const [stateOwnerId, setStateOwnerId] = useState('')
   const [exportState, setExportState] = useState({ status: 'idle', error: '', exportedAt: '', checksum: '' })
@@ -379,9 +380,17 @@ function App() {
   const refreshSharedAccount = useCallback(async () => {
     try {
       const account = await requestSharedAccount()
-      const workspace = await requestSharedWorkspace(account.token)
-      setSharedAccount({ status: 'ready', ...account, workspace, error: '' })
-      return account
+      let workspace = account.workspace
+      let workspaceError = ''
+      try {
+        workspace = await requestSharedWorkspace(account.token)
+      } catch (error) {
+        // Authentication is independent from teacher/school workspace reads.
+        // Keep the student signed in when the optional workspace is unavailable.
+        workspaceError = error.message || 'Teacher and school workspace is temporarily unavailable.'
+      }
+      setSharedAccount({ status: 'ready', ...account, workspace, error: '', workspaceError })
+      return { ...account, workspace, workspaceError }
     } catch (error) {
       setSharedAccount({ status: 'guest', token: '', workspace: null, error: error.message || 'Shared account is unavailable.' })
       return null
@@ -676,8 +685,16 @@ function App() {
 
   async function submitNativeAccount({ mode, username, password }) {
     const account = await signInSharedAccount({ mode, username, password })
-    const workspace = await requestSharedWorkspace(account.token)
-    setSharedAccount({ status: 'ready', ...account, workspace, error: '' })
+    let workspace = account.workspace
+    let workspaceError = ''
+    try {
+      workspace = await requestSharedWorkspace(account.token)
+    } catch (error) {
+      // Do not turn a successful native STEM login into a false auth failure
+      // just because optional teacher/school aggregation is unavailable.
+      workspaceError = error.message || 'Teacher and school workspace is temporarily unavailable.'
+    }
+    setSharedAccount({ status: 'ready', ...account, workspace, error: '', workspaceError })
     setAccountDialogMode(null)
   }
 
@@ -849,7 +866,7 @@ function App() {
     const unit = buildCoachPractice({
       ...selection,
       agentGenerated: true,
-      allowPartial: selection.allowPartial ?? true,
+      allowPartial: false,
     })
     setAppState((state) => ({
       ...state,
@@ -1396,7 +1413,7 @@ function App() {
 
   return (
     <main className={`app-shell app-shell--${view}`}>
-      {view !== 'practice' && view !== 'paper' && <TopNav view={view} activeTab={activeTab} activeRoute={activeRoute} setView={setView} profile={appState.profile} sharedAccount={sharedAccount} onDisconnectSharedAccount={disconnectSharedAccount} onOpenAccount={setAccountDialogMode} openNotebook={() => setView('notebook')} openRoleWorkspace={() => setView('workspace')} openPractice={() => { setActiveTab('recommended'); setView('library') }} openPapers={() => { setActiveTab('papers'); setView('library') }} />}
+      {view !== 'practice' && view !== 'paper' && <TopNav view={view} activeTab={activeTab} activeRoute={activeRoute} setView={setView} profile={appState.profile} sharedAccount={sharedAccount} onDisconnectSharedAccount={disconnectSharedAccount} onOpenAccount={setAccountDialogMode} onAccountPopoverChange={setAccountPopoverOpen} openNotebook={() => setView('notebook')} openRoleWorkspace={() => setView('workspace')} openPractice={() => { setActiveTab('recommended'); setView('library') }} openPapers={() => { setActiveTab('papers'); setView('library') }} />}
 
       {view === 'dashboard' && (
         <StudentDashboard
@@ -1615,6 +1632,7 @@ function App() {
           practiceOptions={aiPracticeOptions}
           onGeneratePractice={generateCoachPractice}
           onAgentAction={handleCoachAgentAction}
+          disabled={Boolean(accountDialogMode || accountPopoverOpen)}
         />
       )}
     </main>
@@ -1679,6 +1697,7 @@ function SharedAccountDialog({ mode = 'login', onClose, onModeChange, onSubmit }
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [nativeReadiness, setNativeReadiness] = useState({ status: 'checking', configured: true })
   const dialogRef = useRef(null)
 
   useEffect(() => {
@@ -1686,8 +1705,29 @@ function SharedAccountDialog({ mode = 'login', onClose, onModeChange, onSubmit }
     firstField?.focus?.()
   }, [])
 
+  useEffect(() => {
+    let active = true
+    requestNativeAccountReadiness()
+      .then((readiness) => {
+        if (!active) return
+        if (readiness.known && !readiness.nativeLoginConfigured) {
+          setNativeReadiness({ status: 'unconfigured', configured: false })
+          setError('Native STEM sign-in is not configured on this server. Your password will not be sent until it is fixed.')
+          return
+        }
+        setNativeReadiness({ status: 'ready', configured: true })
+      })
+      .catch(() => {
+        if (active) setNativeReadiness({ status: 'unknown', configured: true })
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
   async function submit(event) {
     event.preventDefault()
+    if (!nativeReadiness.configured) return
     const normalizedUsername = username.trim()
     if (!normalizedUsername || password.length < 8) {
       setError('Enter a username and a password of at least 8 characters.')
@@ -1715,7 +1755,7 @@ function SharedAccountDialog({ mode = 'login', onClose, onModeChange, onSubmit }
           <div>
             <p className="section-label">STEM account</p>
             <h2 id="stem-account-dialog-title">{mode === 'register' ? 'Create your STEM account' : 'Sign in to STEM'}</h2>
-            <p>Use the same username and password as IELTSist. Sign-in stays on this STEM page.</p>
+            <p>Use the same account as IELTSist. Sign-in stays on this STEM page; your STEM study data remains on this site.</p>
           </div>
           <button type="button" className="icon-button" onClick={onClose} aria-label="Close account dialog" title="Close account dialog">×</button>
         </header>
@@ -1726,7 +1766,7 @@ function SharedAccountDialog({ mode = 'login', onClose, onModeChange, onSubmit }
           {error && <p className="account-dialog__error" role="alert">{error}</p>}
           <footer>
             <button type="button" className="secondary-action" onClick={() => onModeChange(mode === 'register' ? 'login' : 'register')}>{mode === 'register' ? 'Use existing account' : 'Create account'}</button>
-            <button type="submit" className="primary-action" disabled={submitting}>{submitting ? 'Signing in...' : mode === 'register' ? 'Create account' : 'Sign in'}</button>
+            <button type="submit" className="primary-action" disabled={submitting || !nativeReadiness.configured}>{submitting ? 'Signing in...' : nativeReadiness.status === 'checking' ? 'Checking STEM sign-in...' : mode === 'register' ? 'Create account' : 'Sign in'}</button>
           </footer>
         </form>
       </section>
@@ -1734,7 +1774,7 @@ function SharedAccountDialog({ mode = 'login', onClose, onModeChange, onSubmit }
   )
 }
 
-function TopNav({ view, activeTab, activeRoute, setView, profile, sharedAccount, onDisconnectSharedAccount, onOpenAccount, openNotebook, openRoleWorkspace, openPractice, openPapers }) {
+function TopNav({ view, activeTab, activeRoute, setView, profile, sharedAccount, onDisconnectSharedAccount, onOpenAccount, onAccountPopoverChange, openNotebook, openRoleWorkspace, openPractice, openPapers }) {
   const [campusOpen, setCampusOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
   const learnerName = String(profile?.learnerName || 'Student').trim() || 'Student'
@@ -1742,13 +1782,17 @@ function TopNav({ view, activeTab, activeRoute, setView, profile, sharedAccount,
   const firstName = accountName.split(/\s+/)[0]
   const vocabularyContext = buildStemVocabularyContext({ route: activeRoute })
   const vocabularyUrl = professionalTermsUrl({ ...vocabularyContext, returnTo: typeof window === 'undefined' ? 'https://stem.ieltsist.com/' : window.location.href })
+  useEffect(() => {
+    onAccountPopoverChange?.(accountOpen)
+    return () => onAccountPopoverChange?.(false)
+  }, [accountOpen, onAccountPopoverChange])
   return (
     <header className="top-nav unified-top-nav">
       <button className="brand-button" type="button" onClick={() => setView('dashboard')} aria-label="Open dashboard">
-        <span className="brand-mark">I</span>
+        <span className="brand-mark">S</span>
         <span>
-          <strong>IELTSist</strong>
-          <small>Learning platform</small>
+          <strong>STEM Studio</strong>
+          <small>Cambridge practice</small>
         </span>
       </button>
       <div className="campus-switcher">
@@ -1777,7 +1821,7 @@ function TopNav({ view, activeTab, activeRoute, setView, profile, sharedAccount,
           Notebook
         </button>
       </nav>
-      <div className="nav-context"><a className="vocabulary-link" href={vocabularyUrl} target="_blank" rel="noreferrer"><Brain size={15} />Vocabulary</a><button type="button" className="notification-button" aria-label="Notifications"><span /></button><div className="account-menu"><button type="button" className={`account-trigger ${sharedAccount.status !== 'ready' ? 'account-trigger--guest' : ''}`} aria-label={sharedAccount.status === 'ready' ? `Account: ${accountName}` : 'Sign in to STEM'} title={sharedAccount.status === 'ready' ? `Account: ${accountName}` : 'Sign in to STEM'} aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}><span className="account-avatar">{firstName.slice(0, 1).toUpperCase()}</span><span>{sharedAccount.status === 'ready' ? accountName : 'Sign in'}</span><ChevronRight size={14} /></button>{accountOpen && <div className="account-popover"><strong>{sharedAccount.status === 'ready' ? accountName : 'STEM account'}</strong><small>{sharedAccount.status === 'ready' ? 'Shared account connected' : 'Same account database as IELTSist'}</small>{sharedAccount.status !== 'ready' ? <><p className="account-popover__hint">Sign in or register directly in STEM. This creates only a local STEM session for the same IELTSist account.</p><button type="button" className="account-popover__primary" onClick={() => { setAccountOpen(false); onOpenAccount?.('login') }}><LogIn size={15} />Sign in <ChevronRight size={14} /></button><button type="button" onClick={() => { setAccountOpen(false); onOpenAccount?.('register') }}><Users size={15} />Create account <ChevronRight size={14} /></button>{sharedAccount.error && <p className="account-popover__error" role="alert">{sharedAccount.error}</p>}</> : <><div><span>Student</span><b>STEM</b></div><span className="account-popover__privacy">Private notes are visible only to you.</span><a href="https://ieltsist.com/#mine" target="_blank" rel="noreferrer">Open IELTSist separately <ChevronRight size={14} /></a><button type="button" onClick={() => { openRoleWorkspace(); setAccountOpen(false) }}>Teacher &amp; school workspace <ChevronRight size={14} /></button><button type="button" className="account-popover__logout" onClick={() => { setAccountOpen(false); onDisconnectSharedAccount() }}><LogOut size={15} />Sign out of STEM <ChevronRight size={14} /></button></>}<div className="account-popover__legal"><a href="https://ieltsist.com/terms" target="_blank" rel="noreferrer">Terms</a><a href="https://ieltsist.com/privacy" target="_blank" rel="noreferrer">Privacy</a></div></div>}</div></div>
+      <div className="nav-context"><a className="vocabulary-link" href={vocabularyUrl} target="_blank" rel="noreferrer"><Brain size={15} />Vocabulary</a><button type="button" className="notification-button" aria-label="Notifications"><span /></button><div className="account-menu"><button type="button" className={`account-trigger ${sharedAccount.status !== 'ready' ? 'account-trigger--guest' : ''}`} aria-label={sharedAccount.status === 'ready' ? `Account: ${accountName}` : 'Sign in to STEM'} title={sharedAccount.status === 'ready' ? `Account: ${accountName}` : 'Sign in to STEM'} aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}><span className="account-avatar">{firstName.slice(0, 1).toUpperCase()}</span><span>{sharedAccount.status === 'ready' ? accountName : 'Sign in'}</span><ChevronRight size={14} /></button>{accountOpen && <div className="account-popover"><strong>{sharedAccount.status === 'ready' ? accountName : 'STEM account'}</strong><small>{sharedAccount.status === 'ready' ? 'Shared account connected' : 'Same account database as IELTSist'}</small>{sharedAccount.status !== 'ready' ? <><p className="account-popover__hint">Sign in or register directly in STEM. This creates only a local STEM session for the same IELTSist account.</p><button type="button" className="account-popover__primary" onClick={() => { setAccountOpen(false); onOpenAccount?.('login') }}><LogIn size={15} />Sign in <ChevronRight size={14} /></button><button type="button" onClick={() => { setAccountOpen(false); onOpenAccount?.('register') }}><Users size={15} />Create account <ChevronRight size={14} /></button>{sharedAccount.error && <p className="account-popover__error" role="alert">{sharedAccount.error}</p>}</> : <><div><span>Student</span><b>STEM</b></div><span className="account-popover__privacy">Private notes are visible only to you.</span>{sharedAccount.workspaceError && <p className="account-popover__error account-popover__error--muted" role="status">{sharedAccount.workspaceError}</p>}<a href="https://ieltsist.com/#mine" target="_blank" rel="noreferrer">Open IELTSist separately <ChevronRight size={14} /></a><button type="button" onClick={() => { openRoleWorkspace(); setAccountOpen(false) }}>Teacher &amp; school workspace <ChevronRight size={14} /></button><button type="button" className="account-popover__logout" onClick={() => { setAccountOpen(false); onDisconnectSharedAccount() }}><LogOut size={15} />Sign out of STEM <ChevronRight size={14} /></button></>}<div className="account-popover__legal"><a href="https://ieltsist.com/terms" target="_blank" rel="noreferrer">Terms</a><a href="https://ieltsist.com/privacy" target="_blank" rel="noreferrer">Privacy</a></div></div>}</div></div>
     </header>
   )
 }
@@ -2319,6 +2363,7 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, lea
   const topicPracticeUnits = practiceUnits
     .filter((unit) => unit.knowledgeGroupId === topicId)
     .toSorted((left, right) => (left.sourceSetIndex || 0) - (right.sourceSetIndex || 0))
+  const sampleReady = !practiceReady && available > 0 && topicPracticeUnits.length > 0
   const markingCapabilityCounts = topicPracticeUnits.reduce((counts, unit) => {
     for (const part of unit.parts || []) {
       counts.practice += 1
@@ -2359,11 +2404,18 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, lea
   function startTopicPractice() {
     try {
       setStartError('')
-      if (!available) {
-        throw new Error('This topic has no verified source question yet. Source indexing is still in progress.')
+      if (nextPracticeUnit && (practiceReady || sampleReady)) {
+        startPractice(nextPracticeUnit)
+        return
       }
-      if (nextPracticeUnit) startPractice(nextPracticeUnit)
-      else startKnowledgeDrill({ routeId: activeRouteId, knowledgeGroupId: topicId, questionCount: Math.max(10, questionCount), allowPartial: true })
+      if (!practiceReady) {
+        throw new Error(
+          available > 0
+            ? `${topic.label} has ${available} verified source questions. ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} are required before a Topic Drill can start; source indexing is still in progress.`
+            : 'This topic has no verified source question yet. Source indexing is still in progress.',
+        )
+      }
+      startKnowledgeDrill({ routeId: activeRouteId, knowledgeGroupId: topicId, questionCount: MIN_VERIFIED_GROUPS_FOR_PRACTICE })
     } catch (error) {
       setStartError(error.message || 'This topic is still being indexed.')
     }
@@ -2386,13 +2438,13 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, lea
           <section className="topic-detail__past-papers"><header><div><p className="section-label">Real exam collection</p><h2>Past-paper questions by chapter</h2><p>These are question-level records, grouped by their original paper. Open the source page or mark scheme without losing the topic mapping.</p></div><strong>{topicQuestions.length} questions · {topicPaperGroups.length} paper{topicPaperGroups.length === 1 ? '' : 's'}</strong></header>{topicPaperGroups.length ? <div className="topic-detail__paper-groups">{topicPaperGroups.map((paperQuestions) => { const first = paperQuestions[0]; const source = first.sourceRef || {}; return <article className="topic-detail__paper-group" key={source.paperId || source.paper}><header><div><strong>{sourcePaperLabel(first)}</strong><span>{source.component ? `Component ${source.component}` : 'Official source'} · {paperQuestions.length} linked question{paperQuestions.length === 1 ? '' : 's'}</span></div><div><a href={`${source.localUrl}#page=${source.pageStart || 1}`} target="_blank" rel="noreferrer">Open QP</a><a href={`${first.answerRef?.localUrl || '#'}#page=${first.answerRef?.pageStart || 1}`} target="_blank" rel="noreferrer">Open MS</a></div></header><div>{paperQuestions.map((question) => <div className="topic-detail__question-row" key={question.questionGroupId || question.bankId}><span>{question.sourceRef?.question || 'Question'}</span><p>{sourceQuestionPreview(question) || 'Indexed question text is available in the source paper.'}</p><small>{question.totalMarks || question.marks || 1} mark{(question.totalMarks || question.marks || 1) === 1 ? '' : 's'} · QP p.{question.sourceRef?.pageStart || '?'} · MS p.{question.answerRef?.pageStart || '?'}</small></div>)}</div></article> })}</div> : <div className="topic-detail__empty-source"><FileText size={20} /><strong>No question-level source records yet</strong><p>This topic is in the syllabus map, but its verified paper index has not been attached to this route.</p></div>}</section>
           <section className="topic-detail__source"><FileText size={20} /><div><strong>Verified source questions</strong><p>Questions and answers stay paired with their original paper. No cross-stage items and no unverified generated questions.</p></div><span>{available} available{practiceReady ? '' : ` · ${MIN_VERIFIED_GROUPS_FOR_PRACTICE - available} more needed`}</span></section>
         </main>
-        <aside className="topic-detail__start"><p className="section-label">Next session</p><h2>{questionCount || 0} source question{questionCount === 1 ? '' : 's'}</h2><ul><li>{topicPracticeUnits.length} practice set{topicPracticeUnits.length === 1 ? '' : 's'} · {available} verified groups</li><li>{markingCapabilityCounts.practice} answer parts: {markingCapabilityCounts.selfMark} self-mark, {markingCapabilityCounts.deterministic} deterministic, {markingCapabilityCounts.aiAssisted} AI-assisted</li><li>{topicMistakes ? `${topicMistakes} mistake${topicMistakes === 1 ? '' : 's'} linked` : practiceReady ? 'Ready for a ten-question source set' : available ? `Limited source inventory · ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} groups needed for a full set` : 'Source indexing in progress'}</li></ul>{available > 0 ? <button type="button" className="primary-action" onClick={startTopicPractice}><PlayIcon />{practiceReady ? (nextPracticeUnit ? `Start set ${nextPracticeUnit.sourceSetIndex}` : `Practice ${questionCount}`) : `Limited · practice ${questionCount} verified`}</button> : <button type="button" className="primary-action" disabled>Still indexing this topic</button>}{topicPracticeUnits.length > 1 && <div className="topic-detail__set-list" aria-label="Past-paper practice sets">{topicPracticeUnits.map((unit) => <button type="button" key={unit.id} data-completed={Boolean(completionByUnit[unit.id]?.completed)} onClick={() => startPractice(unit)}><span>Set {unit.sourceSetIndex}</span><small>{unit.questionGroupCount} source groups · {unit.parts.length} answer parts · {unit.referencePapers.length} papers</small></button>)}</div>}<button type="button" className="topic-detail__ai" onClick={onOpenCoach}><Sparkles size={16} />Ask AI Tutor about this topic</button>{startError && <p className="topic-detail__error" role="alert">{startError}</p>}</aside>
+        <aside className="topic-detail__start"><p className="section-label">Next session</p><h2>{practiceReady ? questionCount : sampleReady ? nextPracticeUnit.questionGroupCount || available : 0} source question{(practiceReady ? questionCount : sampleReady ? nextPracticeUnit.questionGroupCount || available : 0) === 1 ? '' : 's'}</h2><ul><li>{topicPracticeUnits.length} practice set{topicPracticeUnits.length === 1 ? '' : 's'} · {available} verified groups</li><li>{markingCapabilityCounts.practice} answer parts: {markingCapabilityCounts.selfMark} self-mark, {markingCapabilityCounts.deterministic} deterministic, {markingCapabilityCounts.aiAssisted} AI-assisted</li><li>{topicMistakes ? `${topicMistakes} mistake${topicMistakes === 1 ? '' : 's'} linked` : practiceReady ? 'Ready for a ten-question source set' : sampleReady ? `Verified sample only · source indexing continues (${available}/${MIN_VERIFIED_GROUPS_FOR_PRACTICE})` : available ? `Source indexing in progress · ${available}/${MIN_VERIFIED_GROUPS_FOR_PRACTICE} verified` : 'Source indexing in progress'}</li></ul>{practiceReady || sampleReady ? <button type="button" className="primary-action" onClick={startTopicPractice}><PlayIcon />{practiceReady ? nextPracticeUnit ? `Start set ${nextPracticeUnit.sourceSetIndex}` : `Practice ${questionCount}` : 'Start verified sample'}</button> : <button type="button" className="primary-action" disabled>{available ? `${available} verified · indexing` : 'Still indexing this topic'}</button>}{topicPracticeUnits.length > 1 && <div className="topic-detail__set-list" aria-label="Past-paper practice sets">{topicPracticeUnits.map((unit) => <button type="button" key={unit.id} data-completed={Boolean(completionByUnit[unit.id]?.completed)} onClick={() => startPractice(unit)}><span>Set {unit.sourceSetIndex}</span><small>{unit.questionGroupCount} source groups · {unit.parts.length} answer parts · {unit.referencePapers.length} papers</small></button>)}</div>}<button type="button" className="topic-detail__ai" onClick={onOpenCoach}><Sparkles size={16} />Ask AI Tutor about this topic</button>{startError && <p className="topic-detail__error" role="alert">{startError}</p>}</aside>
       </div>
     </section>
   )
 }
 
-function LegacyKnowledgeMap({ subjectFilter, setSubjectFilter, completionByUnit, startPractice, startKnowledgeDrill, openPapers, catalogItems, verifiedUnits, practiceOptions }) {
+function LegacyKnowledgeMap({ subjectFilter, setSubjectFilter, completionByUnit, startPractice: _startPractice, startKnowledgeDrill, openPapers, catalogItems, verifiedUnits, practiceOptions }) {
   // oxlint-disable-next-line react-hooks/rules-of-hooks
   const [inventoryError, setInventoryError] = useState('')
   const planSubjectByAppSubject = { 'igcse-math': 'math-0580', 'additional-math': 'math-0606', physics: 'physics-9702', 'igcse-physics': 'physics-0625', biology: 'biology-9700', 'igcse-biology': 'biology-0610', chemistry: 'chemistry-9701', economics: 'economics-9708', math: 'math-9709', 'further-math': 'math-9231' }
@@ -2423,19 +2475,22 @@ function LegacyKnowledgeMap({ subjectFilter, setSubjectFilter, completionByUnit,
     return stagesForComponentTags(group.stageTags)
   }
 
-  function startGroupDrill(group, fallbackUnit, stage, available) {
+  function startGroupDrill(group, _fallbackUnit, stage, available) {
     const appSubjectId = appSubjectByPlanSubject[group.subjectId] || subjectFilter
-    if (startKnowledgeDrill && appSubjectId && appSubjectId !== 'all' && available > 0) {
+    if (startKnowledgeDrill && appSubjectId && appSubjectId !== 'all' && available >= MIN_VERIFIED_GROUPS_FOR_PRACTICE) {
       try {
         setInventoryError('')
-        startKnowledgeDrill({ subjectId: appSubjectId, stage, knowledgeGroupId: group.id, questionCount: Math.min(10, available), allowPartial: true })
+        startKnowledgeDrill({ subjectId: appSubjectId, stage, knowledgeGroupId: group.id, questionCount: MIN_VERIFIED_GROUPS_FOR_PRACTICE })
       } catch (error) {
         setInventoryError(error.message || 'This topic has no verified source question yet.')
       }
       return
     }
-    if (fallbackUnit) startPractice(fallbackUnit)
-    else openPapers(appSubjectId || 'all')
+    setInventoryError(
+      available > 0
+        ? `${group.name} has ${available} verified source questions. ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} are required before a Topic Drill can start; source indexing is still in progress.`
+        : `${group.name} has no verified source questions yet. Source indexing is still in progress.`,
+    )
   }
 
   return (
@@ -2462,7 +2517,7 @@ function LegacyKnowledgeMap({ subjectFilter, setSubjectFilter, completionByUnit,
         }))
         const primaryPreview = previews[0]?.sourceMix
         const subjectCode = subjects.find((subject) => subject.id === appSubjectId)?.code || 'selected'
-        return <article className="knowledge-row" key={group.id}><div className="knowledge-stage"><span>{stage}</span>{group.stageTags?.length > 0 && <small>{group.stageTags.join(' / ')}</small>}<div className="mini-progress"><i style={{ width: `${percentage ?? 4}%` }} /></div></div><div className="knowledge-copy"><h3>{group.name}</h3><p>{group.description}</p><div className="knowledge-themes">{group.themes.map((theme) => <span key={theme}>{theme}</span>)}</div><small className="knowledge-skill-line">Skills: {(group.skills || []).slice(0, 3).join(' · ')}</small><div className="knowledge-source-preview" aria-label={`${group.name} drill source inventory`}>{previews.map((preview) => <span className={preview.sourceMix.status === 'empty' ? 'not-ready' : preview.sourceMix.partial ? 'partial' : 'ready'} key={preview.stage}><strong>{preview.stage}</strong>{preview.sourceMix.available} verified{preview.sourceMix.partial ? ' · partial' : ''}</span>)}</div><small className="knowledge-source-policy">Stage availability is real question-level inventory. It never blocks access to other indexed content.</small></div><div className="knowledge-action"><strong>{percentage == null ? `${primaryPreview?.available || 0} verified questions` : `${percentage}% best`}</strong><div className="knowledge-drill-buttons">{stageOptions.map((stageName) => { const preview = previews.find((item) => item.stage === stageName)?.sourceMix; const count = Math.min(10, preview?.available || 0); return <button type="button" className="card-action" key={stageName} disabled={!count} onClick={() => startGroupDrill(group, unit, stageName, count)}>{count ? `Build ${stageName} drill · ${count} question${count === 1 ? '' : 's'}` : `${stageName} · no source indexed`}<ChevronRight size={15} /></button> })}</div><button type="button" className="text-action" onClick={() => openPapers(appSubjectId)}>Open {subjectCode} papers</button></div></article>
+        return <article className="knowledge-row" key={group.id}><div className="knowledge-stage"><span>{stage}</span>{group.stageTags?.length > 0 && <small>{group.stageTags.join(' / ')}</small>}<div className="mini-progress"><i style={{ width: `${percentage ?? 4}%` }} /></div></div><div className="knowledge-copy"><h3>{group.name}</h3><p>{group.description}</p><div className="knowledge-themes">{group.themes.map((theme) => <span key={theme}>{theme}</span>)}</div><small className="knowledge-skill-line">Skills: {(group.skills || []).slice(0, 3).join(' · ')}</small><div className="knowledge-source-preview" aria-label={`${group.name} drill source inventory`}>{previews.map((preview) => <span className={preview.sourceMix.status === 'empty' ? 'not-ready' : preview.sourceMix.partial ? 'partial' : 'ready'} key={preview.stage}><strong>{preview.stage}</strong>{preview.sourceMix.available} verified{preview.sourceMix.partial ? ' · partial' : ''}</span>)}</div><small className="knowledge-source-policy">Stage availability is real question-level inventory. Topic Drill starts only at {MIN_VERIFIED_GROUPS_FOR_PRACTICE} verified groups; otherwise use the paper viewer while indexing continues.</small></div><div className="knowledge-action"><strong>{percentage == null ? `${primaryPreview?.available || 0} verified questions` : `${percentage}% best`}</strong><div className="knowledge-drill-buttons">{stageOptions.map((stageName) => { const preview = previews.find((item) => item.stage === stageName)?.sourceMix; const count = preview?.available || 0; const ready = count >= MIN_VERIFIED_GROUPS_FOR_PRACTICE; return <button type="button" className="card-action" key={stageName} disabled={!ready} onClick={() => startGroupDrill(group, unit, stageName, count)}>{ready ? `Build ${stageName} drill · ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} questions` : count ? `${stageName} · ${count} verified, indexing` : `${stageName} · no source indexed`}<ChevronRight size={15} /></button> })}</div><button type="button" className="text-action" onClick={() => openPapers(appSubjectId)}>Open {subjectCode} papers</button></div></article>
       })}</div>
     </section>
   )
@@ -2484,10 +2539,17 @@ function KnowledgeMap({ activeRoute, activeRouteId, selectRoute, completionByUni
 
   function startDrill(topic, fallbackUnit) {
     const available = topic.inventory || 0
-    if (!available) return
+    if (available < MIN_VERIFIED_GROUPS_FOR_PRACTICE) {
+      setInventoryError(
+        available > 0
+          ? `${topic.label} has ${available} verified source questions. ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} are required before a Topic Drill can start; source indexing is still in progress.`
+          : `${topic.label} has no verified source questions yet. Source indexing is still in progress.`,
+      )
+      return
+    }
     try {
       setInventoryError('')
-      startKnowledgeDrill({ routeId: activeRouteId, knowledgeGroupId: topic.id, questionCount: Math.min(10, available), allowPartial: true })
+      startKnowledgeDrill({ routeId: activeRouteId, knowledgeGroupId: topic.id, questionCount: MIN_VERIFIED_GROUPS_FOR_PRACTICE })
     } catch (error) {
       if (fallbackUnit) startPractice(fallbackUnit)
       else setInventoryError(error.message || 'This syllabus topic has no verified source question yet.')
@@ -2512,7 +2574,7 @@ function KnowledgeMap({ activeRoute, activeRouteId, selectRoute, completionByUni
       const percentage = Math.max(...units.map((unit) => completionByUnit[unit.id]?.best?.percentage).filter((value) => value != null), -1)
       const status = percentage < 0 ? 'Not started' : percentage >= 80 ? 'Secure' : 'Practising'
       const available = topic.inventory || 0
-      return <article className="knowledge-row" key={topic.id}><div className="knowledge-stage"><span>{status}</span><small>{activeRoute.stage}</small><div className="mini-progress"><i style={{ width: `${percentage < 0 ? 4 : percentage}%` }} /></div></div><div className="knowledge-copy"><h3>{topic.label}</h3><p>{metadata?.description || `${activeRoute.syllabus.board} syllabus topic.`}</p><div className="knowledge-themes">{(metadata?.themes || []).slice(0, 5).map((theme) => <span key={theme}>{theme}</span>)}</div><div className="knowledge-source-preview"><span className={available ? available < MIN_VERIFIED_GROUPS_FOR_PRACTICE ? 'partial' : 'ready' : 'not-ready'}><strong>{activeRoute.stage}</strong>{available} verified</span></div></div><div className="knowledge-action"><strong>{percentage < 0 ? `${available} verified questions` : `${percentage}% best`}</strong><button type="button" className="card-action" disabled={!available} onClick={() => startDrill(topic, units[0])}>{available >= MIN_VERIFIED_GROUPS_FOR_PRACTICE ? `Build ${activeRoute.stage} drill · ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} questions` : available ? `Limited · practice ${available} verified` : 'No source indexed'}<ChevronRight size={15} /></button><button type="button" className="text-action" onClick={() => openPapers(appSubject?.id || 'all')}>Open {activeRoute.subjectCode} papers</button></div></article>
+      return <article className="knowledge-row" key={topic.id}><div className="knowledge-stage"><span>{status}</span><small>{activeRoute.stage}</small><div className="mini-progress"><i style={{ width: `${percentage < 0 ? 4 : percentage}%` }} /></div></div><div className="knowledge-copy"><h3>{topic.label}</h3><p>{metadata?.description || `${activeRoute.syllabus.board} syllabus topic.`}</p><div className="knowledge-themes">{(metadata?.themes || []).slice(0, 5).map((theme) => <span key={theme}>{theme}</span>)}</div><div className="knowledge-source-preview"><span className={available ? available < MIN_VERIFIED_GROUPS_FOR_PRACTICE ? 'partial' : 'ready' : 'not-ready'}><strong>{activeRoute.stage}</strong>{available} verified</span></div></div><div className="knowledge-action"><strong>{percentage < 0 ? `${available} verified questions` : `${percentage}% best`}</strong><button type="button" className="card-action" disabled={available < MIN_VERIFIED_GROUPS_FOR_PRACTICE} onClick={() => startDrill(topic, units[0])}>{available >= MIN_VERIFIED_GROUPS_FOR_PRACTICE ? `Build ${activeRoute.stage} drill · ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} questions` : available ? `${activeRoute.stage} · ${available} verified, indexing` : 'No source indexed'}<ChevronRight size={15} /></button><button type="button" className="text-action" onClick={() => openPapers(appSubject?.id || 'all')}>Open {activeRoute.subjectCode} papers</button></div></article>
     })}</div>
   </section>
 }

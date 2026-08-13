@@ -768,7 +768,6 @@
 
 .dashboard-aside { display: grid; align-content: start; gap: 14px; padding-top: 20px; }.weekly-card { min-height: 210px; padding: 17px; }.weekly-card > p { margin: 0; color: #243147; font-size: 13px; font-weight: 800; }.goal-ring { display: grid; width: 112px; height: 112px; place-content: center; margin: 15px auto; border-radius: 50%; background: conic-gradient(#2872e9 var(--goal), #eaf0f6 0); color: #1b293d; text-align: center; }.goal-ring::before { position: absolute; width: 90px; height: 90px; border-radius: 50%; background: #fff; content: ''; }.goal-ring strong, .goal-ring span { position: relative; z-index: 1; }.goal-ring strong { font-size: 18px; }.goal-ring span { color: #788697; font-size: 10px; }.goal-ring.complete { background: conic-gradient(#17a075 var(--goal), #e3f2ec 0); }.weekly-card__footer { display: grid; gap: 5px; color: #667488; font-size: 11px; text-align: center; }.weekly-card__footer span { color: #3a4759; font-weight: 700; }.streak-flame { margin-right: 4px; color: #ee7654; }.tutor-card { padding: 17px; }.tutor-card header { display: flex; align-items: center; gap: 8px; }.tutor-card header small { color: #236be5; font-size: 11px; font-weight: 800; text-transform: uppercase; }.tutor-card h2 { margin: 12px 0 7px; color: #182437; font-size: 16px; }.tutor-card p { margin: 0 0 14px; color: #728094; font-size: 12px; line-height: 1.5; }.tutor-card .secondary-action { width: 100%; min-height: 40px; color: #2464d5; border-color: #bdd0f1; background: #f8fbff; font-size: 12px; }.milestones-compact > div { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; align-items: start; margin-top: 12px; }.milestones-compact .milestone-dot { display: grid; width: 20px; height: 20px; place-items: center; border: 1px solid #cdd7e2; border-radius: 50%; color: #fff; }.milestones-compact .milestone-dot.complete { border-color: #24a277; background: #24a277; }.milestones-compact p { display: grid; gap: 2px; margin: 0; }.milestones-compact strong { font-size: 11px; }.milestones-compact small { color: #7c8999; font-size: 10px; }.milestones-compact i { grid-column: 2; height: 4px; overflow: hidden; border-radius: 5px; background: #e9edf1; }.milestones-compact i b { display: block; height: 100%; border-radius: inherit; background: #2b72df; }
 .unit-topline { position: relative; }.unit-favorite { display: grid; width: 34px; height: 34px; place-items: center; margin-left: auto; border: 1px solid #d9e1e9; border-radius: 6px; color: #8a98a8; background: #fff; }.unit-favorite:hover, .unit-favorite.saved { border-color: #efbdca; color: #d85b77; background: #fff6f8; }
-.dashboard-studio ~ .ai-coach-trigger { display: none; }
 .ai-coach__quick-actions button,
 .ai-coach__quick-actions label,
 .ai-coach__composer > label,
@@ -1300,11 +1299,11 @@
 .unified-top-nav .brand-button { gap: 8px; }
 .unified-top-nav .brand-button strong { color: #3f247e; font-size: 15px; }
 .unified-top-nav .brand-button small { display: none; }
-.campus-switcher, .account-menu { position: relative; flex: 0 0 auto; }
+.campus-switcher, .account-menu { position: relative; z-index: 130; flex: 0 0 auto; }
 .campus-switcher > button, .account-trigger { display: inline-flex; min-height: 36px; align-items: center; gap: 6px; padding: 0 9px; border: 1px solid #e0e5ec; border-radius: 7px; color: #263347; background: #fff; font-size: 12px; font-weight: 700; }
 .campus-switcher > button:hover, .account-trigger:hover { border-color: #b9c7dc; background: #f8faff; }
 .campus-switcher__stem { color: #2363db; }
-.campus-menu, .account-popover { position: absolute; top: calc(100% + 8px); z-index: 110; display: grid; min-width: 190px; padding: 6px; border: 1px solid #e1e6ed; border-radius: 8px; background: #fff; box-shadow: 0 14px 30px rgba(15, 23, 42, .13); }
+.campus-menu, .account-popover { position: absolute; top: calc(100% + 8px); z-index: 140; display: grid; min-width: 190px; padding: 6px; border: 1px solid #e1e6ed; border-radius: 8px; background: #fff; box-shadow: 0 14px 30px rgba(15, 23, 42, .13); }
 .campus-menu { left: 0; }
 .campus-menu a, .campus-menu button, .account-popover a, .account-popover button { display: grid; gap: 2px; width: 100%; padding: 9px 10px; border: 0; border-radius: 6px; color: #28364a; background: transparent; font: inherit; font-size: 12px; text-align: left; text-decoration: none; }
 .campus-menu a:hover, .campus-menu button:hover, .account-popover a:hover, .account-popover button:hover { color: #5638c3; background: #f0ecff; }
@@ -1329,11 +1328,12 @@
 .account-popover__primary { margin-top: 4px; color: #fff !important; background: #2463d6 !important; }
 .account-popover__primary:hover { color: #fff !important; background: #1d4ed8 !important; }
 .account-popover__error { margin: 8px 0 0; color: #b42318; font-size: 11px; line-height: 1.4; }
+.account-popover__error--muted { color: #8a5a12; }
 .account-popover__privacy { display: block; margin: 4px 0 8px; color: #5f6d80; font-size: 11px; line-height: 1.45; }
 .account-popover__legal { display: flex !important; justify-content: flex-start !important; gap: 4px !important; margin: 8px 0 0 !important; padding: 8px 0 0 !important; border-top: 1px solid #e9edf2 !important; border-bottom: 0 !important; }
 .account-popover__legal a { display: inline-flex !important; width: auto !important; padding: 4px 6px !important; color: #66758a !important; font-size: 11px !important; }
 .account-dialog-backdrop { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 20px; background: rgba(20, 29, 46, .44); }
-.account-dialog { width: min(100%, 440px); padding: 24px; border: 1px solid #dbe3ee; border-radius: 8px; background: #fff; box-shadow: 0 24px 54px rgba(15, 23, 42, .24); }
+.account-dialog { width: min(100%, 440px); max-height: min(720px, calc(100dvh - 32px)); overflow-y: auto; overscroll-behavior: contain; padding: 24px; border: 1px solid #dbe3ee; border-radius: 8px; background: #fff; box-shadow: 0 24px 54px rgba(15, 23, 42, .24); }
 .account-dialog__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
 .account-dialog__header h2 { margin: 0; color: #18243a; font-size: 23px; line-height: 1.2; }
 .account-dialog__header p:not(.section-label) { margin: 7px 0 0; color: #607087; font-size: 13px; line-height: 1.5; }
@@ -3248,7 +3248,7 @@ textarea:focus-visible {
 /* Contextual AI Coach */
 .ai-coach-trigger {
   position: fixed;
-  z-index: 70;
+  z-index: 60;
   right: 18px;
   bottom: calc(18px + env(safe-area-inset-bottom));
   min-height: 44px;
@@ -3289,6 +3289,14 @@ textarea:focus-visible {
   background: #fff;
   box-shadow: -18px 0 52px rgba(19, 31, 47, 0.2);
   transition: transform 180ms ease;
+}
+
+/* Account and setup overlays own the interaction layer. The Coach trigger
+   must never sit above a modal or consume a tap intended for account fields. */
+.account-dialog-backdrop,
+.setup-backdrop,
+.submit-dialog-backdrop {
+  isolation: isolate;
 }
 
 .ai-coach.open { transform: translateX(0); }
@@ -3341,6 +3349,9 @@ textarea:focus-visible {
 .ai-message--user { justify-self: end; color: #fff; border-color: #7357e8; background: #7357e8; }
 .ai-message > span { font-size: 9px; font-weight: 850; text-transform: uppercase; opacity: 0.72; }
 .ai-message p { margin: 0; font-size: 12px; line-height: 1.55; white-space: pre-wrap; }
+.ai-message__content { overflow-wrap: anywhere; }
+.ai-message__content strong { font-weight: 850; }
+.ai-message__math { padding: 1px 3px; border-radius: 3px; color: #273b5d; background: #eef3fb; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .95em; white-space: pre-wrap; }
 .ai-message small { color: #8b6512; font-size: 9px; line-height: 1.4; }
 .ai-coach__thinking { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 10px; }
 .ai-coach__thinking > span { width: 8px; height: 8px; border-radius: 50%; background: #7357e8; animation: pulse 1s infinite; }
@@ -3384,6 +3395,11 @@ textarea:focus-visible {
   .handwriting-pad__textarea { height: 420px; min-height: 420px; }
   .paper-answer-sheet__question > header { align-items: flex-start; }
   .paper-answer-sheet__question > header > div { align-items: flex-end; flex-direction: column-reverse; }
+  .account-dialog-backdrop { align-items: start; padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom)); }
+  .account-dialog { width: 100%; max-height: calc(100dvh - 24px); padding: 18px; }
+  .account-dialog__header { gap: 10px; margin-bottom: 16px; }
+  .account-dialog__header h2 { font-size: 20px; }
+  .account-dialog__header p:not(.section-label) { font-size: 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

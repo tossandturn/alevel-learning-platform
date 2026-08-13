@@ -187,7 +187,7 @@ export function issueMarkingCapabilities({ userId, payload, questionBank, signin
 
 export function verifyMarkingCapability({ request, payload = {}, identitySigningKey, capabilitySigningKey }) {
   const identity = authenticatedStemIdentity(request, identitySigningKey)
-  if (!identity) return rejected('identity_required', 'Sign in with your IELTSist account before requesting AI marking.', 401)
+  if (!identity) return rejected('identity_required', 'Sign in to STEM before requesting AI marking.', 401)
   const grant = validHmacJwt(payload.markingGrant, capabilitySigningKey, {
     issuer: MARKING_CAPABILITY_ISSUER,
     audience: MARKING_CAPABILITY_AUDIENCE,

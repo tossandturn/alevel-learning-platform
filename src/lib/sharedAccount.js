@@ -35,7 +35,7 @@ function parseIdentity(payload) {
   }
   const identityId = String(payload?.identity?.id || '').trim()
   if (!identityId) {
-    throw new SharedAccountError('invalid_identity', 'The shared sign-in response did not identify an IELTSist account. Sign in again to continue.', { loginRequired: true })
+    throw new SharedAccountError('invalid_identity', 'The shared sign-in response did not identify a STEM account. Sign in again to continue.', { loginRequired: true })
   }
   return {
     token,
@@ -125,6 +125,22 @@ export async function requestSharedAccount({ flushPending = true } = {}) {
   const { response, payload } = await jsonFetch('/api/auth/status', { credentials: 'same-origin', redirect: 'error' })
   if (!response.ok) throw responseError(response, payload, 'Sign in to STEM to use shared classes and notes.')
   return hydrateNativeAccount(payload, { flushPending })
+}
+
+/** Reads public, non-secret native STEM account readiness before credentials are sent. */
+export async function requestNativeAccountReadiness() {
+  const { response, payload } = await jsonFetch('/api/auth/config', { credentials: 'same-origin', redirect: 'error' })
+  if (!response.ok) throw responseError(response, payload, 'STEM account sign-in status is unavailable.')
+  const readiness = payload?.readiness
+  if (!readiness || typeof readiness !== 'object') {
+    // Older deployments did not expose readiness. Preserve sign-in compatibility
+    // while the server remains responsible for rejecting an invalid request.
+    return { known: false, nativeLoginConfigured: true }
+  }
+  return {
+    known: true,
+    nativeLoginConfigured: Boolean(readiness.nativeLoginConfigured),
+  }
 }
 
 /**

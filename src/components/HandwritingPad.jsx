@@ -513,9 +513,9 @@ export function HandwritingPad({
   return (
     <section className="handwriting-pad" aria-labelledby={`${instanceId}-label`} onDragStart={mode === 'handwrite' ? preventSelection : undefined} onContextMenu={mode === 'handwrite' ? preventSelection : undefined}>
       <header className="handwriting-pad__header">
-        <div><strong id={`${instanceId}-label`}>{label}</strong><span>Photo-first: write on paper, then upload or take a clear photo for AI review.</span></div>
+        <div><strong id={`${instanceId}-label`}>{label}</strong><span>Recommended for past papers: write on paper, upload a clear photo, then submit for AI-assisted marking.</span></div>
         <div className="handwriting-pad__modes" role="group" aria-label="Answer input mode">
-          <button type="button" className="handwriting-pad__capture" disabled={disabled} onClick={() => fileInputRef.current?.click()}><Upload size={15} />Upload photo</button>
+          <button type="button" className="handwriting-pad__capture" disabled={disabled} onClick={() => fileInputRef.current?.click()}><Upload size={15} />Upload paper photo</button>
           <button type="button" className={mode === 'handwrite' ? 'active' : ''} onClick={() => switchMode('handwrite')}><PenTool size={16} />Handwrite</button>
           <button type="button" className={mode === 'type' ? 'active' : ''} onClick={() => switchMode('type')}><Keyboard size={16} />Type</button>
         </div>

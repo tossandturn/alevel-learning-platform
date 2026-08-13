@@ -31,6 +31,13 @@ assert.ok(cambridge0580.topicMatrix
   .filter((topic) => topic.practiceAvailableQuestionGroups > 0 && topic.practiceAvailableQuestionGroups < 10)
   .every((topic) => topic.ctaPolicy === 'limited-indexing' && topic.ready === false))
 
+const appSource = execFileSync(process.execPath, ['-e', "process.stdout.write(require('node:fs').readFileSync('src/App.jsx','utf8'))"], {
+  cwd: projectRoot,
+  encoding: 'utf8',
+})
+assert.match(appSource, /const sampleReady = !practiceReady && available > 0 && topicPracticeUnits\.length > 0/, 'low-coverage reviewed source samples must remain openable without marking the topic ready')
+assert.match(appSource, /Start verified sample/, 'limited-indexing topics with reviewed source samples need an honest non-ready CTA')
+
 for (const route of matrix.routes.filter((route) => route.practiceAvailableQuestionGroups === 0)) {
   assert.equal(route.ready, false, `${route.routeId} must not be marked ready with an empty practice pool`)
   assert.equal(route.ctaPolicy, 'hidden', `${route.routeId} must hide its start CTA while empty`)

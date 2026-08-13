@@ -757,7 +757,7 @@ async function assertAccountStateIsolation(browser, errors, shots) {
 
     account = null
     await page.reload({ waitUntil: 'domcontentloaded' })
-    await page.getByRole('button', { name: 'Connect IELTSist account' }).waitFor()
+    await page.getByRole('button', { name: /Sign in to STEM|Sign in$/ }).waitFor()
     const guestNote = await openNotebook()
     if (await guestNote.inputValue()) throw new Error('Guest state inherited an authenticated account private note')
 
@@ -967,8 +967,8 @@ async function run() {
       await page.getByRole('button', { name: 'Programmes', exact: true }).click()
       if (await page.getByRole('region', { name: 'School reporting controls' }).count() !== 1) throw new Error('School Coverage controls are missing')
     } else {
-      if (await page.getByRole('link', { name: /Log in to IELTSist/i }).count() !== 1) throw new Error('Guest account menu is missing the shared login entry')
-      if (await page.getByRole('link', { name: /Create an IELTSist account/i }).count() !== 1) throw new Error('Guest account menu is missing the shared registration entry')
+      if (await page.getByRole('button', { name: /^Sign in/i }).count() !== 1) throw new Error('Guest account menu is missing the STEM login action')
+      if (await page.getByRole('button', { name: /Create account/i }).count() !== 1) throw new Error('Guest account menu is missing the STEM registration action')
       await page.locator('.account-trigger').click()
     }
     await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: /^Practice$/ }).click()

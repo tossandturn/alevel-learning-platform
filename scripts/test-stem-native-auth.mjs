@@ -53,6 +53,52 @@ const fetchImpl = async (url, options) => {
 }
 
 try {
+  let invalidOriginCalls = 0
+  const invalidOriginApi = createStemApi({
+    env: {
+      STEM_IDENTITY_SIGNING_KEY: signingKey,
+      STEM_AUTH_INTERNAL_ORIGIN: 'https://ieltsist.com',
+      STEM_DB_PATH: ':memory:',
+    },
+    fetchImpl: async () => {
+      invalidOriginCalls += 1
+      throw new Error('The identity service must not be called when native auth is unconfigured.')
+    },
+  })
+  const invalidOriginLogin = await call(invalidOriginApi, {
+    method: 'POST',
+    url: '/api/auth/login',
+    body: { username: 'student', password: 'testing123' },
+  })
+  assert.equal(invalidOriginLogin.statusCode, 503)
+  assert.equal(invalidOriginLogin.body.code, 'native_auth_not_configured')
+  assert.equal(invalidOriginCalls, 0, 'non-local native auth configuration must fail before the identity service call')
+  closeStemDatabaseForTests()
+
+  const defaultOriginCalls = []
+  const defaultOriginApi = createStemApi({
+    env: {
+      STEM_IDENTITY_SIGNING_KEY: signingKey,
+      STEM_DB_PATH: ':memory:',
+    },
+    fetchImpl: async (url, options) => {
+      defaultOriginCalls.push({ url: String(url), options })
+      return new Response(JSON.stringify({ error: 'Invalid username or password.' }), {
+        status: 401,
+        headers: { 'content-type': 'application/json' },
+      })
+    },
+  })
+  const defaultOriginLogin = await call(defaultOriginApi, {
+    method: 'POST',
+    url: '/api/auth/login',
+    body: { username: 'wrong_user', password: 'testing123' },
+  })
+  assert.equal(defaultOriginLogin.statusCode, 401)
+  assert.equal(defaultOriginCalls.length, 1, 'missing STEM_AUTH_INTERNAL_ORIGIN must use the safe localhost default instead of blocking login')
+  assert.equal(defaultOriginCalls[0].url, 'http://127.0.0.1:4321/api/stem/internal/authenticate')
+  closeStemDatabaseForTests()
+
   const api = createStemApi({
     env: {
       STEM_IDENTITY_SIGNING_KEY: signingKey,
@@ -66,6 +112,15 @@ try {
 
   const anonymous = await call(api, { method: 'GET', url: '/api/auth/status' })
   assert.equal(anonymous.statusCode, 401, `anonymous native STEM auth status must require a STEM session: ${anonymous.body.error || 'unknown error'}`)
+
+  const config = await call(api, { method: 'GET', url: '/api/auth/config' })
+  assert.equal(config.statusCode, 200)
+  assert.deepEqual(config.body.readiness, {
+    sessionSigningConfigured: true,
+    internalAuthOriginConfigured: true,
+    nativeLoginConfigured: true,
+  }, 'auth readiness must expose only boolean configuration state')
+  assert.doesNotMatch(JSON.stringify(config.body), /testing123|provider-access-token|signing-key/i, 'auth readiness must not expose secrets')
 
   const invalid = await call(api, {
     method: 'POST',
