@@ -70,8 +70,8 @@ assert.ok(partOutsideSourcePage.reasons.includes('part-source-page-outside-range
 assert.equal(sourceContentManifest.schemaVersion, 'source-content-audit-v2', 'client source manifest must use the audited schema')
 assert.equal(Object.keys(sourceContentManifest.items).length, 1320, 'every imported source question must receive an explicit runtime audit state')
 assert.equal(Object.values(sourceContentManifest.items).filter((item) => !item.fileComplete).length, 423, 'source audit must preserve the 420 index quarantines plus 3 source-file quarantines')
-assert.equal(Object.values(sourceContentManifest.items).filter((item) => !item.complete).length, 1207, 'effective practice gate must exclude every unreviewed or semantically quarantined source record')
-assert.equal(Object.values(sourceContentManifest.items).filter((item) => item.complete).length, 113, 'only reviewed source-complete question groups may enter the effective practice bank')
+assert.equal(Object.values(sourceContentManifest.items).filter((item) => !item.complete).length, 1127, 'effective practice gate must exclude every unreviewed or semantically quarantined source record')
+assert.equal(Object.values(sourceContentManifest.items).filter((item) => item.complete).length, 193, 'only reviewed source-complete question groups may enter the effective practice bank')
 
 const semanticFixtureIds = ['bpho-2025_IPC:q13', 'bpho-2025_IPC:q14']
 for (const questionId of semanticFixtureIds) {
@@ -286,8 +286,8 @@ assert.ok(paperAnswerSheetSource.includes('onOpenAccount?.(\'login\')'), 'full-p
 assert.equal(practiceUnits.length, 0, 'formal practice must not expose generated seed questions')
 const verifiedPracticeCatalog = buildVerifiedPracticeCatalog()
 const verifiedCatalogMetrics = verifiedPracticeCatalogMetrics(verifiedPracticeCatalog)
-assert.deepEqual(verifiedCatalogMetrics, { units: 20, questionGroups: 113, answerableParts: 155, referencedPapers: 4, routes: 2, topics: 18 }, 'only source-semantically reviewed question groups may be exposed as stable route/topic practice units')
-assert.equal(runtimeVerifiedPracticeQuestionGroups.length, 113, 'the compact runtime catalog must expose only current reviewed groups')
+assert.deepEqual(verifiedCatalogMetrics, { units: 30, questionGroups: 193, answerableParts: 235, referencedPapers: 6, routes: 3, topics: 24 }, 'only source-semantically reviewed question groups may be exposed as stable route/topic practice units')
+assert.equal(runtimeVerifiedPracticeQuestionGroups.length, 193, 'the compact runtime catalog must expose only current reviewed groups')
 assert.deepEqual(verifiedPracticeCatalogMetrics(buildRuntimeVerifiedPracticeCatalog()), verifiedCatalogMetrics, 'compact runtime catalog must preserve the reviewed practice inventory')
 assert.equal(new Set(verifiedPracticeCatalog.map((unit) => unit.id)).size, verifiedPracticeCatalog.length, 'verified practice unit IDs must be stable and unique')
 assert.ok(verifiedPracticeCatalog.every((unit) => unit.parts.every((part) => part.routeId === unit.routeId && part.stage === unit.stage && part.sourceRef?.sha256 && part.answerRef?.sha256)), 'catalog practice units must preserve route, stage and independent QP/MS provenance')
@@ -304,10 +304,16 @@ const reviewed9702P1Parts = catalogAnswerParts.filter((part) => (
 ))
 assert.equal(reviewed9702P1Parts.length, 80, 'two reviewed 9702 P1 sets must expose one independently marked MCQ part per printed question')
 assert.ok(reviewed9702P1Parts.every((part) => part.answerType === 'multiple-choice' && part.aiAssistedMarkingAvailable && part.answerBinding?.verificationStatus === 'reviewed'), '9702 P1 marking capability must require current reviewed QP/MS provenance')
-assert.equal(catalogAnswerParts.filter((part) => part.aiAssistedMarkingAvailable).length, 155, 'only the reviewed 0580 and 9702 source parts may unlock AI-assisted marking')
-const deterministic9702P1Parts = catalogAnswerParts.filter((part) => part.deterministicScoringAvailable)
-assert.equal(deterministic9702P1Parts.length, 80, 'only the reviewed 9702 MCQ parts may unlock deterministic scoring')
-assert.ok(deterministic9702P1Parts.every((part) => reviewed9702P1Parts.includes(part) && part.answerType === 'multiple-choice' && part.answerBinding?.verificationStatus === 'reviewed'), 'deterministic scoring must stay bound to the reviewed 9702 answer key')
+const reviewed0625P2Parts = catalogAnswerParts.filter((part) => part.sourceRef?.paperId === 'cie-0625-0625_m25_qp_22')
+assert.equal(reviewed0625P2Parts.length, 40, 'reviewed 0625 M25 P2 must expose one independently marked MCQ part per printed question')
+assert.ok(reviewed0625P2Parts.every((part) => part.answerType === 'multiple-choice' && part.aiAssistedMarkingAvailable && part.answerBinding?.verificationStatus === 'reviewed'), '0625 P2 marking capability must require current reviewed QP/MS provenance')
+const reviewed0625S25P2Parts = catalogAnswerParts.filter((part) => part.sourceRef?.paperId === 'cie-0625-0625_s25_qp_21')
+assert.equal(reviewed0625S25P2Parts.length, 40, 'reviewed 0625 S25 P2 must expose one independently marked MCQ part per printed question')
+assert.ok(reviewed0625S25P2Parts.every((part) => part.answerType === 'multiple-choice' && part.aiAssistedMarkingAvailable && part.answerBinding?.verificationStatus === 'reviewed'), '0625 S25 P2 marking capability must require current reviewed QP/MS provenance')
+assert.equal(catalogAnswerParts.filter((part) => part.aiAssistedMarkingAvailable).length, 235, 'only reviewed source parts may unlock AI-assisted marking')
+const deterministicMcqParts = catalogAnswerParts.filter((part) => part.deterministicScoringAvailable)
+assert.equal(deterministicMcqParts.length, 160, 'only the reviewed MCQ parts may unlock deterministic scoring')
+assert.ok(deterministicMcqParts.every((part) => [...reviewed9702P1Parts, ...reviewed0625P2Parts, ...reviewed0625S25P2Parts].includes(part) && part.answerType === 'multiple-choice' && part.answerBinding?.verificationStatus === 'reviewed'), 'deterministic scoring must stay bound to a reviewed MCQ answer key')
 assert.equal(catalogAnswerParts.filter((part) => !part.aiAssistedMarkingAvailable && !part.deterministicScoringAvailable).length, 0, 'unreviewed structured items must remain outside the practice catalog rather than masquerading as self-mark units')
 const asPhysicsRecommendation = recommendForRoute({
   units: verifiedPracticeCatalog,
@@ -529,7 +535,7 @@ assert.deepEqual(mergeNotebookNote({ body: 'stale offline note', updatedAt: '202
 assert.ok(learningPlan.knowledgeGroups.length >= 10, 'learning plan should expose a usable subject knowledge map')
 assert.ok(learningPlan.practiceModes.some((mode) => mode.id === 'mock-exam'), 'learning plan should expose mock exam mode')
 assert.deepEqual(new Set(learningPlan.subjects.map((subject) => subject.code)), new Set(['0580', '0606', '0610', '0625', '9231', '9700', '9701', '9702', '9708', '9709']), 'knowledge map must expose all requested Cambridge subjects')
-assert.equal(unifiedQuestionBank.length, 113, 'question-level index must expose only the currently reviewed source-complete question groups')
+assert.equal(unifiedQuestionBank.length, 193, 'question-level index must expose only the currently reviewed source-complete question groups')
 assert.ok(unifiedQuestionBank.every(isVerifiedPastPaperItem), 'formal topic drills must contain only QP/MS-bound items')
 assert.ok(unifiedQuestionBank.every((item) => item.sourceRef.sha256 !== item.answerRef.sha256), 'question and answer documents must remain independently bound')
 

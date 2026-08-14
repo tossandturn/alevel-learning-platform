@@ -386,19 +386,22 @@ function App() {
     return (appState.paperReviews || []).filter((review) => review.routeId === activeRouteId || attemptIds.has(review.attemptId))
   }, [activeRouteId, appState.paperReviews, routePaperSessions])
   const aiPracticeOptions = useMemo(() => coachPracticeOptions(), [])
-  const syllabusInventory = useSyllabusInventory(activeRouteId, { enabled: activeRouteId === 'cie-9702-as-physics' })
+  const syllabusInventory = useSyllabusInventory(activeRouteId, {
+    enabled: ['cie-9702-as-physics', 'cie-0625-igcse-physics'].includes(activeRouteId),
+  })
   const activePracticeOptions = useMemo(() => {
     const routeOptions = aiPracticeOptions.filter((option) => option.routeId === activeRouteId)
-    if (activeRouteId !== 'cie-9702-as-physics' || syllabusInventory.status !== 'ready') return routeOptions
+    if (!['cie-9702-as-physics', 'cie-0625-igcse-physics'].includes(activeRouteId) || syllabusInventory.status !== 'ready') return routeOptions
     const serverTopics = new Map((syllabusInventory.data?.topics || []).map((topic) => [topic.id, topic]))
     return routeOptions.map((option) => ({
       ...option,
-      topics: option.topics.map((topic) => {
-        const serverTopic = serverTopics.get(topic.id)
-        if (!serverTopic) return topic
-        return {
-          ...topic,
+      topics: serverTopics.size
+        ? [...serverTopics.values()].map((serverTopic) => ({
+          ...(option.topics.find((topic) => topic.id === serverTopic.id) || {}),
+          id: serverTopic.id,
+          routeId: option.routeId,
           label: `${serverTopic.code} ${serverTopic.name}`,
+          stageTags: [option.stage],
           inventory: serverTopic.verifiedQuestionCount,
           indexedQuestionCount: serverTopic.indexedQuestionCount,
           pendingReviewCount: serverTopic.pendingReviewCount,
@@ -406,8 +409,8 @@ function App() {
           ctaPolicy: serverTopic.ctaPolicy,
           sourceGap: serverTopic.sourceGap,
           points: serverTopic.points || [],
-        }
-      }),
+        }))
+        : option.topics,
     }))
   }, [activeRouteId, aiPracticeOptions, syllabusInventory.data, syllabusInventory.status])
   const learningProgress = useMemo(() => buildLearningProgress({

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import http from 'node:http'
 import { CAMBRIDGE_9702_AS_SYLLABUS } from '../src/data/syllabus/cambridge-9702-as-2025-2027.js'
+import { CAMBRIDGE_0625_IGCSE_SYLLABUS } from '../src/data/syllabus/cambridge-0625-igcse-2026-2028.js'
 import { courseRoutes } from '../src/data/routeRegistry.js'
 import importedQuestionIndex from '../src/data/importedQuestionIndex.json' with { type: 'json' }
 import paperCatalog from '../public/data/papers.json' with { type: 'json' }
@@ -9,6 +10,7 @@ import { closeStemDatabaseForTests, createStemApi } from '../server/stemApi.js'
 import { buildSyllabusPracticeSet, syllabusMappingCandidates, syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
 
 const routeId = 'cie-9702-as-physics'
+const igcsePhysicsRouteId = 'cie-0625-igcse-physics'
 const signingKey = 'test-syllabus-key'
 const route = courseRoutes.find((item) => item.routeId === routeId)
 assert.ok(route, '9702 AS route must exist')
@@ -19,6 +21,30 @@ assert.equal(CAMBRIDGE_9702_AS_SYLLABUS.topics.length, 11, 'AS theory must expos
 assert.deepEqual(route.syllabus.topics.map((topic) => topic.id), CAMBRIDGE_9702_AS_SYLLABUS.topics.map((topic) => topic.id))
 assert.equal(route.syllabus.topics.some((topic) => /practical/i.test(topic.title)), false, 'practical skills must not be a theory Topic Drill chapter')
 assert.ok(CAMBRIDGE_9702_AS_SYLLABUS.points.length >= 130, 'official outcome table must include the AS learning outcomes')
+
+const igcsePhysicsRoute = courseRoutes.find((item) => item.routeId === igcsePhysicsRouteId)
+assert.ok(igcsePhysicsRoute, '0625 IGCSE Physics route must exist')
+assert.equal(CAMBRIDGE_0625_IGCSE_SYLLABUS.topics.length, 6, '0625 must expose the six official physics content areas')
+assert.deepEqual(CAMBRIDGE_0625_IGCSE_SYLLABUS.topics.map((topic) => topic.name), [
+  'Motion, forces and energy',
+  'Thermal physics',
+  'Waves',
+  'Electricity and magnetism',
+  'Nuclear physics',
+  'Space physics',
+])
+const igcseInventory = syllabusTopicsInventory({ routeId: igcsePhysicsRouteId })
+assert.deepEqual(igcseInventory.topics.map((topic) => topic.verifiedQuestionCount), [20, 14, 12, 19, 10, 5], '0625 inventory must aggregate both reviewed P2 papers by official syllabus topic')
+assert.equal(igcseInventory.indexedQuestionGroupCount, 120, '0625 indexed count must include candidates while verified count remains fail-closed at 80')
+const igcseSet = buildSyllabusPracticeSet({
+  routeId: igcsePhysicsRouteId,
+  syllabusTopicIds: ['0625-igcse-topic-06'],
+  questionCount: 5,
+  components: [2],
+  seed: 20260815,
+})
+assert.equal(igcseSet.questionCount, 5, '0625 Space physics must expose its reviewed five-question set')
+assert.ok(igcseSet.questionGroups.every((question) => question.routeId === igcsePhysicsRouteId && question.paperComponent === 2))
 
 function identityToken(userId = 42) {
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')

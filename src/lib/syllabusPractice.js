@@ -1,6 +1,7 @@
 import importedQuestionIndex from '../data/importedQuestionIndex.json' with { type: 'json' }
 import paperCatalog from '../../public/data/papers.json' with { type: 'json' }
 import { CAMBRIDGE_9702_AS_SYLLABUS } from '../data/syllabus/cambridge-9702-as-2025-2027.js'
+import { CAMBRIDGE_0625_IGCSE_SYLLABUS } from '../data/syllabus/cambridge-0625-igcse-2026-2028.js'
 import { isHumanReviewedPastPaperItem, normalizeImportedQuestion, unifiedQuestionBank } from '../data/questionBank.js'
 import { routeById } from '../data/routeRegistry.js'
 
@@ -8,13 +9,33 @@ export const SYLLABUS_CATALOG_SCHEMA_VERSION = 'syllabus-catalog-v1'
 export const SYLLABUS_MAPPING_SCHEMA_VERSION = 'question-syllabus-mapping-v1'
 
 const SUPPORTED_9702_COMPONENTS = Object.freeze([1, 2])
+const SUPPORTED_0625_COMPONENTS = Object.freeze([2])
 const SET_SIZES = Object.freeze([5, 10, 15])
 
-function official9702FirstBatchPapers() {
+const SYLLABUS_CONFIGS = Object.freeze({
+  [CAMBRIDGE_9702_AS_SYLLABUS.routeId]: Object.freeze({
+    syllabus: CAMBRIDGE_9702_AS_SYLLABUS,
+    subjectCode: '9702',
+    stage: 'AS',
+    components: SUPPORTED_9702_COMPONENTS,
+  }),
+  [CAMBRIDGE_0625_IGCSE_SYLLABUS.routeId]: Object.freeze({
+    syllabus: CAMBRIDGE_0625_IGCSE_SYLLABUS,
+    subjectCode: '0625',
+    stage: 'IGCSE',
+    components: SUPPORTED_0625_COMPONENTS,
+  }),
+})
+
+function syllabusConfig(routeId) {
+  return SYLLABUS_CONFIGS[routeId] || null
+}
+
+function officialFirstBatchPapers(config) {
   return (paperCatalog.items || []).filter((item) => (
-    item.subject === '9702'
+    item.subject === config.subjectCode
     && item.kind === 'qp'
-    && [1, 2].includes(Number(item.examProfile?.paperNumber ?? item.paperComponent))
+    && config.components.includes(Number(item.examProfile?.paperNumber ?? item.paperComponent))
     && item.markSchemeId
     && Number(item.year) >= 2023
     && Number(item.year) <= 2025
@@ -36,12 +57,12 @@ function joinedIndexItems(index) {
   })
 }
 
-function raw9702QuestionGroups() {
-  const route = routeById(CAMBRIDGE_9702_AS_SYLLABUS.routeId)
+function rawSyllabusQuestionGroups(config) {
+  const route = routeById(config.syllabus.routeId)
   return joinedIndexItems(importedQuestionIndex)
     .filter((question) => (
-      question.subjectCode === '9702'
-      && SUPPORTED_9702_COMPONENTS.includes(Number(question.sourceRef?.component))
+      question.subjectCode === config.subjectCode
+      && config.components.includes(Number(question.sourceRef?.component))
       && question.sourceRef?.paperId
     ))
     .map((question) => {
@@ -57,9 +78,9 @@ function raw9702QuestionGroups() {
     })
 }
 
-function candidateMappingFor(question) {
+function candidateMappingFor(question, syllabus) {
   const topicId = String(question.knowledgeGroupId || question.topicId || '')
-  const topic = CAMBRIDGE_9702_AS_SYLLABUS.topics.find((item) => item.id === topicId)
+  const topic = syllabus.topics.find((item) => item.id === topicId)
   if (!topic) return null
   const suppliedStatus = String(question.syllabusMapping?.reviewStatus || '').toLowerCase()
   const reviewed = suppliedStatus === 'reviewed'
@@ -78,19 +99,19 @@ function candidateMappingFor(question) {
   })
 }
 
-function currentReviewedQuestionById(questionBank) {
+function currentReviewedQuestionById(questionBank, routeId) {
   return new Map((Array.isArray(questionBank) ? questionBank : [])
-    .filter((question) => question?.routeId === CAMBRIDGE_9702_AS_SYLLABUS.routeId)
+    .filter((question) => question?.routeId === routeId)
     .map((question) => [question.sourceQuestionId || question.questionGroupId, question]))
 }
 
-function effectiveQuestionRecords(questionBank) {
-  const reviewedById = currentReviewedQuestionById(questionBank)
-  return raw9702QuestionGroups().map((rawQuestion) => {
+function effectiveQuestionRecords(questionBank, config = SYLLABUS_CONFIGS[CAMBRIDGE_9702_AS_SYLLABUS.routeId]) {
+  const reviewedById = currentReviewedQuestionById(questionBank, config.syllabus.routeId)
+  return rawSyllabusQuestionGroups(config).map((rawQuestion) => {
     const sourceQuestionId = rawQuestion.sourceQuestionId || rawQuestion.questionGroupId
     const reviewedQuestion = reviewedById.get(sourceQuestionId)
     const question = reviewedQuestion || rawQuestion
-    const mapping = candidateMappingFor(question)
+    const mapping = candidateMappingFor(question, config.syllabus)
     const reviewed = Boolean(
       reviewedQuestion
       && isHumanReviewedPastPaperItem(reviewedQuestion)
@@ -100,9 +121,9 @@ function effectiveQuestionRecords(questionBank) {
       question,
       sourceQuestionId,
       questionGroupId: question.questionGroupId || sourceQuestionId,
-      routeId: CAMBRIDGE_9702_AS_SYLLABUS.routeId,
-      stage: 'AS',
-      subjectCode: '9702',
+      routeId: config.syllabus.routeId,
+      stage: config.stage,
+      subjectCode: config.subjectCode,
       paperComponent: Number(question.sourceRef?.component) || null,
       verificationStatus: question.answerBinding?.verificationStatus || 'machine-indexed',
       sourceContentComplete: question.sourceContent?.complete === true,
@@ -116,7 +137,7 @@ function effectiveQuestionRecords(questionBank) {
         confidence: 0,
         mappingMethod: 'rule',
         reviewStatus: 'rejected',
-        reviewReason: 'No canonical 9702 syllabus topic could be resolved.',
+        reviewReason: `No canonical ${config.subjectCode} syllabus topic could be resolved.`,
       }),
       eligible: reviewed,
     })
@@ -124,7 +145,8 @@ function effectiveQuestionRecords(questionBank) {
 }
 
 function topicRowsForRoute(routeId, questionBank) {
-  if (routeId !== CAMBRIDGE_9702_AS_SYLLABUS.routeId) {
+  const config = syllabusConfig(routeId)
+  if (!config) {
     const route = routeById(routeId)
     return (route?.syllabus?.topics || []).map((topic, index) => ({
       id: topic.id,
@@ -145,8 +167,8 @@ function topicRowsForRoute(routeId, questionBank) {
     }))
   }
 
-  const records = effectiveQuestionRecords(questionBank)
-  return CAMBRIDGE_9702_AS_SYLLABUS.topics.map((topic) => {
+  const records = effectiveQuestionRecords(questionBank, config)
+  return config.syllabus.topics.map((topic) => {
     const topicRecords = records.filter((record) => record.mapping.primaryTopicId === topic.id)
     const eligible = topicRecords.filter((record) => record.eligible)
     const verifiedQuestionCount = eligible.length
@@ -176,28 +198,27 @@ export function syllabusTopicsInventory({ routeId, questionBank = unifiedQuestio
     error.statusCode = 400
     throw error
   }
+  const config = syllabusConfig(routeId)
   const topics = topicRowsForRoute(routeId, questionBank)
-  const firstBatchPapers = routeId === CAMBRIDGE_9702_AS_SYLLABUS.routeId ? official9702FirstBatchPapers() : []
-  const effectiveRecords = routeId === CAMBRIDGE_9702_AS_SYLLABUS.routeId ? effectiveQuestionRecords(questionBank) : []
+  const firstBatchPapers = config ? officialFirstBatchPapers(config) : []
+  const effectiveRecords = config ? effectiveQuestionRecords(questionBank, config) : []
   return {
     schemaVersion: SYLLABUS_CATALOG_SCHEMA_VERSION,
     routeId,
-    syllabusVersion: routeId === CAMBRIDGE_9702_AS_SYLLABUS.routeId
-      ? CAMBRIDGE_9702_AS_SYLLABUS.syllabusVersion
+    syllabusVersion: config
+      ? config.syllabus.syllabusVersion
       : route.syllabus.version,
-    syllabusUrl: routeId === CAMBRIDGE_9702_AS_SYLLABUS.routeId
-      ? CAMBRIDGE_9702_AS_SYLLABUS.officialUrl
+    syllabusUrl: config
+      ? config.syllabus.officialUrl
       : route.syllabus.url,
-    assessmentComponents: routeId === CAMBRIDGE_9702_AS_SYLLABUS.routeId
-      ? CAMBRIDGE_9702_AS_SYLLABUS.assessmentComponents
+    assessmentComponents: config
+      ? config.syllabus.assessmentComponents
       : [],
     topics,
     ready: topics.some((topic) => topic.ready),
     officialPaperCount: firstBatchPapers.length,
     officialPairedPaperCount: firstBatchPapers.filter((paper) => Boolean(paper.markSchemeId)).length,
-    indexedQuestionGroupCount: routeId === CAMBRIDGE_9702_AS_SYLLABUS.routeId
-      ? effectiveRecords.length
-      : topics.reduce((sum, topic) => sum + topic.indexedQuestionCount, 0),
+    indexedQuestionGroupCount: config ? effectiveRecords.length : topics.reduce((sum, topic) => sum + topic.indexedQuestionCount, 0),
     verifiedQuestionGroupCount: topics.reduce((sum, topic) => sum + topic.verifiedQuestionCount, 0),
     unmappedQuestionGroupCount: effectiveRecords.filter((record) => !record.mapping.primaryTopicId).length,
     source: 'server-syllabus-catalog',
@@ -255,12 +276,12 @@ function questionSortKey(question) {
   ].join('\u0000')
 }
 
-function selectBalancedQuestions(records, topicIds, requestedCount, attemptedIds, seed) {
+function selectBalancedQuestions(records, topicIds, requestedCount, attemptedIds, seed, components) {
   const random = seededRandom(seed)
   const eligible = records.filter((record) => (
     record.eligible
     && topicIds.includes(record.mapping.primaryTopicId)
-    && SUPPORTED_9702_COMPONENTS.includes(record.paperComponent)
+    && components.includes(record.paperComponent)
   ))
   const unseen = eligible.filter((record) => !attemptedIds.has(record.sourceQuestionId))
   const seen = eligible.filter((record) => attemptedIds.has(record.sourceQuestionId))
@@ -342,14 +363,15 @@ export function buildSyllabusPracticeSet({
   seed = Date.now(),
   questionBank = unifiedQuestionBank,
 } = {}) {
-  if (routeId !== CAMBRIDGE_9702_AS_SYLLABUS.routeId) {
+  const config = syllabusConfig(routeId)
+  if (!config) {
     const error = new Error('This syllabus practice-set route is not configured yet.')
     error.code = 'syllabus_route_not_configured'
     error.statusCode = 409
     throw error
   }
   const topicIds = [...new Set(syllabusTopicIds.map((value) => String(value || '').trim()).filter(Boolean))]
-  const validTopicIds = new Set(CAMBRIDGE_9702_AS_SYLLABUS.topics.map((topic) => topic.id))
+  const validTopicIds = new Set(config.syllabus.topics.map((topic) => topic.id))
   if (!topicIds.length || topicIds.some((topicId) => !validTopicIds.has(topicId))) {
     const error = new Error('Select one or more official syllabus topic IDs.')
     error.code = 'invalid_syllabus_topic'
@@ -358,17 +380,19 @@ export function buildSyllabusPracticeSet({
   }
   const requestedCount = Math.min(15, Math.max(1, Number(questionCount) || 10))
   const requestedComponents = components === undefined
-    ? [...SUPPORTED_9702_COMPONENTS]
+    ? [...config.components]
     : [...new Set((Array.isArray(components) ? components : [components]).map((value) => Number(value)))]
-  const invalidComponents = requestedComponents.filter((value) => !SUPPORTED_9702_COMPONENTS.includes(value))
+  const invalidComponents = requestedComponents.filter((value) => !config.components.includes(value))
   if (!requestedComponents.length || invalidComponents.length) {
-    const error = new Error('Topic Drill uses AS Paper 1 and Paper 2 only. AS Paper 3 is the separate practical-skills track.')
+    const error = new Error(config.syllabus.routeId === CAMBRIDGE_9702_AS_SYLLABUS.routeId
+      ? 'Topic Drill uses AS Paper 1 and Paper 2 only. AS Paper 3 is the separate practical-skills track.'
+      : 'This Topic Drill batch currently contains only the reviewed theory component.')
     error.code = 'invalid_paper_component'
     error.statusCode = 400
     throw error
   }
   const selectedComponents = requestedComponents
-  const records = effectiveQuestionRecords(questionBank).filter((record) => selectedComponents.includes(record.paperComponent))
+  const records = effectiveQuestionRecords(questionBank, config).filter((record) => selectedComponents.includes(record.paperComponent))
   const attemptedIds = new Set(attemptedQuestionIds.map((value) => String(value || '').trim()).filter(Boolean))
   const availableRecords = records.filter((record) => (
     record.eligible && topicIds.includes(record.mapping.primaryTopicId)
@@ -379,6 +403,7 @@ export function buildSyllabusPracticeSet({
     requestedCount,
     excludeAttempted ? attemptedIds : new Set(),
     seed,
+    selectedComponents,
   )
   if (!selected.length) {
     const error = new Error(`No reviewed source questions are available for the selected syllabus topic${topicIds.length === 1 ? '' : 's'}.`)
@@ -391,9 +416,9 @@ export function buildSyllabusPracticeSet({
   return {
     schemaVersion: 'syllabus-practice-set-v1',
     routeId,
-    stage: 'AS',
-    subjectCode: '9702',
-    syllabusVersion: CAMBRIDGE_9702_AS_SYLLABUS.syllabusVersion,
+    stage: config.stage,
+    subjectCode: config.subjectCode,
+    syllabusVersion: config.syllabus.syllabusVersion,
     syllabusTopicIds: topicIds,
     components: selectedComponents,
     requestedCount,
@@ -490,12 +515,13 @@ export function seedSyllabusTables(database, questionBank = []) {
       official_text = excluded.official_text,
       updated_at = excluded.updated_at
   `)
-  for (const topic of CAMBRIDGE_9702_AS_SYLLABUS.topics) {
-    insertTopic.run(topic.id, topic.routeId, topic.syllabusVersion, topic.code, topic.name, topic.order, topic.officialPage, CAMBRIDGE_9702_AS_SYLLABUS.officialUrl, now)
-    for (const syllabusPoint of topic.points) insertPoint.run(syllabusPoint.id, topic.id, syllabusPoint.sectionCode, syllabusPoint.outcomeNumber, syllabusPoint.officialText, now)
+  for (const config of Object.values(SYLLABUS_CONFIGS)) {
+    for (const topic of config.syllabus.topics) {
+      insertTopic.run(topic.id, topic.routeId, topic.syllabusVersion, topic.code, topic.name, topic.order, topic.officialPage, config.syllabus.officialUrl, now)
+      for (const syllabusPoint of topic.points) insertPoint.run(syllabusPoint.id, topic.id, syllabusPoint.sectionCode, syllabusPoint.outcomeNumber, syllabusPoint.officialText, now)
+    }
   }
 
-  const records = effectiveQuestionRecords(questionBank)
   const insertQuestion = database.prepare(`
     INSERT INTO question_groups (
       id, route_id, stage, subject_code, paper_component, question_paper_id, mark_scheme_id,
@@ -536,7 +562,9 @@ export function seedSyllabusTables(database, questionBank = []) {
       evidence_json = excluded.evidence_json,
       updated_at = excluded.updated_at
   `)
-  for (const record of records) {
+  for (const config of Object.values(SYLLABUS_CONFIGS)) {
+    const records = effectiveQuestionRecords(questionBank, config)
+    for (const record of records) {
     const question = record.question
     const answerRef = question.answerRef || {}
     const mapping = record.mapping
@@ -568,9 +596,10 @@ export function seedSyllabusTables(database, questionBank = []) {
       mapping.reviewStatus,
       mapping.reviewedBy || null,
       mapping.reviewedAt || null,
-      JSON.stringify({ reason: mapping.reviewReason || null, officialUrl: CAMBRIDGE_9702_AS_SYLLABUS.officialUrl }),
+      JSON.stringify({ reason: mapping.reviewReason || null, officialUrl: config.syllabus.officialUrl }),
       now,
     )
+    }
   }
 }
 
