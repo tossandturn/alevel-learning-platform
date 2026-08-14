@@ -7,6 +7,29 @@ export const SHARED_MARKING_STATUSES = Object.freeze(['queued', 'processing', 'c
 const QUESTION_ASSET_MAX_BYTES = 2 * 1024 * 1024
 const QUESTION_ASSET_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
 
+function optionKey(value) {
+  const text = String(value ?? '').trim().toUpperCase()
+  return text.match(/^([A-D])(?:\b|[.)\s:-])/)?.[1] || (/^[A-D]$/.test(text) ? text : '')
+}
+
+/**
+ * Paper MCQs are objective and must not enter the self-mark queue. Keep this
+ * helper pure so the paper workspace and regression tests use the same rule.
+ */
+export function scorePaperMultipleChoice({ answer, answerKey, marks = 1 } = {}) {
+  const submitted = optionKey(typeof answer === 'object' ? answer?.choice : answer)
+  if (!submitted) return null
+  const expected = optionKey(answerKey)
+  const maximum = Math.max(0, Number(marks) || 0)
+  const awarded = expected && submitted === expected ? maximum : 0
+  return {
+    awarded,
+    maxMarks: maximum,
+    status: awarded === maximum ? 'secure' : 'missed',
+    feedback: awarded === maximum ? 'Correct option selected.' : 'The selected option does not match the official answer key.',
+  }
+}
+
 function dataUrlForImage(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()

@@ -46,8 +46,8 @@ for (const route of courseRoutes) {
 assert.ok(topicCount >= 60, `expected the registered learning map to expose at least 60 topics, got ${topicCount}`)
 assert.equal(
   verifiedPracticeQuestionGroups.length,
-  26,
-  'learning content must not expand the canonical verified question inventory',
+  113,
+  'learning content must expose exactly the current canonical verified question inventory',
 )
 
 console.log(`Topic learning content checks passed for ${topicCount} practice topics and ${courseRoutes.reduce((sum, route) => sum + route.syllabus.topics.length, 0)} route topics`)

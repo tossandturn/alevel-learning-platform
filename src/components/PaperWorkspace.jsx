@@ -3,7 +3,7 @@ import { AlertTriangle, ArrowLeft, CheckCircle2, Clock3, Columns2, Eraser, Exter
 import { getExamPaperProfile } from '../data/examStructure'
 import { paperQuestionMarkingMetadata } from '../lib/verifiedPracticeCatalog'
 import { deletePaperEvidence, getPaperEvidence, putPaperEvidence } from '../lib/evidenceStorage'
-import { buildSharedMarkingSubmission, completedMarksByQuestion, createSharedMarkingSubmission, loadQuestionAssets, paperSubmissionMarkingSummary, readSharedMarkingAvailability, retrySharedMarkingSubmission, sharedMarkingIsAvailable, waitForSharedMarkingSubmission } from '../lib/paperMarking'
+import { buildSharedMarkingSubmission, completedMarksByQuestion, createSharedMarkingSubmission, loadQuestionAssets, paperSubmissionMarkingSummary, readSharedMarkingAvailability, retrySharedMarkingSubmission, scorePaperMultipleChoice, sharedMarkingIsAvailable, waitForSharedMarkingSubmission } from '../lib/paperMarking'
 import { requestMarkingCapabilities } from '../lib/markingCapabilityClient'
 import { normalizePaperStudyMode, paperStudyModeLabel } from '../lib/paperStudyMode'
 import { AiCoach } from './AiCoach'
@@ -114,9 +114,17 @@ function storedAnswerPaneWidth() {
   return Number.isFinite(value) ? Math.max(MIN_ANSWER_PANE_WIDTH, value) : DEFAULT_ANSWER_PANE_WIDTH
 }
 
-function defaultQuestionCount(profile, paperId) {
+function highestReviewedQuestionNumber(metadataByNumber) {
+  return Object.keys(metadataByNumber || {})
+    .map((number) => Number(number))
+    .filter((number) => Number.isInteger(number) && number > 0)
+    .reduce((highest, number) => Math.max(highest, number), 0)
+}
+
+function defaultQuestionCount(profile, paperId, reviewedCount = 0) {
   if (paperId === REVIEWED_0580_MARKING_CONTRACT.paperId) return REVIEWED_0580_MARKING_CONTRACT.answerSlots
   if (profile.defaultQuestionCount) return profile.defaultQuestionCount
+  if (reviewedCount > 0) return reviewedCount
   if (profile.subject === 'bpho') return profile.questionCountRange?.[0] || 1
   if (profile.mode === 'practical') return 2
   return 12
@@ -148,11 +156,14 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
     stages: [],
   }, [sourcePaper])
   const questionMetadataByNumber = useMemo(() => paperQuestionMarkingMetadata({ paperId: sourcePaper.id, routeId: sourcePaper.routeId }), [sourcePaper.id, sourcePaper.routeId])
+  const reviewedQuestionCount = useMemo(() => highestReviewedQuestionNumber(questionMetadataByNumber), [questionMetadataByNumber])
   const sharedMarkingContract = useMemo(() => sharedMarkingContractForPaper({ id: sourcePaper.id }), [sourcePaper.id])
-  const paperDraft = useMemo(() => migratePaperDraftForOfficialSlots(draft, sharedMarkingContract?.answerSlots), [draft, sharedMarkingContract])
+  const officialQuestionSlots = sharedMarkingContract?.answerSlots || (profile.mode === 'mcq' ? profile.defaultQuestionCount : reviewedQuestionCount)
+  const paperDraft = useMemo(() => migratePaperDraftForOfficialSlots(draft, officialQuestionSlots), [draft, officialQuestionSlots])
   const reviewedMaxMarks = useMemo(() => Object.fromEntries(Object.entries(questionMetadataByNumber).map(([number, metadata]) => [number, metadata.maxMarks])), [questionMetadataByNumber])
   const [attemptId] = useState(() => paper.attemptId || paperDraft?.attemptId || `paper-attempt-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`)
   const [elapsedSec, setElapsedSec] = useState(paperDraft?.elapsedSec || 0)
+  const [timeUp, setTimeUp] = useState(Boolean(paperDraft?.timeUp))
   const [notes, setNotes] = useState(paperDraft?.notes || '')
   const [answers, setAnswers] = useState(paperDraft?.answers || {})
   const [submitted, setSubmitted] = useState(Boolean(paperDraft?.submitted))
@@ -163,7 +174,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
   const [aiMarkingInProgress, setAiMarkingInProgress] = useState(false)
   const [focusedQuestion, setFocusedQuestion] = useState(paperDraft?.focusedQuestion || 1)
   const [coachRequest, setCoachRequest] = useState(0)
-  const [questionCount, setQuestionCount] = useState(() => paperDraft?.questionCount || defaultQuestionCount(profile, sourcePaper.id))
+  const [questionCount, setQuestionCount] = useState(() => paperDraft?.questionCount || defaultQuestionCount(profile, sourcePaper.id, reviewedQuestionCount))
   const [documentMode, setDocumentMode] = useState(paper.kind === 'ms' ? 'mark' : paper.kind === 'er' ? 'report' : 'question')
   const [pdfWritingEnabled, setPdfWritingEnabled] = useState(() => Boolean(paperDraft?.pdfWritingEnabled) && profile.mode !== 'mcq' && !paperDraft?.submitted)
   const [pdfInkTool, setPdfInkTool] = useState('pen')
@@ -190,6 +201,8 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
   const pdfInkQuestionMapRef = useRef(pdfInkQuestionMap)
   const lastPdfInkPageRef = useRef(null)
   const submitInProgressRef = useRef(false)
+  const submitPaperRef = useRef(null)
+  const timeUpRef = useRef(Boolean(paperDraft?.timeUp))
   const isAttempt = paper.kind === 'qp'
   const canReview = !isAttempt || submitted
   const pdfInkQuestionNumbers = useMemo(() => [...new Set(Object.values(pdfInkQuestionMap).flat().map(Number).filter(Number.isFinite))], [pdfInkQuestionMap])
@@ -210,6 +223,9 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
   const componentLabel = profile.paperNumber ? `P${profile.paperNumber}` : profile.title || sourcePaper.subject.toUpperCase()
   const studyMode = normalizePaperStudyMode(paper.paperStudyMode || paperDraft?.paperStudyMode)
   const studyModeLabel = paperStudyModeLabel(studyMode)
+  const isTimedSimulation = isAttempt && studyMode === 'exam-simulation'
+  const timeLimitSec = isTimedSimulation && Number(profile.durationMinutes) > 0 ? Number(profile.durationMinutes) * 60 : 0
+  const remainingSec = timeLimitSec > 0 ? Math.max(0, timeLimitSec - elapsedSec) : 0
 
   pdfInkByPageRef.current = pdfInkByPage
   pdfInkQuestionMapRef.current = pdfInkQuestionMap
@@ -237,6 +253,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
     aiMarks,
     assignmentContext,
     elapsedSec,
+    timeUp,
     notes,
   }
 
@@ -273,9 +290,23 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
   }, [])
 
   useEffect(() => {
-    const timer = window.setInterval(() => setElapsedSec((value) => value + 1), 1000)
+    if (!isAttempt || submitted) return undefined
+    const timer = window.setInterval(() => {
+      setElapsedSec((value) => {
+        const nextValue = value + 1
+        if (isTimedSimulation && timeLimitSec > 0 && nextValue >= timeLimitSec) {
+          if (!timeUpRef.current) {
+            timeUpRef.current = true
+            setTimeUp(true)
+            window.setTimeout(() => submitPaperRef.current?.({ timeUp: true }), 0)
+          }
+          return timeLimitSec
+        }
+        return nextValue
+      })
+    }, 1000)
     return () => window.clearInterval(timer)
-  }, [])
+  }, [isAttempt, isTimedSimulation, submitted, timeLimitSec])
 
   useEffect(() => {
     onAttemptReady?.(attemptId)
@@ -658,9 +689,14 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
     }
   }
 
-  async function submitPaper() {
+  async function submitPaper({ timeUp: submittedByTimer = false } = {}) {
     if (submitted || submitInProgressRef.current) return
     submitInProgressRef.current = true
+    if (submittedByTimer) {
+      timeUpRef.current = true
+      setTimeUp(true)
+      setEvidenceStatus('Time is up. Submitting the saved answer sheet.')
+    }
     let flushed
     try {
       flushed = await flushPdfInk()
@@ -705,31 +741,68 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
       retestOf: paper.retestOf || null,
       assignmentContext,
       submittedAt,
+      timeUp: submittedByTimer || timeUp,
     })
-    setAiMarks((current) => ({ ...current, ...Object.fromEntries(submittedQuestionNumbers.map((questionNumber) => [questionNumber, questionMetadataByNumber[questionNumber]?.reviewStatus === 'reviewed' ? { status: 'checking_availability' } : { status: 'missing_metadata', code: 'question_metadata_missing' }])) }))
-    void markAllResponses({ questionNumbers: submittedQuestionNumbers, inkByPage: flushed.pdfInkByPage, inkQuestionMap, submittedAttempt: true })
+    const nextSelfMarks = { ...selfMarks }
+    const nextMaxMarksByQuestion = { ...maxMarksByQuestion }
+    if (profile.mode === 'mcq') {
+      for (const questionNumber of submittedQuestionNumbers) {
+        const metadata = questionMetadataByNumber[questionNumber]
+        const part = metadata?.parts?.find((item) => item.answerKey)
+        const score = part
+          ? scorePaperMultipleChoice({
+            answer: snapshot[questionNumber],
+            answerKey: part.answerKey,
+            marks: part.marks,
+          })
+          : null
+        if (score == null) continue
+        nextSelfMarks[questionNumber] = score.awarded
+        nextMaxMarksByQuestion[questionNumber] = score.maxMarks
+      }
+      setSelfMarks(nextSelfMarks)
+      setMaxMarksByQuestion(nextMaxMarksByQuestion)
+    }
+    if (profile.mode !== 'mcq') {
+      setAiMarks((current) => ({ ...current, ...Object.fromEntries(submittedQuestionNumbers.map((questionNumber) => [questionNumber, questionMetadataByNumber[questionNumber]?.reviewStatus === 'reviewed' ? { status: 'checking_availability' } : { status: 'missing_metadata', code: 'question_metadata_missing' }])) }))
+    }
+    if (profile.mode === 'mcq' && Object.keys(nextSelfMarks).some((number) => submittedQuestionNumbers.includes(Number(number)))) {
+      finishReview({
+        selfMarks: nextSelfMarks,
+        maxMarksByQuestion: nextMaxMarksByQuestion,
+        responseQuestionNumbers: submittedQuestionNumbers,
+      })
+    }
+    if (profile.mode !== 'mcq') {
+      void markAllResponses({ questionNumbers: submittedQuestionNumbers, inkByPage: flushed.pdfInkByPage, inkQuestionMap, submittedAttempt: true })
+    }
   }
 
-  function finishReview() {
-    const completedQuestionNumbers = responseQuestionNumbers.filter((questionNumber) => {
-      const awarded = selfMarks[questionNumber]
-      const available = maxMarksByQuestion[questionNumber]
+  submitPaperRef.current = submitPaper
+
+  function finishReview(overrides = {}) {
+    const marksByQuestion = overrides.selfMarks || selfMarks
+    const maxMarksByQuestionForReview = overrides.maxMarksByQuestion || maxMarksByQuestion
+    const responseNumbers = overrides.responseQuestionNumbers || responseQuestionNumbers
+    const completedQuestionNumbers = responseNumbers.filter((questionNumber) => {
+      const awarded = marksByQuestion[questionNumber]
+      const available = maxMarksByQuestionForReview[questionNumber]
       const awardedNumber = Number(awarded)
       const availableNumber = Number(available)
       return awarded !== '' && awarded != null && available !== '' && available != null
         && Number.isFinite(awardedNumber) && Number.isFinite(availableNumber)
         && awardedNumber >= 0 && availableNumber >= 0 && awardedNumber <= availableNumber
     })
-    const marks = completedQuestionNumbers.map((questionNumber) => Number(selfMarks[questionNumber]))
-    const available = completedQuestionNumbers.map((questionNumber) => Number(maxMarksByQuestion[questionNumber]))
+    const marks = completedQuestionNumbers.map((questionNumber) => Number(marksByQuestion[questionNumber]))
+    const available = completedQuestionNumbers.map((questionNumber) => Number(maxMarksByQuestionForReview[questionNumber]))
     const unansweredQuestionNumbers = Array.from({ length: questionCount }, (_, index) => index + 1)
-      .filter((questionNumber) => !responseQuestionNumbers.includes(questionNumber))
+      .filter((questionNumber) => !responseNumbers.includes(questionNumber))
     const review = {
       attemptId,
       paperId: sourcePaper.id,
       paperStudyMode: studyMode,
-      selfMarks,
-      maxMarksByQuestion,
+      selfMarks: marksByQuestion,
+      maxMarksByQuestion: maxMarksByQuestionForReview,
       aiMarks,
       rawMarks: marks.reduce((sum, value) => sum + value, 0),
       maxMarks: profile.mode === 'mcq' ? questionCount : available.reduce((sum, value) => sum + value, 0),
@@ -741,8 +814,8 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
     }
     const signature = JSON.stringify({
       scoredQuestionNumbers: completedQuestionNumbers,
-      selfMarks: Object.fromEntries(completedQuestionNumbers.map((questionNumber) => [questionNumber, selfMarks[questionNumber]])),
-      maxMarksByQuestion: Object.fromEntries(completedQuestionNumbers.map((questionNumber) => [questionNumber, maxMarksByQuestion[questionNumber]])),
+      selfMarks: Object.fromEntries(completedQuestionNumbers.map((questionNumber) => [questionNumber, marksByQuestion[questionNumber]])),
+      maxMarksByQuestion: Object.fromEntries(completedQuestionNumbers.map((questionNumber) => [questionNumber, maxMarksByQuestionForReview[questionNumber]])),
       unansweredQuestionNumbers,
     })
     if (lastSavedReview?.signature === signature) return
@@ -756,7 +829,8 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
         <button type="button" className="icon-button" onClick={async () => { try { const flushed = await flushPdfInk(); persistLatestDraft({ pdfInkByPage: flushed.pdfInkByPage, pdfInkQuestionMap: pdfInkQuestionMapRef.current }) } catch { persistLatestDraft() } onBack() }} aria-label="Back to paper library"><ArrowLeft size={19} /></button>
         <div className="workspace-title"><strong>{title}</strong><small>{studyModeLabel} · {profile.title} · {paper.season} {paper.year} · verified local PDF</small></div>
         <div className="paper-workspace-actions">
-          <span className="timer"><Clock3 size={16} />{formatTime(elapsedSec)}</span>
+          <span className={`timer ${isTimedSimulation && remainingSec <= 60 ? 'timer--urgent' : ''}`} role="timer"><Clock3 size={16} />{isTimedSimulation ? `Remaining ${formatTime(remainingSec)}` : formatTime(elapsedSec)}</span>
+          {timeUp && <span className="paper-time-status" role="status">Time is up · submitted</span>}
           <span className="save-state" aria-live="polite"><Save size={16} /><span>{saveStatus}</span></span>
           <a className="icon-button" href={(displayPaper || paper).localUrl} target="_blank" rel="noreferrer" aria-label="Open PDF in a new tab"><ExternalLink size={18} /></a>
           <button type="button" className="paper-focus-button" onClick={() => onToggleImmersive(!immersive)} aria-label={immersive ? 'Exit paper focus mode' : 'Enter paper focus mode'} aria-pressed={immersive} title={immersive ? 'Exit paper focus mode' : 'Enter paper focus mode'}>{immersive ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>
@@ -810,6 +884,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
         ><GripVertical size={16} /></div>}
         {isAttempt && <aside id="paper-answer-pane" role="tabpanel" className={`paper-response-panel ${mobilePane !== 'answer' ? 'mobile-pane-hidden' : ''}`}>
           {submitted && <SelfMarkSummary
+            mode={profile.mode}
             responseQuestionNumbers={responseQuestionNumbers}
             selfMarks={selfMarks}
             maxMarksByQuestion={maxMarksByQuestion}

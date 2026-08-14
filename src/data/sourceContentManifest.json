@@ -1,6 +1,6 @@
 {
   "schemaVersion": "source-content-audit-v2",
-  "sourceIndexSha256": "4274d5d3dc2ac33b511837a91e74631478849ab49a90c07985808eac8dc535a6",
+  "sourceIndexSha256": "6ad915b845809fac523ffd830b101a16e11a7eebe0f74c3d17294903a67d0d5f",
   "items": {
     "amc12-amc12-2025A-exam:q1": {
       "complete": false,
@@ -7305,446 +7305,333 @@
       "bindingSignature": "fnv1a64:57baf9abb9e47f89"
     },
     "cie-9702-9702_m25_qp_12:q1": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:11fbda4f7233e4cf"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:c955d58236ef964a"
     },
     "cie-9702-9702_m25_qp_12:q2": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:0e9d093f3e0fd1f0"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:a0e0a354f04133cd"
     },
     "cie-9702-9702_m25_qp_12:q3": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:17317504cb002021"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:320e6a9774ecc40d"
     },
     "cie-9702-9702_m25_qp_12:q4": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:38f6239e5322376a"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:f25fcf81c94713a8"
     },
     "cie-9702-9702_m25_qp_12:q5": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:42c2e81396151c1f"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:bb136f3cbfbb3f2d"
     },
     "cie-9702-9702_m25_qp_12:q6": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:29473bbb79d70160"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:c6a4ed074bf20c3c"
     },
     "cie-9702-9702_m25_qp_12:q7": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:1bec016a1b908019"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:92c9e0077c3303ba"
     },
     "cie-9702-9702_m25_qp_12:q8": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:a17bc1b246cd237a"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:032b42b105ff8a84"
     },
     "cie-9702-9702_m25_qp_12:q9": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:88f6e8468108413b"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:4fd96ba4d789bf1c"
     },
     "cie-9702-9702_m25_qp_12:q10": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:34c8f54f5da38979"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:38709cf045d483be"
     },
     "cie-9702-9702_m25_qp_12:q11": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:24258c01da8902b0"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:8e8bc2e5a7490fcd"
     },
     "cie-9702-9702_m25_qp_12:q12": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:debd232547393e6d"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:1245f718ba90666b"
     },
     "cie-9702-9702_m25_qp_12:q13": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:a7e324a3d16565e4"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:3f30d1f0efd9f9e6"
     },
     "cie-9702-9702_m25_qp_12:q14": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:f42336e3693b2505"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:495f2241b0168a8a"
     },
     "cie-9702-9702_m25_qp_12:q15": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:ec41661788b69294"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:780cc7d57c8ac78d"
     },
     "cie-9702-9702_m25_qp_12:q16": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:d1a183c583aec5dd"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:ef00bc3c0dbda773"
     },
     "cie-9702-9702_m25_qp_12:q17": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:c69e887f5f48369e"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:be4525c3d07a593f"
     },
     "cie-9702-9702_m25_qp_12:q18": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:d985e0eb7b1a0049"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:28850a4e4e652e3a"
     },
     "cie-9702-9702_m25_qp_12:q19": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:f9a7affe5eec002e"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:259200a152188890"
     },
     "cie-9702-9702_m25_qp_12:q20": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:62cb1801bbeb7e7e"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:fbe475c65583b014"
     },
     "cie-9702-9702_m25_qp_12:q21": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:f0f695eab929cbe5"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:21796da93b158656"
     },
     "cie-9702-9702_m25_qp_12:q22": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:c55f9443eec110b4"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:f9827c85877615ee"
     },
     "cie-9702-9702_m25_qp_12:q23": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:ad34baa99590d2c1"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:9bbd294cea08dc07"
     },
     "cie-9702-9702_m25_qp_12:q24": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:1a10330e3350bf5c"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:134ed3d70bc67b47"
     },
     "cie-9702-9702_m25_qp_12:q25": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:f0510cc1b0e1e36b"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:96d37a0ab8a826bb"
     },
     "cie-9702-9702_m25_qp_12:q26": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:5a1e8f0827160dac"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:bd54376f56107d6c"
     },
     "cie-9702-9702_m25_qp_12:q27": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:cac31b46a59dd82b"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:9c5f065b513d5a9d"
     },
     "cie-9702-9702_m25_qp_12:q28": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:6f0791cb07d0ccca"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:c5104e12b4d69400"
     },
     "cie-9702-9702_m25_qp_12:q29": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:048dc26b1b6ad17f"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:f705a736dcf57aae"
     },
     "cie-9702-9702_m25_qp_12:q30": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:9f6aa2f8bb42de91"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:d926355204941d35"
     },
     "cie-9702-9702_m25_qp_12:q31": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:ba60bec8fec6ac9e"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:75c206e2d57709a3"
     },
     "cie-9702-9702_m25_qp_12:q32": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:5a7bc46732618bdd"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:c07c59dc95457be9"
     },
     "cie-9702-9702_m25_qp_12:q33": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:cb0b72512eccdd9a"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:0f1fdfc1a5c6fa5c"
     },
     "cie-9702-9702_m25_qp_12:q34": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:b522812ce96ac193"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:d5a0b045fde5f7f2"
     },
     "cie-9702-9702_m25_qp_12:q35": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:4ec364a65dfaa8de"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:572e9b0ebf3c24c1"
     },
     "cie-9702-9702_m25_qp_12:q36": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:eb1a5bf7c9c37d7b"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:8d41f5bf98e8478f"
     },
     "cie-9702-9702_m25_qp_12:q37": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:197ffa4997035000"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:06f75c2f442719b0"
     },
     "cie-9702-9702_m25_qp_12:q38": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:e3cb5df6f050941f"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:1cc7b25a5000a72e"
     },
     "cie-9702-9702_m25_qp_12:q39": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:dbaf8412231e42c4"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:b6a79a3858fcb6f7"
     },
     "cie-9702-9702_m25_qp_12:q40": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:701c029817e9c54c"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:ec39c0310783d2ff"
     },
     "cie-9702-9702_m25_qp_22:q1": {
-      "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
-      "reasons": [
-        "index-quarantined",
-        "missing-question-parts"
-      ],
-      "bindingSignature": "fnv1a64:51cd506b016ce6fb"
+      "complete": true,
+      "fileComplete": true,
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:36a2c844e0075d8d"
     },
     "cie-9702-9702_m25_qp_22:q2": {
-      "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
-      "reasons": [
-        "index-quarantined",
-        "missing-question-parts"
-      ],
-      "bindingSignature": "fnv1a64:f252739a3a3237f5"
+      "complete": true,
+      "fileComplete": true,
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:154b5a386fc2ba44"
     },
     "cie-9702-9702_m25_qp_22:q3": {
-      "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
-      "reasons": [
-        "index-quarantined",
-        "missing-question-parts"
-      ],
-      "bindingSignature": "fnv1a64:80577615a038bd2d"
+      "complete": true,
+      "fileComplete": true,
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:6f4e655676f22c48"
     },
     "cie-9702-9702_m25_qp_22:q4": {
-      "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
-      "reasons": [
-        "index-quarantined",
-        "missing-question-parts"
-      ],
-      "bindingSignature": "fnv1a64:a0e2b804843fe4f8"
+      "complete": true,
+      "fileComplete": true,
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:5917e010f6b807d6"
     },
     "cie-9702-9702_m25_qp_22:q5": {
-      "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
-      "reasons": [
-        "decoded-page-missing:10",
-        "decoded-page-missing:11",
-        "decoded-page-missing:6",
-        "decoded-page-missing:7",
-        "decoded-page-missing:8",
-        "decoded-page-missing:9",
-        "index-quarantined",
-        "missing-page-asset:10",
-        "missing-page-asset:11",
-        "missing-page-asset:6",
-        "missing-page-asset:7",
-        "missing-page-asset:8",
-        "missing-page-asset:9",
-        "missing-question-parts"
-      ],
-      "bindingSignature": "fnv1a64:81c368c13b023ccf"
+      "complete": true,
+      "fileComplete": true,
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:85ce726b165ae8f5"
     },
     "cie-9702-9702_m25_qp_22:q6": {
-      "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
-      "reasons": [
-        "index-quarantined",
-        "missing-question-parts"
-      ],
-      "bindingSignature": "fnv1a64:66ea7d0354917849"
+      "complete": true,
+      "fileComplete": true,
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:71697f9e3986c809"
     },
     "cie-9702-9702_m25_qp_22:q7": {
-      "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
-      "reasons": [
-        "index-quarantined",
-        "missing-question-parts"
-      ],
-      "bindingSignature": "fnv1a64:01cb988fe14de079"
+      "complete": true,
+      "fileComplete": true,
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:a77ef1f53665f0fa"
     },
     "cie-9702-9702_m25_qp_42:q1": {
       "complete": false,
@@ -8118,364 +8005,284 @@
       "bindingSignature": "fnv1a64:fce8d29423ceef39"
     },
     "cie-9702-9702_s25_qp_11:q1": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:c63d09f54d36db2b"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:86ea9f793cfadaf5"
     },
     "cie-9702-9702_s25_qp_11:q2": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:fea75e8eb52d8e6c"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:8c823ea936e7b13b"
     },
     "cie-9702-9702_s25_qp_11:q3": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:2352cc643493b49d"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:af1ed9b871f61b0c"
     },
     "cie-9702-9702_s25_qp_11:q4": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:5438dd2e81f26572"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:eb25091531dcbc87"
     },
     "cie-9702-9702_s25_qp_11:q5": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:921b68292ec885cb"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:604495b188a84e60"
     },
     "cie-9702-9702_s25_qp_11:q6": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:1c5eee83277d513c"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:7706906a4714b8eb"
     },
     "cie-9702-9702_s25_qp_11:q7": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:1b267644a2d3a451"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:cf482fb7bedd0739"
     },
     "cie-9702-9702_s25_qp_11:q8": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:df0080d07c76e39a"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:08246726acc1e29c"
     },
     "cie-9702-9702_s25_qp_11:q9": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:d021c1ed134ad8e3"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:d85b0870ea258620"
     },
     "cie-9702-9702_s25_qp_11:q10": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:778461dfdccc09ff"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:9db6116623cb1e3c"
     },
     "cie-9702-9702_s25_qp_11:q11": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:721093b87ce0fdb8"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:cec615f3334a80f1"
     },
     "cie-9702-9702_s25_qp_11:q12": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:b06e5496e3de0143"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:0f8e56407eb6a313"
     },
     "cie-9702-9702_s25_qp_11:q13": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:652fda89624bc1c0"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:bbe709f01b5aa428"
     },
     "cie-9702-9702_s25_qp_11:q14": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:cf226b3bc0a8881f"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:d13917d0ef406dd7"
     },
     "cie-9702-9702_s25_qp_11:q15": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:89a9e489ac884014"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:6d15208a65492de7"
     },
     "cie-9702-9702_s25_qp_11:q16": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:5f67df77f1ac3a5d"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:058eb685b4196d33"
     },
     "cie-9702-9702_s25_qp_11:q17": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:7e515bc925a9d978"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:f5c3ee9dc857892a"
     },
     "cie-9702-9702_s25_qp_11:q18": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:f4bbb42d7b1c199d"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:22ec4239968f25b2"
     },
     "cie-9702-9702_s25_qp_11:q19": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:b020d47696169bee"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:00dcd9d692fa9de3"
     },
     "cie-9702-9702_s25_qp_11:q20": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:3dc665de5a71dce8"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:979b6cd4f5d3c89c"
     },
     "cie-9702-9702_s25_qp_11:q21": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:3af0e2122b0f9ecb"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:812973b1e91fcb51"
     },
     "cie-9702-9702_s25_qp_11:q22": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:0537075efc3657d6"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:ad4b12d260913649"
     },
     "cie-9702-9702_s25_qp_11:q23": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:e708bd4b69e35087"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:3a3c99afe55ff846"
     },
     "cie-9702-9702_s25_qp_11:q24": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:88564e6a3efca6a6"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:c16d015749208192"
     },
     "cie-9702-9702_s25_qp_11:q25": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:c03b1e56e1e9b319"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:95af1c44c75b8b45"
     },
     "cie-9702-9702_s25_qp_11:q26": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:cb85c1eb4d727730"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:0fb4a5bdbf49505a"
     },
     "cie-9702-9702_s25_qp_11:q27": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:3319ded53ccd5ce1"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:848bf919ab1bf4e8"
     },
     "cie-9702-9702_s25_qp_11:q28": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:0dca29c8926e6c04"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:a8354caf559e85b6"
     },
     "cie-9702-9702_s25_qp_11:q29": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:decb5049c9b339e7"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:94051dce1aa397fe"
     },
     "cie-9702-9702_s25_qp_11:q30": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:6a48789d32a2692d"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:b17a23a31485f39e"
     },
     "cie-9702-9702_s25_qp_11:q31": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:7a338ca4c2966af6"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:4f9a19ac3888a97e"
     },
     "cie-9702-9702_s25_qp_11:q32": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:399e45d8e0beb243"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:9be44350322fcfa1"
     },
     "cie-9702-9702_s25_qp_11:q33": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:299e79db9bcb60d2"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:0be17ebe822ddd27"
     },
     "cie-9702-9702_s25_qp_11:q34": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:94525b49d38b7153"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:479720ea683b2322"
     },
     "cie-9702-9702_s25_qp_11:q35": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:477565e92be86d82"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:a22f20d1b9eeb0ac"
     },
     "cie-9702-9702_s25_qp_11:q36": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:98fbf82219046287"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:3e2245c3a3c1b920"
     },
     "cie-9702-9702_s25_qp_11:q37": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:bd1def40a9875df2"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:49105a8359ec705e"
     },
     "cie-9702-9702_s25_qp_11:q38": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:f3856401fbe556b3"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:f561fc8b3f468886"
     },
     "cie-9702-9702_s25_qp_11:q39": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:acc2daea261c09b6"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:f188a4586069ec9d"
     },
     "cie-9702-9702_s25_qp_11:q40": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:2b0e7139e31ad4c6"
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:7123ecf4d09a48ea"
     },
     "cie-9702-9702_s25_qp_41:q1": {
       "complete": false,
@@ -12710,5 +12517,5 @@
       "bindingSignature": "fnv1a64:a0315e0ab0dddf52"
     }
   },
-  "checksum": "917231d58e37b311dbf6fc3acdfab7c768fc5da8b19348a998fb12a2e5ad8a4d"
+  "checksum": "88f942b31b73649cc2a5df8fccb3f73d739d18f984ebf107d72148a9acc292e5"
 }

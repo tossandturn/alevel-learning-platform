@@ -28,7 +28,7 @@ import {
 } from 'lucide-react'
 import { fullPaperUnits, importedPdfLibrary, subjects, topicUnits } from './data/catalog'
 import { learningPlan, stagesForComponentTags } from './data/learningPlan'
-import { courseRoutes, formatRouteComponents, routeById, routesForSubject } from './data/routeRegistry'
+import { courseRoutes, formatRouteComponents, routeById, routeForStagePreservingSubject, routesForSubject } from './data/routeRegistry'
 import { COURSE_STAGE_ORDER } from './data/stages'
 import { AiCoach } from './components/AiCoach'
 import { PaperLibrary } from './components/PaperLibrary'
@@ -49,7 +49,7 @@ import {
 } from './lib/markingLifecycle'
 import { buildCoachPractice, buildVerifiedPracticeCatalog, coachPracticeOptions, MIN_VERIFIED_GROUPS_FOR_PRACTICE, previewCoachPracticeSourceMix, rebindVerifiedPracticeUnit, resolveVerifiedPracticeSelection, topicQueryForRoute } from './lib/verifiedPracticeCatalog'
 import { latestBphoSpcPaper } from './lib/coachIntent'
-import { buildCompletionByUnit, buildLearningProgress, recommendForRoute } from './lib/learningProgress'
+import { buildCompletionByUnit, buildLearningProgress, latestSubmittedActivity, recommendForRoute } from './lib/learningProgress'
 import { professionalTermsUrl, requestNativeAccountReadiness, requestSharedAccount, requestSharedWorkspace, sharedAccountRequest, signInSharedAccount, signOutSharedAccount } from './lib/sharedAccount'
 import { requestMarkingCapabilities } from './lib/markingCapabilityClient'
 import { parseProductContext, termIdsForStemContext } from './lib/productContext'
@@ -104,6 +104,13 @@ function displayPartLabel(part, fallback = 'Question') {
   return match ? `${match[1].toUpperCase()}${match[2]}/${match[3]} · ${label}` : label
 }
 
+function questionGroupCountForUnit(unit) {
+  const count = Number(unit?.questionGroupCount)
+  if (Number.isInteger(count) && count > 0) return count
+  const groupCount = new Set((unit?.parts || []).map((part) => part?.sourceQuestionId || part?.questionGroupId || part?.bankId).filter(Boolean)).size
+  return groupCount || unit?.parts?.length || 0
+}
+
 function focusedRetestUnit(unit, partId) {
   if (!partId || unit.parts.length === 1) return unit
   const part = unit.parts.find((item) => item.id === partId)
@@ -117,6 +124,7 @@ function focusedRetestUnit(unit, partId) {
     maxMarks: part.marks,
     estimatedMinutes: Math.max(5, Math.ceil((unit.estimatedMinutes || 10) * ratio)),
     durationSec: Math.max(300, Math.ceil((unit.durationSec || 600) * ratio)),
+    questionGroupCount: 1,
     focusedRetestOf: unit.id,
   }
 }
@@ -341,6 +349,7 @@ function App() {
   const [activePaper, setActivePaper] = useState(null)
   const [pendingSession, setPendingSession] = useState(null)
   const [coachOpenRequest, setCoachOpenRequest] = useState(0)
+  const [coachBuilderOpenRequest, setCoachBuilderOpenRequest] = useState(0)
   const [sharedAccount, setSharedAccount] = useState({ status: 'loading', token: '', workspace: null, error: '' })
   const [accountPopoverOpen, setAccountPopoverOpen] = useState(false)
   const [accountDialogMode, setAccountDialogMode] = useState(null)
@@ -379,29 +388,27 @@ function App() {
   const aiPracticeOptions = useMemo(() => coachPracticeOptions(), [])
   const syllabusInventory = useSyllabusInventory(activeRouteId, { enabled: activeRouteId === 'cie-9702-as-physics' })
   const activePracticeOptions = useMemo(() => {
-    if (activeRouteId !== 'cie-9702-as-physics' || syllabusInventory.status !== 'ready') return aiPracticeOptions
+    const routeOptions = aiPracticeOptions.filter((option) => option.routeId === activeRouteId)
+    if (activeRouteId !== 'cie-9702-as-physics' || syllabusInventory.status !== 'ready') return routeOptions
     const serverTopics = new Map((syllabusInventory.data?.topics || []).map((topic) => [topic.id, topic]))
-    return aiPracticeOptions.map((option) => {
-      if (option.routeId !== activeRouteId) return option
-      return {
-        ...option,
-        topics: option.topics.map((topic) => {
-          const serverTopic = serverTopics.get(topic.id)
-          if (!serverTopic) return topic
-          return {
-            ...topic,
-            label: `${serverTopic.code} ${serverTopic.name}`,
-            inventory: serverTopic.verifiedQuestionCount,
-            indexedQuestionCount: serverTopic.indexedQuestionCount,
-            pendingReviewCount: serverTopic.pendingReviewCount,
-            availableSetSizes: serverTopic.availableSetSizes,
-            ctaPolicy: serverTopic.ctaPolicy,
-            sourceGap: serverTopic.sourceGap,
-            points: serverTopic.points || [],
-          }
-        }),
-      }
-    })
+    return routeOptions.map((option) => ({
+      ...option,
+      topics: option.topics.map((topic) => {
+        const serverTopic = serverTopics.get(topic.id)
+        if (!serverTopic) return topic
+        return {
+          ...topic,
+          label: `${serverTopic.code} ${serverTopic.name}`,
+          inventory: serverTopic.verifiedQuestionCount,
+          indexedQuestionCount: serverTopic.indexedQuestionCount,
+          pendingReviewCount: serverTopic.pendingReviewCount,
+          availableSetSizes: serverTopic.availableSetSizes,
+          ctaPolicy: serverTopic.ctaPolicy,
+          sourceGap: serverTopic.sourceGap,
+          points: serverTopic.points || [],
+        }
+      }),
+    }))
   }, [activeRouteId, aiPracticeOptions, syllabusInventory.data, syllabusInventory.status])
   const learningProgress = useMemo(() => buildLearningProgress({
     attempts: appState.attempts,
@@ -410,7 +417,17 @@ function App() {
     routes: courseRoutes,
     routeId: activeRouteId,
     weeklyTarget: appState.profile.weeklyQuestions,
-  }), [activeRouteId, allPracticeUnits, appState.attempts, appState.drafts, appState.profile.weeklyQuestions])
+    paperSessions: routePaperSessions,
+    paperReviews: routePaperReviews,
+  }), [activeRouteId, allPracticeUnits, appState.attempts, appState.drafts, appState.profile.weeklyQuestions, routePaperReviews, routePaperSessions])
+  const latestActivity = useMemo(() => latestSubmittedActivity({
+    attempts: routeAttempts,
+    units: routePracticeUnits,
+    paperSessions: routePaperSessions,
+    paperReviews: routePaperReviews,
+    routes: courseRoutes,
+    routeId: activeRouteId,
+  }), [activeRouteId, routeAttempts, routePaperReviews, routePaperSessions, routePracticeUnits])
   const syllabusRoadmap = useMemo(() => {
     const topicStats = new Map(learningProgress.topicProgress.map((item) => [item.id, item]))
     const routeOption = activePracticeOptions.find((option) => option.routeId === activeRouteId)
@@ -968,6 +985,7 @@ function App() {
   }
 
   function generateCoachPractice(selection) {
+    if (!selection) throw new Error('Choose a valid learning route before building practice.')
     const unit = buildCoachPractice({
       ...selection,
       agentGenerated: true,
@@ -1058,7 +1076,7 @@ function App() {
         })
         return {
           handled: true,
-          message: `已生成 ${unit.title}。共 ${unit.parts.length} 道真实来源题，每题绑定原卷和对应 mark scheme；提交后自动批改，手写图像会进入 AI 复核。`,
+          message: `已生成 ${unit.title}。共 ${questionGroupCountForUnit(unit)} 道真实来源题，包含 ${unit.parts.length} 个答题小问；每题绑定原卷和对应 mark scheme。`,
         }
       } catch (error) {
         return {
@@ -1552,6 +1570,13 @@ function App() {
     setView('library')
   }
 
+  function openAiPractice() {
+    setActiveTab('ai-practice')
+    setView('library')
+    setCoachOpenRequest((value) => value + 1)
+    setCoachBuilderOpenRequest((value) => value + 1)
+  }
+
   return (
     <main className={`app-shell app-shell--${view}`}>
       {view !== 'practice' && view !== 'paper' && <TopNav view={view} activeTab={activeTab} activeRoute={activeRoute} setView={setView} profile={appState.profile} sharedAccount={sharedAccount} onDisconnectSharedAccount={disconnectSharedAccount} onOpenAccount={setAccountDialogMode} onAccountPopoverChange={setAccountPopoverOpen} openNotebook={() => setView('notebook')} openRoleWorkspace={() => setView('workspace')} openPractice={() => { setActiveTab('recommended'); setView('library') }} openPapers={() => { setActiveTab('papers'); setView('library') }} />}
@@ -1571,6 +1596,7 @@ function App() {
           provisionalEvidence={provisionalEvidence}
           practiceUnits={routePracticeUnits}
           paperMistakes={paperMistakes}
+          latestActivity={latestActivity}
           learningProgress={learningProgress}
           syllabusRoadmap={syllabusRoadmap}
           startPractice={startPractice}
@@ -1581,7 +1607,7 @@ function App() {
           allPracticeUnits={allPracticeUnits}
           recentPractice={appState.recentPractice || []}
            favoriteUnitIds={appState.favoriteUnitIds || []}
-           openCoach={() => setCoachOpenRequest((value) => value + 1)}
+           openCoach={openAiPractice}
            sharedAccount={sharedAccount}
            onRefreshSharedAccount={refreshSharedAccount}
            onOpenAccount={setAccountDialogMode}
@@ -1634,7 +1660,7 @@ function App() {
           openPaper={openPaper}
             recommendation={recommendation}
             onOpenTopic={(topicId) => { setSelectedTopicId(topicId); setView('topic') }}
-            onOpenCoach={() => setCoachOpenRequest((value) => value + 1)}
+            onOpenCoach={openAiPractice}
             practiceOptions={activePracticeOptions}
             syllabusInventory={syllabusInventory}
           />
@@ -1654,7 +1680,7 @@ function App() {
           startPractice={startPractice}
           startKnowledgeDrill={generateCoachPractice}
           onBack={() => { setActiveTab('topics'); setView('library') }}
-          onOpenCoach={() => setCoachOpenRequest((value) => value + 1)}
+            onOpenCoach={openAiPractice}
         />
       )}
 
@@ -1773,7 +1799,8 @@ function App() {
             markingStatus: resultIsPendingSelfMark ? 'self-mark-pending' : resultAttempt?.scoreResult?.partial ? 'provisional' : resultAttempt?.scoreResult ? 'scored' : 'not-scored',
           }}
           openRequest={coachOpenRequest}
-          practiceOptions={aiPracticeOptions}
+          openBuilderRequest={coachBuilderOpenRequest}
+          practiceOptions={activePracticeOptions}
           onGeneratePractice={generateCoachPractice}
           onAgentAction={handleCoachAgentAction}
           disabled={Boolean(accountDialogMode || accountPopoverOpen)}
@@ -1790,10 +1817,10 @@ function SessionSetup({ session, onChange, onCancel, onStart }) {
   return (
     <div className="setup-backdrop" role="presentation" onMouseDown={onCancel}>
       <section className="session-setup" role="dialog" aria-modal="true" aria-labelledby="setup-title" onMouseDown={(event) => event.stopPropagation()}>
-        <header><div><p className="section-label">Session setup</p><h2 id="setup-title">{unit.title}</h2><p>{unit.topic} · {unit.parts.length} questions · {unit.maxMarks} marks</p></div><button type="button" className="setup-close" onClick={onCancel} aria-label="Close setup">×</button></header>
+        <header><div><p className="section-label">Session setup</p><h2 id="setup-title">{unit.title}</h2><p>{unit.topic} · {questionGroupCountForUnit(unit)} questions · {unit.maxMarks} marks</p></div><button type="button" className="setup-close" onClick={onCancel} aria-label="Close setup">×</button></header>
         <div className="setup-section"><span className="setup-label">How do you want to practise?</span><div className="mode-segments"><button type="button" className={session.mode === 'guided' ? 'active' : ''} onClick={() => onChange({ mode: 'guided', hints: true })}><Sparkles size={16} /><strong>Guided</strong><small>Hints available</small></button><button type="button" className={session.mode === 'practice' ? 'active' : ''} onClick={() => onChange({ mode: 'practice' })}><Dumbbell size={16} /><strong>Practice</strong><small>Independent set</small></button><button type="button" className={session.mode === 'exam' ? 'active' : ''} onClick={() => onChange({ mode: 'exam', timing: 'timed', hints: false })}><GraduationCap size={16} /><strong>Exam</strong><small>Answers hidden</small></button></div></div>
         <div className="setup-options"><label><span>Timing</span><select value={session.timing} onChange={(event) => onChange({ timing: event.target.value })}><option value="recommended">Recommended · {unit.estimatedMinutes} min</option><option value="timed">Strict timer</option><option value="untimed">Untimed</option></select></label><label className="toggle-row"><span><strong>Question hints</strong><small>Hints never reveal the final answer.</small></span><input type="checkbox" checked={session.hints} disabled={session.mode === 'exam'} onChange={(event) => onChange({ hints: event.target.checked })} /></label></div>
-        <div className="setup-summary"><ListFilter size={18} /><div><strong>{unit.parts.length} questions ready</strong><span>{isPaper ? 'Mixed paper practice' : `${unit.subtopic || unit.topic} knowledge drill`} · autosave on</span></div></div>
+        <div className="setup-summary"><ListFilter size={18} /><div><strong>{questionGroupCountForUnit(unit)} questions ready</strong><span>{isPaper ? 'Mixed paper practice' : `${unit.subtopic || unit.topic} knowledge drill`} · autosave on</span></div></div>
         <div className={`setup-marking-note setup-marking-note--${markingCapability.mode}`} role="status"><strong>{markingCapability.label}</strong><span>{markingCapability.description}</span></div>
         <footer><button type="button" className="secondary-action" onClick={onCancel}>Cancel</button><button type="button" className="primary-action" onClick={onStart}><PlayIcon />Start session</button></footer>
       </section>
@@ -1810,7 +1837,7 @@ function StudentRoutePicker({ activeRoute, routes = courseRoutes, selectRoute, c
 
   function changeStage(nextStage) {
     setStage(nextStage)
-    const nextRoute = routes.find((route) => route.routeId === activeRoute.routeId && route.stage === nextStage) || routes.find((route) => route.stage === nextStage)
+    const nextRoute = routeForStagePreservingSubject(activeRoute, nextStage, routes)
     if (nextRoute && nextRoute.routeId !== activeRoute.routeId) selectRoute(nextRoute.routeId)
   }
 
@@ -1990,6 +2017,7 @@ function Dashboard({
   topicMastery,
   mistakes,
   paperMistakes,
+  latestActivity,
   startPractice,
   setView,
   setActiveTab,
@@ -2005,7 +2033,7 @@ function Dashboard({
     return Boolean(unit && isScoredAttempt(attempt, unit) && completionByUnit[attempt.unitId]?.completed)
   })
   const completedCount = Object.values(completionByUnit).filter((item) => item.completed).length
-  const latest = verifiedAttempts.at(-1)
+  const latest = latestActivity || verifiedAttempts.at(-1)
   const average = verifiedAttempts.length
     ? Math.round(verifiedAttempts.reduce((sum, attempt) => sum + attempt.scoreResult.percentage, 0) / verifiedAttempts.length)
     : null
@@ -2113,7 +2141,7 @@ function Dashboard({
         <Metric icon={<Trophy size={20} />} label="Current score" value={average == null ? 'No verified score' : `${average}%`} detail="Based only on submitted QP/MS drills" />
         <Metric icon={<CheckCircle2 size={20} />} label="Completed" value={`${completedCount}/${Object.keys(completionByUnit).length}`} detail="Valid submissions only" />
         <Metric icon={<FileText size={20} />} label="Source PDFs" value={totalImportedFiles.toLocaleString()} detail="Official papers available for indexing" />
-        <Metric icon={<Flag size={20} />} label="Last attempt" value={latest ? `${latest.scoreResult.rawMarks}/${latest.scoreResult.maxMarks}` : 'No attempt'} detail={latest ? formatDate(latest.submittedAt) : 'Start a topic to create history'} />
+        <Metric icon={<Flag size={20} />} label="Last attempt" value={latest ? `${latest.rawMarks ?? latest.scoreResult?.rawMarks ?? 0}/${latest.maxMarks ?? latest.scoreResult?.maxMarks ?? '?'}` : 'No attempt'} detail={latest ? (latest.partial ? `${latest.answeredCount || 0}/${latest.questionCount || '?'} answered · provisional` : formatDate(latest.date || latest.submittedAt)) : 'Start a topic to create history'} />
       </div>
 
       <section className="syllabus-roadmap" aria-label="Syllabus roadmap">
@@ -2175,14 +2203,14 @@ function Dashboard({
 }
 
 /* oxlint-enable no-unused-vars */
-function StudentDashboard({ activeRoute, routeOptions, selectRoute, profile, attempts, completionByUnit, recommendation, topicMastery, mistakes, provisionalEvidence = [], paperMistakes, startPractice, setView, setActiveTab, setSubjectFilter, setQuery, allPracticeUnits, recentPractice, favoriteUnitIds, openNotebook, learningProgress, syllabusRoadmap, sharedAccount, onRefreshSharedAccount, onOpenAccount }) {
+function StudentDashboard({ activeRoute, routeOptions, selectRoute, profile, attempts, completionByUnit, recommendation, topicMastery, mistakes, provisionalEvidence = [], paperMistakes, latestActivity, startPractice, setView, setActiveTab, setSubjectFilter, setQuery, allPracticeUnits, recentPractice, favoriteUnitIds, openNotebook, learningProgress, syllabusRoadmap, sharedAccount, onRefreshSharedAccount, onOpenAccount }) {
   const nextUnit = recommendation.unit
   const unitById = new Map(allPracticeUnits.map((unit) => [unit.id, unit]))
   const scoredAttempts = attempts.filter((attempt) => {
     const unit = unitById.get(attempt.unitId)
     return Boolean(unit && isScoredAttempt(attempt, unit) && completionByUnit[attempt.unitId]?.completed)
   })
-  const latest = scoredAttempts.at(-1)
+  const latest = latestActivity || scoredAttempts.at(-1)
   const average = scoredAttempts.length ? Math.round(scoredAttempts.reduce((total, attempt) => total + attempt.scoreResult.percentage, 0) / scoredAttempts.length) : null
   const weeklyPercent = Math.min(100, Math.round((learningProgress.week.completedQuestions / learningProgress.week.targetQuestions) * 100))
   const goalComplete = learningProgress.week.completedQuestions >= learningProgress.week.targetQuestions
@@ -2192,7 +2220,7 @@ function StudentDashboard({ activeRoute, routeOptions, selectRoute, profile, att
   const weakTopic = topicMastery.find((item) => item.score != null && item.score < 65)
   const routeLabel = `${activeRoute.stage} ${activeRoute.subject}`
   const recommendedTopic = String(nextUnit?.topic || nextUnit?.title || 'Choose your first topic').replace(/^\d+\s+/, '')
-  const recommendedQuestionCount = nextUnit?.parts?.length || 0
+  const recommendedQuestionCount = questionGroupCountForUnit(nextUnit)
   const weakRoadmapTopic = [...syllabusRoadmap]
     .filter((topic) => topic.mastery != null)
     .sort((a, b) => a.mastery - b.mastery)[0]
@@ -2291,7 +2319,7 @@ function StudentDashboard({ activeRoute, routeOptions, selectRoute, profile, att
         {recentUnits.length > 0 && <MiniUnitPanel eyebrow="Recent practice" title="Pick up where you left off" empty="" units={recentUnits} icon={<Dumbbell size={19} />} openPractice={startPractice} onManage={() => openPractice()} />}
         {favoriteUnits.length > 0 && <MiniUnitPanel eyebrow="Saved for later" title="Favourite practice" empty="" units={favoriteUnits} icon={<Heart size={19} />} openPractice={startPractice} onManage={() => openPractice({ tab: 'saved' })} favorite />}
       </div>}
-      <div className="dashboard-lower-grid"><section className="dashboard-panel performance-panel"><header><div><p className="section-label">Your performance</p><h2>Evidence from submitted work</h2></div><button type="button" className="text-action" onClick={() => setView('history')}>View progress <ChevronRight size={15} /></button></header><div className="performance-stats"><Stat label="Accuracy" value={average == null ? 'Not scored' : `${average}%`} detail={average == null ? 'Submit a set to start' : 'Submitted practice'} /><Stat label="Questions done" value={learningProgress.week.completedQuestions} detail="In the last 7 days" /><Stat label="Open mistakes" value={mistakes.length + paperMistakes.length} detail={weakTopic ? `${weakTopic.topic} needs attention` : 'Review after each result'} /><Stat label="Last attempt" value={latest ? `${latest.scoreResult.rawMarks}/${latest.scoreResult.maxMarks}` : 'Not started'} detail={latest ? formatDate(latest.submittedAt) : 'No submission yet'} /></div>{latestProvisionalEvidence && <div className="dashboard-provisional-evidence" role="status"><strong>Provisional attempt</strong><span>{latestProvisionalEvidence.projection.answeredQuestionCount} answered · {latestProvisionalEvidence.projection.incorrectQuestionCount} incorrect · {latestProvisionalEvidence.projection.unansweredQuestionCount} unanswered</span><small>Saved for review only. It does not update mastery, progress, weak areas or the formal mistake queue.</small></div>}</section><section className="dashboard-panel mistakes-panel"><header><div><p className="section-label">Recent mistakes</p><h2>What to revisit</h2></div><button type="button" className="text-action" onClick={openNotebook}>Open notebook</button></header>{mistakes.length ? <div className="mistakes-compact">{mistakes.slice(0, 3).map((mistake) => <button type="button" key={mistake.id} onClick={() => startPractice(mistake.unit, { clearDraft: true, retestOf: mistake.attempt.id, onlyPartId: mistake.part.id })}><span>{mistake.unit.topic}</span><strong>{mistake.part.label}</strong><em>{mistake.criterion.maxMarks - mistake.criterion.awarded} mark{mistake.criterion.maxMarks - mistake.criterion.awarded === 1 ? '' : 's'}</em></button>)}</div> : <div className="compact-empty"><CheckCircle2 size={19} /><span>No weak points yet. Your next submitted set will create a focused review list.</span></div>}</section></div>
+      <div className="dashboard-lower-grid"><section className="dashboard-panel performance-panel"><header><div><p className="section-label">Your performance</p><h2>Evidence from submitted work</h2></div><button type="button" className="text-action" onClick={() => setView('history')}>View progress <ChevronRight size={15} /></button></header><div className="performance-stats"><Stat label="Accuracy" value={average == null ? 'Not scored' : `${average}%`} detail={average == null ? 'Submit a set to start' : 'Submitted practice'} /><Stat label="Questions done" value={learningProgress.week.completedQuestions} detail="Completed work in the last 7 days" /><Stat label="Open mistakes" value={mistakes.length + paperMistakes.length} detail={weakTopic ? `${weakTopic.topic} needs attention` : 'Review after each result'} /><Stat label="Last attempt" value={latest ? `${latest.rawMarks ?? latest.scoreResult?.rawMarks ?? 0}/${latest.maxMarks ?? latest.scoreResult?.maxMarks ?? '?'}` : 'Not started'} detail={latest ? (latest.partial ? `${latest.answeredCount || 0}/${latest.questionCount || '?'} answered · provisional` : formatDate(latest.date || latest.submittedAt)) : 'No submission yet'} /></div>{latestProvisionalEvidence && <div className="dashboard-provisional-evidence" role="status"><strong>Provisional attempt</strong><span>{latestProvisionalEvidence.projection.answeredQuestionCount} answered · {latestProvisionalEvidence.projection.incorrectQuestionCount} incorrect · {latestProvisionalEvidence.projection.unansweredQuestionCount} unanswered</span><small>Saved for review only. It does not update mastery, progress, weak areas or the formal mistake queue.</small></div>}</section><section className="dashboard-panel mistakes-panel"><header><div><p className="section-label">Recent mistakes</p><h2>What to revisit</h2></div><button type="button" className="text-action" onClick={openNotebook}>Open notebook</button></header>{mistakes.length ? <div className="mistakes-compact">{mistakes.slice(0, 3).map((mistake) => <button type="button" key={mistake.id} onClick={() => startPractice(mistake.unit, { clearDraft: true, retestOf: mistake.attempt.id, onlyPartId: mistake.part.id })}><span>{mistake.unit.topic}</span><strong>{mistake.part.label}</strong><em>{mistake.criterion.maxMarks - mistake.criterion.awarded} mark{mistake.criterion.maxMarks - mistake.criterion.awarded === 1 ? '' : 's'}</em></button>)}</div> : <div className="compact-empty"><CheckCircle2 size={19} /><span>No weak points yet. Your next submitted set will create a focused review list.</span></div>}</section></div>
       <section className="dashboard-panel roadmap-compact"><header><div><p className="section-label">Skill map</p><h2>Progress through the official syllabus</h2></div><button type="button" className="text-action" onClick={() => openPractice()}>Open all topics <ChevronRight size={15} /></button></header><div>{syllabusRoadmap.slice(0, 6).map((topic, index) => <button type="button" key={topic.id} onClick={() => openPractice({ subjectId: topic.subjectId === 'physics-9702' ? 'physics' : undefined })}><span>{topic.officialTopicNumber || index + 1}</span><strong>{topic.name.replace(/^\d+\s+/, '')}</strong><small>{topic.mastery == null ? 'Not started' : `${topic.mastery}% mastery`}</small><i><b style={{ width: `${topic.mastery || 0}%` }} /></i></button>)}</div></section>
     </main>
   </section>
@@ -2372,7 +2400,7 @@ function LibraryView({
 
       <nav className="practice-modes" aria-label="Practice modes">
         <button className={activeTab === 'recommended' ? 'active' : ''} type="button" onClick={() => setActiveTab('recommended')}><Target size={17} />Recommended</button>
-        <button type="button" onClick={onOpenCoach}><Sparkles size={17} />AI Practice</button>
+        <button className={activeTab === 'ai-practice' ? 'active' : ''} type="button" onClick={onOpenCoach}><Sparkles size={17} />AI Practice</button>
         <button className={activeTab === 'topics' ? 'active' : ''} type="button" onClick={() => setActiveTab('topics')}><Dumbbell size={17} />Topic Drill</button>
         <button className={activeTab === 'papers' ? 'active' : ''} type="button" onClick={() => setActiveTab('papers')}><FileText size={17} />Past Papers</button>
         <button className={activeTab === 'exams' ? 'active' : ''} type="button" onClick={() => setActiveTab('exams')}><GraduationCap size={17} />Exam Simulation</button>
@@ -2383,6 +2411,7 @@ function LibraryView({
       {incomingContext.from === 'ieltsist' && <div className="product-bridge-band" role="status"><span className="product-bridge-icon"><Brain size={17} /></span><div><strong>From IELTS-ist Vocabulary</strong><p>{contextSubject ? `You are ready to practise ${contextSubject.name} concepts.` : 'Use IELTS-ist for language support, then practise the subject here.'}</p></div><a href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer">Open IELTS Vocabulary <ChevronRight size={15} /></a></div>}
 
       {activeTab === 'recommended' && <PracticeOverview recommendation={recommendation} visibleUnits={visibleUnits} completionByUnit={completionByUnit} mistakes={mistakes} paperMistakes={paperMistakes} startPractice={startPractice} onOpenTopic={onOpenTopic} onOpenCoach={onOpenCoach} onOpenPapers={() => setActiveTab('papers')} />}
+      {activeTab === 'ai-practice' && <AiPracticeLanding activeRoute={activeRoute} practiceOptions={practiceOptions} onOpenCoach={onOpenCoach} />}
       {activeTab === 'papers' && <PaperLibrary catalogState={paperCatalogState} initialSubject={activeRoute.subjectCode} activeRoute={activeRoute} studyMode="past-paper-practice" onOpenPaper={openPaper} />}
 
       {activeTab === 'exams' && <PaperLibrary catalogState={paperCatalogState} initialSubject={activeRoute.subjectCode} activeRoute={activeRoute} studyMode="exam-simulation" onOpenPaper={(paper) => openPaper({ ...paper, paperStudyMode: 'exam-simulation' })} />}
@@ -2391,7 +2420,7 @@ function LibraryView({
 
       {activeTab === 'mistakes' ? (
           <MistakeList mistakes={mistakes} paperMistakes={paperMistakes} startPractice={startPractice} retestPaper={retestPaper} onReviewAction={recordReviewQueueAction} />
-      ) : activeTab === 'papers' || activeTab === 'exams' || activeTab === 'recommended' || activeTab === 'topics' ? null : (activeTab === 'saved' ? visibleUnits.filter((unit) => favoriteUnitIds.includes(unit.id)) : visibleUnits).length ? (
+      ) : activeTab === 'papers' || activeTab === 'exams' || activeTab === 'recommended' || activeTab === 'ai-practice' || activeTab === 'topics' ? null : (activeTab === 'saved' ? visibleUnits.filter((unit) => favoriteUnitIds.includes(unit.id)) : visibleUnits).length ? (
         <div className="unit-grid">
           {(activeTab === 'saved' ? visibleUnits.filter((unit) => favoriteUnitIds.includes(unit.id)) : visibleUnits).map((unit) => (
             <UnitCard key={unit.id} unit={unit} completion={completionByUnit[unit.id]} startPractice={startPractice} favorite={favoriteUnitIds.includes(unit.id)} onToggleFavorite={onToggleFavorite} />
@@ -2404,6 +2433,27 @@ function LibraryView({
           <p>{activeTab === 'saved' ? 'Use the heart on any practice card to keep it ready for later.' : 'Clear filters or switch subject to rebuild the practice queue.'}</p>
         </div>
       )}
+    </section>
+  )
+}
+
+function AiPracticeLanding({ activeRoute, practiceOptions, onOpenCoach }) {
+  const option = practiceOptions.find((item) => item.routeId === activeRoute.routeId)
+  const available = (option?.topics || []).reduce((sum, topic) => sum + Number(topic.inventory || 0), 0)
+  return (
+    <section className="practice-overview ai-practice-landing" aria-labelledby="ai-practice-title">
+      <div className="practice-overview__header">
+        <div>
+          <p className="section-label">AI Practice</p>
+          <h2 id="ai-practice-title">Build a focused set for {activeRoute.stage} {activeRoute.subject}</h2>
+          <p>Coach stays inside the selected course. Choose a syllabus topic and a question count, then start a guided set.</p>
+        </div>
+        <button type="button" className="primary-action" onClick={onOpenCoach}><Sparkles size={16} />Open practice builder</button>
+      </div>
+      <div className="practice-overview__summary" role="status">
+        <strong>{available} source questions available in this course</strong>
+        <span>{option?.topics?.length || 0} topics · current route only</span>
+      </div>
     </section>
   )
 }
@@ -2525,7 +2575,7 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, lea
   const progress = learningProgress.topicProgress.find((item) => item.id === topicId || String(item.id || '').split('@')[0] === String(topicId).split('@')[0])
   const mastery = progress?.mastery ?? null
   const available = selectedTopics.reduce((sum, item) => sum + (item.inventory || 0), 0)
-  const questionCount = Math.min(selectedQuestionCount, Math.max(available, selectedQuestionCount))
+  const questionCount = Math.min(selectedQuestionCount, available)
   const practiceReady = available >= MIN_VERIFIED_GROUPS_FOR_PRACTICE
   const topicPracticeUnits = practiceUnits
     .filter((unit) => unit.knowledgeGroupId === topicId)
@@ -2578,8 +2628,8 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, lea
       if (!practiceReady) {
         throw new Error(
           available > 0
-            ? `${selectedTopicIds.length > 1 ? 'These syllabus topics have' : topic.label + ' has'} ${available} verified source questions. ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} are required before a Topic Drill can start; source indexing is still in progress.`
-            : topic?.sourceGap || 'This topic has no verified source question yet. Human source review is still in progress.',
+            ? `${selectedTopicIds.length > 1 ? 'These syllabus topics have' : topic.label + ' has'} ${available} checked source questions. ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} are required before a Topic Drill can start; more official questions are being checked.`
+            : topic?.sourceGap || 'This topic has no checked source question yet. More official questions are being checked.',
         )
       }
       await startKnowledgeDrill({
@@ -2606,7 +2656,7 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, lea
 
       <div className="topic-detail__layout">
         <main>
-          <section className="topic-detail__concepts"><header><div><p className="section-label">Official syllabus outcomes</p><h2>What this topic covers</h2><p>These outcomes come from the official syllabus. Skill labels are not separate chapters.</p></div></header><div>{topic.points?.length ? topic.points.slice(0, 8).map((item) => <div key={item.id}><span>{item.sectionCode}</span><strong>{item.outcomeNumber}. {item.officialText}</strong><small>Official outcome · syllabus point</small></div>) : chapterItems.map(({ theme, index, count }) => <div key={theme}><span>{String(index + 1).padStart(2, '0')}</span><strong>{theme}</strong><small>{count ? `${count} linked verified question${count === 1 ? '' : 's'}` : 'Learning guide available · source question indexing in progress'}</small></div>)}</div></section>
+          <section className="topic-detail__concepts"><header><div><p className="section-label">Official syllabus outcomes</p><h2>What this topic covers</h2><p>These outcomes come from the official syllabus. Skill labels are not separate chapters.</p></div></header><div>{topic.points?.length ? topic.points.slice(0, 8).map((item) => <div key={item.id}><span>{item.sectionCode}</span><strong>{item.outcomeNumber}. {item.officialText}</strong><small>Official outcome · syllabus point</small></div>) : chapterItems.map(({ theme, index, count }) => <div key={theme}><span>{String(index + 1).padStart(2, '0')}</span><strong>{theme}</strong><small>{count ? `${count} linked checked question${count === 1 ? '' : 's'}` : 'Learning guide available · more official questions coming'}</small></div>)}</div></section>
           <section className="topic-detail__guide" aria-label={`${topic.label} learning guide`}>
             <header>
               <div><p className="section-label">Study guide</p><h2>Learn the idea before you practise</h2><p>{guide.overview}</p></div>
@@ -2642,15 +2692,18 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, lea
           </section>
           {checkpoints.length > 0 && <section className="topic-detail__checkpoints"><header><div><p className="section-label">Progression</p><h2>What good looks like</h2></div><span>Move from recall to exam application</span></header><div>{checkpoints.map((checkpoint) => <article key={checkpoint.id}><strong>{checkpoint.label}</strong><p>{checkpoint.description}</p></article>)}</div></section>}
           <section className="topic-detail__past-papers"><header><div><p className="section-label">Real exam collection</p><h2>Past-paper questions by chapter</h2><p>These are question-level records, grouped by their original paper. Open the source page or mark scheme without losing the topic mapping.</p></div><strong>{topicQuestions.length} questions · {topicPaperGroups.length} paper{topicPaperGroups.length === 1 ? '' : 's'}</strong></header>{topicPaperGroups.length ? <div className="topic-detail__paper-groups">{topicPaperGroups.map((paperQuestions) => { const first = paperQuestions[0]; const source = first.sourceRef || {}; return <article className="topic-detail__paper-group" key={source.paperId || source.paper}><header><div><strong>{sourcePaperLabel(first)}</strong><span>{source.component ? `Component ${source.component}` : 'Official source'} · {paperQuestions.length} linked question{paperQuestions.length === 1 ? '' : 's'}</span></div><div><a href={`${source.localUrl}#page=${source.pageStart || 1}`} target="_blank" rel="noreferrer">Open QP</a><a href={`${first.answerRef?.localUrl || '#'}#page=${first.answerRef?.pageStart || 1}`} target="_blank" rel="noreferrer">Open MS</a></div></header><div>{paperQuestions.map((question) => <div className="topic-detail__question-row" key={question.questionGroupId || question.bankId}><span>{question.sourceRef?.question || 'Question'}</span><p>{sourceQuestionPreview(question) || 'Indexed question text is available in the source paper.'}</p><small>{question.totalMarks || question.marks || 1} mark{(question.totalMarks || question.marks || 1) === 1 ? '' : 's'} · QP p.{question.sourceRef?.pageStart || '?'} · MS p.{question.answerRef?.pageStart || '?'}</small></div>)}</div></article> })}</div> : <div className="topic-detail__empty-source"><FileText size={20} /><strong>No question-level source records yet</strong><p>This topic is in the syllabus map, but its verified paper index has not been attached to this route.</p></div>}</section>
-          <section className="topic-detail__source"><FileText size={20} /><div><strong>Verified source questions</strong><p>Questions and answers stay paired with their original paper. No cross-stage items and no unverified generated questions.</p></div><span>{available} available{practiceReady ? '' : ` · ${MIN_VERIFIED_GROUPS_FOR_PRACTICE - available} more needed`}</span></section>
+          <section className="topic-detail__source"><FileText size={20} /><div><strong>Checked source questions</strong><p>Questions and answers stay paired with their original paper and mark scheme. Only complete paper evidence can enter a practice set.</p></div><span>{available} available{practiceReady ? '' : ` · ${MIN_VERIFIED_GROUPS_FOR_PRACTICE - available} more needed`}</span></section>
         </main>
         {activeRouteId === 'cie-9702-as-physics' && <section className="topic-detail__set-controls" aria-label="Syllabus practice set controls">
           <div><p className="section-label">Dynamic syllabus set</p><h2>Build from reviewed AS questions</h2><p>Choose one or more official topics. The server balances questions across your selection and keeps Paper 1/Paper 2 separate from A2 and practical skills.</p></div>
-          <fieldset><legend>Syllabus topics</legend>{(routeOption?.topics || []).map((candidate) => <label key={candidate.id}><input type="checkbox" checked={selectedTopicIds.includes(candidate.id)} onChange={(event) => setSelectedTopicIds((current) => event.target.checked ? [...new Set([...current, candidate.id])] : current.filter((id) => id !== candidate.id))} />{candidate.label}</label>)}</fieldset>
+          <fieldset className="topic-detail__topic-options"><legend>Choose syllabus topics</legend><div className="topic-detail__topic-option-list">{(routeOption?.topics || []).map((candidate) => {
+            const selected = selectedTopicIds.includes(candidate.id)
+            return <label className={`topic-detail__topic-option ${selected ? 'is-selected' : ''}`} key={candidate.id}><input type="checkbox" checked={selected} onChange={(event) => setSelectedTopicIds((current) => event.target.checked ? [...new Set([...current, candidate.id])] : current.filter((id) => id !== candidate.id))} /><span><strong>{candidate.label}</strong><small>{candidate.inventory || 0} checked questions</small></span></label>
+          })}</div></fieldset>
           <label><span>Question count</span><select value={selectedQuestionCount} onChange={(event) => setSelectedQuestionCount(Number(event.target.value))}><option value={5}>5 questions</option><option value={10}>10 questions</option><option value={15}>15 questions</option></select></label>
           <label><span>Paper components</span><select value={componentMode} onChange={(event) => setComponentMode(event.target.value)}><option value="mixed">P1 + P2 mixed</option><option value="p1">P1 only</option><option value="p2">P2 only</option></select></label>
         </section>}
-        <aside className="topic-detail__start"><p className="section-label">Next session</p><h2>{practiceReady ? questionCount : sampleReady ? nextPracticeUnit.questionGroupCount || available : 0} source question{(practiceReady ? questionCount : sampleReady ? nextPracticeUnit.questionGroupCount || available : 0) === 1 ? '' : 's'}</h2><ul><li>{topicPracticeUnits.length} practice set{topicPracticeUnits.length === 1 ? '' : 's'} · {available} verified groups</li><li>{markingCapabilityCounts.practice} answer parts: {markingCapabilityCounts.selfMark} self-mark, {markingCapabilityCounts.deterministic} deterministic, {markingCapabilityCounts.aiAssisted} AI-assisted</li><li>{topicMistakes ? `${topicMistakes} mistake${topicMistakes === 1 ? '' : 's'} linked` : practiceReady ? 'Ready for a ten-question source set' : sampleReady ? `Verified sample only · source indexing continues (${available}/${MIN_VERIFIED_GROUPS_FOR_PRACTICE})` : topic?.sourceGap || 'Source indexing in progress'}</li></ul>{practiceReady || sampleReady ? <button type="button" className="primary-action" onClick={startTopicPractice}><PlayIcon />{practiceReady ? nextPracticeUnit ? `Start set ${nextPracticeUnit.sourceSetIndex}` : `Practice ${questionCount}` : 'Start verified sample'}</button> : <button type="button" className="primary-action" disabled>{available ? `${available} verified · indexing` : 'Awaiting human source review'}</button>}{topicPracticeUnits.length > 1 && <div className="topic-detail__set-list" aria-label="Past-paper practice sets">{topicPracticeUnits.map((unit) => <button type="button" key={unit.id} data-completed={Boolean(completionByUnit[unit.id]?.completed)} onClick={() => startPractice(unit)}><span>Set {unit.sourceSetIndex}</span><small>{unit.questionGroupCount} source groups · {unit.parts.length} answer parts · {unit.referencePapers.length} papers</small></button>)}</div>}<button type="button" className="topic-detail__ai" onClick={onOpenCoach}><Sparkles size={16} />Ask AI Tutor about this topic</button>{startError && <p className="topic-detail__error" role="alert">{startError}</p>}</aside>
+        <aside className="topic-detail__start"><p className="section-label">Next session</p><h2>{practiceReady ? questionCount : sampleReady ? nextPracticeUnit.questionGroupCount || available : 0} source question{(practiceReady ? questionCount : sampleReady ? nextPracticeUnit.questionGroupCount || available : 0) === 1 ? '' : 's'}</h2><ul><li>{topicPracticeUnits.length} practice set{topicPracticeUnits.length === 1 ? '' : 's'} · {available} checked questions</li><li>{markingCapabilityCounts.practice} answer parts: {markingCapabilityCounts.selfMark} self-mark, {markingCapabilityCounts.deterministic} deterministic, {markingCapabilityCounts.aiAssisted} AI-assisted</li><li>{topicMistakes ? `${topicMistakes} mistake${topicMistakes === 1 ? '' : 's'} linked` : practiceReady ? 'Ready for a ten-question source set' : sampleReady ? `Checked sample only · more questions coming (${available}/${MIN_VERIFIED_GROUPS_FOR_PRACTICE})` : topic?.sourceGap || 'More questions are being checked'}</li></ul>{practiceReady || sampleReady ? <button type="button" className="primary-action" onClick={startTopicPractice}><PlayIcon />{practiceReady ? nextPracticeUnit ? `Start set ${nextPracticeUnit.sourceSetIndex}` : `Practice ${questionCount}` : 'Start checked sample'}</button> : <button type="button" className="primary-action" disabled>{available ? `${available} checked · more coming` : 'Questions not ready yet'}</button>}{topicPracticeUnits.length > 1 && <div className="topic-detail__set-list" aria-label="Past-paper practice sets">{topicPracticeUnits.map((unit) => <button type="button" key={unit.id} data-completed={Boolean(completionByUnit[unit.id]?.completed)} onClick={() => startPractice(unit)}><span>Set {unit.sourceSetIndex}</span><small>{unit.questionGroupCount} source questions · {unit.parts.length} answer parts · {unit.referencePapers.length} papers</small></button>)}</div>}<button type="button" className="topic-detail__ai" onClick={onOpenCoach}><Sparkles size={16} />Ask AI Tutor about this topic</button>{startError && <p className="topic-detail__error" role="alert">{startError}</p>}</aside>
       </div>
     </section>
   )
@@ -2700,14 +2753,14 @@ function LegacyKnowledgeMap({ subjectFilter, setSubjectFilter, completionByUnit,
     }
     setInventoryError(
       available > 0
-        ? `${group.name} has ${available} verified source questions. ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} are required before a Topic Drill can start; source indexing is still in progress.`
-        : `${group.name} has no verified source questions yet. Source indexing is still in progress.`,
+        ? `${group.name} has ${available} checked source questions. ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} are required before a Topic Drill can start; more official questions are being checked.`
+        : `${group.name} has no checked source questions yet. More official questions are being checked.`,
     )
   }
 
   return (
     <section className="knowledge-map">
-      <header><div><p className="section-label">Syllabus practice</p><h2>Pick the course, stage and topic you need today.</h2><p>Each drill follows the current Cambridge syllabus and uses only question-level items that are already indexed to their paired QP and mark scheme. Smaller inventories remain available and are labelled by stage.</p><div className="knowledge-links">{planSubject?.syllabusUrl && <a className="syllabus-link" href={planSubject.syllabusUrl} target="_blank" rel="noreferrer">Cambridge {planSubject.code} official syllabus <ChevronRight size={14} /></a>}<a className="syllabus-link" href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer">Review subject vocabulary <ChevronRight size={14} /></a></div></div><div className="subject-segments">{subjects.map((subject) => <button type="button" className={(subjectFilter === subject.id || (subjectFilter === 'all' && subject.id === 'physics')) ? 'active' : ''} key={subject.id} onClick={() => setSubjectFilter(subject.id)}><strong>{subject.code}</strong><span>{subject.name}</span></button>)}</div></header>
+      <header><div><p className="section-label">Syllabus practice</p><h2>Pick the course, stage and topic you need today.</h2><p>Each drill follows the current Cambridge syllabus and uses only complete question records linked to their paired QP and mark scheme. Smaller inventories remain available and are labelled by stage.</p><div className="knowledge-links">{planSubject?.syllabusUrl && <a className="syllabus-link" href={planSubject.syllabusUrl} target="_blank" rel="noreferrer">Cambridge {planSubject.code} official syllabus <ChevronRight size={14} /></a>}<a className="syllabus-link" href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer">Review subject vocabulary <ChevronRight size={14} /></a></div></div><div className="subject-segments">{subjects.map((subject) => <button type="button" className={(subjectFilter === subject.id || (subjectFilter === 'all' && subject.id === 'physics')) ? 'active' : ''} key={subject.id} onClick={() => setSubjectFilter(subject.id)}><strong>{subject.code}</strong><span>{subject.name}</span></button>)}</div></header>
       {inventoryError && <div className="inventory-alert" role="alert"><AlertTriangle size={18} /><span>{inventoryError}</span></div>}
       <div className="knowledge-rows">{groups.map((group) => {
         const units = unitsForGroup(group)
@@ -2729,7 +2782,7 @@ function LegacyKnowledgeMap({ subjectFilter, setSubjectFilter, completionByUnit,
         }))
         const primaryPreview = previews[0]?.sourceMix
         const subjectCode = subjects.find((subject) => subject.id === appSubjectId)?.code || 'selected'
-        return <article className="knowledge-row" key={group.id}><div className="knowledge-stage"><span>{stage}</span>{group.stageTags?.length > 0 && <small>{group.stageTags.join(' / ')}</small>}<div className="mini-progress"><i style={{ width: `${percentage ?? 4}%` }} /></div></div><div className="knowledge-copy"><h3>{group.name}</h3><p>{group.description}</p><div className="knowledge-themes">{group.themes.map((theme) => <span key={theme}>{theme}</span>)}</div><small className="knowledge-skill-line">Skills: {(group.skills || []).slice(0, 3).join(' · ')}</small><div className="knowledge-source-preview" aria-label={`${group.name} drill source inventory`}>{previews.map((preview) => <span className={preview.sourceMix.status === 'empty' ? 'not-ready' : preview.sourceMix.partial ? 'partial' : 'ready'} key={preview.stage}><strong>{preview.stage}</strong>{preview.sourceMix.available} verified{preview.sourceMix.partial ? ' · partial' : ''}</span>)}</div><small className="knowledge-source-policy">Stage availability is real question-level inventory. Topic Drill starts only at {MIN_VERIFIED_GROUPS_FOR_PRACTICE} verified groups; otherwise use the paper viewer while indexing continues.</small></div><div className="knowledge-action"><strong>{percentage == null ? `${primaryPreview?.available || 0} verified questions` : `${percentage}% best`}</strong><div className="knowledge-drill-buttons">{stageOptions.map((stageName) => { const preview = previews.find((item) => item.stage === stageName)?.sourceMix; const count = preview?.available || 0; const ready = count >= MIN_VERIFIED_GROUPS_FOR_PRACTICE; return <button type="button" className="card-action" key={stageName} disabled={!ready} onClick={() => startGroupDrill(group, unit, stageName, count)}>{ready ? `Build ${stageName} drill · ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} questions` : count ? `${stageName} · ${count} verified, indexing` : `${stageName} · no source indexed`}<ChevronRight size={15} /></button> })}</div><button type="button" className="text-action" onClick={() => openPapers(appSubjectId)}>Open {subjectCode} papers</button></div></article>
+        return <article className="knowledge-row" key={group.id}><div className="knowledge-stage"><span>{stage}</span>{group.stageTags?.length > 0 && <small>{group.stageTags.join(' / ')}</small>}<div className="mini-progress"><i style={{ width: `${percentage ?? 4}%` }} /></div></div><div className="knowledge-copy"><h3>{group.name}</h3><p>{group.description}</p><div className="knowledge-themes">{group.themes.map((theme) => <span key={theme}>{theme}</span>)}</div><small className="knowledge-skill-line">Skills: {(group.skills || []).slice(0, 3).join(' · ')}</small><div className="knowledge-source-preview" aria-label={`${group.name} available source questions`}>{previews.map((preview) => <span className={preview.sourceMix.status === 'empty' ? 'not-ready' : preview.sourceMix.partial ? 'partial' : 'ready'} key={preview.stage}><strong>{preview.stage}</strong>{preview.sourceMix.available} checked{preview.sourceMix.partial ? ' · limited' : ''}</span>)}</div><small className="knowledge-source-policy">Stage availability is based on complete question records. Topic Drill starts only at {MIN_VERIFIED_GROUPS_FOR_PRACTICE} checked questions; otherwise use the paper viewer while more questions are prepared.</small></div><div className="knowledge-action"><strong>{percentage == null ? `${primaryPreview?.available || 0} checked questions` : `${percentage}% best`}</strong><div className="knowledge-drill-buttons">{stageOptions.map((stageName) => { const preview = previews.find((item) => item.stage === stageName)?.sourceMix; const count = preview?.available || 0; const ready = count >= MIN_VERIFIED_GROUPS_FOR_PRACTICE; return <button type="button" className="card-action" key={stageName} disabled={!ready} onClick={() => startGroupDrill(group, unit, stageName, count)}>{ready ? `Build ${stageName} drill · ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} questions` : count ? `${stageName} · ${count} checked, more coming` : `${stageName} · no questions ready`}<ChevronRight size={15} /></button> })}</div><button type="button" className="text-action" onClick={() => openPapers(appSubjectId)}>Open {subjectCode} papers</button></div></article>
       })}</div>
     </section>
   )
@@ -2754,8 +2807,8 @@ function KnowledgeMap({ activeRoute, activeRouteId, selectRoute, completionByUni
     if (available < MIN_VERIFIED_GROUPS_FOR_PRACTICE) {
       setInventoryError(
         available > 0
-          ? `${topic.label} has ${available} verified source questions. ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} are required before a Topic Drill can start; source indexing is still in progress.`
-          : `${topic.label} has no verified source questions yet. Source indexing is still in progress.`,
+          ? `${topic.label} has ${available} checked source questions. ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} are required before a Topic Drill can start; more official questions are being checked.`
+          : `${topic.label} has no checked source questions yet. More official questions are being checked.`,
       )
       return
     }

@@ -210,6 +210,9 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
   const sourceZoomRestoreTargetRef = useRef(null)
   const sourceZoomRestorePendingRef = useRef(false)
   const parts = unit.parts || EMPTY_PARTS
+  const sourceQuestionCount = Number(unit.questionGroupCount) > 0
+    ? Number(unit.questionGroupCount)
+    : new Set(parts.map((part) => part?.sourceQuestionId || part?.questionGroupId || part?.bankId).filter(Boolean)).size || parts.length
   const answered = parts.filter((part) => isComplete(attempt, part)).length
   const unanswered = parts.length - answered
   const remaining = Math.max(0, attempt.durationSec - attempt.elapsedSec)
@@ -373,12 +376,12 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
           </button>
           <div className="qp-header__title">
             <strong>{unit.title}</strong>
-            <span>{parts.length} verified question{parts.length === 1 ? '' : 's'}{unit.sourceSetIndex ? ` · Set ${unit.sourceSetIndex}` : ''}</span>
+            <span>{sourceQuestionCount} source question{sourceQuestionCount === 1 ? '' : 's'} · {parts.length} answer part{parts.length === 1 ? '' : 's'}{unit.sourceSetIndex ? ` · Set ${unit.sourceSetIndex}` : ''}</span>
           </div>
         </div>
         <div className="qp-header__status">
           <span className={`qp-mode qp-mode--${settings.mode}`}>{modeLabel}</span>
-          <span className="qp-status-item"><CheckCircle2 size={16} />{answered}/{parts.length}</span>
+          <span className="qp-status-item"><CheckCircle2 size={16} />{answered}/{parts.length} parts</span>
           <span className="qp-status-item qp-timer"><Clock3 size={16} />{settings.timing === 'untimed' ? formatTime(attempt.elapsedSec) : formatTime(remaining)}</span>
           <span className="qp-status-item qp-save" aria-live="polite"><Save size={15} />{attempt.saveStatus || 'Saved'}</span>
           <button type="button" className="qp-focus-button" onClick={() => onToggleImmersive(!immersive)} aria-label={immersive ? 'Exit focus mode' : 'Enter focus mode'} aria-pressed={immersive} title={immersive ? 'Exit focus mode' : 'Enter focus mode'}>
@@ -401,13 +404,13 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
         </div>
 
         <div className="practice-progress-strip qp-progress" aria-label="Question progress">
-          <div className="qp-progress__copy"><strong>Question {activeIndex + 1} of {parts.length}</strong><span>{activePart.marks} {activePart.marks === 1 ? 'mark' : 'marks'} · {settings.timing === 'untimed' ? 'Untimed' : `${Math.ceil(remaining / 60)} min left`}</span></div>
+          <div className="qp-progress__copy"><strong>Answer part {activeIndex + 1} of {parts.length}</strong><span>{activePart.marks} {activePart.marks === 1 ? 'mark' : 'marks'} · {settings.timing === 'untimed' ? 'Untimed' : `${Math.ceil(remaining / 60)} min left`}</span></div>
           <div className="qp-progress__track"><i style={{ width: `${progress}%` }} /></div>
         </div>
 
         <div className="qp-layout">
           <aside className="question-index qp-index" aria-label="Question navigation">
-            <div className="qp-index__heading"><span>Questions</span><strong>{answered}/{parts.length}</strong></div>
+            <div className="qp-index__heading"><span>Answer parts</span><strong>{answered}/{parts.length}</strong></div>
             <div className="index-list qp-index__list">
               {parts.map((part, index) => {
                 const partComplete = isComplete(attempt, part)
@@ -503,8 +506,8 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
 
             <nav className="question-stepper qp-stepper" aria-label="Move between questions">
               <button type="button" className="qp-secondary-action" disabled={activeIndex === 0} onClick={() => goToPart(parts[activeIndex - 1]?.id)}><ChevronLeft size={17} />Previous</button>
-              <span>Question {activeIndex + 1} of {parts.length}</span>
-              <button type="button" className="qp-next-action" disabled={activeIndex === parts.length - 1} onClick={() => goToPart(parts[activeIndex + 1]?.id)}>Next question<ChevronRight size={17} /></button>
+              <span>Answer part {activeIndex + 1} of {parts.length}</span>
+              <button type="button" className="qp-next-action" disabled={activeIndex === parts.length - 1} onClick={() => goToPart(parts[activeIndex + 1]?.id)}>Next answer part<ChevronRight size={17} /></button>
             </nav>
           </main>
         </div>

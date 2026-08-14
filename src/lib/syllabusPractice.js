@@ -1,7 +1,7 @@
 import importedQuestionIndex from '../data/importedQuestionIndex.json' with { type: 'json' }
 import paperCatalog from '../../public/data/papers.json' with { type: 'json' }
 import { CAMBRIDGE_9702_AS_SYLLABUS } from '../data/syllabus/cambridge-9702-as-2025-2027.js'
-import { isHumanReviewedPastPaperItem, normalizeImportedQuestion } from '../data/questionBank.js'
+import { isHumanReviewedPastPaperItem, normalizeImportedQuestion, unifiedQuestionBank } from '../data/questionBank.js'
 import { routeById } from '../data/routeRegistry.js'
 
 export const SYLLABUS_CATALOG_SCHEMA_VERSION = 'syllabus-catalog-v1'
@@ -168,7 +168,7 @@ function topicRowsForRoute(routeId, questionBank) {
   })
 }
 
-export function syllabusTopicsInventory({ routeId, questionBank = [] } = {}) {
+export function syllabusTopicsInventory({ routeId, questionBank = unifiedQuestionBank } = {}) {
   const route = routeById(routeId)
   if (!route) {
     const error = new Error('routeId is not registered.')
@@ -205,7 +205,7 @@ export function syllabusTopicsInventory({ routeId, questionBank = [] } = {}) {
   }
 }
 
-export function syllabusMappingCandidates({ questionBank = [] } = {}) {
+export function syllabusMappingCandidates({ questionBank = unifiedQuestionBank } = {}) {
   return effectiveQuestionRecords(questionBank).map((record) => ({
     schemaVersion: SYLLABUS_MAPPING_SCHEMA_VERSION,
     questionGroupId: record.questionGroupId,
@@ -340,7 +340,7 @@ export function buildSyllabusPracticeSet({
   excludeAttempted = true,
   attemptedQuestionIds = [],
   seed = Date.now(),
-  questionBank = [],
+  questionBank = unifiedQuestionBank,
 } = {}) {
   if (routeId !== CAMBRIDGE_9702_AS_SYLLABUS.routeId) {
     const error = new Error('This syllabus practice-set route is not configured yet.')

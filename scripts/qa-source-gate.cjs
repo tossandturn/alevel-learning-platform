@@ -1,6 +1,7 @@
 const fs = require('fs')
 const path = require('path')
 const net = require('net')
+const os = require('os')
 const { spawn } = require('child_process')
 const { chromium } = require('D:/CodexWork/node_modules/playwright-core')
 
@@ -112,6 +113,21 @@ async function closeWithDeadline(resource, label) {
   }
 }
 
+async function removeQaDatabaseDir(directory) {
+  const deadline = Date.now() + CLEANUP_DEADLINE_MS
+  let lastError = null
+  while (Date.now() < deadline) {
+    try {
+      fs.rmSync(directory, { recursive: true, force: true })
+      return
+    } catch (error) {
+      lastError = error
+      await sleep(100)
+    }
+  }
+  console.warn(`[qa:cleanup] temporary database directory could not be removed before deadline: ${lastError?.message || directory}`)
+}
+
 function findFreePort() {
   return new Promise((resolve, reject) => {
     const probe = net.createServer()
@@ -164,10 +180,17 @@ async function startQaServer() {
   }
 
   const port = await findFreePort()
+  const qaDatabaseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'alevel-learning-platform-qa-'))
+  const qaDatabasePath = path.join(qaDatabaseDir, 'stem.sqlite')
   const viteCli = path.join(REPO_ROOT, 'node_modules', 'vite', 'bin', 'vite.js')
   const child = spawn(process.execPath, [viteCli, '--host', '127.0.0.1', '--port', String(port), '--strictPort'], {
     cwd: REPO_ROOT,
-    env: { ...process.env, BROWSER: 'none' },
+    env: {
+      ...process.env,
+      BROWSER: 'none',
+      STEM_DB_PATH: qaDatabasePath,
+      STEM_SESSION_SECURE: '0',
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   })
@@ -185,6 +208,7 @@ async function startQaServer() {
     await withDeadline(`isolated Vite server start at ${serverUrl}`, () => waitForHttp(serverUrl, child), SERVER_START_DEADLINE_MS, () => terminateProcess(child))
   } catch (error) {
     await terminateProcess(child).catch(() => {})
+    await removeQaDatabaseDir(qaDatabaseDir)
     throw new Error(`${error.message}\n${output}`)
   }
   APP_URL = serverUrl
@@ -196,6 +220,7 @@ async function startQaServer() {
       if (cleaned) return
       cleaned = true
       await terminateProcess(child)
+      await removeQaDatabaseDir(qaDatabaseDir)
       console.log('[qa:server] isolated Vite dev server stopped')
     },
   }
@@ -256,7 +281,7 @@ async function startReviewedTopic(page, topic) {
   }
   if (!topicRow) throw new Error(`Could not find the exact ${topic} syllabus row`)
   await topicRow.click()
-  const start = page.getByRole('button', { name: /Start set|Practice \d+|Start verified sample/i }).first()
+  const start = page.getByRole('button', { name: /Start set|Practice \d+|Start (?:checked|verified) sample/i }).first()
   await start.waitFor()
   if (await start.isDisabled()) throw new Error(`${topic} has no enabled reviewed source set`)
   await start.click()

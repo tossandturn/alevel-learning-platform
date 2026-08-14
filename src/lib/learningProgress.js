@@ -42,6 +42,67 @@ function isWithinDays(value, days) {
   return Number.isFinite(time) && Date.now() - time < days * 86_400_000
 }
 
+function latestPaperReviews(paperReviews = []) {
+  const latest = new Map()
+  for (const review of paperReviews) {
+    const current = latest.get(review.attemptId)
+    const nextTime = Date.parse(review.reviewedAt || review.completedAt || '')
+    const currentTime = Date.parse(current?.reviewedAt || current?.completedAt || '')
+    if (!current || nextTime >= currentTime) latest.set(review.attemptId, review)
+  }
+  return latest
+}
+
+function completedPaperRecords({ paperSessions = [], paperReviews = [], routeId = null } = {}) {
+  const reviews = latestPaperReviews(paperReviews)
+  return paperSessions
+    .filter((session) => !routeId || session.routeId === routeId)
+    .map((session) => ({ session, review: reviews.get(session.attemptId) }))
+    .filter(({ session, review }) => {
+      const questionCount = Number(session.questionCount)
+      const scoredCount = review?.scoredQuestionNumbers?.length || 0
+      return Boolean(review && review.partial !== true && questionCount > 0 && scoredCount >= questionCount)
+    })
+}
+
+export function latestSubmittedActivity({ attempts = [], units = [], paperSessions = [], paperReviews = [], routeId = null } = {}) {
+  const unitsById = unitMap(units)
+  const topicActivities = attempts
+    .map((attempt) => ({ attempt, unit: unitsById.get(attempt.unitId) }))
+    .filter(({ attempt, unit }) => (!routeId || attempt.routeId === routeId) && unit && isScoredAttempt(attempt, unit))
+    .map(({ attempt, unit }) => ({
+      kind: 'topic',
+      date: attempt.submittedAt,
+      rawMarks: attempt.scoreResult.rawMarks,
+      maxMarks: attempt.scoreResult.maxMarks,
+      percentage: attempt.scoreResult.percentage,
+      partial: false,
+      answeredCount: answeredQuestionCount(attempt, unit.parts || []),
+      questionCount: unit.parts?.length || 0,
+    }))
+  const reviews = latestPaperReviews(paperReviews)
+  const paperActivities = paperSessions
+    .filter((session) => !routeId || session.routeId === routeId)
+    .map((session) => {
+      const review = reviews.get(session.attemptId)
+      const maxMarks = review?.maxMarks == null ? null : Number(review.maxMarks)
+      const rawMarks = review?.rawMarks == null ? null : Number(review.rawMarks)
+      return {
+        kind: 'paper',
+        date: session.completedAt || session.submittedAt,
+        rawMarks: Number.isFinite(rawMarks) ? rawMarks : null,
+        maxMarks: Number.isFinite(maxMarks) ? maxMarks : null,
+        percentage: Number.isFinite(rawMarks) && Number.isFinite(maxMarks) && maxMarks > 0 ? rawMarks / maxMarks * 100 : null,
+        partial: review ? review.partial !== false : true,
+        answeredCount: Number(session.answeredCount) || 0,
+        questionCount: Number(session.questionCount) || 0,
+      }
+    })
+  return [...topicActivities, ...paperActivities]
+    .filter((activity) => Number.isFinite(Date.parse(activity.date || '')))
+    .toSorted((left, right) => Date.parse(right.date) - Date.parse(left.date))[0] || null
+}
+
 function readTermsReviewed(routeId) {
   if (typeof window === 'undefined') return 0
   const raw = window.localStorage?.getItem('stem-professional-terms-reviewed')
@@ -95,12 +156,14 @@ function emptyRouteProgress(routeId, stage, weeklyTarget, drafts = {}) {
   }
 }
 
-function progressForRoute({ routeId, stage, scoped, drafts, weeklyTarget, units, routes }) {
+function progressForRoute({ routeId, stage, scoped, drafts, weeklyTarget, units, routes, paperSessions = [], paperReviews = [] }) {
   const records = scoped.filter((item) => item.routeId === routeId)
-  if (!records.length) return emptyRouteProgress(routeId, stage, weeklyTarget, drafts)
+  const paperRecords = completedPaperRecords({ paperSessions, paperReviews, routeId })
+  if (!records.length && !paperRecords.length) return emptyRouteProgress(routeId, stage, weeklyTarget, drafts)
 
   const attempts = records.map((item) => item.attempt)
   const currentWeek = records.filter((item) => isWithinDays(item.attempt.submittedAt, 7))
+  const currentWeekPaperRecords = paperRecords.filter(({ session }) => isWithinDays(session.completedAt || session.submittedAt, 7))
   const topicById = new Map()
 
   for (const { attempt, unit } of records) {
@@ -132,9 +195,13 @@ function progressForRoute({ routeId, stage, scoped, drafts, weeklyTarget, units,
     }
   })
   const correctedMistakes = records.reduce((total, { attempt, unit }) => total + (attempt.retestOf ? questionCountForAttempt(attempt, unit) : 0), 0)
+  const activityDates = [
+    ...attempts.map((attempt) => attempt.submittedAt),
+    ...paperRecords.map(({ session }) => session.completedAt || session.submittedAt),
+  ]
   const milestones = [
-    { id: 'first-set', label: 'Complete your first verified set', value: attempts.length, target: 1, unit: 'set' },
-    { id: 'three-days', label: 'Study on 3 different days', value: new Set(attempts.map((attempt) => dayKey(attempt.submittedAt))).size, target: 3, unit: 'days' },
+    { id: 'first-set', label: 'Complete your first checked set', value: attempts.length + paperRecords.length, target: 1, unit: 'set' },
+    { id: 'three-days', label: 'Study on 3 different days', value: new Set(activityDates.map(dayKey)).size, target: 3, unit: 'days' },
     { id: 'fix-ten', label: 'Correct 10 questions', value: correctedMistakes, target: 10, unit: 'questions' },
     { id: 'terms-hundred', label: 'Review 100 professional terms', value: readTermsReviewed(routeId), target: 100, unit: 'terms' },
   ].map((milestone) => ({
@@ -146,19 +213,23 @@ function progressForRoute({ routeId, stage, scoped, drafts, weeklyTarget, units,
 
   return {
     routeId,
-    stage: stage || records[0]?.stage || null,
+    stage: stage || records[0]?.stage || paperRecords[0]?.session?.stage || null,
     week: {
-      completedQuestions: currentWeek.reduce((total, item) => total + questionCountForAttempt(item.attempt, item.unit), 0),
+      completedQuestions: currentWeek.reduce((total, item) => total + questionCountForAttempt(item.attempt, item.unit), 0)
+        + currentWeekPaperRecords.reduce((total, { session }) => total + Number(session.questionCount || 0), 0),
       targetQuestions: Math.max(1, Number(weeklyTarget) || 18),
-      completedSets: currentWeek.length,
-      average: average(currentWeek.map((item) => item.attempt.scoreResult.percentage)),
+      completedSets: currentWeek.length + currentWeekPaperRecords.length,
+      average: average([
+        ...currentWeek.map((item) => item.attempt.scoreResult.percentage),
+        ...currentWeekPaperRecords.map(({ review }) => Number(review.rawMarks) / Number(review.maxMarks) * 100),
+      ]),
     },
     streak: countConsecutiveDays(recentDayKeys(attempts)),
     topicProgress,
     masterySnapshots: topicProgress.map((topic) => ({
       snapshotId: `mastery:${routeId}:${topic.id}:${topic.lastActivity || 'unknown'}`,
       routeId,
-      stage: stage || records[0]?.stage || null,
+      stage: stage || records[0]?.stage || paperRecords[0]?.session?.stage || null,
       topicId: topic.id,
       mastery: topic.mastery,
       sampleSize: topic.attempts,
@@ -167,8 +238,8 @@ function progressForRoute({ routeId, stage, scoped, drafts, weeklyTarget, units,
     })),
     milestones,
     openDrafts: Object.values(drafts).filter((draft) => draft?.routeId === routeId).length,
-    completedSets: attempts.length,
-    events: buildLearningEvents({ attempts, units, routes, routeId }),
+    completedSets: attempts.length + paperRecords.length,
+    events: buildLearningEvents({ attempts, units, routes, routeId, paperSessions, paperReviews }),
   }
 }
 
@@ -176,9 +247,9 @@ function progressForRoute({ routeId, stage, scoped, drafts, weeklyTarget, units,
  * Builds route-bound learning facts. Unscoped legacy attempts never produce
  * events, recommendations, completion or mastery data.
  */
-export function buildLearningEvents({ attempts = [], units = [], routes = courseRoutes, routeId = null }) {
+export function buildLearningEvents({ attempts = [], units = [], routes = courseRoutes, routeId = null, paperSessions = [], paperReviews = [] }) {
   const scoped = scopedAttempts(attempts, units, routes)
-  return scoped
+  const topicEvents = scoped
     .filter((item) => !routeId || item.routeId === routeId)
     .flatMap(({ attempt, unit, routeId: boundRouteId, stage }) => {
       const occurredAt = attempt.submittedAt || attempt.updatedAt || null
@@ -202,6 +273,27 @@ export function buildLearningEvents({ attempts = [], units = [], routes = course
       if (base.score >= 80) events.push({ ...base, eventId: `mastery:${attempt.id}`, type: 'topic_mastered' })
       return events
     })
+  const paperEvents = completedPaperRecords({ paperSessions, paperReviews, routeId }).flatMap(({ session, review }) => {
+    const score = Number(review.rawMarks) / Number(review.maxMarks) * 100
+    const base = {
+      eventId: `paper:${session.attemptId}`,
+      attemptId: session.attemptId,
+      routeId: session.routeId,
+      stage: session.stage,
+      subjectId: session.subject || null,
+      topicId: null,
+      questionSetId: session.paperId,
+      occurredAt: session.completedAt || session.submittedAt,
+      durationSeconds: Math.max(0, Number(session.elapsedSec) || 0),
+      score,
+      synced: session.serverSync === 'synced',
+    }
+    return [
+      { ...base, type: 'paper_submitted' },
+      { ...base, eventId: `paper-result:${session.attemptId}`, type: 'paper_result' },
+    ]
+  })
+  return [...topicEvents, ...paperEvents]
 }
 
 /**
@@ -209,7 +301,7 @@ export function buildLearningEvents({ attempts = [], units = [], routes = course
  * When no route is selected, top-level metrics remain empty to prevent an
  * accidental cross-stage aggregate.
  */
-export function buildLearningProgress({ attempts = [], drafts = {}, units = [], routes = courseRoutes, routeId = null, weeklyTarget = 18 }) {
+export function buildLearningProgress({ attempts = [], drafts = {}, units = [], routes = courseRoutes, routeId = null, weeklyTarget = 18, paperSessions = [], paperReviews = [] }) {
   const scoped = scopedAttempts(attempts, units, routes)
   const routeMeta = new Map()
   for (const item of scoped) routeMeta.set(item.routeId, item.stage || routeMeta.get(item.routeId) || null)
@@ -217,8 +309,11 @@ export function buildLearningProgress({ attempts = [], drafts = {}, units = [], 
     const binding = resolveRouteBinding(unit, { routes })
     if (binding.routeId !== LEGACY_UNSCOPED_ROUTE_ID) routeMeta.set(binding.routeId, binding.stage || routeMeta.get(binding.routeId) || null)
   }
+  for (const session of paperSessions) {
+    if (session.routeId && !routeMeta.has(session.routeId)) routeMeta.set(session.routeId, session.stage || null)
+  }
 
-  const byRoute = Object.fromEntries([...routeMeta].map(([id, stage]) => [id, progressForRoute({ routeId: id, stage, scoped, drafts, weeklyTarget, units, routes })]))
+  const byRoute = Object.fromEntries([...routeMeta].map(([id, stage]) => [id, progressForRoute({ routeId: id, stage, scoped, drafts, weeklyTarget, units, routes, paperSessions, paperReviews })]))
   const selected = routeId
     ? (byRoute[routeId] || emptyRouteProgress(routeId, routes.find((route) => route.routeId === routeId || route.id === routeId)?.stage, weeklyTarget, drafts))
     : emptyRouteProgress(null, null, weeklyTarget, drafts)

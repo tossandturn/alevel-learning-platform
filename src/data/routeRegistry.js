@@ -215,6 +215,19 @@ export function routeById(routeId) {
   return ROUTE_BY_ID.get(routeId) || null
 }
 
+function subjectFamily(route) {
+  return String(route?.subjectId || '').split('-')[0] || String(route?.subject || '').trim().toLowerCase()
+}
+
+export function routeForStagePreservingSubject(activeRoute, nextStage, routes = courseRoutes) {
+  if (!activeRoute || !nextStage) return null
+  const candidates = routes.filter((route) => route.stage === nextStage)
+  return candidates.find((route) => route.subjectId === activeRoute.subjectId)
+    || candidates.find((route) => route.subject === activeRoute.subject)
+    || candidates.find((route) => subjectFamily(route) === subjectFamily(activeRoute))
+    || null
+}
+
 export function routesForSubject(subjectId) {
   const canonical = canonicalSubjectId(subjectId)
   if (!canonical) return []

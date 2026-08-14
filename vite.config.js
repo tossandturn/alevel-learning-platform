@@ -221,6 +221,18 @@ export default defineConfig(({ mode }) => {
     preview: {
       allowedHosts: ['stem.ieltsist.com'],
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            const normalizedId = id.replaceAll('\\', '/')
+            if (normalizedId.endsWith('/src/data/verifiedPracticeCatalog.json')) return 'practice-catalog'
+            if (normalizedId.endsWith('/src/data/sourceContentManifest.json')) return 'source-content-manifest'
+            return undefined
+          },
+        },
+      },
+    },
     plugins: [
       react(),
       viteStaticCopy({

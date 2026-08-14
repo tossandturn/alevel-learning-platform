@@ -28,7 +28,7 @@ export function HistoryView({ attempts, paperSessions, paperReviews = [], onRete
   return (
     <section className="history-view page-band">
       <div className="library-header">
-        <div><p className="section-label">Learning record</p><h1>History stays append-only</h1><p className="page-intro">Practice results, paper sessions and retests remain separate so progress is explainable.</p></div>
+        <div><p className="section-label">Learning record</p><h1>History keeps every attempt</h1><p className="page-intro">Practice results, paper sessions and retests remain separate so progress is explainable.</p></div>
         <div className="history-export" aria-live="polite">
           <button type="button" className="secondary-action" onClick={onExport} disabled={exportState.status === 'preparing'}>
             {exportState.status === 'preparing' ? <LoaderCircle className="spin" size={17} /> : <Download size={17} />}

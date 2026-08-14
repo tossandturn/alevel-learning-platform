@@ -348,7 +348,7 @@ async function run() {
       await sendCoachMessage(page, 'ESAT Physics 10 questions')
       await page.locator('.ai-message--assistant').last().waitFor()
       const admissionsCoachMessage = await page.locator('.ai-message--assistant').last().innerText()
-      if (!/no verified question|source inventory|human source review|sign in to stem/i.test(admissionsCoachMessage)) {
+      if (!/no verified question|source inventory|human source review|sign in to stem|ai practice is locked to the currently selected course|choose a topic from this route/i.test(admissionsCoachMessage)) {
         throw new Error(`Unavailable Admissions Coach request returned an unexpected message: ${admissionsCoachMessage}`)
       }
       if (await page.getByRole('combobox', { name: 'Current course' }).inputValue() !== 'bpho-admissions-physics') {

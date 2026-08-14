@@ -88,6 +88,7 @@ function structuredPart(question, answer, part, index) {
     promptFragment: text(part.promptFragment || part.exactText || part.prompt),
     marks,
     answerArea: part.answerArea || answerAreaFor(question, part),
+    options: [...(answerPart?.options || part.options || question.options || [])].map(text).filter(Boolean),
     markSchemePoints: [...(answerPart?.markSchemePoints || part.markSchemePoints || part.markPoints || [])].map(text).filter(Boolean),
     answerKey: answerPart?.answerKey || answerPart?.correctOption || part.answerKey || part.correctOption || null,
     answerText: answerPart?.answerText || answerPart?.exactText || part.answerText || null,
@@ -140,6 +141,7 @@ export function buildLegacyQuestionGroup(question, answer = null) {
     promptFragment: prompt,
     marks,
     answerArea: answerAreaFor(question, { answerType }),
+    options: [...(answer?.options || question.options || [])].map(text).filter(Boolean),
     markSchemePoints: answerType === 'multiple-choice'
       ? ['Select the answer option that matches the official answer key.']
       : [...(answer?.markPoints || question.markPoints || [])].map(text).filter(Boolean),

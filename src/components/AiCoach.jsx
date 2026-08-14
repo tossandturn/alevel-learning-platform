@@ -54,6 +54,7 @@ export function AiCoach({
   context = {},
   stateOwnerId = '',
   openRequest = 0,
+  openBuilderRequest = 0,
   showTrigger = true,
   practiceOptions = EMPTY_PRACTICE_OPTIONS,
   onGeneratePractice,
@@ -86,6 +87,7 @@ export function AiCoach({
   const screenshotInputRef = useRef(null)
   const requestAbortRef = useRef(null)
   const lastOpenRequestRef = useRef(openRequest)
+  const lastOpenBuilderRequestRef = useRef(openBuilderRequest)
   const hydratedStorageKeyRef = useRef(storageKey)
   const captureFrameRef = useRef(null)
   const captureStartRef = useRef(null)
@@ -132,9 +134,10 @@ export function AiCoach({
 
   useEffect(() => {
     if (!builderSubject) return
+    setBuilderSubjectId((current) => practiceOptions.some((item) => item.id === current) ? current : practiceOptions[0]?.id || '')
     setBuilderStage((current) => builderSubject.stages.includes(current) ? current : builderSubject.stages[0])
     setBuilderTopicId((current) => builderTopics.some((topic) => topic.id === current) ? current : builderTopics[0]?.id || '')
-  }, [builderSubject, builderTopics])
+  }, [builderSubject, builderTopics, practiceOptions])
 
   useEffect(() => {
     // Do not write A's in-memory messages into B's storage key during an
@@ -172,6 +175,20 @@ export function AiCoach({
     lastOpenRequestRef.current = openRequest
     if (openRequest && !disabled) setOpen(true)
   }, [disabled, openRequest])
+
+  useEffect(() => {
+    if (openBuilderRequest === lastOpenBuilderRequestRef.current) return
+    lastOpenBuilderRequestRef.current = openBuilderRequest
+    if (!openBuilderRequest || disabled) return
+    const firstOption = practiceOptions[0]
+    setOpen(true)
+    setBuilderOpen(true)
+    if (firstOption) {
+      setBuilderSubjectId(firstOption.id)
+      setBuilderStage(firstOption.stages?.[0] || 'AS')
+      setBuilderTopicId(firstOption.topics?.[0]?.id || '')
+    }
+  }, [disabled, openBuilderRequest, practiceOptions])
 
   useEffect(() => () => {
     requestAbortRef.current?.abort()
@@ -452,7 +469,7 @@ export function AiCoach({
       })
       setMessages((current) => [...current, {
         role: 'assistant',
-        content: `已生成 ${unit.title}: ${unit.parts.length} 题，${unit.maxMarks} 分。每题都有独立答题区；提交后按答案规则批改，手写题会连同图片交给 AI 复核。`,
+        content: `已生成 ${unit.title}: ${unit.questionGroupCount || unit.parts.length} 题，${unit.maxMarks} 分。每题都有独立答题区；提交后按答案规则批改，手写题会连同图片交给 AI 复核。`,
         createdAt: new Date().toISOString(),
       }])
       setBuilderOpen(false)

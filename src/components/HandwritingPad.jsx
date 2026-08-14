@@ -138,7 +138,7 @@ export function HandwritingPad({
   const [pencilOnly, setPencilOnly] = useState(() => (window.navigator.maxTouchPoints || 0) > 0)
   const [canUndo, setCanUndo] = useState(false)
   const [canRedo, setCanRedo] = useState(false)
-  const [status, setStatus] = useState(imageUrl(image) ? 'Handwriting restored' : 'Ready for Apple Pencil')
+  const [status, setStatus] = useState(imageUrl(image) ? 'Handwriting restored' : text ? 'Ready for typed response' : 'Ready for Apple Pencil')
   const uploadInputRef = useRef(null)
   const cameraInputRef = useRef(null)
 
@@ -450,6 +450,7 @@ export function HandwritingPad({
       window.getSelection?.()?.removeAllRanges()
     }
     setMode(nextMode)
+    setStatus(nextMode === 'type' ? 'Ready for typed response' : imageUrl(image) ? 'Handwriting restored' : 'Ready for Apple Pencil')
   }
 
   async function undo() {
@@ -514,7 +515,7 @@ export function HandwritingPad({
   return (
     <section className="handwriting-pad" aria-labelledby={`${instanceId}-label`} onDragStart={mode === 'handwrite' ? preventSelection : undefined} onContextMenu={mode === 'handwrite' ? preventSelection : undefined}>
       <header className="handwriting-pad__header">
-        <div><strong id={`${instanceId}-label`}>{label}</strong><span>Recommended for past papers: write on paper, upload a clear photo, then submit for AI-assisted marking.</span></div>
+        <div><strong id={`${instanceId}-label`}>{label}</strong><span>{mode === 'type' ? 'Type the complete method, substitutions, units and final answer.' : 'Write with Apple Pencil, upload a clear photo, or use the camera, then submit for review.'}</span></div>
         <div className="handwriting-pad__modes" role="group" aria-label="Answer input mode">
           <button type="button" className="handwriting-pad__capture" disabled={disabled} onClick={() => uploadInputRef.current?.click()}><Upload size={15} />Upload photo</button>
           <button type="button" className="handwriting-pad__capture" disabled={disabled} onClick={() => cameraInputRef.current?.click()}><Camera size={15} />Take photo</button>
@@ -562,7 +563,9 @@ export function HandwritingPad({
       )}
       <footer>
         <span aria-live="polite">{status}</span>
-        <span>{pageCount} answer page{pageCount === 1 ? '' : 's'}{aiReviewEligible ? ' - AI-assisted review is available after submission' : ' - handwriting is saved with your answer; self-mark with the paired mark scheme after submission'}</span>
+        <span>{mode === 'type'
+          ? 'Typed response is saved with this attempt.'
+          : `${pageCount} answer page${pageCount === 1 ? '' : 's'}${aiReviewEligible ? ' - AI-assisted review is available after submission' : ' - handwriting is saved with your answer; self-mark with the paired mark scheme after submission'}`}</span>
       </footer>
     </section>
   )

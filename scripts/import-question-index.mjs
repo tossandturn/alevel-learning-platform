@@ -482,6 +482,8 @@ function decoupleIndex(items) {
       marks: part.marks,
       answerArea: part.answerArea,
       sourcePage: part.sourcePage,
+      sourceEvidence: part.sourceEvidence || [],
+      sourceRegion: part.sourceRegion || null,
     }))
     const answerPartRecords = (questionGroup.parts || []).map((part) => ({
       partId: part.partId,
@@ -491,6 +493,7 @@ function decoupleIndex(items) {
       answerKey: part.answerKey || null,
       answerText: part.answerText || null,
       sourcePage: part.answerSourcePage || null,
+      markSchemeEvidence: part.markSchemeEvidence || [],
     }))
     questions.push({
       ...question,

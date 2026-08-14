@@ -4,6 +4,7 @@ import { examStructures, getRouteGuidance, getRouteOptions, getStageGuidance, ge
 import { ARCHIVE_SOURCES, SPECIAL_ARCHIVE_SUBJECTS, archiveSeasonLabel, buildArchiveStats } from '../data/competitionArchive'
 import { formatRouteComponents } from '../data/routeRegistry'
 import { isPaperAvailableToStudents } from '../lib/paperGovernance'
+import { filterDefaults, paperFilterStorageKey, readPaperFilters, restorePaperFilters, writePaperFilters } from '../lib/paperFilters'
 
 const PAGE_SIZE = 20
 const EMPTY_ITEMS = []
@@ -39,20 +40,21 @@ function bytesLabel(bytes) {
   return bytes >= 1_000_000 ? `${(bytes / 1_000_000).toFixed(1)} MB` : `${Math.ceil(bytes / 1000)} KB`
 }
 
-function filterDefaults(subject) {
-  return { subject: subject || 'all', stage: 'all', route: 'all', paperNumber: 'all', year: 'all', season: 'all', kind: 'qp', query: '' }
-}
-
 export function PaperLibrary({ catalogState, initialSubject = 'all', activeRoute = null, studyMode = 'past-paper-practice', onOpenPaper }) {
-  const [filters, setFilters] = useState(() => filterDefaults(initialSubject))
+  const routeKey = paperFilterStorageKey(activeRoute?.routeId || initialSubject || 'all', studyMode)
+  const subject = activeRoute?.subjectCode || initialSubject || 'all'
+  const [filters, setFilters] = useState(() => restorePaperFilters(readPaperFilters(routeKey), subject))
   const [page, setPage] = useState(1)
   const items = (catalogState.catalog?.items || EMPTY_ITEMS).filter(isPaperAvailableToStudents)
 
   useEffect(() => {
-    const subject = initialSubject || 'all'
-    setFilters((current) => current.subject === subject ? current : filterDefaults(subject))
+    setFilters(restorePaperFilters(readPaperFilters(routeKey), subject))
     setPage(1)
-  }, [initialSubject])
+  }, [routeKey, subject])
+
+  useEffect(() => {
+    writePaperFilters(routeKey, filters)
+  }, [filters, routeKey])
 
   const subjectItems = useMemo(
     () => filters.subject === 'all' ? items : items.filter((item) => item.subject === filters.subject),
@@ -144,7 +146,7 @@ export function PaperLibrary({ catalogState, initialSubject = 'all', activeRoute
   }
 
   function clearFilters() {
-    setFilters(filterDefaults(activeRoute?.subjectCode || initialSubject))
+    setFilters(filterDefaults(subject))
     setPage(1)
   }
 
@@ -214,7 +216,7 @@ export function PaperLibrary({ catalogState, initialSubject = 'all', activeRoute
             <thead><tr><th>Paper</th><th>Subject</th><th>{filters.subject === 'bpho' ? 'Round / year' : 'Session'}</th><th>Type</th><th>Answer</th><th>Size</th><th><span className="sr-only">Action</span></th></tr></thead>
             <tbody>{visible.map((item) => (
               <tr key={item.id}>
-                <td><strong>{item.file}</strong><small>{item.examProfile ? `${item.examProfile.paperNumber ? `P${item.examProfile.paperNumber} ` : ''}${item.examProfile.title}` : `Variant ${item.variant || 'general'}`} / {item.sha256.slice(0, 10)} / {item.governance?.sourcePolicyId === 'cie-mirror-restricted-v1' ? 'restricted study access' : 'source-governed access'}</small></td>
+                <td><strong>{item.file}</strong><small>{item.examProfile ? `${item.examProfile.paperNumber ? `P${item.examProfile.paperNumber} ` : ''}${item.examProfile.title}` : `Variant ${item.variant || 'general'}`} / {item.sha256.slice(0, 10)} / {item.governance?.sourcePolicyId === 'cie-mirror-restricted-v1' ? 'Source policy applies' : 'Source access checked'}</small></td>
                 <td><span className="subject-code">{item.subject}</span><small>{SUBJECT_NAMES[item.subject]}</small></td>
                 <td>{archiveSeasonLabel(item.subject, item.season)} {Number(item.year) > 0 ? item.year : 'Specimen'}</td>
                 <td><span className={`document-kind ${item.kind}`}>{KIND_NAMES[item.kind] || item.kind.toUpperCase()}</span></td>

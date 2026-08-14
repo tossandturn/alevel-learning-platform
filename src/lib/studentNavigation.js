@@ -12,7 +12,7 @@ const VIEW_PATHS = Object.freeze({
 
 const PATH_VIEWS = new Map(Object.entries(VIEW_PATHS).map(([view, path]) => [path, view]))
 const SAFE_VALUE = /^[A-Za-z0-9._:@-]{1,320}$/
-const SAFE_TAB = new Set(['recommended', 'topics', 'papers', 'exams', 'mistakes', 'saved'])
+const SAFE_TAB = new Set(['recommended', 'ai-practice', 'topics', 'papers', 'exams', 'mistakes', 'saved'])
 const SAFE_PAPER_MODES = new Set(['past-paper-practice', 'exam-simulation'])
 
 function safeValue(value, fallback = '') {
