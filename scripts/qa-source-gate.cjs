@@ -61,6 +61,11 @@ const REVIEWED_SOURCE_CASES = [
   },
 ]
 
+const REVIEWED_0606_SOURCE_CASES = [
+  { number: 7, topic: 'Calculus', pages: [8, 9], parts: ['a', 'b'] },
+  { number: 11, topic: 'Vectors', pages: [14, 15], parts: ['a', 'b', 'c'] },
+]
+
 function requestedNames(name) {
   return new Set(String(process.env[name] || '')
     .split(',')
@@ -236,6 +241,10 @@ function overlap(first, second) {
 
 function sourceAssetForPage(page) {
   return `/question-assets/cie-0580-0580_m25_qp_12/qp-${String(page).padStart(2, '0')}.jpg`
+}
+
+function sourceAssetFor0606Page(page) {
+  return `/question-assets/cie-0606-0606_m25_qp_12/qp-${String(page).padStart(2, '0')}.jpg`
 }
 
 async function mockAnonymousIdentityExchange(context) {
@@ -546,6 +555,130 @@ async function verifyReviewedSourceMatrix(browser) {
   return results
 }
 
+async function startReviewed0606Topic(page, topic) {
+  const picker = page.locator('.student-route-picker').first()
+  try {
+    await picker.waitFor({ state: 'visible' })
+  } catch (error) {
+    const body = await page.locator('body').innerText().catch(() => '')
+    throw new Error(`0606 route picker did not render at ${page.url()}: ${body.replace(/\s+/g, ' ').slice(0, 500)}; ${error.message}`)
+  }
+  await picker.getByRole('tab', { name: 'IGCSE', exact: true }).click()
+  await picker.getByRole('combobox', { name: 'Current course' }).selectOption('cie-0606-igcse-additional-mathematics')
+  await page.getByRole('button', { name: 'Choose another topic' }).click()
+  const rows = page.locator('.topic-directory__row')
+  const rowCount = await rows.count()
+  let topicRow = null
+  for (let index = 0; index < rowCount; index += 1) {
+    const candidate = rows.nth(index)
+    const lines = (await candidate.innerText()).split(/\r?\n/).map((line) => line.trim())
+    if (lines.some((line) => line.toLowerCase() === topic.toLowerCase() || line.toLowerCase().includes(topic.toLowerCase()))) {
+      topicRow = candidate
+      break
+    }
+  }
+  if (!topicRow) throw new Error(`Could not find the exact 0606 ${topic} syllabus row; observed=${JSON.stringify(await rows.allInnerTexts())}`)
+  await topicRow.click()
+  const start = page.getByRole('button', { name: /Start set|Practice \d+|Start (?:checked|verified) sample/i }).first()
+  await start.waitFor()
+  if (await start.isDisabled()) throw new Error(`0606 ${topic} has no enabled reviewed source sample`)
+  await start.click()
+  await page.waitForSelector('.session-setup, .question-block')
+  if (await page.locator('.session-setup').count()) await page.getByRole('button', { name: /Start session/i }).click()
+  await page.locator('.question-block').waitFor()
+}
+
+async function verifyReviewed0606Source(browser) {
+  const results = []
+  const viewports = VIEWPORTS.filter((viewport) => ['desktop', 'ipad-portrait'].includes(viewport.name))
+  const phaseLabel = 'source-matrix-0606'
+  console.log(`[qa:phase] start ${phaseLabel} deadlineMs=${VIEWPORT_DEADLINE_MS}`)
+  let context = null
+  try {
+    await withDeadline(phaseLabel, async () => {
+      for (const viewport of viewports) {
+        context = await browser.newContext({
+          viewport: { width: viewport.width, height: viewport.height },
+          isMobile: viewport.mobile,
+          hasTouch: viewport.touch,
+          deviceScaleFactor: viewport.touch ? 2 : 1,
+        })
+        await mockAnonymousIdentityExchange(context)
+        const page = await context.newPage()
+        page.setDefaultTimeout(20_000)
+        const assetResponses = []
+        const errors = []
+        page.on('response', (response) => {
+          if (response.url().includes('/question-assets/cie-0606-0606_m25_qp_12/')) assetResponses.push({ url: response.url(), status: response.status() })
+          if (response.status() >= 400 && !/\/api\/auth\/status$/.test(new URL(response.url()).pathname)) errors.push(`http:${response.status()} ${response.url()}`)
+        })
+        page.on('pageerror', (error) => errors.push(`pageerror:${error.message}`))
+        for (const sourceCase of REVIEWED_0606_SOURCE_CASES) {
+          await clearBrowserState(page)
+          await startReviewed0606Topic(page, sourceCase.topic)
+          await activateQuestionPart(page, sourceCase.number, sourceCase.parts[0])
+          const evidence = {
+            questionId: `cie-0606-0606_m25_qp_12:q${sourceCase.number}`,
+            viewport: `${viewport.width}x${viewport.height}`,
+            pages: [],
+          }
+          for (let index = 0; index < sourceCase.pages.length; index += 1) {
+            const pageNumber = sourceCase.pages[index]
+            const figure = page.locator('.qp-question-asset')
+            await figure.waitFor({ state: 'visible' })
+            const image = figure.locator('img')
+            await image.waitFor({ state: 'visible' })
+            const metrics = await image.evaluate((element) => ({
+              src: element.getAttribute('src') || '',
+              complete: element.complete,
+              naturalWidth: element.naturalWidth,
+              naturalHeight: element.naturalHeight,
+              sourceView: element.closest('.qp-question-asset')?.getAttribute('data-source-view') || '',
+            }))
+            const expectedAsset = sourceAssetFor0606Page(pageNumber)
+            if (!metrics.complete || metrics.naturalWidth <= 0 || metrics.naturalHeight <= 0 || metrics.src !== expectedAsset) {
+              throw new Error(`0606 Q${sourceCase.number} p.${pageNumber} did not decode the canonical QP asset: ${JSON.stringify(metrics)}`)
+            }
+            const toolbar = (await figure.locator('.qp-question-asset__toolbar').innerText()).replace(/\s+/g, ' ').trim()
+            if (!toolbar.includes(`QP p.${String(pageNumber).padStart(2, '0')}`)) throw new Error(`0606 Q${sourceCase.number} page toolbar mismatch: ${toolbar}`)
+            if (metrics.sourceView !== 'original') throw new Error(`0606 Q${sourceCase.number} must use the full official page fallback until a reviewed crop exists`)
+            evidence.pages.push({ page: pageNumber, asset: metrics.src, decoded: `${metrics.naturalWidth}x${metrics.naturalHeight}` })
+            const screenshot = path.join(ARTIFACT_DIR, `source-gate-0606-q${sourceCase.number}-${viewport.name}-qp-${String(pageNumber).padStart(2, '0')}.png`)
+            await figure.screenshot({ path: screenshot })
+            evidence.pages.at(-1).screenshot = screenshot
+            if (index < sourceCase.pages.length - 1) {
+              const next = figure.getByRole('button', { name: 'Next source page' })
+              if (await next.isDisabled()) throw new Error(`0606 Q${sourceCase.number} cannot advance from p.${pageNumber}`)
+              await next.click()
+            }
+          }
+          const geometry = await page.evaluate(() => ({
+            scrollWidth: document.documentElement.scrollWidth,
+            clientWidth: document.documentElement.clientWidth,
+            source: document.querySelector('.qp-question-asset')?.getBoundingClientRect(),
+            answer: document.querySelector('.qp-question__answer-panel')?.getBoundingClientRect(),
+          }))
+          if (geometry.scrollWidth > geometry.clientWidth + 1) throw new Error(`0606 Q${sourceCase.number} overflows horizontally: ${JSON.stringify(geometry)}`)
+          if (!viewport.mobile && overlap(geometry.source, geometry.answer)) throw new Error(`0606 Q${sourceCase.number} source and answer surfaces overlap: ${JSON.stringify(geometry)}`)
+          if (sourceCase.pages.length > 1) {
+            const previous = page.locator('.qp-question-asset').getByRole('button', { name: 'Previous source page' })
+            if (await previous.isDisabled()) throw new Error(`0606 Q${sourceCase.number} cannot return from its second QP page`)
+            await previous.click()
+          }
+          results.push({ ...evidence, assetResponses: assetResponses.slice(), errors: errors.slice() })
+        }
+        if (errors.length) throw new Error(errors.join(' | '))
+        await closeWithDeadline(context, `0606 ${viewport.name}`)
+        context = null
+      }
+    }, VIEWPORT_DEADLINE_MS, () => closeWithDeadline(context, phaseLabel))
+    console.log(`[qa:phase] pass ${phaseLabel}`)
+  } finally {
+    await closeWithDeadline(context, phaseLabel)
+  }
+  return results
+}
+
 async function verifyRequiredAssetFailure(browser) {
   let context = null
   const phaseLabel = 'required-asset-failure'
@@ -688,9 +821,10 @@ async function run() {
     browser = await withDeadline('browser launch', () => chromium.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true }), 30_000)
     console.log('[qa:phase] pass browser-launch')
     const reviewedSources = await verifyReviewedSourceMatrix(browser)
+    const reviewed0606Sources = await verifyReviewed0606Source(browser)
     const requiredAssetFailure = await verifyRequiredAssetFailure(browser)
     const paper = await verifyFullPaperInk(browser)
-    console.log(JSON.stringify({ reviewedSources, requiredAssetFailure, fullPaper: paper }, null, 2))
+    console.log(JSON.stringify({ reviewedSources, reviewed0606Sources, requiredAssetFailure, fullPaper: paper }, null, 2))
   } finally {
     await closeWithDeadline(browser, 'browser')
     await qaServer.cleanup()

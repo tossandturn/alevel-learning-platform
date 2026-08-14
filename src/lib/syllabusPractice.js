@@ -2,6 +2,7 @@ import importedQuestionIndex from '../data/importedQuestionIndex.json' with { ty
 import paperCatalog from '../../public/data/papers.json' with { type: 'json' }
 import { CAMBRIDGE_9702_AS_SYLLABUS } from '../data/syllabus/cambridge-9702-as-2025-2027.js'
 import { CAMBRIDGE_0625_IGCSE_SYLLABUS } from '../data/syllabus/cambridge-0625-igcse-2026-2028.js'
+import { CAMBRIDGE_0606_IGCSE_SYLLABUS } from '../data/syllabus/cambridge-0606-igcse-2025-2027.js'
 import { isHumanReviewedPastPaperItem, normalizeImportedQuestion, unifiedQuestionBank } from '../data/questionBank.js'
 import { routeById } from '../data/routeRegistry.js'
 
@@ -24,6 +25,12 @@ const SYLLABUS_CONFIGS = Object.freeze({
     subjectCode: '0625',
     stage: 'IGCSE',
     components: SUPPORTED_0625_COMPONENTS,
+  }),
+  [CAMBRIDGE_0606_IGCSE_SYLLABUS.routeId]: Object.freeze({
+    syllabus: CAMBRIDGE_0606_IGCSE_SYLLABUS,
+    subjectCode: '0606',
+    stage: 'IGCSE',
+    components: Object.freeze([1, 2]),
   }),
 })
 

@@ -1,0 +1,3293 @@
+{
+  "schemaVersion": "reviewed-question-set.v1",
+  "generatedAt": "2026-08-15T02:00:00+08:00",
+  "paperId": "cie-0606-0606_m25_qp_12",
+  "questionCount": 12,
+  "totalMarks": 80,
+  "sourceFragments": [
+    {
+      "file": "cambridge-0606-p1-m25-review-ledger.js",
+      "sha256": "28f274087f69a2e4c18f7c9f8e55de45bc73dc4a9e211ad5ada252c6057f83a2"
+    }
+  ],
+  "sourceMaterials": {
+    "questionPaper": {
+      "id": "cie-0606-0606_m25_qp_12",
+      "file": "0606_m25_qp_12.pdf",
+      "sha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_qp_12.pdf",
+      "governance": {
+        "schemaVersion": "paper-governance-v1",
+        "state": "active",
+        "sourcePolicyId": "cie-mirror-restricted-v1",
+        "accessPolicyId": "personal-study-restricted-v1",
+        "sourceVersion": "2025:Mar:0606_m25_qp_12.pdf",
+        "retrievedAt": null,
+        "retrievalStatus": "not-recorded",
+        "integrityStatus": "pending-release-audit",
+        "duplicateOf": null,
+        "answerStatus": "exact-pair",
+        "reasonCode": null,
+        "reviewedAt": null,
+        "reviewEvidence": null
+      }
+    },
+    "markScheme": {
+      "id": "cie-0606-0606_m25_ms_12",
+      "file": "0606_m25_ms_12.pdf",
+      "sha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_ms_12.pdf",
+      "governance": {
+        "schemaVersion": "paper-governance-v1",
+        "state": "active",
+        "sourcePolicyId": "cie-mirror-restricted-v1",
+        "accessPolicyId": "personal-study-restricted-v1",
+        "sourceVersion": "2025:Mar:0606_m25_ms_12.pdf",
+        "retrievedAt": null,
+        "retrievalStatus": "not-recorded",
+        "integrityStatus": "pending-release-audit",
+        "duplicateOf": null,
+        "answerStatus": "not-applicable",
+        "reasonCode": null,
+        "reviewedAt": null,
+        "reviewEvidence": null
+      }
+    }
+  },
+  "questions": [
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-0606",
+      "specificationId": "cambridge-0606-2025-2027",
+      "subjectId": "additional-math",
+      "subjectCode": "0606",
+      "knowledgeGroupId": "math-0606-equations",
+      "topicId": "math-0606-equations",
+      "stageTags": [
+        "IGCSE"
+      ],
+      "componentTags": [
+        1
+      ],
+      "topicTags": [
+        "math-0606-equations",
+        "graphs",
+        "inequalities"
+      ],
+      "skillTags": [
+        "sketching graphs",
+        "finding intercepts"
+      ],
+      "answerType": "handwritten",
+      "prompt": "On the axes, sketch the graphs of y = 4|x - 1| and y = |3x + 2|, stating the intercepts with the axes.\n\nSolve the inequality 4|x - 1| <= |3x + 2|.",
+      "marks": 7,
+      "sourceRef": {
+        "paperId": "cie-0606-0606_m25_qp_12",
+        "paper": "0606_m25_qp_12.pdf",
+        "question": "Q1",
+        "localUrl": "/local-pdf/0606/0606_m25_qp_12.pdf",
+        "pageStart": 3,
+        "pageEnd": 3,
+        "assetUrls": [
+          "/question-assets/cie-0606-0606_m25_qp_12/qp-03.jpg"
+        ],
+        "year": 2025,
+        "season": "Mar",
+        "component": 1,
+        "sha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-06T20:42:53.425Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-0606-p1-m25-review-ledger.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-0606-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/662470-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "math-0606-equations",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "math-0606-equations",
+        "secondaryTopicIds": [],
+        "syllabusPointIds": [
+          "math-0606-point-equations-01"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex source-semantic-review / 0606-P1-M25",
+        "reviewedAt": "2026-08-15T02:00:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-0606-0606_m25_qp_12",
+          "markSchemeId": "cie-0606-0606_m25_ms_12",
+          "questionPages": [
+            3
+          ],
+          "markSchemePage": 6,
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_qp_12.pdf"
+        }
+      },
+      "questionId": "cie-0606-0606_m25_qp_12:q1",
+      "answerId": "cie-0606-0606_m25_qp_12:q1:answer",
+      "questionGroupId": "cie-0606-0606_m25_qp_12:q1",
+      "questionGroupStatus": "verified",
+      "totalMarks": 7,
+      "parts": [
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q1:part-a",
+          "label": "a",
+          "promptFragment": "On the axes, sketch the graphs of y = 4|x - 1| and y = |3x + 2|, stating the intercepts with the axes.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "ink-or-photo"
+          },
+          "sourcePage": 3,
+          "sourceEvidence": [
+            {
+              "documentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+              "sourcePage": 3,
+              "page": 3,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/qp-03.jpg",
+              "assetSha256": "ce972d363770abef31b057de4f43b0d98eed221a58534635e0b61bb991ba6730",
+              "text": ""
+            }
+          ],
+          "sourcePartOrder": 1
+        },
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q1:part-b",
+          "label": "b",
+          "promptFragment": "Solve the inequality 4|x - 1| <= |3x + 2|.",
+          "marks": 4,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "ink-or-photo"
+          },
+          "sourcePage": 3,
+          "sourceEvidence": [
+            {
+              "documentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+              "sourcePage": 3,
+              "page": 3,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/qp-03.jpg",
+              "assetSha256": "ce972d363770abef31b057de4f43b0d98eed221a58534635e0b61bb991ba6730",
+              "text": ""
+            }
+          ],
+          "sourcePartOrder": 2
+        }
+      ]
+    },
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-0606",
+      "specificationId": "cambridge-0606-2025-2027",
+      "subjectId": "additional-math",
+      "subjectCode": "0606",
+      "knowledgeGroupId": "math-0606-trigonometry",
+      "topicId": "math-0606-trigonometry",
+      "stageTags": [
+        "IGCSE"
+      ],
+      "componentTags": [
+        1
+      ],
+      "topicTags": [
+        "math-0606-trigonometry",
+        "trigonometry",
+        "circular measure"
+      ],
+      "skillTags": [
+        "interpret graphs",
+        "determine parameters from graph"
+      ],
+      "answerType": "handwritten",
+      "prompt": "The diagram shows y = a cos(bx) + c for -180 degrees <= x <= 180 degrees. a, b and c are integers. Find a, b and c.",
+      "marks": 3,
+      "sourceRef": {
+        "paperId": "cie-0606-0606_m25_qp_12",
+        "paper": "0606_m25_qp_12.pdf",
+        "question": "Q2",
+        "localUrl": "/local-pdf/0606/0606_m25_qp_12.pdf",
+        "pageStart": 4,
+        "pageEnd": 4,
+        "assetUrls": [
+          "/question-assets/cie-0606-0606_m25_qp_12/qp-04.jpg"
+        ],
+        "year": 2025,
+        "season": "Mar",
+        "component": 1,
+        "sha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-06T20:42:53.426Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-0606-p1-m25-review-ledger.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-0606-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/662470-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "math-0606-trigonometry",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "math-0606-trigonometry",
+        "secondaryTopicIds": [],
+        "syllabusPointIds": [
+          "math-0606-point-trigonometry-01"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex source-semantic-review / 0606-P1-M25",
+        "reviewedAt": "2026-08-15T02:00:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-0606-0606_m25_qp_12",
+          "markSchemeId": "cie-0606-0606_m25_ms_12",
+          "questionPages": [
+            4
+          ],
+          "markSchemePage": 6,
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_qp_12.pdf"
+        }
+      },
+      "questionId": "cie-0606-0606_m25_qp_12:q2",
+      "answerId": "cie-0606-0606_m25_qp_12:q2:answer",
+      "questionGroupId": "cie-0606-0606_m25_qp_12:q2",
+      "questionGroupStatus": "verified",
+      "totalMarks": 3,
+      "parts": [
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q2:part-a",
+          "label": "a",
+          "promptFragment": "The diagram shows y = a cos(bx) + c for -180 degrees <= x <= 180 degrees. a, b and c are integers. Find a, b and c.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "ink-or-photo"
+          },
+          "sourcePage": 4,
+          "sourceEvidence": [
+            {
+              "documentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+              "sourcePage": 4,
+              "page": 4,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/qp-04.jpg",
+              "assetSha256": "ab58c9faaec2c13731e5662aae9969a494a8be72c1edfe950c550529f1b39501",
+              "text": ""
+            }
+          ],
+          "sourcePartOrder": 1
+        }
+      ]
+    },
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-0606",
+      "specificationId": "cambridge-0606-2025-2027",
+      "subjectId": "additional-math",
+      "subjectCode": "0606",
+      "knowledgeGroupId": "math-0606-straight-line",
+      "topicId": "math-0606-straight-line",
+      "stageTags": [
+        "IGCSE"
+      ],
+      "componentTags": [
+        1
+      ],
+      "topicTags": [
+        "math-0606-straight-line",
+        "math-0606-trigonometry",
+        "coordinate geometry"
+      ],
+      "skillTags": [
+        "circle equation",
+        "midpoint",
+        "radius",
+        "diameter"
+      ],
+      "answerType": "handwritten",
+      "prompt": "A(-3, 6) and B(7, -8) are endpoints of a diameter of a circle. Find the equation of the circle.",
+      "marks": 4,
+      "sourceRef": {
+        "paperId": "cie-0606-0606_m25_qp_12",
+        "paper": "0606_m25_qp_12.pdf",
+        "question": "Q3",
+        "localUrl": "/local-pdf/0606/0606_m25_qp_12.pdf",
+        "pageStart": 4,
+        "pageEnd": 4,
+        "assetUrls": [
+          "/question-assets/cie-0606-0606_m25_qp_12/qp-04.jpg"
+        ],
+        "year": 2025,
+        "season": "Mar",
+        "component": 1,
+        "sha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-06T20:42:53.426Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-0606-p1-m25-review-ledger.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-0606-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/662470-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "math-0606-straight-line",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "math-0606-straight-line",
+        "secondaryTopicIds": [],
+        "syllabusPointIds": [
+          "math-0606-point-straight-line-01"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex source-semantic-review / 0606-P1-M25",
+        "reviewedAt": "2026-08-15T02:00:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-0606-0606_m25_qp_12",
+          "markSchemeId": "cie-0606-0606_m25_ms_12",
+          "questionPages": [
+            4
+          ],
+          "markSchemePage": 7,
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_qp_12.pdf"
+        }
+      },
+      "questionId": "cie-0606-0606_m25_qp_12:q3",
+      "answerId": "cie-0606-0606_m25_qp_12:q3:answer",
+      "questionGroupId": "cie-0606-0606_m25_qp_12:q3",
+      "questionGroupStatus": "verified",
+      "totalMarks": 4,
+      "parts": [
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q3:part-a",
+          "label": "a",
+          "promptFragment": "A(-3, 6) and B(7, -8) are endpoints of a diameter of a circle. Find the equation of the circle.",
+          "marks": 4,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "ink-or-photo"
+          },
+          "sourcePage": 4,
+          "sourceEvidence": [
+            {
+              "documentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+              "sourcePage": 4,
+              "page": 4,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/qp-04.jpg",
+              "assetSha256": "ab58c9faaec2c13731e5662aae9969a494a8be72c1edfe950c550529f1b39501",
+              "text": ""
+            }
+          ],
+          "sourcePartOrder": 1
+        }
+      ]
+    },
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-0606",
+      "specificationId": "cambridge-0606-2025-2027",
+      "subjectId": "additional-math",
+      "subjectCode": "0606",
+      "knowledgeGroupId": "math-0606-quadratics",
+      "topicId": "math-0606-quadratics",
+      "stageTags": [
+        "IGCSE"
+      ],
+      "componentTags": [
+        1
+      ],
+      "topicTags": [
+        "math-0606-quadratics",
+        "polynomials",
+        "factors of polynomials"
+      ],
+      "skillTags": [
+        "factor theorem",
+        "substitution",
+        "solving equations"
+      ],
+      "answerType": "handwritten",
+      "prompt": "p(x) = a^2 x^3 + 2a x^2 + a x + 2, where a is a positive integer and 2x + 1 is a factor. Find a.\n\nHence factorise p(x).\n\nHence show that p(x) = 0 has only one real root.",
+      "marks": 6,
+      "sourceRef": {
+        "paperId": "cie-0606-0606_m25_qp_12",
+        "paper": "0606_m25_qp_12.pdf",
+        "question": "Q4",
+        "localUrl": "/local-pdf/0606/0606_m25_qp_12.pdf",
+        "pageStart": 5,
+        "pageEnd": 5,
+        "assetUrls": [
+          "/question-assets/cie-0606-0606_m25_qp_12/qp-05.jpg"
+        ],
+        "year": 2025,
+        "season": "Mar",
+        "component": 1,
+        "sha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-06T20:42:53.426Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-0606-p1-m25-review-ledger.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-0606-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/662470-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "math-0606-quadratics",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "math-0606-quadratics",
+        "secondaryTopicIds": [],
+        "syllabusPointIds": [
+          "math-0606-point-quadratics-01"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex source-semantic-review / 0606-P1-M25",
+        "reviewedAt": "2026-08-15T02:00:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-0606-0606_m25_qp_12",
+          "markSchemeId": "cie-0606-0606_m25_ms_12",
+          "questionPages": [
+            5
+          ],
+          "markSchemePage": 7,
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_qp_12.pdf"
+        }
+      },
+      "questionId": "cie-0606-0606_m25_qp_12:q4",
+      "answerId": "cie-0606-0606_m25_qp_12:q4:answer",
+      "questionGroupId": "cie-0606-0606_m25_qp_12:q4",
+      "questionGroupStatus": "verified",
+      "totalMarks": 6,
+      "parts": [
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q4:part-a",
+          "label": "a",
+          "promptFragment": "p(x) = a^2 x^3 + 2a x^2 + a x + 2, where a is a positive integer and 2x + 1 is a factor. Find a.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "ink-or-photo"
+          },
+          "sourcePage": 5,
+          "sourceEvidence": [
+            {
+              "documentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+              "sourcePage": 5,
+              "page": 5,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/qp-05.jpg",
+              "assetSha256": "a7c431939f17a57995f631f0b35a5d2a1e96c4ed0dcf85f6b087eabc6d9b0166",
+              "text": ""
+            }
+          ],
+          "sourcePartOrder": 1
+        },
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q4:part-b",
+          "label": "b",
+          "promptFragment": "Hence factorise p(x).",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "ink-or-photo"
+          },
+          "sourcePage": 5,
+          "sourceEvidence": [
+            {
+              "documentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+              "sourcePage": 5,
+              "page": 5,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/qp-05.jpg",
+              "assetSha256": "a7c431939f17a57995f631f0b35a5d2a1e96c4ed0dcf85f6b087eabc6d9b0166",
+              "text": ""
+            }
+          ],
+          "sourcePartOrder": 2
+        },
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q4:part-c",
+          "label": "c",
+          "promptFragment": "Hence show that p(x) = 0 has only one real root.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "ink-or-photo"
+          },
+          "sourcePage": 5,
+          "sourceEvidence": [
+            {
+              "documentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+              "sourcePage": 5,
+              "page": 5,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/qp-05.jpg",
+              "assetSha256": "a7c431939f17a57995f631f0b35a5d2a1e96c4ed0dcf85f6b087eabc6d9b0166",
+              "text": ""
+            }
+          ],
+          "sourcePartOrder": 3
+        }
+      ]
+    },
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-0606",
+      "specificationId": "cambridge-0606-2025-2027",
+      "subjectId": "additional-math",
+      "subjectCode": "0606",
+      "knowledgeGroupId": "math-0606-functions",
+      "topicId": "math-0606-functions",
+      "stageTags": [
+        "IGCSE"
+      ],
+      "componentTags": [
+        1
+      ],
+      "topicTags": [
+        "math-0606-functions",
+        "math-0606-quadratics",
+        "quadratic functions",
+        "completing the square"
+      ],
+      "skillTags": [
+        "algebraic manipulation",
+        "rewriting expressions"
+      ],
+      "answerType": "handwritten",
+      "prompt": "Write 2x^2 - 2x + 3 in the form a(x + b)^2 + c.\n\nFor f(x) = 2x^2 - 2x + 3, x <= p, write down the greatest value of p for which f has an inverse.\n\nUsing this value of p, write down the range of f.\n\nUsing this value of p, find an expression for f^-1.",
+      "marks": 8,
+      "sourceRef": {
+        "paperId": "cie-0606-0606_m25_qp_12",
+        "paper": "0606_m25_qp_12.pdf",
+        "question": "Q5",
+        "localUrl": "/local-pdf/0606/0606_m25_qp_12.pdf",
+        "pageStart": 6,
+        "pageEnd": 6,
+        "assetUrls": [
+          "/question-assets/cie-0606-0606_m25_qp_12/qp-06.jpg"
+        ],
+        "year": 2025,
+        "season": "Mar",
+        "component": 1,
+        "sha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-06T20:42:53.426Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-0606-p1-m25-review-ledger.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-0606-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/662470-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "math-0606-functions",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "math-0606-functions",
+        "secondaryTopicIds": [],
+        "syllabusPointIds": [
+          "math-0606-point-functions-01"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex source-semantic-review / 0606-P1-M25",
+        "reviewedAt": "2026-08-15T02:00:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-0606-0606_m25_qp_12",
+          "markSchemeId": "cie-0606-0606_m25_ms_12",
+          "questionPages": [
+            6
+          ],
+          "markSchemePage": 8,
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_qp_12.pdf"
+        }
+      },
+      "questionId": "cie-0606-0606_m25_qp_12:q5",
+      "answerId": "cie-0606-0606_m25_qp_12:q5:answer",
+      "questionGroupId": "cie-0606-0606_m25_qp_12:q5",
+      "questionGroupStatus": "verified",
+      "totalMarks": 8,
+      "parts": [
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q5:part-a",
+          "label": "a",
+          "promptFragment": "Write 2x^2 - 2x + 3 in the form a(x + b)^2 + c.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "ink-or-photo"
+          },
+          "sourcePage": 6,
+          "sourceEvidence": [
+            {
+              "documentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+              "sourcePage": 6,
+              "page": 6,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/qp-06.jpg",
+              "assetSha256": "9186c6adfdd0419bd19d04733448ca3c5a4a4768e5baaf1125aa781f8a6e1636",
+              "text": ""
+            }
+          ],
+          "sourcePartOrder": 1
+        },
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q5:part-b",
+          "label": "b",
+          "promptFragment": "For f(x) = 2x^2 - 2x + 3, x <= p, write down the greatest value of p for which f has an inverse.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "ink-or-photo"
+          },
+          "sourcePage": 6,
+          "sourceEvidence": [
+            {
+              "documentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+              "sourcePage": 6,
+              "page": 6,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/qp-06.jpg",
+              "assetSha256": "9186c6adfdd0419bd19d04733448ca3c5a4a4768e5baaf1125aa781f8a6e1636",
+              "text": ""
+            }
+          ],
+          "sourcePartOrder": 2
+        },
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q5:part-c",
+          "label": "c",
+          "promptFragment": "Using this value of p, write down the range of f.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "ink-or-photo"
+          },
+          "sourcePage": 6,
+          "sourceEvidence": [
+            {
+              "documentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+              "sourcePage": 6,
+              "page": 6,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/qp-06.jpg",
+              "assetSha256": "9186c6adfdd0419bd19d04733448ca3c5a4a4768e5baaf1125aa781f8a6e1636",
+              "text": ""
+            }
+          ],
+          "sourcePartOrder": 3
+        },
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q5:part-d",
+          "label": "d",
+          "promptFragment": "Using this value of p, find an expression for f^-1.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "ink-or-photo"
+          },
+          "sourcePage": 6,
+          "sourceEvidence": [
+            {
+              "documentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+              "sourcePage": 6,
+              "page": 6,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/qp-06.jpg",
+              "assetSha256": "9186c6adfdd0419bd19d04733448ca3c5a4a4768e5baaf1125aa781f8a6e1636",
+              "text": ""
+            }
+          ],
+          "sourcePartOrder": 4
+        }
+      ]
+    },
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-0606",
+      "specificationId": "cambridge-0606-2025-2027",
+      "subjectId": "additional-math",
+      "subjectCode": "0606",
+      "knowledgeGroupId": "math-0606-trigonometry",
+      "topicId": "math-0606-trigonometry",
+      "stageTags": [
+        "IGCSE"
+      ],
+      "componentTags": [
+        1
+      ],
+      "topicTags": [
+        "math-0606-trigonometry",
+        "trigonometry",
+        "circular measure"
+      ],
+      "skillTags": [
+        "exact values",
+        "quadrant analysis",
+        "identities"
+      ],
+      "answerType": "handwritten",
+      "prompt": "tan(theta) = sqrt(5)/5 and 180 degrees < theta < 360 degrees. Find cos(theta).\n\nFind sin(theta).\n\nFind sec(theta) + cot(theta), giving the answer in the required exact form.",
+      "marks": 5,
+      "sourceRef": {
+        "paperId": "cie-0606-0606_m25_qp_12",
+        "paper": "0606_m25_qp_12.pdf",
+        "question": "Q6",
+        "localUrl": "/local-pdf/0606/0606_m25_qp_12.pdf",
+        "pageStart": 7,
+        "pageEnd": 7,
+        "assetUrls": [
+          "/question-assets/cie-0606-0606_m25_qp_12/qp-07.jpg"
+        ],
+        "year": 2025,
+        "season": "Mar",
+        "component": 1,
+        "sha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-06T20:42:53.426Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-0606-p1-m25-review-ledger.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-0606-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/662470-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "math-0606-trigonometry",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "math-0606-trigonometry",
+        "secondaryTopicIds": [],
+        "syllabusPointIds": [
+          "math-0606-point-trigonometry-01"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex source-semantic-review / 0606-P1-M25",
+        "reviewedAt": "2026-08-15T02:00:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-0606-0606_m25_qp_12",
+          "markSchemeId": "cie-0606-0606_m25_ms_12",
+          "questionPages": [
+            7
+          ],
+          "markSchemePage": 8,
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_qp_12.pdf"
+        }
+      },
+      "questionId": "cie-0606-0606_m25_qp_12:q6",
+      "answerId": "cie-0606-0606_m25_qp_12:q6:answer",
+      "questionGroupId": "cie-0606-0606_m25_qp_12:q6",
+      "questionGroupStatus": "verified",
+      "totalMarks": 5,
+      "parts": [
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q6:part-a",
+          "label": "a",
+          "promptFragment": "tan(theta) = sqrt(5)/5 and 180 degrees < theta < 360 degrees. Find cos(theta).",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "ink-or-photo"
+          },
+          "sourcePage": 7,
+          "sourceEvidence": [
+            {
+              "documentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+              "sourcePage": 7,
+              "page": 7,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/qp-07.jpg",
+              "assetSha256": "f5d4ff419bed09977f16f5a0ea7882b5e9a8d742c18d8cfb956bd292622de1be",
+              "text": ""
+            }
+          ],
+          "sourcePartOrder": 1
+        },
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q6:part-b",
+          "label": "b",
+          "promptFragment": "Find sin(theta).",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "ink-or-photo"
+          },
+          "sourcePage": 7,
+          "sourceEvidence": [
+            {
+              "documentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+              "sourcePage": 7,
+              "page": 7,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/qp-07.jpg",
+              "assetSha256": "f5d4ff419bed09977f16f5a0ea7882b5e9a8d742c18d8cfb956bd292622de1be",
+              "text": ""
+            }
+          ],
+          "sourcePartOrder": 2
+        },
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q6:part-c",
+          "label": "c",
+          "promptFragment": "Find sec(theta) + cot(theta), giving the answer in the required exact form.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "ink-or-photo"
+          },
+          "sourcePage": 7,
+          "sourceEvidence": [
+            {
+              "documentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+              "sourcePage": 7,
+              "page": 7,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/qp-07.jpg",
+              "assetSha256": "f5d4ff419bed09977f16f5a0ea7882b5e9a8d742c18d8cfb956bd292622de1be",
+              "text": ""
+            }
+          ],
+          "sourcePartOrder": 3
+        }
+      ]
+    },
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-0606",
+      "specificationId": "cambridge-0606-2025-2027",
+      "subjectId": "additional-math",
+      "subjectCode": "0606",
+      "knowledgeGroupId": "math-0606-calculus",
+      "topicId": "math-0606-calculus",
+      "stageTags": [
+        "IGCSE"
+      ],
+      "componentTags": [
+        1
+      ],
+      "topicTags": [
+        "math-0606-calculus",
+        "math-0606-equations",
+        "simultaneous equations",
+        "graphs"
+      ],
+      "skillTags": [
+        "solve simultaneous equations",
+        "intersection of curves and lines"
+      ],
+      "answerType": "handwritten",
+      "prompt": "The diagram shows y = 5/(x + 1) + 2 and y = 2x + 1 intersecting at A. Find the coordinates of A.\n\nFind the exact area of the shaded region.",
+      "marks": 10,
+      "sourceRef": {
+        "paperId": "cie-0606-0606_m25_qp_12",
+        "paper": "0606_m25_qp_12.pdf",
+        "question": "Q7",
+        "localUrl": "/local-pdf/0606/0606_m25_qp_12.pdf",
+        "pageStart": 8,
+        "pageEnd": 9,
+        "assetUrls": [
+          "/question-assets/cie-0606-0606_m25_qp_12/qp-08.jpg",
+          "/question-assets/cie-0606-0606_m25_qp_12/qp-09.jpg"
+        ],
+        "year": 2025,
+        "season": "Mar",
+        "component": 1,
+        "sha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-06T20:42:53.426Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-0606-p1-m25-review-ledger.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-0606-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/662470-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "math-0606-calculus",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "math-0606-calculus",
+        "secondaryTopicIds": [],
+        "syllabusPointIds": [
+          "math-0606-point-calculus-01"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex source-semantic-review / 0606-P1-M25",
+        "reviewedAt": "2026-08-15T02:00:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-0606-0606_m25_qp_12",
+          "markSchemeId": "cie-0606-0606_m25_ms_12",
+          "questionPages": [
+            8,
+            9
+          ],
+          "markSchemePage": 9,
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_qp_12.pdf"
+        }
+      },
+      "questionId": "cie-0606-0606_m25_qp_12:q7",
+      "answerId": "cie-0606-0606_m25_qp_12:q7:answer",
+      "questionGroupId": "cie-0606-0606_m25_qp_12:q7",
+      "questionGroupStatus": "verified",
+      "totalMarks": 10,
+      "parts": [
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q7:part-a",
+          "label": "a",
+          "promptFragment": "The diagram shows y = 5/(x + 1) + 2 and y = 2x + 1 intersecting at A. Find the coordinates of A.",
+          "marks": 4,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "ink-or-photo"
+          },
+          "sourcePage": 8,
+          "sourceEvidence": [
+            {
+              "documentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+              "sourcePage": 8,
+              "page": 8,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/qp-08.jpg",
+              "assetSha256": "807e3245d71dd0a5fab3f1b047c32b7e90e96b709f5044191e99bffc57e612b9",
+              "text": ""
+            }
+          ],
+          "sourcePartOrder": 1
+        },
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q7:part-b",
+          "label": "b",
+          "promptFragment": "Find the exact area of the shaded region.",
+          "marks": 6,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "ink-or-photo"
+          },
+          "sourcePage": 9,
+          "sourceEvidence": [
+            {
+              "documentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+              "sourcePage": 9,
+              "page": 9,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/qp-09.jpg",
+              "assetSha256": "f1071945b37b2e86fa39be145786881ad1292bbfef16bf04dbb7bec3bc3c85cd",
+              "text": ""
+            }
+          ],
+          "sourcePartOrder": 2
+        }
+      ]
+    },
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-0606",
+      "specificationId": "cambridge-0606-2025-2027",
+      "subjectId": "additional-math",
+      "subjectCode": "0606",
+      "knowledgeGroupId": "math-0606-series",
+      "topicId": "math-0606-series",
+      "stageTags": [
+        "IGCSE"
+      ],
+      "componentTags": [
+        1
+      ],
+      "topicTags": [
+        "math-0606-series",
+        "geometric progression",
+        "arithmetic progression"
+      ],
+      "skillTags": [
+        "forming equations",
+        "solving simultaneous equations"
+      ],
+      "answerType": "handwritten",
+      "prompt": "A geometric progression and an arithmetic progression both have first term 10. The geometric ratio is positive and the arithmetic difference is negative. The second and third geometric terms equal the fourth and sixth arithmetic terms. Find r and d.\n\nDetermine whether the geometric progression has a sum to infinity.",
+      "marks": 7,
+      "sourceRef": {
+        "paperId": "cie-0606-0606_m25_qp_12",
+        "paper": "0606_m25_qp_12.pdf",
+        "question": "Q8",
+        "localUrl": "/local-pdf/0606/0606_m25_qp_12.pdf",
+        "pageStart": 10,
+        "pageEnd": 10,
+        "assetUrls": [
+          "/question-assets/cie-0606-0606_m25_qp_12/qp-10.jpg"
+        ],
+        "year": 2025,
+        "season": "Mar",
+        "component": 1,
+        "sha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-06T20:42:53.426Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-0606-p1-m25-review-ledger.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-0606-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/662470-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "math-0606-series",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "math-0606-series",
+        "secondaryTopicIds": [],
+        "syllabusPointIds": [
+          "math-0606-point-series-01"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex source-semantic-review / 0606-P1-M25",
+        "reviewedAt": "2026-08-15T02:00:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-0606-0606_m25_qp_12",
+          "markSchemeId": "cie-0606-0606_m25_ms_12",
+          "questionPages": [
+            10
+          ],
+          "markSchemePage": 10,
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_qp_12.pdf"
+        }
+      },
+      "questionId": "cie-0606-0606_m25_qp_12:q8",
+      "answerId": "cie-0606-0606_m25_qp_12:q8:answer",
+      "questionGroupId": "cie-0606-0606_m25_qp_12:q8",
+      "questionGroupStatus": "verified",
+      "totalMarks": 7,
+      "parts": [
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q8:part-a",
+          "label": "a",
+          "promptFragment": "A geometric progression and an arithmetic progression both have first term 10. The geometric ratio is positive and the arithmetic difference is negative. The second and third geometric terms equal the fourth and sixth arithmetic terms. Find r and d.",
+          "marks": 6,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "ink-or-photo"
+          },
+          "sourcePage": 10,
+          "sourceEvidence": [
+            {
+              "documentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+              "sourcePage": 10,
+              "page": 10,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/qp-10.jpg",
+              "assetSha256": "304d1d5451f686444126d2695fdc4d7b62e5bfc88f6e5235e774970ce1721a95",
+              "text": ""
+            }
+          ],
+          "sourcePartOrder": 1
+        },
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q8:part-b",
+          "label": "b",
+          "promptFragment": "Determine whether the geometric progression has a sum to infinity.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "ink-or-photo"
+          },
+          "sourcePage": 10,
+          "sourceEvidence": [
+            {
+              "documentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+              "sourcePage": 10,
+              "page": 10,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/qp-10.jpg",
+              "assetSha256": "304d1d5451f686444126d2695fdc4d7b62e5bfc88f6e5235e774970ce1721a95",
+              "text": ""
+            }
+          ],
+          "sourcePartOrder": 2
+        }
+      ]
+    },
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-0606",
+      "specificationId": "cambridge-0606-2025-2027",
+      "subjectId": "additional-math",
+      "subjectCode": "0606",
+      "knowledgeGroupId": "math-0606-indices",
+      "topicId": "math-0606-indices",
+      "stageTags": [
+        "IGCSE"
+      ],
+      "componentTags": [
+        1
+      ],
+      "topicTags": [
+        "math-0606-indices",
+        "math-0606-calculus",
+        "integration"
+      ],
+      "skillTags": [
+        "area under curve",
+        "exact value"
+      ],
+      "answerType": "handwritten",
+      "prompt": "Solve log base 2 of (x + 1) - 4 log base (x + 1) of 2 = 3.",
+      "marks": 5,
+      "sourceRef": {
+        "paperId": "cie-0606-0606_m25_qp_12",
+        "paper": "0606_m25_qp_12.pdf",
+        "question": "Q9",
+        "localUrl": "/local-pdf/0606/0606_m25_qp_12.pdf",
+        "pageStart": 11,
+        "pageEnd": 11,
+        "assetUrls": [
+          "/question-assets/cie-0606-0606_m25_qp_12/qp-11.jpg"
+        ],
+        "year": 2025,
+        "season": "Mar",
+        "component": 1,
+        "sha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-06T20:42:53.426Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-0606-p1-m25-review-ledger.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-0606-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/662470-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "math-0606-indices",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "math-0606-indices",
+        "secondaryTopicIds": [],
+        "syllabusPointIds": [
+          "math-0606-point-indices-01"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex source-semantic-review / 0606-P1-M25",
+        "reviewedAt": "2026-08-15T02:00:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-0606-0606_m25_qp_12",
+          "markSchemeId": "cie-0606-0606_m25_ms_12",
+          "questionPages": [
+            11
+          ],
+          "markSchemePage": 10,
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_qp_12.pdf"
+        }
+      },
+      "questionId": "cie-0606-0606_m25_qp_12:q9",
+      "answerId": "cie-0606-0606_m25_qp_12:q9:answer",
+      "questionGroupId": "cie-0606-0606_m25_qp_12:q9",
+      "questionGroupStatus": "verified",
+      "totalMarks": 5,
+      "parts": [
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q9:part-a",
+          "label": "a",
+          "promptFragment": "Solve log base 2 of (x + 1) - 4 log base (x + 1) of 2 = 3.",
+          "marks": 5,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "ink-or-photo"
+          },
+          "sourcePage": 11,
+          "sourceEvidence": [
+            {
+              "documentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+              "sourcePage": 11,
+              "page": 11,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/qp-11.jpg",
+              "assetSha256": "0f7cc0a72bc147e9d53da7a87b143a95d89b477ce6f6aa0ea22381a1931aa328",
+              "text": ""
+            }
+          ],
+          "sourcePartOrder": 1
+        }
+      ]
+    },
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-0606",
+      "specificationId": "cambridge-0606-2025-2027",
+      "subjectId": "additional-math",
+      "subjectCode": "0606",
+      "knowledgeGroupId": "math-0606-calculus",
+      "topicId": "math-0606-calculus",
+      "stageTags": [
+        "IGCSE"
+      ],
+      "componentTags": [
+        1
+      ],
+      "topicTags": [
+        "math-0606-calculus",
+        "differentiation",
+        "stationary points"
+      ],
+      "skillTags": [
+        "finding gradient of tangent and normal",
+        "intersection of lines",
+        "reflection in a line"
+      ],
+      "answerType": "handwritten",
+      "prompt": "P lies on y = (5x + 2)^(2/3) with x-coordinate 5. The normal at P meets x + y = 11 at Q. R is the reflection of Q in the tangent at P. Find the coordinates of R.",
+      "marks": 9,
+      "sourceRef": {
+        "paperId": "cie-0606-0606_m25_qp_12",
+        "paper": "0606_m25_qp_12.pdf",
+        "question": "Q10",
+        "localUrl": "/local-pdf/0606/0606_m25_qp_12.pdf",
+        "pageStart": 12,
+        "pageEnd": 12,
+        "assetUrls": [
+          "/question-assets/cie-0606-0606_m25_qp_12/qp-12.jpg"
+        ],
+        "year": 2025,
+        "season": "Mar",
+        "component": 1,
+        "sha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-06T20:42:53.426Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-0606-p1-m25-review-ledger.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-0606-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/662470-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "math-0606-calculus",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "math-0606-calculus",
+        "secondaryTopicIds": [],
+        "syllabusPointIds": [
+          "math-0606-point-calculus-01"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex source-semantic-review / 0606-P1-M25",
+        "reviewedAt": "2026-08-15T02:00:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-0606-0606_m25_qp_12",
+          "markSchemeId": "cie-0606-0606_m25_ms_12",
+          "questionPages": [
+            12
+          ],
+          "markSchemePage": 11,
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_qp_12.pdf"
+        }
+      },
+      "questionId": "cie-0606-0606_m25_qp_12:q10",
+      "answerId": "cie-0606-0606_m25_qp_12:q10:answer",
+      "questionGroupId": "cie-0606-0606_m25_qp_12:q10",
+      "questionGroupStatus": "verified",
+      "totalMarks": 9,
+      "parts": [
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q10:part-a",
+          "label": "a",
+          "promptFragment": "P lies on y = (5x + 2)^(2/3) with x-coordinate 5. The normal at P meets x + y = 11 at Q. R is the reflection of Q in the tangent at P. Find the coordinates of R.",
+          "marks": 9,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "ink-or-photo"
+          },
+          "sourcePage": 12,
+          "sourceEvidence": [
+            {
+              "documentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+              "sourcePage": 12,
+              "page": 12,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/qp-12.jpg",
+              "assetSha256": "c3e7a7fe83e3644245b4fc52004ed87d686604280025ea9e7856dfa33aa34df4",
+              "text": ""
+            }
+          ],
+          "sourcePartOrder": 1
+        }
+      ]
+    },
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-0606",
+      "specificationId": "cambridge-0606-2025-2027",
+      "subjectId": "additional-math",
+      "subjectCode": "0606",
+      "knowledgeGroupId": "math-0606-vectors",
+      "topicId": "math-0606-vectors",
+      "stageTags": [
+        "IGCSE"
+      ],
+      "componentTags": [
+        1
+      ],
+      "topicTags": [
+        "math-0606-vectors",
+        "vectors",
+        "magnitude",
+        "vector geometry"
+      ],
+      "skillTags": [
+        "vector representation",
+        "position vectors",
+        "intersection of lines"
+      ],
+      "answerType": "handwritten",
+      "prompt": "In the diagram, OA = a and OB = b. M is the midpoint of OB, N satisfies ON = 3NA, and BN and AM meet at X. BX = lambda BN. Find OX in terms of a, b and lambda.\n\nFind OX in terms of a, b and mu.\n\nHence find the values of lambda and mu.",
+      "marks": 9,
+      "sourceRef": {
+        "paperId": "cie-0606-0606_m25_qp_12",
+        "paper": "0606_m25_qp_12.pdf",
+        "question": "Q11",
+        "localUrl": "/local-pdf/0606/0606_m25_qp_12.pdf",
+        "pageStart": 14,
+        "pageEnd": 15,
+        "assetUrls": [
+          "/question-assets/cie-0606-0606_m25_qp_12/qp-14.jpg",
+          "/question-assets/cie-0606-0606_m25_qp_12/qp-15.jpg"
+        ],
+        "year": 2025,
+        "season": "Mar",
+        "component": 1,
+        "sha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-06T20:42:53.426Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-0606-p1-m25-review-ledger.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-0606-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/662470-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "math-0606-vectors",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "math-0606-vectors",
+        "secondaryTopicIds": [],
+        "syllabusPointIds": [
+          "math-0606-point-vectors-01"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex source-semantic-review / 0606-P1-M25",
+        "reviewedAt": "2026-08-15T02:00:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-0606-0606_m25_qp_12",
+          "markSchemeId": "cie-0606-0606_m25_ms_12",
+          "questionPages": [
+            14,
+            15
+          ],
+          "markSchemePage": 11,
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_qp_12.pdf"
+        }
+      },
+      "questionId": "cie-0606-0606_m25_qp_12:q11",
+      "answerId": "cie-0606-0606_m25_qp_12:q11:answer",
+      "questionGroupId": "cie-0606-0606_m25_qp_12:q11",
+      "questionGroupStatus": "verified",
+      "totalMarks": 9,
+      "parts": [
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q11:part-a",
+          "label": "a",
+          "promptFragment": "In the diagram, OA = a and OB = b. M is the midpoint of OB, N satisfies ON = 3NA, and BN and AM meet at X. BX = lambda BN. Find OX in terms of a, b and lambda.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "ink-or-photo"
+          },
+          "sourcePage": 14,
+          "sourceEvidence": [
+            {
+              "documentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+              "sourcePage": 14,
+              "page": 14,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/qp-14.jpg",
+              "assetSha256": "b426d812c994ebceb0fcf53f6e18d76439cca9219f052ba2e91887cd746bad65",
+              "text": ""
+            }
+          ],
+          "sourcePartOrder": 1
+        },
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q11:part-b",
+          "label": "b",
+          "promptFragment": "Find OX in terms of a, b and mu.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "ink-or-photo"
+          },
+          "sourcePage": 15,
+          "sourceEvidence": [
+            {
+              "documentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+              "sourcePage": 15,
+              "page": 15,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/qp-15.jpg",
+              "assetSha256": "bca73389f1eaf6cf0bd7dc1a13a6b6e474c256baa70014ffdc6382fa162c79b7",
+              "text": ""
+            }
+          ],
+          "sourcePartOrder": 2
+        },
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q11:part-c",
+          "label": "c",
+          "promptFragment": "Hence find the values of lambda and mu.",
+          "marks": 4,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "ink-or-photo"
+          },
+          "sourcePage": 15,
+          "sourceEvidence": [
+            {
+              "documentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+              "sourcePage": 15,
+              "page": 15,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/qp-15.jpg",
+              "assetSha256": "bca73389f1eaf6cf0bd7dc1a13a6b6e474c256baa70014ffdc6382fa162c79b7",
+              "text": ""
+            }
+          ],
+          "sourcePartOrder": 3
+        }
+      ]
+    },
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-0606",
+      "specificationId": "cambridge-0606-2025-2027",
+      "subjectId": "additional-math",
+      "subjectCode": "0606",
+      "knowledgeGroupId": "math-0606-calculus",
+      "topicId": "math-0606-calculus",
+      "stageTags": [
+        "IGCSE"
+      ],
+      "componentTags": [
+        1
+      ],
+      "topicTags": [
+        "math-0606-calculus",
+        "math-0606-vectors",
+        "vectors",
+        "vector geometry"
+      ],
+      "skillTags": [
+        "vector expression"
+      ],
+      "answerType": "handwritten",
+      "prompt": "It is given that y = x e^(3x + 2). Find dy/dx.\n\nHence find the integral of x e^(3x + 2) dx.",
+      "marks": 7,
+      "sourceRef": {
+        "paperId": "cie-0606-0606_m25_qp_12",
+        "paper": "0606_m25_qp_12.pdf",
+        "question": "Q12",
+        "localUrl": "/local-pdf/0606/0606_m25_qp_12.pdf",
+        "pageStart": 16,
+        "pageEnd": 16,
+        "assetUrls": [
+          "/question-assets/cie-0606-0606_m25_qp_12/qp-16.jpg"
+        ],
+        "year": 2025,
+        "season": "Mar",
+        "component": 1,
+        "sha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-06T20:42:53.426Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-0606-p1-m25-review-ledger.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-0606-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/662470-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "math-0606-calculus",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "math-0606-calculus",
+        "secondaryTopicIds": [],
+        "syllabusPointIds": [
+          "math-0606-point-calculus-01"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex source-semantic-review / 0606-P1-M25",
+        "reviewedAt": "2026-08-15T02:00:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-0606-0606_m25_qp_12",
+          "markSchemeId": "cie-0606-0606_m25_ms_12",
+          "questionPages": [
+            16
+          ],
+          "markSchemePage": 12,
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_qp_12.pdf"
+        }
+      },
+      "questionId": "cie-0606-0606_m25_qp_12:q12",
+      "answerId": "cie-0606-0606_m25_qp_12:q12:answer",
+      "questionGroupId": "cie-0606-0606_m25_qp_12:q12",
+      "questionGroupStatus": "verified",
+      "totalMarks": 7,
+      "parts": [
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q12:part-a",
+          "label": "a",
+          "promptFragment": "It is given that y = x e^(3x + 2). Find dy/dx.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "ink-or-photo"
+          },
+          "sourcePage": 16,
+          "sourceEvidence": [
+            {
+              "documentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+              "sourcePage": 16,
+              "page": 16,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/qp-16.jpg",
+              "assetSha256": "a5fb920b8570c270932c0bd8f3842583b3927de5fa2de63672532f56edaebab8",
+              "text": ""
+            }
+          ],
+          "sourcePartOrder": 1
+        },
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q12:part-b",
+          "label": "b",
+          "promptFragment": "Hence find the integral of x e^(3x + 2) dx.",
+          "marks": 4,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "ink-or-photo"
+          },
+          "sourcePage": 16,
+          "sourceEvidence": [
+            {
+              "documentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+              "sourcePage": 16,
+              "page": 16,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/qp-16.jpg",
+              "assetSha256": "a5fb920b8570c270932c0bd8f3842583b3927de5fa2de63672532f56edaebab8",
+              "text": ""
+            }
+          ],
+          "sourcePartOrder": 2
+        }
+      ]
+    }
+  ],
+  "answers": [
+    {
+      "answerId": "cie-0606-0606_m25_qp_12:q1:answer",
+      "answer": "Fully correct, ruled graphs with all intercepts indicated\n4(x − 1) * 3x + 2 oe\nand 4(x − 1) * −3x − 2 oe\nOR\n7x² − 44x + 12 [*0]\nwhere * is = or any inequality sign\nCritical values 2/7 and 6\n2/7 ≤ x ≤ 6\nmark final answer",
+      "answerKey": "Fully correct, ruled graphs with all intercepts indicated\n4(x − 1) * 3x + 2 oe\nand 4(x − 1) * −3x − 2 oe\nOR\n7x² − 44x + 12 [*0]\nwhere * is = or any inequality sign\nCritical values 2/7 and 6\n2/7 ≤ x ≤ 6\nmark final answer",
+      "markPoints": [
+        "M2 for a graph of correct shape with vertex on the x-axis and 1 and 4 oe appropriately indicated",
+        "or a graph of correct shape with vertex on the x-axis and −2/3 and 2 oe appropriately indicated",
+        "or M1 for a graph of correct shape with vertex on the x-axis and 1 and 4 oe appropriately indicated",
+        "or a graph of correct shape with vertex on the x-axis and −2/3 or 2 oe appropriately indicated",
+        "M1 for 4(x − 1) * −3x − 2 oe",
+        "OR",
+        "M1 for (4(x − 1))² = (3x + 2)² oe"
+      ],
+      "exactAnswer": "Fully correct, ruled graphs with all intercepts indicated\n4(x − 1) * 3x + 2 oe\nand 4(x − 1) * −3x − 2 oe\nOR\n7x² − 44x + 12 [*0]\nwhere * is = or any inequality sign\nCritical values 2/7 and 6\n2/7 ≤ x ≤ 6\nmark final answer",
+      "answerRef": {
+        "documentId": "cie-0606-0606_m25_ms_12",
+        "file": "0606_m25_ms_12.pdf",
+        "localUrl": "/local-pdf/0606/0606_m25_ms_12.pdf",
+        "pageStart": 6,
+        "pageEnd": 6,
+        "assetUrls": [
+          "/question-assets/cie-0606-0606_m25_qp_12/ms-06.jpg"
+        ],
+        "sha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q1:part-a",
+          "label": "a",
+          "marks": 3,
+          "markSchemePoints": [
+            "Fully correct ruled graphs with all intercepts indicated."
+          ],
+          "answerText": "Fully correct ruled graphs with all intercepts indicated.",
+          "sourcePage": 6,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+              "sourcePage": 6,
+              "page": 6,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/ms-06.jpg",
+              "assetSha256": "bb27916e80b2d8703c7bebac1ebb62dd8f05044fe343d8886036eede744a8ffd",
+              "text": "Fully correct ruled graphs with all intercepts indicated."
+            }
+          ]
+        },
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q1:part-b",
+          "label": "b",
+          "marks": 4,
+          "markSchemePoints": [
+            "Critical values 2/7 and 6; final interval 2/7 <= x <= 6."
+          ],
+          "answerText": "Critical values 2/7 and 6; final interval 2/7 <= x <= 6.",
+          "sourcePage": 6,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+              "sourcePage": 6,
+              "page": 6,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/ms-06.jpg",
+              "assetSha256": "bb27916e80b2d8703c7bebac1ebb62dd8f05044fe343d8886036eede744a8ffd",
+              "text": "Critical values 2/7 and 6; final interval 2/7 <= x <= 6."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-0606-0606_m25_qp_12:q2:answer",
+      "answer": "a = 5\nb = 3\nc = −2",
+      "answerKey": "a = 5\nb = 3\nc = −2",
+      "markPoints": [],
+      "exactAnswer": "a = 5\nb = 3\nc = −2",
+      "answerRef": {
+        "documentId": "cie-0606-0606_m25_ms_12",
+        "file": "0606_m25_ms_12.pdf",
+        "localUrl": "/local-pdf/0606/0606_m25_ms_12.pdf",
+        "pageStart": 6,
+        "pageEnd": 6,
+        "assetUrls": [
+          "/question-assets/cie-0606-0606_m25_qp_12/ms-06.jpg"
+        ],
+        "sha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q2:part-a",
+          "label": "a",
+          "marks": 3,
+          "markSchemePoints": [
+            "a = 5, b = 3, c = -2."
+          ],
+          "answerText": "a = 5, b = 3, c = -2.",
+          "sourcePage": 6,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+              "sourcePage": 6,
+              "page": 6,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/ms-06.jpg",
+              "assetSha256": "bb27916e80b2d8703c7bebac1ebb62dd8f05044fe343d8886036eede744a8ffd",
+              "text": "a = 5, b = 3, c = -2."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-0606-0606_m25_qp_12:q3:answer",
+      "answer": "(x−2)²+(y+1)²=74 oe nffww\nor x²+y²−4x+2y−69=0 oe nffww",
+      "answerKey": "(x−2)²+(y+1)²=74 oe nffww\nor x²+y²−4x+2y−69=0 oe nffww",
+      "markPoints": [
+        "M1 for centre: (−3+7/2, 6−8/2) or (2,−1) soi",
+        "M2 for [r = ] √74 or [r² = ] 74\nor [diameter =] 2√74 or c = −69",
+        "or M1 for [AB² =](−3−7)²+(6−8)² oe\nor [r² =](−3−their2)²+(6−their(−1))² oe\nor [r² =](7−their2)²+(−8−their(−1))² oe",
+        "Alternative method",
+        "M2 for (y−6)/(x−(−3)) × (y−(−8))/(x−7) = −1",
+        "or M1 for e.g. P(x, y) on the circumference means AP ⊥ BP → m_AP × m_BP = −1",
+        "M1 for (y²+2y−48)/(x²−4x−21) = −1 oe",
+        "FT their ((y−6)/(x−(−3))) × ((y−(−8))/(x−7)) with at most one sign error"
+      ],
+      "exactAnswer": "(x−2)²+(y+1)²=74 oe nffww\nor x²+y²−4x+2y−69=0 oe nffww",
+      "answerRef": {
+        "documentId": "cie-0606-0606_m25_ms_12",
+        "file": "0606_m25_ms_12.pdf",
+        "localUrl": "/local-pdf/0606/0606_m25_ms_12.pdf",
+        "pageStart": 7,
+        "pageEnd": 7,
+        "assetUrls": [
+          "/question-assets/cie-0606-0606_m25_qp_12/ms-07.jpg"
+        ],
+        "sha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q3:part-a",
+          "label": "a",
+          "marks": 4,
+          "markSchemePoints": [
+            "Centre (2, -1), radius squared 74; equation (x - 2)^2 + (y + 1)^2 = 74."
+          ],
+          "answerText": "Centre (2, -1), radius squared 74; equation (x - 2)^2 + (y + 1)^2 = 74.",
+          "sourcePage": 7,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+              "sourcePage": 7,
+              "page": 7,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/ms-07.jpg",
+              "assetSha256": "7187d52c7320abb18b89970c671543712c77e13788ec0a1bc07ad588f0215b6d",
+              "text": "Centre (2, -1), radius squared 74; equation (x - 2)^2 + (y + 1)^2 = 74."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-0606-0606_m25_qp_12:q4:answer",
+      "answer": "a²(−1/2)³ + 2a(−1/2)² + a(−1/2) + 2 = 0 oe, soi\nSimplifies and solves for a\na = 4\n2(2x+1)(4x²+1) mark final answer\nDiscriminant of 4x²+1 is 0−16<0 oe\nand no real roots oe\nor 4x²+1=0 → 4x²=−1 oe\nand therefore no solution oe\n[statement that only solution is x=−1/2]",
+      "answerKey": "a²(−1/2)³ + 2a(−1/2)² + a(−1/2) + 2 = 0 oe, soi\nSimplifies and solves for a\na = 4\n2(2x+1)(4x²+1) mark final answer\nDiscriminant of 4x²+1 is 0−16<0 oe\nand no real roots oe\nor 4x²+1=0 → 4x²=−1 oe\nand therefore no solution oe\n[statement that only solution is x=−1/2]",
+      "markPoints": [
+        "M1",
+        "M1",
+        "FT their quadratic in a providing p(−1/2) = 0 oe attempted",
+        "A1",
+        "M1 for (2x+1)(their a²/2 x²…+2)\nor (8x²+2) found as quadratic factor"
+      ],
+      "exactAnswer": "a²(−1/2)³ + 2a(−1/2)² + a(−1/2) + 2 = 0 oe, soi\nSimplifies and solves for a\na = 4\n2(2x+1)(4x²+1) mark final answer\nDiscriminant of 4x²+1 is 0−16<0 oe\nand no real roots oe\nor 4x²+1=0 → 4x²=−1 oe\nand therefore no solution oe\n[statement that only solution is x=−1/2]",
+      "answerRef": {
+        "documentId": "cie-0606-0606_m25_ms_12",
+        "file": "0606_m25_ms_12.pdf",
+        "localUrl": "/local-pdf/0606/0606_m25_ms_12.pdf",
+        "pageStart": 7,
+        "pageEnd": 7,
+        "assetUrls": [
+          "/question-assets/cie-0606-0606_m25_qp_12/ms-07.jpg"
+        ],
+        "sha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q4:part-a",
+          "label": "a",
+          "marks": 3,
+          "markSchemePoints": [
+            "Use p(-1/2) = 0 and obtain a = 4."
+          ],
+          "answerText": "Use p(-1/2) = 0 and obtain a = 4.",
+          "sourcePage": 7,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+              "sourcePage": 7,
+              "page": 7,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/ms-07.jpg",
+              "assetSha256": "7187d52c7320abb18b89970c671543712c77e13788ec0a1bc07ad588f0215b6d",
+              "text": "Use p(-1/2) = 0 and obtain a = 4."
+            }
+          ]
+        },
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q4:part-b",
+          "label": "b",
+          "marks": 2,
+          "markSchemePoints": [
+            "p(x) = 2(2x + 1)(4x^2 + 1)."
+          ],
+          "answerText": "p(x) = 2(2x + 1)(4x^2 + 1).",
+          "sourcePage": 7,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+              "sourcePage": 7,
+              "page": 7,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/ms-07.jpg",
+              "assetSha256": "7187d52c7320abb18b89970c671543712c77e13788ec0a1bc07ad588f0215b6d",
+              "text": "p(x) = 2(2x + 1)(4x^2 + 1)."
+            }
+          ]
+        },
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q4:part-c",
+          "label": "c",
+          "marks": 1,
+          "markSchemePoints": [
+            "4x^2 + 1 has no real roots, so the only real root is x = -1/2."
+          ],
+          "answerText": "4x^2 + 1 has no real roots, so the only real root is x = -1/2.",
+          "sourcePage": 7,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+              "sourcePage": 7,
+              "page": 7,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/ms-07.jpg",
+              "assetSha256": "7187d52c7320abb18b89970c671543712c77e13788ec0a1bc07ad588f0215b6d",
+              "text": "4x^2 + 1 has no real roots, so the only real root is x = -1/2."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-0606-0606_m25_qp_12:q5:answer",
+      "answer": "2(x−1/2)² + 5/2\n1/2\nf ≥ 5/2\n[f⁻¹(x)] = 1/2 − √(1/2(x − 5/2)) oe\nor [f⁻¹(x)] = (2 − √(8x − 20))/4 oe",
+      "answerKey": "2(x−1/2)² + 5/2\n1/2\nf ≥ 5/2\n[f⁻¹(x)] = 1/2 − √(1/2(x − 5/2)) oe\nor [f⁻¹(x)] = (2 − √(8x − 20))/4 oe",
+      "markPoints": [
+        "B2 for 2(x−1/2)²",
+        "or B1 for (x−1/2)² or a = 2 and b = −0.5 oe",
+        "B1 for 5/2 or c = 2.5 oe",
+        "B1",
+        "FT −their b",
+        "B1",
+        "FT their c",
+        "M1 FT for a complete method to find the inverse with a correct order of operations",
+        "FT an expression of the form f(x) = a(x + b)² + c",
+        "A1 FT for [f⁻¹(x)] = 1/2 ± √(1/2(x − 5/2)) oe",
+        "FT their 1/2 and their 5/2"
+      ],
+      "exactAnswer": "2(x−1/2)² + 5/2\n1/2\nf ≥ 5/2\n[f⁻¹(x)] = 1/2 − √(1/2(x − 5/2)) oe\nor [f⁻¹(x)] = (2 − √(8x − 20))/4 oe",
+      "answerRef": {
+        "documentId": "cie-0606-0606_m25_ms_12",
+        "file": "0606_m25_ms_12.pdf",
+        "localUrl": "/local-pdf/0606/0606_m25_ms_12.pdf",
+        "pageStart": 8,
+        "pageEnd": 8,
+        "assetUrls": [
+          "/question-assets/cie-0606-0606_m25_qp_12/ms-08.jpg"
+        ],
+        "sha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q5:part-a",
+          "label": "a",
+          "marks": 3,
+          "markSchemePoints": [
+            "2(x - 1/2)^2 + 5/2."
+          ],
+          "answerText": "2(x - 1/2)^2 + 5/2.",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+              "sourcePage": 8,
+              "page": 8,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/ms-08.jpg",
+              "assetSha256": "b097699eb1f50d07e1cf70c72a4011a42361c87cd78c3a0bb0cca6d1b7022889",
+              "text": "2(x - 1/2)^2 + 5/2."
+            }
+          ]
+        },
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q5:part-b",
+          "label": "b",
+          "marks": 1,
+          "markSchemePoints": [
+            "p = 1/2."
+          ],
+          "answerText": "p = 1/2.",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+              "sourcePage": 8,
+              "page": 8,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/ms-08.jpg",
+              "assetSha256": "b097699eb1f50d07e1cf70c72a4011a42361c87cd78c3a0bb0cca6d1b7022889",
+              "text": "p = 1/2."
+            }
+          ]
+        },
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q5:part-c",
+          "label": "c",
+          "marks": 1,
+          "markSchemePoints": [
+            "f >= 5/2."
+          ],
+          "answerText": "f >= 5/2.",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+              "sourcePage": 8,
+              "page": 8,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/ms-08.jpg",
+              "assetSha256": "b097699eb1f50d07e1cf70c72a4011a42361c87cd78c3a0bb0cca6d1b7022889",
+              "text": "f >= 5/2."
+            }
+          ]
+        },
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q5:part-d",
+          "label": "d",
+          "marks": 3,
+          "markSchemePoints": [
+            "f^-1(x) = 1/2 - sqrt((x - 5/2)/2), with the stated domain and range."
+          ],
+          "answerText": "f^-1(x) = 1/2 - sqrt((x - 5/2)/2), with the stated domain and range.",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+              "sourcePage": 8,
+              "page": 8,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/ms-08.jpg",
+              "assetSha256": "b097699eb1f50d07e1cf70c72a4011a42361c87cd78c3a0bb0cca6d1b7022889",
+              "text": "f^-1(x) = 1/2 - sqrt((x - 5/2)/2), with the stated domain and range."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-0606-0606_m25_qp_12:q6:answer",
+      "answer": "cos θ = −√(5/6) oe, isw\nsin θ = −√(1/6) oe, isw\n(5 − [1]√6)/√5",
+      "answerKey": "cos θ = −√(5/6) oe, isw\nsin θ = −√(1/6) oe, isw\n(5 − [1]√6)/√5",
+      "markPoints": [
+        "B2",
+        "B1 for cos θ = √(5/6) oe or cos θ = ±√(5/6) oe",
+        "B1",
+        "M1 for [sec θ + cot θ] = 1/cos θ + 1/tan θ",
+        "or 1/cos θ + cos θ/sin θ soi",
+        "or for 1/(their cos θ) + 5/√5 oe",
+        "or 1/(their cos θ) + (their cos θ)/(their sin θ)"
+      ],
+      "exactAnswer": "cos θ = −√(5/6) oe, isw\nsin θ = −√(1/6) oe, isw\n(5 − [1]√6)/√5",
+      "answerRef": {
+        "documentId": "cie-0606-0606_m25_ms_12",
+        "file": "0606_m25_ms_12.pdf",
+        "localUrl": "/local-pdf/0606/0606_m25_ms_12.pdf",
+        "pageStart": 8,
+        "pageEnd": 8,
+        "assetUrls": [
+          "/question-assets/cie-0606-0606_m25_qp_12/ms-08.jpg"
+        ],
+        "sha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q6:part-a",
+          "label": "a",
+          "marks": 2,
+          "markSchemePoints": [
+            "cos(theta) = -sqrt(5/6)."
+          ],
+          "answerText": "cos(theta) = -sqrt(5/6).",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+              "sourcePage": 8,
+              "page": 8,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/ms-08.jpg",
+              "assetSha256": "b097699eb1f50d07e1cf70c72a4011a42361c87cd78c3a0bb0cca6d1b7022889",
+              "text": "cos(theta) = -sqrt(5/6)."
+            }
+          ]
+        },
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q6:part-b",
+          "label": "b",
+          "marks": 1,
+          "markSchemePoints": [
+            "sin(theta) = -sqrt(1/6)."
+          ],
+          "answerText": "sin(theta) = -sqrt(1/6).",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+              "sourcePage": 8,
+              "page": 8,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/ms-08.jpg",
+              "assetSha256": "b097699eb1f50d07e1cf70c72a4011a42361c87cd78c3a0bb0cca6d1b7022889",
+              "text": "sin(theta) = -sqrt(1/6)."
+            }
+          ]
+        },
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q6:part-c",
+          "label": "c",
+          "marks": 2,
+          "markSchemePoints": [
+            "(5 - sqrt(6))/sqrt(5)."
+          ],
+          "answerText": "(5 - sqrt(6))/sqrt(5).",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+              "sourcePage": 8,
+              "page": 8,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/ms-08.jpg",
+              "assetSha256": "b097699eb1f50d07e1cf70c72a4011a42361c87cd78c3a0bb0cca6d1b7022889",
+              "text": "(5 - sqrt(6))/sqrt(5)."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-0606-0606_m25_qp_12:q7:answer",
+      "answer": "(2x+1)(x+1)=5+2(x+1)\nor (2x−1)(x+1)=5 oe\n2x²+x−6[=0]\nFactorises or solves their 3-term quadratic\ne.g. (x+2)(2x−3)\n(3/2, 4)\nCorrect plan, difference of integrals oe:\n∫₀ᵏ (5/(x+1) + 2) dx − area correct trapezium soi\nwhere k > 0\nArea of trapezium: 1/2 (their 4+1)(their 3/2) oe\nIntegral: [5 ln(x+1) + 2x]₀ᵏ¹·⁵\nCorrect substitution of upper and lower limits\ninto 5 ln(x+1) + 2x\nArea of shaded region: 5 ln(5/2) − 3/4 isw\nAlternative method\nCorrect plan, integral of difference of functions:\n∫₀ᵏ (5/(x+1) − 2x + 1) dx soi where k > 0\nIntegral: [5 ln(x+1) + x − x²]₀ᵏ¹·⁵\nArea of shaded region: 5 ln(5/2) − 3/4 isw",
+      "answerKey": "(2x+1)(x+1)=5+2(x+1)\nor (2x−1)(x+1)=5 oe\n2x²+x−6[=0]\nFactorises or solves their 3-term quadratic\ne.g. (x+2)(2x−3)\n(3/2, 4)\nCorrect plan, difference of integrals oe:\n∫₀ᵏ (5/(x+1) + 2) dx − area correct trapezium soi\nwhere k > 0\nArea of trapezium: 1/2 (their 4+1)(their 3/2) oe\nIntegral: [5 ln(x+1) + 2x]₀ᵏ¹·⁵\nCorrect substitution of upper and lower limits\ninto 5 ln(x+1) + 2x\nArea of shaded region: 5 ln(5/2) − 3/4 isw\nAlternative method\nCorrect plan, integral of difference of functions:\n∫₀ᵏ (5/(x+1) − 2x + 1) dx soi where k > 0\nIntegral: [5 ln(x+1) + x − x²]₀ᵏ¹·⁵\nArea of shaded region: 5 ln(5/2) − 3/4 isw",
+      "markPoints": [
+        "or ∫₀ᵏ (5/(x+1) + 2) dx − ∫₀ᵏ (2x+1) dx soi",
+        "or (their 3/2)² + their 3/2 [−0] or 15/4 oe",
+        "B1 for 5 ln x + 1\nor for n ln(x + 1) where n is a constant and n > 0",
+        "FT their integral providing at least B1 awarded and their 1.5",
+        "B2 for 5 ln(x + 1) and one other correct term\nor n ln(x + 1) + x − x² where n is a constant and n > 0\nor B1 for 5 ln x + 1 or for n ln(x + 1) where n is a constant and n > 0",
+        "M1FT for correct substitution of upper and lower limits; FT their integral providing at least B1 awarded and their 1.5"
+      ],
+      "exactAnswer": "(2x+1)(x+1)=5+2(x+1)\nor (2x−1)(x+1)=5 oe\n2x²+x−6[=0]\nFactorises or solves their 3-term quadratic\ne.g. (x+2)(2x−3)\n(3/2, 4)\nCorrect plan, difference of integrals oe:\n∫₀ᵏ (5/(x+1) + 2) dx − area correct trapezium soi\nwhere k > 0\nArea of trapezium: 1/2 (their 4+1)(their 3/2) oe\nIntegral: [5 ln(x+1) + 2x]₀ᵏ¹·⁵\nCorrect substitution of upper and lower limits\ninto 5 ln(x+1) + 2x\nArea of shaded region: 5 ln(5/2) − 3/4 isw\nAlternative method\nCorrect plan, integral of difference of functions:\n∫₀ᵏ (5/(x+1) − 2x + 1) dx soi where k > 0\nIntegral: [5 ln(x+1) + x − x²]₀ᵏ¹·⁵\nArea of shaded region: 5 ln(5/2) − 3/4 isw",
+      "answerRef": {
+        "documentId": "cie-0606-0606_m25_ms_12",
+        "file": "0606_m25_ms_12.pdf",
+        "localUrl": "/local-pdf/0606/0606_m25_ms_12.pdf",
+        "pageStart": 9,
+        "pageEnd": 9,
+        "assetUrls": [
+          "/question-assets/cie-0606-0606_m25_qp_12/ms-09.jpg"
+        ],
+        "sha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q7:part-a",
+          "label": "a",
+          "marks": 4,
+          "markSchemePoints": [
+            "Solve the intersection equation and obtain A = (3/2, 4)."
+          ],
+          "answerText": "Solve the intersection equation and obtain A = (3/2, 4).",
+          "sourcePage": 9,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+              "sourcePage": 9,
+              "page": 9,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/ms-09.jpg",
+              "assetSha256": "7883841668863d3261ea90b3cd867177b1453b34818a3d79e8948c71ae3e873b",
+              "text": "Solve the intersection equation and obtain A = (3/2, 4)."
+            }
+          ]
+        },
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q7:part-b",
+          "label": "b",
+          "marks": 6,
+          "markSchemePoints": [
+            "Use the correct integral and trapezium area; exact area is 5 ln(5/2) - 3/4."
+          ],
+          "answerText": "Use the correct integral and trapezium area; exact area is 5 ln(5/2) - 3/4.",
+          "sourcePage": 9,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+              "sourcePage": 9,
+              "page": 9,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/ms-09.jpg",
+              "assetSha256": "7883841668863d3261ea90b3cd867177b1453b34818a3d79e8948c71ae3e873b",
+              "text": "Use the correct integral and trapezium area; exact area is 5 ln(5/2) - 3/4."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-0606-0606_m25_qp_12:q8:answer",
+      "answer": "10r = 10 + 3d soi\n10r² = 10 + 5d soi\n10((10+3d)/10)² = 10 + 5d oe\nor 10r² = 10 + (5(10r−10))/3 oe\n9d² + 10d = 0 or 3r² − 5r + 2 = 0 oe\nCorrect method to find d or r\nd = −10/9 and r = 2/3\nAppropriate determination for their r e.g.\n|r| < 1 so the geometric progression has a sum to infinity",
+      "answerKey": "10r = 10 + 3d soi\n10r² = 10 + 5d soi\n10((10+3d)/10)² = 10 + 5d oe\nor 10r² = 10 + (5(10r−10))/3 oe\n9d² + 10d = 0 or 3r² − 5r + 2 = 0 oe\nCorrect method to find d or r\nd = −10/9 and r = 2/3\nAppropriate determination for their r e.g.\n|r| < 1 so the geometric progression has a sum to infinity",
+      "markPoints": [
+        "FT their quadratic in d or r",
+        "STRICT FT their r"
+      ],
+      "exactAnswer": "10r = 10 + 3d soi\n10r² = 10 + 5d soi\n10((10+3d)/10)² = 10 + 5d oe\nor 10r² = 10 + (5(10r−10))/3 oe\n9d² + 10d = 0 or 3r² − 5r + 2 = 0 oe\nCorrect method to find d or r\nd = −10/9 and r = 2/3\nAppropriate determination for their r e.g.\n|r| < 1 so the geometric progression has a sum to infinity",
+      "answerRef": {
+        "documentId": "cie-0606-0606_m25_ms_12",
+        "file": "0606_m25_ms_12.pdf",
+        "localUrl": "/local-pdf/0606/0606_m25_ms_12.pdf",
+        "pageStart": 10,
+        "pageEnd": 10,
+        "assetUrls": [
+          "/question-assets/cie-0606-0606_m25_qp_12/ms-10.jpg"
+        ],
+        "sha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q8:part-a",
+          "label": "a",
+          "marks": 6,
+          "markSchemePoints": [
+            "r = 2/3 and d = -10/9."
+          ],
+          "answerText": "r = 2/3 and d = -10/9.",
+          "sourcePage": 10,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+              "sourcePage": 10,
+              "page": 10,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/ms-10.jpg",
+              "assetSha256": "1a6b906a7d169ff0705e723657584b6fda58624a77df45dce0aaf9a4b9f91b14",
+              "text": "r = 2/3 and d = -10/9."
+            }
+          ]
+        },
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q8:part-b",
+          "label": "b",
+          "marks": 1,
+          "markSchemePoints": [
+            "Yes, because |r| < 1."
+          ],
+          "answerText": "Yes, because |r| < 1.",
+          "sourcePage": 10,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+              "sourcePage": 10,
+              "page": 10,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/ms-10.jpg",
+              "assetSha256": "1a6b906a7d169ff0705e723657584b6fda58624a77df45dce0aaf9a4b9f91b14",
+              "text": "Yes, because |r| < 1."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-0606-0606_m25_qp_12:q9:answer",
+      "answer": "Correct change of base e.g.\nlog₂(x+1) − (4log₂2)/(log₂(x+1)) = 3\nor (log_(x+1)(x+1))/(log_(x+1)2) − 4log_(x+1)2 = 3\n(log₂(x+1))² − 3log₂(x+1) − 4 [=0] oe\nor 4(log_(x+1)2)² + 3log_(x+1)2 − 1 [=0] oe\nFactorises or solves e.g.\n(log₂(x+1) − 4)(log₂(x+1) + 1) = 0\nor (4log_(x+1)2 − 1)(log_(x+1)2 + 1) = 0\nlog₂(x+1) = their 4 and log₂(x+1) = their (−1)\nor log_(x+1)2 = their 1/4 and log_(x+1)2 = their (−1)\nand correctly solves as far as x = … at least once\nx = 15, x = −1/2 nfvw mark final answer",
+      "answerKey": "Correct change of base e.g.\nlog₂(x+1) − (4log₂2)/(log₂(x+1)) = 3\nor (log_(x+1)(x+1))/(log_(x+1)2) − 4log_(x+1)2 = 3\n(log₂(x+1))² − 3log₂(x+1) − 4 [=0] oe\nor 4(log_(x+1)2)² + 3log_(x+1)2 − 1 [=0] oe\nFactorises or solves e.g.\n(log₂(x+1) − 4)(log₂(x+1) + 1) = 0\nor (4log_(x+1)2 − 1)(log_(x+1)2 + 1) = 0\nlog₂(x+1) = their 4 and log₂(x+1) = their (−1)\nor log_(x+1)2 = their 1/4 and log_(x+1)2 = their (−1)\nand correctly solves as far as x = … at least once\nx = 15, x = −1/2 nfvw mark final answer",
+      "markPoints": [
+        "FT their 3-term quadratic in a suitable logarithm providing correct change of base seen",
+        "dep on previous M1",
+        "FT log₂(x+1) = a or log_(x+1)2 = b where a and b are constants"
+      ],
+      "exactAnswer": "Correct change of base e.g.\nlog₂(x+1) − (4log₂2)/(log₂(x+1)) = 3\nor (log_(x+1)(x+1))/(log_(x+1)2) − 4log_(x+1)2 = 3\n(log₂(x+1))² − 3log₂(x+1) − 4 [=0] oe\nor 4(log_(x+1)2)² + 3log_(x+1)2 − 1 [=0] oe\nFactorises or solves e.g.\n(log₂(x+1) − 4)(log₂(x+1) + 1) = 0\nor (4log_(x+1)2 − 1)(log_(x+1)2 + 1) = 0\nlog₂(x+1) = their 4 and log₂(x+1) = their (−1)\nor log_(x+1)2 = their 1/4 and log_(x+1)2 = their (−1)\nand correctly solves as far as x = … at least once\nx = 15, x = −1/2 nfvw mark final answer",
+      "answerRef": {
+        "documentId": "cie-0606-0606_m25_ms_12",
+        "file": "0606_m25_ms_12.pdf",
+        "localUrl": "/local-pdf/0606/0606_m25_ms_12.pdf",
+        "pageStart": 10,
+        "pageEnd": 10,
+        "assetUrls": [
+          "/question-assets/cie-0606-0606_m25_qp_12/ms-10.jpg"
+        ],
+        "sha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q9:part-a",
+          "label": "a",
+          "marks": 5,
+          "markSchemePoints": [
+            "Let u = log base 2 of (x + 1), solve u^2 - 3u - 4 = 0, and obtain x = 15 or x = -1/2."
+          ],
+          "answerText": "Let u = log base 2 of (x + 1), solve u^2 - 3u - 4 = 0, and obtain x = 15 or x = -1/2.",
+          "sourcePage": 10,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+              "sourcePage": 10,
+              "page": 10,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/ms-10.jpg",
+              "assetSha256": "1a6b906a7d169ff0705e723657584b6fda58624a77df45dce0aaf9a4b9f91b14",
+              "text": "Let u = log base 2 of (x + 1), solve u^2 - 3u - 4 = 0, and obtain x = 15 or x = -1/2."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-0606-0606_m25_qp_12:q10:answer",
+      "answer": "[When x = 5 ] y = 9\ndy/dx = 2/3 (5x + 2)^(−1/3) × 5 oe\ndy/dx|x=5 = 10/9\nEquation of normal e.g. y − their 9 = −1/(their 10/9)(x − 5) oe, soi\nEliminates one variable e.g. 11 − x − their 9 = −1/(their 10/9)(x − 5)\nFor Q: x = −25, y = 36\nCoordinates of R: (35, −18) or ((10 − their (−25)), (18 − their 36))",
+      "answerKey": "[When x = 5 ] y = 9\ndy/dx = 2/3 (5x + 2)^(−1/3) × 5 oe\ndy/dx|x=5 = 10/9\nEquation of normal e.g. y − their 9 = −1/(their 10/9)(x − 5) oe, soi\nEliminates one variable e.g. 11 − x − their 9 = −1/(their 10/9)(x − 5)\nFor Q: x = −25, y = 36\nCoordinates of R: (35, −18) or ((10 − their (−25)), (18 − their 36))",
+      "markPoints": [
+        "B1 for dy/dx = k(5x + 2)^(−1/3), k ≠ 10/3",
+        "FT their dy/dx|x=5 providing previous B1 awarded",
+        "FT −1/their dy/dx|x=5 and their y-coordinate",
+        "dep on previous M mark",
+        "A1 for each",
+        "FT their coordinates of Q"
+      ],
+      "exactAnswer": "[When x = 5 ] y = 9\ndy/dx = 2/3 (5x + 2)^(−1/3) × 5 oe\ndy/dx|x=5 = 10/9\nEquation of normal e.g. y − their 9 = −1/(their 10/9)(x − 5) oe, soi\nEliminates one variable e.g. 11 − x − their 9 = −1/(their 10/9)(x − 5)\nFor Q: x = −25, y = 36\nCoordinates of R: (35, −18) or ((10 − their (−25)), (18 − their 36))",
+      "answerRef": {
+        "documentId": "cie-0606-0606_m25_ms_12",
+        "file": "0606_m25_ms_12.pdf",
+        "localUrl": "/local-pdf/0606/0606_m25_ms_12.pdf",
+        "pageStart": 11,
+        "pageEnd": 11,
+        "assetUrls": [
+          "/question-assets/cie-0606-0606_m25_qp_12/ms-11.jpg"
+        ],
+        "sha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q10:part-a",
+          "label": "a",
+          "marks": 9,
+          "markSchemePoints": [
+            "P = (5, 9), normal gradient -9/10, Q = (-25, 36), and R = (35, -18)."
+          ],
+          "answerText": "P = (5, 9), normal gradient -9/10, Q = (-25, 36), and R = (35, -18).",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+              "sourcePage": 11,
+              "page": 11,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/ms-11.jpg",
+              "assetSha256": "3e95437459c0e8abae486a103d6ec3f660833eb179c384767a360d17a32782a9",
+              "text": "P = (5, 9), normal gradient -9/10, Q = (-25, 36), and R = (35, -18)."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-0606-0606_m25_qp_12:q11:answer",
+      "answer": "(a) [OX→] = b + λ(3/4 a − b) oe or [OX→] = 3/4 a + (1 − λ)(b − 3/4 a) oe\n(b) [OX→] = 1/2 b + μ(a − 1/2 b) oe or [OX→] = a + (1 − μ)(1/2 b − a) oe\n(c) b + λ(3/4 a − b) = 1/2 b + μ(a − 1/2 b) soi\n3/4 λ = μ or 1 − λ = 1/2 − 1/2 μ\n3/4 λ = μ and 1 − λ = 1/2 − 1/2 μ\nλ = 4/5, μ = 3/5",
+      "answerKey": "(a) [OX→] = b + λ(3/4 a − b) oe or [OX→] = 3/4 a + (1 − λ)(b − 3/4 a) oe\n(b) [OX→] = 1/2 b + μ(a − 1/2 b) oe or [OX→] = a + (1 − μ)(1/2 b − a) oe\n(c) b + λ(3/4 a − b) = 1/2 b + μ(a − 1/2 b) soi\n3/4 λ = μ or 1 − λ = 1/2 − 1/2 μ\n3/4 λ = μ and 1 − λ = 1/2 − 1/2 μ\nλ = 4/5, μ = 3/5",
+      "markPoints": [
+        "B2 for BN→ = 3/4 a − b oe, soi",
+        "or B1 for ON→ = 3/4 a oe, soi",
+        "B1 for MA→ = a − 1/2 b",
+        "FT their answer to (a) in terms of a, b and λ and (b) in terms of a, b and μ",
+        "FT their answer to (a) in terms of a, b and λ and (b) in terms of a, b and μ"
+      ],
+      "exactAnswer": "(a) [OX→] = b + λ(3/4 a − b) oe or [OX→] = 3/4 a + (1 − λ)(b − 3/4 a) oe\n(b) [OX→] = 1/2 b + μ(a − 1/2 b) oe or [OX→] = a + (1 − μ)(1/2 b − a) oe\n(c) b + λ(3/4 a − b) = 1/2 b + μ(a − 1/2 b) soi\n3/4 λ = μ or 1 − λ = 1/2 − 1/2 μ\n3/4 λ = μ and 1 − λ = 1/2 − 1/2 μ\nλ = 4/5, μ = 3/5",
+      "answerRef": {
+        "documentId": "cie-0606-0606_m25_ms_12",
+        "file": "0606_m25_ms_12.pdf",
+        "localUrl": "/local-pdf/0606/0606_m25_ms_12.pdf",
+        "pageStart": 11,
+        "pageEnd": 11,
+        "assetUrls": [
+          "/question-assets/cie-0606-0606_m25_qp_12/ms-11.jpg"
+        ],
+        "sha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q11:part-a",
+          "label": "a",
+          "marks": 3,
+          "markSchemePoints": [
+            "OX = b + lambda(3a/4 - b)."
+          ],
+          "answerText": "OX = b + lambda(3a/4 - b).",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+              "sourcePage": 11,
+              "page": 11,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/ms-11.jpg",
+              "assetSha256": "3e95437459c0e8abae486a103d6ec3f660833eb179c384767a360d17a32782a9",
+              "text": "OX = b + lambda(3a/4 - b)."
+            }
+          ]
+        },
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q11:part-b",
+          "label": "b",
+          "marks": 2,
+          "markSchemePoints": [
+            "OX = a + (1 - mu)(b/2 - a), equivalently b/2 + mu(a - b/2)."
+          ],
+          "answerText": "OX = a + (1 - mu)(b/2 - a), equivalently b/2 + mu(a - b/2).",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+              "sourcePage": 11,
+              "page": 11,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/ms-11.jpg",
+              "assetSha256": "3e95437459c0e8abae486a103d6ec3f660833eb179c384767a360d17a32782a9",
+              "text": "OX = a + (1 - mu)(b/2 - a), equivalently b/2 + mu(a - b/2)."
+            }
+          ]
+        },
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q11:part-c",
+          "label": "c",
+          "marks": 4,
+          "markSchemePoints": [
+            "Equate coefficients and obtain lambda = 4/5 and mu = 3/5."
+          ],
+          "answerText": "Equate coefficients and obtain lambda = 4/5 and mu = 3/5.",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+              "sourcePage": 11,
+              "page": 11,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/ms-11.jpg",
+              "assetSha256": "3e95437459c0e8abae486a103d6ec3f660833eb179c384767a360d17a32782a9",
+              "text": "Equate coefficients and obtain lambda = 4/5 and mu = 3/5."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-0606-0606_m25_qp_12:q12:answer",
+      "answer": "d/dx (e^(3x+2)) = 3e^(3x+2) soi\ndy/dx = x × their (3e^(3x+2)) + [1]e^(3x+2) oe, isw\n1/3 xe^(3x+2) - 1/9 e^(3x+2) + c oe, nfw",
+      "answerKey": "d/dx (e^(3x+2)) = 3e^(3x+2) soi\ndy/dx = x × their (3e^(3x+2)) + [1]e^(3x+2) oe, isw\n1/3 xe^(3x+2) - 1/9 e^(3x+2) + c oe, nfw",
+      "markPoints": [
+        "B1",
+        "FT their 3e^(3x+2)",
+        "M1 for correct structure of product rule",
+        "B3 for ∫3xe^(3x+2)dx = xe^(3x+2) - 1/3 e^(3x+2) (+A) or better",
+        "or B2 for ∫3xe^(3x+2)dx = xe^(3x+2) - ∫e^(3x+2)dx or better",
+        "or 1/3 e^(3x+2) + ∫3xe^(3x+2)dx = xe^(3x+2)",
+        "or ∫xe^(3x+2)dx = x/3 e^(3x+2) + ke^(3x+2)",
+        "where k = 1/9 or -1/3",
+        "or B1 for ∫3xe^(3x+2)dx = ∫(3xe^(3x+2) + e^(3x+2))dx - ∫e^(3x+2)dx",
+        "or ∫dy/dx dx = ∫3xe^(3x+2)dx + ∫e^(3x+2)dx or better"
+      ],
+      "exactAnswer": "d/dx (e^(3x+2)) = 3e^(3x+2) soi\ndy/dx = x × their (3e^(3x+2)) + [1]e^(3x+2) oe, isw\n1/3 xe^(3x+2) - 1/9 e^(3x+2) + c oe, nfw",
+      "answerRef": {
+        "documentId": "cie-0606-0606_m25_ms_12",
+        "file": "0606_m25_ms_12.pdf",
+        "localUrl": "/local-pdf/0606/0606_m25_ms_12.pdf",
+        "pageStart": 12,
+        "pageEnd": 12,
+        "assetUrls": [
+          "/question-assets/cie-0606-0606_m25_qp_12/ms-12.jpg"
+        ],
+        "sha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q12:part-a",
+          "label": "a",
+          "marks": 3,
+          "markSchemePoints": [
+            "dy/dx = e^(3x + 2)(3x + 1)."
+          ],
+          "answerText": "dy/dx = e^(3x + 2)(3x + 1).",
+          "sourcePage": 12,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+              "sourcePage": 12,
+              "page": 12,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/ms-12.jpg",
+              "assetSha256": "e796ac68bcfb0db06a7436d2e557095067afeb99a3134fa160dfff96eb2dcc6c",
+              "text": "dy/dx = e^(3x + 2)(3x + 1)."
+            }
+          ]
+        },
+        {
+          "partId": "cie-0606-0606_m25_qp_12:q12:part-b",
+          "label": "b",
+          "marks": 4,
+          "markSchemePoints": [
+            "Integral = x e^(3x + 2)/3 - e^(3x + 2)/9 + c."
+          ],
+          "answerText": "Integral = x e^(3x + 2)/3 - e^(3x + 2)/9 + c.",
+          "sourcePage": 12,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+              "sourcePage": 12,
+              "page": 12,
+              "assetUrl": "/question-assets/cie-0606-0606_m25_qp_12/ms-12.jpg",
+              "assetSha256": "e796ac68bcfb0db06a7436d2e557095067afeb99a3134fa160dfff96eb2dcc6c",
+              "text": "Integral = x e^(3x + 2)/3 - e^(3x + 2)/9 + c."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "bindings": [
+    {
+      "questionId": "cie-0606-0606_m25_qp_12:q1",
+      "answerId": "cie-0606-0606_m25_qp_12:q1:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+      "answerDocumentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+      "reviewedAt": "2026-08-15T02:00:00+08:00",
+      "reviewedBy": "Codex source-semantic-review / 0606-P1-M25",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "sourcePolicy": "personal-study-restricted",
+        "questionPaper": {
+          "file": "0606_m25_qp_12.pdf",
+          "sha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_qp_12.pdf"
+        },
+        "markScheme": {
+          "file": "0606_m25_ms_12.pdf",
+          "sha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_ms_12.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-0606-0606_m25_qp_12:q1:part-a",
+            "marks": 3,
+            "questionPage": 3,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 6,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "Fully correct ruled graphs with all intercepts indicated."
+            ]
+          },
+          {
+            "partId": "cie-0606-0606_m25_qp_12:q1:part-b",
+            "marks": 4,
+            "questionPage": 3,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 6,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "Critical values 2/7 and 6; final interval 2/7 <= x <= 6."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-0606-0606_m25_qp_12:q2",
+      "answerId": "cie-0606-0606_m25_qp_12:q2:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+      "answerDocumentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+      "reviewedAt": "2026-08-15T02:00:00+08:00",
+      "reviewedBy": "Codex source-semantic-review / 0606-P1-M25",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "sourcePolicy": "personal-study-restricted",
+        "questionPaper": {
+          "file": "0606_m25_qp_12.pdf",
+          "sha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_qp_12.pdf"
+        },
+        "markScheme": {
+          "file": "0606_m25_ms_12.pdf",
+          "sha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_ms_12.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-0606-0606_m25_qp_12:q2:part-a",
+            "marks": 3,
+            "questionPage": 4,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 6,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "a = 5, b = 3, c = -2."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-0606-0606_m25_qp_12:q3",
+      "answerId": "cie-0606-0606_m25_qp_12:q3:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+      "answerDocumentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+      "reviewedAt": "2026-08-15T02:00:00+08:00",
+      "reviewedBy": "Codex source-semantic-review / 0606-P1-M25",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "sourcePolicy": "personal-study-restricted",
+        "questionPaper": {
+          "file": "0606_m25_qp_12.pdf",
+          "sha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_qp_12.pdf"
+        },
+        "markScheme": {
+          "file": "0606_m25_ms_12.pdf",
+          "sha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_ms_12.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-0606-0606_m25_qp_12:q3:part-a",
+            "marks": 4,
+            "questionPage": 4,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 7,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "Centre (2, -1), radius squared 74; equation (x - 2)^2 + (y + 1)^2 = 74."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-0606-0606_m25_qp_12:q4",
+      "answerId": "cie-0606-0606_m25_qp_12:q4:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+      "answerDocumentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+      "reviewedAt": "2026-08-15T02:00:00+08:00",
+      "reviewedBy": "Codex source-semantic-review / 0606-P1-M25",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "sourcePolicy": "personal-study-restricted",
+        "questionPaper": {
+          "file": "0606_m25_qp_12.pdf",
+          "sha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_qp_12.pdf"
+        },
+        "markScheme": {
+          "file": "0606_m25_ms_12.pdf",
+          "sha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_ms_12.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-0606-0606_m25_qp_12:q4:part-a",
+            "marks": 3,
+            "questionPage": 5,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 7,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "Use p(-1/2) = 0 and obtain a = 4."
+            ]
+          },
+          {
+            "partId": "cie-0606-0606_m25_qp_12:q4:part-b",
+            "marks": 2,
+            "questionPage": 5,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 7,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "p(x) = 2(2x + 1)(4x^2 + 1)."
+            ]
+          },
+          {
+            "partId": "cie-0606-0606_m25_qp_12:q4:part-c",
+            "marks": 1,
+            "questionPage": 5,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 7,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "4x^2 + 1 has no real roots, so the only real root is x = -1/2."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-0606-0606_m25_qp_12:q5",
+      "answerId": "cie-0606-0606_m25_qp_12:q5:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+      "answerDocumentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+      "reviewedAt": "2026-08-15T02:00:00+08:00",
+      "reviewedBy": "Codex source-semantic-review / 0606-P1-M25",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "sourcePolicy": "personal-study-restricted",
+        "questionPaper": {
+          "file": "0606_m25_qp_12.pdf",
+          "sha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_qp_12.pdf"
+        },
+        "markScheme": {
+          "file": "0606_m25_ms_12.pdf",
+          "sha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_ms_12.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-0606-0606_m25_qp_12:q5:part-a",
+            "marks": 3,
+            "questionPage": 6,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "2(x - 1/2)^2 + 5/2."
+            ]
+          },
+          {
+            "partId": "cie-0606-0606_m25_qp_12:q5:part-b",
+            "marks": 1,
+            "questionPage": 6,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "p = 1/2."
+            ]
+          },
+          {
+            "partId": "cie-0606-0606_m25_qp_12:q5:part-c",
+            "marks": 1,
+            "questionPage": 6,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "f >= 5/2."
+            ]
+          },
+          {
+            "partId": "cie-0606-0606_m25_qp_12:q5:part-d",
+            "marks": 3,
+            "questionPage": 6,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "f^-1(x) = 1/2 - sqrt((x - 5/2)/2), with the stated domain and range."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-0606-0606_m25_qp_12:q6",
+      "answerId": "cie-0606-0606_m25_qp_12:q6:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+      "answerDocumentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+      "reviewedAt": "2026-08-15T02:00:00+08:00",
+      "reviewedBy": "Codex source-semantic-review / 0606-P1-M25",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "sourcePolicy": "personal-study-restricted",
+        "questionPaper": {
+          "file": "0606_m25_qp_12.pdf",
+          "sha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_qp_12.pdf"
+        },
+        "markScheme": {
+          "file": "0606_m25_ms_12.pdf",
+          "sha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_ms_12.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-0606-0606_m25_qp_12:q6:part-a",
+            "marks": 2,
+            "questionPage": 7,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "cos(theta) = -sqrt(5/6)."
+            ]
+          },
+          {
+            "partId": "cie-0606-0606_m25_qp_12:q6:part-b",
+            "marks": 1,
+            "questionPage": 7,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "sin(theta) = -sqrt(1/6)."
+            ]
+          },
+          {
+            "partId": "cie-0606-0606_m25_qp_12:q6:part-c",
+            "marks": 2,
+            "questionPage": 7,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "(5 - sqrt(6))/sqrt(5)."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-0606-0606_m25_qp_12:q7",
+      "answerId": "cie-0606-0606_m25_qp_12:q7:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+      "answerDocumentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+      "reviewedAt": "2026-08-15T02:00:00+08:00",
+      "reviewedBy": "Codex source-semantic-review / 0606-P1-M25",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "sourcePolicy": "personal-study-restricted",
+        "questionPaper": {
+          "file": "0606_m25_qp_12.pdf",
+          "sha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_qp_12.pdf"
+        },
+        "markScheme": {
+          "file": "0606_m25_ms_12.pdf",
+          "sha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_ms_12.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-0606-0606_m25_qp_12:q7:part-a",
+            "marks": 4,
+            "questionPage": 8,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 9,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "Solve the intersection equation and obtain A = (3/2, 4)."
+            ]
+          },
+          {
+            "partId": "cie-0606-0606_m25_qp_12:q7:part-b",
+            "marks": 6,
+            "questionPage": 9,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 9,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "Use the correct integral and trapezium area; exact area is 5 ln(5/2) - 3/4."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-0606-0606_m25_qp_12:q8",
+      "answerId": "cie-0606-0606_m25_qp_12:q8:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+      "answerDocumentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+      "reviewedAt": "2026-08-15T02:00:00+08:00",
+      "reviewedBy": "Codex source-semantic-review / 0606-P1-M25",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "sourcePolicy": "personal-study-restricted",
+        "questionPaper": {
+          "file": "0606_m25_qp_12.pdf",
+          "sha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_qp_12.pdf"
+        },
+        "markScheme": {
+          "file": "0606_m25_ms_12.pdf",
+          "sha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_ms_12.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-0606-0606_m25_qp_12:q8:part-a",
+            "marks": 6,
+            "questionPage": 10,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 10,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "r = 2/3 and d = -10/9."
+            ]
+          },
+          {
+            "partId": "cie-0606-0606_m25_qp_12:q8:part-b",
+            "marks": 1,
+            "questionPage": 10,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 10,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "Yes, because |r| < 1."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-0606-0606_m25_qp_12:q9",
+      "answerId": "cie-0606-0606_m25_qp_12:q9:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+      "answerDocumentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+      "reviewedAt": "2026-08-15T02:00:00+08:00",
+      "reviewedBy": "Codex source-semantic-review / 0606-P1-M25",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "sourcePolicy": "personal-study-restricted",
+        "questionPaper": {
+          "file": "0606_m25_qp_12.pdf",
+          "sha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_qp_12.pdf"
+        },
+        "markScheme": {
+          "file": "0606_m25_ms_12.pdf",
+          "sha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_ms_12.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-0606-0606_m25_qp_12:q9:part-a",
+            "marks": 5,
+            "questionPage": 11,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 10,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "Let u = log base 2 of (x + 1), solve u^2 - 3u - 4 = 0, and obtain x = 15 or x = -1/2."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-0606-0606_m25_qp_12:q10",
+      "answerId": "cie-0606-0606_m25_qp_12:q10:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+      "answerDocumentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+      "reviewedAt": "2026-08-15T02:00:00+08:00",
+      "reviewedBy": "Codex source-semantic-review / 0606-P1-M25",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "sourcePolicy": "personal-study-restricted",
+        "questionPaper": {
+          "file": "0606_m25_qp_12.pdf",
+          "sha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_qp_12.pdf"
+        },
+        "markScheme": {
+          "file": "0606_m25_ms_12.pdf",
+          "sha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_ms_12.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-0606-0606_m25_qp_12:q10:part-a",
+            "marks": 9,
+            "questionPage": 12,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "P = (5, 9), normal gradient -9/10, Q = (-25, 36), and R = (35, -18)."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-0606-0606_m25_qp_12:q11",
+      "answerId": "cie-0606-0606_m25_qp_12:q11:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+      "answerDocumentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+      "reviewedAt": "2026-08-15T02:00:00+08:00",
+      "reviewedBy": "Codex source-semantic-review / 0606-P1-M25",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "sourcePolicy": "personal-study-restricted",
+        "questionPaper": {
+          "file": "0606_m25_qp_12.pdf",
+          "sha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_qp_12.pdf"
+        },
+        "markScheme": {
+          "file": "0606_m25_ms_12.pdf",
+          "sha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_ms_12.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-0606-0606_m25_qp_12:q11:part-a",
+            "marks": 3,
+            "questionPage": 14,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "OX = b + lambda(3a/4 - b)."
+            ]
+          },
+          {
+            "partId": "cie-0606-0606_m25_qp_12:q11:part-b",
+            "marks": 2,
+            "questionPage": 15,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "OX = a + (1 - mu)(b/2 - a), equivalently b/2 + mu(a - b/2)."
+            ]
+          },
+          {
+            "partId": "cie-0606-0606_m25_qp_12:q11:part-c",
+            "marks": 4,
+            "questionPage": 15,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "Equate coefficients and obtain lambda = 4/5 and mu = 3/5."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-0606-0606_m25_qp_12:q12",
+      "answerId": "cie-0606-0606_m25_qp_12:q12:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+      "answerDocumentSha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+      "reviewedAt": "2026-08-15T02:00:00+08:00",
+      "reviewedBy": "Codex source-semantic-review / 0606-P1-M25",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "sourcePolicy": "personal-study-restricted",
+        "questionPaper": {
+          "file": "0606_m25_qp_12.pdf",
+          "sha256": "3b656a6cbeb10e493f27cb4218e86588881552e6631720bffc359eeacaaeff59",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_qp_12.pdf"
+        },
+        "markScheme": {
+          "file": "0606_m25_ms_12.pdf",
+          "sha256": "12c5f7d5d59c7f6ad22a5642fe8af86ebf8d150ea11f95f8e98c61cf01a69514",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m25_ms_12.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-0606-0606_m25_qp_12:q12:part-a",
+            "marks": 3,
+            "questionPage": 16,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 12,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "dy/dx = e^(3x + 2)(3x + 1)."
+            ]
+          },
+          {
+            "partId": "cie-0606-0606_m25_qp_12:q12:part-b",
+            "marks": 4,
+            "questionPage": 16,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 12,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "Integral = x e^(3x + 2)/3 - e^(3x + 2)/9 + c."
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
