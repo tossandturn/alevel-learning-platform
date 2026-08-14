@@ -11,6 +11,9 @@ const STEM_SESSION_COOKIE = 'stem_session'
 const STEM_SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000
 const INTERNAL_AUTH_PATH = '/api/stem/internal/authenticate'
 const DEFAULT_INTERNAL_AUTH_ORIGIN = 'http://127.0.0.1:4321'
+const NATIVE_AUTH_PROBE_CACHE_MS = 15_000
+const NATIVE_AUTH_PROBE_USERNAME = 'stem_bridge_probe'
+const NATIVE_AUTH_PROBE_PASSWORD = 'not-a-real-password'
 const LEGACY_SCOPE = 'legacy-unscoped'
 const ROUTE_STAGES = new Map([
   ['igcse', 'IGCSE'],
@@ -554,7 +557,24 @@ function internalAuthEndpoint(origin) {
   return url.toString()
 }
 
-async function authenticateNativeAccount({ mode, username, password, env, fetchImpl = fetch }) {
+function internalAuthOriginConfigured(env = {}) {
+  try {
+    internalAuthEndpoint(nativeAuthOrigin(env))
+    return true
+  } catch {
+    return false
+  }
+}
+
+function nativeAuthConfigured(env = {}) {
+  return Boolean(String(env.STEM_INTERNAL_AUTH_KEY || env.STEM_IDENTITY_SIGNING_KEY || '') && internalAuthOriginConfigured(env))
+}
+
+function nativeAuthBridgeError(code, message) {
+  return Object.assign(new Error(message), { statusCode: 503, code })
+}
+
+function signedInternalAuthRequest({ mode, username, password, env }) {
   const normalizedMode = mode === 'register' ? 'register' : 'login'
   const body = canonicalInternalAuthPayload({ mode: normalizedMode, username, password })
   const signingKey = String(env.STEM_INTERNAL_AUTH_KEY || env.STEM_IDENTITY_SIGNING_KEY || '')
@@ -563,21 +583,65 @@ async function authenticateNativeAccount({ mode, username, password, env, fetchI
   const timestamp = String(Date.now())
   const digest = crypto.createHash('sha256').update(body).digest('hex')
   const signature = crypto.createHmac('sha256', signingKey).update(`${timestamp}.${digest}`).digest('base64url')
+  return {
+    body,
+    endpoint,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Stem-Auth-Timestamp': timestamp,
+      'X-Stem-Auth-Signature': signature,
+    },
+  }
+}
+
+async function probeNativeAuthBridge({ env, fetchImpl = fetch }) {
+  if (!nativeAuthConfigured(env)) return { status: 'not_configured' }
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 3_000)
+  try {
+    const request = signedInternalAuthRequest({
+      mode: 'login',
+      username: NATIVE_AUTH_PROBE_USERNAME,
+      password: NATIVE_AUTH_PROBE_PASSWORD,
+      env,
+    })
+    const response = await fetchImpl(request.endpoint, {
+      method: 'POST',
+      headers: request.headers,
+      body: request.body,
+      signal: controller.signal,
+    })
+    // A deliberately invalid account must reach the shared database and be
+    // rejected with 401. Anything else is not safe to accept student passwords.
+    if (response.status === 401) return { status: 'ready' }
+    if (response.status === 403) return { status: 'signature_mismatch' }
+    return { status: 'unavailable' }
+  } catch {
+    return { status: 'unavailable' }
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+async function authenticateNativeAccount({ mode, username, password, env, fetchImpl = fetch }) {
+  const internalRequest = signedInternalAuthRequest({ mode, username, password, env })
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 12_000)
   try {
-    const response = await fetchImpl(endpoint, {
+    const response = await fetchImpl(internalRequest.endpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Stem-Auth-Timestamp': timestamp,
-        'X-Stem-Auth-Signature': signature,
-      },
-      body,
+      headers: internalRequest.headers,
+      body: internalRequest.body,
       signal: controller.signal,
     })
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) {
+      if (response.status === 403) {
+        throw nativeAuthBridgeError('native_auth_bridge_rejected', 'STEM could not verify the shared account service. Your account details were not accepted.')
+      }
+      if (response.status >= 500) {
+        throw nativeAuthBridgeError('native_auth_bridge_unavailable', 'The shared account service is unavailable. Try again shortly.')
+      }
       const message = response.status === 401
         ? 'Invalid username or password.'
         : response.status === 409
@@ -598,7 +662,7 @@ async function authenticateNativeAccount({ mode, username, password, env, fetchI
     }
   } catch (error) {
     if (error?.statusCode) throw error
-    throw Object.assign(new Error('The shared account service is unavailable. Try again shortly.'), { statusCode: 503 })
+    throw nativeAuthBridgeError('native_auth_bridge_unavailable', 'The shared account service is unavailable. Try again shortly.')
   } finally {
     clearTimeout(timeout)
   }
@@ -985,11 +1049,42 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, fetchIm
   // Production uses unifiedQuestionBank, which fails closed on file and
   // semantic source completeness. Supplying a fixture is test-only.
   const assignableQuestionIds = assignableQuestionIdsForBank(questionBank)
+  let nativeBridgeProbe = null
+
+  async function nativeAccountReadiness() {
+    const sessionSigningConfigured = Boolean(signingKey)
+    const internalAuthOriginReady = internalAuthOriginConfigured(env)
+    const nativeLoginConfigured = Boolean(sessionSigningConfigured && internalAuthOriginReady)
+    if (!nativeLoginConfigured) {
+      return {
+        sessionSigningConfigured,
+        internalAuthOriginConfigured: internalAuthOriginReady,
+        nativeLoginConfigured: false,
+        nativeLoginReady: false,
+        bridge: { status: 'not_configured' },
+      }
+    }
+
+    const now = Date.now()
+    if (!nativeBridgeProbe || nativeBridgeProbe.expiresAt <= now) {
+      const bridge = await probeNativeAuthBridge({ env, fetchImpl })
+      nativeBridgeProbe = { bridge, expiresAt: now + NATIVE_AUTH_PROBE_CACHE_MS }
+    }
+    return {
+      sessionSigningConfigured,
+      internalAuthOriginConfigured: internalAuthOriginReady,
+      nativeLoginConfigured: true,
+      nativeLoginReady: nativeBridgeProbe.bridge.status === 'ready',
+      bridge: { status: nativeBridgeProbe.bridge.status },
+    }
+  }
+
   return async function stemApi(request, response, next) {
     const url = new URL(request.url, 'http://127.0.0.1')
     if (!url.pathname.startsWith('/api/stem/') && !['/api/auth/status', '/api/auth/config', '/api/auth/login', '/api/auth/register', '/api/auth/logout'].includes(url.pathname)) return next()
     try {
       if (request.method === 'GET' && url.pathname === '/api/auth/config') {
+        const readiness = await nativeAccountReadiness()
         sendJson(response, 200, {
           protocol: 'stem-native-account-v1',
           provider: 'ieltsist',
@@ -1020,11 +1115,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, fetchIm
             validationError: 400,
             logoutSuccess: 200,
           },
-          readiness: {
-            sessionSigningConfigured: Boolean(signingKey),
-            internalAuthOriginConfigured: Boolean(nativeAuthOrigin(env)),
-            nativeLoginConfigured: Boolean(signingKey && nativeAuthOrigin(env)),
-          },
+          readiness,
           note: 'STEM signs in on this origin and keeps a separate local browser session. Credentials are checked server-to-server against the shared IELTSist account database and are never persisted by STEM.',
         })
         return

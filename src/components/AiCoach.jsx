@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { BrainCircuit, FileText, ImagePlus, Send, Sparkles, X } from 'lucide-react'
+import { flushSync } from 'react-dom'
+import { BrainCircuit, FileText, ImagePlus, MonitorUp, Send, Sparkles, X } from 'lucide-react'
 import { resolveCoachIntent } from '../lib/coachIntent'
 import { parseCoachMessage } from '../lib/coachMessage'
 import { MIN_VERIFIED_GROUPS_FOR_PRACTICE } from '../lib/verifiedPracticeCatalog'
+import { captureCurrentPageScreenshot, imageFileToDataUrl } from '../lib/coachScreenshot'
 
 const STORAGE_PREFIX = 'alevel-ai-coach-v3'
 const EMPTY_PRACTICE_OPTIONS = Object.freeze([])
@@ -42,15 +44,6 @@ function loadMessages(key) {
   }
 }
 
-function fileToDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result || ''))
-    reader.onerror = () => reject(new Error('The image could not be attached.'))
-    reader.readAsDataURL(file)
-  })
-}
-
 export function AiCoach({
   context = {},
   stateOwnerId = '',
@@ -74,9 +67,11 @@ export function AiCoach({
   const [builderCount, setBuilderCount] = useState('10')
   const [generating, setGenerating] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [capturing, setCapturing] = useState(false)
   const [error, setError] = useState('')
   const endRef = useRef(null)
   const triggerRef = useRef(null)
+  const screenshotInputRef = useRef(null)
   const requestAbortRef = useRef(null)
   const lastOpenRequestRef = useRef(openRequest)
   const hydratedStorageKeyRef = useRef(storageKey)
@@ -125,6 +120,7 @@ export function AiCoach({
     setImageDataUrl('')
     setError('')
     setLoading(false)
+    setCapturing(false)
     setBuilderOpen(false)
     setOpen(false)
   }, [storageKey])
@@ -144,6 +140,7 @@ export function AiCoach({
     setOpen(false)
     setBuilderOpen(false)
     setLoading(false)
+    setCapturing(false)
     setDraft('')
     setImageDataUrl('')
     setError('')
@@ -272,15 +269,30 @@ export function AiCoach({
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
-    if (!file.type.startsWith('image/') || file.size > 12 * 1024 * 1024) {
-      setError('Choose an image under 12 MB.')
-      return
-    }
     try {
-      setImageDataUrl(await fileToDataUrl(file))
+      setImageDataUrl(await imageFileToDataUrl(file))
       setError('')
     } catch (attachError) {
       setError(attachError.message)
+    }
+  }
+
+  async function captureCurrentPage() {
+    if (capturing) return
+    setError('')
+    setCapturing(true)
+    // Remove the drawer before the browser takes the selected STEM-tab frame.
+    // flushSync keeps this user-gesture flow intact for getDisplayMedia.
+    flushSync(() => setOpen(false))
+    try {
+      const screenshot = await captureCurrentPageScreenshot()
+      setImageDataUrl(screenshot)
+      setOpen(true)
+    } catch (captureError) {
+      setOpen(true)
+      setError(captureError.message || 'Current-page capture is unavailable. You can provide a screenshot instead.')
+    } finally {
+      setCapturing(false)
     }
   }
 
@@ -344,7 +356,8 @@ export function AiCoach({
 
         <div className="ai-coach__quick-actions">
           {onGeneratePractice && <button type="button" className={builderOpen ? 'active' : ''} onClick={() => setBuilderOpen((value) => !value)}><Sparkles size={13} />Build practice</button>}
-          <label className="ai-coach__screenshot"><ImagePlus size={13} /><span>Screenshot hint</span><input type="file" accept="image/*" capture="environment" onChange={attachImage} /></label>
+          <button type="button" className="ai-coach__screenshot" disabled={capturing} onClick={captureCurrentPage}><MonitorUp size={13} />{capturing ? 'Capturing...' : 'Capture current page'}</button>
+          <button type="button" className="ai-coach__screenshot" onClick={() => screenshotInputRef.current?.click()}><ImagePlus size={13} />Provide screenshot</button>
           {canOpenBphoSpc && <button type="button" onClick={() => ask('打开最新的 BPhO SPC 真题，带答案。')}><FileText size={13} />Latest BPhO SPC</button>}
           <button type="button" onClick={() => ask('Give me a hint for the next step.', hintLevel)}>Hint {hintLevel}/5</button>
           <button type="button" onClick={() => ask('Check my method and identify the first issue.', 3)}>Check method</button>
@@ -380,7 +393,8 @@ export function AiCoach({
           {imageDataUrl && <div className="ai-coach__attachment"><img src={imageDataUrl} alt="Attached work" /><span>Image attached</span><button type="button" onClick={() => setImageDataUrl('')} aria-label="Remove attachment"><X size={15} /></button></div>}
           {error && <p className="ai-coach__error" role="alert">{error}</p>}
           <form className="ai-coach__composer" onSubmit={submitComposer}>
-            <label title="Attach work"><ImagePlus size={18} /><input type="file" accept="image/*" capture="environment" onChange={attachImage} /></label>
+            <button type="button" className="ai-coach__composer-attach" title="Provide screenshot" aria-label="Provide screenshot" onClick={() => screenshotInputRef.current?.click()}><ImagePlus size={18} /></button>
+            <input ref={screenshotInputRef} type="file" accept="image/*" hidden onChange={attachImage} />
             <textarea rows="2" value={draft} placeholder="Ask about a concept or your next step..." onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault()

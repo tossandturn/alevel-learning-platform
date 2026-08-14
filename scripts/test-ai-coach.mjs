@@ -204,7 +204,12 @@ try {
   assert.match(paperWorkspaceSource, /normalizePaperStudyMode\(paper\.paperStudyMode \|\| paperDraft\?\.paperStudyMode\)/)
   assert.match(paperWorkspaceSource, /void markAllResponses\(\{ questionNumbers: submittedQuestionNumbers, inkByPage: flushed\.pdfInkByPage, inkQuestionMap, submittedAttempt: true \}\)/, 'submitted reviewed paper responses must automatically queue AI-assisted marking')
   assert.match(paperAnswerSheetSource, /Marking starts automatically after submission/)
-  assert.match(handwritingSource, /Upload paper photo/)
+  assert.match(coachSource, /captureCurrentPageScreenshot/, 'Coach must support a user-initiated capture of the current STEM page')
+  assert.match(coachSource, /Capture current page/, 'Coach must expose an explicit current-page capture action')
+  assert.match(coachSource, /Provide screenshot/, 'Coach must also let a student provide an existing screenshot')
+  assert.match(handwritingSource, /Upload photo/, 'paper responses need a normal photo upload action')
+  assert.match(handwritingSource, /Take photo/, 'paper responses need a camera capture action distinct from upload')
+  assert.match(handwritingSource, /cameraInputRef/, 'camera capture must use its own input instead of silently forcing capture mode for uploads')
 } finally {
   await Promise.all([close(appServer), close(providerServer)])
   fs.rmSync(tempRoot, { recursive: true, force: true })

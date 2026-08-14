@@ -18,7 +18,12 @@ export class SharedAccountError extends Error {
 
 function responseError(response, payload, fallback) {
   if (response.status === 401 || response.status === 403) return new SharedAccountError('session_expired', 'Your STEM session has expired. Sign in here to continue.', { loginRequired: true })
-  if (response.status === 429 || response.status >= 500) return new SharedAccountError('service_unavailable', payload?.error || fallback, { retryable: true })
+  if (response.status === 429 || response.status >= 500) {
+    const code = ['native_auth_not_configured', 'native_auth_bridge_rejected', 'native_auth_bridge_unavailable'].includes(payload?.code)
+      ? payload.code
+      : 'service_unavailable'
+    return new SharedAccountError(code, payload?.error || fallback, { retryable: true })
+  }
   return new SharedAccountError('request_rejected', payload?.error || fallback)
 }
 
@@ -140,6 +145,10 @@ export async function requestNativeAccountReadiness() {
   return {
     known: true,
     nativeLoginConfigured: Boolean(readiness.nativeLoginConfigured),
+    nativeLoginReady: readiness.nativeLoginReady == null
+      ? Boolean(readiness.nativeLoginConfigured)
+      : Boolean(readiness.nativeLoginReady),
+    bridgeStatus: String(readiness?.bridge?.status || ''),
   }
 }
 

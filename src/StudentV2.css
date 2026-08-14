@@ -696,6 +696,142 @@
   line-height: 1.55;
 }
 
+.topic-detail__guide,
+.topic-detail__guide-practice,
+.topic-detail__guide-checklist {
+  margin-top: 30px;
+}
+
+.topic-detail__guide > header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.topic-detail__guide > header h2,
+.topic-detail__guide > header p {
+  margin: 0;
+}
+
+.topic-detail__guide > header h2,
+.topic-detail__guide-practice h2,
+.topic-detail__guide-checklist h2 {
+  margin-top: 5px;
+  color: var(--v2-text);
+  font-size: 20px;
+}
+
+.topic-detail__guide > header p:not(.section-label) {
+  max-width: 760px;
+  margin-top: 8px;
+  color: var(--v2-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.topic-detail__guide-note {
+  flex: none;
+  max-width: 250px;
+  color: var(--v2-muted);
+  font-size: 10px;
+  line-height: 1.45;
+  text-align: right;
+}
+
+.topic-detail__guide-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.topic-detail__guide-grid article,
+.topic-detail__guide-example,
+.topic-detail__guide-mistakes,
+.topic-detail__guide-checklist {
+  padding: 18px;
+  border: 1px solid var(--v2-border);
+  border-radius: 8px;
+  background: var(--v2-surface);
+}
+
+.topic-detail__guide-grid h3 {
+  margin: 0;
+  color: var(--v2-text);
+  font-size: 13px;
+}
+
+.topic-detail__guide-grid ol,
+.topic-detail__guide-grid dl,
+.topic-detail__guide-mistakes ul,
+.topic-detail__guide-checklist ul {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: var(--v2-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.topic-detail__guide-grid dl {
+  display: grid;
+  gap: 10px;
+  padding-left: 0;
+}
+
+.topic-detail__guide-grid dl > div {
+  display: grid;
+  grid-template-columns: minmax(90px, .35fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.topic-detail__guide-grid dt {
+  color: var(--v2-text);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.topic-detail__guide-grid dd {
+  margin: 0;
+}
+
+.topic-detail__guide-practice {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr);
+  gap: 10px;
+}
+
+.topic-detail__guide-example,
+.topic-detail__guide-mistakes {
+  min-height: 170px;
+}
+
+.topic-detail__guide-example p:not(.section-label),
+.topic-detail__guide-mistakes li {
+  color: var(--v2-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.topic-detail__guide-example p strong {
+  color: var(--v2-text);
+}
+
+.topic-detail__guide-checklist {
+  display: grid;
+  grid-template-columns: minmax(180px, .65fr) minmax(0, 1.35fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.topic-detail__guide-checklist h2 {
+  margin-bottom: 0;
+}
+
+.topic-detail__guide-checklist ul {
+  margin-top: 0;
+}
+
 .topic-detail__checkpoints,
 .topic-detail__past-papers {
   margin-top: 32px;
@@ -1160,6 +1296,27 @@
   .topic-detail__concepts small {
     grid-column: 2;
     padding-bottom: 12px;
+  }
+
+  .topic-detail__guide > header,
+  .topic-detail__guide-checklist {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .topic-detail__guide-note {
+    max-width: none;
+    text-align: left;
+  }
+
+  .topic-detail__guide-grid,
+  .topic-detail__guide-practice {
+    grid-template-columns: 1fr;
+  }
+
+  .topic-detail__guide-checklist ul {
+    margin-top: 0;
   }
 
   .topic-detail__source {
@@ -1655,10 +1812,11 @@
 
 @media (min-width: 1041px) {
   .app-shell > .ai-coach-trigger {
-    right: auto;
-    bottom: 164px;
-    left: 14px;
-    width: 204px;
+    top: auto;
+    right: 18px;
+    bottom: calc(18px + env(safe-area-inset-bottom));
+    left: auto;
+    width: auto;
     justify-content: center;
   }
 }

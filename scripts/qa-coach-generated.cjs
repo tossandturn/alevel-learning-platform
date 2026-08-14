@@ -188,17 +188,36 @@ async function assertCoachScreenshotFlow(page) {
     })
   })
   try {
+    const viewport = page.viewportSize()
+    const triggerBox = await page.getByRole('button', { name: 'Open AI Coach' }).boundingBox()
+    if (viewport?.width >= 1041 && (!triggerBox || triggerBox.x < viewport.width - 260 || triggerBox.y < viewport.height - 150)) {
+      throw new Error(`Desktop Coach trigger must remain a right-bottom floating control: ${JSON.stringify({ viewport, triggerBox })}`)
+    }
     await page.getByRole('button', { name: 'Open AI Coach' }).click()
-    await page.locator('.ai-coach__screenshot input').setInputFiles({
-      name: 'handwritten-working.png',
-      mimeType: 'image/png',
-      buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64'),
+    await page.getByRole('button', { name: 'Capture current page' }).waitFor()
+    await page.locator('button.ai-coach__screenshot', { hasText: 'Provide screenshot' }).waitFor()
+    await page.evaluate(() => {
+      const source = document.createElement('canvas')
+      source.width = 640
+      source.height = 360
+      const context = source.getContext('2d')
+      context.fillStyle = '#f6f9ff'
+      context.fillRect(0, 0, source.width, source.height)
+      context.fillStyle = '#182437'
+      context.font = '28px sans-serif'
+      context.fillText('STEM current page capture', 34, 80)
+      const stream = source.captureStream(1)
+      Object.defineProperty(navigator.mediaDevices, 'getDisplayMedia', {
+        configurable: true,
+        value: async () => stream,
+      })
     })
+    await page.getByRole('button', { name: 'Capture current page' }).click()
     await page.getByText('Image attached', { exact: true }).waitFor()
     await page.getByRole('button', { name: 'Review screenshot' }).click()
     await page.waitForFunction(() => [...document.querySelectorAll('.ai-message--assistant')].some((node) => node.textContent.includes('Hint:')))
-    if (!screenshotPayload?.imageDataUrl?.startsWith('data:image/png;base64,')) {
-      throw new Error('Coach screenshot request did not include the attached image data')
+    if (!screenshotPayload?.imageDataUrl?.startsWith('data:image/jpeg;base64,')) {
+      throw new Error('Coach current-page capture request did not include the captured JPEG data')
     }
     const coachText = await page.locator('.ai-message--assistant').last().innerText()
     if (/\*\*|\$|\\lambda/.test(coachText) || !coachText.includes('λ')) {

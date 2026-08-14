@@ -55,6 +55,7 @@ import { parseProductContext, termIdsForStemContext } from './lib/productContext
 import { studentNavigationFromLocation, studentNavigationHref } from './lib/studentNavigation'
 import { normalizePaperStudyMode, paperDraftKey } from './lib/paperStudyMode'
 import { buildStemVocabularyContext, vocabularyCoverageForRoute } from './data/stemVocabularyTaxonomy'
+import { topicLearningContent } from './data/topicLearningContent'
 import { verifiedPracticeQuestionGroups } from './lib/verifiedPracticeCatalog'
 import './App.css'
 import './StudentV2.css'
@@ -1697,7 +1698,7 @@ function SharedAccountDialog({ mode = 'login', onClose, onModeChange, onSubmit }
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [nativeReadiness, setNativeReadiness] = useState({ status: 'checking', configured: true })
+  const [nativeReadiness, setNativeReadiness] = useState({ status: 'checking', configured: false })
   const dialogRef = useRef(null)
 
   useEffect(() => {
@@ -1715,10 +1716,20 @@ function SharedAccountDialog({ mode = 'login', onClose, onModeChange, onSubmit }
           setError('Native STEM sign-in is not configured on this server. Your password will not be sent until it is fixed.')
           return
         }
+        if (readiness.known && !readiness.nativeLoginReady) {
+          const signatureMismatch = readiness.bridgeStatus === 'signature_mismatch'
+          setNativeReadiness({ status: 'bridge-unavailable', configured: false })
+          setError(signatureMismatch
+            ? 'STEM cannot verify the shared account bridge. Your password will not be sent until the server keys are corrected.'
+            : 'STEM cannot reach the shared account service. Your password will not be sent until it is available.')
+          return
+        }
         setNativeReadiness({ status: 'ready', configured: true })
       })
       .catch(() => {
-        if (active) setNativeReadiness({ status: 'unknown', configured: true })
+        if (!active) return
+        setNativeReadiness({ status: 'unavailable', configured: false })
+        setError('STEM cannot confirm the shared account service. Your password will not be sent until it is available.')
       })
     return () => {
       active = false
@@ -2355,6 +2366,13 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, lea
   const routeOption = practiceOptions.find((option) => option.routeId === activeRouteId)
   const topic = routeOption?.topics.find((item) => item.id === topicId)
   const metadata = topicMetadata(topicId)
+  const guide = topicLearningContent(metadata || {
+    id: topicId,
+    name: topic?.label || 'this topic',
+    subjectId: activeRoute.subjectId,
+    stage: activeRoute.stage,
+    themes: [],
+  })
   const progress = learningProgress.topicProgress.find((item) => item.id === topicId || String(item.id || '').split('@')[0] === String(topicId).split('@')[0])
   const mastery = progress?.mastery ?? null
   const available = topic?.inventory || 0
@@ -2433,7 +2451,40 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, lea
 
       <div className="topic-detail__layout">
         <main>
-          <section className="topic-detail__concepts"><header><div><p className="section-label">Topic content</p><h2>Chapters inside this topic</h2><p>Each chapter is a syllabus skill cluster. The question bank stays separate, then links real exam questions back to the right chapter.</p></div></header><div>{chapterItems.map(({ theme, index, count }) => <div key={theme}><span>{String(index + 1).padStart(2, '0')}</span><strong>{theme}</strong><small>{count ? `${count} linked question${count === 1 ? '' : 's'}` : 'No indexed source question yet'}</small></div>)}</div></section>
+          <section className="topic-detail__concepts"><header><div><p className="section-label">Topic content</p><h2>Skill strands inside this topic</h2><p>Use this syllabus-aligned guide to learn the idea first. Authentic past-paper practice is tracked separately and only appears after source review.</p></div></header><div>{chapterItems.map(({ theme, index, count }) => <div key={theme}><span>{String(index + 1).padStart(2, '0')}</span><strong>{theme}</strong><small>{count ? `${count} linked verified question${count === 1 ? '' : 's'}` : 'Learning guide available · source question indexing in progress'}</small></div>)}</div></section>
+          <section className="topic-detail__guide" aria-label={`${topic.label} learning guide`}>
+            <header>
+              <div><p className="section-label">Study guide</p><h2>Learn the idea before you practise</h2><p>{guide.overview}</p></div>
+              <span className="topic-detail__guide-note">Syllabus-aligned content · not a verified past-paper question</span>
+            </header>
+            <div className="topic-detail__guide-grid">
+              <article>
+                <h3>Learning objectives</h3>
+                <ol>{guide.learningObjectives.map((objective) => <li key={objective}>{objective}</li>)}</ol>
+              </article>
+              <article>
+                <h3>Key ideas</h3>
+                <dl>{guide.keyIdeas.map((idea) => <div key={idea.term}><dt>{idea.term}</dt><dd>{idea.explanation}</dd></div>)}</dl>
+              </article>
+            </div>
+          </section>
+          <section className="topic-detail__guide-practice">
+            <div className="topic-detail__guide-example">
+              <p className="section-label">Guided example</p>
+              <h2>Build the method</h2>
+              <p><strong>Prompt</strong> {guide.workedExample.prompt}</p>
+              <p><strong>Method</strong> {guide.workedExample.method}</p>
+            </div>
+            <div className="topic-detail__guide-mistakes">
+              <p className="section-label">Before you submit</p>
+              <h2>Common mistakes</h2>
+              <ul>{guide.commonMistakes.map((mistake) => <li key={mistake}>{mistake}</li>)}</ul>
+            </div>
+          </section>
+          <section className="topic-detail__guide-checklist">
+            <div><p className="section-label">Exam habits</p><h2>Quick check before moving on</h2></div>
+            <ul>{guide.examChecklist.map((item) => <li key={item}>{item}</li>)}</ul>
+          </section>
           {checkpoints.length > 0 && <section className="topic-detail__checkpoints"><header><div><p className="section-label">Progression</p><h2>What good looks like</h2></div><span>Move from recall to exam application</span></header><div>{checkpoints.map((checkpoint) => <article key={checkpoint.id}><strong>{checkpoint.label}</strong><p>{checkpoint.description}</p></article>)}</div></section>}
           <section className="topic-detail__past-papers"><header><div><p className="section-label">Real exam collection</p><h2>Past-paper questions by chapter</h2><p>These are question-level records, grouped by their original paper. Open the source page or mark scheme without losing the topic mapping.</p></div><strong>{topicQuestions.length} questions · {topicPaperGroups.length} paper{topicPaperGroups.length === 1 ? '' : 's'}</strong></header>{topicPaperGroups.length ? <div className="topic-detail__paper-groups">{topicPaperGroups.map((paperQuestions) => { const first = paperQuestions[0]; const source = first.sourceRef || {}; return <article className="topic-detail__paper-group" key={source.paperId || source.paper}><header><div><strong>{sourcePaperLabel(first)}</strong><span>{source.component ? `Component ${source.component}` : 'Official source'} · {paperQuestions.length} linked question{paperQuestions.length === 1 ? '' : 's'}</span></div><div><a href={`${source.localUrl}#page=${source.pageStart || 1}`} target="_blank" rel="noreferrer">Open QP</a><a href={`${first.answerRef?.localUrl || '#'}#page=${first.answerRef?.pageStart || 1}`} target="_blank" rel="noreferrer">Open MS</a></div></header><div>{paperQuestions.map((question) => <div className="topic-detail__question-row" key={question.questionGroupId || question.bankId}><span>{question.sourceRef?.question || 'Question'}</span><p>{sourceQuestionPreview(question) || 'Indexed question text is available in the source paper.'}</p><small>{question.totalMarks || question.marks || 1} mark{(question.totalMarks || question.marks || 1) === 1 ? '' : 's'} · QP p.{question.sourceRef?.pageStart || '?'} · MS p.{question.answerRef?.pageStart || '?'}</small></div>)}</div></article> })}</div> : <div className="topic-detail__empty-source"><FileText size={20} /><strong>No question-level source records yet</strong><p>This topic is in the syllabus map, but its verified paper index has not been attached to this route.</p></div>}</section>
           <section className="topic-detail__source"><FileText size={20} /><div><strong>Verified source questions</strong><p>Questions and answers stay paired with their original paper. No cross-stage items and no unverified generated questions.</p></div><span>{available} available{practiceReady ? '' : ` · ${MIN_VERIFIED_GROUPS_FOR_PRACTICE - available} more needed`}</span></section>

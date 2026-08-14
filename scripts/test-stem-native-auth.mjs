@@ -30,6 +30,12 @@ function call(api, { method, url, body, headers = {} }) {
 const fetchImpl = async (url, options) => {
   calls.push({ url: String(url), options })
   const payload = JSON.parse(options.body)
+  if (payload.username === 'stem_bridge_probe') {
+    return new Response(JSON.stringify({ error: 'Invalid username or password.' }), {
+      status: 401,
+      headers: { 'content-type': 'application/json' },
+    })
+  }
   if (payload.username === 'wrong_user') {
     return new Response(JSON.stringify({ error: 'Invalid username or password.' }), {
       status: 401,
@@ -119,8 +125,34 @@ try {
     sessionSigningConfigured: true,
     internalAuthOriginConfigured: true,
     nativeLoginConfigured: true,
-  }, 'auth readiness must expose only boolean configuration state')
+    nativeLoginReady: true,
+    bridge: { status: 'ready' },
+  }, 'auth readiness must prove the signed local bridge can reject a deliberately invalid account before enabling credential entry')
+  assert.equal(calls.length, 1, 'readiness must make a signed, password-free bridge probe')
+  assert.doesNotMatch(String(calls[0].options.body), /testing123|not-the-password/, 'bridge readiness must not replay a student credential')
   assert.doesNotMatch(JSON.stringify(config.body), /testing123|provider-access-token|signing-key/i, 'auth readiness must not expose secrets')
+
+  const rejectedBridgeApi = createStemApi({
+    env: {
+      STEM_IDENTITY_SIGNING_KEY: signingKey,
+      STEM_AUTH_INTERNAL_ORIGIN: 'http://127.0.0.1:4321',
+      STEM_DB_PATH: ':memory:',
+    },
+    fetchImpl: async () => new Response(JSON.stringify({ error: 'STEM account authentication is not authorised.' }), {
+      status: 403,
+      headers: { 'content-type': 'application/json' },
+    }),
+  })
+  const rejectedBridgeConfig = await call(rejectedBridgeApi, { method: 'GET', url: '/api/auth/config' })
+  assert.equal(rejectedBridgeConfig.statusCode, 200)
+  assert.deepEqual(rejectedBridgeConfig.body.readiness, {
+    sessionSigningConfigured: true,
+    internalAuthOriginConfigured: true,
+    nativeLoginConfigured: true,
+    nativeLoginReady: false,
+    bridge: { status: 'signature_mismatch' },
+  }, 'a rejected signed probe must block credential entry instead of claiming the bridge is healthy')
+  closeStemDatabaseForTests()
 
   const invalid = await call(api, {
     method: 'POST',
@@ -128,8 +160,8 @@ try {
     body: { username: 'wrong_user', password: 'not-the-password' },
   })
   assert.equal(invalid.statusCode, 401, 'invalid credentials must be rejected by the shared identity service')
-  assert.equal(calls.length, 1, 'the native sign-in must call the identity service once')
-  assert.equal(calls[0].url, 'http://127.0.0.1:4321/api/stem/internal/authenticate')
+  assert.equal(calls.length, 2, 'the native sign-in must call the identity service after the readiness probe')
+  assert.equal(calls[1].url, 'http://127.0.0.1:4321/api/stem/internal/authenticate')
   assert.doesNotMatch(JSON.stringify(invalid.body), /not-the-password|provider-access-token/i, 'a failed response must not echo credentials or provider tokens')
 
   const signedIn = await call(api, {
@@ -138,6 +170,7 @@ try {
     body: { username: 'shared_student', password: 'testing123' },
   })
   assert.equal(signedIn.statusCode, 200, 'a valid same-account sign-in must complete on the STEM origin')
+  assert.equal(calls.length, 3)
   assert.equal(signedIn.body.identity.id, 'ielts:42')
   assert.equal(signedIn.body.identity.username, 'shared_student')
   assert.match(signedIn.body.accessToken, /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/, 'STEM must issue its short-lived in-memory identity token')

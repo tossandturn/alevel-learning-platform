@@ -771,6 +771,7 @@
 .ai-coach__quick-actions button,
 .ai-coach__quick-actions label,
 .ai-coach__composer > label,
+.ai-coach__composer-attach,
 .ai-coach__composer > button { min-height: 44px; }
 .result-learning-signal { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(180px, .7fr) minmax(220px, .9fr); gap: 18px; align-items: center; margin: 18px 0; padding: 20px; border: 1px solid #cfe0ee; border-radius: 8px; background: #f7fbff; }.result-learning-signal h2 { margin: 3px 0 5px; font-size: 18px; }.result-learning-signal p:not(.section-label) { margin: 0; color: #68778a; font-size: 12px; line-height: 1.5; }.mastery-delta { display: grid; gap: 4px; padding: 12px 14px; border-left: 1px solid #dbe7f2; }.mastery-delta span { color: #758497; font-size: 11px; }.mastery-delta strong { color: #1d2a3f; font-size: 18px; }.mastery-delta small { color: #667688; font-size: 11px; }.mastery-delta small.up { color: #118064; }.mastery-delta small.down { color: #c45c51; }.terms-recommendation { display: grid; grid-template-columns: 22px minmax(0, 1fr) 18px; align-items: center; gap: 9px; min-height: 60px; padding: 10px 12px; border: 1px solid #c9dff1; border-radius: 7px; color: #225bbb; background: #fff; text-decoration: none; }.terms-recommendation > span { display: grid; min-width: 0; gap: 3px; }.terms-recommendation strong, .terms-recommendation small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.terms-recommendation strong { font-size: 12px; }.terms-recommendation small { color: #718096; font-size: 10px; }
 
@@ -3010,7 +3011,7 @@ textarea:focus-visible {
 .handwriting-pad__modes {
   flex: 0 0 auto;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   padding: 3px;
   border: 1px solid #e4e7f0;
   border-radius: 7px;
@@ -3317,7 +3318,7 @@ textarea:focus-visible {
 .ai-coach__quick-actions button { min-width: 0; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 6px 8px; border: 1px solid #bdcbe0; border-radius: 5px; color: #315277; background: #fff; font: inherit; font-size: 10px; font-weight: 800; line-height: 1.2; text-align: center; cursor: pointer; }
 .ai-coach__screenshot { min-width: 0; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 6px 8px; border: 1px solid #bdcbe0; border-radius: 5px; color: #315277; background: #fff; font-size: 10px; font-weight: 800; line-height: 1.2; text-align: center; cursor: pointer; }
 .ai-coach__screenshot:hover { border-color: #8ca8cb; background: #f7faff; }
-.ai-coach__screenshot input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.ai-coach__screenshot:disabled { cursor: wait; opacity: 0.65; }
 .ai-coach__quick-actions button.active { color: #fff; border-color: #7357e8; background: #7357e8; }
 
 .ai-coach__builder {
@@ -3363,11 +3364,12 @@ textarea:focus-visible {
 .ai-coach__error { margin: 0; color: #a53d45; font-size: 10px; }
 .ai-coach__composer { display: grid; grid-template-columns: 38px minmax(0, 1fr) 40px; align-items: end; gap: 6px; }
 .ai-coach__composer label,
+.ai-coach__composer-attach,
 .ai-coach__composer > button { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid #bdc9d8; border-radius: 5px; color: #315277; background: #fff; cursor: pointer; }
 .ai-coach__composer label input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .ai-coach__composer textarea { width: 100%; min-height: 42px; max-height: 110px; resize: vertical; padding: 8px 9px; border: 1px solid #bdc9d8; border-radius: 5px; font: inherit; font-size: 12px; line-height: 1.45; }
-.ai-coach__composer > button { width: 40px; color: #fff; border-color: #245fae; background: #245fae; }
-.ai-coach__composer > button:disabled { opacity: 0.45; }
+.ai-coach__composer > button:not(.ai-coach__composer-attach) { width: 40px; color: #fff; border-color: #245fae; background: #245fae; }
+.ai-coach__composer > button:not(.ai-coach__composer-attach):disabled { opacity: 0.45; }
 
 .vision-result-inline { display: grid; gap: 7px; margin-top: 10px; padding: 10px; border-left: 3px solid #14805f; background: #f1faf6; }
 .vision-result-inline header { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; color: #075e49; }
@@ -3378,7 +3380,7 @@ textarea:focus-visible {
 
 @media (max-width: 760px) {
   .handwriting-pad__header { align-items: stretch; flex-direction: column; }
-  .handwriting-pad__modes { width: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .handwriting-pad__modes { width: 100%; grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .handwriting-pad__canvas,
   .handwriting-pad__textarea { height: 390px; min-height: 390px; }
   .handwriting-pad > footer { align-items: flex-start; flex-direction: column; }

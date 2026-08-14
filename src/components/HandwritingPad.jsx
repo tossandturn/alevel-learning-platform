@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { Eraser, FilePlus2, Hand, Keyboard, PenTool, Redo2, Trash2, Undo2, Upload } from 'lucide-react'
+import { Camera, Eraser, FilePlus2, Hand, Keyboard, PenTool, Redo2, Trash2, Undo2, Upload } from 'lucide-react'
 import { canvasPoint, createInkMetrics, drawDot, drawSegment, exposeInkMetrics, pointDistance, pointerSamples } from '../lib/inkStroke'
 import { HANDWRITING_HISTORY_MAX_BYTES, HANDWRITING_HISTORY_MAX_ENTRIES, handwritingHistorySize, trimHandwritingHistory } from '../lib/inkHistory'
 
@@ -139,7 +139,8 @@ export function HandwritingPad({
   const [canUndo, setCanUndo] = useState(false)
   const [canRedo, setCanRedo] = useState(false)
   const [status, setStatus] = useState(imageUrl(image) ? 'Handwriting restored' : 'Ready for Apple Pencil')
-  const fileInputRef = useRef(null)
+  const uploadInputRef = useRef(null)
+  const cameraInputRef = useRef(null)
 
   function exposeHistoryMetrics(canvas, lastEncodeMs) {
     if (!canvas) return
@@ -515,10 +516,13 @@ export function HandwritingPad({
       <header className="handwriting-pad__header">
         <div><strong id={`${instanceId}-label`}>{label}</strong><span>Recommended for past papers: write on paper, upload a clear photo, then submit for AI-assisted marking.</span></div>
         <div className="handwriting-pad__modes" role="group" aria-label="Answer input mode">
-          <button type="button" className="handwriting-pad__capture" disabled={disabled} onClick={() => fileInputRef.current?.click()}><Upload size={15} />Upload paper photo</button>
+          <button type="button" className="handwriting-pad__capture" disabled={disabled} onClick={() => uploadInputRef.current?.click()}><Upload size={15} />Upload photo</button>
+          <button type="button" className="handwriting-pad__capture" disabled={disabled} onClick={() => cameraInputRef.current?.click()}><Camera size={15} />Take photo</button>
           <button type="button" className={mode === 'handwrite' ? 'active' : ''} onClick={() => switchMode('handwrite')}><PenTool size={16} />Handwrite</button>
           <button type="button" className={mode === 'type' ? 'active' : ''} onClick={() => switchMode('type')}><Keyboard size={16} />Type</button>
         </div>
+        <input ref={uploadInputRef} type="file" accept="image/*" hidden onChange={importImage} />
+        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" hidden onChange={importImage} />
       </header>
 
       {mode === 'handwrite' ? (
@@ -531,8 +535,6 @@ export function HandwritingPad({
             <button type="button" disabled={disabled || !canRedo} onClick={redo} title="Redo" aria-label="Redo last stroke"><Redo2 size={17} /></button>
             <button type="button" disabled={disabled} onClick={clear} title="Clear" aria-label="Clear handwriting"><Trash2 size={17} /></button>
             <button type="button" disabled={disabled || pageCount >= 4} onClick={addPage} title="Add answer page" aria-label="Add answer page"><FilePlus2 size={17} /></button>
-            <button type="button" disabled={disabled} onClick={() => fileInputRef.current?.click()} title="Upload or take a paper photo" aria-label="Upload or take a paper photo"><Upload size={17} /></button>
-            <input ref={fileInputRef} type="file" accept="image/*" capture="environment" hidden onChange={importImage} />
           </div>
           <canvas
             ref={canvasRef}
