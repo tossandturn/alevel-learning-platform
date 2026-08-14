@@ -4,7 +4,13 @@ import { BrainCircuit, FileText, ImagePlus, MonitorUp, Send, Sparkles, X } from 
 import { resolveCoachIntent } from '../lib/coachIntent'
 import { parseCoachMessage } from '../lib/coachMessage'
 import { MIN_VERIFIED_GROUPS_FOR_PRACTICE } from '../lib/verifiedPracticeCatalog'
-import { captureCurrentPageScreenshot, imageFileToDataUrl } from '../lib/coachScreenshot'
+import {
+  beginCurrentPageCapture,
+  cropCurrentPageCapture,
+  cropVisiblePageVisuals,
+  imageFileToDataUrl,
+  MIN_CAPTURE_SELECTION_SIDE,
+} from '../lib/coachScreenshot'
 
 const STORAGE_PREFIX = 'alevel-ai-coach-v3'
 const EMPTY_PRACTICE_OPTIONS = Object.freeze([])
@@ -68,13 +74,21 @@ export function AiCoach({
   const [generating, setGenerating] = useState(false)
   const [loading, setLoading] = useState(false)
   const [capturing, setCapturing] = useState(false)
+  const [captureOpen, setCaptureOpen] = useState(false)
+  const [captureSource, setCaptureSource] = useState('')
+  const [captureSelection, setCaptureSelection] = useState(null)
+  const [captureError, setCaptureError] = useState('')
+  const [attachingCapture, setAttachingCapture] = useState(false)
   const [error, setError] = useState('')
   const endRef = useRef(null)
   const triggerRef = useRef(null)
+  const captureButtonRef = useRef(null)
   const screenshotInputRef = useRef(null)
   const requestAbortRef = useRef(null)
   const lastOpenRequestRef = useRef(openRequest)
   const hydratedStorageKeyRef = useRef(storageKey)
+  const captureFrameRef = useRef(null)
+  const captureStartRef = useRef(null)
   const canOpenBphoSpc = Boolean(onAgentAction && (context.stage === 'Competition' || context.routeId === 'bpho-admissions-physics'))
 
   const builderSubject = useMemo(
@@ -87,12 +101,33 @@ export function AiCoach({
   const requestedCount = Number(builderCount) || 10
   const hasMinimumVerifiedSource = verifiedCount >= MIN_VERIFIED_GROUPS_FOR_PRACTICE
   const sourceReady = hasMinimumVerifiedSource && verifiedCount >= requestedCount
+  const hasCaptureSelection = Boolean(
+    captureSelection
+    && captureSelection.width >= MIN_CAPTURE_SELECTION_SIDE
+    && captureSelection.height >= MIN_CAPTURE_SELECTION_SIDE,
+  )
   const closeCoach = useCallback(() => {
     setOpen(false)
     setBuilderOpen(false)
     window.requestAnimationFrame(() => {
       if (!disabled) triggerRef.current?.focus?.()
     })
+  }, [disabled])
+  const closeScreenshotCapture = useCallback(({ focus = true } = {}) => {
+    captureFrameRef.current = null
+    captureStartRef.current = null
+    setCaptureOpen(false)
+    setCaptureSource('')
+    setCaptureSelection(null)
+    setCaptureError('')
+    setAttachingCapture(false)
+    setCapturing(false)
+    if (!disabled) {
+      setOpen(true)
+      if (focus) {
+        window.requestAnimationFrame(() => captureButtonRef.current?.focus?.())
+      }
+    }
   }, [disabled])
 
   useEffect(() => {
@@ -121,6 +156,13 @@ export function AiCoach({
     setError('')
     setLoading(false)
     setCapturing(false)
+    captureFrameRef.current = null
+    captureStartRef.current = null
+    setCaptureOpen(false)
+    setCaptureSource('')
+    setCaptureSelection(null)
+    setCaptureError('')
+    setAttachingCapture(false)
     setBuilderOpen(false)
     setOpen(false)
   }, [storageKey])
@@ -131,7 +173,11 @@ export function AiCoach({
     if (openRequest && !disabled) setOpen(true)
   }, [disabled, openRequest])
 
-  useEffect(() => () => requestAbortRef.current?.abort(), [])
+  useEffect(() => () => {
+    requestAbortRef.current?.abort()
+    captureFrameRef.current = null
+    captureStartRef.current = null
+  }, [])
 
   useEffect(() => {
     if (!disabled) return
@@ -141,6 +187,13 @@ export function AiCoach({
     setBuilderOpen(false)
     setLoading(false)
     setCapturing(false)
+    captureFrameRef.current = null
+    captureStartRef.current = null
+    setCaptureOpen(false)
+    setCaptureSource('')
+    setCaptureSelection(null)
+    setCaptureError('')
+    setAttachingCapture(false)
     setDraft('')
     setImageDataUrl('')
     setError('')
@@ -155,6 +208,17 @@ export function AiCoach({
     window.addEventListener('keydown', closeOnEscape)
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [closeCoach, open])
+
+  useEffect(() => {
+    if (!captureOpen) return undefined
+    function closeCaptureOnEscape(event) {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      closeScreenshotCapture()
+    }
+    window.addEventListener('keydown', closeCaptureOnEscape)
+    return () => window.removeEventListener('keydown', closeCaptureOnEscape)
+  }, [captureOpen, closeScreenshotCapture])
 
   async function ask(message, level = hintLevel) {
     const clean = String(message || '').trim()
@@ -281,18 +345,84 @@ export function AiCoach({
     if (capturing) return
     setError('')
     setCapturing(true)
-    // Remove the drawer before the browser takes the selected STEM-tab frame.
-    // flushSync keeps this user-gesture flow intact for getDisplayMedia.
+    setCaptureError('')
+    setCaptureSelection(null)
+    // Remove the drawer before the browser freezes the selected STEM-tab frame.
+    // flushSync keeps getDisplayMedia inside the click gesture.
     flushSync(() => setOpen(false))
     try {
-      const screenshot = await captureCurrentPageScreenshot()
-      setImageDataUrl(screenshot)
-      setOpen(true)
-    } catch (captureError) {
-      setOpen(true)
-      setError(captureError.message || 'Current-page capture is unavailable. You can provide a screenshot instead.')
+      captureFrameRef.current = await beginCurrentPageCapture()
+      setCaptureSource('screen')
+    } catch {
+      captureFrameRef.current = null
+      setCaptureSource('visible-page')
     } finally {
       setCapturing(false)
+    }
+    setCaptureOpen(true)
+  }
+
+  function capturePoint(event) {
+    const bounds = event.currentTarget.getBoundingClientRect()
+    return {
+      x: Math.max(0, Math.min(bounds.width, event.clientX - bounds.left)),
+      y: Math.max(0, Math.min(bounds.height, event.clientY - bounds.top)),
+    }
+  }
+
+  function selectionFromPoints(start, end) {
+    return {
+      left: Math.min(start.x, end.x),
+      top: Math.min(start.y, end.y),
+      width: Math.abs(end.x - start.x),
+      height: Math.abs(end.y - start.y),
+    }
+  }
+
+  function startCaptureSelection(event) {
+    if (event.target.closest('[data-capture-controls]')) return
+    const point = capturePoint(event)
+    captureStartRef.current = { pointerId: event.pointerId, ...point }
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+    setCaptureError('')
+    setCaptureSelection({ left: point.x, top: point.y, width: 0, height: 0 })
+  }
+
+  function updateCaptureSelection(event) {
+    const start = captureStartRef.current
+    if (!start || start.pointerId !== event.pointerId) return
+    setCaptureSelection(selectionFromPoints(start, capturePoint(event)))
+  }
+
+  function finishCaptureSelection(event) {
+    const start = captureStartRef.current
+    if (!start || start.pointerId !== event.pointerId) return
+    const selection = selectionFromPoints(start, capturePoint(event))
+    captureStartRef.current = null
+    event.currentTarget.releasePointerCapture?.(event.pointerId)
+    setCaptureSelection(selection)
+    if (selection.width < MIN_CAPTURE_SELECTION_SIDE || selection.height < MIN_CAPTURE_SELECTION_SIDE) {
+      setCaptureError('Drag across a larger question area before attaching it.')
+    }
+  }
+
+  async function attachCapturedArea() {
+    if (!hasCaptureSelection || attachingCapture) {
+      setCaptureError('Drag across a larger question area before attaching it.')
+      return
+    }
+    setAttachingCapture(true)
+    setCaptureError('')
+    try {
+      const screenshot = captureFrameRef.current
+        ? await cropCurrentPageCapture(captureFrameRef.current, captureSelection)
+        : await cropVisiblePageVisuals(captureSelection)
+      setImageDataUrl(screenshot)
+      setError('')
+      closeScreenshotCapture({ focus: false })
+    } catch (selectionError) {
+      setCaptureError(selectionError.message || 'The selected area could not be attached.')
+      setAttachingCapture(false)
     }
   }
 
@@ -356,7 +486,7 @@ export function AiCoach({
 
         <div className="ai-coach__quick-actions">
           {onGeneratePractice && <button type="button" className={builderOpen ? 'active' : ''} onClick={() => setBuilderOpen((value) => !value)}><Sparkles size={13} />Build practice</button>}
-          <button type="button" className="ai-coach__screenshot" disabled={capturing} onClick={captureCurrentPage}><MonitorUp size={13} />{capturing ? 'Capturing...' : 'Capture current page'}</button>
+          <button ref={captureButtonRef} type="button" className="ai-coach__screenshot" aria-label="Capture question area" disabled={capturing} onClick={captureCurrentPage}><MonitorUp size={13} />{capturing ? 'Capturing...' : 'Capture question area'}</button>
           <button type="button" className="ai-coach__screenshot" onClick={() => screenshotInputRef.current?.click()}><ImagePlus size={13} />Provide screenshot</button>
           {canOpenBphoSpc && <button type="button" onClick={() => ask('打开最新的 BPhO SPC 真题，带答案。')}><FileText size={13} />Latest BPhO SPC</button>}
           <button type="button" onClick={() => ask('Give me a hint for the next step.', hintLevel)}>Hint {hintLevel}/5</button>
@@ -405,6 +535,40 @@ export function AiCoach({
           </form>
         </footer>
       </aside>
+      {captureOpen && <section
+        className="ai-coach__capture-overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Capture a question area"
+        onPointerDown={startCaptureSelection}
+        onPointerMove={updateCaptureSelection}
+        onPointerUp={finishCaptureSelection}
+        onPointerCancel={finishCaptureSelection}
+      >
+        <div className="ai-coach__capture-guide">
+          <strong>{captureSource === 'screen' ? 'Drag around the question, graph, table or working you want Coach to read.' : 'Drag over a visible question, graph, or handwritten area to attach it.'}</strong>
+          <span>{captureSource === 'screen' ? 'The selected STEM tab was frozen before this selector opened.' : 'Screen sharing was not started, so STEM will crop visible source images and writing instead.'}</span>
+        </div>
+        {captureSelection && <div
+          className="ai-coach__capture-selection"
+          aria-hidden="true"
+          style={{
+            left: `${captureSelection.left}px`,
+            top: `${captureSelection.top}px`,
+            width: `${captureSelection.width}px`,
+            height: `${captureSelection.height}px`,
+          }}
+        />}
+        <div className="ai-coach__capture-toolbar" data-capture-controls onPointerDown={(event) => event.stopPropagation()}>
+          {captureError && <p role="alert">{captureError}</p>}
+          <button type="button" onClick={() => {
+            setCaptureSelection(null)
+            setCaptureError('')
+          }}>Retake</button>
+          <button type="button" className="primary-action" disabled={!hasCaptureSelection || attachingCapture} onClick={attachCapturedArea}>{attachingCapture ? 'Attaching...' : 'Attach screenshot'}</button>
+          <button type="button" onClick={() => closeScreenshotCapture()}>Cancel</button>
+        </div>
+      </section>}
     </>
   )
 }

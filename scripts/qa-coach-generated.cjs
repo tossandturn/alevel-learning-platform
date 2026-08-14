@@ -168,9 +168,9 @@ async function assertAccountOverlayOwnsCoachLayer(page) {
 }
 
 async function assertCoachScreenshotFlow(page) {
-  let screenshotPayload = null
+  const screenshotPayloads = []
   await page.route('**/api/ai/coach/stream', async (route) => {
-    screenshotPayload = JSON.parse(route.request().postData() || '{}')
+    screenshotPayloads.push(JSON.parse(route.request().postData() || '{}'))
     await route.fulfill({
       status: 200,
       contentType: 'text/event-stream',
@@ -194,7 +194,7 @@ async function assertCoachScreenshotFlow(page) {
       throw new Error(`Desktop Coach trigger must remain a right-bottom floating control: ${JSON.stringify({ viewport, triggerBox })}`)
     }
     await page.getByRole('button', { name: 'Open AI Coach' }).click()
-    await page.getByRole('button', { name: 'Capture current page' }).waitFor()
+    await page.getByRole('button', { name: 'Capture question area' }).waitFor()
     await page.locator('button.ai-coach__screenshot', { hasText: 'Provide screenshot' }).waitFor()
     await page.evaluate(() => {
       const source = document.createElement('canvas')
@@ -212,17 +212,68 @@ async function assertCoachScreenshotFlow(page) {
         value: async () => stream,
       })
     })
-    await page.getByRole('button', { name: 'Capture current page' }).click()
+    await page.getByRole('button', { name: 'Capture question area' }).click()
+    await page.getByRole('dialog', { name: 'Capture a question area' }).waitFor()
+    await page.mouse.move(72, 170)
+    await page.mouse.down()
+    await page.mouse.move(332, 382, { steps: 8 })
+    await page.mouse.up()
+    await page.getByRole('button', { name: 'Attach screenshot' }).click()
     await page.getByText('Image attached', { exact: true }).waitFor()
     await page.getByRole('button', { name: 'Review screenshot' }).click()
     await page.waitForFunction(() => [...document.querySelectorAll('.ai-message--assistant')].some((node) => node.textContent.includes('Hint:')))
-    if (!screenshotPayload?.imageDataUrl?.startsWith('data:image/jpeg;base64,')) {
+    if (!screenshotPayloads[0]?.imageDataUrl?.startsWith('data:image/jpeg;base64,')) {
       throw new Error('Coach current-page capture request did not include the captured JPEG data')
     }
     const coachText = await page.locator('.ai-message--assistant').last().innerText()
     if (/\*\*|\$|\\lambda/.test(coachText) || !coachText.includes('λ')) {
       throw new Error(`Coach screenshot response exposed raw Markdown or TeX: ${coachText}`)
     }
+
+    await page.locator('.ai-coach.open').getByRole('button', { name: 'Close AI Coach' }).click()
+    await page.evaluate(() => {
+      const fallback = document.createElement('canvas')
+      fallback.id = 'coach-capture-fallback-fixture'
+      fallback.width = 420
+      fallback.height = 220
+      Object.assign(fallback.style, {
+        position: 'fixed',
+        zIndex: '2',
+        left: '56px',
+        top: '158px',
+        width: '420px',
+        height: '220px',
+      })
+      const context = fallback.getContext('2d')
+      context.fillStyle = '#eff7ff'
+      context.fillRect(0, 0, fallback.width, fallback.height)
+      context.fillStyle = '#17324d'
+      context.font = '24px sans-serif'
+      context.fillText('Visible page fallback', 24, 72)
+      document.body.append(fallback)
+      Object.defineProperty(navigator.mediaDevices, 'getDisplayMedia', {
+        configurable: true,
+        value: async () => {
+          throw new DOMException('Cancelled', 'NotAllowedError')
+        },
+      })
+    })
+    await page.getByRole('button', { name: 'Open AI Coach' }).click()
+    await page.getByRole('button', { name: 'Capture question area' }).click()
+    await page.getByRole('dialog', { name: 'Capture a question area' }).waitFor()
+    await page.getByText('Drag over a visible question, graph, or handwritten area to attach it.').waitFor()
+    await page.mouse.move(80, 180)
+    await page.mouse.down()
+    await page.mouse.move(400, 350, { steps: 8 })
+    await page.mouse.up()
+    await page.getByRole('button', { name: 'Attach screenshot' }).click()
+    await page.getByText('Image attached', { exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Review screenshot' }).click()
+    await page.waitForFunction(() => document.querySelectorAll('.ai-message--assistant').length >= 2)
+    if (!screenshotPayloads[1]?.imageDataUrl?.startsWith('data:image/jpeg;base64,')) {
+      throw new Error('Coach visible-page fallback did not attach a JPEG data URL')
+    }
+    await page.locator('#coach-capture-fallback-fixture').evaluate((node) => node.remove())
     await page.locator('.ai-coach.open').getByRole('button', { name: 'Close AI Coach' }).click()
   } finally {
     await page.unroute('**/api/ai/coach/stream')

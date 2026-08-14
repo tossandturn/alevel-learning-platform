@@ -3321,6 +3321,87 @@ textarea:focus-visible {
 .ai-coach__screenshot:disabled { cursor: wait; opacity: 0.65; }
 .ai-coach__quick-actions button.active { color: #fff; border-color: #7357e8; background: #7357e8; }
 
+.ai-coach__capture-overlay {
+  position: fixed;
+  z-index: 160;
+  inset: 0;
+  touch-action: none;
+  cursor: crosshair;
+  background: rgba(18, 29, 44, 0.16);
+}
+.ai-coach__capture-guide {
+  position: fixed;
+  z-index: 1;
+  top: max(14px, env(safe-area-inset-top));
+  left: 50%;
+  width: min(560px, calc(100vw - 28px));
+  display: grid;
+  gap: 3px;
+  padding: 10px 13px;
+  border: 1px solid #b9c8da;
+  border-radius: 6px;
+  color: #20384f;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 10px 30px rgba(17, 33, 51, 0.18);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.ai-coach__capture-guide strong { font-size: 12px; line-height: 1.35; }
+.ai-coach__capture-guide span { color: #5d7186; font-size: 10px; line-height: 1.4; }
+.ai-coach__capture-selection {
+  position: fixed;
+  border: 2px solid #296fca;
+  background: rgba(74, 143, 229, 0.15);
+  box-shadow: 0 0 0 9999px rgba(18, 29, 44, 0.16);
+  pointer-events: none;
+}
+.ai-coach__capture-toolbar {
+  position: fixed;
+  z-index: 2;
+  right: max(14px, env(safe-area-inset-right));
+  bottom: max(14px, env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  width: min(500px, calc(100vw - 28px));
+  padding: 9px;
+  border: 1px solid #b9c8da;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 10px 30px rgba(17, 33, 51, 0.2);
+  cursor: default;
+}
+.ai-coach__capture-toolbar p {
+  flex: 1 1 100%;
+  margin: 0;
+  color: #a53d45;
+  font-size: 10px;
+  line-height: 1.35;
+}
+.ai-coach__capture-toolbar button {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid #afc0d5;
+  border-radius: 5px;
+  color: #2c5176;
+  background: #fff;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.ai-coach__capture-toolbar .primary-action {
+  color: #fff;
+  border-color: #245fae;
+  background: #245fae;
+}
+.ai-coach__capture-toolbar .primary-action:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
 .ai-coach__builder {
   min-height: 0;
   overflow-y: auto;
