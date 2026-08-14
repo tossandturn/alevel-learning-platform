@@ -269,7 +269,7 @@ async function run() {
       await page.locator('.ai-coach.open').getByRole('button', { name: 'Close AI Coach' }).click()
 
       await sendCoachMessage(page, '给我出一份 AS 物理波 10 道真题')
-      await page.getByText(/no verified question is available yet|source inventory is still being indexed/i).waitFor()
+      await page.getByText(/no verified question is available yet|source inventory is still being indexed|human source review is still in progress|sign in to stem/i).waitFor()
       if (await page.locator('.practice-view').count()) throw new Error('An unreviewed AS Physics topic must not open a practice workspace')
       if (await page.getByRole('combobox', { name: 'Current course' }).inputValue() !== 'cie-9702-as-physics') {
         throw new Error('An unavailable Coach request must not silently change the current course')
@@ -295,7 +295,11 @@ async function run() {
       if (await page.getByRole('button', { name: 'Latest BPhO SPC' }).count() !== 1) throw new Error('Competition Coach is missing its scoped BPhO quick action')
 
       await sendCoachMessage(page, 'ESAT Physics 10 questions')
-      await page.locator('.ai-coach.open').waitFor({ state: 'detached' })
+      await page.locator('.ai-message--assistant').last().waitFor()
+      const admissionsCoachMessage = await page.locator('.ai-message--assistant').last().innerText()
+      if (!/no verified question|source inventory|human source review|sign in to stem/i.test(admissionsCoachMessage)) {
+        throw new Error(`Unavailable Admissions Coach request returned an unexpected message: ${admissionsCoachMessage}`)
+      }
       if (await page.getByRole('combobox', { name: 'Current course' }).inputValue() !== 'bpho-admissions-physics') {
         throw new Error('An unavailable Admissions Coach request must not discard the current Competition route')
       }

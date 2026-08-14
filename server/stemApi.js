@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { unifiedQuestionBank } from '../src/data/questionBank.js'
 import { issueMarkingCapabilities } from './markingCapability.js'
+import { buildSyllabusPracticeSet, seedSyllabusTables, syllabusDatabaseInventory, syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024
 const TOKEN_AUDIENCE = 'stem.ieltsist.com'
@@ -270,7 +271,7 @@ function migrateSubmissionIdempotency(database) {
   `)
 }
 
-function appDatabase(env) {
+function appDatabase(env, questionBank = unifiedQuestionBank) {
   if (database) return database
   if (!globalThis.process?.versions?.node) throw new Error('STEM storage requires Node.js.')
   // node:sqlite is available in the Node 22 runtime used by the deployment.
@@ -369,6 +370,7 @@ function appDatabase(env) {
   migrateRouteScope(database)
   migrateRegisteredRouteStages(database)
   migrateSubmissionIdempotency(database)
+  seedSyllabusTables(database, questionBank)
   return database
 }
 
@@ -1120,7 +1122,26 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, fetchIm
         })
         return
       }
-      const db = appDatabase(env)
+      const db = appDatabase(env, questionBank)
+      const syllabusRouteMatch = url.pathname.match(/^\/api\/stem\/routes\/([^/]+)\/syllabus-topics$/)
+      if (request.method === 'GET' && syllabusRouteMatch) {
+        const routeId = decodeURIComponent(syllabusRouteMatch[1])
+        const staticInventory = syllabusTopicsInventory({ routeId, questionBank })
+        const databaseRows = syllabusDatabaseInventory(db, routeId)
+        const databaseById = new Map(databaseRows.map((topic) => [topic.id, topic]))
+        const topics = staticInventory.topics.map((topic) => ({
+          ...topic,
+          ...(databaseById.get(topic.id) || {}),
+          points: topic.points || [],
+        }))
+        sendJson(response, 200, {
+          ...staticInventory,
+          topics,
+          ready: topics.some((topic) => topic.ready),
+          aggregation: 'sqlite-question-groups-and-syllabus-mappings',
+        })
+        return
+      }
       if (request.method === 'GET' && url.pathname === '/api/auth/status') {
         const user = nativeSessionIdentity(request, db)
         if (!user) throw Object.assign(new Error('Sign in to STEM to continue.'), { statusCode: 401 })
@@ -1154,6 +1175,21 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, fetchIm
         return
       }
       const user = identityFromRequest(request, signingKey)
+      if (request.method === 'POST' && url.pathname === '/api/stem/practice-sets') {
+        const payload = await readJson(request)
+        const result = buildSyllabusPracticeSet({
+          routeId: payload.routeId,
+          syllabusTopicIds: payload.syllabusTopicIds,
+          questionCount: payload.questionCount,
+          components: payload.components,
+          excludeAttempted: payload.excludeAttempted !== false,
+          attemptedQuestionIds: payload.attemptedQuestionIds,
+          seed: payload.seed,
+          questionBank,
+        })
+        sendJson(response, 201, { ...result, ownerId: user.id })
+        return
+      }
       if (request.method === 'GET' && url.pathname === '/api/stem/workspace') {
         sendJson(response, 200, currentWorkspace(db, user))
         return

@@ -185,7 +185,7 @@ export function AiCoach({
             createdAt: new Date().toISOString(),
           }])
           setImageDataUrl('')
-          closeCoach()
+          if (!action.keepOpen) closeCoach()
           return
         }
       }

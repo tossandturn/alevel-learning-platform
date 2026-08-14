@@ -5,6 +5,15 @@ import os from 'node:os'
 import path from 'node:path'
 import { createAiApi } from '../server/aiApi.js'
 import { parseCoachMessage } from '../src/lib/coachMessage.js'
+import { PracticeInventoryError, buildCoachPractice, coachPracticeOptions } from '../src/lib/verifiedPracticeCatalog.js'
+
+const esatPractice = coachPracticeOptions().find((item) => item.routeId === 'uatuk-esat-admissions')
+assert.ok(esatPractice?.topics.some((topic) => topic.id === 'esat-physics'), 'Admissions Coach must resolve its external ESAT topic taxonomy')
+assert.throws(
+  () => buildCoachPractice({ routeId: 'uatuk-esat-admissions', knowledgeGroupId: 'esat-physics', questionCount: 10 }),
+  PracticeInventoryError,
+  'an external Admissions topic with no reviewed questions must fail closed instead of throwing an undefined-group error',
+)
 
 function listen(server) {
   return new Promise((resolve, reject) => {

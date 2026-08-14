@@ -1,3 +1,5 @@
+import { CAMBRIDGE_9702_AS_TOPICS } from './syllabus/cambridge-9702-as-2025-2027.js'
+
 export const LEGACY_UNSCOPED_ROUTE_ID = 'legacy-unscoped'
 
 export function formatRouteComponents(components = []) {
@@ -21,7 +23,7 @@ const TOPICS = Object.freeze({
   '0610-igcse': ['Characteristics and classification', 'Organisation of the organism', 'Movement in and out of cells', 'Biological molecules', 'Enzymes', 'Plant nutrition', 'Human nutrition', 'Transport', 'Diseases and immunity', 'Gas exchange', 'Respiration', 'Excretion', 'Coordination and response', 'Reproduction', 'Inheritance', 'Variation and selection', 'Organisms and their environment', 'Human influences on ecosystems', 'Biotechnology and genetic modification'],
   '0580-igcse': ['Number', 'Algebra and graphs', 'Coordinate geometry', 'Geometry', 'Mensuration', 'Trigonometry', 'Transformations and vectors', 'Probability', 'Statistics'],
   '0606-igcse': ['Functions', 'Quadratics and polynomials', 'Equations, inequalities and graphs', 'Indices, surds and logarithms', 'Factors of polynomials', 'Simultaneous equations', 'Logarithmic and exponential functions', 'Straight-line graphs', 'Circular measure', 'Trigonometry', 'Permutations and combinations', 'Series', 'Vectors', 'Calculus'],
-  '9702-as': ['Physical quantities and units', 'Kinematics', 'Dynamics', 'Forces, density and pressure', 'Work, energy and power', 'Deformation of solids', 'Waves', 'Superposition', 'Electricity', 'D.C. circuits', 'Particle physics', 'AS practical skills'],
+  '9702-as': ['Physical quantities and units', 'Kinematics', 'Dynamics', 'Forces, density and pressure', 'Work, energy and power', 'Deformation of solids', 'Waves', 'Superposition', 'Electricity', 'D.C. circuits', 'Particle physics'],
   '9702-a2': ['Motion in a circle', 'Gravitational fields', 'Temperature', 'Ideal gases', 'Thermodynamics', 'Oscillations', 'Electric fields', 'Capacitance', 'Magnetic fields', 'Alternating currents', 'Quantum physics', 'Nuclear physics', 'Medical physics', 'Astronomy and cosmology', 'A2 planning, analysis and evaluation'],
   '9700-as': ['Cell structure', 'Biological molecules', 'Enzymes', 'Cell membranes and transport', 'The mitotic cell cycle', 'Nucleic acids and protein synthesis', 'Transport in plants', 'Transport in mammals', 'Gas exchange', 'Infectious diseases', 'Immunity', 'AS practical skills'],
   '9700-a2': ['Energy and respiration', 'Photosynthesis', 'Homeostasis', 'Control and coordination', 'Inheritance', 'Selection and evolution', 'Classification, biodiversity and conservation', 'Genetic technology', 'A2 planning, analysis and evaluation'],
@@ -61,6 +63,9 @@ function freezeTopics(key) {
 
 function cieRoute({ routeId, qualification, stage, subject, subjectId, code, paperComponents, topicKey }) {
   const [version, url] = SYLLABUS[code]
+  const syllabusTopics = code === '9702' && stage === 'AS'
+    ? CAMBRIDGE_9702_AS_TOPICS.map((topic) => Object.freeze({ id: topic.id, title: `${topic.code} ${topic.name}` }))
+    : freezeTopics(topicKey)
   return Object.freeze({
     routeId,
     qualification,
@@ -70,7 +75,7 @@ function cieRoute({ routeId, qualification, stage, subject, subjectId, code, pap
     subjectId,
     subjectCode: code,
     paperComponents: Object.freeze([...paperComponents]),
-    syllabus: Object.freeze({ board: 'Cambridge International', code, version, url, topics: freezeTopics(topicKey) }),
+    syllabus: Object.freeze({ board: 'Cambridge International', code, version, url, topics: Object.freeze(syllabusTopics) }),
   })
 }
 

@@ -101,7 +101,13 @@ function planGroupsFor(subject) {
   const routeQuestions = groupsForRoute(subject.routeId)
   const questionTopicIds = [...new Set(routeQuestions.map((question) => question.knowledgeGroupId).filter(Boolean))]
   const routePlanGroups = learningPlan.knowledgeGroups.filter((group) => group.routeId === subject.routeId && !group.hidden)
-  const groupIds = [...new Set([...routePlanGroups.map((group) => group.id), ...questionTopicIds])]
+  const externalGroups = [subject.subjectId, subject.planSubjectId]
+    .flatMap((subjectId) => EXTERNAL_GROUPS[subjectId] || [])
+  const groupIds = [...new Set([
+    ...routePlanGroups.map((group) => group.id),
+    ...questionTopicIds,
+    ...externalGroups.map((group) => group.id),
+  ])]
   return groupIds.map((id) => {
     const sourceId = baseTopicId(id)
     const group = learningPlan.knowledgeGroups.find((item) => item.id === sourceId)
