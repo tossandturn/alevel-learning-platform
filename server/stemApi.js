@@ -1,9 +1,9 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import { unifiedQuestionBank } from '../src/data/questionBank.js'
+import { studyQuestionBank, unifiedQuestionBank } from '../src/data/questionBank.js'
 import { issueMarkingCapabilities } from './markingCapability.js'
-import { buildSyllabusPracticeSet, seedSyllabusTables, syllabusDatabaseInventory, syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
+import { buildSyllabusPracticeSet, rebindSyllabusPracticeUnit, seedSyllabusTables, syllabusDatabaseInventory, syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024
 const TOKEN_AUDIENCE = 'stem.ieltsist.com'
@@ -1051,6 +1051,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, fetchIm
   // Production uses unifiedQuestionBank, which fails closed on file and
   // semantic source completeness. Supplying a fixture is test-only.
   const assignableQuestionIds = assignableQuestionIdsForBank(questionBank)
+  const topicPracticeQuestionBank = questionBank === unifiedQuestionBank ? studyQuestionBank : questionBank
   let nativeBridgeProbe = null
 
   async function nativeAccountReadiness() {
@@ -1126,12 +1127,12 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, fetchIm
       const syllabusRouteMatch = url.pathname.match(/^\/api\/stem\/routes\/([^/]+)\/syllabus-topics$/)
       if (request.method === 'GET' && syllabusRouteMatch) {
         const routeId = decodeURIComponent(syllabusRouteMatch[1])
-        const staticInventory = syllabusTopicsInventory({ routeId, questionBank })
+        const staticInventory = syllabusTopicsInventory({ routeId, questionBank: topicPracticeQuestionBank })
         const databaseRows = syllabusDatabaseInventory(db, routeId)
         const databaseById = new Map(databaseRows.map((topic) => [topic.id, topic]))
         const topics = staticInventory.topics.map((topic) => ({
-          ...topic,
           ...(databaseById.get(topic.id) || {}),
+          ...topic,
           points: topic.points || [],
         }))
         sendJson(response, 200, {
@@ -1177,9 +1178,9 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, fetchIm
         sendJson(response, 200, { ok: true })
         return
       }
-      const user = identityFromRequest(request, signingKey)
       if (request.method === 'POST' && url.pathname === '/api/stem/practice-sets') {
         const payload = await readJson(request)
+        const user = request.headers.authorization ? identityFromRequest(request, signingKey) : null
         const result = buildSyllabusPracticeSet({
           routeId: payload.routeId,
           syllabusTopicIds: payload.syllabusTopicIds,
@@ -1188,11 +1189,25 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, fetchIm
           excludeAttempted: payload.excludeAttempted !== false,
           attemptedQuestionIds: payload.attemptedQuestionIds,
           seed: payload.seed,
-          questionBank,
+          questionBank: topicPracticeQuestionBank,
+          includeStudyOnly: topicPracticeQuestionBank === studyQuestionBank,
         })
-        sendJson(response, 201, { ...result, ownerId: user.id })
+        sendJson(response, 201, { ...result, ownerId: user?.id || null })
         return
       }
+      if (request.method === 'POST' && url.pathname === '/api/stem/practice-sets/rebind') {
+        const payload = await readJson(request)
+        const unit = rebindSyllabusPracticeUnit(payload.unit, { questionBank: topicPracticeQuestionBank })
+        if (!unit) {
+          throw Object.assign(new Error('This saved syllabus set no longer matches the current source catalog.'), {
+            statusCode: 409,
+            code: 'stale_syllabus_practice_set',
+          })
+        }
+        sendJson(response, 200, { unit })
+        return
+      }
+      const user = identityFromRequest(request, signingKey)
       if (request.method === 'GET' && url.pathname === '/api/stem/workspace') {
         sendJson(response, 200, currentWorkspace(db, user))
         return

@@ -236,11 +236,11 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
   const showSourceFocus = sourceViewMode === 'focus' && Boolean(activeSourceFocus)
   const neighboringSourceLabels = sourceLabelsOnPage(parts, activePart, activeSourceAssetUrl)
   const activeRequiresBoundSource = requiresBoundSource(activePart)
-  const activeSourceDeclaredComplete = !activeRequiresBoundSource || (activePart.sourceContentComplete === true && visualSourceUrls.length > 0)
+  const activeSourceDeclaredComplete = !activeRequiresBoundSource || ((activePart.sourceContentAvailable === true || activePart.sourceContentComplete === true) && visualSourceUrls.length > 0)
   const activeSourceFailed = visualSourceUrls.some((url) => sourceAssetStatuses[url] === 'error')
   const activeSourceLoading = activeRequiresBoundSource && activeSourceDeclaredComplete && visualSourceUrls.some((url) => sourceAssetStatuses[url] !== 'loaded') && !activeSourceFailed
   const activeSourceComplete = !activeRequiresBoundSource || (activeSourceDeclaredComplete && !activeSourceFailed && visualSourceUrls.every((url) => sourceAssetStatuses[url] === 'loaded'))
-  const unitSourceDeclaredComplete = sourceParts.every((part) => part.sourceContentComplete === true && sourceUrlsForPart(part).length > 0)
+  const unitSourceDeclaredComplete = sourceParts.every((part) => (part.sourceContentAvailable === true || part.sourceContentComplete === true) && sourceUrlsForPart(part).length > 0)
   const unitSourceFailed = allSourceAssetUrls.some((url) => sourceAssetStatuses[url] === 'error')
   const unitSourceComplete = unitSourceDeclaredComplete && !unitSourceFailed && allSourceAssetUrls.every((url) => sourceAssetStatuses[url] === 'loaded')
   const sourceReasonText = (activePart.sourceContentReasons || []).slice(0, 2).join(', ')
@@ -414,8 +414,9 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
             <div className="index-list qp-index__list">
               {parts.map((part, index) => {
                 const partComplete = isComplete(attempt, part)
+                const sourceQuestionIdentity = displayPartLabel(part, `Question ${index + 1}`)
                 return (
-                  <button type="button" key={part.id} className={part.id === activePart.id ? 'active' : ''} onClick={() => goToPart(part.id)} aria-label={`Question ${index + 1}${partComplete ? ', answered' : ', not answered'}`} aria-current={part.id === activePart.id ? 'step' : undefined}>
+                  <button type="button" key={part.id} className={part.id === activePart.id ? 'active' : ''} onClick={() => goToPart(part.id)} data-source-question={sourceQuestionIdentity} aria-label={`${sourceQuestionIdentity}, answer part ${index + 1}${partComplete ? ', answered' : ', not answered'}`} aria-current={part.id === activePart.id ? 'step' : undefined}>
                     <span>{index + 1}</span><small>{part.marks}m</small>{partComplete ? <CheckCircle2 size={15} /> : <i />}
                   </button>
                 )
@@ -436,7 +437,7 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
             {unit.sourceMix && (
               <details className="qp-provenance">
                 <summary><FileText size={16} /><span><strong>Source details</strong><small>{sourceMixText(unit.sourceMix)} · paired answers available after submission</small></span></summary>
-                <div className="qp-provenance__body"><strong>Verified past-paper set</strong><span>Every question stays linked to its official source and answer record.</span></div>
+                <div className="qp-provenance__body"><strong>{unit.practiceMode === 'study-only' ? 'Source-backed study set' : 'Verified past-paper set'}</strong><span>Every question stays linked to its official source and answer record.</span></div>
               </details>
             )}
 
@@ -469,6 +470,7 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
                   </figure> : activeSourceLoading ? <div className="qp-source-loading" role="status" aria-live="polite"><FileText size={18} /><strong>Loading complete source material</strong><span>Checking {visualSourceUrls.length} required question page{visualSourceUrls.length === 1 ? '' : 's'} before this answer area opens.</span></div> : activeRequiresBoundSource ? <div className="qp-source-incomplete" role="alert"><AlertTriangle size={18} /><strong>This source question is not complete enough to practise.</strong><span>{activeSourceFailed ? 'A required official question page could not be loaded. Answering and submission are blocked for this attempt.' : `It has been quarantined and cannot be submitted${sourceReasonText ? ` (${sourceReasonText})` : ''}.`}</span></div> : null}
                   {!activePart.sourceRef?.paperId && <h2>{displayPrompt(activePart)}</h2>}
                   {activePart.sourceRef && <div className="question-source-label qp-source-label"><strong>Official Cambridge question · {displayPartLabel(activePart, `Question ${activeIndex + 1}`)}</strong><span>Source-bound question from the original paper. Marking feedback appears after submission.</span></div>}
+                  {activePart.studyOnly && <div className="qp-source-study-note" role="status"><strong>Study mode</strong><span>This official source is ready for practice while formal review is pending. You can submit and self-mark; it is excluded from AI marking and formal mastery.</span></div>}
                   <p className={`qp-marking-capability qp-marking-capability--${activeMarkingCapability.mode}`} data-review-status={activePart.reviewStatus || 'unindexed'}>
                     <span>{activeMarkingCapability.label}</span>{activeMarkingCapability.detail}
                   </p>

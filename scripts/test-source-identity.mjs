@@ -38,6 +38,23 @@ function materializePrivateContent(releaseRoot) {
   fs.copyFileSync(sourceCatalogPath, targetCatalog, fs.constants.COPYFILE_EXCL)
 }
 
+function buildArchiveDist(releaseRoot) {
+  const workspaceNodeModules = path.join(repoRoot, 'node_modules')
+  const archiveNodeModules = path.join(releaseRoot, 'node_modules')
+  const viteBin = path.join(workspaceNodeModules, 'vite', 'bin', 'vite.js')
+  assert.ok(fs.existsSync(viteBin), 'Workspace Vite runtime is required for the archive build check')
+  if (!fs.existsSync(archiveNodeModules)) {
+    fs.symlinkSync(workspaceNodeModules, archiveNodeModules, process.platform === 'win32' ? 'junction' : 'dir')
+  }
+  const result = spawnSync(process.execPath, [viteBin, 'build', '--config', path.join(releaseRoot, 'vite.config.js')], {
+    cwd: releaseRoot,
+    env: { ...process.env },
+    encoding: 'utf8',
+    maxBuffer: 32 * 1024 * 1024,
+  })
+  assert.equal(result.status, 0, `git archive production build must pass:\n${result.stdout}\n${result.stderr}`)
+}
+
 function runDirectAudit(label, releaseRoot, args = []) {
   const env = { ...process.env }
   delete env.SOURCE_AUDIT_ROOT
@@ -74,6 +91,7 @@ try {
   const archiveRoot = archiveReleaseRoot('archive-lf')
   materializePrivateContent(archiveRoot)
   const archiveRun = runDirectAudit('git archive with private content', archiveRoot)
+  buildArchiveDist(archiveRoot)
   runReleaseVerification(archiveRoot)
   const archiveIndexPath = path.join(archiveRoot, indexRelativePath)
   const archiveIndexText = fs.readFileSync(archiveIndexPath, 'utf8')

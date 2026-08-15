@@ -21,7 +21,7 @@ const CASES = [
   { topic: 'Dynamics', question: 'Q7', paper: 'M25/12', page: 4, visual: 'diagram', focusTopAtMost: 570, componentMode: 'p1' },
   { topic: 'Physical quantities and units', question: 'Q2', paper: 'S25/11', page: 3, visual: 'table', componentMode: 'p1' },
   { topic: 'Work, energy and power', question: 'Q18', paper: 'S25/11', page: 9, visual: 'diagram', componentMode: 'p1' },
-  { topic: 'Forces, density and pressure', question: 'Q2', paper: 'M25/22', pages: [4, 5, 6], visual: 'multi-page diagram and graph', componentMode: 'p2', requestedCount: 5, expectedGroupCount: 2, expectedComponent: 2, expectedParts: 5, expectedMarks: 10 },
+  { topic: 'Forces, density and pressure', question: 'Q2', paper: 'M25/22', pages: [4, 5, 6], visual: 'multi-page diagram and graph', componentMode: 'p2', requestedCount: 5, expectedAvailableCount: 10, expectedGroupCount: 5, expectedComponent: 2, expectedParts: 5, expectedMarks: 10 },
 ]
 const CASE_TIMEOUT = 45_000
 const SERVER_TIMEOUT = 30_000
@@ -215,7 +215,8 @@ async function openTopic(page, testCase) {
   }
   if (testCase.expectedGroupCount) {
     const summary = (await page.locator('.topic-detail__start').innerText()).replace(/\s+/g, ' ')
-    if (!summary.includes(`${testCase.expectedGroupCount} source questions`)) throw new Error(`${topic} component-aware summary is stale: ${summary}`)
+    const expectedAvailableCount = testCase.expectedAvailableCount || testCase.expectedGroupCount
+    if (!summary.includes(`${expectedAvailableCount} source-backed P2 questions`)) throw new Error(`${topic} component-aware summary is stale: ${summary}`)
   }
   const start = page.locator('.topic-detail__start .primary-action').first()
   await start.waitFor({ state: 'visible' })
@@ -268,12 +269,17 @@ async function openTopic(page, testCase) {
 
 async function activateQuestion(page, question, paper) {
   const buttons = page.locator('.qp-index__list button')
+  const identities = []
   for (let index = 0; index < await buttons.count(); index += 1) {
-    await buttons.nth(index).click()
-    const label = await page.locator('.qp-source-label strong').innerText().catch(() => '')
-    if (label.includes(`${paper} · ${question}(`)) return label
+    const button = buttons.nth(index)
+    const identity = await button.getAttribute('data-source-question')
+    identities.push(identity)
+    if (!identity?.includes(`${paper} · ${question}(`)) continue
+    await button.click()
+    await page.locator('.qp-source-label strong').filter({ hasText: `${paper} · ${question}(` }).waitFor({ state: 'visible' })
+    return page.locator('.qp-source-label strong').innerText()
   }
-  throw new Error(`Could not activate ${question}; labels=${JSON.stringify(await page.locator('.qp-source-label strong').allTextContents())}`)
+  throw new Error(`Could not activate ${question}; navigation=${JSON.stringify(identities)}`)
 }
 
 async function sourceEdgeInk(figure) {

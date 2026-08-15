@@ -236,6 +236,40 @@ export function canonicalSourceMarkingProvenance(question = {}, part = {}) {
 }
 
 /**
+ * A source-practice binding freezes the QP/MS document identities for a
+ * self-mark-only question. It does not assert enough reviewed evidence for
+ * AI marking.
+ */
+export function canonicalSourcePracticeProvenance(question = {}, part = {}) {
+  const sourceRef = part.sourceRef || question.sourceRef || {}
+  const answerRef = part.answerRef || question.answerRef || {}
+  const sourceQuestion = sourceQuestionId(question)
+  const questionPartId = String(part.questionPartId || part.partId || part.id || '')
+  const questionPage = validPage(part.sourcePage ?? sourceRef.page ?? sourceRef.pageStart)
+  const sourceAssetUrl = sourceAssetUrlForPage(sourceRef, questionPage)
+  const signature = sourceBindingSignature(question)
+  if (!sourceQuestion || !questionPartId || !sourceRef.paperId || !sourceRef.sha256 || !answerRef.sha256 || !questionPage || !sourceAssetUrl) return null
+
+  return Object.freeze({
+    schemaVersion: 'stem-source-practice-binding.v1',
+    sourceQuestionId: sourceQuestion,
+    questionPartId,
+    bindingSignature: signature,
+    reviewVersion: signature,
+    sourceDocumentSha256: String(sourceRef.sha256),
+    answerDocumentSha256: String(answerRef.sha256),
+    sourceIndexSha256: SOURCE_INDEX_SHA256,
+    sourceManifestChecksum: SOURCE_CONTENT_MANIFEST_CHECKSUM,
+    sourceEvidence: Object.freeze({
+      assetId: `${sourceRef.paperId}:page-${questionPage}`,
+      page: questionPage,
+      assetUrl: sourceAssetUrl,
+      quote: `${String(sourceRef.question || 'Question').trim()}${part.label ? `(${part.label})` : ''}`,
+    }),
+  })
+}
+
+/**
  * Checks only the source declaration. File existence and image decoding are
  * supplied by the generated source-content audit manifest at runtime.
  */

@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react'
 
 export function useSyllabusInventory(routeId, { enabled = true } = {}) {
-  const [state, setState] = useState({ status: enabled ? 'loading' : 'idle', data: null, error: '' })
+  const [state, setState] = useState({ routeId, status: enabled ? 'loading' : 'idle', data: null, error: '' })
 
   useEffect(() => {
     if (!enabled || !routeId) {
-      setState({ status: 'idle', data: null, error: '' })
+      setState({ routeId, status: 'idle', data: null, error: '' })
       return undefined
     }
     const controller = new AbortController()
-    setState({ status: 'loading', data: null, error: '' })
+    setState({ routeId, status: 'loading', data: null, error: '' })
     fetch(`/api/stem/routes/${encodeURIComponent(routeId)}/syllabus-topics`, {
       headers: { Accept: 'application/json' },
       signal: controller.signal,
@@ -20,13 +20,15 @@ export function useSyllabusInventory(routeId, { enabled = true } = {}) {
         if (!Array.isArray(payload.topics)) throw new Error('Syllabus inventory returned an invalid topic list.')
         return payload
       })
-      .then((data) => setState({ status: 'ready', data, error: '' }))
+      .then((data) => setState({ routeId, status: 'ready', data, error: '' }))
       .catch((error) => {
         if (error.name === 'AbortError') return
-        setState({ status: 'error', data: null, error: error.message || 'Syllabus inventory could not be loaded.' })
+        setState({ routeId, status: 'error', data: null, error: error.message || 'Syllabus inventory could not be loaded.' })
       })
     return () => controller.abort()
   }, [enabled, routeId])
 
-  return state
+  return state.routeId === routeId
+    ? state
+    : { routeId, status: enabled ? 'loading' : 'idle', data: null, error: '' }
 }

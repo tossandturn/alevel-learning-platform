@@ -22,7 +22,7 @@ function sourceBoundPart(part) {
 }
 
 function partSourceSnapshot(part) {
-  const provenance = part?.markingProvenance || {}
+  const provenance = part?.sourceBindingProvenance || part?.markingProvenance || {}
   const sourceQuestionId = canonicalSourceQuestionId(part?.sourceQuestionId)
   const questionPartId = String(part?.questionPartId || '')
   const bindingSignature = String(provenance.bindingSignature || '')
@@ -88,9 +88,22 @@ export function sourceBindingStatusForAttempt(attempt, unit) {
   return hasCurrentSourceBindingForAttempt(attempt, unit) ? 'current' : 'stale-or-missing'
 }
 
+export function isStudyOnlyPracticeUnit(unit = {}) {
+  return unit?.practiceMode === 'study-only'
+    || (unit?.parts || []).some((part) => part?.studyOnly === true)
+}
+
+export function isStudyOnlyAttempt(attempt, unit = null) {
+  if (!attempt || !unit || !isStudyOnlyPracticeUnit(unit)) return false
+  if (isPendingSelfMarkAttempt(attempt) || attempt.scoreResult?.partial === true) return false
+  if (!hasCurrentSourceBindingForAttempt(attempt, unit)) return false
+  return hasValidAttemptScore(attempt)
+}
+
 export function isScoredAttempt(attempt, unit = null) {
   if (!attempt || isPendingSelfMarkAttempt(attempt)) return false
   if (attempt.scoreResult?.partial === true || attempt.attemptStatus === 'provisional-result') return false
+  if (unit && isStudyOnlyPracticeUnit(unit)) return false
   if (unit && !hasCurrentSourceBindingForAttempt(attempt, unit)) return false
   return hasValidAttemptScore(attempt)
 }
@@ -104,7 +117,7 @@ export function isProvisionalAttempt(attempt, unit = null) {
 
 function hasValidAttemptScore(attempt) {
   const status = attempt.attemptStatus || attempt.submissionStatus || attempt.status
-  const hasCompletedStatus = ['result', 'submitted', 'completed', 'provisional-result'].includes(status)
+  const hasCompletedStatus = ['result', 'submitted', 'completed', 'provisional-result', 'study-result'].includes(status)
     || attempt.stage === 'result'
     || (status == null && Boolean(attempt.submittedAt))
   if (!hasCompletedStatus) return false

@@ -103,10 +103,26 @@ export function normalizeSyncItem(item, { attemptsById = new Map() } = {}) {
 }
 
 function normalizeGeneratedUnit(unit) {
+  const serverSyllabusUnit = unit?.sourceAuthority === 'server-syllabus'
+  if (serverSyllabusUnit) {
+    const route = routeById(unit.routeId)
+    return {
+      ...unit,
+      routeId: route?.routeId || LEGACY_UNSCOPED_ROUTE_ID,
+      stage: route?.stage || null,
+      routeBindingReason: route ? 'pending-server-source-rebind' : 'unknown-explicit-route',
+      sourceGateStatus: 'pending-source-rebind',
+    }
+  }
   const rebound = rebindVerifiedPracticeUnit(unit)
   const binding = resolveRouteBinding(rebound || unit, { routes: courseRoutes })
   return rebound
-    ? { ...rebound, routeId: binding.routeId, stage: binding.stage, routeBindingReason: binding.reason }
+    ? {
+        ...rebound,
+        routeId: binding.routeId,
+        stage: binding.stage,
+        routeBindingReason: binding.reason,
+      }
     : {
       ...unit,
       routeId: binding.routeId,

@@ -141,8 +141,9 @@ async function sendCoachMessage(page, text) {
     if (await floatingTrigger.isVisible()) await floatingTrigger.click()
     else await tutorCard.click()
   }
-  await page.locator('.ai-coach textarea').fill(text)
-  await page.getByRole('button', { name: 'Send to AI Coach' }).click()
+  if (await coachDrawer.count() !== 1) throw new Error(`Expected one interactive AI Coach drawer, received ${await coachDrawer.count()}`)
+  await coachDrawer.getByRole('textbox').fill(text)
+  await coachDrawer.getByRole('button', { name: 'Send to AI Coach' }).click()
 }
 
 async function waitForDashboard(page) {
@@ -320,11 +321,16 @@ async function run() {
       await page.locator('.ai-coach.open').getByRole('button', { name: 'Close AI Coach' }).click()
 
       await sendCoachMessage(page, '给我出一份 AS 物理波 10 道真题')
-      await page.getByText(/no verified question is available yet|source inventory is still being indexed|human source review is still in progress|sign in to stem/i).waitFor()
-      if (await page.locator('.practice-view').count()) throw new Error('An unreviewed AS Physics topic must not open a practice workspace')
-      if (await page.getByRole('combobox', { name: 'Current course' }).inputValue() !== 'cie-9702-as-physics') {
-        throw new Error('An unavailable Coach request must not silently change the current course')
+      await page.locator('.practice-view').waitFor()
+      const coachPracticeRouteId = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) || '{}').profile?.activeRouteId, STORAGE_KEY)
+      if (coachPracticeRouteId !== 'cie-9702-as-physics') {
+        throw new Error('Coach-generated Waves practice must retain the selected AS Physics course')
       }
+      const generatedPhysicsSet = await page.evaluate((key) => {
+        const state = JSON.parse(localStorage.getItem(key) || '{}')
+        return state.generatedUnits?.find((unit) => unit.routeId === 'cie-9702-as-physics' && unit.knowledgeGroupId === 'physics-9702-topic-07') || null
+      }, STORAGE_KEY)
+      if (generatedPhysicsSet?.questionGroupCount !== 10) throw new Error(`Coach Waves practice must contain 10 canonical question groups: ${JSON.stringify(generatedPhysicsSet)}`)
 
       await sendCoachMessage(page, '给我一套最新的 BPhO SPC 真题，带答案')
       await page.waitForSelector('.paper-workspace')
@@ -355,13 +361,17 @@ async function run() {
         throw new Error('An unavailable Admissions Coach request must not discard the current Competition route')
       }
       const afterAdmissions = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) || '{}').generatedUnits || [], STORAGE_KEY)
-      if (afterAdmissions.length) throw new Error('An unavailable Admissions Coach request must not persist an unreviewed practice unit')
+      if (afterAdmissions.length !== 1 || afterAdmissions[0].id !== generatedPhysicsSet.id) {
+        throw new Error(`An unavailable Admissions Coach request must not persist another practice unit: ${JSON.stringify(afterAdmissions.map((unit) => unit.id))}`)
+      }
 
       await sendCoachMessage(page, 'IGCSE Mathematics Number 10 questions')
       await page.waitForSelector('.practice-view')
-      if ((await page.locator('.index-list button').count()) !== 16) throw new Error('Coach did not assemble the 16 reviewed answer parts from ten Number question groups')
+      const generated = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)).generatedUnits[0], STORAGE_KEY)
+      if (generated.questionGroupCount !== 10) throw new Error(`Coach did not assemble ten source-backed Number question groups: ${JSON.stringify(generated)}`)
+      if ((await page.locator('.index-list button').count()) !== generated.parts.length) throw new Error('Coach workspace did not expose every answer part from the selected ten question groups')
       if ((await page.locator('.question-block').count()) !== 1) throw new Error('Student workspace must show one focused question')
-      if (!(await page.getByText('Verified past-paper set', { exact: true }).count())) throw new Error('Verified source summary is missing')
+      if (!(await page.getByText('Study mode', { exact: true }).count())) throw new Error('Self-mark study status is missing')
       await page.getByRole('button', { name: 'Enter focus mode' }).click()
       await page.locator('.qp-player--immersive').waitFor()
       if (!await page.evaluate((key) => JSON.parse(localStorage.getItem(key) || '{}').profile?.immersiveLearning === true, STORAGE_KEY)) {
@@ -378,16 +388,17 @@ async function run() {
       if (!sourceMetrics.decoded || !/\/question-assets\//.test(sourceMetrics.src)) {
         throw new Error(`The official source page is not rendered inline and decoded: ${JSON.stringify(sourceMetrics)}`)
       }
-      const generated = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)).generatedUnits[0], STORAGE_KEY)
-      if (generated.parts.length !== 16 || generated.questionGroupCount !== 10) throw new Error('Generated unit did not preserve the selected ten question groups and all sixteen answer parts')
+      if (!generated.parts.length || generated.questionGroupCount !== 10) throw new Error('Generated unit did not preserve the selected ten question groups and their answer parts')
       if (generated.routeId !== 'cie-0580-igcse-mathematics' || generated.stage !== 'IGCSE') throw new Error(`Competition-to-IGCSE Coach action opened the wrong route: ${JSON.stringify({ routeId: generated.routeId, stage: generated.stage })}`)
-      if (!generated.agentGenerated || generated.topicId !== 'math-0580-number' || generated.knowledgeGroupId !== 'math-0580-number') {
+      if (!generated.agentGenerated || generated.topicId !== '0580-igcse-topic-01' || generated.knowledgeGroupId !== '0580-igcse-topic-01') {
         throw new Error(`Coach generated unit lost its canonical route/topic persistence context: ${JSON.stringify({ agentGenerated: generated.agentGenerated, topicId: generated.topicId, knowledgeGroupId: generated.knowledgeGroupId })}`)
+      }
+      if (generated.practiceMode !== 'study-only' || !generated.parts.every((part) => part.studyOnly === true && part.aiAssistedMarkingAvailable === false)) {
+        throw new Error('IGCSE Number source-backed questions escaped the self-mark-only review boundary')
       }
       if (!generated.parts.every((part) => part.sourceKind === 'past-paper' && part.sourceRef?.sha256 && part.answerRef?.sha256)) {
         throw new Error('Every Coach item must preserve independent QP/MS provenance')
       }
-      if (generated.sourceMix.generatedPractice !== 0) throw new Error('Generated practice entered the formal drill')
       const firstSource = await page.locator('.question-source-label strong').textContent()
       await page.getByRole('button', { name: /Next/ }).click()
       const secondSource = await page.locator('.question-source-label strong').textContent()
@@ -412,8 +423,9 @@ async function run() {
         bphoRoute: 'bpho-admissions-physics',
         bphoPaper: 'BPhO_SPC_2025_QP.pdf',
         igcseRoute: 'cie-0580-igcse-mathematics',
-        verifiedQuestionGroups: 10,
-        verifiedAnswerParts: 16,
+        sourceBackedQuestionGroups: generated.questionGroupCount,
+        sourceBackedAnswerParts: generated.parts.length,
+        practiceMode: generated.practiceMode,
         sourceChanged: true,
         immersivePaperAndTopic: true,
         nativeStemSignInOverlay: true,

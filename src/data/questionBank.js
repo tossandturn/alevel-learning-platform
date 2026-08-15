@@ -57,6 +57,40 @@ export function isHumanReviewedPastPaperItem(question) {
   return isVerifiedPastPaperItem(question) && question.answerBinding?.verificationStatus === 'reviewed'
 }
 
+/**
+ * Study-only is deliberately narrower than "has an asset URL" but broader
+ * than the formal reviewed bank. It is for source-backed practice while a
+ * reviewer is still reconciling syllabus mapping or semantic evidence.
+ *
+ * These records can be shown and self-marked only. They must never be used by
+ * the verified catalog, teacher assignments, AI marking, or mastery signals.
+ */
+export function isStudyOnlyPastPaperItem(question) {
+  const route = routeById(question?.routeId)
+  const sourceContent = question?.sourceContent || sourceContentStatus(question)
+  const groupValidation = normaliseQuestionGroup(question, question)
+  return Boolean(
+    question
+    && question.sourceKind === 'past-paper'
+    && question.bankId
+    && question.qualificationId
+    && question.knowledgeGroupId
+    && Array.isArray(question.topicTags)
+    && question.topicTags.length
+    && question.answerBinding?.verificationStatus === 'machine-indexed'
+    && question.questionGroupId
+    && question.questionGroupStatus !== 'quarantined'
+    && groupValidation.status === 'verified'
+    && sourceContent.fileComplete === true
+    && sourceContent.semanticStatus === 'unreviewed'
+    && route
+    && route.stage === question.stage
+    && route.qualification === question.qualification
+    && hasRequiredFields(question.sourceRef, REQUIRED_SOURCE_FIELDS)
+    && hasRequiredFields(question.answerRef, REQUIRED_ANSWER_FIELDS),
+  )
+}
+
 function routesForImportedQuestion(question) {
   const stages = new Set(question.stageTags || [])
   const component = Number(question.sourceRef?.component || question.componentTags?.[0])
@@ -130,14 +164,23 @@ export function normalizeImportedQuestion(question, route = null) {
   })
 }
 
-export const unifiedQuestionBank = Object.freeze(
+const normalizedImportedQuestionBank = Object.freeze(
   joinedIndexItems(importedQuestionIndex)
     .flatMap((question) => {
       const routes = routesForImportedQuestion(question)
       return routes.length ? routes.map((route) => normalizeImportedQuestion(question, route)) : [normalizeImportedQuestion(question)]
-    })
-    .filter(isVerifiedPastPaperItem),
+    }),
 )
+
+// Formal consumers retain the strict reviewed/source-complete contract.
+export const unifiedQuestionBank = Object.freeze(normalizedImportedQuestionBank.filter(isVerifiedPastPaperItem))
+
+// Topic study can use a separate, explicitly labelled pool while human review
+// is in progress. Keeping this separate prevents a relaxed UI inventory from
+// silently widening assignments, progress denominators, or AI marking.
+export const studyQuestionBank = Object.freeze(normalizedImportedQuestionBank.filter((question) => (
+  isVerifiedPastPaperItem(question) || isStudyOnlyPastPaperItem(question)
+)))
 
 export function selectTaggedQuestions({
   routeId,

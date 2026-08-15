@@ -252,7 +252,7 @@ const markingLifecycleSource = fs.readFileSync(path.resolve(import.meta.dirname,
 assert.ok(appSource.includes('verifiedPracticeQuestionGroups'), 'topic detail must read the compact reviewed runtime catalog')
 assert.ok(!appSource.includes("from './data/questionBank"), 'the client App entry must not statically import the full question index')
 assert.ok(appSource.includes('topic-detail__paper-group'), 'topic detail must render grouped real-paper questions')
-assert.ok(appSource.includes("activeRouteId !== 'cie-9702-as-physics' && selectedTopicIds.length === 1"), '9702 Topic Drill must honor the selected P1/P2 mode and question count instead of reopening a stale prebuilt unit')
+assert.ok(appSource.includes('!dynamicSyllabusRoute && selectedTopicIds.length === 1'), 'every server-backed Topic Drill must honor the selected component mode and question count instead of reopening a stale prebuilt unit')
 assert.ok(appSource.includes('onAgentAction={handleCoachAgentAction}'), 'Coach agent actions must be available from every current student route')
 assert.ok(!appSource.includes("onAgentAction={activeRoute.stage === 'Competition'"), 'Coach actions must not be disabled merely because the current route is not Competition')
 assert.ok(appSource.includes('sourceQuestionCount === 0') && appSource.includes('Topic Drill is being prepared for this course'), 'routes with archived papers but no ready topic inventory must fail closed into an honest paper-first state')

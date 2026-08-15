@@ -3,23 +3,90 @@ import paperCatalog from '../../public/data/papers.json' with { type: 'json' }
 import { CAMBRIDGE_9702_AS_SYLLABUS } from '../data/syllabus/cambridge-9702-as-2025-2027.js'
 import { CAMBRIDGE_0625_IGCSE_SYLLABUS } from '../data/syllabus/cambridge-0625-igcse-2026-2028.js'
 import { CAMBRIDGE_0606_IGCSE_SYLLABUS } from '../data/syllabus/cambridge-0606-igcse-2025-2027.js'
-import { isHumanReviewedPastPaperItem, normalizeImportedQuestion, unifiedQuestionBank } from '../data/questionBank.js'
+import { isHumanReviewedPastPaperItem, isStudyOnlyPastPaperItem, normalizeImportedQuestion, studyQuestionBank, unifiedQuestionBank } from '../data/questionBank.js'
 import { routeById } from '../data/routeRegistry.js'
-import { canonicalSourceMarkingProvenance } from './sourceContentContract.js'
+import { canonicalSourceMarkingProvenance, canonicalSourcePracticeProvenance } from './sourceContentContract.js'
+import { canonicalSyllabusTopicIdForRoute } from './syllabusPracticeRoutes.js'
+
+export { supportsSyllabusPracticeRoute } from './syllabusPracticeRoutes.js'
 
 export const SYLLABUS_CATALOG_SCHEMA_VERSION = 'syllabus-catalog-v1'
 export const SYLLABUS_MAPPING_SCHEMA_VERSION = 'question-syllabus-mapping-v1'
 
 const SUPPORTED_9702_COMPONENTS = Object.freeze([1, 2])
+const SUPPORTED_9702_A2_COMPONENTS = Object.freeze([4, 5])
 const SUPPORTED_0625_COMPONENTS = Object.freeze([2])
 const SET_SIZES = Object.freeze([5, 10, 15])
 
+function routeSyllabus(routeId, supportedComponents) {
+  const route = routeById(routeId)
+  const topics = route?.syllabus?.topics || []
+  const components = supportedComponents || route?.paperComponents || []
+  return Object.freeze({
+    routeId,
+    syllabusVersion: route?.syllabus?.version || '2026-2027',
+    officialUrl: route?.syllabus?.url || '',
+    assessmentComponents: Object.freeze(components.map((component) => Object.freeze({
+      component,
+      stage: route.stage,
+      track: 'theory',
+      label: `Paper ${component}`,
+    }))),
+    topics: Object.freeze(topics.map((topic, index) => Object.freeze({
+      id: topic.id,
+      routeId,
+      syllabusVersion: route?.syllabus?.version || '2026-2027',
+      code: String(index + 1),
+      name: String(topic.title || '').replace(/^\d+\s+/, ''),
+      order: index + 1,
+      officialPage: null,
+      points: Object.freeze([]),
+    }))),
+  })
+}
+
+function math9709Config(routeId, topicByComponent) {
+  const route = routeById(routeId)
+  return Object.freeze({
+    syllabus: routeSyllabus(routeId),
+    subjectCode: '9709',
+    stage: route.stage,
+    components: Object.freeze([...route.paperComponents]),
+    topicByComponent: Object.freeze({ ...topicByComponent }),
+  })
+}
+
+const CAMBRIDGE_0580_TOPIC_BY_LEGACY_ID = Object.freeze({
+  'math-0580-number': '0580-igcse-topic-01',
+  'math-0580-algebra': '0580-igcse-topic-02',
+  'math-0580-coordinate': '0580-igcse-topic-03',
+  'math-0580-geometry': '0580-igcse-topic-04',
+  'math-0580-mensuration': '0580-igcse-topic-05',
+  'math-0580-trigonometry': '0580-igcse-topic-06',
+  'math-0580-transformations': '0580-igcse-topic-07',
+  'math-0580-probability': '0580-igcse-topic-08',
+  'math-0580-statistics': '0580-igcse-topic-09',
+})
+
 const SYLLABUS_CONFIGS = Object.freeze({
+  'cie-0580-igcse-mathematics': Object.freeze({
+    syllabus: routeSyllabus('cie-0580-igcse-mathematics', [1, 2, 3, 4]),
+    subjectCode: '0580',
+    stage: 'IGCSE',
+    components: Object.freeze([1, 2, 3, 4]),
+    topicByKnowledgeGroup: CAMBRIDGE_0580_TOPIC_BY_LEGACY_ID,
+  }),
   [CAMBRIDGE_9702_AS_SYLLABUS.routeId]: Object.freeze({
     syllabus: CAMBRIDGE_9702_AS_SYLLABUS,
     subjectCode: '9702',
     stage: 'AS',
     components: SUPPORTED_9702_COMPONENTS,
+  }),
+  'cie-9702-a2-physics': Object.freeze({
+    syllabus: routeSyllabus('cie-9702-a2-physics', SUPPORTED_9702_A2_COMPONENTS),
+    subjectCode: '9702',
+    stage: 'A2',
+    components: SUPPORTED_9702_A2_COMPONENTS,
   }),
   [CAMBRIDGE_0625_IGCSE_SYLLABUS.routeId]: Object.freeze({
     syllabus: CAMBRIDGE_0625_IGCSE_SYLLABUS,
@@ -33,6 +100,12 @@ const SYLLABUS_CONFIGS = Object.freeze({
     stage: 'IGCSE',
     components: Object.freeze([1, 2]),
   }),
+  'cie-9709-as-p1-p2': math9709Config('cie-9709-as-p1-p2', { 1: '9709-as-topic-01', 2: '9709-as-topic-02' }),
+  'cie-9709-as-p1-p4': math9709Config('cie-9709-as-p1-p4', { 1: '9709-as-topic-01', 4: '9709-as-topic-03' }),
+  'cie-9709-as-p1-p5': math9709Config('cie-9709-as-p1-p5', { 1: '9709-as-topic-01', 5: '9709-as-topic-04' }),
+  'cie-9709-a2-after-p1-p5-p3-p4': math9709Config('cie-9709-a2-after-p1-p5-p3-p4', { 3: '9709-a2-topic-01', 4: '9709-a2-topic-02' }),
+  'cie-9709-a2-after-p1-p5-p3-p6': math9709Config('cie-9709-a2-after-p1-p5-p3-p6', { 3: '9709-a2-topic-01', 6: '9709-a2-topic-04' }),
+  'cie-9709-a2-after-p1-p4-p3-p5': math9709Config('cie-9709-a2-after-p1-p4-p3-p5', { 3: '9709-a2-topic-01', 5: '9709-a2-topic-03' }),
 })
 
 function syllabusConfig(routeId) {
@@ -86,8 +159,11 @@ function rawSyllabusQuestionGroups(config) {
     })
 }
 
-function candidateMappingFor(question, syllabus) {
-  const topicId = String(question.knowledgeGroupId || question.topicId || '')
+function candidateMappingFor(question, syllabus, config = {}) {
+  const component = Number(question.sourceRef?.component)
+  const knowledgeGroupId = String(question.knowledgeGroupId || question.topicId || '')
+  const mappedTopicId = String(config.topicByComponent?.[component] || config.topicByKnowledgeGroup?.[knowledgeGroupId] || knowledgeGroupId)
+  const topicId = canonicalSyllabusTopicIdForRoute(syllabus.routeId, mappedTopicId)
   const topic = syllabus.topics.find((item) => item.id === topicId)
   if (!topic) return null
   const suppliedStatus = String(question.syllabusMapping?.reviewStatus || '').toLowerCase()
@@ -119,11 +195,17 @@ function effectiveQuestionRecords(questionBank, config = SYLLABUS_CONFIGS[CAMBRI
     const sourceQuestionId = rawQuestion.sourceQuestionId || rawQuestion.questionGroupId
     const reviewedQuestion = reviewedById.get(sourceQuestionId)
     const question = reviewedQuestion || rawQuestion
-    const mapping = candidateMappingFor(question, config.syllabus)
+    const mapping = candidateMappingFor(question, config.syllabus, config)
     const reviewed = Boolean(
       reviewedQuestion
       && isHumanReviewedPastPaperItem(reviewedQuestion)
       && mapping?.reviewStatus === 'reviewed',
+    )
+    const sourceBackedStudy = Boolean(
+      reviewedQuestion
+      && !reviewed
+      && mapping?.primaryTopicId
+      && (isHumanReviewedPastPaperItem(reviewedQuestion) || isStudyOnlyPastPaperItem(reviewedQuestion)),
     )
     return Object.freeze({
       question,
@@ -135,6 +217,7 @@ function effectiveQuestionRecords(questionBank, config = SYLLABUS_CONFIGS[CAMBRI
       paperComponent: Number(question.sourceRef?.component) || null,
       verificationStatus: question.answerBinding?.verificationStatus || 'machine-indexed',
       sourceContentComplete: question.sourceContent?.complete === true,
+      sourceContentFileComplete: question.sourceContent?.fileComplete === true,
       semanticStatus: question.sourceContent?.semanticStatus || 'unreviewed',
       mapping: mapping || Object.freeze({
         schemaVersion: SYLLABUS_MAPPING_SCHEMA_VERSION,
@@ -148,6 +231,8 @@ function effectiveQuestionRecords(questionBank, config = SYLLABUS_CONFIGS[CAMBRI
         reviewReason: `No canonical ${config.subjectCode} syllabus topic could be resolved.`,
       }),
       eligible: reviewed,
+      studyEligible: sourceBackedStudy,
+      studyOnly: sourceBackedStudy,
     })
   })
 }
@@ -166,6 +251,8 @@ function topicRowsForRoute(routeId, questionBank) {
       officialPage: null,
       points: [],
       verifiedQuestionCount: 0,
+      studyQuestionCount: 0,
+      availableQuestionCount: 0,
       indexedQuestionCount: 0,
       pendingReviewCount: 0,
       availableSetSizes: [],
@@ -180,20 +267,38 @@ function topicRowsForRoute(routeId, questionBank) {
     const topicRecords = records.filter((record) => record.mapping.primaryTopicId === topic.id)
     const eligible = topicRecords.filter((record) => record.eligible)
     const verifiedQuestionCount = eligible.length
+    const studyQuestionCount = topicRecords.filter((record) => record.studyEligible).length
+    const availableQuestionCount = verifiedQuestionCount + studyQuestionCount
+    const componentCounts = Object.fromEntries(config.components.map((component) => {
+      const componentRecords = topicRecords.filter((record) => record.paperComponent === component)
+      const componentVerified = componentRecords.filter((record) => record.eligible).length
+      const componentStudy = componentRecords.filter((record) => record.studyEligible).length
+      return [component, {
+        verifiedQuestionCount: componentVerified,
+        studyQuestionCount: componentStudy,
+        availableQuestionCount: componentVerified + componentStudy,
+      }]
+    }))
     const indexedQuestionCount = topicRecords.length
     const pendingReviewCount = topicRecords.filter((record) => !record.eligible).length
     const ready = verifiedQuestionCount >= 10
     return {
       ...topic,
       verifiedQuestionCount,
+      studyQuestionCount,
+      availableQuestionCount,
+      componentCounts,
       indexedQuestionCount,
       pendingReviewCount,
-      availableSetSizes: SET_SIZES.filter((size) => size <= verifiedQuestionCount),
+      availableSetSizes: SET_SIZES.filter((size) => size <= availableQuestionCount),
       ready,
-      ctaPolicy: ready ? 'start' : verifiedQuestionCount > 0 ? 'limited-indexing' : 'hidden',
+      studyReady: availableQuestionCount > 0,
+      ctaPolicy: ready ? 'start' : availableQuestionCount > 0 ? 'start-study' : 'hidden',
       sourceGap: ready
         ? null
-        : `Official QP/MS candidates indexed: ${indexedQuestionCount}; semantic-reviewed and mapped: ${verifiedQuestionCount}. Human source review is required before Topic Drill can start.`,
+        : availableQuestionCount > 0
+          ? `Available for study: ${availableQuestionCount} complete source question${availableQuestionCount === 1 ? '' : 's'}; ${studyQuestionCount} remain self-mark only while source review is pending.`
+          : `Official QP/MS candidates indexed: ${indexedQuestionCount}; no complete source-backed question is available for this topic yet.`,
     }
   })
 }
@@ -220,7 +325,7 @@ export function syllabusTopicsInventory({ routeId, questionBank = unifiedQuestio
       ? config.syllabus.officialUrl
       : route.syllabus.url,
     assessmentComponents: config
-      ? config.syllabus.assessmentComponents
+      ? config.syllabus.assessmentComponents.filter((item) => config.components.includes(Number(item.component)))
       : [],
     topics,
     ready: topics.some((topic) => topic.ready),
@@ -228,9 +333,11 @@ export function syllabusTopicsInventory({ routeId, questionBank = unifiedQuestio
     officialPairedPaperCount: firstBatchPapers.filter((paper) => Boolean(paper.markSchemeId)).length,
     indexedQuestionGroupCount: config ? effectiveRecords.length : topics.reduce((sum, topic) => sum + topic.indexedQuestionCount, 0),
     verifiedQuestionGroupCount: topics.reduce((sum, topic) => sum + topic.verifiedQuestionCount, 0),
+    studyQuestionGroupCount: topics.reduce((sum, topic) => sum + topic.studyQuestionCount, 0),
+    availableQuestionGroupCount: topics.reduce((sum, topic) => sum + topic.availableQuestionCount, 0),
     unmappedQuestionGroupCount: effectiveRecords.filter((record) => !record.mapping.primaryTopicId).length,
     source: 'server-syllabus-catalog',
-    gate: 'reviewed-question-group-and-reviewed-syllabus-mapping',
+    gate: 'reviewed-or-source-backed-study-question',
   }
 }
 
@@ -284,22 +391,34 @@ function questionSortKey(question) {
   ].join('\u0000')
 }
 
-function selectBalancedQuestions(records, topicIds, requestedCount, attemptedIds, seed, components) {
+function selectBalancedQuestions(records, topicIds, requestedCount, attemptedIds, seed, components, includeStudyOnly = false) {
   const random = seededRandom(seed)
   const eligible = records.filter((record) => (
-    record.eligible
+    (record.eligible || (includeStudyOnly && record.studyEligible))
     && topicIds.includes(record.mapping.primaryTopicId)
     && components.includes(record.paperComponent)
   ))
   const unseen = eligible.filter((record) => !attemptedIds.has(record.sourceQuestionId))
   const seen = eligible.filter((record) => attemptedIds.has(record.sourceQuestionId))
+  const prioritizedPool = (items) => {
+    const sortAndShuffle = (subset) => shuffle(
+      [...subset].sort((left, right) => questionSortKey(left.question).localeCompare(questionSortKey(right.question))),
+      random,
+    )
+    // A source-backed study item is a backfill, never a replacement for a
+    // formal reviewed question in the same selected topic.
+    return [
+      ...sortAndShuffle(items.filter((record) => record.eligible)),
+      ...sortAndShuffle(items.filter((record) => !record.eligible)),
+    ]
+  }
   const pools = new Map(topicIds.map((topicId) => [
     topicId,
-    shuffle([...unseen.filter((record) => record.mapping.primaryTopicId === topicId)].sort((left, right) => questionSortKey(left.question).localeCompare(questionSortKey(right.question))), random),
+    prioritizedPool(unseen.filter((record) => record.mapping.primaryTopicId === topicId)),
   ]))
   const seenPools = new Map(topicIds.map((topicId) => [
     topicId,
-    shuffle([...seen.filter((record) => record.mapping.primaryTopicId === topicId)].sort((left, right) => questionSortKey(left.question).localeCompare(questionSortKey(right.question))), random),
+    prioritizedPool(seen.filter((record) => record.mapping.primaryTopicId === topicId)),
   ]))
   const selected = []
   while (selected.length < requestedCount) {
@@ -328,6 +447,18 @@ function selectBalancedQuestions(records, topicIds, requestedCount, attemptedIds
   return selected
 }
 
+function sourceQuestionDisplayLabel(question, part) {
+  const source = question.sourceRef || {}
+  const paperMatch = String(source.paper || '').match(/(?:^|[_-])([msw]\d{2})[_-]qp[_-]?(\d{1,2})(?:$|[_.-])/i)
+  const paperLabel = paperMatch ? `${paperMatch[1].toUpperCase()}/${paperMatch[2]}` : ''
+  const questionLabel = String(source.question || 'Question').trim()
+  const partLabel = String(part.label || '').trim()
+  const questionPartLabel = partLabel && !questionLabel.endsWith(`(${partLabel})`)
+    ? `${questionLabel}(${partLabel})`
+    : questionLabel
+  return paperLabel ? `${paperLabel} · ${questionPartLabel}` : questionPartLabel
+}
+
 function publicQuestionGroup(record) {
   const question = record.question
   return {
@@ -343,23 +474,158 @@ function publicQuestionGroup(record) {
     parts: (question.parts || []).map((part) => ({
       partId: part.partId,
       label: part.label,
+      displayLabel: sourceQuestionDisplayLabel(question, part),
       marks: Number(part.marks || 0),
       promptFragment: part.promptFragment || '',
       answerArea: part.answerArea || null,
+      options: part.options || [],
+      answerKey: part.answerKey || null,
+      markSchemePoints: part.markSchemePoints || [],
       sourcePage: part.sourcePage || question.sourceRef?.pageStart || null,
+      answerSourcePage: part.answerSourcePage || question.answerRef?.pageStart || null,
       sourceEvidence: part.sourceEvidence || [],
+      markSchemeEvidence: part.markSchemeEvidence || [],
+      sourceFocus: part.sourceFocus || null,
       markingProvenance: canonicalSourceMarkingProvenance(question, part),
+      sourceBindingProvenance: canonicalSourcePracticeProvenance(question, part),
     })),
     sourceRef: question.sourceRef,
     answerRef: question.answerRef,
+    reviewStatus: question.answerBinding?.verificationStatus || 'machine-indexed',
+    studyOnly: record.studyOnly,
     sourceContent: {
       complete: question.sourceContent?.complete === true,
+      fileComplete: question.sourceContent?.fileComplete === true,
+      semanticStatus: question.sourceContent?.semanticStatus || 'unreviewed',
+      studyOnly: record.studyOnly,
       pages: question.sourceContent?.sourcePages || [],
       assetUrls: question.sourceContent?.assetUrls || question.sourceRef?.assetUrls || [],
       bindingSignature: question.sourceContent?.bindingSignature || '',
     },
     syllabusMapping: record.mapping,
   }
+}
+
+function samePracticeBinding(left, right) {
+  return Boolean(left && right
+    && left.sourceQuestionId === right.sourceQuestionId
+    && left.questionPartId === right.questionPartId
+    && left.bindingSignature === right.bindingSignature
+    && left.reviewVersion === right.reviewVersion
+    && left.sourceDocumentSha256 === right.sourceDocumentSha256
+    && left.answerDocumentSha256 === right.answerDocumentSha256
+    && left.sourceIndexSha256 === right.sourceIndexSha256
+    && left.sourceManifestChecksum === right.sourceManifestChecksum)
+}
+
+function syllabusTopicsForPersistedUnit(unit, config) {
+  const candidates = String(unit?.syllabusTopic || unit?.knowledgeGroupId || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+  const validTopicIds = new Set(config.syllabus.topics.map((topic) => topic.id))
+  const topicIds = [...new Set(candidates)]
+  return topicIds.length && topicIds.every((topicId) => validTopicIds.has(topicId)) ? topicIds : []
+}
+
+/**
+ * Persisted server syllabus units are convenience references, not authority.
+ * Rebuild the exact part scope from the current study pool and require every
+ * persisted source identity to match before restoring a session or history.
+ */
+export function rebindSyllabusPracticeUnit(unit, { questionBank = studyQuestionBank } = {}) {
+  if (!unit || unit.sourceAuthority !== 'server-syllabus' || unit.sourceGateVersion !== 'server-syllabus-catalog-v2') return null
+  const route = routeById(unit.routeId)
+  const config = route && syllabusConfig(route.routeId)
+  if (!route || !config || route.stage !== config.stage) return null
+
+  const topicIds = syllabusTopicsForPersistedUnit(unit, config)
+  const selectedComponents = [...new Set((Array.isArray(unit.paperComponent) ? unit.paperComponent : [unit.paperComponent])
+    .map((value) => Number(value))
+    .filter((value) => config.components.includes(value)))]
+  const persistedParts = Array.isArray(unit.parts) ? unit.parts : []
+  if (!topicIds.length || !selectedComponents.length || !persistedParts.length) return null
+
+  const recordsByQuestionId = new Map(effectiveQuestionRecords(questionBank, config)
+    .filter((record) => (record.eligible || record.studyEligible)
+      && topicIds.includes(record.mapping.primaryTopicId)
+      && selectedComponents.includes(record.paperComponent))
+    .map((record) => [record.sourceQuestionId, record]))
+  const uniquePartKeys = new Set()
+  const reboundParts = []
+
+  for (const persistedPart of persistedParts) {
+    const sourceQuestionId = String(persistedPart?.sourceQuestionId || '').trim()
+    const questionPartId = String(persistedPart?.questionPartId || persistedPart?.partId || '').trim()
+    const key = `${sourceQuestionId}\u0000${questionPartId}`
+    if (!sourceQuestionId || !questionPartId || uniquePartKeys.has(key)) return null
+    uniquePartKeys.add(key)
+
+    const record = recordsByQuestionId.get(sourceQuestionId)
+    const group = record && publicQuestionGroup(record)
+    const currentPart = group?.parts.find((part) => part.partId === questionPartId)
+    const persistedBinding = persistedPart?.sourceBindingProvenance || persistedPart?.markingProvenance
+    if (!record || !group || !currentPart || !samePracticeBinding(persistedBinding, currentPart.sourceBindingProvenance)) return null
+
+    reboundParts.push(Object.freeze({
+      ...persistedPart,
+      ...currentPart,
+      id: String(persistedPart.id || ''),
+      sourceQuestionId,
+      questionGroupId: group.questionGroupId || sourceQuestionId,
+      questionPartId,
+      sourceKind: 'past-paper',
+      sourceRef: { ...group.sourceRef, questionPartId, page: currentPart.sourcePage || group.sourceRef?.pageStart },
+      answerRef: { ...group.answerRef, questionPartId, page: currentPart.answerSourcePage || group.answerRef?.pageStart },
+      sourceContentComplete: group.sourceContent.complete === true,
+      sourceContentAvailable: group.sourceContent.fileComplete === true || group.sourceContent.complete === true,
+      sourceContentReasons: group.sourceContent.reasons || [],
+      sourceSemanticStatus: group.sourceContent.semanticStatus || 'unreviewed',
+      sourcePages: group.sourceContent.pages || [],
+      sourceAssetUrls: group.sourceContent.assetUrls || group.sourceRef?.assetUrls || [],
+      reviewStatus: group.reviewStatus,
+      studyOnly: group.studyOnly === true,
+      practiceAvailable: true,
+      deterministicScoringAvailable: Boolean(currentPart.answerKey),
+      aiAssistedMarkingAvailable: Boolean(group.reviewStatus === 'reviewed' && !group.studyOnly && currentPart.markingProvenance),
+      markPoints: currentPart.markSchemePoints || [],
+      sourceAuthority: 'server-syllabus',
+    }))
+  }
+
+  if (reboundParts.some((part) => !part.id)) return null
+  const paperById = new Map()
+  for (const part of reboundParts) {
+    const source = part.sourceRef || {}
+    if (source.paperId && !paperById.has(source.paperId)) {
+      paperById.set(source.paperId, {
+        id: source.paperId,
+        file: source.paper,
+        year: source.year,
+        season: source.season,
+        paperNumber: source.component,
+        questionUrl: source.localUrl,
+        markSchemeUrl: part.answerRef?.localUrl,
+      })
+    }
+  }
+  const hasStudyOnlyPart = reboundParts.some((part) => part.studyOnly)
+  return Object.freeze({
+    ...unit,
+    routeId: route.routeId,
+    qualification: route.qualification,
+    subject: route.subject,
+    subjectId: route.subjectId,
+    stage: route.stage,
+    paperComponent: selectedComponents,
+    parts: Object.freeze(reboundParts),
+    maxMarks: reboundParts.reduce((sum, part) => sum + Number(part.marks || 0), 0),
+    questionGroupCount: new Set(reboundParts.map((part) => part.sourceQuestionId)).size,
+    referencePapers: Object.freeze([...paperById.values()]),
+    practiceMode: hasStudyOnlyPart ? 'study-only' : 'verified',
+    sourceGateVersion: 'server-syllabus-catalog-v2',
+    sourceGateStatus: 'current',
+  })
 }
 
 export function buildSyllabusPracticeSet({
@@ -371,6 +637,7 @@ export function buildSyllabusPracticeSet({
   attemptedQuestionIds = [],
   seed = Date.now(),
   questionBank = unifiedQuestionBank,
+  includeStudyOnly = false,
 } = {}) {
   const config = syllabusConfig(routeId)
   if (!config) {
@@ -404,7 +671,8 @@ export function buildSyllabusPracticeSet({
   const records = effectiveQuestionRecords(questionBank, config).filter((record) => selectedComponents.includes(record.paperComponent))
   const attemptedIds = new Set(attemptedQuestionIds.map((value) => String(value || '').trim()).filter(Boolean))
   const availableRecords = records.filter((record) => (
-    record.eligible && topicIds.includes(record.mapping.primaryTopicId)
+    (record.eligible || (includeStudyOnly && record.studyEligible))
+    && topicIds.includes(record.mapping.primaryTopicId)
   ))
   const selected = selectBalancedQuestions(
     records,
@@ -413,9 +681,10 @@ export function buildSyllabusPracticeSet({
     excludeAttempted ? attemptedIds : new Set(),
     seed,
     selectedComponents,
+    includeStudyOnly,
   )
   if (!selected.length) {
-    const error = new Error(`No reviewed source questions are available for the selected syllabus topic${topicIds.length === 1 ? '' : 's'}.`)
+    const error = new Error(`No source-backed study questions are available for the selected syllabus topic${topicIds.length === 1 ? '' : 's'}.`)
     error.code = 'insufficient_verified_questions'
     error.statusCode = 409
     error.availableCount = 0
@@ -433,6 +702,7 @@ export function buildSyllabusPracticeSet({
     requestedCount,
     availableCount: availableRecords.length,
     questionCount: selected.length,
+    practiceMode: selected.some((record) => record.studyOnly) ? 'study-only' : 'verified',
     partial: selected.length < requestedCount,
     seed: Number(seed) >>> 0,
     questionGroups: selected.map(publicQuestionGroup),

@@ -290,6 +290,8 @@ async function startReviewedTopic(page, topic) {
   }
   if (!topicRow) throw new Error(`Could not find the exact ${topic} syllabus row`)
   await topicRow.click()
+  const questionCount = page.getByRole('combobox', { name: 'Question count' })
+  if (await questionCount.count()) await questionCount.selectOption('15')
   const start = page.getByRole('button', { name: /Start set|Practice \d+|Start (?:checked|verified) sample/i }).first()
   await start.waitFor()
   if (await start.isDisabled()) throw new Error(`${topic} has no enabled reviewed source set`)
@@ -303,23 +305,23 @@ async function startReviewedTopic(page, topic) {
   await page.locator('.question-block').waitFor()
 }
 
-async function activateQuestionPart(page, number, label) {
+async function activateQuestionPart(page, number, label, paper = 'M25/12') {
   const buttons = page.locator('.qp-index__list button')
   const count = await buttons.count()
+  const identities = []
   for (let index = 0; index < count; index += 1) {
-    await buttons.nth(index).click()
-    try {
-      await page.waitForFunction((needle) => {
-        const text = document.querySelector('.qp-source-label strong')?.textContent || ''
-        return new RegExp(needle, 'i').test(text)
-      }, `\\bQ${number}\\(${label}\\)`, { timeout: 1500 })
-      return
-    } catch {
-      // Continue through this real set until the requested official part is active.
-    }
+    const button = buttons.nth(index)
+    const identity = await button.getAttribute('data-source-question')
+    identities.push(identity)
+    if (!String(identity || '').includes(`${paper} · Q${number}(${label})`)) continue
+    await button.click()
+    await page.waitForFunction(({ paperLabel, questionNumber, partLabel }) => {
+      const text = document.querySelector('.qp-source-label strong')?.textContent || ''
+      return text.includes(`${paperLabel} · Q${questionNumber}(${partLabel})`)
+    }, { paperLabel: paper, questionNumber: number, partLabel: label }, { timeout: 3_000 })
+    return
   }
-  const labels = await page.locator('.qp-source-label strong').allTextContents()
-  throw new Error(`Could not activate Q${number}(${label}) from the reviewed source set: ${JSON.stringify(labels)}`)
+  throw new Error(`Could not activate Q${number}(${label}) from the reviewed source set: ${JSON.stringify(identities)}`)
 }
 
 async function sourceMetrics(figure) {
@@ -375,7 +377,10 @@ async function assertFocusedSource(page, sourceCase, sourcePage, viewport, evide
   await figure.waitFor({ state: 'visible' })
   await figure.scrollIntoViewIfNeeded()
   const expectedView = sourceCase.sourceView || 'focused'
-  if (await figure.getAttribute('data-source-view') !== expectedView) throw new Error(`Q${sourceCase.number} must default to its ${expectedView === 'focused' ? 'reviewed focused crop' : 'complete original page'}`)
+  const actualView = await figure.getAttribute('data-source-view')
+  if (actualView !== expectedView) {
+    throw new Error(`Q${sourceCase.number} must default to its ${expectedView === 'focused' ? 'reviewed focused crop' : 'complete original page'}: ${JSON.stringify({ actualView, ariaLabel: await figure.getAttribute('aria-label'), sourceLabel: await page.locator('.qp-source-label strong').innerText(), controls: await figure.getByRole('button').allTextContents() })}`)
+  }
   const toolbar = (await figure.locator('.qp-question-asset__toolbar').innerText()).replace(/\s+/g, ' ').trim()
   if (!toolbar.includes(`QP p.${String(sourcePage).padStart(2, '0')}`)) throw new Error(`Q${sourceCase.number} did not expose QP page ${sourcePage}: ${toolbar}`)
   const metrics = await sourceMetrics(figure)
@@ -611,7 +616,14 @@ async function verifyReviewed0606Source(browser) {
         const errors = []
         page.on('response', (response) => {
           if (response.url().includes('/question-assets/cie-0606-0606_m25_qp_12/')) assetResponses.push({ url: response.url(), status: response.status() })
-          if (response.status() >= 400 && !/\/api\/auth\/status$/.test(new URL(response.url()).pathname)) errors.push(`http:${response.status()} ${response.url()}`)
+          if (response.status() >= 400 && !/\/api\/auth\/status$/.test(new URL(response.url()).pathname)) {
+            let requestContext = ''
+            if (response.url().includes('/api/stem/practice-sets/rebind')) {
+              const unit = response.request().postDataJSON()?.unit
+              requestContext = ` unit=${JSON.stringify({ id: unit?.id, routeId: unit?.routeId, syllabusTopic: unit?.syllabusTopic, sourceGateStatus: unit?.sourceGateStatus, routeBindingReason: unit?.routeBindingReason, stage: unit?.stage, qualification: unit?.qualification, subject: unit?.subject, subjectId: unit?.subjectId, paperComponent: unit?.paperComponent })}`
+            }
+            errors.push(`http:${response.status()} ${response.url()}${requestContext}`)
+          }
         })
         page.on('pageerror', (error) => errors.push(`pageerror:${error.message}`))
         for (const sourceCase of REVIEWED_0606_SOURCE_CASES) {

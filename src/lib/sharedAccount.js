@@ -209,6 +209,36 @@ export async function sharedAccountRequest(token, resource, options = {}) {
   }
 }
 
+export async function requestSyllabusPracticeSet(token, selection) {
+  const options = {
+    method: 'POST',
+    body: JSON.stringify(selection),
+  }
+  if (token) return sharedAccountRequest(token, '/api/stem/practice-sets', options)
+  const { response, payload } = await jsonFetch('/api/stem/practice-sets', {
+    ...options,
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  if (!response.ok) throw responseError(response, payload, 'The syllabus practice set could not be generated.')
+  return payload
+}
+
+export async function requestSyllabusPracticeRebind(token, unit) {
+  const options = {
+    method: 'POST',
+    body: JSON.stringify({ unit }),
+  }
+  if (token) return sharedAccountRequest(token, '/api/stem/practice-sets/rebind', options)
+  const { response, payload } = await jsonFetch('/api/stem/practice-sets/rebind', {
+    ...options,
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  if (!response.ok) throw responseError(response, payload, 'This saved syllabus set could not be verified against the current source catalog.')
+  return payload
+}
+
 /** Replays only submission summaries. It never uploads answers, handwriting, or Coach messages. */
 export async function flushPendingSharedSync(token, { userId = '' } = {}) {
   const pending = listPendingSharedSync({ userId })

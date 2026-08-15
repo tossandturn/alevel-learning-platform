@@ -70,11 +70,13 @@ async function stopServer(server) {
 async function openSpaceTopic(page, viewportName) {
   const errors = []
   const assetFailures = []
+  const rebindResponses = []
   page.on('pageerror', (error) => errors.push(error.message))
   page.on('console', (message) => {
     if (message.type() === 'error' && !/Failed to load resource: the server responded with a status of 401 \(Unauthorized\)/i.test(message.text())) errors.push(message.text())
   })
   page.on('response', (response) => {
+    if (response.url().includes('/api/stem/practice-sets/rebind')) rebindResponses.push(response.status())
     if (response.url().includes('/question-assets/')) {
       if (response.status() !== 200) assetFailures.push({ url: response.url(), status: response.status() })
     }
@@ -98,11 +100,25 @@ async function openSpaceTopic(page, viewportName) {
   }
   await start.waitFor()
   assert.equal(await start.isDisabled(), false, `${viewportName}: Space Physics set 1 must be enabled`)
+  const practiceSetResponse = page.waitForResponse((response) => (
+    response.url().includes('/api/stem/practice-sets')
+    && response.request().method() === 'POST'
+  ))
   await start.click()
+  const response = await practiceSetResponse
+  const payload = await response.json()
+  assert.equal(response.status(), 201, `${viewportName}: Space Physics practice-set request must succeed: ${JSON.stringify(payload)}`)
+  assert.equal(payload.routeId, 'cie-0625-igcse-physics', `${viewportName}: practice set must retain the selected course`)
+  assert.deepEqual(payload.syllabusTopicIds, ['0625-igcse-topic-06'], `${viewportName}: practice set must retain Space Physics taxonomy`)
+  assert.equal(payload.questionCount, 8, `${viewportName}: short practice set must expose the full current Space Physics inventory`)
+  assert.equal(payload.questionGroups.filter((group) => group.studyOnly !== true).length, 5, `${viewportName}: the five reviewed questions must remain first-class inventory`)
+  assert.equal(payload.questionGroups.filter((group) => group.studyOnly === true).length, 3, `${viewportName}: three complete legacy-tagged questions must be added as self-mark study items`)
   if (await page.locator('.session-setup').count()) await page.getByRole('button', { name: /Start session/i }).click()
   await page.locator('.question-block').waitFor()
   const buttons = page.locator('.qp-index__list button')
-  assert.equal(await buttons.count(), 5, `${viewportName}: Space Physics set must expose all five verified questions`)
+  const expectedParts = payload.questionGroups.flatMap((group) => group.parts.map((part) => ({ group, part })))
+  const expectedPartCount = expectedParts.length
+  assert.equal(await buttons.count(), expectedPartCount, `${viewportName}: Space Physics set must expose every source-backed answer part`)
   const evidence = []
   for (let index = 0; index < await buttons.count(); index += 1) {
     await buttons.nth(index).click()
@@ -118,18 +134,27 @@ async function openSpaceTopic(page, viewportName) {
     }))
     assert.equal(metrics.complete, true, `${viewportName}: source image must finish loading`)
     assert.ok(metrics.naturalWidth > 0 && metrics.naturalHeight > 0, `${viewportName}: source image must decode`)
-    assert.match(metrics.src, /\/question-assets\/cie-0625-0625_(?:m25_qp_22|s25_qp_21)\//)
-    const questionNumber = Number(metrics.sourceLabel.match(/Q(\d+)/i)?.[1])
-    const sourceQuestionId = [...questionById.keys()].find((id) => id.endsWith(`:q${questionNumber}`) && metrics.src.includes(id.split(':')[0]))
-    assert.ok(sourceQuestionId, `${viewportName}: could not bind ${metrics.sourceLabel} to reviewed source ID`)
-    const reviewedQuestion = questionById.get(sourceQuestionId)
-    const expectedAsset = reviewedQuestion.parts[0].sourceEvidence[0].assetUrl
-    assert.equal(metrics.src, expectedAsset, `${viewportName}: visible QP asset must match reviewed source binding`)
+    assert.match(metrics.src, /\/question-assets\/cie-0625-0625_[^/]+\//)
+    const { group: sourceGroup, part: sourcePart } = expectedParts[index]
+    const requiredAssets = new Set([
+      ...(sourceGroup.sourceContent?.assetUrls || []),
+      ...(sourcePart.sourceEvidence || []).map((item) => item.assetUrl),
+    ].filter(Boolean))
+    assert.ok(requiredAssets.has(metrics.src), `${viewportName}: visible asset for ${sourcePart.partId} must match its canonical source binding`)
+    const sourceQuestionId = sourceGroup.id
+    if (sourceGroup.studyOnly !== true) assert.ok(questionById.has(sourceQuestionId), `${viewportName}: reviewed source item is missing from the reviewed fixture`)
     assert.match(metrics.toolbar.replace(/\s+/g, ' '), /QP p\.\s*\d+/i)
-    evidence.push({ sourceQuestionId, asset: metrics.src, decoded: `${metrics.naturalWidth}x${metrics.naturalHeight}`, toolbar: metrics.toolbar.replace(/\s+/g, ' ').trim() })
+    evidence.push({ sourceQuestionId, studyOnly: sourceGroup.studyOnly === true, asset: metrics.src, decoded: `${metrics.naturalWidth}x${metrics.naturalHeight}`, toolbar: metrics.toolbar.replace(/\s+/g, ' ').trim() })
   }
   assert.equal(assetFailures.length, 0, `${viewportName}: source asset requests failed: ${JSON.stringify(assetFailures)}`)
   assert.equal(errors.length, 0, `${viewportName}: browser console/runtime errors: ${JSON.stringify(errors)}`)
+  const activeSourceIdentity = await page.locator('.qp-source-label strong').textContent()
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await page.locator('.question-block').waitFor({ state: 'visible' })
+  assert.equal(await page.locator('.qp-index__list button').count(), expectedPartCount, `${viewportName}: refresh must restore the same source-backed set`)
+  assert.equal(await page.locator('.qp-source-label strong').textContent(), activeSourceIdentity, `${viewportName}: refresh must restore the active canonical question identity`)
+  assert.ok(rebindResponses.includes(200), `${viewportName}: refresh must rebind the persisted unit through the canonical server endpoint: ${JSON.stringify(rebindResponses)}`)
+  assert.equal(errors.length, 0, `${viewportName}: refresh produced browser console/runtime errors: ${JSON.stringify(errors)}`)
   await page.screenshot({ path: path.join(artifactDir, `qa-0625-space-${viewportName}.png`), fullPage: false })
   return evidence
 }
@@ -147,7 +172,7 @@ async function openSpaceTopic(page, viewportName) {
       results[viewport.name] = await openSpaceTopic(page, viewport.name)
       await context.close()
     }
-    console.log(JSON.stringify({ status: 'passed', routeId: 'cie-0625-igcse-physics', topic: 'Space physics', setSize: 5, viewports: results }, null, 2))
+    console.log(JSON.stringify({ status: 'passed', routeId: 'cie-0625-igcse-physics', topic: 'Space physics', setSize: 8, reviewed: 5, studyOnly: 3, viewports: results }, null, 2))
   } finally {
     await browser.close()
     await stopServer(server)

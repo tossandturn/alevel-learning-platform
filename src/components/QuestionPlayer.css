@@ -442,6 +442,12 @@
     max-width: none;
   }
 
+  .qp-question-asset__toolbar {
+    position: relative;
+    z-index: 9;
+    background: #f8fafc;
+  }
+
   .qp-question__answer-panel {
     scroll-margin-top: 178px;
   }

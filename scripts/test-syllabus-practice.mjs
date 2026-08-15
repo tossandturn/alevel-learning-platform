@@ -35,6 +35,7 @@ assert.deepEqual(CAMBRIDGE_0625_IGCSE_SYLLABUS.topics.map((topic) => topic.name)
   'Space physics',
 ])
 const igcseInventory = syllabusTopicsInventory({ routeId: igcsePhysicsRouteId })
+assert.deepEqual(igcseInventory.assessmentComponents.map((item) => item.component), [2], '0625 Topic Drill must advertise only the currently source-backed theory component')
 assert.deepEqual(igcseInventory.topics.map((topic) => topic.verifiedQuestionCount), [20, 14, 12, 19, 10, 5], '0625 inventory must aggregate both reviewed P2 papers by official syllabus topic')
 assert.equal(igcseInventory.indexedQuestionGroupCount, 120, '0625 indexed count must include candidates while verified count remains fail-closed at 80')
 const igcseSet = buildSyllabusPracticeSet({
@@ -233,6 +234,7 @@ try {
   assert.equal(inventoryResponse.status, 200)
   const inventory = await inventoryResponse.json()
   assert.equal(inventory.aggregation, 'sqlite-question-groups-and-syllabus-mappings')
+  assert.deepEqual(inventory.assessmentComponents.map((item) => item.component), [1, 2], '9702 Topic Drill must keep P3 practical work in its separate route')
   assert.equal(inventory.topics.length, 11)
   assert.equal(inventory.topics.reduce((sum, topic) => sum + topic.indexedQuestionCount, 0), 147)
   assert.equal(inventory.indexedQuestionGroupCount, 147)
@@ -253,7 +255,10 @@ try {
       components: [1, 2],
     }),
   })
-  assert.equal(unauthenticatedSet.status, 401, 'practice-set creation must require a STEM identity')
+  assert.equal(unauthenticatedSet.status, 201, 'a guest may create a local source-backed practice set without accessing private workspace data')
+  const unauthenticatedPayload = await unauthenticatedSet.json()
+  assert.equal(unauthenticatedPayload.ownerId, null)
+  assert.equal(unauthenticatedPayload.questionCount, 5)
 
   const verifiedSet = await fetch(`${origin}/api/stem/practice-sets`, {
     method: 'POST',
@@ -274,6 +279,44 @@ try {
   assert.equal(verifiedSetPayload.questionCount, 5)
   assert.equal(verifiedSetPayload.availableCount, 5)
   assert.ok(verifiedSetPayload.questionGroups.every((question) => question.paperComponent === 1), 'P1 selection must remain component-isolated')
+
+  const persistedUnit = {
+    id: 'syllabus-set:http-rebind-fixture',
+    type: 'topic',
+    sourceAuthority: 'server-syllabus',
+    sourceGateVersion: 'server-syllabus-catalog-v2',
+    routeId,
+    syllabusTopic: verifiedSetPayload.syllabusTopicIds.join(','),
+    knowledgeGroupId: verifiedSetPayload.syllabusTopicIds[0],
+    paperComponent: verifiedSetPayload.components,
+    parts: verifiedSetPayload.questionGroups.flatMap((group) => group.parts.map((part, index) => ({
+      id: `http-rebind:${group.id}:${part.partId}:${index}`,
+      sourceKind: 'past-paper',
+      sourceQuestionId: group.id,
+      questionPartId: part.partId,
+      sourceBindingProvenance: part.sourceBindingProvenance,
+    }))),
+  }
+  const rebindResponse = await fetch(`${origin}/api/stem/practice-sets/rebind`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ unit: persistedUnit }),
+  })
+  assert.equal(rebindResponse.status, 200, 'a current persisted syllabus set must be revalidated over the real HTTP boundary')
+  const reboundPayload = await rebindResponse.json()
+  assert.equal(reboundPayload.unit.sourceGateStatus, 'current')
+  assert.equal(reboundPayload.unit.questionGroupCount, verifiedSetPayload.questionCount)
+
+  const forgedUnit = structuredClone(persistedUnit)
+  forgedUnit.parts[0].sourceBindingProvenance.bindingSignature = 'fnv1a64:0000000000000000'
+  const forgedRebindResponse = await fetch(`${origin}/api/stem/practice-sets/rebind`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ unit: forgedUnit }),
+  })
+  assert.equal(forgedRebindResponse.status, 409, 'a forged persisted binding must fail before it can re-enter the client practice inventory')
+  const forgedRebindPayload = await forgedRebindResponse.json()
+  assert.equal(forgedRebindPayload.code, 'stale_syllabus_practice_set')
 
   const invalidPracticalSet = await fetch(`${origin}/api/stem/practice-sets`, {
     method: 'POST',

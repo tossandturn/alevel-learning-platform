@@ -36,7 +36,8 @@ import { PracticeWorkspace } from './components/PracticeWorkspace'
 import { usePaperCatalog } from './hooks/usePaperCatalog'
 import { useSyllabusInventory } from './hooks/useSyllabusInventory'
 import { loadState, makeAttemptId, normalizeState, saveState } from './lib/storage'
-import { attemptedSourceQuestionIds, buildAttemptReviewQueue, buildProvisionalAttemptEvidence, hasAttemptResponse, hasCurrentSourceBindingForAttempt, isPendingSelfMarkAttempt, isProvisionalAttempt, isScoredAttempt, prepareLearningExport, sourceBindingSnapshotForUnit } from './lib/attemptAudit'
+import { canonicalSyllabusTopicIdForRoute, supportsSyllabusPracticeRoute, syllabusPracticeComponentsForRoute } from './lib/syllabusPracticeRoutes'
+import { attemptedSourceQuestionIds, buildAttemptReviewQueue, buildProvisionalAttemptEvidence, hasAttemptResponse, hasCurrentSourceBindingForAttempt, isPendingSelfMarkAttempt, isProvisionalAttempt, isScoredAttempt, isStudyOnlyAttempt, isStudyOnlyPracticeUnit, prepareLearningExport, sourceBindingSnapshotForUnit } from './lib/attemptAudit'
 import { mergeNotebookNote, notebookNoteRequest } from './lib/privateNotes'
 import { stripSourceVisualPlaceholders } from './lib/questionContent'
 import {
@@ -50,7 +51,7 @@ import {
 import { buildCoachPractice, buildVerifiedPracticeCatalog, coachPracticeOptions, MIN_VERIFIED_GROUPS_FOR_PRACTICE, previewCoachPracticeSourceMix, rebindVerifiedPracticeUnit, resolveVerifiedPracticeSelection, topicQueryForRoute } from './lib/verifiedPracticeCatalog'
 import { latestBphoSpcPaper } from './lib/coachIntent'
 import { buildCompletionByUnit, buildLearningProgress, latestSubmittedActivity, recommendForRoute } from './lib/learningProgress'
-import { professionalTermsUrl, requestNativeAccountReadiness, requestSharedAccount, requestSharedWorkspace, sharedAccountRequest, signInSharedAccount, signOutSharedAccount } from './lib/sharedAccount'
+import { professionalTermsUrl, requestNativeAccountReadiness, requestSharedAccount, requestSharedWorkspace, requestSyllabusPracticeRebind, requestSyllabusPracticeSet, sharedAccountRequest, signInSharedAccount, signOutSharedAccount } from './lib/sharedAccount'
 import { requestMarkingCapabilities } from './lib/markingCapabilityClient'
 import { parseProductContext, termIdsForStemContext } from './lib/productContext'
 import { studentNavigationFromLocation, studentNavigationHref } from './lib/studentNavigation'
@@ -231,6 +232,8 @@ function migratePracticeAnswers(unit, draft) {
 }
 
 function unitFromSyllabusPracticeSet(payload) {
+  const route = routeById(payload.routeId)
+  const subjectCode = payload.subjectCode || route?.subjectCode || ''
   const componentKey = (payload.components || []).join('-') || 'all'
   const unitId = `syllabus-set:${payload.routeId}:${payload.syllabusTopicIds.join('+')}:c${componentKey}:q${payload.requestedCount}:s${payload.seed}`
   const parts = payload.questionGroups.flatMap((group, groupIndex) => (group.parts || []).map((questionPart, partIndex) => ({
@@ -241,24 +244,32 @@ function unitFromSyllabusPracticeSet(payload) {
     questionGroupId: group.questionGroupId || group.id,
     questionPartId: questionPart.partId,
     label: `${group.questionNumber || groupIndex + 1}${questionPart.label ? `(${questionPart.label})` : ''}`,
-    displayLabel: `${group.questionNumber || groupIndex + 1}${questionPart.label ? `(${questionPart.label})` : ''}`,
+    displayLabel: questionPart.displayLabel || `${group.questionNumber || groupIndex + 1}${questionPart.label ? `(${questionPart.label})` : ''}`,
     sourceKind: 'past-paper',
     sourceContentComplete: group.sourceContent.complete === true,
-    sourceContentReasons: [],
+    sourceContentAvailable: group.sourceContent.fileComplete === true || group.sourceContent.complete === true,
+    sourceContentReasons: group.sourceContent.reasons || [],
+    sourceSemanticStatus: group.sourceContent.semanticStatus || 'unreviewed',
+    studyOnly: group.studyOnly === true || payload.practiceMode === 'study-only',
     sourcePages: group.sourceContent.pages || [],
     sourceAssetUrls: group.sourceContent.assetUrls || group.sourceRef?.assetUrls || [],
+    sourceFocus: questionPart.sourceFocus || null,
     sourceRef: { ...group.sourceRef, questionPartId: questionPart.partId, page: questionPart.sourcePage || group.sourceRef?.pageStart },
-    answerRef: { ...group.answerRef, questionPartId: questionPart.partId },
+    answerRef: { ...group.answerRef, questionPartId: questionPart.partId, page: questionPart.answerSourcePage || group.answerRef?.pageStart },
     prompt: stripSourceVisualPlaceholders(questionPart.promptFragment || group.prompt || ''),
     marks: Number(questionPart.marks || 0),
     answerType: questionPart.answerArea?.type || 'handwritten',
-    reviewStatus: 'reviewed',
+    options: questionPart.options || [],
+    answerKey: questionPart.answerKey || null,
+    answer: questionPart.answerKey || null,
+    reviewStatus: group.reviewStatus || 'machine-indexed',
     practiceAvailable: true,
-    deterministicScoringAvailable: false,
-    aiAssistedMarkingAvailable: true,
-    markPoints: [],
+    deterministicScoringAvailable: Boolean(questionPart.answerKey),
+    aiAssistedMarkingAvailable: false,
+    markPoints: questionPart.markSchemePoints || [],
     sourceAuthority: 'server-syllabus',
     markingProvenance: questionPart.markingProvenance,
+    sourceBindingProvenance: questionPart.sourceBindingProvenance,
   })))
   const referencePapers = [...new Map(payload.questionGroups.map((group) => [group.sourceRef?.paperId, {
     id: group.sourceRef?.paperId,
@@ -275,30 +286,45 @@ function unitFromSyllabusPracticeSet(payload) {
     agentGenerated: true,
     sourceAuthority: 'server-syllabus',
     routeId: payload.routeId,
-    qualification: 'A-Level',
-    subject: 'Physics',
-    subjectId: 'physics-9702',
-    qualificationId: 'cambridge-9702',
+    qualification: route?.qualification || 'A-Level',
+    subject: route?.subject || subjectCode,
+    subjectId: route?.subjectId || `subject-${subjectCode}`,
+    qualificationId: `cambridge-${subjectCode}`,
     knowledgeGroupId: payload.syllabusTopicIds[0],
     topicId: payload.syllabusTopicIds[0],
-    topic: payload.syllabusTopicIds.map((topicId) => topicId.replace('physics-9702-topic-', 'Topic ')).join(' + '),
-    title: `AS Physics · ${payload.syllabusTopicIds.join(' + ')}`,
-    stage: 'AS',
+    topic: payload.syllabusTopicIds.map((topicId) => topicId.replace(/^(?:physics-9702|9709-(?:as|a2))-topic-/, 'Topic ')).join(' + '),
+    title: `${route?.stage || 'AS'} ${route?.subject || subjectCode} · ${payload.syllabusTopicIds.join(' + ')}`,
+    stage: route?.stage || 'AS',
     paperComponent: payload.components,
     syllabusTopic: payload.syllabusTopicIds.join(','),
     sourcePaper: referencePapers.map((paper) => paper.file).join(', '),
-    durationSec: Math.max(300, payload.questionCount * 240),
+    durationSec: Math.max(300, payload.questionGroups.length * 240),
     maxMarks: parts.reduce((sum, part) => sum + part.marks, 0),
     difficulty: 'Past paper',
-    estimatedMinutes: Math.max(5, Math.ceil(payload.questionCount * 4)),
+    estimatedMinutes: Math.max(5, Math.ceil(payload.questionGroups.length * 4)),
     priority: 'Syllabus set',
     inventoryStatus: payload.partial ? 'partial-source-inventory' : 'verified-source-inventory',
-    questionGroupCount: payload.questionCount,
+    questionGroupCount: payload.questionGroups.length,
     sourceSetSeed: payload.seed,
     referencePapers,
     parts,
-    sourceGateVersion: 'server-syllabus-catalog-v1',
+    sourceGateVersion: 'server-syllabus-catalog-v2',
+    practiceMode: payload.practiceMode || 'verified',
   }
+}
+
+function rebindPracticeUnit(unit, validatedSyllabusUnits = new Map()) {
+  return unit?.sourceAuthority === 'server-syllabus'
+    ? validatedSyllabusUnits.get(unit.id) || null
+    : rebindVerifiedPracticeUnit(unit)
+}
+
+function syllabusUnitsFingerprint(units) {
+  return units.map((unit) => [
+    unit.id,
+    unit.sourceGateVersion,
+    ...(unit.parts || []).map((part) => `${part.sourceQuestionId}:${part.questionPartId}:${part.sourceBindingProvenance?.bindingSignature || ''}`),
+  ].join('|')).sort().join('\n')
 }
 
 function getIncomingProductContext() {
@@ -349,6 +375,7 @@ function App() {
   const [accountDialogMode, setAccountDialogMode] = useState(null)
   const [stateOwnerId, setStateOwnerId] = useState('')
   const [exportState, setExportState] = useState({ status: 'idle', error: '', exportedAt: '', checksum: '' })
+  const [syllabusRebindState, setSyllabusRebindState] = useState(() => ({ fingerprint: '', status: 'idle', units: new Map() }))
   const migrationAttemptedRef = useRef(false)
   const notebookSyncTimerRef = useRef(null)
   const stateOwnerIdRef = useRef('')
@@ -357,10 +384,42 @@ function App() {
   const restoredLocationRef = useRef('')
   const navigationRestorePendingRef = useRef(false)
   const verifiedCatalogUnits = useMemo(() => buildVerifiedPracticeCatalog(), [])
+  const persistedSyllabusUnits = useMemo(() => (
+    (appState.generatedUnits || []).filter((unit) => unit?.sourceAuthority === 'server-syllabus')
+  ), [appState.generatedUnits])
+  const persistedSyllabusFingerprint = useMemo(() => syllabusUnitsFingerprint(persistedSyllabusUnits), [persistedSyllabusUnits])
+
+  useEffect(() => {
+    if (!persistedSyllabusUnits.length) {
+      setSyllabusRebindState({ fingerprint: '', status: 'ready', units: new Map() })
+      return undefined
+    }
+    let active = true
+    setSyllabusRebindState((current) => ({ ...current, fingerprint: persistedSyllabusFingerprint, status: 'loading' }))
+    Promise.all(persistedSyllabusUnits.map(async (unit) => {
+      try {
+        const payload = await requestSyllabusPracticeRebind(sharedAccount.token, unit)
+        return payload?.unit ? [unit.id, payload.unit] : null
+      } catch {
+        return null
+      }
+    }))
+      .then((entries) => {
+        if (active) {
+          setSyllabusRebindState({
+            fingerprint: persistedSyllabusFingerprint,
+            status: 'ready',
+            units: new Map(entries.filter(Boolean)),
+          })
+        }
+      })
+    return () => { active = false }
+  }, [persistedSyllabusFingerprint, persistedSyllabusUnits, sharedAccount.token])
+
   const visibleVerifiedUnits = useMemo(() => {
     const persisted = (appState.generatedUnits || [])
       .filter((unit) => unit.agentGenerated || unit.focusedRetestOf)
-      .map((unit) => rebindVerifiedPracticeUnit(unit))
+      .map((unit) => rebindPracticeUnit(unit, syllabusRebindState.units))
       .filter(Boolean)
     const labelled = [...persisted, ...verifiedCatalogUnits.filter((catalogUnit) => !persisted.some((unit) => unit.id === catalogUnit.id))]
     return labelled.map((unit) => {
@@ -369,7 +428,7 @@ function App() {
         ? { ...unit, title: `${route.stage} ${route.subject} · ${unit.topic || unit.title}` }
         : unit
     })
-  }, [appState.generatedUnits, verifiedCatalogUnits])
+  }, [appState.generatedUnits, syllabusRebindState.units, verifiedCatalogUnits])
   const allPracticeUnits = visibleVerifiedUnits
   const migrationUnits = useMemo(() => [...new Map([...allPracticeUnits, ...topicUnits, ...fullPaperUnits].map((unit) => [unit.id, unit])).values()], [allPracticeUnits])
   const routePracticeUnits = useMemo(() => allPracticeUnits.filter((unit) => unit.routeId === activeRouteId), [activeRouteId, allPracticeUnits])
@@ -381,11 +440,11 @@ function App() {
   }, [activeRouteId, appState.paperReviews, routePaperSessions])
   const aiPracticeOptions = useMemo(() => coachPracticeOptions(), [])
   const syllabusInventory = useSyllabusInventory(activeRouteId, {
-    enabled: ['cie-9702-as-physics', 'cie-0625-igcse-physics'].includes(activeRouteId),
+    enabled: supportsSyllabusPracticeRoute(activeRouteId),
   })
   const activePracticeOptions = useMemo(() => {
     const routeOptions = aiPracticeOptions.filter((option) => option.routeId === activeRouteId)
-    if (!['cie-9702-as-physics', 'cie-0625-igcse-physics'].includes(activeRouteId) || syllabusInventory.status !== 'ready') return routeOptions
+    if (!supportsSyllabusPracticeRoute(activeRouteId) || syllabusInventory.status !== 'ready') return routeOptions
     const serverTopics = new Map((syllabusInventory.data?.topics || []).map((topic) => [topic.id, topic]))
     return routeOptions.map((option) => ({
       ...option,
@@ -396,7 +455,10 @@ function App() {
           routeId: option.routeId,
           label: `${serverTopic.code} ${serverTopic.name}`,
           stageTags: [option.stage],
-          inventory: serverTopic.verifiedQuestionCount,
+          inventory: serverTopic.availableQuestionCount ?? serverTopic.verifiedQuestionCount,
+          verifiedQuestionCount: serverTopic.verifiedQuestionCount,
+          studyQuestionCount: serverTopic.studyQuestionCount || 0,
+          availableQuestionCount: serverTopic.availableQuestionCount ?? serverTopic.verifiedQuestionCount,
           indexedQuestionCount: serverTopic.indexedQuestionCount,
           pendingReviewCount: serverTopic.pendingReviewCount,
           availableSetSizes: serverTopic.availableSetSizes,
@@ -878,7 +940,12 @@ function App() {
 
   function startPractice(unit, options = {}) {
     const hasSourceParts = Array.isArray(unit?.parts) && unit.parts.some((part) => part?.sourceKind === 'past-paper')
-    const currentBoundUnit = hasSourceParts ? rebindVerifiedPracticeUnit(unit) : unit
+    const sourceValidatedUnit = options.sourceValidated === true
+      && unit?.sourceAuthority === 'server-syllabus'
+      && unit?.sourceGateStatus === 'current'
+      ? unit
+      : null
+    const currentBoundUnit = hasSourceParts ? sourceValidatedUnit || rebindPracticeUnit(unit, syllabusRebindState.units) : unit
     if (!currentBoundUnit || !routeById(currentBoundUnit.routeId)) {
       throw new Error('This saved question set is no longer source-complete and cannot be resumed or marked.')
     }
@@ -1001,23 +1068,28 @@ function App() {
   }
 
   async function generateSyllabusPractice(selection) {
-    if (selection.routeId !== 'cie-9702-as-physics') return generateCoachPractice(selection)
-    const account = sharedAccount.status === 'ready' ? sharedAccount : await refreshSharedAccount()
-    if (!account?.token) throw new Error('Sign in to STEM before starting an official syllabus practice set.')
-    const response = await sharedAccountRequest(account.token, '/api/stem/practice-sets', {
-      method: 'POST',
-      body: JSON.stringify({
-        routeId: selection.routeId,
-        syllabusTopicIds: selection.syllabusTopicIds || [selection.knowledgeGroupId],
-        questionCount: selection.questionCount || MIN_VERIFIED_GROUPS_FOR_PRACTICE,
-        components: selection.components || [1, 2],
-        excludeAttempted: true,
-        attemptedQuestionIds: attemptedSourceQuestionIds(appState.attempts, selection.routeId),
-        seed: Date.now(),
-      }),
+    if (!supportsSyllabusPracticeRoute(selection?.routeId)) return generateCoachPractice(selection)
+    const syllabusTopicIds = (selection.syllabusTopicIds || [selection.knowledgeGroupId])
+      .map((topicId) => canonicalSyllabusTopicIdForRoute(selection.routeId, topicId))
+      .filter(Boolean)
+    const components = selection.components?.length
+      ? selection.components
+      : syllabusPracticeComponentsForRoute(selection.routeId)
+    const response = await requestSyllabusPracticeSet(sharedAccount.token, {
+      routeId: selection.routeId,
+      syllabusTopicIds,
+      questionCount: selection.questionCount || MIN_VERIFIED_GROUPS_FOR_PRACTICE,
+      components,
+      excludeAttempted: true,
+      attemptedQuestionIds: attemptedSourceQuestionIds(appState.attempts, selection.routeId),
+      seed: Date.now(),
     })
-    if (!response?.questionGroups?.length) throw new Error('The selected syllabus topics have no reviewed source questions yet.')
-    const unit = unitFromSyllabusPracticeSet(response)
+    if (!response?.questionGroups?.length) throw new Error('The selected syllabus topics have no source-backed study questions yet.')
+    const unit = { ...unitFromSyllabusPracticeSet(response), sourceGateStatus: 'current' }
+    setSyllabusRebindState((current) => ({
+      ...current,
+      units: new Map(current.units).set(unit.id, unit),
+    }))
     setAppState((state) => ({
       ...state,
       generatedUnits: [unit, ...(state.generatedUnits || [])].slice(0, 24),
@@ -1025,6 +1097,7 @@ function App() {
     startPractice(unit, {
       confirmed: true,
       clearDraft: true,
+      sourceValidated: true,
       settings: { mode: 'guided', timing: 'recommended', hints: true },
     })
     return unit
@@ -1056,8 +1129,14 @@ function App() {
 
     if (intent.type === 'build-topic-practice') {
       try {
+        const contextualRouteId = intent.routeId || (
+          String(activeRoute.subjectCode || '') === String(intent.subjectCode || '')
+          && activeRoute.stage === intent.stage
+          ? activeRouteId
+          : undefined
+        )
         const selection = resolveVerifiedPracticeSelection({
-          routeId: intent.routeId,
+          routeId: contextualRouteId,
           subjectId: intent.subjectId,
           stage: intent.stage,
           topicId: intent.topicId || intent.knowledgeGroupId,
@@ -1249,6 +1328,7 @@ function App() {
       return
     }
     const capability = markingCapabilityForUnit(unit)
+    const studyOnly = isStudyOnlyPracticeUnit(unit)
     const sourceBinding = sourceBindingSnapshotForUnit(unit)
     if ((unit.parts || []).some((part) => part.sourceKind === 'past-paper') && !sourceBinding) {
       setCurrentAttempt({ ...attemptSnapshot, submitting: false, saveStatus: 'Source review changed. Reopen this set before submitting.' })
@@ -1268,7 +1348,7 @@ function App() {
       submitting: false,
       routeId: unit.routeId,
       stage: unit.stage,
-      attemptStatus: scoreResult ? 'result' : pendingStatus,
+      attemptStatus: scoreResult ? (studyOnly ? 'study-result' : 'result') : pendingStatus,
       submittedAt,
       sourceBinding,
       ...(scoreResult ? { scoreResult } : {}),
@@ -1277,6 +1357,7 @@ function App() {
       visionReviews,
       markingLifecycle,
       selfMarkPending: !scoreResult,
+      formalResult: !studyOnly,
       contentScope: {
         unitId: unit.id,
         title: unit.title,
@@ -1295,7 +1376,7 @@ function App() {
     const masteryBefore = previousScores.length
       ? Math.round(previousScores.reduce((total, score) => total + score, 0) / previousScores.length)
       : null
-    if (scoreResult) {
+    if (scoreResult && !studyOnly) {
       completedAttempt.learningSignal = {
         masteryBefore,
         masteryAfter: scoreResult.percentage,
@@ -1303,7 +1384,7 @@ function App() {
       }
     }
 
-    if (scoreResult && attemptSnapshot.assignmentId && sharedAccount.status === 'ready') {
+    if (scoreResult && !studyOnly && attemptSnapshot.assignmentId && sharedAccount.status === 'ready') {
       try {
         await sharedAccountRequest(sharedAccount.token, `/api/stem/assignments/${encodeURIComponent(attemptSnapshot.assignmentId)}/submissions`, {
           method: 'POST',
@@ -1363,6 +1444,7 @@ function App() {
     const markingLifecycle = pending.markingLifecycle || buildPartMarkingLifecycle(unit, pending.answers, pending.elapsedSec, pending.visionReviews)
     if (!hasCompleteStudentMarks(unit, markingLifecycle, marksByPart)) return
     const scoreResult = finalizePartMarking(unit, markingLifecycle, marksByPart, pending.elapsedSec)
+    const studyOnly = isStudyOnlyPracticeUnit(unit)
     const previousScores = appState.attempts
       .filter((attempt) => attempt.id !== attemptId && isScoredAttempt(attempt, unit) && attempt.routeId === unit.routeId && attempt.unitId === unit.id)
       .map((attempt) => attempt.scoreResult.percentage)
@@ -1371,8 +1453,9 @@ function App() {
       ...pending,
       id: makeAttemptId(),
       finalizedFromAttemptId: pending.id,
-      attemptStatus: scoreResult.partial ? 'provisional-result' : 'result',
+      attemptStatus: scoreResult.partial ? 'provisional-result' : studyOnly ? 'study-result' : 'result',
       selfMarkPending: false,
+      formalResult: !studyOnly,
       studentSelfMarks: Object.fromEntries(pendingPartsForLifecycle(unit, markingLifecycle).map((part) => [part.id, Number(marksByPart[part.id])])),
       selfMarkRecordedAt: new Date().toISOString(),
       scoreResult,
@@ -1380,7 +1463,7 @@ function App() {
         finalizedAt: new Date().toISOString(),
         studentMarkedPartIds: pendingPartsForLifecycle(unit, markingLifecycle).map((part) => part.id),
       },
-      ...(scoreResult.partial ? {} : { learningSignal: {
+      ...((scoreResult.partial || studyOnly) ? {} : { learningSignal: {
         masteryBefore,
         masteryAfter: scoreResult.percentage,
         masteryDelta: masteryBefore == null ? null : scoreResult.percentage - masteryBefore,
@@ -1401,6 +1484,12 @@ function App() {
       || resultUnit.parts.find((part) => hasAttemptResponse(resultAttempt, part.id))
       || resultUnit.parts[0]
     : null
+  const practiceCoachPart = currentAttempt && currentUnit
+    ? currentUnit.parts.find((part) => part.id === currentAttempt.activePartId) || currentUnit.parts[0]
+    : null
+  const coachAttempt = view === 'practice' ? currentAttempt : resultAttempt
+  const coachUnit = view === 'practice' ? currentUnit : resultUnit
+  const coachPart = view === 'practice' ? practiceCoachPart : resultCoachPart
 
   const restoreStudentNavigation = useCallback((navigation) => {
     const route = routeById(navigation.routeId)
@@ -1408,6 +1497,19 @@ function App() {
     if (route && route.routeId !== activeRouteId) selectRoute(route.routeId)
     if (navigation.view === 'library') setActiveTab(navigation.tab)
     if (navigation.topicId) setSelectedTopicId(navigation.topicId)
+
+    const referencedAttempt = navigation.view === 'result'
+      ? appState.attempts.find((item) => item.id === navigation.attemptId)
+      : null
+    const referencedUnitId = navigation.unitId || referencedAttempt?.unitId
+    const waitsForSyllabusRebind = referencedUnitId
+      && !syllabusRebindState.units.has(referencedUnitId)
+      && syllabusRebindState.status !== 'ready'
+      && (appState.generatedUnits || []).some((unit) => unit.id === referencedUnitId && unit.sourceAuthority === 'server-syllabus')
+    if (waitsForSyllabusRebind) {
+      navigationRestorePendingRef.current = true
+      return
+    }
 
     if (navigation.view === 'practice') {
       const unit = allPracticeUnits.find((item) => item.id === navigation.unitId)
@@ -1420,7 +1522,7 @@ function App() {
         setView('library')
         return
       }
-      const currentBoundUnit = unit.parts?.some((part) => part.sourceKind === 'past-paper') ? rebindVerifiedPracticeUnit(unit) : unit
+      const currentBoundUnit = unit.parts?.some((part) => part.sourceKind === 'past-paper') ? rebindPracticeUnit(unit, syllabusRebindState.units) : unit
       if (!currentBoundUnit) {
         setCurrentAttempt(null)
         setView('library')
@@ -1459,7 +1561,7 @@ function App() {
     if (navigation.view === 'result') {
       const attempt = appState.attempts.find((item) => item.id === navigation.attemptId)
       const unit = attempt && allPracticeUnits.find((item) => item.id === attempt.unitId)
-      if (attempt && unit && (isPendingSelfMarkAttempt(attempt) || isProvisionalAttempt(attempt, unit) || isScoredAttempt(attempt, unit))) {
+      if (attempt && unit && (isPendingSelfMarkAttempt(attempt) || isProvisionalAttempt(attempt, unit) || isStudyOnlyAttempt(attempt, unit) || isScoredAttempt(attempt, unit))) {
         setResultAttempt(attempt)
         setCurrentAttempt(null)
         setActivePaper(null)
@@ -1498,7 +1600,7 @@ function App() {
     setResultAttempt(null)
     setActivePaper(null)
     setView(navigation.view)
-  }, [activeRoute, activeRouteId, allPracticeUnits, appState.attempts, appState.drafts, appState.paperDrafts, paperCatalogState.catalog, paperCatalogState.status])
+  }, [activeRoute, activeRouteId, allPracticeUnits, appState.attempts, appState.drafts, appState.generatedUnits, appState.paperDrafts, paperCatalogState.catalog, paperCatalogState.status, syllabusRebindState.status, syllabusRebindState.units])
 
   useEffect(() => {
     const restoreLocation = () => {
@@ -1773,25 +1875,25 @@ function App() {
           })}
         />
       )}
-      {view !== 'practice' && view !== 'paper' && !(view === 'library' && activeTab === 'papers') && (
+      {view !== 'paper' && !(view === 'library' && activeTab === 'papers') && (
         <AiCoach
-          key={`${activeRouteId}:${view}:${resultAttempt?.id || 'general'}`}
+          key={`${activeRouteId}:${view}:${coachAttempt?.id || 'general'}`}
           stateOwnerId={stateOwnerId}
           context={{
-            attemptId: resultAttempt?.id,
+            attemptId: coachAttempt?.id,
             stateOwnerId,
             view,
-            routeId: resultUnit?.routeId || activeRouteId,
+            routeId: coachUnit?.routeId || activeRouteId,
             subject: activeSubject,
-            stage: resultUnit?.stage || activeRoute.stage,
-            question: resultAttempt && resultUnit ? {
-              id: resultCoachPart?.id || '',
-              label: resultIsPendingSelfMark ? 'Submitted response pending self-mark' : resultAttempt.scoreResult?.partial ? 'Provisional result' : 'Latest scored result',
-              prompt: resultCoachPart?.prompt || resultUnit.title,
+            stage: coachUnit?.stage || activeRoute.stage,
+            question: coachAttempt && coachUnit ? {
+              id: coachPart?.id || '',
+              label: view === 'practice' ? 'Current practice question' : resultIsPendingSelfMark ? 'Submitted response pending self-mark' : resultAttempt.scoreResult?.partial ? 'Provisional result' : 'Latest scored result',
+              prompt: coachPart?.prompt || coachUnit.title,
             } : null,
-            response: resultAttempt && resultCoachPart ? resultAttempt.answers?.[resultCoachPart.id] || resultAttempt.working?.[resultCoachPart.id] || '' : '',
+            response: coachAttempt && coachPart ? coachAttempt.answers?.[coachPart.id] || coachAttempt.working?.[coachPart.id] || '' : '',
             submitted: view === 'result',
-            markingStatus: resultIsPendingSelfMark ? 'self-mark-pending' : resultAttempt?.scoreResult?.partial ? 'provisional' : resultAttempt?.scoreResult ? 'scored' : 'not-scored',
+            markingStatus: view === 'practice' ? 'in-progress' : resultIsPendingSelfMark ? 'self-mark-pending' : resultAttempt?.scoreResult?.partial ? 'provisional' : resultAttempt?.scoreResult ? 'scored' : 'not-scored',
           }}
           openRequest={coachOpenRequest}
           openBuilderRequest={coachBuilderOpenRequest}
@@ -2575,7 +2677,7 @@ function PracticeTopicDirectory({ activeRoute, activeRouteId, practiceOptions, v
   )
 }
 
-function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, learningProgress, mistakes, practiceUnits, completionByUnit, startPractice, startKnowledgeDrill, onBack, onOpenCoach }) {
+function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, syllabusInventory, learningProgress, mistakes, practiceUnits, completionByUnit, startPractice, startKnowledgeDrill, onBack, onOpenCoach }) {
   const [startError, setStartError] = useState('')
   const [selectedTopicIds, setSelectedTopicIds] = useState([topicId])
   const [selectedQuestionCount, setSelectedQuestionCount] = useState(10)
@@ -2583,19 +2685,30 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, lea
   const routeOption = practiceOptions.find((option) => option.routeId === activeRouteId)
   const topic = routeOption?.topics.find((item) => item.id === topicId)
   const selectedTopics = (routeOption?.topics || []).filter((item) => selectedTopicIds.includes(item.id))
-  const dynamicSyllabusRoute = activeRouteId === 'cie-9702-as-physics'
-  const selectedComponents = componentMode === 'p1' ? [1] : componentMode === 'p2' ? [2] : [1, 2]
-  const componentLabel = componentMode === 'p1' ? 'P1' : componentMode === 'p2' ? 'P2' : 'P1 + P2'
+  const dynamicSyllabusRoute = supportsSyllabusPracticeRoute(activeRouteId)
+  const inventoryComponents = (syllabusInventory?.data?.assessmentComponents || []).map((item) => Number(item.component)).filter(Number.isFinite)
+  const routeComponents = inventoryComponents.length
+    ? inventoryComponents
+    : (activeRoute.paperComponents || []).map((component) => Number(component)).filter(Number.isFinite)
+  const selectedComponents = componentMode === 'p1'
+    ? [routeComponents[0]].filter(Boolean)
+    : componentMode === 'p2'
+      ? [routeComponents[1]].filter(Boolean)
+      : routeComponents
+  const componentLabel = selectedComponents.map((component) => `P${component}`).join(' + ') || 'theory'
   const componentScopedQuestions = dynamicSyllabusRoute
     ? verifiedPracticeQuestionGroups.filter((question) => (
       question.routeId === activeRouteId
       && selectedComponents.includes(Number(question.paperComponent ?? question.sourceRef?.component))
     ))
     : []
-  const componentInventoryByTopic = new Map((routeOption?.topics || []).map((candidate) => [
-    candidate.id,
-    componentScopedQuestions.filter((question) => topicQuestionMatches(question, activeRouteId, candidate.id)).length,
-  ]))
+  const serverTopicById = new Map((syllabusInventory?.data?.topics || []).map((candidate) => [candidate.id, candidate]))
+  const componentInventoryByTopic = new Map((routeOption?.topics || []).map((candidate) => {
+    const serverTopic = serverTopicById.get(candidate.id)
+    const componentCounts = serverTopic?.componentCounts || {}
+    const available = selectedComponents.reduce((sum, component) => sum + Number(componentCounts[component]?.availableQuestionCount || 0), 0)
+    return [candidate.id, available || (selectedComponents.length === 2 ? Number(serverTopic?.availableQuestionCount || candidate.inventory || 0) : 0)]
+  }))
   const selectedSourceQuestions = dynamicSyllabusRoute
     ? componentScopedQuestions.filter((question) => selectedTopicIds.some((selectedTopicId) => topicQuestionMatches(question, activeRouteId, selectedTopicId)))
     : []
@@ -2610,9 +2723,11 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, lea
   const progress = learningProgress.topicProgress.find((item) => item.id === topicId || String(item.id || '').split('@')[0] === String(topicId).split('@')[0])
   const mastery = progress?.mastery ?? null
   const totalAvailable = selectedTopics.reduce((sum, item) => sum + (item.inventory || 0), 0)
-  const available = dynamicSyllabusRoute ? selectedSourceQuestions.length : totalAvailable
+  const available = dynamicSyllabusRoute
+    ? selectedTopicIds.reduce((sum, selectedTopicId) => sum + Number(componentInventoryByTopic.get(selectedTopicId) || 0), 0)
+    : totalAvailable
   const questionCount = Math.min(selectedQuestionCount, available)
-  const selectedTopicsMeetReviewFloor = selectedTopics.length > 0 && selectedTopics.every((item) => (item.inventory || 0) >= MIN_VERIFIED_GROUPS_FOR_PRACTICE)
+  const selectedTopicsMeetReviewFloor = selectedTopics.length > 0 && selectedTopics.every((item) => (item.inventory || 0) > 0)
   const practiceReady = dynamicSyllabusRoute
     ? selectedTopicsMeetReviewFloor && available > 0
     : available >= MIN_VERIFIED_GROUPS_FOR_PRACTICE
@@ -2630,7 +2745,7 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, lea
     return counts
   }, { practice: 0, deterministic: 0, aiAssisted: 0, selfMark: 0 })
   const selectedAnswerPartCount = dynamicSyllabusRoute
-    ? selectedSourceQuestions.reduce((sum, question) => sum + (question.parts?.length || 0), 0)
+    ? (selectedSourceQuestions.reduce((sum, question) => sum + (question.parts?.length || 0), 0) || available)
     : markingCapabilityCounts.practice
   const nextPracticeUnit = topicPracticeUnits.find((unit) => !completionByUnit[unit.id]?.completed) || topicPracticeUnits[0]
   const topicMistakes = mistakes.filter((mistake) => mistake.unit.knowledgeGroupId === topicId).length
@@ -2661,14 +2776,14 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, lea
   })) || []
   const sessionQuestionCount = practiceReady ? questionCount : sampleReady ? nextPracticeUnit.questionGroupCount || available : 0
   const inventorySummary = dynamicSyllabusRoute
-    ? `${available} reviewed ${componentLabel} question${available === 1 ? '' : 's'} match this selection`
+    ? `${available} ${selectedTopics.some((item) => (item.studyQuestionCount || 0) > 0) ? 'source-backed' : 'reviewed'} ${componentLabel} question${available === 1 ? '' : 's'} match this selection`
     : `${topicPracticeUnits.length} practice set${topicPracticeUnits.length === 1 ? '' : 's'} · ${available} checked questions`
   const answerPartSummary = dynamicSyllabusRoute
     ? `${selectedAnswerPartCount} answer part${selectedAnswerPartCount === 1 ? '' : 's'} · official question images and mark schemes attached`
     : `${markingCapabilityCounts.practice} answer parts: ${markingCapabilityCounts.selfMark} self-mark, ${markingCapabilityCounts.deterministic} deterministic, ${markingCapabilityCounts.aiAssisted} AI-assisted`
   const readinessSummary = dynamicSyllabusRoute
     ? questionCount < selectedQuestionCount
-      ? `A shorter ${questionCount}-question set will be generated because only ${available} reviewed ${componentLabel} questions are available.`
+      ? `A shorter ${questionCount}-question set will be generated because only ${available} ${selectedTopics.some((item) => (item.studyQuestionCount || 0) > 0) ? 'source-backed' : 'reviewed'} ${componentLabel} questions are available.`
       : `Ready to generate a ${questionCount}-question ${componentLabel} set.`
     : topicMistakes
       ? `${topicMistakes} mistake${topicMistakes === 1 ? '' : 's'} linked`
@@ -2681,7 +2796,7 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, lea
   async function startTopicPractice() {
     try {
       setStartError('')
-      if (activeRouteId !== 'cie-9702-as-physics' && selectedTopicIds.length === 1 && nextPracticeUnit && (practiceReady || sampleReady)) {
+      if (!dynamicSyllabusRoute && selectedTopicIds.length === 1 && nextPracticeUnit && (practiceReady || sampleReady)) {
         startPractice(nextPracticeUnit)
         return
       }
@@ -2755,10 +2870,10 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, lea
           </section>
           {checkpoints.length > 0 && <section className="topic-detail__checkpoints"><header><div><p className="section-label">Progression</p><h2>What good looks like</h2></div><span>Move from recall to exam application</span></header><div>{checkpoints.map((checkpoint) => <article key={checkpoint.id}><strong>{checkpoint.label}</strong><p>{checkpoint.description}</p></article>)}</div></section>}
           <section className="topic-detail__past-papers"><header><div><p className="section-label">Real exam collection</p><h2>Past-paper questions by chapter</h2><p>These are question-level records, grouped by their original paper. Open the source page or mark scheme without losing the topic mapping.</p></div><strong>{topicQuestions.length} questions · {topicPaperGroups.length} paper{topicPaperGroups.length === 1 ? '' : 's'}</strong></header>{topicPaperGroups.length ? <div className="topic-detail__paper-groups">{topicPaperGroups.map((paperQuestions) => { const first = paperQuestions[0]; const source = first.sourceRef || {}; return <article className="topic-detail__paper-group" key={source.paperId || source.paper}><header><div><strong>{sourcePaperLabel(first)}</strong><span>{source.component ? `Component ${source.component}` : 'Official source'} · {paperQuestions.length} linked question{paperQuestions.length === 1 ? '' : 's'}</span></div><div><a href={`${source.localUrl}#page=${source.pageStart || 1}`} target="_blank" rel="noreferrer">Open QP</a><a href={`${first.answerRef?.localUrl || '#'}#page=${first.answerRef?.pageStart || 1}`} target="_blank" rel="noreferrer">Open MS</a></div></header><div>{paperQuestions.map((question) => <div className="topic-detail__question-row" key={question.questionGroupId || question.bankId}><span>{question.sourceRef?.question || 'Question'}</span><p>{sourceQuestionPreview(question) || 'Indexed question text is available in the source paper.'}</p><small>{question.totalMarks || question.marks || 1} mark{(question.totalMarks || question.marks || 1) === 1 ? '' : 's'} · QP p.{question.sourceRef?.pageStart || '?'} · MS p.{question.answerRef?.pageStart || '?'}</small></div>)}</div></article> })}</div> : <div className="topic-detail__empty-source"><FileText size={20} /><strong>No question-level source records yet</strong><p>This topic is in the syllabus map, but its verified paper index has not been attached to this route.</p></div>}</section>
-          <section className="topic-detail__source"><FileText size={20} /><div><strong>Checked source questions</strong><p>Questions and answers stay paired with their original paper and mark scheme. Only complete paper evidence can enter a practice set.</p></div><span>{available} available{practiceReady ? '' : ` · ${MIN_VERIFIED_GROUPS_FOR_PRACTICE - available} more needed`}</span></section>
+          <section className="topic-detail__source"><FileText size={20} /><div><strong>Source-backed practice</strong><p>Every study item keeps its original QP/MS pages. Items still awaiting semantic review are available for self-mark practice only and are excluded from AI marking and formal mastery.</p></div><span>{available} available{selectedTopics.some((item) => (item.studyQuestionCount || 0) > 0) ? ' · some self-mark only' : ''}</span></section>
         </main>
         <aside className="topic-detail__rail" aria-label="Start a topic session">
-          <section className="topic-detail__start"><p className="section-label">Start this session</p><h2>{sessionQuestionCount} source question{sessionQuestionCount === 1 ? '' : 's'}</h2><p className="topic-detail__start-copy">Open the official question page, work in your preferred mode, then review against the linked mark scheme after submission.</p><ul><li>{inventorySummary}</li><li>{answerPartSummary}</li><li>{readinessSummary}</li></ul>{practiceReady || sampleReady ? <button type="button" className="primary-action" onClick={startTopicPractice}><PlayIcon />{practiceReady ? nextPracticeUnit ? `Start set ${nextPracticeUnit.sourceSetIndex}` : `Practice ${questionCount}` : 'Start checked sample'}</button> : <button type="button" className="primary-action" disabled>{available ? `${available} source questions · more coming` : 'Questions not ready yet'}</button>}{topicPracticeUnits.length > 1 && <div className="topic-detail__set-list" aria-label="Past-paper practice sets">{topicPracticeUnits.map((unit) => <button type="button" key={unit.id} data-completed={Boolean(completionByUnit[unit.id]?.completed)} onClick={() => startPractice(unit)}><span>Set {unit.sourceSetIndex}</span><small>{unit.questionGroupCount} source questions · {unit.parts.length} answer parts · {unit.referencePapers.length} papers</small></button>)}</div>}<button type="button" className="topic-detail__ai" onClick={onOpenCoach}><Sparkles size={16} />Ask AI Tutor about this topic</button>{startError && <p className="topic-detail__error" role="alert">{startError}</p>}</section>
+          <section className="topic-detail__start"><p className="section-label">Start this session</p><h2>{sessionQuestionCount} source question{sessionQuestionCount === 1 ? '' : 's'}</h2><p className="topic-detail__start-copy">Open the official question page, work in your preferred mode, then review against the linked mark scheme after submission.</p><ul><li>{inventorySummary}</li><li>{answerPartSummary}</li><li>{readinessSummary}</li></ul>{practiceReady || sampleReady ? <button type="button" className="primary-action" onClick={startTopicPractice}><PlayIcon />{practiceReady ? dynamicSyllabusRoute ? `Practice ${questionCount}` : nextPracticeUnit ? `Start set ${nextPracticeUnit.sourceSetIndex}` : `Practice ${questionCount}` : 'Start checked sample'}</button> : <button type="button" className="primary-action" disabled>{available ? `${available} source questions · more coming` : 'Questions not ready yet'}</button>}{topicPracticeUnits.length > 1 && <div className="topic-detail__set-list" aria-label="Past-paper practice sets">{topicPracticeUnits.map((unit) => <button type="button" key={unit.id} data-completed={Boolean(completionByUnit[unit.id]?.completed)} onClick={() => startPractice(unit)}><span>Set {unit.sourceSetIndex}</span><small>{unit.questionGroupCount} source questions · {unit.parts.length} answer parts · {unit.referencePapers.length} papers</small></button>)}</div>}<button type="button" className="topic-detail__ai" onClick={onOpenCoach}><Sparkles size={16} />Ask AI Tutor about this topic</button>{startError && <p className="topic-detail__error" role="alert">{startError}</p>}</section>
           {dynamicSyllabusRoute && <section className="topic-detail__set-controls" aria-label="Syllabus practice set controls">
             <div><p className="section-label">Build your set</p><h2>Choose what to practise</h2><p>Pick one or more syllabus topics, then select the paper style and question count for this session.</p></div>
             <fieldset className="topic-detail__topic-options"><legend>Choose syllabus topics</legend><div className="topic-detail__topic-option-list">{(routeOption?.topics || []).map((candidate) => {
@@ -2767,7 +2882,7 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, lea
               return <label className={`topic-detail__topic-option ${selected ? 'is-selected' : ''}`} key={candidate.id}><input type="checkbox" checked={selected} onChange={(event) => setSelectedTopicIds((current) => event.target.checked ? [...new Set([...current, candidate.id])] : current.filter((id) => id !== candidate.id))} /><span><strong>{candidate.label}</strong><small>{componentCount} {componentLabel} question{componentCount === 1 ? '' : 's'} · {candidate.inventory || 0} total</small></span></label>
             })}</div></fieldset>
             <label><span>Question count</span><select value={selectedQuestionCount} onChange={(event) => setSelectedQuestionCount(Number(event.target.value))}><option value={5}>5 questions</option><option value={10}>10 questions</option><option value={15}>15 questions</option></select></label>
-            <label><span>Paper components</span><select value={componentMode} onChange={(event) => setComponentMode(event.target.value)}><option value="mixed">P1 + P2 mixed</option><option value="p1">P1 only</option><option value="p2">P2 only</option></select></label>
+            <label><span>Paper components</span><select value={componentMode} onChange={(event) => setComponentMode(event.target.value)}><option value="mixed">{routeComponents.map((component) => `P${component}`).join(' + ') || 'Theory mixed'}</option><option value="p1">P{routeComponents[0] || 1} only</option><option value="p2" disabled={!routeComponents[1]}>P{routeComponents[1] || 2} only</option></select></label>
           </section>}
         </aside>
       </div>
@@ -3171,10 +3286,13 @@ function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibr
   }
 
   const assisted = attempt.assistedReview
+  const isStudyOnly = isStudyOnlyPracticeUnit(unit)
   const isProvisional = result.partial === true
   const weakest = result.weakestPartId ? unit.parts.find((part) => part.id === result.weakestPartId) : null
-  const assessmentState = isProvisional ? 'Provisional' : answeredParts ? (result.percentage >= 80 ? 'Secure' : result.percentage >= 50 ? 'In progress' : 'Needs review') : 'Not assessed'
-  const assessmentCopy = isProvisional
+  const assessmentState = isStudyOnly ? 'Study result' : isProvisional ? 'Provisional' : answeredParts ? (result.percentage >= 80 ? 'Secure' : result.percentage >= 50 ? 'In progress' : 'Needs review') : 'Not assessed'
+  const assessmentCopy = isStudyOnly
+    ? `${answeredParts}/${unit.parts.length} responses self-marked against the paired scheme`
+    : isProvisional
     ? `${answeredParts}/${unit.parts.length} responses submitted · ${result.unansweredPartCount} unanswered`
     : answeredParts ? `${answeredParts}/${unit.parts.length} responses submitted` : 'No answer evidence was submitted'
   const stemReturnUrl = typeof window === 'undefined' ? '' : `${window.location.origin}/?from=ieltsist&focus=${encodeURIComponent(unit.subjectId || '')}&routeId=${encodeURIComponent(unit.routeId || '')}&topicId=${encodeURIComponent(unit.topicId || unit.syllabusTopic || '')}&attemptId=${encodeURIComponent(attempt.id)}`
@@ -3200,9 +3318,9 @@ function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibr
     <section className="result-view page-band">
       <div className="result-hero">
         <div>
-          <p className="section-label">{isProvisional ? 'Provisional result' : 'Result'}</p>
+          <p className="section-label">{isStudyOnly ? 'Study result' : isProvisional ? 'Provisional result' : 'Result'}</p>
           <h1>{result.rawMarks}/{result.maxMarks} marks</h1>
-          <p><span className={`result-status result-status--${assessmentState.toLowerCase().replaceAll(' ', '-')}`}>{assessmentState}</span>{assessmentCopy}{isProvisional ? ' · Not included in mastery or grade estimates' : ` · ${result.gradeEstimate}`}</p>
+          <p><span className={`result-status result-status--${assessmentState.toLowerCase().replaceAll(' ', '-')}`}>{assessmentState}</span>{assessmentCopy}{isProvisional || isStudyOnly ? ' · Not included in mastery or grade estimates' : ` · ${result.gradeEstimate}`}</p>
         </div>
         <div className="result-actions">
           <button type="button" className="primary-action" onClick={() => startPractice(unit, { clearDraft: true, retestOf: attempt.id })}>
@@ -3216,13 +3334,15 @@ function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibr
         </div>
       </div>
 
-      {!isProvisional && <section className="result-learning-signal" aria-label="Mastery change">
+      {!isProvisional && !isStudyOnly && <section className="result-learning-signal" aria-label="Mastery change">
         <div><p className="section-label">Learning signal</p><h2>What changed after this attempt</h2><p>{attempt.learningSignal?.masteryBefore == null ? 'This is the first verified result for this set. Keep the evidence and compare it after your retest.' : 'The change is based on your prior submitted attempts for this same verified set.'}</p></div>
         <div className="mastery-delta"><span>Mastery</span><strong>{attempt.learningSignal?.masteryBefore == null ? `${result.percentage}%` : `${attempt.learningSignal.masteryBefore}% → ${attempt.learningSignal.masteryAfter}%`}</strong><small className={attempt.learningSignal?.masteryDelta > 0 ? 'up' : attempt.learningSignal?.masteryDelta < 0 ? 'down' : ''}>{attempt.learningSignal?.masteryDelta == null ? 'Baseline recorded' : `${attempt.learningSignal.masteryDelta > 0 ? '+' : ''}${attempt.learningSignal.masteryDelta}% from your previous average`}</small></div>
         <a className="terms-recommendation" href={termsUrl} target="_blank" rel="noreferrer"><Brain size={18} /><span><strong>Professional terms for this question</strong><small>{(weakest?.topicTags || [unit.topic]).slice(0, 3).join(' · ')}</small></span><ChevronRight size={16} /></a>
       </section>}
 
       {isProvisional && <section className="result-learning-signal" aria-label="Provisional result notice"><div><p className="section-label">Saved evidence</p><h2>Finish the remaining questions before mastery updates</h2><p>This score covers only the answered parts. It does not update mastery, grade estimates, mistakes, streaks, weekly goals or class analytics.</p></div><div className="mastery-delta"><span>Answered</span><strong>{answeredParts}/{unit.parts.length}</strong><small>{result.unansweredPartCount} unanswered part{result.unansweredPartCount === 1 ? '' : 's'} remain unmarked</small></div><a className="terms-recommendation" href={termsUrl} target="_blank" rel="noreferrer"><Brain size={18} /><span><strong>Professional terms for this question</strong><small>{(weakest?.topicTags || [unit.topic]).slice(0, 3).join(' · ')}</small></span><ChevronRight size={16} /></a></section>}
+
+      {isStudyOnly && <section className="result-learning-signal" aria-label="Study result notice"><div><p className="section-label">Practice record</p><h2>Use this self-mark to guide the next attempt</h2><p>This source-backed study result is saved with its QP/MS identity, but it does not update mastery, grade estimates, mistakes, streaks, weekly goals, class analytics or AI marking.</p></div><div className="mastery-delta"><span>Self-marked</span><strong>{answeredParts}/{unit.parts.length}</strong><small>Formal review is still pending</small></div></section>}
 
       {hasAiReview && assisted && (
         <section className="ai-review-summary">

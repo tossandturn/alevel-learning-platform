@@ -1,5 +1,5 @@
 import { AlertTriangle, CheckCircle2, Download, FileText, History, LoaderCircle, RotateCcw } from 'lucide-react'
-import { attemptResponseProjection, hasCurrentSourceBindingForAttempt, isPendingSelfMarkAttempt, isProvisionalAttempt, isScoredAttempt } from '../lib/attemptAudit'
+import { attemptResponseProjection, hasCurrentSourceBindingForAttempt, isPendingSelfMarkAttempt, isProvisionalAttempt, isScoredAttempt, isStudyOnlyAttempt } from '../lib/attemptAudit'
 import { paperStudyModeLabel } from '../lib/paperStudyMode'
 
 function formatDate(value) {
@@ -16,6 +16,7 @@ export function HistoryView({ attempts, paperSessions, paperReviews = [], onRete
         const unit = unitById.get(attempt.unitId)
         if (isPendingSelfMarkAttempt(attempt)) return [{ type: hasCurrentSourceBindingForAttempt(attempt, unit) ? 'practice-pending' : 'practice-stale', date: attempt.submittedAt, value: attempt }]
         if (unit && isProvisionalAttempt(attempt, unit)) return [{ type: 'practice-provisional', date: attempt.submittedAt, value: attempt }]
+        if (unit && isStudyOnlyAttempt(attempt, unit)) return [{ type: 'practice-study', date: attempt.submittedAt, value: attempt }]
         if (unit && isScoredAttempt(attempt, unit)) return [{ type: 'practice', date: attempt.submittedAt, value: attempt }]
         // A superseded score remains visible as private audit evidence but
         // never re-enters progress, mistakes, retests or AI marking.
@@ -52,6 +53,9 @@ export function HistoryView({ attempts, paperSessions, paperReviews = [], onRete
         if (record.type === 'practice-provisional') {
           const projection = attemptResponseProjection(attempt, unit)
           return <article className="history-row history-row--pending" key={attempt.id}><span className="history-icon"><History size={19} /></span><div><strong>{unit?.title || attempt.contentScope?.title || 'Submitted practice'}</strong><small>Provisional evidence only · {projection.answeredQuestionCount}/{unit?.parts?.length || 0} answered · {projection.incorrectQuestionCount} incorrect · {projection.unansweredQuestionCount} unanswered. This does not update mastery, weaknesses, weekly progress or the formal mistake queue.</small></div><span>{attempt.scoreResult?.rawMarks}/{attempt.scoreResult?.maxMarks}</span><time>{formatDate(attempt.submittedAt)}</time><button type="button" className="secondary-action compact-action" onClick={() => onContinuePending?.(attempt)}>Review attempt</button></article>
+        }
+        if (record.type === 'practice-study') {
+          return <article className="history-row history-row--pending" key={attempt.id}><span className="history-icon"><History size={19} /></span><div><strong>{unit?.title || attempt.contentScope?.title || 'Source-backed study practice'}</strong><small>Self-marked study record · excluded from mastery, weekly progress, mistakes, class analytics and AI marking while formal review is pending.</small></div><span>{attempt.scoreResult?.rawMarks}/{attempt.scoreResult?.maxMarks}</span><time>{formatDate(attempt.submittedAt)}</time>{!retired && <button type="button" className="secondary-action compact-action" onClick={() => onRetest(unit, { clearDraft: true, retestOf: attempt.id })}>Practise again</button>}</article>
         }
         if (record.type === 'practice-stale') {
           const historicalScore = attempt.scoreResult
