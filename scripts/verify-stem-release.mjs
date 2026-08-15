@@ -25,6 +25,7 @@ const releaseRoot = path.resolve(option('--release-root') || process.env.STEM_RE
 const paperLibraryRoot = option('--pdf-library-root') || process.env.CIE_LIBRARY_ROOT || ''
 const assetRoot = path.join(releaseRoot, 'public', 'question-assets')
 const catalogPath = path.join(releaseRoot, 'public', 'data', 'papers.json')
+const distRoot = path.join(releaseRoot, 'dist')
 const auditScript = path.join(releaseRoot, 'scripts', 'audit-question-bank.mjs')
 const paperAuditScript = path.join(releaseRoot, 'scripts', 'audit-paper-catalog.mjs')
 const syllabusCoverageScript = path.join(releaseRoot, 'scripts', 'verify-9702-syllabus-coverage.mjs')
@@ -37,6 +38,11 @@ assert.ok(fs.existsSync(syllabusCoverageScript), `Release 9702 syllabus coverage
 assert.ok(fs.existsSync(assetRoot) && fs.statSync(assetRoot).isDirectory(), 'Release is missing public/question-assets')
 assert.ok(hasRenderedAsset(assetRoot), 'Release public/question-assets contains no rendered source pages')
 assert.ok(fs.existsSync(catalogPath) && fs.statSync(catalogPath).size > 0, 'Release is missing public/data/papers.json')
+for (const fileName of ['index.html', 'robots.txt', 'sitemap.xml']) {
+  const filePath = path.join(distRoot, fileName)
+  assert.ok(fs.existsSync(filePath) && fs.statSync(filePath).size > 0, `Release dist is missing ${fileName}`)
+}
+assert.ok(fs.existsSync(path.join(distRoot, 'assets')) && fs.statSync(path.join(distRoot, 'assets')).isDirectory(), 'Release dist is missing assets')
 JSON.parse(fs.readFileSync(catalogPath, 'utf8'))
 assert.ok(paperLibraryRoot, 'Pass --pdf-library-root <path> for the governed local PDF library')
 assert.ok(fs.existsSync(paperLibraryRoot) && fs.statSync(paperLibraryRoot).isDirectory(), `Governed PDF library is missing: ${paperLibraryRoot}`)
