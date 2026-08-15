@@ -2384,8 +2384,8 @@ function LibraryView({
       <header className="practice-hub__header">
         <div>
           <p className="section-label">Practice</p>
-          <h1>Choose how you want to improve.</h1>
-          <p className="practice-hub__intro">{activeRoute.stage === 'Competition' ? 'Start with a recommendation, focus on one competition topic, or work through a historical paper.' : activeRoute.stage === 'Admissions' ? 'Start with a recommendation, focus on one test module, or work through official preparation papers.' : 'Start with a recommendation, focus on one syllabus topic, or work through a Cambridge paper.'}</p>
+          <h1>Choose your next study session.</h1>
+          <p className="practice-hub__intro">{activeRoute.stage === 'Competition' ? 'Start a focused competition set or open a historical paper.' : activeRoute.stage === 'Admissions' ? 'Choose a test module or open official preparation papers.' : 'Pick one syllabus topic for focused practice, or open a full Cambridge paper.'}</p>
         </div>
         <div className="practice-hub__controls">
           <StudentRoutePicker activeRoute={activeRoute} routes={courseRoutes} selectRoute={selectRoute} compact />
@@ -2411,7 +2411,7 @@ function LibraryView({
 
       {activeTab === 'exams' && <PaperLibrary catalogState={paperCatalogState} initialSubject={activeRoute.subjectCode} activeRoute={activeRoute} studyMode="exam-simulation" onOpenPaper={(paper) => openPaper({ ...paper, paperStudyMode: 'exam-simulation' })} />}
 
-      {activeTab === 'topics' && <PracticeTopicDirectory activeRoute={activeRoute} activeRouteId={activeRouteId} practiceOptions={practiceOptions} visibleUnits={visibleUnits} completionByUnit={completionByUnit} query={query} onOpenTopic={onOpenTopic} onOpenPapers={() => setActiveTab('papers')} syllabusInventory={syllabusInventory} />}
+      {activeTab === 'topics' && <PracticeTopicDirectory activeRoute={activeRoute} activeRouteId={activeRouteId} practiceOptions={practiceOptions} visibleUnits={visibleUnits} completionByUnit={completionByUnit} query={selectedTopic} onOpenTopic={onOpenTopic} onOpenPapers={() => setActiveTab('papers')} onClearTopicFilter={() => onTopicQueryChange('')} syllabusInventory={syllabusInventory} />}
 
       {activeTab === 'mistakes' ? (
           <MistakeList mistakes={mistakes} paperMistakes={paperMistakes} startPractice={startPractice} retestPaper={retestPaper} onReviewAction={recordReviewQueueAction} />
@@ -2527,29 +2527,43 @@ function PracticeOverview({ recommendation, visibleUnits, completionByUnit, mist
   )
 }
 
-function PracticeTopicDirectory({ activeRoute, activeRouteId, practiceOptions, visibleUnits, completionByUnit, query, onOpenTopic, onOpenPapers, syllabusInventory }) {
+function PracticeTopicDirectory({ activeRoute, activeRouteId, practiceOptions, visibleUnits, completionByUnit, query, onOpenTopic, onOpenPapers, onClearTopicFilter, syllabusInventory }) {
   const routeOption = practiceOptions.find((option) => option.routeId === activeRouteId)
+  const routeTopics = routeOption?.topics || []
   const normalizedQuery = query.trim().toLowerCase()
-  const topics = (routeOption?.topics || []).filter((topic) => {
+  const topics = routeTopics.filter((topic) => {
     const metadata = topicMetadata(topic.id)
     return !normalizedQuery || [topic.label, metadata?.description, ...(metadata?.themes || [])].join(' ').toLowerCase().includes(normalizedQuery)
   })
+  const sourceQuestionCount = routeTopics.reduce((sum, topic) => sum + Number(topic.inventory || 0), 0)
+  const availableTopics = topics.filter((topic) => Number(topic.inventory || 0) > 0)
+  const topicContent = syllabusInventory?.status === 'loading'
+    ? <div className="empty-state" role="status"><Dumbbell size={28} /><h2>Loading your topic practice</h2><p>Checking the latest source-backed question inventory for this course.</p></div>
+    : syllabusInventory?.status === 'error'
+      ? <div className="empty-state" role="alert"><AlertTriangle size={28} /><h2>Topic practice is temporarily unavailable</h2><p>{syllabusInventory.error}</p><button type="button" className="card-action" onClick={() => window.location.reload()}>Retry <RefreshCcw size={15} /></button></div>
+      : sourceQuestionCount === 0
+        ? <div className="topic-directory__empty topic-directory__empty--inventory"><FileText size={28} /><div><p className="section-label">Paper practice is ready</p><h2>Topic practice is not available for {activeRoute.stage} {activeRoute.subject} yet</h2><p>There are no source-backed topic sets for this route yet. You can still work through official papers now; topic sessions will appear here only after every question and mark scheme is fully checked.</p></div><div className="topic-directory__empty-actions"><button type="button" className="primary-action" onClick={onOpenPapers}><FileText size={16} />Browse {activeRoute.stage} {activeRoute.subject} papers</button><a href={activeRoute.syllabus.url} target="_blank" rel="noreferrer">View syllabus <ChevronRight size={15} /></a></div></div>
+        : availableTopics.length
+          ? <><div className="topic-directory__route-status" role="status"><div><strong>{routeTopics.length} syllabus topic{routeTopics.length === 1 ? '' : 's'}</strong><span>{sourceQuestionCount} source-backed question{sourceQuestionCount === 1 ? '' : 's'} ready to open</span></div><small>Choose a topic to set the paper style and question count.</small></div><div className="topic-directory__list">{availableTopics.map((topic) => {
+            const metadata = topicMetadata(topic.id)
+            const mastery = topicMasteryFromUnits(topic.id, visibleUnits, completionByUnit)
+            const available = Number(topic.inventory || 0)
+            const topicNumber = metadata?.officialTopicNumber || String(routeTopics.indexOf(topic) + 1).padStart(2, '0')
+            return <button type="button" className="topic-directory__row" key={topic.id} onClick={() => onOpenTopic(topic.id)}>
+              <span className="topic-directory__number">{topicNumber}</span>
+              <span className="topic-directory__copy"><strong>{topic.label.replace(/^\d+\s+/, '')}</strong><small>{metadata?.description || `${activeRoute.stage} ${activeRoute.subject} syllabus topic`}</small></span>
+              <span className={`topic-directory__mastery mastery-${masteryLabel(mastery).toLowerCase().replace(' ', '-')}`}><strong>{mastery == null ? '--' : `${mastery}%`}</strong><small>{masteryLabel(mastery)}</small></span>
+              <span className="topic-directory__available">{available} source-backed question{available === 1 ? '' : 's'}</span>
+              <span className="topic-directory__open">Open topic</span>
+              <ChevronRight size={18} />
+            </button>
+          })}</div></>
+          : <div className="topic-directory__empty empty-state"><Search size={28} /><h2>No topic matches this filter</h2><p>Clear the topic filter to see every available syllabus topic in this course.</p><button type="button" className="card-action" onClick={onClearTopicFilter}>Clear topic filter <RefreshCcw size={15} /></button></div>
 
   return (
     <section className="topic-directory">
       <header><div><p className="section-label">Official syllabus</p><h2>{activeRoute.stage} {activeRoute.subject}</h2><p>Choose one topic. Every set stays inside this course and remains linked to its original paper and mark scheme.</p></div><a href={activeRoute.syllabus.url} target="_blank" rel="noreferrer">View syllabus <ChevronRight size={15} /></a></header>
-      {syllabusInventory?.status === 'loading' ? <div className="empty-state" role="status"><Dumbbell size={28} /><h2>Loading official syllabus inventory</h2><p>Question counts are being read from the reviewed source catalog.</p></div> : syllabusInventory?.status === 'error' ? <div className="empty-state" role="alert"><AlertTriangle size={28} /><h2>Syllabus inventory unavailable</h2><p>{syllabusInventory.error}</p><button type="button" className="card-action" onClick={() => window.location.reload()}>Retry inventory <RefreshCcw size={15} /></button></div> : topics.length ? <div className="topic-directory__list">{topics.map((topic, index) => {
-        const metadata = topicMetadata(topic.id)
-        const mastery = topicMasteryFromUnits(topic.id, visibleUnits, completionByUnit)
-        const available = topic.inventory || 0
-        return <button type="button" className="topic-directory__row" key={topic.id} onClick={() => onOpenTopic(topic.id)}>
-          <span className="topic-directory__number">{metadata?.officialTopicNumber || String(index + 1).padStart(2, '0')}</span>
-          <span className="topic-directory__copy"><strong>{topic.label.replace(/^\d+\s+/, '')}</strong><small>{metadata?.description || `${activeRoute.stage} ${activeRoute.subject} syllabus topic`}</small></span>
-          <span className={`topic-directory__mastery mastery-${masteryLabel(mastery).toLowerCase().replace(' ', '-')}`}><strong>{mastery == null ? '--' : `${mastery}%`}</strong><small>{masteryLabel(mastery)}</small></span>
-          <span className="topic-directory__available">{available} verified question{available === 1 ? '' : 's'}</span>
-          <ChevronRight size={18} />
-        </button>
-      })}</div> : <div className="empty-state"><Search size={28} /><h2>{normalizedQuery ? 'No topic matches this filter' : 'Topic drills are being reviewed'}</h2><p>{normalizedQuery ? 'Try a shorter topic or clear the topic filter.' : `Past papers are available for ${activeRoute.subject}, but no question set has passed the topic-level source and marking review yet.`}</p>{!normalizedQuery && <button type="button" className="card-action" onClick={onOpenPapers}>Browse verified past papers <ChevronRight size={15} /></button>}</div>}
+      {topicContent}
     </section>
   )
 }
@@ -2736,17 +2750,19 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, lea
           <section className="topic-detail__past-papers"><header><div><p className="section-label">Real exam collection</p><h2>Past-paper questions by chapter</h2><p>These are question-level records, grouped by their original paper. Open the source page or mark scheme without losing the topic mapping.</p></div><strong>{topicQuestions.length} questions · {topicPaperGroups.length} paper{topicPaperGroups.length === 1 ? '' : 's'}</strong></header>{topicPaperGroups.length ? <div className="topic-detail__paper-groups">{topicPaperGroups.map((paperQuestions) => { const first = paperQuestions[0]; const source = first.sourceRef || {}; return <article className="topic-detail__paper-group" key={source.paperId || source.paper}><header><div><strong>{sourcePaperLabel(first)}</strong><span>{source.component ? `Component ${source.component}` : 'Official source'} · {paperQuestions.length} linked question{paperQuestions.length === 1 ? '' : 's'}</span></div><div><a href={`${source.localUrl}#page=${source.pageStart || 1}`} target="_blank" rel="noreferrer">Open QP</a><a href={`${first.answerRef?.localUrl || '#'}#page=${first.answerRef?.pageStart || 1}`} target="_blank" rel="noreferrer">Open MS</a></div></header><div>{paperQuestions.map((question) => <div className="topic-detail__question-row" key={question.questionGroupId || question.bankId}><span>{question.sourceRef?.question || 'Question'}</span><p>{sourceQuestionPreview(question) || 'Indexed question text is available in the source paper.'}</p><small>{question.totalMarks || question.marks || 1} mark{(question.totalMarks || question.marks || 1) === 1 ? '' : 's'} · QP p.{question.sourceRef?.pageStart || '?'} · MS p.{question.answerRef?.pageStart || '?'}</small></div>)}</div></article> })}</div> : <div className="topic-detail__empty-source"><FileText size={20} /><strong>No question-level source records yet</strong><p>This topic is in the syllabus map, but its verified paper index has not been attached to this route.</p></div>}</section>
           <section className="topic-detail__source"><FileText size={20} /><div><strong>Checked source questions</strong><p>Questions and answers stay paired with their original paper and mark scheme. Only complete paper evidence can enter a practice set.</p></div><span>{available} available{practiceReady ? '' : ` · ${MIN_VERIFIED_GROUPS_FOR_PRACTICE - available} more needed`}</span></section>
         </main>
-        {dynamicSyllabusRoute && <section className="topic-detail__set-controls" aria-label="Syllabus practice set controls">
-          <div><p className="section-label">Dynamic syllabus set</p><h2>Build from reviewed AS questions</h2><p>Choose one or more official topics. The server balances questions across your selection and keeps Paper 1/Paper 2 separate from A2 and practical skills.</p></div>
-          <fieldset className="topic-detail__topic-options"><legend>Choose syllabus topics</legend><div className="topic-detail__topic-option-list">{(routeOption?.topics || []).map((candidate) => {
-            const selected = selectedTopicIds.includes(candidate.id)
-            const componentCount = componentInventoryByTopic.get(candidate.id) || 0
-            return <label className={`topic-detail__topic-option ${selected ? 'is-selected' : ''}`} key={candidate.id}><input type="checkbox" checked={selected} onChange={(event) => setSelectedTopicIds((current) => event.target.checked ? [...new Set([...current, candidate.id])] : current.filter((id) => id !== candidate.id))} /><span><strong>{candidate.label}</strong><small>{componentCount} {componentLabel} question{componentCount === 1 ? '' : 's'} · {candidate.inventory || 0} total</small></span></label>
-          })}</div></fieldset>
-          <label><span>Question count</span><select value={selectedQuestionCount} onChange={(event) => setSelectedQuestionCount(Number(event.target.value))}><option value={5}>5 questions</option><option value={10}>10 questions</option><option value={15}>15 questions</option></select></label>
-          <label><span>Paper components</span><select value={componentMode} onChange={(event) => setComponentMode(event.target.value)}><option value="mixed">P1 + P2 mixed</option><option value="p1">P1 only</option><option value="p2">P2 only</option></select></label>
-        </section>}
-        <aside className="topic-detail__start"><p className="section-label">Next session</p><h2>{sessionQuestionCount} source question{sessionQuestionCount === 1 ? '' : 's'}</h2><ul><li>{inventorySummary}</li><li>{answerPartSummary}</li><li>{readinessSummary}</li></ul>{practiceReady || sampleReady ? <button type="button" className="primary-action" onClick={startTopicPractice}><PlayIcon />{practiceReady ? nextPracticeUnit ? `Start set ${nextPracticeUnit.sourceSetIndex}` : `Practice ${questionCount}` : 'Start checked sample'}</button> : <button type="button" className="primary-action" disabled>{available ? `${available} checked · more coming` : 'Questions not ready yet'}</button>}{topicPracticeUnits.length > 1 && <div className="topic-detail__set-list" aria-label="Past-paper practice sets">{topicPracticeUnits.map((unit) => <button type="button" key={unit.id} data-completed={Boolean(completionByUnit[unit.id]?.completed)} onClick={() => startPractice(unit)}><span>Set {unit.sourceSetIndex}</span><small>{unit.questionGroupCount} source questions · {unit.parts.length} answer parts · {unit.referencePapers.length} papers</small></button>)}</div>}<button type="button" className="topic-detail__ai" onClick={onOpenCoach}><Sparkles size={16} />Ask AI Tutor about this topic</button>{startError && <p className="topic-detail__error" role="alert">{startError}</p>}</aside>
+        <aside className="topic-detail__rail" aria-label="Start a topic session">
+          <section className="topic-detail__start"><p className="section-label">Start this session</p><h2>{sessionQuestionCount} source question{sessionQuestionCount === 1 ? '' : 's'}</h2><p className="topic-detail__start-copy">Open the official question page, work in your preferred mode, then review against the linked mark scheme after submission.</p><ul><li>{inventorySummary}</li><li>{answerPartSummary}</li><li>{readinessSummary}</li></ul>{practiceReady || sampleReady ? <button type="button" className="primary-action" onClick={startTopicPractice}><PlayIcon />{practiceReady ? nextPracticeUnit ? `Start set ${nextPracticeUnit.sourceSetIndex}` : `Practice ${questionCount}` : 'Start checked sample'}</button> : <button type="button" className="primary-action" disabled>{available ? `${available} source questions · more coming` : 'Questions not ready yet'}</button>}{topicPracticeUnits.length > 1 && <div className="topic-detail__set-list" aria-label="Past-paper practice sets">{topicPracticeUnits.map((unit) => <button type="button" key={unit.id} data-completed={Boolean(completionByUnit[unit.id]?.completed)} onClick={() => startPractice(unit)}><span>Set {unit.sourceSetIndex}</span><small>{unit.questionGroupCount} source questions · {unit.parts.length} answer parts · {unit.referencePapers.length} papers</small></button>)}</div>}<button type="button" className="topic-detail__ai" onClick={onOpenCoach}><Sparkles size={16} />Ask AI Tutor about this topic</button>{startError && <p className="topic-detail__error" role="alert">{startError}</p>}</section>
+          {dynamicSyllabusRoute && <section className="topic-detail__set-controls" aria-label="Syllabus practice set controls">
+            <div><p className="section-label">Build your set</p><h2>Choose what to practise</h2><p>Pick one or more syllabus topics, then select the paper style and question count for this session.</p></div>
+            <fieldset className="topic-detail__topic-options"><legend>Choose syllabus topics</legend><div className="topic-detail__topic-option-list">{(routeOption?.topics || []).map((candidate) => {
+              const selected = selectedTopicIds.includes(candidate.id)
+              const componentCount = componentInventoryByTopic.get(candidate.id) || 0
+              return <label className={`topic-detail__topic-option ${selected ? 'is-selected' : ''}`} key={candidate.id}><input type="checkbox" checked={selected} onChange={(event) => setSelectedTopicIds((current) => event.target.checked ? [...new Set([...current, candidate.id])] : current.filter((id) => id !== candidate.id))} /><span><strong>{candidate.label}</strong><small>{componentCount} {componentLabel} question{componentCount === 1 ? '' : 's'} · {candidate.inventory || 0} total</small></span></label>
+            })}</div></fieldset>
+            <label><span>Question count</span><select value={selectedQuestionCount} onChange={(event) => setSelectedQuestionCount(Number(event.target.value))}><option value={5}>5 questions</option><option value={10}>10 questions</option><option value={15}>15 questions</option></select></label>
+            <label><span>Paper components</span><select value={componentMode} onChange={(event) => setComponentMode(event.target.value)}><option value="mixed">P1 + P2 mixed</option><option value="p1">P1 only</option><option value="p2">P2 only</option></select></label>
+          </section>}
+        </aside>
       </div>
     </section>
   )

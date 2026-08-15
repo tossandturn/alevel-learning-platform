@@ -2243,3 +2243,353 @@
     bottom: auto;
   }
 }
+
+/* Study-first hierarchy: one next action, a compact route selector, then the
+   supporting learning material. This keeps the desk purposeful at a glance. */
+.student-home-guided .recommended-session,
+.practice-overview__primary,
+.topic-detail__start {
+  border-left: 4px solid #3167d6;
+  box-shadow: 0 8px 22px rgba(24, 33, 61, .055);
+}
+
+.student-home-guided .recommended-session {
+  min-height: 0;
+  padding-block: 28px;
+}
+
+.student-home-guided .recommended-session__copy {
+  max-width: 760px;
+}
+
+.student-home-guided .today-focus-grid {
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.student-home-guided .today-focus-panel {
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.practice-hub__header {
+  align-items: start;
+  padding-top: 4px;
+}
+
+.practice-hub__header > div:first-child {
+  max-width: 660px;
+}
+
+.practice-hub__header h1 {
+  max-width: 620px;
+}
+
+.practice-hub__intro {
+  max-width: 570px;
+}
+
+.practice-hub__controls {
+  padding: 12px;
+  border: 1px solid var(--v2-border);
+  border-radius: 8px;
+  background: var(--v2-surface);
+}
+
+.practice-hub__controls .student-route-picker {
+  padding: 0;
+  border: 0;
+}
+
+.practice-modes {
+  margin-top: 22px;
+}
+
+.practice-modes button {
+  min-height: 48px;
+}
+
+.topic-directory {
+  margin-top: 24px;
+}
+
+.topic-directory__route-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--v2-border);
+  border-bottom: 1px solid var(--v2-border);
+  background: #f7f9fc;
+}
+
+.topic-directory__route-status > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 14px;
+  align-items: baseline;
+}
+
+.topic-directory__route-status strong {
+  color: var(--v2-text);
+  font-size: 13px;
+}
+
+.topic-directory__route-status span,
+.topic-directory__route-status small {
+  color: var(--v2-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.topic-directory__route-status small {
+  max-width: 240px;
+  text-align: right;
+}
+
+.topic-directory__list {
+  border-top: 0;
+}
+
+.topic-directory__row {
+  grid-template-columns: 48px minmax(250px, 1fr) 92px minmax(142px, .65fr) 82px auto;
+  gap: 14px;
+  min-height: 82px;
+  padding: 14px 12px;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.topic-directory__row:hover {
+  background: #f7f9fc;
+}
+
+.topic-directory__row:hover .topic-directory__open {
+  color: var(--v2-primary);
+}
+
+.topic-directory__copy small {
+  white-space: normal;
+}
+
+.topic-directory__open {
+  color: #667085;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.topic-directory__empty {
+  min-height: 0;
+  margin-top: 8px;
+}
+
+.topic-directory__empty--inventory {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 16px;
+  min-height: 0;
+  padding: 30px;
+  border: 1px solid #dbe4ef;
+  border-left: 4px solid #315fca;
+  border-radius: 8px;
+  color: #315fca;
+  background: #f7faff;
+}
+
+.topic-directory__empty--inventory > div {
+  min-width: 0;
+}
+
+.topic-directory__empty--inventory .section-label {
+  margin: 0;
+}
+
+.topic-directory__empty--inventory h2,
+.topic-directory__empty--inventory p {
+  margin: 0;
+}
+
+.topic-directory__empty--inventory h2 {
+  margin-top: 6px;
+  color: var(--v2-text);
+  font-size: 21px;
+  line-height: 1.28;
+}
+
+.topic-directory__empty--inventory p:not(.section-label) {
+  max-width: 650px;
+  margin-top: 8px;
+  color: var(--v2-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.topic-directory__empty-actions {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  min-width: 180px;
+}
+
+.topic-directory__empty-actions .primary-action {
+  min-height: 42px;
+  padding-inline: 13px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.topic-directory__empty-actions a {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--v2-primary);
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.topic-detail__layout {
+  grid-template-columns: minmax(0, 1fr) 328px;
+  gap: 32px;
+}
+
+.topic-detail__rail {
+  position: sticky;
+  top: 24px;
+  align-self: start;
+  display: grid;
+  gap: 12px;
+}
+
+.topic-detail__start {
+  padding: 22px;
+  border-radius: 8px;
+}
+
+.topic-detail__start-copy {
+  margin-top: 8px !important;
+  color: var(--v2-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.topic-detail__start ul {
+  margin: 16px 0 20px;
+}
+
+.topic-detail__set-controls {
+  gap: 14px;
+  padding: 18px;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.topic-detail__set-controls > div > p:last-child {
+  margin-top: 6px;
+}
+
+.topic-detail__topic-option-list {
+  max-height: 240px;
+}
+
+.topic-detail__topic-option {
+  padding: 9px;
+}
+
+.practice-hub button:focus-visible,
+.topic-detail button:focus-visible,
+.topic-directory a:focus-visible {
+  outline: 3px solid rgba(49, 103, 214, .35);
+  outline-offset: 2px;
+}
+
+@media (max-width: 960px) {
+  .topic-detail__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .topic-detail__rail {
+    position: static;
+    order: 1;
+    width: min(100%, 620px);
+  }
+
+  .topic-detail__layout > main {
+    order: 2;
+  }
+
+  .topic-directory__row {
+    grid-template-columns: 44px minmax(220px, 1fr) 90px 84px auto;
+  }
+
+  .topic-directory__available {
+    display: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .practice-hub__controls {
+    padding: 10px;
+  }
+
+  .topic-directory__route-status,
+  .topic-directory__empty--inventory {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .topic-directory__route-status {
+    display: grid;
+    gap: 6px;
+  }
+
+  .topic-directory__route-status small {
+    max-width: none;
+    text-align: left;
+  }
+
+  .topic-directory__empty--inventory {
+    gap: 12px;
+    padding: 22px;
+  }
+
+  .topic-directory__empty-actions {
+    width: 100%;
+  }
+
+  .topic-directory__empty-actions .primary-action {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .topic-detail__rail {
+    width: 100%;
+  }
+}
+
+@media (max-width: 540px) {
+  .app-shell--topic > .ai-coach-trigger {
+    display: none;
+  }
+
+  .topic-directory__row {
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    gap: 9px;
+  }
+
+  .topic-directory__mastery,
+  .topic-directory__open {
+    display: none;
+  }
+
+  .topic-directory__number {
+    font-size: 14px;
+  }
+
+  .topic-directory__empty--inventory h2 {
+    font-size: 19px;
+  }
+}

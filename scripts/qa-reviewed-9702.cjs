@@ -171,6 +171,7 @@ function qaAuthStatus() {
 }
 
 async function openTopic(page, testCase) {
+  const hasReadyInventory = (text) => /source-backed question|verified question|checked question/i.test(text)
   const topic = testCase.topic
   const picker = page.locator('.student-home-guided .student-route-picker')
   await picker.getByRole('tab', { name: 'AS', exact: true }).click()
@@ -181,20 +182,20 @@ async function openTopic(page, testCase) {
   await page.waitForFunction((topicName) => [...document.querySelectorAll('.topic-directory__row')]
     .some((element) => {
       const title = element.querySelector('.topic-directory__copy strong')?.textContent?.trim().replace(/^\d+\s+/, '')
-      return title === topicName && /verified question|checked question/i.test(element.textContent)
+      return title === topicName && /source-backed question|verified question|checked question/i.test(element.textContent)
     }), topic, { timeout: 12_000 })
   const candidates = page.locator('.topic-directory__row').filter({ hasText: topic })
   let row = null
   for (let index = 0; index < await candidates.count(); index += 1) {
     const candidate = candidates.nth(index)
-    if (await candidate.isVisible() && /verified question|checked question/i.test(await candidate.textContent())) {
+    if (await candidate.isVisible() && hasReadyInventory(await candidate.textContent())) {
       row = candidate
       break
     }
   }
   if (!row) throw new Error(`No visible ${topic} topic row with a verified inventory was found: ${JSON.stringify(await candidates.allInnerTexts())}`)
   const rowText = (await row.textContent()).replace(/\s+/g, ' ').trim()
-  if (!/verified question/.test(rowText)) throw new Error(`9702 topic row did not expose a real inventory: ${rowText}`)
+  if (!hasReadyInventory(rowText)) throw new Error(`9702 topic row did not expose a real inventory: ${rowText}`)
   await row.click()
   await page.locator('.topic-detail').waitFor({ state: 'visible' })
   const sourceRows = page.locator('.topic-detail__question-row p')
@@ -219,6 +220,24 @@ async function openTopic(page, testCase) {
   const start = page.locator('.topic-detail__start .primary-action').first()
   await start.waitFor({ state: 'visible' })
   if (await start.isDisabled()) throw new Error(`9702 ${topic} practice CTA is disabled despite reviewed inventory`)
+  const startHitTarget = await start.evaluate((button) => {
+    button.scrollIntoView({ block: 'center', inline: 'nearest' })
+    const rect = button.getBoundingClientRect()
+    const target = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
+    const serializeRect = (element) => element ? (() => {
+      const bounds = element.getBoundingClientRect()
+      return { top: Math.round(bounds.top), bottom: Math.round(bounds.bottom), left: Math.round(bounds.left), right: Math.round(bounds.right) }
+    })() : null
+    return {
+      reachable: target === button || target?.closest('button') === button,
+      target: target ? `${target.tagName.toLowerCase()}.${target.className || ''}` : 'none',
+      buttonRect: serializeRect(button),
+      railRect: serializeRect(button.closest('.topic-detail__rail')),
+      mainRect: serializeRect(document.querySelector('.topic-detail__layout > main')),
+      targetRect: serializeRect(target),
+    }
+  })
+  if (!startHitTarget.reachable) throw new Error(`9702 ${topic} start CTA is visually obstructed: ${JSON.stringify(startHitTarget)}`)
   const practiceResponsePromise = testCase.expectedComponent
     ? page.waitForResponse((response) => response.url().includes('/api/stem/practice-sets') && response.request().method() === 'POST')
     : null
