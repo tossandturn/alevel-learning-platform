@@ -277,6 +277,8 @@ async function startReviewedTopic(page, topic) {
   await picker.getByRole('tab', { name: 'IGCSE', exact: true }).click()
   await picker.getByRole('combobox', { name: 'Current course' }).selectOption('cie-0580-igcse-mathematics')
   await page.getByRole('button', { name: 'Choose another topic' }).click()
+  await page.waitForFunction((expectedTopic) => [...document.querySelectorAll('.topic-directory__row')]
+    .some((row) => row.innerText.split(/\r?\n/).map((line) => line.trim()).includes(expectedTopic)), topic)
   const topicRows = page.locator('.topic-directory__row')
   const rowCount = await topicRows.count()
   let topicRow = null
