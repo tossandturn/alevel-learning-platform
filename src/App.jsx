@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertTriangle,
   ArrowLeft,
@@ -2378,7 +2378,15 @@ function LibraryView({
   const incomingContext = getIncomingProductContext()
   const contextSubject = subjects.find((subject) => subject.id === incomingContext.subjectId)
   const practiceTopics = practiceOptions.find((option) => option.routeId === activeRouteId)?.topics || []
+  const hasTopicInventory = practiceTopics.some((topic) => Number(topic.inventory || 0) > 0)
   const selectedTopic = practiceTopics.some((topic) => topic.label === query) ? query : ''
+  const practiceModesRef = useRef(null)
+
+  useLayoutEffect(() => {
+    const activeMode = practiceModesRef.current?.querySelector('button.active')
+    activeMode?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'auto' })
+  }, [activeTab])
+
   return (
     <section className="practice-hub page-band">
       <header className="practice-hub__header">
@@ -2389,18 +2397,14 @@ function LibraryView({
         </div>
         <div className="practice-hub__controls">
           <StudentRoutePicker activeRoute={activeRoute} routes={courseRoutes} selectRoute={selectRoute} compact />
-          <label className="practice-topic-filter"><span>Topic focus</span><select aria-label="Topic focus" value={selectedTopic} onChange={(event) => onTopicQueryChange(event.target.value)}><option value="">All topics in this route</option>{practiceTopics.map((topic) => <option value={topic.label} key={topic.id}>{topic.label.replace(/^\d+\s+/, '')}</option>)}</select></label>
+          {hasTopicInventory && <label className="practice-topic-filter"><span>Topic focus</span><select aria-label="Topic focus" value={selectedTopic} onChange={(event) => onTopicQueryChange(event.target.value)}><option value="">All topics in this route</option>{practiceTopics.map((topic) => <option value={topic.label} key={topic.id}>{topic.label.replace(/^\d+\s+/, '')}</option>)}</select></label>}
         </div>
       </header>
 
-      <nav className="practice-modes" aria-label="Practice modes">
-        <button className={activeTab === 'recommended' ? 'active' : ''} type="button" onClick={() => setActiveTab('recommended')}><Target size={17} />Recommended</button>
-        <button className={activeTab === 'ai-practice' ? 'active' : ''} type="button" onClick={onOpenCoach}><Sparkles size={17} />AI Practice</button>
-        <button className={activeTab === 'topics' ? 'active' : ''} type="button" onClick={() => setActiveTab('topics')}><Dumbbell size={17} />Topic Drill</button>
-        <button className={activeTab === 'papers' ? 'active' : ''} type="button" onClick={() => setActiveTab('papers')}><FileText size={17} />Past Papers</button>
-        <button className={activeTab === 'exams' ? 'active' : ''} type="button" onClick={() => setActiveTab('exams')}><GraduationCap size={17} />Exam Simulation</button>
-        <button className={activeTab === 'mistakes' ? 'active' : ''} type="button" onClick={() => setActiveTab('mistakes')}><RefreshCcw size={17} />Mistakes</button>
-        <button className={activeTab === 'saved' ? 'active' : ''} type="button" onClick={() => setActiveTab('saved')}><Heart size={17} />Saved</button>
+      <nav className="practice-modes" ref={practiceModesRef} aria-label="Practice modes">
+        <div className="practice-mode-group" aria-label="Learn by topic"><span>Learn</span><button className={activeTab === 'recommended' ? 'active' : ''} type="button" onClick={() => setActiveTab('recommended')}><Target size={17} />Recommended</button><button className={activeTab === 'ai-practice' ? 'active' : ''} type="button" onClick={onOpenCoach}><Sparkles size={17} />AI Practice</button><button className={activeTab === 'topics' ? 'active' : ''} type="button" onClick={() => setActiveTab('topics')}><Dumbbell size={17} />Topic Drill</button></div>
+        <div className="practice-mode-group" aria-label="Work through a paper"><span>Exam prep</span><button className={activeTab === 'papers' ? 'active' : ''} type="button" onClick={() => setActiveTab('papers')}><FileText size={17} />Past Papers</button><button className={activeTab === 'exams' ? 'active' : ''} type="button" onClick={() => setActiveTab('exams')}><GraduationCap size={17} />Exam Simulation</button></div>
+        <div className="practice-mode-group" aria-label="Review saved work"><span>Review</span><button className={activeTab === 'mistakes' ? 'active' : ''} type="button" onClick={() => setActiveTab('mistakes')}><RefreshCcw size={17} />Mistakes</button><button className={activeTab === 'saved' ? 'active' : ''} type="button" onClick={() => setActiveTab('saved')}><Heart size={17} />Saved</button></div>
       </nav>
 
       {incomingContext.from === 'ieltsist' && <div className="product-bridge-band" role="status"><span className="product-bridge-icon"><Brain size={17} /></span><div><strong>From IELTS-ist Vocabulary</strong><p>{contextSubject ? `You are ready to practise ${contextSubject.name} concepts.` : 'Use IELTS-ist for language support, then practise the subject here.'}</p></div><a href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer">Open IELTS Vocabulary <ChevronRight size={15} /></a></div>}
@@ -2537,12 +2541,15 @@ function PracticeTopicDirectory({ activeRoute, activeRouteId, practiceOptions, v
   })
   const sourceQuestionCount = routeTopics.reduce((sum, topic) => sum + Number(topic.inventory || 0), 0)
   const availableTopics = topics.filter((topic) => Number(topic.inventory || 0) > 0)
+  const topicDirectoryIntro = sourceQuestionCount > 0
+    ? 'Choose one topic. Every set stays inside this course and remains linked to its original paper and mark scheme.'
+    : 'Topic drills will appear here when complete official questions and marking guidance are ready for this course.'
   const topicContent = syllabusInventory?.status === 'loading'
     ? <div className="empty-state" role="status"><Dumbbell size={28} /><h2>Loading your topic practice</h2><p>Checking the latest source-backed question inventory for this course.</p></div>
     : syllabusInventory?.status === 'error'
       ? <div className="empty-state" role="alert"><AlertTriangle size={28} /><h2>Topic practice is temporarily unavailable</h2><p>{syllabusInventory.error}</p><button type="button" className="card-action" onClick={() => window.location.reload()}>Retry <RefreshCcw size={15} /></button></div>
       : sourceQuestionCount === 0
-        ? <div className="topic-directory__empty topic-directory__empty--inventory"><FileText size={28} /><div><p className="section-label">Paper practice is ready</p><h2>Topic practice is not available for {activeRoute.stage} {activeRoute.subject} yet</h2><p>There are no source-backed topic sets for this route yet. You can still work through official papers now; topic sessions will appear here only after every question and mark scheme is fully checked.</p></div><div className="topic-directory__empty-actions"><button type="button" className="primary-action" onClick={onOpenPapers}><FileText size={16} />Browse {activeRoute.stage} {activeRoute.subject} papers</button><a href={activeRoute.syllabus.url} target="_blank" rel="noreferrer">View syllabus <ChevronRight size={15} /></a></div></div>
+        ? <div className="topic-directory__empty topic-directory__empty--inventory"><FileText size={28} /><div><p className="section-label">Topic Drill</p><h2>Topic Drill is being prepared for this course</h2><p>There are not enough checked question groups for {activeRoute.stage} {activeRoute.subject} yet. Use a complete official paper now; a topic set will appear only when its question pages and marking guidance are ready together.</p></div><div className="topic-directory__empty-actions"><span>Available now</span><button type="button" className="primary-action" onClick={onOpenPapers}><FileText size={16} />Browse {activeRoute.stage} {activeRoute.subject} papers</button><a href={activeRoute.syllabus.url} target="_blank" rel="noreferrer">View syllabus <ChevronRight size={15} /></a></div></div>
         : availableTopics.length
           ? <><div className="topic-directory__route-status" role="status"><div><strong>{routeTopics.length} syllabus topic{routeTopics.length === 1 ? '' : 's'}</strong><span>{sourceQuestionCount} source-backed question{sourceQuestionCount === 1 ? '' : 's'} ready to open</span></div><small>Choose a topic to set the paper style and question count.</small></div><div className="topic-directory__list">{availableTopics.map((topic) => {
             const metadata = topicMetadata(topic.id)
@@ -2562,7 +2569,7 @@ function PracticeTopicDirectory({ activeRoute, activeRouteId, practiceOptions, v
 
   return (
     <section className="topic-directory">
-      <header><div><p className="section-label">Official syllabus</p><h2>{activeRoute.stage} {activeRoute.subject}</h2><p>Choose one topic. Every set stays inside this course and remains linked to its original paper and mark scheme.</p></div><a href={activeRoute.syllabus.url} target="_blank" rel="noreferrer">View syllabus <ChevronRight size={15} /></a></header>
+      <header><div><p className="section-label">Official syllabus</p><h2>{activeRoute.stage} {activeRoute.subject}</h2><p>{topicDirectoryIntro}</p></div><a href={activeRoute.syllabus.url} target="_blank" rel="noreferrer">View syllabus <ChevronRight size={15} /></a></header>
       {topicContent}
     </section>
   )

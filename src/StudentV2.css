@@ -309,12 +309,34 @@
 
 .practice-modes {
   display: flex;
-  gap: 4px;
-  overflow-x: auto;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  overflow: visible;
   margin-top: 30px;
-  padding-bottom: 1px;
+  padding: 0 0 14px;
   border-bottom: 1px solid var(--v2-border);
-  scrollbar-width: none;
+}
+
+.practice-mode-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 44px;
+  padding: 0 0 0 10px;
+  border-left: 1px solid var(--v2-border);
+}
+
+.practice-mode-group:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.practice-mode-group > span {
+  margin-right: 2px;
+  color: #8a94a6;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
 }
 
 .practice-modes button {
@@ -2441,6 +2463,13 @@
   white-space: nowrap;
 }
 
+.topic-directory__empty-actions > span {
+  color: #667085;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
 .topic-directory__empty-actions a {
   display: inline-flex;
   align-items: center;
@@ -2531,6 +2560,18 @@
 }
 
 @media (max-width: 700px) {
+  .practice-modes {
+    flex-wrap: nowrap;
+    gap: 12px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    scrollbar-width: none;
+  }
+
+  .practice-mode-group {
+    flex: 0 0 auto;
+  }
+
   .practice-hub__controls {
     padding: 10px;
   }

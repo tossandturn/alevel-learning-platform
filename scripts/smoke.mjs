@@ -255,7 +255,7 @@ assert.ok(appSource.includes('topic-detail__paper-group'), 'topic detail must re
 assert.ok(appSource.includes("activeRouteId !== 'cie-9702-as-physics' && selectedTopicIds.length === 1"), '9702 Topic Drill must honor the selected P1/P2 mode and question count instead of reopening a stale prebuilt unit')
 assert.ok(appSource.includes('onAgentAction={handleCoachAgentAction}'), 'Coach agent actions must be available from every current student route')
 assert.ok(!appSource.includes("onAgentAction={activeRoute.stage === 'Competition'"), 'Coach actions must not be disabled merely because the current route is not Competition')
-assert.ok(appSource.includes('sourceQuestionCount === 0') && appSource.includes('Topic practice is not available for'), 'routes with archived papers but no ready topic inventory must fail closed into an honest paper-first state')
+assert.ok(appSource.includes('sourceQuestionCount === 0') && appSource.includes('Topic Drill is being prepared for this course'), 'routes with archived papers but no ready topic inventory must fail closed into an honest paper-first state')
 assert.ok(appSource.includes('Browse {activeRoute.stage} {activeRoute.subject} papers'), 'an empty Topic Drill route must offer a course-scoped paper-library route')
 assert.ok(appSource.includes("routeById(incomingContext.routeId)?.routeId"), 'An explicit IELTSist return route must take priority over the saved STEM route')
 assert.ok(appSource.includes('setSelectedTopicId(incomingContext.topicId || null)'), 'An explicit IELTSist return topic must survive shared-account state restoration')

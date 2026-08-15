@@ -124,15 +124,35 @@ async function openCleanRoute(page, url) {
   await page.locator('.practice-hub').waitFor({ state: 'visible' })
 }
 
+async function assertActivePracticeModeVisible(page, viewport) {
+  const visibility = await page.locator('.practice-modes button.active').evaluate((button) => {
+    const rail = button.closest('.practice-modes')
+    const buttonRect = button.getBoundingClientRect()
+    const railRect = rail?.getBoundingClientRect()
+    return {
+      complete: Boolean(railRect && buttonRect.left >= railRect.left && buttonRect.right <= railRect.right),
+      buttonLeft: buttonRect.left,
+      buttonRight: buttonRect.right,
+      railLeft: railRect?.left,
+      railRight: railRect?.right,
+    }
+  })
+  assert.equal(visibility.complete, true, `${viewport.name} must show the full active practice mode: ${JSON.stringify(visibility)}`)
+}
+
 async function runViewport(page, server, viewport) {
   const a2Url = `${server.url}practice?routeId=cie-9702-a2-physics&stage=A2&course=9702&tab=topics`
   await openCleanRoute(page, a2Url)
+  await assertActivePracticeModeVisible(page, viewport)
   await page.locator('.topic-directory').waitFor({ state: 'visible' })
   await page.screenshot({ path: path.join(ARTIFACT_DIR, `qa-student-hierarchy-a2-${viewport.name}.png`), fullPage: false })
   const a2State = page.locator('.topic-directory__empty--inventory')
   await a2State.waitFor()
-  assert.match(await a2State.innerText(), /Topic practice is not available for A2 Physics yet/i)
+  assert.match(await a2State.innerText(), /Topic Drill is being prepared for this course/i)
+  assert.match(await a2State.innerText(), /Use a complete official paper now/i)
+  assert.equal(await page.locator('.topic-directory > header').getByText(/^Choose one topic\./).count(), 0, 'an unavailable Topic Drill route must not tell the student to choose a topic')
   assert.equal(await page.getByRole('heading', { name: 'No topic matches this filter' }).count(), 0, 'A2 must not present its no-inventory state as a broken filter')
+  assert.equal(await page.getByLabel('Topic focus').count(), 0, 'a course with no Topic Drill inventory must not expose a misleading topic filter')
   await page.getByRole('button', { name: /Browse A2 Physics papers/i }).click()
   await page.locator('.paper-library').waitFor({ state: 'visible' })
 

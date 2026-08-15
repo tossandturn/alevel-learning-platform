@@ -11,7 +11,7 @@ assert.match(
 )
 assert.match(
   appSource,
-  /Topic practice is not available for \{activeRoute\.stage\} \{activeRoute\.subject\} yet/,
+  /Topic Drill is being prepared for this course/,
   'a route with no reviewed topic questions must explain the real content gap',
 )
 assert.match(
@@ -26,13 +26,43 @@ assert.match(
 )
 assert.match(
   appSource,
-  /sourceQuestionCount === 0[\s\S]*Topic practice is not available for/,
+  /sourceQuestionCount === 0[\s\S]*Topic Drill is being prepared for this course/,
   'a route with official topics but no ready question inventory must take the honest paper-first path',
+)
+assert.match(
+  appSource,
+  /const hasTopicInventory = practiceTopics\.some\(\(topic\) => Number\(topic\.inventory \|\| 0\) > 0\)/,
+  'a course with no available Topic Drill inventory must be identified before rendering its controls',
+)
+assert.match(
+  appSource,
+  /hasTopicInventory && <label className="practice-topic-filter">/,
+  'an unavailable Topic Drill route must not show a misleading topic filter',
+)
+assert.match(
+  appSource,
+  /className="practice-mode-group" aria-label="Learn by topic"/,
+  'practice navigation must group the learn-by-topic routes instead of presenting every mode as one flat row',
+)
+assert.match(
+  appSource,
+  /Topic Drill is being prepared for this course/,
+  'the unavailable state must explain the real status in student language',
+)
+assert.match(
+  appSource,
+  /const topicDirectoryIntro = sourceQuestionCount > 0/,
+  'the syllabus header must use the same inventory state as the Topic Drill availability card',
 )
 assert.match(
   styles,
   /\.topic-directory__route-status/,
   'the Topic Drill directory needs a visible route-level inventory summary',
+)
+assert.match(
+  styles,
+  /\.practice-mode-group/,
+  'practice navigation needs visual grouping for the learning workflow',
 )
 assert.match(
   styles,
