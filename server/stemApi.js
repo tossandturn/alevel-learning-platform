@@ -1144,7 +1144,10 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, fetchIm
       }
       if (request.method === 'GET' && url.pathname === '/api/auth/status') {
         const user = nativeSessionIdentity(request, db)
-        if (!user) throw Object.assign(new Error('Sign in to STEM to continue.'), { statusCode: 401 })
+        if (!user) {
+          sendJson(response, 200, { authenticated: false })
+          return
+        }
         if (!signingKey) throw Object.assign(new Error('STEM account sessions are not configured.'), { statusCode: 503 })
         sendJson(response, 200, { authenticated: true, ...identityToken(user, signingKey), ...currentWorkspace(db, user) })
         return

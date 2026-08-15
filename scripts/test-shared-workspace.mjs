@@ -74,6 +74,9 @@ try {
     assert.equal(href, `/api/auth/${mode}`, `${mode} browser flow must stay on the STEM origin`)
   }
   assert.equal(authConfig.body.responses.duplicateIdentifier, 409)
+  const guestStatus = await call(api, { method: 'GET', url: '/api/auth/status' })
+  assert.equal(guestStatus.statusCode, 200, 'a visitor checking current account state must receive a normal anonymous response')
+  assert.deepEqual(guestStatus.body, { authenticated: false }, 'anonymous account status must not expose an identity or workspace')
   const deniedClass = await call(api, { method: 'POST', url: '/api/stem/classrooms', token: unverifiedStaffToken, body: { name: 'Should be denied' } })
   assert.equal(deniedClass.statusCode, 403)
   assert.match(deniedClass.body.error, /server-verified teacher or owner claim/)

@@ -567,6 +567,7 @@ async function startReviewed0606Topic(page, topic) {
   await picker.getByRole('combobox', { name: 'Current course' }).selectOption('cie-0606-igcse-additional-mathematics')
   await page.getByRole('button', { name: 'Choose another topic' }).click()
   const rows = page.locator('.topic-directory__row')
+  await rows.first().waitFor({ state: 'visible' })
   const rowCount = await rows.count()
   let topicRow = null
   for (let index = 0; index < rowCount; index += 1) {
