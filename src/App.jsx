@@ -2362,8 +2362,8 @@ function StudentDashboard({ activeRoute, routeOptions, selectRoute, profile, att
             {nextUnit?.maxMarks && <span>{nextUnit.maxMarks} marks</span>}
           </div>
           <div className="recommended-session__actions">
-            <button className="primary-action student-primary-start" type="button" onClick={() => nextUnit ? startPractice(nextUnit, recommendation.action === 'Resume' ? { confirmed: true } : {}) : openPractice({ subjectId: activeRoute.subjectId })}><PlayIcon />{nextUnit ? (recommendation.action === 'Resume' ? 'Resume practice' : 'Start this practice') : 'Choose a topic'}</button>
-            <button type="button" className="secondary-action" onClick={() => openPractice({ subjectId: nextUnit?.subjectId || activeRoute.subjectId })}>Choose another topic</button>
+            <button className="primary-action student-primary-start" type="button" onClick={() => nextUnit ? startPractice(nextUnit, recommendation.action === 'Resume' ? { confirmed: true } : {}) : openPractice()}><PlayIcon />{nextUnit ? (recommendation.action === 'Resume' ? 'Resume practice' : 'Start this practice') : 'Choose a topic'}</button>
+            <button type="button" className="secondary-action" onClick={() => openPractice()}>Choose another topic</button>
           </div>
         </div>
         <div className="recommended-session__course" aria-label="Selected course">
