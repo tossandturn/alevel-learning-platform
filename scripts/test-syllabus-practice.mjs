@@ -7,6 +7,7 @@ import { courseRoutes } from '../src/data/routeRegistry.js'
 import importedQuestionIndex from '../src/data/importedQuestionIndex.json' with { type: 'json' }
 import paperCatalog from '../public/data/papers.json' with { type: 'json' }
 import { closeStemDatabaseForTests, createStemApi } from '../server/stemApi.js'
+import { attemptedSourceQuestionIds } from '../src/lib/attemptAudit.js'
 import { buildSyllabusPracticeSet, syllabusMappingCandidates, syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
 
 const routeId = 'cie-9702-as-physics'
@@ -87,6 +88,30 @@ assert.equal(p2OnlyPhysicsSet.availableCount, 2, 'the current Forces inventory m
 assert.equal(p2OnlyPhysicsSet.questionCount, 2, 'a P2-only request must return a shorter honest set when fewer than ten reviewed groups exist')
 assert.ok(p2OnlyPhysicsSet.questionGroups.every((question) => question.paperComponent === 2), 'P2-only Topic Drill must not fall back to P1 MCQs')
 assert.ok(p2OnlyPhysicsSet.questionGroups.some((question) => question.id === 'cie-9702-9702_m25_qp_22:q2' && question.parts.length === 5 && question.totalMarks === 10), 'P2 Topic Drill must preserve the complete three-page M25/22 Q2 group')
+assert.ok(p2OnlyPhysicsSet.questionGroups.every((question) => question.parts.every((part) => (
+  part.markingProvenance?.sourceQuestionId === question.id
+  && part.markingProvenance?.questionPartId === part.partId
+  && part.markingProvenance?.bindingSignature === question.sourceContent.bindingSignature
+  && /^[a-f0-9]{64}$/.test(part.markingProvenance?.sourceDocumentSha256 || '')
+  && /^[a-f0-9]{64}$/.test(part.markingProvenance?.answerDocumentSha256 || '')
+  && /^[a-f0-9]{64}$/.test(part.markingProvenance?.sourceIndexSha256 || '')
+  && /^[a-f0-9]{64}$/.test(part.markingProvenance?.sourceManifestChecksum || '')
+))), 'every server-generated Topic part must carry the complete immutable QP/MS and source-catalog provenance')
+assert.deepEqual(attemptedSourceQuestionIds([
+  {
+    routeId,
+    answers: { 'generated-unit-part-id': 'student response' },
+    sourceBinding: { parts: [
+      { sourceQuestionId: 'cie-9702-9702_m25_qp_22:q2' },
+      { sourceQuestionId: 'cie-9702-9702_m25_qp_22:q2' },
+      { sourceQuestionId: 'cie-9702-9702_m25_qp_12:q9' },
+    ] },
+  },
+  { routeId: 'cie-0625-igcse-physics', sourceBinding: { parts: [{ sourceQuestionId: 'wrong-route:q1' }] } },
+], routeId), [
+  'cie-9702-9702_m25_qp_22:q2',
+  'cie-9702-9702_m25_qp_12:q9',
+], 'unseen-question preference must use canonical source question IDs, ignore generated part keys and stay route-scoped')
 
 function identityToken(userId = 42) {
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')

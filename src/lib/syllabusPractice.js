@@ -5,6 +5,7 @@ import { CAMBRIDGE_0625_IGCSE_SYLLABUS } from '../data/syllabus/cambridge-0625-i
 import { CAMBRIDGE_0606_IGCSE_SYLLABUS } from '../data/syllabus/cambridge-0606-igcse-2025-2027.js'
 import { isHumanReviewedPastPaperItem, normalizeImportedQuestion, unifiedQuestionBank } from '../data/questionBank.js'
 import { routeById } from '../data/routeRegistry.js'
+import { canonicalSourceMarkingProvenance } from './sourceContentContract.js'
 
 export const SYLLABUS_CATALOG_SCHEMA_VERSION = 'syllabus-catalog-v1'
 export const SYLLABUS_MAPPING_SCHEMA_VERSION = 'question-syllabus-mapping-v1'
@@ -347,6 +348,7 @@ function publicQuestionGroup(record) {
       answerArea: part.answerArea || null,
       sourcePage: part.sourcePage || question.sourceRef?.pageStart || null,
       sourceEvidence: part.sourceEvidence || [],
+      markingProvenance: canonicalSourceMarkingProvenance(question, part),
     })),
     sourceRef: question.sourceRef,
     answerRef: question.answerRef,

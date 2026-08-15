@@ -4,6 +4,14 @@ import { canonicalSourceQuestionId } from './sourceContentContract.js'
 
 export { EXPORT_SCHEMA_VERSION }
 
+export function attemptedSourceQuestionIds(attempts = [], routeId = '') {
+  const requestedRouteId = String(routeId || '')
+  return [...new Set((Array.isArray(attempts) ? attempts : [])
+    .filter((attempt) => !requestedRouteId || attempt?.routeId === requestedRouteId)
+    .flatMap((attempt) => (attempt?.sourceBinding?.parts || []).map((part) => String(part?.sourceQuestionId || '').trim()))
+    .filter(Boolean))]
+}
+
 export function isPendingSelfMarkAttempt(attempt) {
   return Boolean(attempt) && (attempt.selfMarkPending === true || ['self-mark-pending', 'marking-pending'].includes(attempt.attemptStatus))
 }

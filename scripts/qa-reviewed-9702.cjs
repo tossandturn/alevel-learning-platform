@@ -21,7 +21,7 @@ const CASES = [
   { topic: 'Dynamics', question: 'Q7', paper: 'M25/12', page: 4, visual: 'diagram', focusTopAtMost: 570, componentMode: 'p1' },
   { topic: 'Physical quantities and units', question: 'Q2', paper: 'S25/11', page: 3, visual: 'table', componentMode: 'p1' },
   { topic: 'Work, energy and power', question: 'Q18', paper: 'S25/11', page: 9, visual: 'diagram', componentMode: 'p1' },
-  { topic: 'Forces, density and pressure', question: 'Q2', paper: 'M25/22', pages: [4, 5, 6], visual: 'multi-page diagram and graph', componentMode: 'p2', expectedParts: 5, expectedMarks: 10 },
+  { topic: 'Forces, density and pressure', question: 'Q2', paper: 'M25/22', pages: [4, 5, 6], visual: 'multi-page diagram and graph', componentMode: 'p2', requestedCount: 5, expectedGroupCount: 2, expectedComponent: 2, expectedParts: 5, expectedMarks: 10 },
 ]
 const CASE_TIMEOUT = 45_000
 const SERVER_TIMEOUT = 30_000
@@ -207,12 +207,44 @@ async function openTopic(page, testCase) {
     await componentSelect.selectOption(testCase.componentMode)
     if (await componentSelect.inputValue() !== testCase.componentMode) throw new Error(`${topic} did not retain the selected ${testCase.componentMode.toUpperCase()} mode`)
   }
+  if (testCase.requestedCount) {
+    const countSelect = page.getByRole('combobox', { name: 'Question count' })
+    await countSelect.selectOption(String(testCase.requestedCount))
+    if (Number(await countSelect.inputValue()) !== testCase.requestedCount) throw new Error(`${topic} did not retain the requested ${testCase.requestedCount}-question set size`)
+  }
+  if (testCase.expectedGroupCount) {
+    const summary = (await page.locator('.topic-detail__start').innerText()).replace(/\s+/g, ' ')
+    if (!summary.includes(`${testCase.expectedGroupCount} source questions`)) throw new Error(`${topic} component-aware summary is stale: ${summary}`)
+  }
   const start = page.locator('.topic-detail__start .primary-action').first()
   await start.waitFor({ state: 'visible' })
   if (await start.isDisabled()) throw new Error(`9702 ${topic} practice CTA is disabled despite reviewed inventory`)
+  const practiceResponsePromise = testCase.expectedComponent
+    ? page.waitForResponse((response) => response.url().includes('/api/stem/practice-sets') && response.request().method() === 'POST')
+    : null
   await start.click()
-  if (await page.locator('.session-setup').count()) await page.getByRole('button', { name: /Start session/i }).click()
+  if (practiceResponsePromise) {
+    const practiceResponse = await practiceResponsePromise
+    const requestBody = practiceResponse.request().postDataJSON()
+    const responseBody = await practiceResponse.json()
+    if (requestBody.questionCount !== testCase.requestedCount || requestBody.components?.length !== 1 || requestBody.components[0] !== testCase.expectedComponent) {
+      throw new Error(`${topic} discarded the requested practice filters: ${JSON.stringify(requestBody)}`)
+    }
+    if (responseBody.questionCount !== testCase.expectedGroupCount || responseBody.questionGroups?.some((group) => group.paperComponent !== testCase.expectedComponent)) {
+      throw new Error(`${topic} API returned a mixed or incorrectly sized set: ${JSON.stringify({ questionCount: responseBody.questionCount, components: responseBody.questionGroups?.map((group) => group.paperComponent) })}`)
+    }
+  }
+  try {
+    await page.waitForFunction(() => document.querySelector('.session-setup, .question-block'))
+  } catch (error) {
+    throw new Error(`${error.message}; startError=${JSON.stringify(await page.locator('.topic-detail__error').allTextContents())}; account=${JSON.stringify(await page.locator('.account-trigger').allTextContents())}; url=${page.url()}`)
+  }
+  if (await page.locator('.session-setup').isVisible().catch(() => false)) await page.getByRole('button', { name: /Start session/i }).click()
   await page.locator('.question-block').waitFor({ state: 'visible' })
+  if (testCase.expectedGroupCount) {
+    const workspaceSummary = (await page.locator('.qp-header__title span').innerText()).replace(/\s+/g, ' ')
+    if (!workspaceSummary.startsWith(`${testCase.expectedGroupCount} source questions ·`)) throw new Error(`${topic} workspace started the wrong set: ${workspaceSummary}`)
+  }
 }
 
 async function activateQuestion(page, question, paper) {
