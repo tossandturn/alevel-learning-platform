@@ -1,0 +1,1050 @@
+{
+  "schemaVersion": "reviewed-question-set.v1",
+  "generatedAt": "2026-08-15T18:30:00+08:00",
+  "paperId": "cie-9702-9702_s25_qp_21",
+  "questionCount": 2,
+  "totalMarks": 18,
+  "sourceFragments": [
+    {
+      "file": "cambridge-9702-p2-topic-coverage-review-ledger.js",
+      "sha256": "80a18ddc778eb09c6442730aa348f11440813979b7c37469a934194e0508f88c"
+    }
+  ],
+  "sourceMaterials": {
+    "questionPaper": {
+      "id": "cie-9702-9702_s25_qp_21",
+      "file": "9702_s25_qp_21.pdf",
+      "sha256": "a2deceb4bc366358427f1aa97a095c356800cd8c90590ac7f64c2239b93f1b8c",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s25_qp_21.pdf",
+      "governance": {
+        "schemaVersion": "paper-governance-v1",
+        "state": "active",
+        "sourcePolicyId": "cie-mirror-restricted-v1",
+        "accessPolicyId": "personal-study-restricted-v1",
+        "sourceVersion": "2025:Jun:9702_s25_qp_21.pdf",
+        "retrievedAt": null,
+        "retrievalStatus": "not-recorded",
+        "integrityStatus": "pending-release-audit",
+        "duplicateOf": null,
+        "answerStatus": "exact-pair",
+        "reasonCode": null,
+        "reviewedAt": null,
+        "reviewEvidence": null
+      }
+    },
+    "markScheme": {
+      "id": "cie-9702-9702_s25_ms_21",
+      "file": "9702_s25_ms_21.pdf",
+      "sha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s25_ms_21.pdf",
+      "governance": {
+        "schemaVersion": "paper-governance-v1",
+        "state": "active",
+        "sourcePolicyId": "cie-mirror-restricted-v1",
+        "accessPolicyId": "personal-study-restricted-v1",
+        "sourceVersion": "2025:Jun:9702_s25_ms_21.pdf",
+        "retrievedAt": null,
+        "retrievalStatus": "not-recorded",
+        "integrityStatus": "pending-release-audit",
+        "duplicateOf": null,
+        "answerStatus": "not-applicable",
+        "reasonCode": null,
+        "reviewedAt": null,
+        "reviewEvidence": null
+      }
+    }
+  },
+  "questions": [
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-9702",
+      "specificationId": "cambridge-9702-2025-2027",
+      "subjectId": "physics",
+      "subjectCode": "9702",
+      "knowledgeGroupId": "physics-9702-topic-02",
+      "topicId": "physics-9702-topic-02",
+      "stageTags": [
+        "AS"
+      ],
+      "componentTags": [
+        2
+      ],
+      "topicTags": [
+        "physics-9702-topic-02",
+        "equations of motion",
+        "kinematics"
+      ],
+      "skillTags": [
+        "define"
+      ],
+      "answerType": "structured",
+      "prompt": "(a) Define acceleration.\n\n(b(i)) In an experiment, two objects A and B are released from the side of a building, as shown in Fig. 1.1.\nCalculate the time taken for object A to reach the ground.\n\n(b(ii)) Use your answer in (b)(i) to calculate u.\n\n(c(i)) State and explain whether the time taken for object B to reach the ground is less than, the same as or greater than the time in (b)(i).\n\n(c(ii)) By considering energy, state and explain the effect of the change in release angle on the speed at which B reaches the ground.",
+      "questionGroupId": "cie-9702-9702_s25_qp_21:q1",
+      "questionGroupStatus": "verified",
+      "totalMarks": 9,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_s25_qp_21:q1:part-a",
+          "label": "a",
+          "promptFragment": "Define acceleration.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 4,
+          "sourceEvidence": [
+            {
+              "documentSha256": "a2deceb4bc366358427f1aa97a095c356800cd8c90590ac7f64c2239b93f1b8c",
+              "page": 4,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/qp-04.jpg",
+              "assetSha256": "5408b92565b58c95986c87cf6edca702a6e22d085ac453c751e7b2aceab2b714"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_21:q1:part-b(i)",
+          "label": "b(i)",
+          "promptFragment": "In an experiment, two objects A and B are released from the side of a building, as shown in Fig. 1.1.\nCalculate the time taken for object A to reach the ground.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 4,
+          "sourceEvidence": [
+            {
+              "documentSha256": "a2deceb4bc366358427f1aa97a095c356800cd8c90590ac7f64c2239b93f1b8c",
+              "page": 4,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/qp-04.jpg",
+              "assetSha256": "5408b92565b58c95986c87cf6edca702a6e22d085ac453c751e7b2aceab2b714"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_21:q1:part-b(ii)",
+          "label": "b(ii)",
+          "promptFragment": "Use your answer in (b)(i) to calculate u.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 4,
+          "sourceEvidence": [
+            {
+              "documentSha256": "a2deceb4bc366358427f1aa97a095c356800cd8c90590ac7f64c2239b93f1b8c",
+              "page": 4,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/qp-04.jpg",
+              "assetSha256": "5408b92565b58c95986c87cf6edca702a6e22d085ac453c751e7b2aceab2b714"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_21:q1:part-c(i)",
+          "label": "c(i)",
+          "promptFragment": "State and explain whether the time taken for object B to reach the ground is less than, the same as or greater than the time in (b)(i).",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 5,
+          "sourceEvidence": [
+            {
+              "documentSha256": "a2deceb4bc366358427f1aa97a095c356800cd8c90590ac7f64c2239b93f1b8c",
+              "page": 5,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/qp-05.jpg",
+              "assetSha256": "70e8e532000cfe94b05e17efe6b4efaf2286af96f6b8f2d3627506d53740df4b"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_21:q1:part-c(ii)",
+          "label": "c(ii)",
+          "promptFragment": "By considering energy, state and explain the effect of the change in release angle on the speed at which B reaches the ground.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 5,
+          "sourceEvidence": [
+            {
+              "documentSha256": "a2deceb4bc366358427f1aa97a095c356800cd8c90590ac7f64c2239b93f1b8c",
+              "page": 5,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/qp-05.jpg",
+              "assetSha256": "70e8e532000cfe94b05e17efe6b4efaf2286af96f6b8f2d3627506d53740df4b"
+            }
+          ]
+        }
+      ],
+      "marks": 9,
+      "sourceRef": {
+        "paperId": "cie-9702-9702_s25_qp_21",
+        "paper": "9702_s25_qp_21.pdf",
+        "question": "Q1",
+        "localUrl": "/local-pdf/9702/9702_s25_qp_21.pdf",
+        "pageStart": 4,
+        "pageEnd": 5,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_s25_qp_21/qp-04.jpg",
+          "/question-assets/cie-9702-9702_s25_qp_21/qp-05.jpg"
+        ],
+        "year": 2025,
+        "season": "Jun",
+        "component": 2,
+        "sha256": "a2deceb4bc366358427f1aa97a095c356800cd8c90590ac7f64c2239b93f1b8c"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-15T05:32:05.550Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-topic-coverage-review.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-9702-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "physics-9702-topic-02",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-02",
+        "secondaryTopicIds": [],
+        "syllabusPointIds": [
+          "physics-9702-point-2-1-01",
+          "physics-9702-point-2-1-07",
+          "physics-9702-point-2-1-09"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+        "reviewedAt": "2026-08-15T18:30:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_s25_qp_21",
+          "markSchemeId": "cie-9702-9702_s25_ms_21",
+          "questionPages": [
+            4,
+            5
+          ],
+          "markSchemePages": [
+            8,
+            9
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s25_qp_21.pdf",
+          "studentPromptPolicy": "official-source-image",
+          "privateTextPolicy": "hidden-indexing-and-marking-context"
+        }
+      },
+      "questionId": "cie-9702-9702_s25_qp_21:q1"
+    },
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-9702",
+      "specificationId": "cambridge-9702-2025-2027",
+      "subjectId": "physics",
+      "subjectCode": "9702",
+      "knowledgeGroupId": "physics-9702-topic-09",
+      "topicId": "physics-9702-topic-09",
+      "stageTags": [
+        "AS"
+      ],
+      "componentTags": [
+        2
+      ],
+      "topicTags": [
+        "physics-9702-topic-09",
+        "physics-9702-topic-10",
+        "current",
+        "potential difference",
+        "resistance"
+      ],
+      "skillTags": [
+        "calculation",
+        "application of Ohm's law"
+      ],
+      "answerType": "structured",
+      "prompt": "(a(i)) Calculate the current in X.\n\n(a(ii)) The number density of charge carriers (electrons) in nichrome is 8.5 × 10²⁸ m⁻³. Calculate the average drift speed of the charge carriers in X.\n\n(a(iii)) Calculate the resistivity of the nichrome.\n\n(b(i)) the reading on the ammeter\n\n(b(ii)) the average drift speed of the charge carriers in X.",
+      "questionGroupId": "cie-9702-9702_s25_qp_21:q6",
+      "questionGroupStatus": "verified",
+      "totalMarks": 9,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_s25_qp_21:q6:part-a(i)",
+          "label": "a(i)",
+          "promptFragment": "Calculate the current in X.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 14,
+          "sourceEvidence": [
+            {
+              "documentSha256": "a2deceb4bc366358427f1aa97a095c356800cd8c90590ac7f64c2239b93f1b8c",
+              "page": 14,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/qp-14.jpg",
+              "assetSha256": "408c11ddee5de5ea888b5301b4dce405d2ad91eec326a04a846682dca9567638"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_21:q6:part-a(ii)",
+          "label": "a(ii)",
+          "promptFragment": "The number density of charge carriers (electrons) in nichrome is 8.5 × 10²⁸ m⁻³. Calculate the average drift speed of the charge carriers in X.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 14,
+          "sourceEvidence": [
+            {
+              "documentSha256": "a2deceb4bc366358427f1aa97a095c356800cd8c90590ac7f64c2239b93f1b8c",
+              "page": 14,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/qp-14.jpg",
+              "assetSha256": "408c11ddee5de5ea888b5301b4dce405d2ad91eec326a04a846682dca9567638"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_21:q6:part-a(iii)",
+          "label": "a(iii)",
+          "promptFragment": "Calculate the resistivity of the nichrome.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 14,
+          "sourceEvidence": [
+            {
+              "documentSha256": "a2deceb4bc366358427f1aa97a095c356800cd8c90590ac7f64c2239b93f1b8c",
+              "page": 14,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/qp-14.jpg",
+              "assetSha256": "408c11ddee5de5ea888b5301b4dce405d2ad91eec326a04a846682dca9567638"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_21:q6:part-b(i)",
+          "label": "b(i)",
+          "promptFragment": "the reading on the ammeter",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 15,
+          "sourceEvidence": [
+            {
+              "documentSha256": "a2deceb4bc366358427f1aa97a095c356800cd8c90590ac7f64c2239b93f1b8c",
+              "page": 15,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/qp-15.jpg",
+              "assetSha256": "cf0e72ae097ddae5d5b545d86a859e3aa6fb2be28e6e0ead4b265e14fbdbe8ae"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_21:q6:part-b(ii)",
+          "label": "b(ii)",
+          "promptFragment": "the average drift speed of the charge carriers in X.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 15,
+          "sourceEvidence": [
+            {
+              "documentSha256": "a2deceb4bc366358427f1aa97a095c356800cd8c90590ac7f64c2239b93f1b8c",
+              "page": 15,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/qp-15.jpg",
+              "assetSha256": "cf0e72ae097ddae5d5b545d86a859e3aa6fb2be28e6e0ead4b265e14fbdbe8ae"
+            }
+          ]
+        }
+      ],
+      "marks": 9,
+      "sourceRef": {
+        "paperId": "cie-9702-9702_s25_qp_21",
+        "paper": "9702_s25_qp_21.pdf",
+        "question": "Q6",
+        "localUrl": "/local-pdf/9702/9702_s25_qp_21.pdf",
+        "pageStart": 14,
+        "pageEnd": 15,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_s25_qp_21/qp-14.jpg",
+          "/question-assets/cie-9702-9702_s25_qp_21/qp-15.jpg"
+        ],
+        "year": 2025,
+        "season": "Jun",
+        "component": 2,
+        "sha256": "a2deceb4bc366358427f1aa97a095c356800cd8c90590ac7f64c2239b93f1b8c"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-15T05:32:05.553Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-topic-coverage-review.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-9702-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "physics-9702-topic-09",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-09",
+        "secondaryTopicIds": [
+          "physics-9702-topic-10"
+        ],
+        "syllabusPointIds": [
+          "physics-9702-point-9-1-04",
+          "physics-9702-point-9-3-02",
+          "physics-9702-point-9-3-06"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+        "reviewedAt": "2026-08-15T18:30:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_s25_qp_21",
+          "markSchemeId": "cie-9702-9702_s25_ms_21",
+          "questionPages": [
+            14,
+            15
+          ],
+          "markSchemePages": [
+            13
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s25_qp_21.pdf",
+          "studentPromptPolicy": "official-source-image",
+          "privateTextPolicy": "hidden-indexing-and-marking-context"
+        }
+      },
+      "questionId": "cie-9702-9702_s25_qp_21:q6"
+    }
+  ],
+  "answers": [
+    {
+      "answerId": "cie-9702-9702_s25_qp_21:q1:answer",
+      "answer": null,
+      "answerKey": null,
+      "markPoints": [
+        "B1",
+        "C1",
+        "A1 / (C1) / (A1)",
+        "C1",
+        "A1 / (C1) / (A1)",
+        "Less time (as it reaches a lower height)",
+        "(because) the initial vertical (component of the) velocity is smaller (than in part (b))",
+        "The (total) initial energy is the same (as in part (b))",
+        "change in gravitational potential energy is same, so speed is the same"
+      ],
+      "exactAnswer": "(a) B1\n\n(b(i)) C1\nA1 / (C1) / (A1)\n\n(b(ii)) C1\nA1 / (C1) / (A1)\n\n(c(i)) Less time (as it reaches a lower height)\n(because) the initial vertical (component of the) velocity is smaller (than in part (b))\n\n(c(ii)) The (total) initial energy is the same (as in part (b))\nchange in gravitational potential energy is same, so speed is the same",
+      "answerRef": {
+        "documentId": "cie-9702-9702_s25_ms_21",
+        "file": "9702_s25_ms_21.pdf",
+        "localUrl": "/local-pdf/9702/9702_s25_ms_21.pdf",
+        "pageStart": 8,
+        "pageEnd": 9,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_s25_qp_21/ms-08.jpg",
+          "/question-assets/cie-9702-9702_s25_qp_21/ms-09.jpg"
+        ],
+        "sha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_s25_qp_21:q1:part-a",
+          "label": "a",
+          "marks": 1,
+          "markSchemePoints": [
+            "B1"
+          ],
+          "answerKey": null,
+          "answerText": "B1",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/ms-08.jpg",
+              "assetSha256": "145833767571ba20fc3de8c8bee6fcbbe8421e1998df888c35ffebe6f2a5e2fd",
+              "text": "B1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_21:q1:part-b(i)",
+          "label": "b(i)",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1",
+            "A1 / (C1) / (A1)"
+          ],
+          "answerKey": null,
+          "answerText": "C1\nA1 / (C1) / (A1)",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/ms-08.jpg",
+              "assetSha256": "145833767571ba20fc3de8c8bee6fcbbe8421e1998df888c35ffebe6f2a5e2fd",
+              "text": "C1"
+            },
+            {
+              "documentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/ms-08.jpg",
+              "assetSha256": "145833767571ba20fc3de8c8bee6fcbbe8421e1998df888c35ffebe6f2a5e2fd",
+              "text": "A1 / (C1) / (A1)"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_21:q1:part-b(ii)",
+          "label": "b(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1",
+            "A1 / (C1) / (A1)"
+          ],
+          "answerKey": null,
+          "answerText": "C1\nA1 / (C1) / (A1)",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/ms-08.jpg",
+              "assetSha256": "145833767571ba20fc3de8c8bee6fcbbe8421e1998df888c35ffebe6f2a5e2fd",
+              "text": "C1"
+            },
+            {
+              "documentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/ms-08.jpg",
+              "assetSha256": "145833767571ba20fc3de8c8bee6fcbbe8421e1998df888c35ffebe6f2a5e2fd",
+              "text": "A1 / (C1) / (A1)"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_21:q1:part-c(i)",
+          "label": "c(i)",
+          "marks": 2,
+          "markSchemePoints": [
+            "Less time (as it reaches a lower height)",
+            "(because) the initial vertical (component of the) velocity is smaller (than in part (b))"
+          ],
+          "answerKey": null,
+          "answerText": "Less time (as it reaches a lower height)\n(because) the initial vertical (component of the) velocity is smaller (than in part (b))",
+          "sourcePage": 9,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+              "sourcePage": 9,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/ms-09.jpg",
+              "assetSha256": "a5af287aafced1a50c9d29d02fb2ba7e8bbbd1c4365993918e36e47a7e71dc2c",
+              "text": "Less time (as it reaches a lower height)"
+            },
+            {
+              "documentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+              "sourcePage": 9,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/ms-09.jpg",
+              "assetSha256": "a5af287aafced1a50c9d29d02fb2ba7e8bbbd1c4365993918e36e47a7e71dc2c",
+              "text": "(because) the initial vertical (component of the) velocity is smaller (than in part (b))"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_21:q1:part-c(ii)",
+          "label": "c(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "The (total) initial energy is the same (as in part (b))",
+            "change in gravitational potential energy is same, so speed is the same"
+          ],
+          "answerKey": null,
+          "answerText": "The (total) initial energy is the same (as in part (b))\nchange in gravitational potential energy is same, so speed is the same",
+          "sourcePage": 9,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+              "sourcePage": 9,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/ms-09.jpg",
+              "assetSha256": "a5af287aafced1a50c9d29d02fb2ba7e8bbbd1c4365993918e36e47a7e71dc2c",
+              "text": "The (total) initial energy is the same (as in part (b))"
+            },
+            {
+              "documentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+              "sourcePage": 9,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/ms-09.jpg",
+              "assetSha256": "a5af287aafced1a50c9d29d02fb2ba7e8bbbd1c4365993918e36e47a7e71dc2c",
+              "text": "change in gravitational potential energy is same, so speed is the same"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-9702-9702_s25_qp_21:q6:answer",
+      "answer": null,
+      "answerKey": null,
+      "markPoints": [
+        "A1",
+        "C1",
+        "A1",
+        "C1",
+        "C1",
+        "A1",
+        "M1",
+        "A1",
+        "B1"
+      ],
+      "exactAnswer": "(a(i)) A1\n\n(a(ii)) C1\nA1\n\n(a(iii)) C1\nC1\nA1\n\n(b(i)) M1\nA1\n\n(b(ii)) B1",
+      "answerRef": {
+        "documentId": "cie-9702-9702_s25_ms_21",
+        "file": "9702_s25_ms_21.pdf",
+        "localUrl": "/local-pdf/9702/9702_s25_ms_21.pdf",
+        "pageStart": 13,
+        "pageEnd": 13,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_s25_qp_21/ms-13.jpg"
+        ],
+        "sha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_s25_qp_21:q6:part-a(i)",
+          "label": "a(i)",
+          "marks": 1,
+          "markSchemePoints": [
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "A1",
+          "sourcePage": 13,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/ms-13.jpg",
+              "assetSha256": "683e730f349627662c045410e1039b26142afa44c6f481fe005c356ecdbe9e98",
+              "text": "A1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_21:q6:part-a(ii)",
+          "label": "a(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "C1\nA1",
+          "sourcePage": 13,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/ms-13.jpg",
+              "assetSha256": "683e730f349627662c045410e1039b26142afa44c6f481fe005c356ecdbe9e98",
+              "text": "C1"
+            },
+            {
+              "documentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/ms-13.jpg",
+              "assetSha256": "683e730f349627662c045410e1039b26142afa44c6f481fe005c356ecdbe9e98",
+              "text": "A1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_21:q6:part-a(iii)",
+          "label": "a(iii)",
+          "marks": 3,
+          "markSchemePoints": [
+            "C1",
+            "C1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "C1\nC1\nA1",
+          "sourcePage": 13,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/ms-13.jpg",
+              "assetSha256": "683e730f349627662c045410e1039b26142afa44c6f481fe005c356ecdbe9e98",
+              "text": "C1"
+            },
+            {
+              "documentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/ms-13.jpg",
+              "assetSha256": "683e730f349627662c045410e1039b26142afa44c6f481fe005c356ecdbe9e98",
+              "text": "C1"
+            },
+            {
+              "documentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/ms-13.jpg",
+              "assetSha256": "683e730f349627662c045410e1039b26142afa44c6f481fe005c356ecdbe9e98",
+              "text": "A1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_21:q6:part-b(i)",
+          "label": "b(i)",
+          "marks": 2,
+          "markSchemePoints": [
+            "M1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "M1\nA1",
+          "sourcePage": 13,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/ms-13.jpg",
+              "assetSha256": "683e730f349627662c045410e1039b26142afa44c6f481fe005c356ecdbe9e98",
+              "text": "M1"
+            },
+            {
+              "documentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/ms-13.jpg",
+              "assetSha256": "683e730f349627662c045410e1039b26142afa44c6f481fe005c356ecdbe9e98",
+              "text": "A1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_21:q6:part-b(ii)",
+          "label": "b(ii)",
+          "marks": 1,
+          "markSchemePoints": [
+            "B1"
+          ],
+          "answerKey": null,
+          "answerText": "B1",
+          "sourcePage": 13,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/ms-13.jpg",
+              "assetSha256": "683e730f349627662c045410e1039b26142afa44c6f481fe005c356ecdbe9e98",
+              "text": "B1"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "bindings": [
+    {
+      "questionId": "cie-9702-9702_s25_qp_21:q1",
+      "answerId": "cie-9702-9702_s25_qp_21:q1:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "a2deceb4bc366358427f1aa97a095c356800cd8c90590ac7f64c2239b93f1b8c",
+      "answerDocumentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+      "reviewedAt": "2026-08-15T18:30:00+08:00",
+      "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "reviewProtocolVersion": "cambridge-9702-p2-topic-coverage-review.v1",
+        "sourcePolicy": "personal-study-restricted",
+        "manualVisualReview": true,
+        "studentPromptPolicy": "official-source-image",
+        "privateTextPolicy": "hidden-indexing-and-marking-context",
+        "completeQuestionPageReview": true,
+        "questionPaper": {
+          "file": "9702_s25_qp_21.pdf",
+          "sha256": "a2deceb4bc366358427f1aa97a095c356800cd8c90590ac7f64c2239b93f1b8c",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s25_qp_21.pdf"
+        },
+        "markScheme": {
+          "file": "9702_s25_ms_21.pdf",
+          "sha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s25_ms_21.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_s25_qp_21:q1:part-a",
+            "marks": 1,
+            "questionPage": 4,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "B1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_s25_qp_21:q1:part-b(i)",
+            "marks": 2,
+            "questionPage": 4,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "C1",
+              "A1 / (C1) / (A1)"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_s25_qp_21:q1:part-b(ii)",
+            "marks": 2,
+            "questionPage": 4,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "C1",
+              "A1 / (C1) / (A1)"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_s25_qp_21:q1:part-c(i)",
+            "marks": 2,
+            "questionPage": 5,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 9,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "Less time (as it reaches a lower height)",
+              "(because) the initial vertical (component of the) velocity is smaller (than in part (b))"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_s25_qp_21:q1:part-c(ii)",
+            "marks": 2,
+            "questionPage": 5,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 9,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "The (total) initial energy is the same (as in part (b))",
+              "change in gravitational potential energy is same, so speed is the same"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-9702-9702_s25_qp_21:q6",
+      "answerId": "cie-9702-9702_s25_qp_21:q6:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "a2deceb4bc366358427f1aa97a095c356800cd8c90590ac7f64c2239b93f1b8c",
+      "answerDocumentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+      "reviewedAt": "2026-08-15T18:30:00+08:00",
+      "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "reviewProtocolVersion": "cambridge-9702-p2-topic-coverage-review.v1",
+        "sourcePolicy": "personal-study-restricted",
+        "manualVisualReview": true,
+        "studentPromptPolicy": "official-source-image",
+        "privateTextPolicy": "hidden-indexing-and-marking-context",
+        "completeQuestionPageReview": true,
+        "questionPaper": {
+          "file": "9702_s25_qp_21.pdf",
+          "sha256": "a2deceb4bc366358427f1aa97a095c356800cd8c90590ac7f64c2239b93f1b8c",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s25_qp_21.pdf"
+        },
+        "markScheme": {
+          "file": "9702_s25_ms_21.pdf",
+          "sha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s25_ms_21.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_s25_qp_21:q6:part-a(i)",
+            "marks": 1,
+            "questionPage": 14,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 13,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "A1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_s25_qp_21:q6:part-a(ii)",
+            "marks": 2,
+            "questionPage": 14,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 13,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "C1",
+              "A1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_s25_qp_21:q6:part-a(iii)",
+            "marks": 3,
+            "questionPage": 14,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 13,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 3,
+            "markSchemeEvidence": [
+              "C1",
+              "C1",
+              "A1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_s25_qp_21:q6:part-b(i)",
+            "marks": 2,
+            "questionPage": 15,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 13,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "M1",
+              "A1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_s25_qp_21:q6:part-b(ii)",
+            "marks": 1,
+            "questionPage": 15,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 13,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "B1"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

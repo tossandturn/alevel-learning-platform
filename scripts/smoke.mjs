@@ -68,10 +68,10 @@ const partOutsideSourcePage = sourceBindingStatus({
 })
 assert.ok(partOutsideSourcePage.reasons.includes('part-source-page-outside-range:fixture-source-part-range:a:11'), 'every part page must remain inside the declared source page range')
 assert.equal(sourceContentManifest.schemaVersion, 'source-content-audit-v2', 'client source manifest must use the audited schema')
-assert.equal(Object.keys(sourceContentManifest.items).length, 1320, 'every imported source question must receive an explicit runtime audit state')
+assert.equal(Object.keys(sourceContentManifest.items).length, importedQuestionIndex.questions.length, 'every imported source question must receive an explicit runtime audit state')
 assert.equal(Object.values(sourceContentManifest.items).filter((item) => !item.fileComplete).length, 413, 'source audit must preserve the 410 index quarantines plus 3 source-file quarantines')
-assert.equal(Object.values(sourceContentManifest.items).filter((item) => !item.complete).length, 1115, 'effective practice gate must exclude every unreviewed or semantically quarantined source record')
-assert.equal(Object.values(sourceContentManifest.items).filter((item) => item.complete).length, 205, 'only reviewed source-complete question groups may enter the effective practice bank')
+assert.equal(Object.values(sourceContentManifest.items).filter((item) => !item.complete).length, 1150, 'effective practice gate must exclude every unreviewed or semantically quarantined source record')
+assert.equal(Object.values(sourceContentManifest.items).filter((item) => item.complete).length, 230, 'only reviewed source-complete question groups may enter the effective practice bank')
 
 const semanticFixtureIds = ['bpho-2025_IPC:q13', 'bpho-2025_IPC:q14']
 for (const questionId of semanticFixtureIds) {
@@ -252,6 +252,7 @@ const markingLifecycleSource = fs.readFileSync(path.resolve(import.meta.dirname,
 assert.ok(appSource.includes('verifiedPracticeQuestionGroups'), 'topic detail must read the compact reviewed runtime catalog')
 assert.ok(!appSource.includes("from './data/questionBank"), 'the client App entry must not statically import the full question index')
 assert.ok(appSource.includes('topic-detail__paper-group'), 'topic detail must render grouped real-paper questions')
+assert.ok(appSource.includes("activeRouteId !== 'cie-9702-as-physics' && selectedTopicIds.length === 1"), '9702 Topic Drill must honor the selected P1/P2 mode and question count instead of reopening a stale prebuilt unit')
 assert.ok(appSource.includes('onAgentAction={handleCoachAgentAction}'), 'Coach agent actions must be available from every current student route')
 assert.ok(!appSource.includes("onAgentAction={activeRoute.stage === 'Competition'"), 'Coach actions must not be disabled merely because the current route is not Competition')
 assert.ok(appSource.includes('Topic drills are being reviewed'), 'routes with archived papers but no reviewed topic inventory must explain the source-review state')
@@ -286,8 +287,8 @@ assert.ok(paperAnswerSheetSource.includes('onOpenAccount?.(\'login\')'), 'full-p
 assert.equal(practiceUnits.length, 0, 'formal practice must not expose generated seed questions')
 const verifiedPracticeCatalog = buildVerifiedPracticeCatalog()
 const verifiedCatalogMetrics = verifiedPracticeCatalogMetrics(verifiedPracticeCatalog)
-assert.deepEqual(verifiedCatalogMetrics, { units: 39, questionGroups: 205, answerableParts: 260, referencedPapers: 7, routes: 4, topics: 33 }, 'only source-semantically reviewed question groups may be exposed as stable route/topic practice units')
-assert.equal(runtimeVerifiedPracticeQuestionGroups.length, 205, 'the compact runtime catalog must expose only current reviewed groups')
+assert.deepEqual(verifiedCatalogMetrics, { units: 39, questionGroups: 230, answerableParts: 391, referencedPapers: 16, routes: 4, topics: 33 }, 'only source-semantically reviewed question groups may be exposed as stable route/topic practice units')
+assert.equal(runtimeVerifiedPracticeQuestionGroups.length, 230, 'the compact runtime catalog must expose only current reviewed groups')
 assert.deepEqual(verifiedPracticeCatalogMetrics(buildRuntimeVerifiedPracticeCatalog()), verifiedCatalogMetrics, 'compact runtime catalog must preserve the reviewed practice inventory')
 assert.equal(new Set(verifiedPracticeCatalog.map((unit) => unit.id)).size, verifiedPracticeCatalog.length, 'verified practice unit IDs must be stable and unique')
 assert.ok(verifiedPracticeCatalog.every((unit) => unit.parts.every((part) => part.routeId === unit.routeId && part.stage === unit.stage && part.sourceRef?.sha256 && part.answerRef?.sha256)), 'catalog practice units must preserve route, stage and independent QP/MS provenance')
@@ -310,7 +311,9 @@ assert.ok(reviewed0625P2Parts.every((part) => part.answerType === 'multiple-choi
 const reviewed0625S25P2Parts = catalogAnswerParts.filter((part) => part.sourceRef?.paperId === 'cie-0625-0625_s25_qp_21')
 assert.equal(reviewed0625S25P2Parts.length, 40, 'reviewed 0625 S25 P2 must expose one independently marked MCQ part per printed question')
 assert.ok(reviewed0625S25P2Parts.every((part) => part.answerType === 'multiple-choice' && part.aiAssistedMarkingAvailable && part.answerBinding?.verificationStatus === 'reviewed'), '0625 S25 P2 marking capability must require current reviewed QP/MS provenance')
-assert.equal(catalogAnswerParts.filter((part) => part.aiAssistedMarkingAvailable).length, 260, 'only reviewed source parts may unlock AI-assisted marking')
+const aiAssistedParts = catalogAnswerParts.filter((part) => part.aiAssistedMarkingAvailable)
+assert.equal(aiAssistedParts.length, verifiedCatalogMetrics.answerableParts, 'every practice answer part must use the current reviewed AI-marking contract')
+assert.ok(aiAssistedParts.every((part) => part.answerBinding?.verificationStatus === 'reviewed'), 'only reviewed source parts may unlock AI-assisted marking')
 const deterministicMcqParts = catalogAnswerParts.filter((part) => part.deterministicScoringAvailable)
 assert.equal(deterministicMcqParts.length, 160, 'only the reviewed MCQ parts may unlock deterministic scoring')
 assert.ok(deterministicMcqParts.every((part) => [...reviewed9702P1Parts, ...reviewed0625P2Parts, ...reviewed0625S25P2Parts].includes(part) && part.answerType === 'multiple-choice' && part.answerBinding?.verificationStatus === 'reviewed'), 'deterministic scoring must stay bound to a reviewed MCQ answer key')
@@ -535,7 +538,7 @@ assert.deepEqual(mergeNotebookNote({ body: 'stale offline note', updatedAt: '202
 assert.ok(learningPlan.knowledgeGroups.length >= 10, 'learning plan should expose a usable subject knowledge map')
 assert.ok(learningPlan.practiceModes.some((mode) => mode.id === 'mock-exam'), 'learning plan should expose mock exam mode')
 assert.deepEqual(new Set(learningPlan.subjects.map((subject) => subject.code)), new Set(['0580', '0606', '0610', '0625', '9231', '9700', '9701', '9702', '9708', '9709']), 'knowledge map must expose all requested Cambridge subjects')
-assert.equal(unifiedQuestionBank.length, 205, 'question-level index must expose only the currently reviewed source-complete question groups')
+assert.equal(unifiedQuestionBank.length, 230, 'question-level index must expose only the currently reviewed source-complete question groups')
 assert.ok(unifiedQuestionBank.every(isVerifiedPastPaperItem), 'formal topic drills must contain only QP/MS-bound items')
 assert.ok(unifiedQuestionBank.every((item) => item.sourceRef.sha256 !== item.answerRef.sha256), 'question and answer documents must remain independently bound')
 
@@ -546,11 +549,11 @@ const reviewedPhysicsDrill = selectTaggedQuestions({
   knowledgeGroupId: 'physics-9702-topic-03',
   questionCount: 10,
 })
-assert.equal(reviewedPhysicsDrill.length, 9, 'the reviewed Dynamics inventory must expose every available reviewed AS source group without substituting pending work')
+assert.equal(reviewedPhysicsDrill.length, 10, 'the reviewed Dynamics inventory must provide a complete ten-question AS source set without substituting pending work')
 assert.ok(reviewedPhysicsDrill.every((item) => [1, 2].includes(item.sourceRef?.component) && item.answerBinding?.verificationStatus === 'reviewed'), 'AS Physics Topic Drill must remain limited to reviewed AS QP/MS bindings')
 const reviewedPhysicsUnit = buildCoachPractice({ routeId: 'cie-9702-as-physics', knowledgeGroupId: 'physics-9702-topic-03', questionCount: 10, allowPartial: true })
-assert.equal(reviewedPhysicsUnit.parts.length, 13, 'a below-ready AS topic may reopen its explicit reviewed sample without claiming a complete ten-question drill')
-assert.equal(reviewedPhysicsUnit.inventoryStatus, 'verified-source-inventory', 'a topic meeting the reviewed five-question release threshold must expose a verified inventory status')
+assert.equal(reviewedPhysicsUnit.parts.length, 17, 'a complete Dynamics set must retain every reviewed part across its ten coherent question groups')
+assert.equal(reviewedPhysicsUnit.inventoryStatus, 'verified-source-inventory', 'a topic meeting the reviewed ten-question release threshold must expose a verified inventory status')
 assert.ok(reviewedPhysicsUnit.parts.every((part) => [1, 2].includes(part.sourceRef?.component) && part.answerBinding?.verificationStatus === 'reviewed'), 'generated AS practice must not mix in unreviewed AS source groups')
 const mixedPhysicsDrill = selectTaggedQuestions({
   routeId: 'cie-0580-igcse-mathematics',

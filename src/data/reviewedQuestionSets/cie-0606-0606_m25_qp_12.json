@@ -1649,6 +1649,7 @@
           "markSchemePoints": [
             "Fully correct ruled graphs with all intercepts indicated."
           ],
+          "answerKey": null,
           "answerText": "Fully correct ruled graphs with all intercepts indicated.",
           "sourcePage": 6,
           "markSchemeEvidence": [
@@ -1669,6 +1670,7 @@
           "markSchemePoints": [
             "Critical values 2/7 and 6; final interval 2/7 <= x <= 6."
           ],
+          "answerKey": null,
           "answerText": "Critical values 2/7 and 6; final interval 2/7 <= x <= 6.",
           "sourcePage": 6,
           "markSchemeEvidence": [
@@ -1709,6 +1711,7 @@
           "markSchemePoints": [
             "a = 5, b = 3, c = -2."
           ],
+          "answerKey": null,
           "answerText": "a = 5, b = 3, c = -2.",
           "sourcePage": 6,
           "markSchemeEvidence": [
@@ -1758,6 +1761,7 @@
           "markSchemePoints": [
             "Centre (2, -1), radius squared 74; equation (x - 2)^2 + (y + 1)^2 = 74."
           ],
+          "answerKey": null,
           "answerText": "Centre (2, -1), radius squared 74; equation (x - 2)^2 + (y + 1)^2 = 74.",
           "sourcePage": 7,
           "markSchemeEvidence": [
@@ -1804,6 +1808,7 @@
           "markSchemePoints": [
             "Use p(-1/2) = 0 and obtain a = 4."
           ],
+          "answerKey": null,
           "answerText": "Use p(-1/2) = 0 and obtain a = 4.",
           "sourcePage": 7,
           "markSchemeEvidence": [
@@ -1824,6 +1829,7 @@
           "markSchemePoints": [
             "p(x) = 2(2x + 1)(4x^2 + 1)."
           ],
+          "answerKey": null,
           "answerText": "p(x) = 2(2x + 1)(4x^2 + 1).",
           "sourcePage": 7,
           "markSchemeEvidence": [
@@ -1844,6 +1850,7 @@
           "markSchemePoints": [
             "4x^2 + 1 has no real roots, so the only real root is x = -1/2."
           ],
+          "answerKey": null,
           "answerText": "4x^2 + 1 has no real roots, so the only real root is x = -1/2.",
           "sourcePage": 7,
           "markSchemeEvidence": [
@@ -1896,6 +1903,7 @@
           "markSchemePoints": [
             "2(x - 1/2)^2 + 5/2."
           ],
+          "answerKey": null,
           "answerText": "2(x - 1/2)^2 + 5/2.",
           "sourcePage": 8,
           "markSchemeEvidence": [
@@ -1916,6 +1924,7 @@
           "markSchemePoints": [
             "p = 1/2."
           ],
+          "answerKey": null,
           "answerText": "p = 1/2.",
           "sourcePage": 8,
           "markSchemeEvidence": [
@@ -1936,6 +1945,7 @@
           "markSchemePoints": [
             "f >= 5/2."
           ],
+          "answerKey": null,
           "answerText": "f >= 5/2.",
           "sourcePage": 8,
           "markSchemeEvidence": [
@@ -1956,6 +1966,7 @@
           "markSchemePoints": [
             "f^-1(x) = 1/2 - sqrt((x - 5/2)/2), with the stated domain and range."
           ],
+          "answerKey": null,
           "answerText": "f^-1(x) = 1/2 - sqrt((x - 5/2)/2), with the stated domain and range.",
           "sourcePage": 8,
           "markSchemeEvidence": [
@@ -2004,6 +2015,7 @@
           "markSchemePoints": [
             "cos(theta) = -sqrt(5/6)."
           ],
+          "answerKey": null,
           "answerText": "cos(theta) = -sqrt(5/6).",
           "sourcePage": 8,
           "markSchemeEvidence": [
@@ -2024,6 +2036,7 @@
           "markSchemePoints": [
             "sin(theta) = -sqrt(1/6)."
           ],
+          "answerKey": null,
           "answerText": "sin(theta) = -sqrt(1/6).",
           "sourcePage": 8,
           "markSchemeEvidence": [
@@ -2044,6 +2057,7 @@
           "markSchemePoints": [
             "(5 - sqrt(6))/sqrt(5)."
           ],
+          "answerKey": null,
           "answerText": "(5 - sqrt(6))/sqrt(5).",
           "sourcePage": 8,
           "markSchemeEvidence": [
@@ -2091,6 +2105,7 @@
           "markSchemePoints": [
             "Solve the intersection equation and obtain A = (3/2, 4)."
           ],
+          "answerKey": null,
           "answerText": "Solve the intersection equation and obtain A = (3/2, 4).",
           "sourcePage": 9,
           "markSchemeEvidence": [
@@ -2111,6 +2126,7 @@
           "markSchemePoints": [
             "Use the correct integral and trapezium area; exact area is 5 ln(5/2) - 3/4."
           ],
+          "answerKey": null,
           "answerText": "Use the correct integral and trapezium area; exact area is 5 ln(5/2) - 3/4.",
           "sourcePage": 9,
           "markSchemeEvidence": [
@@ -2154,6 +2170,7 @@
           "markSchemePoints": [
             "r = 2/3 and d = -10/9."
           ],
+          "answerKey": null,
           "answerText": "r = 2/3 and d = -10/9.",
           "sourcePage": 10,
           "markSchemeEvidence": [
@@ -2174,6 +2191,7 @@
           "markSchemePoints": [
             "Yes, because |r| < 1."
           ],
+          "answerKey": null,
           "answerText": "Yes, because |r| < 1.",
           "sourcePage": 10,
           "markSchemeEvidence": [
@@ -2218,6 +2236,7 @@
           "markSchemePoints": [
             "Let u = log base 2 of (x + 1), solve u^2 - 3u - 4 = 0, and obtain x = 15 or x = -1/2."
           ],
+          "answerKey": null,
           "answerText": "Let u = log base 2 of (x + 1), solve u^2 - 3u - 4 = 0, and obtain x = 15 or x = -1/2.",
           "sourcePage": 10,
           "markSchemeEvidence": [
@@ -2265,6 +2284,7 @@
           "markSchemePoints": [
             "P = (5, 9), normal gradient -9/10, Q = (-25, 36), and R = (35, -18)."
           ],
+          "answerKey": null,
           "answerText": "P = (5, 9), normal gradient -9/10, Q = (-25, 36), and R = (35, -18).",
           "sourcePage": 11,
           "markSchemeEvidence": [
@@ -2311,6 +2331,7 @@
           "markSchemePoints": [
             "OX = b + lambda(3a/4 - b)."
           ],
+          "answerKey": null,
           "answerText": "OX = b + lambda(3a/4 - b).",
           "sourcePage": 11,
           "markSchemeEvidence": [
@@ -2331,6 +2352,7 @@
           "markSchemePoints": [
             "OX = a + (1 - mu)(b/2 - a), equivalently b/2 + mu(a - b/2)."
           ],
+          "answerKey": null,
           "answerText": "OX = a + (1 - mu)(b/2 - a), equivalently b/2 + mu(a - b/2).",
           "sourcePage": 11,
           "markSchemeEvidence": [
@@ -2351,6 +2373,7 @@
           "markSchemePoints": [
             "Equate coefficients and obtain lambda = 4/5 and mu = 3/5."
           ],
+          "answerKey": null,
           "answerText": "Equate coefficients and obtain lambda = 4/5 and mu = 3/5.",
           "sourcePage": 11,
           "markSchemeEvidence": [
@@ -2402,6 +2425,7 @@
           "markSchemePoints": [
             "dy/dx = e^(3x + 2)(3x + 1)."
           ],
+          "answerKey": null,
           "answerText": "dy/dx = e^(3x + 2)(3x + 1).",
           "sourcePage": 12,
           "markSchemeEvidence": [
@@ -2422,6 +2446,7 @@
           "markSchemePoints": [
             "Integral = x e^(3x + 2)/3 - e^(3x + 2)/9 + c."
           ],
+          "answerKey": null,
           "answerText": "Integral = x e^(3x + 2)/3 - e^(3x + 2)/9 + c.",
           "sourcePage": 12,
           "markSchemeEvidence": [

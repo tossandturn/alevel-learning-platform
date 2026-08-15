@@ -4,7 +4,7 @@ import { unifiedQuestionBank } from '../src/data/questionBank.js'
 import { syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
 
 const routeId = 'cie-9702-as-physics'
-const minimumReviewedGroupsPerTopic = 5
+const minimumReviewedGroupsPerTopic = 10
 const inventory = syllabusTopicsInventory({ routeId, questionBank: unifiedQuestionBank })
 
 assert.equal(inventory.topics.length, 11, '9702 AS coverage gate requires all 11 official syllabus topics')

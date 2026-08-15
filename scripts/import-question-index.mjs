@@ -5,7 +5,14 @@ import { spawnSync } from 'node:child_process'
 import { learningPlan, stagesForComponentTags } from '../src/data/learningPlan.js'
 import { examStructures } from '../src/data/examStructure.js'
 import { normaliseQuestionGroup, questionPartLabel, validateQuestionGroup } from '../src/data/questionParts.js'
-import { isHumanReviewedIndexItem, mergeIndexItemPreservingReview } from './question-index-review-protection.mjs'
+import {
+  isHumanReviewedIndexItem,
+  knowledgeGroupForIndexItem,
+  minimumQuestionGroupsForImport,
+  replaceMachineIndexedPaperItems,
+  syllabusMappingForIndexItem,
+} from './question-index-review-protection.mjs'
+import { normaliseQuestionFragmentHierarchy } from './question-index-fragment-normalization.mjs'
 
 const projectRoot = path.resolve(import.meta.dirname, '..')
 const paperCatalogPath = path.join(projectRoot, 'public', 'data', 'papers.json')
@@ -370,10 +377,11 @@ function mergeFragments(records, key) {
   return grouped
 }
 
-function collapseFragments(fragments, { sumMarks = false } = {}) {
+function collapseFragments(fragments, { sumMarks = false, questionHierarchy = false } = {}) {
+  const sourceFragments = questionHierarchy ? normaliseQuestionFragmentHierarchy(fragments) : fragments
   const grouped = new Map()
-  for (const fragment of fragments) {
-    const label = questionPartLabel(fragment, fragments.length === 1 ? 'a' : '')
+  for (const fragment of sourceFragments) {
+    const label = questionPartLabel(fragment, sourceFragments.length === 1 ? 'a' : '')
     if (!label) return null
     const current = grouped.get(label)
     if (!current) {
@@ -460,7 +468,7 @@ function decoupleIndex(items) {
     const { answer, answerKey, markPoints, exactAnswer, answerRef, answerBinding, answerParts: _answerParts, bankId, ...question } = item
     const questionId = bankId || item.questionId
     const questionGroup = normaliseQuestionGroup({ ...question, questionId }, item)
-    const knowledgeGroupId = officialPhysicsTopicId(item)
+    const knowledgeGroupId = knowledgeGroupForIndexItem(item, officialPhysicsTopicId(item))
     const answerId = `${questionId}:answer`
     const preservedReviewEvidence = answerBinding?.verificationStatus === 'reviewed'
       ? {
@@ -480,6 +488,8 @@ function decoupleIndex(items) {
       label: part.label,
       promptFragment: part.promptFragment,
       marks: part.marks,
+      questionDeclaredMarks: part.questionDeclaredMarks || null,
+      markSource: part.markSource || '',
       answerArea: part.answerArea,
       sourcePage: part.sourcePage,
       sourceEvidence: part.sourceEvidence || [],
@@ -508,13 +518,11 @@ function decoupleIndex(items) {
       specificationId,
       knowledgeGroupId,
       topicId: question.subjectCode === '9702' ? knowledgeGroupId : question.topicId,
-      syllabusMapping: {
-        ...(question.syllabusMapping || {}),
+      syllabusMapping: syllabusMappingForIndexItem(item, {
+        fallbackKnowledgeGroupId: knowledgeGroupId,
         specificationId,
         syllabusUrl: config?.syllabusUrl || null,
-        knowledgeGroupId,
-        mappingStatus: 'machine-indexed',
-      },
+      }),
     })
     answers.push({
       answerId,
@@ -554,7 +562,7 @@ function buildItems(paper, markScheme, config, questionGroups, answerGroups) {
       drop('missing-answer-group')
       continue
     }
-    const questionParts = collapseFragments(question.fragments || [])
+    const questionParts = collapseFragments(question.fragments || [], { questionHierarchy: true })
     const answerParts = collapseFragments(answer.fragments || [], { sumMarks: true })
     if (!questionParts || !answerParts) {
       drop('ambiguous-cross-page-fragments')
@@ -583,8 +591,10 @@ function buildItems(paper, markScheme, config, questionGroups, answerGroups) {
       const answerType = fragment.answerArea?.type || fragment.answerType || (answerPart.correctOption ? 'multiple-choice' : 'handwritten')
       const questionMarks = normalizeMarkValue(fragment.marks)
       const answerMarks = normalizeMarkValue(answerPart.marks)
-      const marks = answerType === 'multiple-choice' && !Number.isInteger(answerMarks) ? 1 : questionMarks
-      if (!Number.isInteger(marks) || marks < 1 || (Number.isInteger(answerMarks) && answerMarks !== marks)) return null
+      const marks = Number.isInteger(answerMarks) && answerMarks > 0
+        ? answerMarks
+        : answerType === 'multiple-choice' ? 1 : questionMarks
+      if (!Number.isInteger(marks) || marks < 1) return null
       const explicitMarkSchemePoints = [...(answerPart.markPoints || fragment.markPoints || [])]
         .map((value) => String(value).trim())
         .filter(Boolean)
@@ -597,6 +607,8 @@ function buildItems(paper, markScheme, config, questionGroups, answerGroups) {
         label,
         promptFragment: String(fragment.promptFragment || fragment.exactText || '').trim(),
         marks,
+        questionDeclaredMarks: Number.isInteger(questionMarks) && questionMarks > 0 ? questionMarks : null,
+        markSource: Number.isInteger(answerMarks) && answerMarks > 0 ? 'paired-mark-scheme' : 'question-paper',
         answerArea: typeof fragment.answerArea === 'object' ? fragment.answerArea : { type: answerType, input: answerType === 'multiple-choice' ? 'choice' : 'handwriting' },
         markSchemePoints,
         answerKey: answerPart.correctOption || fragment.answerKey || null,
@@ -782,8 +794,8 @@ async function main() {
     const markScheme = byId.get(paper.markSchemeId)
     if (!markScheme) continue
     const existingForPaper = [...byBankId.values()].filter((item) => item.sourceRef?.paperId === paper.id).length
-    const expectedQuestions = Number(paper.examProfile?.defaultQuestionCount) || null
-    const paperComplete = expectedQuestions ? existingForPaper >= expectedQuestions : existingForPaper > 0
+    const expectedQuestions = minimumQuestionGroupsForImport(paper)
+    const paperComplete = existingForPaper >= expectedQuestions
     if (paperComplete && !args.force) {
       console.log(`Skipping ${paper.file}; ${existingForPaper} verified questions are already indexed`)
       continue
@@ -791,12 +803,10 @@ async function main() {
     console.log(`Indexing ${paper.file} with ${markScheme.file}`)
     const topics = topicsFor(config, paper)
     const items = await indexPaper(paper, markScheme, config, provider, topics)
-    let protectedReviews = 0
-    for (const item of items) {
-      const existing = byBankId.get(item.bankId)
-      if (isHumanReviewedIndexItem(existing)) protectedReviews += 1
-      byBankId.set(item.bankId, mergeIndexItemPreservingReview(existing, item))
-    }
+    const protectedReviews = [...byBankId.values()].filter((item) => item.sourceRef?.paperId === paper.id && isHumanReviewedIndexItem(item)).length
+    const refreshedItems = replaceMachineIndexedPaperItems([...byBankId.values()], paper.id, items)
+    byBankId.clear()
+    for (const item of refreshedItems) byBankId.set(item.bankId || item.questionId, item)
     console.log(`Indexed ${items.length} verified questions from ${paper.file}`)
     if (protectedReviews) console.log(`Preserved ${protectedReviews} human-reviewed question${protectedReviews === 1 ? '' : 's'} from reimport.`)
   }

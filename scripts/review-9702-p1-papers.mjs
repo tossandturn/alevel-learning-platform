@@ -68,6 +68,15 @@ function optionText(question, option) {
   return String(match).trim()
 }
 
+function visualElements(prompt) {
+  const values = []
+  for (const match of String(prompt || '').matchAll(/\[(?:graph|diagram|figure|image|table|chart|map)\s*:?\s*([^\]]*)\]/gi)) {
+    const label = String(match[0]).replace(/^\[|\]$/g, '').trim().toLowerCase()
+    if (label && !values.includes(label)) values.push(label)
+  }
+  return values
+}
+
 function reviewedQuestion({ question, answer, review, paperSource }) {
   const number = questionNumber(question)
   assert.equal(question.answerType, 'multiple-choice', `${question.questionId}: P1 review expects MCQ`)
@@ -123,6 +132,19 @@ function reviewedQuestion({ question, answer, review, paperSource }) {
       reviewPolicy: paperSource.sourcePolicy,
       sourceReviewLedger: CAMBRIDGE_9702_P1_REVIEW_LEDGER_SCHEMA_VERSION,
     },
+    contentAnalysis: {
+      schemaVersion: 'physics-content-analysis-v1',
+      status: 'reviewed',
+      method: 'qp-image-and-paired-ms-review',
+      syllabusTopicId: review.primaryTopicId,
+      syllabusPointIds: [...review.syllabusPointIds],
+      questionFormat: question.answerType,
+      visualElements: visualElements(question.prompt),
+      skillTags: [...new Set(question.skillTags || [])],
+      topicTags: [...new Set(question.topicTags || [])],
+      reviewedBy: review.reviewedBy,
+      reviewedAt: review.reviewedAt,
+    },
     parts: [{
       ...structuredClone(question.parts[0]),
       sourceEvidence: [{
@@ -130,6 +152,11 @@ function reviewedQuestion({ question, answer, review, paperSource }) {
         page: sourcePage,
         assetUrl: sourceAsset.assetUrl,
         assetSha256: sourceAsset.assetSha256,
+        coordinateSpace: review.focus.coordinateSpace,
+        imageSize: review.focus.imageSize,
+        region: review.focus.region,
+        safetyMargin: review.focus.safetyMargin,
+        safetyStatus: review.focus.safetyStatus,
       }],
     }],
   }
@@ -165,6 +192,8 @@ function reviewedQuestion({ question, answer, review, paperSource }) {
     reviewEvidence: {
       method: paperSource.reviewMethod,
       sourcePolicy: paperSource.sourcePolicy,
+      coordinateSpace: review.focus.coordinateSpace,
+      displaySafetyStatus: review.focus.safetyStatus,
       questionPaper: {
         file: nextQuestion.sourceRef.paper,
         sha256: nextQuestion.sourceRef.sha256,
@@ -179,9 +208,10 @@ function reviewedQuestion({ question, answer, review, paperSource }) {
         partId,
         marks: 1,
         questionPage: sourcePage,
-        // Full-page evidence is deliberate: all four options and source
-        // diagrams remain visible until a separately reviewed crop exists.
-        questionRegion: [0, 0, 1, 1],
+        questionRegion: review.focus.region,
+        imageSize: review.focus.imageSize,
+        safetyMargin: review.focus.safetyMargin,
+        safetyStatus: review.focus.safetyStatus,
         markSchemePage,
         markSchemeRegion: [0, 0, 1, 1],
         markPointCount: 1,

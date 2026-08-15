@@ -1,0 +1,2351 @@
+{
+  "schemaVersion": "reviewed-question-set.v1",
+  "generatedAt": "2026-08-15T18:30:00+08:00",
+  "paperId": "cie-9702-9702_w25_qp_24",
+  "questionCount": 4,
+  "totalMarks": 41,
+  "sourceFragments": [
+    {
+      "file": "cambridge-9702-p2-topic-coverage-review-ledger.js",
+      "sha256": "80a18ddc778eb09c6442730aa348f11440813979b7c37469a934194e0508f88c"
+    }
+  ],
+  "sourceMaterials": {
+    "questionPaper": {
+      "id": "cie-9702-9702_w25_qp_24",
+      "file": "9702_w25_qp_24.pdf",
+      "sha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_qp_24.pdf",
+      "governance": {
+        "schemaVersion": "paper-governance-v1",
+        "state": "active",
+        "sourcePolicyId": "cie-mirror-restricted-v1",
+        "accessPolicyId": "personal-study-restricted-v1",
+        "sourceVersion": "2025:Nov:9702_w25_qp_24.pdf",
+        "retrievedAt": null,
+        "retrievalStatus": "not-recorded",
+        "integrityStatus": "pending-release-audit",
+        "duplicateOf": null,
+        "answerStatus": "exact-pair",
+        "reasonCode": null,
+        "reviewedAt": null,
+        "reviewEvidence": null
+      }
+    },
+    "markScheme": {
+      "id": "cie-9702-9702_w25_ms_24",
+      "file": "9702_w25_ms_24.pdf",
+      "sha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_ms_24.pdf",
+      "governance": {
+        "schemaVersion": "paper-governance-v1",
+        "state": "active",
+        "sourcePolicyId": "cie-mirror-restricted-v1",
+        "accessPolicyId": "personal-study-restricted-v1",
+        "sourceVersion": "2025:Nov:9702_w25_ms_24.pdf",
+        "retrievedAt": null,
+        "retrievalStatus": "not-recorded",
+        "integrityStatus": "pending-release-audit",
+        "duplicateOf": null,
+        "answerStatus": "not-applicable",
+        "reasonCode": null,
+        "reviewedAt": null,
+        "reviewEvidence": null
+      }
+    }
+  },
+  "questions": [
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-9702",
+      "specificationId": "cambridge-9702-2025-2027",
+      "subjectId": "physics",
+      "subjectCode": "9702",
+      "knowledgeGroupId": "physics-9702-topic-02",
+      "topicId": "physics-9702-topic-02",
+      "stageTags": [
+        "AS"
+      ],
+      "componentTags": [
+        2
+      ],
+      "topicTags": [
+        "physics-9702-topic-02",
+        "physics-9702-topic-03",
+        "equations of motion",
+        "motion graphs"
+      ],
+      "skillTags": [
+        "calculation",
+        "vector resolution"
+      ],
+      "answerType": "structured",
+      "prompt": "(a(i)) Calculate the horizontal component v_H and the vertical component v_V of the velocity of the ball immediately after it has left the ground.\n\n(a(ii)) Show that the ball reaches its maximum height at time t = 1.6 s.\n\n(a(iii)) On Fig. 1.2, sketch the variation of v_H with time t between t = 0 and t = 3.2 s. Label your line H.\n\n(a(iv)) On Fig. 1.2, sketch the variation of v_V with time t between t = 0 and t = 3.2 s. Assume that velocity in the upward direction is positive. Label your line V.\n\n(b(i)) Define momentum.\n\n(b(ii)) Calculate the force that acts on the ball while it is in the air.\n\n(b(iii)) Determine the mass of the ball.",
+      "questionGroupId": "cie-9702-9702_w25_qp_24:q1",
+      "questionGroupStatus": "verified",
+      "totalMarks": 11,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q1:part-a(i)",
+          "label": "a(i)",
+          "promptFragment": "Calculate the horizontal component v_H and the vertical component v_V of the velocity of the ball immediately after it has left the ground.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 4,
+          "sourceEvidence": [
+            {
+              "documentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+              "page": 4,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/qp-04.jpg",
+              "assetSha256": "9dddd20b1cf8d507f3275a54fdcae1f97ab896a4c26ac9b9fc2525586d80b792"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q1:part-a(ii)",
+          "label": "a(ii)",
+          "promptFragment": "Show that the ball reaches its maximum height at time t = 1.6 s.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 4,
+          "sourceEvidence": [
+            {
+              "documentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+              "page": 4,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/qp-04.jpg",
+              "assetSha256": "9dddd20b1cf8d507f3275a54fdcae1f97ab896a4c26ac9b9fc2525586d80b792"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q1:part-a(iii)",
+          "label": "a(iii)",
+          "promptFragment": "On Fig. 1.2, sketch the variation of v_H with time t between t = 0 and t = 3.2 s. Label your line H.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 5,
+          "sourceEvidence": [
+            {
+              "documentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+              "page": 5,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/qp-05.jpg",
+              "assetSha256": "339c88b5b4b52b3b8faace8af2c990ca411a8fef125c490cb996f53bab4eb523"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q1:part-a(iv)",
+          "label": "a(iv)",
+          "promptFragment": "On Fig. 1.2, sketch the variation of v_V with time t between t = 0 and t = 3.2 s. Assume that velocity in the upward direction is positive. Label your line V.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 5,
+          "sourceEvidence": [
+            {
+              "documentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+              "page": 5,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/qp-05.jpg",
+              "assetSha256": "339c88b5b4b52b3b8faace8af2c990ca411a8fef125c490cb996f53bab4eb523"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q1:part-b(i)",
+          "label": "b(i)",
+          "promptFragment": "Define momentum.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 5,
+          "sourceEvidence": [
+            {
+              "documentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+              "page": 5,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/qp-05.jpg",
+              "assetSha256": "339c88b5b4b52b3b8faace8af2c990ca411a8fef125c490cb996f53bab4eb523"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q1:part-b(ii)",
+          "label": "b(ii)",
+          "promptFragment": "Calculate the force that acts on the ball while it is in the air.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 5,
+          "sourceEvidence": [
+            {
+              "documentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+              "page": 5,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/qp-05.jpg",
+              "assetSha256": "339c88b5b4b52b3b8faace8af2c990ca411a8fef125c490cb996f53bab4eb523"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q1:part-b(iii)",
+          "label": "b(iii)",
+          "promptFragment": "Determine the mass of the ball.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 5,
+          "sourceEvidence": [
+            {
+              "documentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+              "page": 5,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/qp-05.jpg",
+              "assetSha256": "339c88b5b4b52b3b8faace8af2c990ca411a8fef125c490cb996f53bab4eb523"
+            }
+          ]
+        }
+      ],
+      "marks": 11,
+      "sourceRef": {
+        "paperId": "cie-9702-9702_w25_qp_24",
+        "paper": "9702_w25_qp_24.pdf",
+        "question": "Q1",
+        "localUrl": "/local-pdf/9702/9702_w25_qp_24.pdf",
+        "pageStart": 4,
+        "pageEnd": 5,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_w25_qp_24/qp-04.jpg",
+          "/question-assets/cie-9702-9702_w25_qp_24/qp-05.jpg"
+        ],
+        "year": 2025,
+        "season": "Nov",
+        "component": 2,
+        "sha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-15T05:42:03.107Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-topic-coverage-review.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-9702-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "physics-9702-topic-02",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-02",
+        "secondaryTopicIds": [
+          "physics-9702-topic-03"
+        ],
+        "syllabusPointIds": [
+          "physics-9702-point-2-1-02",
+          "physics-9702-point-2-1-09",
+          "physics-9702-point-3-1-03",
+          "physics-9702-point-3-1-04"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+        "reviewedAt": "2026-08-15T18:30:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_w25_qp_24",
+          "markSchemeId": "cie-9702-9702_w25_ms_24",
+          "questionPages": [
+            4,
+            5
+          ],
+          "markSchemePages": [
+            8,
+            9
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_qp_24.pdf",
+          "studentPromptPolicy": "official-source-image",
+          "privateTextPolicy": "hidden-indexing-and-marking-context"
+        }
+      },
+      "questionId": "cie-9702-9702_w25_qp_24:q1"
+    },
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-9702",
+      "specificationId": "cambridge-9702-2025-2027",
+      "subjectId": "physics",
+      "subjectCode": "9702",
+      "knowledgeGroupId": "physics-9702-topic-06",
+      "topicId": "physics-9702-topic-06",
+      "stageTags": [
+        "AS"
+      ],
+      "componentTags": [
+        2
+      ],
+      "topicTags": [
+        "physics-9702-topic-06",
+        "physics-9702-topic-05",
+        "stress and strain",
+        "Young modulus",
+        "elastic and plastic behaviour"
+      ],
+      "skillTags": [
+        "recall"
+      ],
+      "answerType": "structured",
+      "prompt": "(a) The rope obeys Hooke's law.\nState Hooke's law.\n\n(b(i)) Determine the unstretched length of the rope.\n\n(b(ii)) Determine the spring constant k of the rope.\n\n(c(i)) show that the loss of gravitational potential energy since leaving the bridge is 75 kJ\n\n(c(ii)) show that the elastic potential energy in the rope is 75 kJ.\n\n(d) Explain what can be deduced from the information in (c) about the speed of the bungee jumper when at a distance of 120 m below the bridge.",
+      "questionGroupId": "cie-9702-9702_w25_qp_24:q3",
+      "questionGroupStatus": "verified",
+      "totalMarks": 10,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q3:part-a",
+          "label": "a",
+          "promptFragment": "The rope obeys Hooke's law.\nState Hooke's law.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 8,
+          "sourceEvidence": [
+            {
+              "documentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+              "page": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/qp-08.jpg",
+              "assetSha256": "61af816ed24ccb29946adaa4acba3764b209895b63376229d520b97e8ebbcf0c"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q3:part-b(i)",
+          "label": "b(i)",
+          "promptFragment": "Determine the unstretched length of the rope.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 9,
+          "sourceEvidence": [
+            {
+              "documentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+              "page": 9,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/qp-09.jpg",
+              "assetSha256": "ae0b3874046d707777461f4d74ebc0c8735fdeeb75613132990e4b1fc469a4a5"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q3:part-b(ii)",
+          "label": "b(ii)",
+          "promptFragment": "Determine the spring constant k of the rope.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 9,
+          "sourceEvidence": [
+            {
+              "documentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+              "page": 9,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/qp-09.jpg",
+              "assetSha256": "ae0b3874046d707777461f4d74ebc0c8735fdeeb75613132990e4b1fc469a4a5"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q3:part-c(i)",
+          "label": "c(i)",
+          "promptFragment": "show that the loss of gravitational potential energy since leaving the bridge is 75 kJ",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 9,
+          "sourceEvidence": [
+            {
+              "documentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+              "page": 9,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/qp-09.jpg",
+              "assetSha256": "ae0b3874046d707777461f4d74ebc0c8735fdeeb75613132990e4b1fc469a4a5"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q3:part-c(ii)",
+          "label": "c(ii)",
+          "promptFragment": "show that the elastic potential energy in the rope is 75 kJ.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 9,
+          "sourceEvidence": [
+            {
+              "documentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+              "page": 9,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/qp-09.jpg",
+              "assetSha256": "ae0b3874046d707777461f4d74ebc0c8735fdeeb75613132990e4b1fc469a4a5"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q3:part-d",
+          "label": "d",
+          "promptFragment": "Explain what can be deduced from the information in (c) about the speed of the bungee jumper when at a distance of 120 m below the bridge.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 9,
+          "sourceEvidence": [
+            {
+              "documentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+              "page": 9,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/qp-09.jpg",
+              "assetSha256": "ae0b3874046d707777461f4d74ebc0c8735fdeeb75613132990e4b1fc469a4a5"
+            }
+          ]
+        }
+      ],
+      "marks": 10,
+      "sourceRef": {
+        "paperId": "cie-9702-9702_w25_qp_24",
+        "paper": "9702_w25_qp_24.pdf",
+        "question": "Q3",
+        "localUrl": "/local-pdf/9702/9702_w25_qp_24.pdf",
+        "pageStart": 8,
+        "pageEnd": 9,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_w25_qp_24/qp-08.jpg",
+          "/question-assets/cie-9702-9702_w25_qp_24/qp-09.jpg"
+        ],
+        "year": 2025,
+        "season": "Nov",
+        "component": 2,
+        "sha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-15T05:42:03.107Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-topic-coverage-review.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-9702-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "physics-9702-topic-06",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-06",
+        "secondaryTopicIds": [
+          "physics-9702-topic-05"
+        ],
+        "syllabusPointIds": [
+          "physics-9702-point-5-2-02",
+          "physics-9702-point-6-1-03",
+          "physics-9702-point-6-1-04",
+          "physics-9702-point-6-2-02",
+          "physics-9702-point-6-2-04"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+        "reviewedAt": "2026-08-15T18:30:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_w25_qp_24",
+          "markSchemeId": "cie-9702-9702_w25_ms_24",
+          "questionPages": [
+            8,
+            9
+          ],
+          "markSchemePages": [
+            11
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_qp_24.pdf",
+          "studentPromptPolicy": "official-source-image",
+          "privateTextPolicy": "hidden-indexing-and-marking-context"
+        }
+      },
+      "questionId": "cie-9702-9702_w25_qp_24:q3"
+    },
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-9702",
+      "specificationId": "cambridge-9702-2025-2027",
+      "subjectId": "physics",
+      "subjectCode": "9702",
+      "knowledgeGroupId": "physics-9702-topic-09",
+      "topicId": "physics-9702-topic-09",
+      "stageTags": [
+        "AS"
+      ],
+      "componentTags": [
+        2
+      ],
+      "topicTags": [
+        "physics-9702-topic-09",
+        "physics-9702-topic-01",
+        "resistance"
+      ],
+      "skillTags": [
+        "definition"
+      ],
+      "answerType": "structured",
+      "prompt": "(a(i)) Define resistance.\n\n(a(ii)) Draw a circuit diagram to show how the components should be connected. Use the symbol for a resistor to represent the nichrome wire.\n\n(b(i)) Show that the resistance of the wire is 5.00 Ω.\n\n(b(ii)) Calculate, to three significant figures, the resistivity ρ of the nichrome.\n\n(b(iii)) Calculate the percentage uncertainty in ρ.\n\n(b(iv)) Determine the absolute uncertainty in ρ.",
+      "questionGroupId": "cie-9702-9702_w25_qp_24:q5",
+      "questionGroupStatus": "verified",
+      "totalMarks": 10,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q5:part-a(i)",
+          "label": "a(i)",
+          "promptFragment": "Define resistance.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 12,
+          "sourceEvidence": [
+            {
+              "documentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+              "page": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/qp-12.jpg",
+              "assetSha256": "221df2007eafaba05880668924f402c65c24c69f851625aa3262d1e0b1e5c146"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q5:part-a(ii)",
+          "label": "a(ii)",
+          "promptFragment": "Draw a circuit diagram to show how the components should be connected. Use the symbol for a resistor to represent the nichrome wire.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 12,
+          "sourceEvidence": [
+            {
+              "documentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+              "page": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/qp-12.jpg",
+              "assetSha256": "221df2007eafaba05880668924f402c65c24c69f851625aa3262d1e0b1e5c146"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q5:part-b(i)",
+          "label": "b(i)",
+          "promptFragment": "Show that the resistance of the wire is 5.00 Ω.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 12,
+          "sourceEvidence": [
+            {
+              "documentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+              "page": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/qp-12.jpg",
+              "assetSha256": "221df2007eafaba05880668924f402c65c24c69f851625aa3262d1e0b1e5c146"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q5:part-b(ii)",
+          "label": "b(ii)",
+          "promptFragment": "Calculate, to three significant figures, the resistivity ρ of the nichrome.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 13,
+          "sourceEvidence": [
+            {
+              "documentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+              "page": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/qp-13.jpg",
+              "assetSha256": "08ee02debc6992ec10b94c158853822746fc01dab6f1c4b04179b03947e2ebee"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q5:part-b(iii)",
+          "label": "b(iii)",
+          "promptFragment": "Calculate the percentage uncertainty in ρ.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 13,
+          "sourceEvidence": [
+            {
+              "documentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+              "page": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/qp-13.jpg",
+              "assetSha256": "08ee02debc6992ec10b94c158853822746fc01dab6f1c4b04179b03947e2ebee"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q5:part-b(iv)",
+          "label": "b(iv)",
+          "promptFragment": "Determine the absolute uncertainty in ρ.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 13,
+          "sourceEvidence": [
+            {
+              "documentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+              "page": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/qp-13.jpg",
+              "assetSha256": "08ee02debc6992ec10b94c158853822746fc01dab6f1c4b04179b03947e2ebee"
+            }
+          ]
+        }
+      ],
+      "marks": 10,
+      "sourceRef": {
+        "paperId": "cie-9702-9702_w25_qp_24",
+        "paper": "9702_w25_qp_24.pdf",
+        "question": "Q5",
+        "localUrl": "/local-pdf/9702/9702_w25_qp_24.pdf",
+        "pageStart": 12,
+        "pageEnd": 13,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_w25_qp_24/qp-12.jpg",
+          "/question-assets/cie-9702-9702_w25_qp_24/qp-13.jpg"
+        ],
+        "year": 2025,
+        "season": "Nov",
+        "component": 2,
+        "sha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-15T05:42:03.107Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-topic-coverage-review.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-9702-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "physics-9702-topic-09",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-09",
+        "secondaryTopicIds": [
+          "physics-9702-topic-01"
+        ],
+        "syllabusPointIds": [
+          "physics-9702-point-1-3-03",
+          "physics-9702-point-9-3-01",
+          "physics-9702-point-9-3-03",
+          "physics-9702-point-9-3-06"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+        "reviewedAt": "2026-08-15T18:30:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_w25_qp_24",
+          "markSchemeId": "cie-9702-9702_w25_ms_24",
+          "questionPages": [
+            12,
+            13
+          ],
+          "markSchemePages": [
+            13
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_qp_24.pdf",
+          "studentPromptPolicy": "official-source-image",
+          "privateTextPolicy": "hidden-indexing-and-marking-context"
+        }
+      },
+      "questionId": "cie-9702-9702_w25_qp_24:q5"
+    },
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-9702",
+      "specificationId": "cambridge-9702-2025-2027",
+      "subjectId": "physics",
+      "subjectCode": "9702",
+      "knowledgeGroupId": "physics-9702-topic-11",
+      "topicId": "physics-9702-topic-11",
+      "stageTags": [
+        "AS"
+      ],
+      "componentTags": [
+        2
+      ],
+      "topicTags": [
+        "physics-9702-topic-11",
+        "atoms",
+        "nuclei and radiation"
+      ],
+      "skillTags": [
+        "interpret diagrams",
+        "apply knowledge"
+      ],
+      "answerType": "structured",
+      "prompt": "(a(i)) The paths of particles X and Z are shown.\nComplete Fig. 6.1 to show possible paths for particles W and Y.\n\n(a(ii)) Describe what may be inferred about the structure of an atom from the path of particle X.\n\n(a(iii)) When a beam containing many alpha particles is incident on thin gold foil, nearly all of the alpha particles follow paths that are similar to the path of particle Z.\nDescribe what may be inferred from this about the structure of an atom.\n\n(b) State the mass and the charge, in terms of the atomic mass unit u and the elementary charge e, of an alpha particle.\n\n(c(i)) There are two types of hadron. The hadrons that are in alpha particles are each composed of three quarks. State the name of this type of hadron.\n\n(c(ii)) Show, by reference to their constituent quarks, that the hadrons in an alpha particle have charges of either zero or +1e.",
+      "questionGroupId": "cie-9702-9702_w25_qp_24:q6",
+      "questionGroupStatus": "verified",
+      "totalMarks": 10,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q6:part-a(i)",
+          "label": "a(i)",
+          "promptFragment": "The paths of particles X and Z are shown.\nComplete Fig. 6.1 to show possible paths for particles W and Y.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 14,
+          "sourceEvidence": [
+            {
+              "documentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+              "page": 14,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/qp-14.jpg",
+              "assetSha256": "1bbe70584e5b00125a8a8a846d20f16aaa3b8cf355520169b947e6ee80f4f15b"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q6:part-a(ii)",
+          "label": "a(ii)",
+          "promptFragment": "Describe what may be inferred about the structure of an atom from the path of particle X.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 14,
+          "sourceEvidence": [
+            {
+              "documentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+              "page": 14,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/qp-14.jpg",
+              "assetSha256": "1bbe70584e5b00125a8a8a846d20f16aaa3b8cf355520169b947e6ee80f4f15b"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q6:part-a(iii)",
+          "label": "a(iii)",
+          "promptFragment": "When a beam containing many alpha particles is incident on thin gold foil, nearly all of the alpha particles follow paths that are similar to the path of particle Z.\nDescribe what may be inferred from this about the structure of an atom.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 14,
+          "sourceEvidence": [
+            {
+              "documentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+              "page": 14,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/qp-14.jpg",
+              "assetSha256": "1bbe70584e5b00125a8a8a846d20f16aaa3b8cf355520169b947e6ee80f4f15b"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q6:part-b",
+          "label": "b",
+          "promptFragment": "State the mass and the charge, in terms of the atomic mass unit u and the elementary charge e, of an alpha particle.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 15,
+          "sourceEvidence": [
+            {
+              "documentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+              "page": 15,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/qp-15.jpg",
+              "assetSha256": "58a411d1a69cbe0d58abc611bdcc0e484b7580de8e564190268ac55bb966fcb8"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q6:part-c(i)",
+          "label": "c(i)",
+          "promptFragment": "There are two types of hadron. The hadrons that are in alpha particles are each composed of three quarks. State the name of this type of hadron.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 15,
+          "sourceEvidence": [
+            {
+              "documentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+              "page": 15,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/qp-15.jpg",
+              "assetSha256": "58a411d1a69cbe0d58abc611bdcc0e484b7580de8e564190268ac55bb966fcb8"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q6:part-c(ii)",
+          "label": "c(ii)",
+          "promptFragment": "Show, by reference to their constituent quarks, that the hadrons in an alpha particle have charges of either zero or +1e.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 15,
+          "sourceEvidence": [
+            {
+              "documentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+              "page": 15,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/qp-15.jpg",
+              "assetSha256": "58a411d1a69cbe0d58abc611bdcc0e484b7580de8e564190268ac55bb966fcb8"
+            }
+          ]
+        }
+      ],
+      "marks": 10,
+      "sourceRef": {
+        "paperId": "cie-9702-9702_w25_qp_24",
+        "paper": "9702_w25_qp_24.pdf",
+        "question": "Q6",
+        "localUrl": "/local-pdf/9702/9702_w25_qp_24.pdf",
+        "pageStart": 14,
+        "pageEnd": 15,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_w25_qp_24/qp-14.jpg",
+          "/question-assets/cie-9702-9702_w25_qp_24/qp-15.jpg"
+        ],
+        "year": 2025,
+        "season": "Nov",
+        "component": 2,
+        "sha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-15T05:42:03.108Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-topic-coverage-review.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-9702-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "physics-9702-topic-11",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-11",
+        "secondaryTopicIds": [],
+        "syllabusPointIds": [
+          "physics-9702-point-11-1-01",
+          "physics-9702-point-11-1-07",
+          "physics-9702-point-11-2-02",
+          "physics-9702-point-11-2-04"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+        "reviewedAt": "2026-08-15T18:30:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_w25_qp_24",
+          "markSchemeId": "cie-9702-9702_w25_ms_24",
+          "questionPages": [
+            14,
+            15
+          ],
+          "markSchemePages": [
+            14
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_qp_24.pdf",
+          "studentPromptPolicy": "official-source-image",
+          "privateTextPolicy": "hidden-indexing-and-marking-context"
+        }
+      },
+      "questionId": "cie-9702-9702_w25_qp_24:q6"
+    }
+  ],
+  "answers": [
+    {
+      "answerId": "cie-9702-9702_w25_qp_24:q1:answer",
+      "answer": null,
+      "answerKey": null,
+      "markPoints": [
+        "horizontal velocity = 28 cos 34 degrees = 23 m s^-1",
+        "vertical velocity = 28 sin 34 degrees = 16 m s^-1",
+        "A1",
+        "B1",
+        "straight diagonal line from t = 0 to t = 3.2 s, starting at positive velocity and crossing the time axis",
+        "line starts at v = 16 m s^-1 and ends at v = -16 m s^-1",
+        "line passes through v = 0 at t = 1.6 s",
+        "B1",
+        "C1",
+        "A1",
+        "A1"
+      ],
+      "exactAnswer": "(a(i)) horizontal velocity = 28 cos 34 degrees = 23 m s^-1\nvertical velocity = 28 sin 34 degrees = 16 m s^-1\n\n(a(ii)) A1\n\n(a(iii)) B1\n\n(a(iv)) straight diagonal line from t = 0 to t = 3.2 s, starting at positive velocity and crossing the time axis\nline starts at v = 16 m s^-1 and ends at v = -16 m s^-1\nline passes through v = 0 at t = 1.6 s\n\n(b(i)) B1\n\n(b(ii)) C1\nA1\n\n(b(iii)) A1",
+      "answerRef": {
+        "documentId": "cie-9702-9702_w25_ms_24",
+        "file": "9702_w25_ms_24.pdf",
+        "localUrl": "/local-pdf/9702/9702_w25_ms_24.pdf",
+        "pageStart": 8,
+        "pageEnd": 9,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_w25_qp_24/ms-08.jpg",
+          "/question-assets/cie-9702-9702_w25_qp_24/ms-09.jpg"
+        ],
+        "sha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q1:part-a(i)",
+          "label": "a(i)",
+          "marks": 2,
+          "markSchemePoints": [
+            "horizontal velocity = 28 cos 34 degrees = 23 m s^-1",
+            "vertical velocity = 28 sin 34 degrees = 16 m s^-1"
+          ],
+          "answerKey": null,
+          "answerText": "horizontal velocity = 28 cos 34 degrees = 23 m s^-1\nvertical velocity = 28 sin 34 degrees = 16 m s^-1",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-08.jpg",
+              "assetSha256": "66592325afb55293af4e9f00d5b711825337090485ceeaaed85afdb5b335cb25",
+              "text": "horizontal velocity = 28 cos 34 degrees = 23 m s^-1"
+            },
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-08.jpg",
+              "assetSha256": "66592325afb55293af4e9f00d5b711825337090485ceeaaed85afdb5b335cb25",
+              "text": "vertical velocity = 28 sin 34 degrees = 16 m s^-1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q1:part-a(ii)",
+          "label": "a(ii)",
+          "marks": 1,
+          "markSchemePoints": [
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "A1",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-08.jpg",
+              "assetSha256": "66592325afb55293af4e9f00d5b711825337090485ceeaaed85afdb5b335cb25",
+              "text": "A1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q1:part-a(iii)",
+          "label": "a(iii)",
+          "marks": 1,
+          "markSchemePoints": [
+            "B1"
+          ],
+          "answerKey": null,
+          "answerText": "B1",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-08.jpg",
+              "assetSha256": "66592325afb55293af4e9f00d5b711825337090485ceeaaed85afdb5b335cb25",
+              "text": "B1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q1:part-a(iv)",
+          "label": "a(iv)",
+          "marks": 3,
+          "markSchemePoints": [
+            "straight diagonal line from t = 0 to t = 3.2 s, starting at positive velocity and crossing the time axis",
+            "line starts at v = 16 m s^-1 and ends at v = -16 m s^-1",
+            "line passes through v = 0 at t = 1.6 s"
+          ],
+          "answerKey": null,
+          "answerText": "straight diagonal line from t = 0 to t = 3.2 s, starting at positive velocity and crossing the time axis\nline starts at v = 16 m s^-1 and ends at v = -16 m s^-1\nline passes through v = 0 at t = 1.6 s",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-08.jpg",
+              "assetSha256": "66592325afb55293af4e9f00d5b711825337090485ceeaaed85afdb5b335cb25",
+              "text": "straight diagonal line from t = 0 to t = 3.2 s, starting at positive velocity and crossing the time axis"
+            },
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-08.jpg",
+              "assetSha256": "66592325afb55293af4e9f00d5b711825337090485ceeaaed85afdb5b335cb25",
+              "text": "line starts at v = 16 m s^-1 and ends at v = -16 m s^-1"
+            },
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-08.jpg",
+              "assetSha256": "66592325afb55293af4e9f00d5b711825337090485ceeaaed85afdb5b335cb25",
+              "text": "line passes through v = 0 at t = 1.6 s"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q1:part-b(i)",
+          "label": "b(i)",
+          "marks": 1,
+          "markSchemePoints": [
+            "B1"
+          ],
+          "answerKey": null,
+          "answerText": "B1",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-08.jpg",
+              "assetSha256": "66592325afb55293af4e9f00d5b711825337090485ceeaaed85afdb5b335cb25",
+              "text": "B1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q1:part-b(ii)",
+          "label": "b(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "C1\nA1",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-08.jpg",
+              "assetSha256": "66592325afb55293af4e9f00d5b711825337090485ceeaaed85afdb5b335cb25",
+              "text": "C1"
+            },
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-08.jpg",
+              "assetSha256": "66592325afb55293af4e9f00d5b711825337090485ceeaaed85afdb5b335cb25",
+              "text": "A1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q1:part-b(iii)",
+          "label": "b(iii)",
+          "marks": 1,
+          "markSchemePoints": [
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "A1",
+          "sourcePage": 9,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 9,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-09.jpg",
+              "assetSha256": "e552d82264fa7e17b54425e3b3b6abba064bdb1393751343489a5705914c6e7f",
+              "text": "A1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-9702-9702_w25_qp_24:q3:answer",
+      "answer": null,
+      "answerKey": null,
+      "markPoints": [
+        "B1",
+        "A1",
+        "C1",
+        "A1",
+        "C1",
+        "A1",
+        "C1",
+        "A1",
+        "all gravitational potential energy has been converted to, or is equal to, elastic potential energy, so there is no kinetic energy",
+        "kinetic energy is zero, so speed is zero"
+      ],
+      "exactAnswer": "(a) B1\n\n(b(i)) A1\n\n(b(ii)) C1\nA1\n\n(c(i)) C1\nA1\n\n(c(ii)) C1\nA1\n\n(d) all gravitational potential energy has been converted to, or is equal to, elastic potential energy, so there is no kinetic energy\nkinetic energy is zero, so speed is zero",
+      "answerRef": {
+        "documentId": "cie-9702-9702_w25_ms_24",
+        "file": "9702_w25_ms_24.pdf",
+        "localUrl": "/local-pdf/9702/9702_w25_ms_24.pdf",
+        "pageStart": 11,
+        "pageEnd": 11,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_w25_qp_24/ms-11.jpg"
+        ],
+        "sha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q3:part-a",
+          "label": "a",
+          "marks": 1,
+          "markSchemePoints": [
+            "B1"
+          ],
+          "answerKey": null,
+          "answerText": "B1",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-11.jpg",
+              "assetSha256": "2d70200ebc3a05aab036658895052c4f2d0ceeb8775f7454bc69406df8612bb3",
+              "text": "B1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q3:part-b(i)",
+          "label": "b(i)",
+          "marks": 1,
+          "markSchemePoints": [
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "A1",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-11.jpg",
+              "assetSha256": "2d70200ebc3a05aab036658895052c4f2d0ceeb8775f7454bc69406df8612bb3",
+              "text": "A1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q3:part-b(ii)",
+          "label": "b(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "C1\nA1",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-11.jpg",
+              "assetSha256": "2d70200ebc3a05aab036658895052c4f2d0ceeb8775f7454bc69406df8612bb3",
+              "text": "C1"
+            },
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-11.jpg",
+              "assetSha256": "2d70200ebc3a05aab036658895052c4f2d0ceeb8775f7454bc69406df8612bb3",
+              "text": "A1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q3:part-c(i)",
+          "label": "c(i)",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "C1\nA1",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-11.jpg",
+              "assetSha256": "2d70200ebc3a05aab036658895052c4f2d0ceeb8775f7454bc69406df8612bb3",
+              "text": "C1"
+            },
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-11.jpg",
+              "assetSha256": "2d70200ebc3a05aab036658895052c4f2d0ceeb8775f7454bc69406df8612bb3",
+              "text": "A1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q3:part-c(ii)",
+          "label": "c(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "C1\nA1",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-11.jpg",
+              "assetSha256": "2d70200ebc3a05aab036658895052c4f2d0ceeb8775f7454bc69406df8612bb3",
+              "text": "C1"
+            },
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-11.jpg",
+              "assetSha256": "2d70200ebc3a05aab036658895052c4f2d0ceeb8775f7454bc69406df8612bb3",
+              "text": "A1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q3:part-d",
+          "label": "d",
+          "marks": 2,
+          "markSchemePoints": [
+            "all gravitational potential energy has been converted to, or is equal to, elastic potential energy, so there is no kinetic energy",
+            "kinetic energy is zero, so speed is zero"
+          ],
+          "answerKey": null,
+          "answerText": "all gravitational potential energy has been converted to, or is equal to, elastic potential energy, so there is no kinetic energy\nkinetic energy is zero, so speed is zero",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-11.jpg",
+              "assetSha256": "2d70200ebc3a05aab036658895052c4f2d0ceeb8775f7454bc69406df8612bb3",
+              "text": "all gravitational potential energy has been converted to, or is equal to, elastic potential energy, so there is no kinetic energy"
+            },
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-11.jpg",
+              "assetSha256": "2d70200ebc3a05aab036658895052c4f2d0ceeb8775f7454bc69406df8612bb3",
+              "text": "kinetic energy is zero, so speed is zero"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-9702-9702_w25_qp_24:q5:answer",
+      "answer": null,
+      "answerKey": null,
+      "markPoints": [
+        "potential difference per unit current",
+        "resistor connected to cell in a closed loop",
+        "correct circuit symbols used for all components / ammeter connected in series with resistor / voltmeter connected in parallel with resistor",
+        "(resistance) = 1.38 / 0.276 = 5.00 (Ω)",
+        "ρ = RA / L",
+        "ρ = 5.00 × π × (0.496 × 10⁻³)² / (4 × 0.864)",
+        "= 1.12 × 10⁻⁶ Ω m",
+        "calculation of a fractional or percentage uncertainty in one quantity",
+        "0.001 / 0.864 / 0.002 / 0.496 / 0.02 / 1.38 / 0.001 / 0.276 / percentage uncertainty = [(0.001 / 0.864) + (2 × 0.002 / 0.496) + (0.02 / 1.38) + (0.001 / 0.276)] × 100 / = 2.7%",
+        "Δρ = 0.03 × 1.12 × 10⁻⁶ / = 3 × 10⁻⁸ Ω m"
+      ],
+      "exactAnswer": "(a(i)) potential difference per unit current\n\n(a(ii)) resistor connected to cell in a closed loop\ncorrect circuit symbols used for all components / ammeter connected in series with resistor / voltmeter connected in parallel with resistor\n\n(b(i)) (resistance) = 1.38 / 0.276 = 5.00 (Ω)\n\n(b(ii)) ρ = RA / L\nρ = 5.00 × π × (0.496 × 10⁻³)² / (4 × 0.864)\n= 1.12 × 10⁻⁶ Ω m\n\n(b(iii)) calculation of a fractional or percentage uncertainty in one quantity\n0.001 / 0.864 / 0.002 / 0.496 / 0.02 / 1.38 / 0.001 / 0.276 / percentage uncertainty = [(0.001 / 0.864) + (2 × 0.002 / 0.496) + (0.02 / 1.38) + (0.001 / 0.276)] × 100 / = 2.7%\n\n(b(iv)) Δρ = 0.03 × 1.12 × 10⁻⁶ / = 3 × 10⁻⁸ Ω m",
+      "answerRef": {
+        "documentId": "cie-9702-9702_w25_ms_24",
+        "file": "9702_w25_ms_24.pdf",
+        "localUrl": "/local-pdf/9702/9702_w25_ms_24.pdf",
+        "pageStart": 13,
+        "pageEnd": 13,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_w25_qp_24/ms-13.jpg"
+        ],
+        "sha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q5:part-a(i)",
+          "label": "a(i)",
+          "marks": 1,
+          "markSchemePoints": [
+            "potential difference per unit current"
+          ],
+          "answerKey": null,
+          "answerText": "potential difference per unit current",
+          "sourcePage": 13,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-13.jpg",
+              "assetSha256": "24be37104c60ebbd51d673ab0ce45a6a095185a91ecdcbf6d58b87c99b2208d3",
+              "text": "potential difference per unit current"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q5:part-a(ii)",
+          "label": "a(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "resistor connected to cell in a closed loop",
+            "correct circuit symbols used for all components / ammeter connected in series with resistor / voltmeter connected in parallel with resistor"
+          ],
+          "answerKey": null,
+          "answerText": "resistor connected to cell in a closed loop\ncorrect circuit symbols used for all components / ammeter connected in series with resistor / voltmeter connected in parallel with resistor",
+          "sourcePage": 13,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-13.jpg",
+              "assetSha256": "24be37104c60ebbd51d673ab0ce45a6a095185a91ecdcbf6d58b87c99b2208d3",
+              "text": "resistor connected to cell in a closed loop"
+            },
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-13.jpg",
+              "assetSha256": "24be37104c60ebbd51d673ab0ce45a6a095185a91ecdcbf6d58b87c99b2208d3",
+              "text": "correct circuit symbols used for all components / ammeter connected in series with resistor / voltmeter connected in parallel with resistor"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q5:part-b(i)",
+          "label": "b(i)",
+          "marks": 1,
+          "markSchemePoints": [
+            "(resistance) = 1.38 / 0.276 = 5.00 (Ω)"
+          ],
+          "answerKey": null,
+          "answerText": "(resistance) = 1.38 / 0.276 = 5.00 (Ω)",
+          "sourcePage": 13,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-13.jpg",
+              "assetSha256": "24be37104c60ebbd51d673ab0ce45a6a095185a91ecdcbf6d58b87c99b2208d3",
+              "text": "(resistance) = 1.38 / 0.276 = 5.00 (Ω)"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q5:part-b(ii)",
+          "label": "b(ii)",
+          "marks": 3,
+          "markSchemePoints": [
+            "ρ = RA / L",
+            "ρ = 5.00 × π × (0.496 × 10⁻³)² / (4 × 0.864)",
+            "= 1.12 × 10⁻⁶ Ω m"
+          ],
+          "answerKey": null,
+          "answerText": "ρ = RA / L\nρ = 5.00 × π × (0.496 × 10⁻³)² / (4 × 0.864)\n= 1.12 × 10⁻⁶ Ω m",
+          "sourcePage": 13,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-13.jpg",
+              "assetSha256": "24be37104c60ebbd51d673ab0ce45a6a095185a91ecdcbf6d58b87c99b2208d3",
+              "text": "ρ = RA / L"
+            },
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-13.jpg",
+              "assetSha256": "24be37104c60ebbd51d673ab0ce45a6a095185a91ecdcbf6d58b87c99b2208d3",
+              "text": "ρ = 5.00 × π × (0.496 × 10⁻³)² / (4 × 0.864)"
+            },
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-13.jpg",
+              "assetSha256": "24be37104c60ebbd51d673ab0ce45a6a095185a91ecdcbf6d58b87c99b2208d3",
+              "text": "= 1.12 × 10⁻⁶ Ω m"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q5:part-b(iii)",
+          "label": "b(iii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "calculation of a fractional or percentage uncertainty in one quantity",
+            "0.001 / 0.864 / 0.002 / 0.496 / 0.02 / 1.38 / 0.001 / 0.276 / percentage uncertainty = [(0.001 / 0.864) + (2 × 0.002 / 0.496) + (0.02 / 1.38) + (0.001 / 0.276)] × 100 / = 2.7%"
+          ],
+          "answerKey": null,
+          "answerText": "calculation of a fractional or percentage uncertainty in one quantity\n0.001 / 0.864 / 0.002 / 0.496 / 0.02 / 1.38 / 0.001 / 0.276 / percentage uncertainty = [(0.001 / 0.864) + (2 × 0.002 / 0.496) + (0.02 / 1.38) + (0.001 / 0.276)] × 100 / = 2.7%",
+          "sourcePage": 13,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-13.jpg",
+              "assetSha256": "24be37104c60ebbd51d673ab0ce45a6a095185a91ecdcbf6d58b87c99b2208d3",
+              "text": "calculation of a fractional or percentage uncertainty in one quantity"
+            },
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-13.jpg",
+              "assetSha256": "24be37104c60ebbd51d673ab0ce45a6a095185a91ecdcbf6d58b87c99b2208d3",
+              "text": "0.001 / 0.864 / 0.002 / 0.496 / 0.02 / 1.38 / 0.001 / 0.276 / percentage uncertainty = [(0.001 / 0.864) + (2 × 0.002 / 0.496) + (0.02 / 1.38) + (0.001 / 0.276)] × 100 / = 2.7%"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q5:part-b(iv)",
+          "label": "b(iv)",
+          "marks": 1,
+          "markSchemePoints": [
+            "Δρ = 0.03 × 1.12 × 10⁻⁶ / = 3 × 10⁻⁸ Ω m"
+          ],
+          "answerKey": null,
+          "answerText": "Δρ = 0.03 × 1.12 × 10⁻⁶ / = 3 × 10⁻⁸ Ω m",
+          "sourcePage": 13,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-13.jpg",
+              "assetSha256": "24be37104c60ebbd51d673ab0ce45a6a095185a91ecdcbf6d58b87c99b2208d3",
+              "text": "Δρ = 0.03 × 1.12 × 10⁻⁶ / = 3 × 10⁻⁸ Ω m"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-9702-9702_w25_qp_24:q6:answer",
+      "answer": null,
+      "answerKey": null,
+      "markPoints": [
+        "W deflects upwards",
+        "W has deflection that is the mirror image of X",
+        "Y deflects downwards less than X / path of Y is parallel to particle Z",
+        "nucleus has most of the mass of the atom / nucleus is charged",
+        "atom is mostly empty space / nucleus occupies a very small proportion of the space in the atom",
+        "mass = 4 u",
+        "charge = (+)2e",
+        "baryon",
+        "charge on up quark = (+)2/3(e) and charge on down quark = −1/3(e)",
+        "(proton is up up down and neutron is up down down) / (2×2/3)e − (1×1/3)e = 1e and (1×2/3)e − (2×1/3)e = 0"
+      ],
+      "exactAnswer": "(a(i)) W deflects upwards\nW has deflection that is the mirror image of X\nY deflects downwards less than X / path of Y is parallel to particle Z\n\n(a(ii)) nucleus has most of the mass of the atom / nucleus is charged\n\n(a(iii)) atom is mostly empty space / nucleus occupies a very small proportion of the space in the atom\n\n(b) mass = 4 u\ncharge = (+)2e\n\n(c(i)) baryon\n\n(c(ii)) charge on up quark = (+)2/3(e) and charge on down quark = −1/3(e)\n(proton is up up down and neutron is up down down) / (2×2/3)e − (1×1/3)e = 1e and (1×2/3)e − (2×1/3)e = 0",
+      "answerRef": {
+        "documentId": "cie-9702-9702_w25_ms_24",
+        "file": "9702_w25_ms_24.pdf",
+        "localUrl": "/local-pdf/9702/9702_w25_ms_24.pdf",
+        "pageStart": 14,
+        "pageEnd": 14,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_w25_qp_24/ms-14.jpg"
+        ],
+        "sha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q6:part-a(i)",
+          "label": "a(i)",
+          "marks": 3,
+          "markSchemePoints": [
+            "W deflects upwards",
+            "W has deflection that is the mirror image of X",
+            "Y deflects downwards less than X / path of Y is parallel to particle Z"
+          ],
+          "answerKey": null,
+          "answerText": "W deflects upwards\nW has deflection that is the mirror image of X\nY deflects downwards less than X / path of Y is parallel to particle Z",
+          "sourcePage": 14,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 14,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-14.jpg",
+              "assetSha256": "289fa37814c1ef94c3c1c14891a4e11adf544e2e9e63b8cc947e1bee166aea85",
+              "text": "W deflects upwards"
+            },
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 14,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-14.jpg",
+              "assetSha256": "289fa37814c1ef94c3c1c14891a4e11adf544e2e9e63b8cc947e1bee166aea85",
+              "text": "W has deflection that is the mirror image of X"
+            },
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 14,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-14.jpg",
+              "assetSha256": "289fa37814c1ef94c3c1c14891a4e11adf544e2e9e63b8cc947e1bee166aea85",
+              "text": "Y deflects downwards less than X / path of Y is parallel to particle Z"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q6:part-a(ii)",
+          "label": "a(ii)",
+          "marks": 1,
+          "markSchemePoints": [
+            "nucleus has most of the mass of the atom / nucleus is charged"
+          ],
+          "answerKey": null,
+          "answerText": "nucleus has most of the mass of the atom / nucleus is charged",
+          "sourcePage": 14,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 14,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-14.jpg",
+              "assetSha256": "289fa37814c1ef94c3c1c14891a4e11adf544e2e9e63b8cc947e1bee166aea85",
+              "text": "nucleus has most of the mass of the atom / nucleus is charged"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q6:part-a(iii)",
+          "label": "a(iii)",
+          "marks": 1,
+          "markSchemePoints": [
+            "atom is mostly empty space / nucleus occupies a very small proportion of the space in the atom"
+          ],
+          "answerKey": null,
+          "answerText": "atom is mostly empty space / nucleus occupies a very small proportion of the space in the atom",
+          "sourcePage": 14,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 14,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-14.jpg",
+              "assetSha256": "289fa37814c1ef94c3c1c14891a4e11adf544e2e9e63b8cc947e1bee166aea85",
+              "text": "atom is mostly empty space / nucleus occupies a very small proportion of the space in the atom"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q6:part-b",
+          "label": "b",
+          "marks": 2,
+          "markSchemePoints": [
+            "mass = 4 u",
+            "charge = (+)2e"
+          ],
+          "answerKey": null,
+          "answerText": "mass = 4 u\ncharge = (+)2e",
+          "sourcePage": 14,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 14,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-14.jpg",
+              "assetSha256": "289fa37814c1ef94c3c1c14891a4e11adf544e2e9e63b8cc947e1bee166aea85",
+              "text": "mass = 4 u"
+            },
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 14,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-14.jpg",
+              "assetSha256": "289fa37814c1ef94c3c1c14891a4e11adf544e2e9e63b8cc947e1bee166aea85",
+              "text": "charge = (+)2e"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q6:part-c(i)",
+          "label": "c(i)",
+          "marks": 1,
+          "markSchemePoints": [
+            "baryon"
+          ],
+          "answerKey": null,
+          "answerText": "baryon",
+          "sourcePage": 14,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 14,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-14.jpg",
+              "assetSha256": "289fa37814c1ef94c3c1c14891a4e11adf544e2e9e63b8cc947e1bee166aea85",
+              "text": "baryon"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_24:q6:part-c(ii)",
+          "label": "c(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "charge on up quark = (+)2/3(e) and charge on down quark = −1/3(e)",
+            "(proton is up up down and neutron is up down down) / (2×2/3)e − (1×1/3)e = 1e and (1×2/3)e − (2×1/3)e = 0"
+          ],
+          "answerKey": null,
+          "answerText": "charge on up quark = (+)2/3(e) and charge on down quark = −1/3(e)\n(proton is up up down and neutron is up down down) / (2×2/3)e − (1×1/3)e = 1e and (1×2/3)e − (2×1/3)e = 0",
+          "sourcePage": 14,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 14,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-14.jpg",
+              "assetSha256": "289fa37814c1ef94c3c1c14891a4e11adf544e2e9e63b8cc947e1bee166aea85",
+              "text": "charge on up quark = (+)2/3(e) and charge on down quark = −1/3(e)"
+            },
+            {
+              "documentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+              "sourcePage": 14,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_24/ms-14.jpg",
+              "assetSha256": "289fa37814c1ef94c3c1c14891a4e11adf544e2e9e63b8cc947e1bee166aea85",
+              "text": "(proton is up up down and neutron is up down down) / (2×2/3)e − (1×1/3)e = 1e and (1×2/3)e − (2×1/3)e = 0"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "bindings": [
+    {
+      "questionId": "cie-9702-9702_w25_qp_24:q1",
+      "answerId": "cie-9702-9702_w25_qp_24:q1:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+      "answerDocumentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+      "reviewedAt": "2026-08-15T18:30:00+08:00",
+      "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "reviewProtocolVersion": "cambridge-9702-p2-topic-coverage-review.v1",
+        "sourcePolicy": "personal-study-restricted",
+        "manualVisualReview": true,
+        "studentPromptPolicy": "official-source-image",
+        "privateTextPolicy": "hidden-indexing-and-marking-context",
+        "completeQuestionPageReview": true,
+        "questionPaper": {
+          "file": "9702_w25_qp_24.pdf",
+          "sha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_qp_24.pdf"
+        },
+        "markScheme": {
+          "file": "9702_w25_ms_24.pdf",
+          "sha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_ms_24.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_w25_qp_24:q1:part-a(i)",
+            "marks": 2,
+            "questionPage": 4,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "horizontal velocity = 28 cos 34 degrees = 23 m s^-1",
+              "vertical velocity = 28 sin 34 degrees = 16 m s^-1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_24:q1:part-a(ii)",
+            "marks": 1,
+            "questionPage": 4,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "A1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_24:q1:part-a(iii)",
+            "marks": 1,
+            "questionPage": 5,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "B1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_24:q1:part-a(iv)",
+            "marks": 3,
+            "questionPage": 5,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 3,
+            "markSchemeEvidence": [
+              "straight diagonal line from t = 0 to t = 3.2 s, starting at positive velocity and crossing the time axis",
+              "line starts at v = 16 m s^-1 and ends at v = -16 m s^-1",
+              "line passes through v = 0 at t = 1.6 s"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_24:q1:part-b(i)",
+            "marks": 1,
+            "questionPage": 5,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "B1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_24:q1:part-b(ii)",
+            "marks": 2,
+            "questionPage": 5,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "C1",
+              "A1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_24:q1:part-b(iii)",
+            "marks": 1,
+            "questionPage": 5,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 9,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "A1"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-9702-9702_w25_qp_24:q3",
+      "answerId": "cie-9702-9702_w25_qp_24:q3:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+      "answerDocumentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+      "reviewedAt": "2026-08-15T18:30:00+08:00",
+      "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "reviewProtocolVersion": "cambridge-9702-p2-topic-coverage-review.v1",
+        "sourcePolicy": "personal-study-restricted",
+        "manualVisualReview": true,
+        "studentPromptPolicy": "official-source-image",
+        "privateTextPolicy": "hidden-indexing-and-marking-context",
+        "completeQuestionPageReview": true,
+        "questionPaper": {
+          "file": "9702_w25_qp_24.pdf",
+          "sha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_qp_24.pdf"
+        },
+        "markScheme": {
+          "file": "9702_w25_ms_24.pdf",
+          "sha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_ms_24.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_w25_qp_24:q3:part-a",
+            "marks": 1,
+            "questionPage": 8,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "B1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_24:q3:part-b(i)",
+            "marks": 1,
+            "questionPage": 9,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "A1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_24:q3:part-b(ii)",
+            "marks": 2,
+            "questionPage": 9,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "C1",
+              "A1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_24:q3:part-c(i)",
+            "marks": 2,
+            "questionPage": 9,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "C1",
+              "A1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_24:q3:part-c(ii)",
+            "marks": 2,
+            "questionPage": 9,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "C1",
+              "A1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_24:q3:part-d",
+            "marks": 2,
+            "questionPage": 9,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "all gravitational potential energy has been converted to, or is equal to, elastic potential energy, so there is no kinetic energy",
+              "kinetic energy is zero, so speed is zero"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-9702-9702_w25_qp_24:q5",
+      "answerId": "cie-9702-9702_w25_qp_24:q5:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+      "answerDocumentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+      "reviewedAt": "2026-08-15T18:30:00+08:00",
+      "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "reviewProtocolVersion": "cambridge-9702-p2-topic-coverage-review.v1",
+        "sourcePolicy": "personal-study-restricted",
+        "manualVisualReview": true,
+        "studentPromptPolicy": "official-source-image",
+        "privateTextPolicy": "hidden-indexing-and-marking-context",
+        "completeQuestionPageReview": true,
+        "questionPaper": {
+          "file": "9702_w25_qp_24.pdf",
+          "sha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_qp_24.pdf"
+        },
+        "markScheme": {
+          "file": "9702_w25_ms_24.pdf",
+          "sha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_ms_24.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_w25_qp_24:q5:part-a(i)",
+            "marks": 1,
+            "questionPage": 12,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 13,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "potential difference per unit current"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_24:q5:part-a(ii)",
+            "marks": 2,
+            "questionPage": 12,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 13,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "resistor connected to cell in a closed loop",
+              "correct circuit symbols used for all components / ammeter connected in series with resistor / voltmeter connected in parallel with resistor"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_24:q5:part-b(i)",
+            "marks": 1,
+            "questionPage": 12,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 13,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "(resistance) = 1.38 / 0.276 = 5.00 (Ω)"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_24:q5:part-b(ii)",
+            "marks": 3,
+            "questionPage": 13,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 13,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 3,
+            "markSchemeEvidence": [
+              "ρ = RA / L",
+              "ρ = 5.00 × π × (0.496 × 10⁻³)² / (4 × 0.864)",
+              "= 1.12 × 10⁻⁶ Ω m"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_24:q5:part-b(iii)",
+            "marks": 2,
+            "questionPage": 13,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 13,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "calculation of a fractional or percentage uncertainty in one quantity",
+              "0.001 / 0.864 / 0.002 / 0.496 / 0.02 / 1.38 / 0.001 / 0.276 / percentage uncertainty = [(0.001 / 0.864) + (2 × 0.002 / 0.496) + (0.02 / 1.38) + (0.001 / 0.276)] × 100 / = 2.7%"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_24:q5:part-b(iv)",
+            "marks": 1,
+            "questionPage": 13,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 13,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "Δρ = 0.03 × 1.12 × 10⁻⁶ / = 3 × 10⁻⁸ Ω m"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-9702-9702_w25_qp_24:q6",
+      "answerId": "cie-9702-9702_w25_qp_24:q6:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+      "answerDocumentSha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+      "reviewedAt": "2026-08-15T18:30:00+08:00",
+      "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "reviewProtocolVersion": "cambridge-9702-p2-topic-coverage-review.v1",
+        "sourcePolicy": "personal-study-restricted",
+        "manualVisualReview": true,
+        "studentPromptPolicy": "official-source-image",
+        "privateTextPolicy": "hidden-indexing-and-marking-context",
+        "completeQuestionPageReview": true,
+        "questionPaper": {
+          "file": "9702_w25_qp_24.pdf",
+          "sha256": "55e8d73f1c7b5182ee568ea78419738c3c4b0fc47e02b80b8dbadb76fe3e998b",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_qp_24.pdf"
+        },
+        "markScheme": {
+          "file": "9702_w25_ms_24.pdf",
+          "sha256": "d740f8eb69a23198264ed7261a01886c1b2438f63a0b16e47749882a7f6c97fd",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_ms_24.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_w25_qp_24:q6:part-a(i)",
+            "marks": 3,
+            "questionPage": 14,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 14,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 3,
+            "markSchemeEvidence": [
+              "W deflects upwards",
+              "W has deflection that is the mirror image of X",
+              "Y deflects downwards less than X / path of Y is parallel to particle Z"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_24:q6:part-a(ii)",
+            "marks": 1,
+            "questionPage": 14,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 14,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "nucleus has most of the mass of the atom / nucleus is charged"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_24:q6:part-a(iii)",
+            "marks": 1,
+            "questionPage": 14,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 14,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "atom is mostly empty space / nucleus occupies a very small proportion of the space in the atom"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_24:q6:part-b",
+            "marks": 2,
+            "questionPage": 15,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 14,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "mass = 4 u",
+              "charge = (+)2e"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_24:q6:part-c(i)",
+            "marks": 1,
+            "questionPage": 15,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 14,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "baryon"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_24:q6:part-c(ii)",
+            "marks": 2,
+            "questionPage": 15,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 14,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "charge on up quark = (+)2/3(e) and charge on down quark = −1/3(e)",
+              "(proton is up up down and neutron is up down down) / (2×2/3)e − (1×1/3)e = 1e and (1×2/3)e − (2×1/3)e = 0"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

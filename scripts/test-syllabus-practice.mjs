@@ -46,6 +46,48 @@ const igcseSet = buildSyllabusPracticeSet({
 assert.equal(igcseSet.questionCount, 5, '0625 Space physics must expose its reviewed five-question set')
 assert.ok(igcseSet.questionGroups.every((question) => question.routeId === igcsePhysicsRouteId && question.paperComponent === 2))
 
+const firstPhysicsSet = buildSyllabusPracticeSet({
+  routeId,
+  syllabusTopicIds: ['physics-9702-topic-05', 'physics-9702-topic-07'],
+  questionCount: 5,
+  components: [1, 2],
+  seed: 20260815,
+})
+const firstPhysicsIds = firstPhysicsSet.questionGroups.map((question) => question.id)
+const repeatedPhysicsSet = buildSyllabusPracticeSet({
+  routeId,
+  syllabusTopicIds: ['physics-9702-topic-05', 'physics-9702-topic-07'],
+  questionCount: 5,
+  components: [1, 2],
+  attemptedQuestionIds: [firstPhysicsIds[0]],
+  seed: 20260815,
+})
+const repeatedPhysicsIds = repeatedPhysicsSet.questionGroups.map((question) => question.id)
+assert.ok(!repeatedPhysicsIds.includes(firstPhysicsIds[0]), 'Topic Drill must prefer unseen reviewed question groups')
+assert.deepEqual(
+  buildSyllabusPracticeSet({
+    routeId,
+    syllabusTopicIds: ['physics-9702-topic-05', 'physics-9702-topic-07'],
+    questionCount: 5,
+    components: [1, 2],
+    seed: 20260815,
+  }).questionGroups.map((question) => question.id),
+  firstPhysicsIds,
+  'the saved practice seed must reproduce the same multi-topic set',
+)
+
+const p2OnlyPhysicsSet = buildSyllabusPracticeSet({
+  routeId,
+  syllabusTopicIds: ['physics-9702-topic-04'],
+  questionCount: 10,
+  components: [2],
+  seed: 20260815,
+})
+assert.equal(p2OnlyPhysicsSet.availableCount, 2, 'the current Forces inventory must disclose its exact reviewed P2-only capacity')
+assert.equal(p2OnlyPhysicsSet.questionCount, 2, 'a P2-only request must return a shorter honest set when fewer than ten reviewed groups exist')
+assert.ok(p2OnlyPhysicsSet.questionGroups.every((question) => question.paperComponent === 2), 'P2-only Topic Drill must not fall back to P1 MCQs')
+assert.ok(p2OnlyPhysicsSet.questionGroups.some((question) => question.id === 'cie-9702-9702_m25_qp_22:q2' && question.parts.length === 5 && question.totalMarks === 10), 'P2 Topic Drill must preserve the complete three-page M25/22 Q2 group')
+
 function identityToken(userId = 42) {
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
   const now = Math.floor(Date.now() / 1000)
@@ -74,9 +116,9 @@ assert.throws(
 )
 
 const candidates = syllabusMappingCandidates()
-assert.equal(candidates.length, 87, '2023-2025 P1/P2 import should expose 87 question-group candidates')
-assert.equal(candidates.filter((candidate) => candidate.reviewStatus === 'reviewed').length, 87, 'the two fully reviewed P1 papers and the explicit M25/22 P2 reconstruction may enter the reviewed inventory')
-assert.equal(candidates.filter((candidate) => candidate.reviewStatus === 'pending').length, 0, 'M25/22 must not retain a pending shell after its QP/MS reconstruction')
+assert.equal(candidates.length, 147, 'the current 2023-2025 P1/P2 index must expose its real candidate count')
+assert.equal(candidates.filter((candidate) => candidate.reviewStatus === 'reviewed').length, 112, 'only the manually reviewed P1/P2 source batches may enter the reviewed inventory')
+assert.equal(candidates.filter((candidate) => candidate.reviewStatus === 'pending').length, 35, 'machine-indexed P2 groups must remain pending until source-semantic review')
 assert.equal(candidates.filter((candidate) => candidate.reviewStatus === 'rejected').length, 0, 'the reviewed P2 reconstruction must resolve the former false rejection')
 const reviewedP2Groups = candidates.filter((candidate) => candidate.questionPaperId === 'cie-9702-9702_m25_qp_22')
 assert.equal(reviewedP2Groups.length, 7, 'M25/22 must retain exactly seven question groups')
@@ -107,8 +149,8 @@ const answersById = new Map(importedQuestionIndex.answers.map((answer) => [answe
 const bindingsByQuestionId = new Map(importedQuestionIndex.bindings.map((binding) => [binding.questionId, binding]))
 for (const expected of p2Expected) {
   const question = importedQuestionIndex.questions.find((item) => item.questionId === expected.questionId)
-  const answer = answersById.get(question?.answerId)
   const binding = bindingsByQuestionId.get(expected.questionId)
+  const answer = answersById.get(binding?.answerId)
   assert.ok(question && answer && binding, `${expected.questionId}: reconstructed QP/MS entities must exist`)
   assert.equal(question.questionGroupStatus, 'verified', `${expected.questionId}: reconstruction must be a complete question group`)
   assert.equal(question.totalMarks, expected.totalMarks, `${expected.questionId}: part marks must close to the official total`)
@@ -144,13 +186,13 @@ assert.ok(candidates.every((candidate) => candidate.markSchemeId), 'every candid
 
 const localInventory = syllabusTopicsInventory({ routeId })
 assert.equal(localInventory.topics.length, 11)
-assert.equal(localInventory.topics.reduce((sum, topic) => sum + topic.indexedQuestionCount, 0), 87)
-assert.equal(localInventory.indexedQuestionGroupCount, 87)
+assert.equal(localInventory.topics.reduce((sum, topic) => sum + topic.indexedQuestionCount, 0), 147)
+assert.equal(localInventory.indexedQuestionGroupCount, 147)
 assert.equal(localInventory.unmappedQuestionGroupCount, 0)
-assert.equal(localInventory.topics.reduce((sum, topic) => sum + topic.verifiedQuestionCount, 0), 87)
-assert.ok(localInventory.topics.every((topic) => topic.verifiedQuestionCount >= 5), 'every official AS theory topic needs at least five reviewed groups before release')
-assert.equal(localInventory.topics.filter((topic) => topic.ctaPolicy === 'start').length, 2, 'only topics at the ten-group ready threshold may present the ready CTA')
-assert.ok(localInventory.topics.filter((topic) => topic.ctaPolicy === 'limited-indexing').every((topic) => topic.verifiedQuestionCount >= 5), 'reviewed below-ready source samples must remain explicitly limited')
+assert.equal(localInventory.topics.reduce((sum, topic) => sum + topic.verifiedQuestionCount, 0), 112)
+assert.ok(localInventory.topics.every((topic) => topic.verifiedQuestionCount >= 10), 'every official AS theory topic needs at least ten reviewed groups before release')
+assert.equal(localInventory.topics.filter((topic) => topic.ctaPolicy === 'start').length, 11, 'all eleven topics may start only after reaching the ten-group threshold')
+assert.equal(localInventory.topics.filter((topic) => topic.ctaPolicy === 'limited-indexing').length, 0)
 
 const api = createStemApi({
   env: { STEM_IDENTITY_SIGNING_KEY: signingKey, STEM_DB_PATH: ':memory:' },
@@ -167,11 +209,11 @@ try {
   const inventory = await inventoryResponse.json()
   assert.equal(inventory.aggregation, 'sqlite-question-groups-and-syllabus-mappings')
   assert.equal(inventory.topics.length, 11)
-  assert.equal(inventory.topics.reduce((sum, topic) => sum + topic.indexedQuestionCount, 0), 87)
-  assert.equal(inventory.indexedQuestionGroupCount, 87)
+  assert.equal(inventory.topics.reduce((sum, topic) => sum + topic.indexedQuestionCount, 0), 147)
+  assert.equal(inventory.indexedQuestionGroupCount, 147)
   assert.equal(inventory.unmappedQuestionGroupCount, 0)
-  assert.equal(inventory.topics.reduce((sum, topic) => sum + topic.verifiedQuestionCount, 0), 87)
-  assert.ok(inventory.topics.every((topic) => topic.verifiedQuestionCount >= 5), 'API inventory must use the current canonical reviewed bank')
+  assert.equal(inventory.topics.reduce((sum, topic) => sum + topic.verifiedQuestionCount, 0), 112)
+  assert.ok(inventory.topics.every((topic) => topic.verifiedQuestionCount >= 10), 'API inventory must use the current canonical reviewed bank')
   assert.equal(inventory.officialPaperCount, 46)
   assert.equal(inventory.officialPairedPaperCount, 46)
   assert.ok(inventory.topics.every((topic) => topic.points.length > 0), 'API must return official syllabus points')
@@ -232,5 +274,5 @@ console.log(JSON.stringify({
   topics: CAMBRIDGE_9702_AS_SYLLABUS.topics.length,
   points: CAMBRIDGE_9702_AS_SYLLABUS.points.length,
   indexedQuestionGroups: candidates.length,
-  reviewedQuestionGroups: 87,
+  reviewedQuestionGroups: 112,
 }))

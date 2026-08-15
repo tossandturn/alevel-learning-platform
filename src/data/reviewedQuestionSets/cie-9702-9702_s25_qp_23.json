@@ -1,0 +1,492 @@
+{
+  "schemaVersion": "reviewed-question-set.v1",
+  "generatedAt": "2026-08-15T18:30:00+08:00",
+  "paperId": "cie-9702-9702_s25_qp_23",
+  "questionCount": 1,
+  "totalMarks": 8,
+  "sourceFragments": [
+    {
+      "file": "cambridge-9702-p2-topic-coverage-review-ledger.js",
+      "sha256": "80a18ddc778eb09c6442730aa348f11440813979b7c37469a934194e0508f88c"
+    }
+  ],
+  "sourceMaterials": {
+    "questionPaper": {
+      "id": "cie-9702-9702_s25_qp_23",
+      "file": "9702_s25_qp_23.pdf",
+      "sha256": "102d8dba65d2465573273c93292a1a20cbae2614dd1def31e6146e8b307a49d8",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s25_qp_23.pdf",
+      "governance": {
+        "schemaVersion": "paper-governance-v1",
+        "state": "active",
+        "sourcePolicyId": "cie-mirror-restricted-v1",
+        "accessPolicyId": "personal-study-restricted-v1",
+        "sourceVersion": "2025:Jun:9702_s25_qp_23.pdf",
+        "retrievedAt": null,
+        "retrievalStatus": "not-recorded",
+        "integrityStatus": "pending-release-audit",
+        "duplicateOf": null,
+        "answerStatus": "exact-pair",
+        "reasonCode": null,
+        "reviewedAt": null,
+        "reviewEvidence": null
+      }
+    },
+    "markScheme": {
+      "id": "cie-9702-9702_s25_ms_23",
+      "file": "9702_s25_ms_23.pdf",
+      "sha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s25_ms_23.pdf",
+      "governance": {
+        "schemaVersion": "paper-governance-v1",
+        "state": "active",
+        "sourcePolicyId": "cie-mirror-restricted-v1",
+        "accessPolicyId": "personal-study-restricted-v1",
+        "sourceVersion": "2025:Jun:9702_s25_ms_23.pdf",
+        "retrievedAt": null,
+        "retrievalStatus": "not-recorded",
+        "integrityStatus": "pending-release-audit",
+        "duplicateOf": null,
+        "answerStatus": "not-applicable",
+        "reasonCode": null,
+        "reviewedAt": null,
+        "reviewEvidence": null
+      }
+    }
+  },
+  "questions": [
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-9702",
+      "specificationId": "cambridge-9702-2025-2027",
+      "subjectId": "physics",
+      "subjectCode": "9702",
+      "knowledgeGroupId": "physics-9702-topic-02",
+      "topicId": "physics-9702-topic-02",
+      "stageTags": [
+        "AS"
+      ],
+      "componentTags": [
+        2
+      ],
+      "topicTags": [
+        "physics-9702-topic-02",
+        "equations of motion",
+        "motion graphs"
+      ],
+      "skillTags": [
+        "define"
+      ],
+      "answerType": "structured",
+      "prompt": "(a) Define velocity.\n\n(b) In an experiment, two objects A and B are released from the side of a building, as shown in Fig. 1.1.\n\nObject A is released from rest at a height of 10.0 m above horizontal ground.\nObject B is released with an initial upward velocity of 3.0 m s⁻¹ at a height h above the ground.\nBoth objects take the same time to reach the ground and they do not collide with each other.\nAir resistance is negligible.\n\nCalculate h.\n\n(c(i)) State and explain whether the time taken for object B to reach the ground is less than, the same as, or greater than the time taken in the first experiment.\n\n(c(ii)) By considering energy, state and explain whether the speed at which object B reaches the ground is less than, the same as, or greater than in the first experiment.",
+      "questionGroupId": "cie-9702-9702_s25_qp_23:q1",
+      "questionGroupStatus": "verified",
+      "totalMarks": 8,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_s25_qp_23:q1:part-a",
+          "label": "a",
+          "promptFragment": "Define velocity.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 4,
+          "sourceEvidence": [
+            {
+              "documentSha256": "102d8dba65d2465573273c93292a1a20cbae2614dd1def31e6146e8b307a49d8",
+              "page": 4,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/qp-04.jpg",
+              "assetSha256": "467803b00a7c0bfa32bc0b592b8cd604daf7869ca31c58ac163a66307d8c53cc"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_23:q1:part-b",
+          "label": "b",
+          "promptFragment": "In an experiment, two objects A and B are released from the side of a building, as shown in Fig. 1.1.\n\nObject A is released from rest at a height of 10.0 m above horizontal ground.\nObject B is released with an initial upward velocity of 3.0 m s⁻¹ at a height h above the ground.\nBoth objects take the same time to reach the ground and they do not collide with each other.\nAir resistance is negligible.\n\nCalculate h.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 4,
+          "sourceEvidence": [
+            {
+              "documentSha256": "102d8dba65d2465573273c93292a1a20cbae2614dd1def31e6146e8b307a49d8",
+              "page": 4,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/qp-04.jpg",
+              "assetSha256": "467803b00a7c0bfa32bc0b592b8cd604daf7869ca31c58ac163a66307d8c53cc"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_23:q1:part-c(i)",
+          "label": "c(i)",
+          "promptFragment": "State and explain whether the time taken for object B to reach the ground is less than, the same as, or greater than the time taken in the first experiment.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 5,
+          "sourceEvidence": [
+            {
+              "documentSha256": "102d8dba65d2465573273c93292a1a20cbae2614dd1def31e6146e8b307a49d8",
+              "page": 5,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/qp-05.jpg",
+              "assetSha256": "338758c462f4eff0939dec2ae355153216bcd874cff50a0c1cf5f2fdf9af6c3a"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_23:q1:part-c(ii)",
+          "label": "c(ii)",
+          "promptFragment": "By considering energy, state and explain whether the speed at which object B reaches the ground is less than, the same as, or greater than in the first experiment.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 5,
+          "sourceEvidence": [
+            {
+              "documentSha256": "102d8dba65d2465573273c93292a1a20cbae2614dd1def31e6146e8b307a49d8",
+              "page": 5,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/qp-05.jpg",
+              "assetSha256": "338758c462f4eff0939dec2ae355153216bcd874cff50a0c1cf5f2fdf9af6c3a"
+            }
+          ]
+        }
+      ],
+      "marks": 8,
+      "sourceRef": {
+        "paperId": "cie-9702-9702_s25_qp_23",
+        "paper": "9702_s25_qp_23.pdf",
+        "question": "Q1",
+        "localUrl": "/local-pdf/9702/9702_s25_qp_23.pdf",
+        "pageStart": 4,
+        "pageEnd": 5,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_s25_qp_23/qp-04.jpg",
+          "/question-assets/cie-9702-9702_s25_qp_23/qp-05.jpg"
+        ],
+        "year": 2025,
+        "season": "Jun",
+        "component": 2,
+        "sha256": "102d8dba65d2465573273c93292a1a20cbae2614dd1def31e6146e8b307a49d8"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-15T05:28:13.132Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-topic-coverage-review.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-9702-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "physics-9702-topic-02",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-02",
+        "secondaryTopicIds": [],
+        "syllabusPointIds": [
+          "physics-9702-point-2-1-01",
+          "physics-9702-point-2-1-07",
+          "physics-9702-point-2-1-09"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+        "reviewedAt": "2026-08-15T18:30:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_s25_qp_23",
+          "markSchemeId": "cie-9702-9702_s25_ms_23",
+          "questionPages": [
+            4,
+            5
+          ],
+          "markSchemePages": [
+            8
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s25_qp_23.pdf",
+          "studentPromptPolicy": "official-source-image",
+          "privateTextPolicy": "hidden-indexing-and-marking-context"
+        }
+      },
+      "questionId": "cie-9702-9702_s25_qp_23:q1",
+      "answerId": "cie-9702-9702_s25_qp_23:q1:answer"
+    }
+  ],
+  "answers": [
+    {
+      "answerId": "cie-9702-9702_s25_qp_23:q1:answer",
+      "answer": null,
+      "answerKey": null,
+      "markPoints": [
+        "Rate of change of displacement",
+        "s = ut + ½at²",
+        "t = √(2×10 / 9.81) = 1.4",
+        "h = −(3 × 1.4) + (0.5 × 9.81 × 1.4²) = 5.7 m / OR h = −(3 × 1.4) + 10 = 5.7 m",
+        "time taken (to reach the ground is) same",
+        "The initial vertical (component of the) velocity is the same (as in part (1b))",
+        "The (total) initial energy is greater (than in part (1b))",
+        "change in gravitational potential energy is same, so speed is greater"
+      ],
+      "exactAnswer": "(a) Rate of change of displacement\n\n(b) s = ut + ½at²\nt = √(2×10 / 9.81) = 1.4\nh = −(3 × 1.4) + (0.5 × 9.81 × 1.4²) = 5.7 m / OR h = −(3 × 1.4) + 10 = 5.7 m\n\n(c(i)) time taken (to reach the ground is) same\nThe initial vertical (component of the) velocity is the same (as in part (1b))\n\n(c(ii)) The (total) initial energy is greater (than in part (1b))\nchange in gravitational potential energy is same, so speed is greater",
+      "answerRef": {
+        "documentId": "cie-9702-9702_s25_ms_23",
+        "file": "9702_s25_ms_23.pdf",
+        "localUrl": "/local-pdf/9702/9702_s25_ms_23.pdf",
+        "pageStart": 8,
+        "pageEnd": 8,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_s25_qp_23/ms-08.jpg"
+        ],
+        "sha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_s25_qp_23:q1:part-a",
+          "label": "a",
+          "marks": 1,
+          "markSchemePoints": [
+            "Rate of change of displacement"
+          ],
+          "answerKey": null,
+          "answerText": "Rate of change of displacement",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/ms-08.jpg",
+              "assetSha256": "1b14d981ee467a64023d110fccdff86131b14ef65bd946376f6e36da26510821",
+              "text": "Rate of change of displacement"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_23:q1:part-b",
+          "label": "b",
+          "marks": 3,
+          "markSchemePoints": [
+            "s = ut + ½at²",
+            "t = √(2×10 / 9.81) = 1.4",
+            "h = −(3 × 1.4) + (0.5 × 9.81 × 1.4²) = 5.7 m / OR h = −(3 × 1.4) + 10 = 5.7 m"
+          ],
+          "answerKey": null,
+          "answerText": "s = ut + ½at²\nt = √(2×10 / 9.81) = 1.4\nh = −(3 × 1.4) + (0.5 × 9.81 × 1.4²) = 5.7 m / OR h = −(3 × 1.4) + 10 = 5.7 m",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/ms-08.jpg",
+              "assetSha256": "1b14d981ee467a64023d110fccdff86131b14ef65bd946376f6e36da26510821",
+              "text": "s = ut + ½at²"
+            },
+            {
+              "documentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/ms-08.jpg",
+              "assetSha256": "1b14d981ee467a64023d110fccdff86131b14ef65bd946376f6e36da26510821",
+              "text": "t = √(2×10 / 9.81) = 1.4"
+            },
+            {
+              "documentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/ms-08.jpg",
+              "assetSha256": "1b14d981ee467a64023d110fccdff86131b14ef65bd946376f6e36da26510821",
+              "text": "h = −(3 × 1.4) + (0.5 × 9.81 × 1.4²) = 5.7 m / OR h = −(3 × 1.4) + 10 = 5.7 m"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_23:q1:part-c(i)",
+          "label": "c(i)",
+          "marks": 2,
+          "markSchemePoints": [
+            "time taken (to reach the ground is) same",
+            "The initial vertical (component of the) velocity is the same (as in part (1b))"
+          ],
+          "answerKey": null,
+          "answerText": "time taken (to reach the ground is) same\nThe initial vertical (component of the) velocity is the same (as in part (1b))",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/ms-08.jpg",
+              "assetSha256": "1b14d981ee467a64023d110fccdff86131b14ef65bd946376f6e36da26510821",
+              "text": "time taken (to reach the ground is) same"
+            },
+            {
+              "documentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/ms-08.jpg",
+              "assetSha256": "1b14d981ee467a64023d110fccdff86131b14ef65bd946376f6e36da26510821",
+              "text": "The initial vertical (component of the) velocity is the same (as in part (1b))"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_23:q1:part-c(ii)",
+          "label": "c(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "The (total) initial energy is greater (than in part (1b))",
+            "change in gravitational potential energy is same, so speed is greater"
+          ],
+          "answerKey": null,
+          "answerText": "The (total) initial energy is greater (than in part (1b))\nchange in gravitational potential energy is same, so speed is greater",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/ms-08.jpg",
+              "assetSha256": "1b14d981ee467a64023d110fccdff86131b14ef65bd946376f6e36da26510821",
+              "text": "The (total) initial energy is greater (than in part (1b))"
+            },
+            {
+              "documentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/ms-08.jpg",
+              "assetSha256": "1b14d981ee467a64023d110fccdff86131b14ef65bd946376f6e36da26510821",
+              "text": "change in gravitational potential energy is same, so speed is greater"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "bindings": [
+    {
+      "questionId": "cie-9702-9702_s25_qp_23:q1",
+      "answerId": "cie-9702-9702_s25_qp_23:q1:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "102d8dba65d2465573273c93292a1a20cbae2614dd1def31e6146e8b307a49d8",
+      "answerDocumentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+      "reviewedAt": "2026-08-15T18:30:00+08:00",
+      "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "reviewProtocolVersion": "cambridge-9702-p2-topic-coverage-review.v1",
+        "sourcePolicy": "personal-study-restricted",
+        "manualVisualReview": true,
+        "studentPromptPolicy": "official-source-image",
+        "privateTextPolicy": "hidden-indexing-and-marking-context",
+        "completeQuestionPageReview": true,
+        "questionPaper": {
+          "file": "9702_s25_qp_23.pdf",
+          "sha256": "102d8dba65d2465573273c93292a1a20cbae2614dd1def31e6146e8b307a49d8",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s25_qp_23.pdf"
+        },
+        "markScheme": {
+          "file": "9702_s25_ms_23.pdf",
+          "sha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s25_ms_23.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_s25_qp_23:q1:part-a",
+            "marks": 1,
+            "questionPage": 4,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "Rate of change of displacement"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_s25_qp_23:q1:part-b",
+            "marks": 3,
+            "questionPage": 4,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 3,
+            "markSchemeEvidence": [
+              "s = ut + ½at²",
+              "t = √(2×10 / 9.81) = 1.4",
+              "h = −(3 × 1.4) + (0.5 × 9.81 × 1.4²) = 5.7 m / OR h = −(3 × 1.4) + 10 = 5.7 m"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_s25_qp_23:q1:part-c(i)",
+            "marks": 2,
+            "questionPage": 5,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "time taken (to reach the ground is) same",
+              "The initial vertical (component of the) velocity is the same (as in part (1b))"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_s25_qp_23:q1:part-c(ii)",
+            "marks": 2,
+            "questionPage": 5,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "The (total) initial energy is greater (than in part (1b))",
+              "change in gravitational potential energy is same, so speed is greater"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

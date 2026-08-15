@@ -2492,9 +2492,12 @@ function topicQuestionMatches(question, routeId, topicId) {
 }
 
 function sourceQuestionPreview(question) {
-  return stripSourceVisualPlaceholders(question.prompt || question.parts?.[0]?.promptFragment || '')
-    .replace(/\s+/g, ' ')
-    .trim()
+  const source = question.sourceRef || {}
+  const pages = Array.isArray(source.assetUrls)
+    ? source.assetUrls.map((url) => String(url).match(/\/qp-(\d+)\.(?:png|jpe?g|webp)$/i)?.[1]).filter(Boolean)
+    : []
+  const pageLabel = pages.length ? `QP p.${pages.join(', p.')}` : `QP p.${source.pageStart || '?'}`
+  return `Official source image · ${pageLabel} · open the set to view the complete question.`
 }
 
 function sourcePaperLabel(question) {
@@ -2624,7 +2627,7 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, lea
   async function startTopicPractice() {
     try {
       setStartError('')
-      if (selectedTopicIds.length === 1 && nextPracticeUnit && (practiceReady || sampleReady)) {
+      if (activeRouteId !== 'cie-9702-as-physics' && selectedTopicIds.length === 1 && nextPracticeUnit && (practiceReady || sampleReady)) {
         startPractice(nextPracticeUnit)
         return
       }

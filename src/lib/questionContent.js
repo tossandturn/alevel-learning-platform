@@ -123,21 +123,41 @@ function regionContains(container, content) {
     && container[3] >= content[3]
 }
 
-function reviewedSafeFocusBounds(questionId, page, rawRegion) {
+function reviewedSafeFocusBounds(questionId, page, rawRegion, imageSizeValue, safetyMargin, safetyStatus) {
   const configured = REVIEWED_SOURCE_FOCUS_SAFE_BOUNDS[questionId]?.[page]
   const size = imageSize(configured?.imageSize)
   const region = pixelRegion(configured?.region, size)
   const requiredRegion = pixelRegion(configured?.contentRegion || rawRegion, size)
-  if (!configured || !size || !region || !requiredRegion || !regionContains(region, requiredRegion)) return null
+  if (configured && size && region && requiredRegion && regionContains(region, requiredRegion)) {
+    return Object.freeze({
+      imageSize: size,
+      region,
+      safetyMargin: Object.freeze([
+        requiredRegion[0] - region[0],
+        requiredRegion[1] - region[1],
+        region[2] - requiredRegion[2],
+        region[3] - requiredRegion[3],
+      ]),
+    })
+  }
+
+  // New reviewed batches carry their own checksum-bound display bounds. This
+  // keeps the crop evidence beside the question while still requiring an
+  // explicit reviewer safety status and measurable margin.
+  const measuredSize = imageSize(imageSizeValue)
+  const measuredRegion = pixelRegion(rawRegion, measuredSize)
+  const margin = Array.isArray(safetyMargin) ? safetyMargin.map(Number) : []
+  if (
+    !measuredSize
+    || !measuredRegion
+    || safetyStatus !== REVIEWED_SOURCE_FOCUS_SAFETY_VERSION
+    || margin.length !== 4
+    || !margin.every((value) => Number.isFinite(value) && value >= 12)
+  ) return null
   return Object.freeze({
-    imageSize: size,
-    region,
-    safetyMargin: Object.freeze([
-      requiredRegion[0] - region[0],
-      requiredRegion[1] - region[1],
-      region[2] - requiredRegion[2],
-      region[3] - requiredRegion[3],
-    ]),
+    imageSize: measuredSize,
+    region: measuredRegion,
+    safetyMargin: Object.freeze(margin),
   })
 }
 
@@ -164,6 +184,8 @@ function rawSourceEvidenceForPart(part, allocation, sourceRef, sourceAssets) {
       imageSize: size,
       region,
       normalizedRegion: normalizedPixelRegion(region, size),
+      safetyMargin: rawEvidence.safetyMargin,
+      safetyStatus: rawEvidence.safetyStatus,
       provenance: 'raw-pixel-evidence',
     })
   }
@@ -245,11 +267,22 @@ export function reviewedSourceFocusBinding(question = {}) {
     if (existing && (
       existing.assetUrl !== assetUrl
       || (size && existing.imageSize && (existing.imageSize[0] !== size[0] || existing.imageSize[1] !== size[1]))
+      || (existing.safetyStatus || '') !== (evidence.safetyStatus || '')
+      || JSON.stringify(existing.safetyMargin || []) !== JSON.stringify(evidence.safetyMargin || [])
     )) {
       reasons.push(`source-focus-page-asset-mismatch:${partId}`)
       continue
     }
-    const entry = existing || { page, assetUrl, imageSize: size, regions: [], normalizedRegions: [], partIds: [] }
+    const entry = existing || {
+      page,
+      assetUrl,
+      imageSize: size,
+      safetyMargin: evidence.safetyMargin,
+      safetyStatus: evidence.safetyStatus,
+      regions: [],
+      normalizedRegions: [],
+      partIds: [],
+    }
     entry.regions.push(region)
     entry.normalizedRegions.push(normalized)
     entry.partIds.push(partId)
@@ -268,7 +301,14 @@ export function reviewedSourceFocusBinding(question = {}) {
         Math.max(...entry.regions.map((candidate) => candidate[2])),
         Math.max(...entry.regions.map((candidate) => candidate[3])),
       ])
-      const safeBounds = reviewedSafeFocusBounds(sourceQuestionId(question), entry.page, rawRegion)
+      const safeBounds = reviewedSafeFocusBounds(
+        sourceQuestionId(question),
+        entry.page,
+        rawRegion,
+        entry.imageSize,
+        entry.safetyMargin,
+        entry.safetyStatus,
+      )
       if (!safeBounds) {
         reasons.push(`source-focus-display-bounds-unreviewed:${entry.page}`)
         return null

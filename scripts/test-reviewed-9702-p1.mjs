@@ -6,6 +6,7 @@ import importedQuestionIndex from '../src/data/importedQuestionIndex.json' with 
 import sourceContentManifest from '../src/data/sourceContentManifest.json' with { type: 'json' }
 import { unifiedQuestionBank } from '../src/data/questionBank.js'
 import { buildSyllabusPracticeSet, syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
+import { reviewedSourceFocusBinding } from '../src/lib/questionContent.js'
 import { CAMBRIDGE_9702_P1_2025_REVIEW_LEDGER } from '../src/data/reviewedQuestionSets/cambridge-9702-p1-2025-review-ledger.js'
 
 const root = path.resolve(import.meta.dirname, '..')
@@ -54,11 +55,35 @@ for (const paper of CAMBRIDGE_9702_P1_2025_REVIEW_LEDGER) {
     assert.equal(markSchemeEvidence.length, 1, `${questionId}: MS asset evidence is required`)
     assert.equal(sha256File(assetPath(sourceEvidence[0].assetUrl)), sourceEvidence[0].assetSha256, `${questionId}: QP asset bytes changed`)
     assert.equal(sha256File(assetPath(markSchemeEvidence[0].assetUrl)), markSchemeEvidence[0].assetSha256, `${questionId}: MS asset bytes changed`)
+    assert.equal(sourceEvidence[0].coordinateSpace, 'pixel-xyxy', `${questionId}: reviewed crop must declare pixel coordinates`)
+    assert.deepEqual(sourceEvidence[0].imageSize, [1020, 1320], `${questionId}: reviewed crop image size must match the official render`)
+    assert.deepEqual(sourceEvidence[0].region, binding.reviewEvidence.partAllocations[0].questionRegion, `${questionId}: crop and allocation bounds must match`)
+    assert.equal(sourceEvidence[0].safetyStatus, 'reviewed-display-bounds-v1', `${questionId}: crop safety review is required`)
+    assert.ok(sourceEvidence[0].safetyMargin.every((value) => Number(value) >= 12), `${questionId}: crop safety margin is too small`)
+    const focusQuestion = unifiedQuestionBank.find((candidate) => candidate.sourceQuestionId === questionId)
+    const focus = reviewedSourceFocusBinding(focusQuestion)
+    assert.equal(focus.complete, true, `${questionId}: reviewed QP crop must be available at runtime`)
+    assert.ok(focus.pages.every((page) => page.region[0] >= 0 && page.region[1] >= 0 && page.region[2] <= 1020 && page.region[3] <= 1320), `${questionId}: crop must stay inside the QP image`)
+    assert.equal(question.contentAnalysis?.status, 'reviewed', `${questionId}: reviewed content analysis is required`)
+    assert.equal(question.contentAnalysis?.syllabusTopicId, row.primaryTopicId, `${questionId}: content analysis topic must match the syllabus mapping`)
     assert.equal(sourceContentManifest.items[questionId]?.complete, true, `${questionId}: runtime source gate must allow the reviewed QP/MS pair`)
     assert.equal(sourceContentManifest.items[questionId]?.semanticStatus, 'verified-complete', `${questionId}: semantic source review must remain complete`)
     reviewedIds.push(questionId)
   }
 }
+
+const focusTamperFixture = structuredClone(unifiedQuestionBank.find((question) => question.sourceQuestionId === reviewedIds[0]))
+focusTamperFixture.parts[0].sourceEvidence[0].region = [80, 0, 950, 275]
+assert.equal(reviewedSourceFocusBinding(focusTamperFixture).complete, false, 'tampered crop evidence must fail closed')
+
+const reviewedS25Q18 = unifiedQuestionBank.find((question) => question.sourceQuestionId === 'cie-9702-9702_s25_qp_11:q18')
+const reviewedS25Q18Focus = reviewedSourceFocusBinding(reviewedS25Q18)
+assert.equal(reviewedS25Q18Focus.complete, true, 'S25 Q18 must retain a reviewed focus crop')
+assert.deepEqual(reviewedS25Q18Focus.pages[0].region, [80, 310, 950, 930], 'S25 Q18 focus crop must stop before adjacent Q19')
+assert.ok(reviewedS25Q18Focus.pages[0].safetyMargin.every((value) => value >= 20), 'S25 Q18 focus crop must retain its reviewed safety margin')
+
+const workspaceSource = fs.readFileSync(path.join(root, 'src', 'components', 'PracticeWorkspace.jsx'), 'utf8')
+assert.match(workspaceSource, /!activePart\.sourceRef\?\.paperId && <h2>/, 'official past-paper OCR must not be rendered as duplicate student prompt text')
 
 assert.equal(reviewedIds.length, 80, 'two full P1 reviews must produce exactly 80 reviewed groups')
 assert.equal(new Set(reviewedIds).size, 80, 'reviewed P1 group IDs must be unique')
@@ -69,8 +94,8 @@ assert.equal(
 )
 
 const inventory = syllabusTopicsInventory({ routeId, questionBank: unifiedQuestionBank })
-assert.equal(inventory.verifiedQuestionGroupCount, 87, '9702 AS inventory must expose the reviewed P1 and M25/22 P2 groups')
-assert.ok(inventory.topics.every((topic) => topic.verifiedQuestionCount >= 5), 'every official 9702 AS topic requires at least five reviewed groups before release')
+assert.equal(inventory.verifiedQuestionGroupCount, 112, '9702 AS inventory must expose the reviewed P1 and P2 source batches')
+assert.ok(inventory.topics.every((topic) => topic.verifiedQuestionCount >= 10), 'every official 9702 AS topic requires at least ten reviewed groups before release')
 
 for (const topic of inventory.topics) {
   const set = buildSyllabusPracticeSet({
@@ -84,6 +109,19 @@ for (const topic of inventory.topics) {
   assert.equal(set.questionCount, 5, `${topic.id}: coverage must support a five-question AS Paper 1 drill`)
   assert.ok(set.questionGroups.every((question) => question.paperComponent === 1), `${topic.id}: P1 topic drill must not mix components`)
   assert.ok(set.questionGroups.every((question) => reviewedIds.includes(question.id)), `${topic.id}: only reviewed P1 groups may enter the coverage drill`)
+
+  const attemptedId = set.questionGroups[0].id
+  const unseenFirst = buildSyllabusPracticeSet({
+    routeId,
+    syllabusTopicIds: [topic.id],
+    questionCount: 1,
+    components: [1],
+    attemptedQuestionIds: [attemptedId],
+    excludeAttempted: true,
+    seed: 20260814,
+    questionBank: unifiedQuestionBank,
+  })
+  assert.notEqual(unseenFirst.questionGroups[0].id, attemptedId, `${topic.id}: Topic Drill must prefer a question the student has not attempted`)
 }
 
 console.log(JSON.stringify({

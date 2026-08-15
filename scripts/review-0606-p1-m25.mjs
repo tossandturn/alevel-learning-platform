@@ -164,6 +164,7 @@ function reviewedQuestion({ rawQuestion, rawAnswer, rawBinding, row, questionPap
         label: part.label,
         marks: Number(part.marks),
         markSchemePoints: [...part.markSchemePoints],
+        answerKey: null,
         answerText: markSchemeText,
         sourcePage: msPage,
         markSchemeEvidence: [assetEvidence(msAsset, msPage, markScheme.sha256, markSchemeText)],

@@ -12,12 +12,12 @@ const matrix = JSON.parse(output)
 
 assert.equal(matrix.schemaVersion, 'stem-question-inventory-v1')
 assert.equal(matrix.totals.catalogItems, 10689)
-assert.equal(matrix.totals.indexedQuestionGroups, 1320)
+assert.equal(matrix.totals.indexedQuestionGroups, 1380)
 assert.equal(matrix.totals.indexQuarantined, 410)
 assert.equal(matrix.totals.sourceAdditionalQuarantined, 3)
 assert.equal(matrix.totals.effectiveFileQuarantined, 413)
-assert.equal(matrix.totals.effectivePracticeAvailableQuestionGroups, 205)
-assert.equal(matrix.totals.effectivePracticeQuarantinedQuestionGroups, 1115)
+assert.equal(matrix.totals.effectivePracticeAvailableQuestionGroups, 230)
+assert.equal(matrix.totals.effectivePracticeQuarantinedQuestionGroups, 1150)
 assert.equal(matrix.totals.minimumGroupsForReadyRouteOrTopic, 10)
 
 const cambridge0580 = matrix.routes.find((route) => route.routeId === 'cie-0580-igcse-mathematics')
@@ -33,14 +33,16 @@ assert.ok(cambridge0580.topicMatrix
 
 const cambridge9702 = matrix.routes.find((route) => route.routeId === 'cie-9702-as-physics')
 assert.ok(cambridge9702, '9702 AS Physics route must be present in the inventory matrix')
-assert.equal(cambridge9702.practiceAvailableQuestionGroups, 87)
-assert.equal(cambridge9702.semanticVerifiedQuestionGroups, 87)
+assert.equal(cambridge9702.practiceAvailableQuestionGroups, 112)
+assert.equal(cambridge9702.semanticVerifiedQuestionGroups, 112)
 assert.equal(cambridge9702.ready, true)
 assert.equal(cambridge9702.ctaPolicy, 'start')
 assert.equal(cambridge9702.topicMatrix.find((topic) => topic.topicId === 'physics-9702-topic-05')?.practiceAvailableQuestionGroups, 10)
 assert.equal(cambridge9702.topicMatrix.find((topic) => topic.topicId === 'physics-9702-topic-05')?.ctaPolicy, 'start')
-assert.equal(cambridge9702.topicMatrix.find((topic) => topic.topicId === 'physics-9702-topic-02')?.practiceAvailableQuestionGroups, 5)
-assert.equal(cambridge9702.topicMatrix.find((topic) => topic.topicId === 'physics-9702-topic-02')?.ctaPolicy, 'limited-indexing')
+assert.equal(cambridge9702.topicMatrix.find((topic) => topic.topicId === 'physics-9702-topic-02')?.practiceAvailableQuestionGroups, 10)
+assert.equal(cambridge9702.topicMatrix.find((topic) => topic.topicId === 'physics-9702-topic-02')?.ctaPolicy, 'start')
+assert.equal(cambridge9702.topicMatrix.length, 11)
+assert.ok(cambridge9702.topicMatrix.every((topic) => topic.practiceAvailableQuestionGroups >= 10 && topic.ctaPolicy === 'start'), 'all eleven 9702 AS syllabus topics must remain available for ten-question P1/P2 drills')
 
 const appSource = execFileSync(process.execPath, ['-e', "process.stdout.write(require('node:fs').readFileSync('src/App.jsx','utf8'))"], {
   cwd: projectRoot,

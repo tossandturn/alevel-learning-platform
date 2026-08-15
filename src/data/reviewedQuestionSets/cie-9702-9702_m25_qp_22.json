@@ -276,7 +276,7 @@
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
         "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
-        "knowledgeGroupId": "physics-9702-topic-03",
+        "knowledgeGroupId": "physics-9702-topic-04",
         "mappingStatus": "machine-indexed",
         "schemaVersion": "question-syllabus-mapping-v1",
         "primaryTopicId": "physics-9702-topic-04",
@@ -468,7 +468,7 @@
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
         "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
-        "knowledgeGroupId": "physics-9702-topic-02",
+        "knowledgeGroupId": "physics-9702-topic-03",
         "mappingStatus": "machine-indexed",
         "schemaVersion": "question-syllabus-mapping-v1",
         "primaryTopicId": "physics-9702-topic-03",
@@ -659,7 +659,7 @@
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
         "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
-        "knowledgeGroupId": "physics-9702-topic-07",
+        "knowledgeGroupId": "physics-9702-topic-08",
         "mappingStatus": "machine-indexed",
         "schemaVersion": "question-syllabus-mapping-v1",
         "primaryTopicId": "physics-9702-topic-08",
@@ -826,7 +826,7 @@
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
         "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
-        "knowledgeGroupId": "physics-9702-topic-03",
+        "knowledgeGroupId": "physics-9702-topic-07",
         "mappingStatus": "machine-indexed",
         "schemaVersion": "question-syllabus-mapping-v1",
         "primaryTopicId": "physics-9702-topic-07",
@@ -1163,7 +1163,7 @@
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
         "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
-        "knowledgeGroupId": "physics-9702-topic-23",
+        "knowledgeGroupId": "physics-9702-topic-11",
         "mappingStatus": "machine-indexed",
         "schemaVersion": "question-syllabus-mapping-v1",
         "primaryTopicId": "physics-9702-topic-11",

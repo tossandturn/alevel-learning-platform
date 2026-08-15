@@ -7,7 +7,7 @@
   "sourceFragments": [
     {
       "file": "cambridge-9702-p1-2025-review-ledger.js",
-      "sha256": "51631240764a99884d78d97e127dd9e7226e7a4bf9a73c08844b90aaa5cfb84b"
+      "sha256": "9853cdf92377e8bb3b1aa32804c3de8c5b596fce8ae2d042bcdb751be58d7a17"
     }
   ],
   "sourceMaterials": {
@@ -112,7 +112,7 @@
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
         "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
-        "knowledgeGroupId": "physics-9702-topic-03",
+        "knowledgeGroupId": "physics-9702-topic-01",
         "mappingStatus": "machine-indexed",
         "schemaVersion": "question-syllabus-mapping-v1",
         "primaryTopicId": "physics-9702-topic-01",
@@ -154,11 +154,51 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 3,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-03.jpg",
-              "assetSha256": "b5b4376f872692c2a6752e6b125196306c4aac595f9035ab8f742e111e935561"
+              "assetSha256": "b5b4376f872692c2a6752e6b125196306c4aac595f9035ab8f742e111e935561",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                80,
+                950,
+                270
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-01",
+        "syllabusPointIds": [
+          "physics-9702-point-1-4-01"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "conceptual understanding"
+        ],
+        "topicTags": [
+          "physics-9702-topic-01",
+          "physics-9702-mechanics",
+          "forces and momentum"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -260,11 +300,54 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 3,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-03.jpg",
-              "assetSha256": "b5b4376f872692c2a6752e6b125196306c4aac595f9035ab8f742e111e935561"
+              "assetSha256": "b5b4376f872692c2a6752e6b125196306c4aac595f9035ab8f742e111e935561",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                280,
+                950,
+                660
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-01",
+        "syllabusPointIds": [
+          "physics-9702-point-1-3-02"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [
+          "table: rows a–d, columns experiment 1–3, values: a: 7.2, 9.4, 8.3; b: 9.5, 9.8, 10.2; c: 9.8, 9.8, 9.9; d: 10.1, 10.2, 10.1"
+        ],
+        "skillTags": [
+          "interpretation of experimental data"
+        ],
+        "topicTags": [
+          "physics-9702-topic-01",
+          "physics-9702-practical-data",
+          "measurement and uncertainty",
+          "data processing"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -365,11 +448,51 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 3,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-03.jpg",
-              "assetSha256": "b5b4376f872692c2a6752e6b125196306c4aac595f9035ab8f742e111e935561"
+              "assetSha256": "b5b4376f872692c2a6752e6b125196306c4aac595f9035ab8f742e111e935561",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                670,
+                950,
+                870
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-01",
+        "syllabusPointIds": [
+          "physics-9702-point-1-3-03"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "propagation of uncertainty"
+        ],
+        "topicTags": [
+          "physics-9702-topic-01",
+          "physics-9702-practical-data",
+          "measurement and uncertainty"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -429,7 +552,7 @@
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
         "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
-        "knowledgeGroupId": "physics-9702-topic-03",
+        "knowledgeGroupId": "physics-9702-topic-01",
         "mappingStatus": "machine-indexed",
         "schemaVersion": "question-syllabus-mapping-v1",
         "primaryTopicId": "physics-9702-topic-01",
@@ -471,11 +594,52 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 4,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-04.jpg",
-              "assetSha256": "c547635a244f664ff3235aa2ddb9146252254f1700b1ed02ccbcad64cc714cbd"
+              "assetSha256": "c547635a244f664ff3235aa2ddb9146252254f1700b1ed02ccbcad64cc714cbd",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                80,
+                950,
+                820
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-01",
+        "syllabusPointIds": [
+          "physics-9702-point-1-4-02"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "vector addition/subtraction",
+          "graphical vector representation"
+        ],
+        "topicTags": [
+          "physics-9702-topic-01",
+          "physics-9702-mechanics",
+          "forces and momentum"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -577,11 +741,52 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 4,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-04.jpg",
-              "assetSha256": "c547635a244f664ff3235aa2ddb9146252254f1700b1ed02ccbcad64cc714cbd"
+              "assetSha256": "c547635a244f664ff3235aa2ddb9146252254f1700b1ed02ccbcad64cc714cbd",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                830,
+                950,
+                1040
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-02",
+        "syllabusPointIds": [
+          "physics-9702-point-2-1-07"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "uniform acceleration",
+          "displacement calculation"
+        ],
+        "topicTags": [
+          "physics-9702-topic-02",
+          "physics-9702-mechanics",
+          "kinematics"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -683,11 +888,52 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 4,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-04.jpg",
-              "assetSha256": "c547635a244f664ff3235aa2ddb9146252254f1700b1ed02ccbcad64cc714cbd"
+              "assetSha256": "c547635a244f664ff3235aa2ddb9146252254f1700b1ed02ccbcad64cc714cbd",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                1050,
+                950,
+                1220
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-07",
+        "syllabusPointIds": [
+          "physics-9702-point-7-4-01"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "speed of light",
+          "distance-time calculation"
+        ],
+        "topicTags": [
+          "physics-9702-topic-07",
+          "physics-9702-waves",
+          "wave properties"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -790,11 +1036,53 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 5,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-05.jpg",
-              "assetSha256": "7d389e6776b4cb89d0612dfcd53a5e1dac4e410a638b4d3455a030a60f5cad13"
+              "assetSha256": "7d389e6776b4cb89d0612dfcd53a5e1dac4e410a638b4d3455a030a60f5cad13",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                80,
+                950,
+                330
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-02",
+        "syllabusPointIds": [
+          "physics-9702-point-2-1-06"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "graph interpretation",
+          "derivation"
+        ],
+        "topicTags": [
+          "physics-9702-topic-02",
+          "physics-9702-mechanics",
+          "kinematics",
+          "dynamics"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -897,11 +1185,53 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 5,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-05.jpg",
-              "assetSha256": "7d389e6776b4cb89d0612dfcd53a5e1dac4e410a638b4d3455a030a60f5cad13"
+              "assetSha256": "7d389e6776b4cb89d0612dfcd53a5e1dac4e410a638b4d3455a030a60f5cad13",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                340,
+                950,
+                900
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-02",
+        "syllabusPointIds": [
+          "physics-9702-point-2-1-09"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "graph interpretation",
+          "component analysis"
+        ],
+        "topicTags": [
+          "physics-9702-topic-02",
+          "physics-9702-mechanics",
+          "kinematics",
+          "projectile motion"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -1004,11 +1334,53 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 5,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-05.jpg",
-              "assetSha256": "7d389e6776b4cb89d0612dfcd53a5e1dac4e410a638b4d3455a030a60f5cad13"
+              "assetSha256": "7d389e6776b4cb89d0612dfcd53a5e1dac4e410a638b4d3455a030a60f5cad13",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                910,
+                950,
+                1120
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-03",
+        "syllabusPointIds": [
+          "physics-9702-point-3-3-03"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "conceptual recall",
+          "conservation laws"
+        ],
+        "topicTags": [
+          "physics-9702-topic-03",
+          "physics-9702-mechanics",
+          "forces and momentum",
+          "collisions"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -1110,11 +1482,54 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 6,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-06.jpg",
-              "assetSha256": "84666c78044958db3496d9d23748565cd52e8be9826eec852f98aa2229aa9f20"
+              "assetSha256": "84666c78044958db3496d9d23748565cd52e8be9826eec852f98aa2229aa9f20",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                80,
+                950,
+                650
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-03",
+        "syllabusPointIds": [
+          "physics-9702-point-3-1-05"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [
+          "diagram: thrust (up), air resistance (down), force on gases (down), weight (down); label 'not to scale'"
+        ],
+        "skillTags": [
+          "conceptual understanding",
+          "Newton's laws"
+        ],
+        "topicTags": [
+          "physics-9702-topic-03",
+          "physics-9702-mechanics",
+          "forces and momentum"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -1217,11 +1632,55 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 6,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-06.jpg",
-              "assetSha256": "84666c78044958db3496d9d23748565cd52e8be9826eec852f98aa2229aa9f20"
+              "assetSha256": "84666c78044958db3496d9d23748565cd52e8be9826eec852f98aa2229aa9f20",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                660,
+                950,
+                1110
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-03",
+        "syllabusPointIds": [
+          "physics-9702-point-3-1-04"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [
+          "diagram: block k with arrow right labeled '0.72 kg m s⁻¹', block l with arrow left labeled '0.46 kg m s⁻¹'"
+        ],
+        "skillTags": [
+          "impulse",
+          "momentum change",
+          "calculation"
+        ],
+        "topicTags": [
+          "physics-9702-topic-03",
+          "physics-9702-mechanics",
+          "forces and momentum"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -1323,11 +1782,52 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 7,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-07.jpg",
-              "assetSha256": "e95da5cb23cdaf91c3362873412ab5df0335be976045254dbf89705372cfd858"
+              "assetSha256": "e95da5cb23cdaf91c3362873412ab5df0335be976045254dbf89705372cfd858",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                80,
+                950,
+                590
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-05",
+        "syllabusPointIds": [
+          "physics-9702-point-5-1-07"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "calculation",
+          "application"
+        ],
+        "topicTags": [
+          "physics-9702-topic-05",
+          "physics-9702-mechanics",
+          "work energy and power"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -1387,7 +1887,7 @@
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
         "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
-        "knowledgeGroupId": "physics-9702-topic-03",
+        "knowledgeGroupId": "physics-9702-topic-04",
         "mappingStatus": "machine-indexed",
         "schemaVersion": "question-syllabus-mapping-v1",
         "primaryTopicId": "physics-9702-topic-04",
@@ -1429,11 +1929,52 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 7,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-07.jpg",
-              "assetSha256": "e95da5cb23cdaf91c3362873412ab5df0335be976045254dbf89705372cfd858"
+              "assetSha256": "e95da5cb23cdaf91c3362873412ab5df0335be976045254dbf89705372cfd858",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                600,
+                950,
+                900
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-04",
+        "syllabusPointIds": [
+          "physics-9702-point-4-1-03"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "conceptual understanding"
+        ],
+        "topicTags": [
+          "physics-9702-topic-04",
+          "physics-9702-mechanics",
+          "dynamics",
+          "forces and momentum"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -1493,7 +2034,7 @@
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
         "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
-        "knowledgeGroupId": "physics-9702-topic-03",
+        "knowledgeGroupId": "physics-9702-topic-04",
         "mappingStatus": "machine-indexed",
         "schemaVersion": "question-syllabus-mapping-v1",
         "primaryTopicId": "physics-9702-topic-04",
@@ -1535,11 +2076,52 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 8,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-08.jpg",
-              "assetSha256": "74871c04a8e23d36d8f1da994422ae43d966ae1e5faa291673a4bc42cf335704"
+              "assetSha256": "74871c04a8e23d36d8f1da994422ae43d966ae1e5faa291673a4bc42cf335704",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                80,
+                950,
+                550
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-04",
+        "syllabusPointIds": [
+          "physics-9702-point-4-3-06"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "application",
+          "calculation"
+        ],
+        "topicTags": [
+          "physics-9702-topic-04",
+          "physics-9702-mechanics",
+          "forces and momentum"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -1600,7 +2182,7 @@
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
         "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
-        "knowledgeGroupId": "physics-9702-topic-03",
+        "knowledgeGroupId": "physics-9702-topic-04",
         "mappingStatus": "machine-indexed",
         "schemaVersion": "question-syllabus-mapping-v1",
         "primaryTopicId": "physics-9702-topic-04",
@@ -1642,11 +2224,53 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 8,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-08.jpg",
-              "assetSha256": "74871c04a8e23d36d8f1da994422ae43d966ae1e5faa291673a4bc42cf335704"
+              "assetSha256": "74871c04a8e23d36d8f1da994422ae43d966ae1e5faa291673a4bc42cf335704",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                560,
+                950,
+                900
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-04",
+        "syllabusPointIds": [
+          "physics-9702-point-4-2-02"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "application",
+          "calculation"
+        ],
+        "topicTags": [
+          "physics-9702-topic-04",
+          "physics-9702-mechanics",
+          "dynamics",
+          "forces and momentum"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -1749,11 +2373,53 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 8,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-08.jpg",
-              "assetSha256": "74871c04a8e23d36d8f1da994422ae43d966ae1e5faa291673a4bc42cf335704"
+              "assetSha256": "74871c04a8e23d36d8f1da994422ae43d966ae1e5faa291673a4bc42cf335704",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                910,
+                950,
+                1210
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-04",
+        "syllabusPointIds": [
+          "physics-9702-point-4-3-04"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "conceptual understanding",
+          "application"
+        ],
+        "topicTags": [
+          "physics-9702-topic-04",
+          "physics-9702-mechanics",
+          "fluids",
+          "pressure"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -1855,11 +2521,52 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 9,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-09.jpg",
-              "assetSha256": "3a4ac26578aa8bc5bb452526080c05d804b7b1fc114a91751fb6cf99e4e7edd6"
+              "assetSha256": "3a4ac26578aa8bc5bb452526080c05d804b7b1fc114a91751fb6cf99e4e7edd6",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                80,
+                950,
+                300
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-05",
+        "syllabusPointIds": [
+          "physics-9702-point-5-2-02"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "conceptual understanding",
+          "selection"
+        ],
+        "topicTags": [
+          "physics-9702-topic-05",
+          "physics-9702-mechanics",
+          "work energy and power"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -1962,11 +2669,55 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 9,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-09.jpg",
-              "assetSha256": "3a4ac26578aa8bc5bb452526080c05d804b7b1fc114a91751fb6cf99e4e7edd6"
+              "assetSha256": "3a4ac26578aa8bc5bb452526080c05d804b7b1fc114a91751fb6cf99e4e7edd6",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                310,
+                950,
+                930
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-05",
+        "syllabusPointIds": [
+          "physics-9702-point-5-1-01"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [
+          "diagram: right triangle with vertical side xy = 3.0 m, right angle at y, hypotenuse xz, arrows indicating path x→y→z"
+        ],
+        "skillTags": [
+          "problem solving",
+          "application of concepts",
+          "geometry interpretation"
+        ],
+        "topicTags": [
+          "physics-9702-topic-05",
+          "physics-9702-mechanics",
+          "work energy and power"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -2068,11 +2819,52 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 9,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-09.jpg",
-              "assetSha256": "3a4ac26578aa8bc5bb452526080c05d804b7b1fc114a91751fb6cf99e4e7edd6"
+              "assetSha256": "3a4ac26578aa8bc5bb452526080c05d804b7b1fc114a91751fb6cf99e4e7edd6",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                990,
+                950,
+                1210
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-05",
+        "syllabusPointIds": [
+          "physics-9702-point-5-2-04"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "algebraic manipulation",
+          "conceptual understanding"
+        ],
+        "topicTags": [
+          "physics-9702-topic-05",
+          "physics-9702-mechanics",
+          "work energy and power"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -2174,11 +2966,52 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 10,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-10.jpg",
-              "assetSha256": "0dfafb57a3434f45a3a2d31615db65e9a6739358a80854bab2877ac33b43fcc9"
+              "assetSha256": "0dfafb57a3434f45a3a2d31615db65e9a6739358a80854bab2877ac33b43fcc9",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                80,
+                950,
+                300
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-05",
+        "syllabusPointIds": [
+          "physics-9702-point-5-1-02"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "energy conversion",
+          "conceptual reasoning"
+        ],
+        "topicTags": [
+          "physics-9702-topic-05",
+          "physics-9702-mechanics",
+          "work energy and power"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -2239,7 +3072,7 @@
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
         "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
-        "knowledgeGroupId": "physics-9702-topic-03",
+        "knowledgeGroupId": "physics-9702-topic-06",
         "mappingStatus": "machine-indexed",
         "schemaVersion": "question-syllabus-mapping-v1",
         "primaryTopicId": "physics-9702-topic-06",
@@ -2281,11 +3114,55 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 10,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-10.jpg",
-              "assetSha256": "0dfafb57a3434f45a3a2d31615db65e9a6739358a80854bab2877ac33b43fcc9"
+              "assetSha256": "0dfafb57a3434f45a3a2d31615db65e9a6739358a80854bab2877ac33b43fcc9",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                310,
+                950,
+                790
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-06",
+        "syllabusPointIds": [
+          "physics-9702-point-6-1-04"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [
+          "graph: x-axis 'force / n' from 0 to 2.4, y-axis 'length / m' from 0 to 0.60; line from (0, 0.20) to (2.4, 0.60)"
+        ],
+        "skillTags": [
+          "Hooke's law",
+          "graph interpretation",
+          "calculation"
+        ],
+        "topicTags": [
+          "physics-9702-topic-06",
+          "physics-9702-mechanics",
+          "forces and momentum"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -2347,7 +3224,7 @@
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
         "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
-        "knowledgeGroupId": "physics-9702-topic-03",
+        "knowledgeGroupId": "physics-9702-topic-06",
         "mappingStatus": "machine-indexed",
         "schemaVersion": "question-syllabus-mapping-v1",
         "primaryTopicId": "physics-9702-topic-06",
@@ -2389,11 +3266,56 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 10,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-10.jpg",
-              "assetSha256": "0dfafb57a3434f45a3a2d31615db65e9a6739358a80854bab2877ac33b43fcc9"
+              "assetSha256": "0dfafb57a3434f45a3a2d31615db65e9a6739358a80854bab2877ac33b43fcc9",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                800,
+                950,
+                1080
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-06",
+        "syllabusPointIds": [
+          "physics-9702-point-6-2-02"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [
+          "graph: x-axis 'force', y-axis 'extension'; curve from o to q (force increasing), then back from q to r (force decreasing); points p on increasing branch, r on decreasing branch near origin; labels: 'increasing force', 'force decreasing', 'r', 'p', 'q'"
+        ],
+        "skillTags": [
+          "elasticity",
+          "Hooke's law",
+          "graph interpretation",
+          "work-energy"
+        ],
+        "topicTags": [
+          "physics-9702-topic-06",
+          "physics-9702-mechanics",
+          "forces and momentum"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -2496,11 +3418,53 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 11,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-11.jpg",
-              "assetSha256": "9a5997bf244a56f33a30c7c10e5eaa429ab55ccae8c8d74c89af9410c19a8f8f"
+              "assetSha256": "9a5997bf244a56f33a30c7c10e5eaa429ab55ccae8c8d74c89af9410c19a8f8f",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                80,
+                950,
+                300
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-06",
+        "syllabusPointIds": [
+          "physics-9702-point-6-1-05"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "formula derivation",
+          "dimensional analysis"
+        ],
+        "topicTags": [
+          "physics-9702-topic-06",
+          "physics-9702-mechanics",
+          "mechanics",
+          "elasticity"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -2603,11 +3567,53 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 11,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-11.jpg",
-              "assetSha256": "9a5997bf244a56f33a30c7c10e5eaa429ab55ccae8c8d74c89af9410c19a8f8f"
+              "assetSha256": "9a5997bf244a56f33a30c7c10e5eaa429ab55ccae8c8d74c89af9410c19a8f8f",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                310,
+                950,
+                750
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-07",
+        "syllabusPointIds": [
+          "physics-9702-point-7-3-02"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "application of formula",
+          "sign convention"
+        ],
+        "topicTags": [
+          "physics-9702-topic-07",
+          "physics-9702-waves",
+          "waves",
+          "Doppler effect"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -2710,11 +3716,53 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 11,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-11.jpg",
-              "assetSha256": "9a5997bf244a56f33a30c7c10e5eaa429ab55ccae8c8d74c89af9410c19a8f8f"
+              "assetSha256": "9a5997bf244a56f33a30c7c10e5eaa429ab55ccae8c8d74c89af9410c19a8f8f",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                760,
+                950,
+                1030
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-07",
+        "syllabusPointIds": [
+          "physics-9702-point-7-2-01"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "conceptual understanding",
+          "comparison"
+        ],
+        "topicTags": [
+          "physics-9702-topic-07",
+          "physics-9702-waves",
+          "waves",
+          "wave properties"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -2818,11 +3866,54 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 11,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-11.jpg",
-              "assetSha256": "9a5997bf244a56f33a30c7c10e5eaa429ab55ccae8c8d74c89af9410c19a8f8f"
+              "assetSha256": "9a5997bf244a56f33a30c7c10e5eaa429ab55ccae8c8d74c89af9410c19a8f8f",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                1040,
+                950,
+                1250
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-07",
+        "syllabusPointIds": [
+          "physics-9702-point-7-1-02"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "graph interpretation",
+          "phase difference"
+        ],
+        "topicTags": [
+          "physics-9702-topic-07",
+          "physics-9702-waves",
+          "waves",
+          "phase",
+          "stationary waves"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -2924,11 +4015,52 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 12,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-12.jpg",
-              "assetSha256": "50ea6c4fd2a3af12fdad1b8b3defe367701b4a0958c8d15a2b223a8a065d37aa"
+              "assetSha256": "50ea6c4fd2a3af12fdad1b8b3defe367701b4a0958c8d15a2b223a8a065d37aa",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                80,
+                950,
+                210
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-07",
+        "syllabusPointIds": [
+          "physics-9702-point-7-4-03"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "recall",
+          "estimation"
+        ],
+        "topicTags": [
+          "physics-9702-topic-07",
+          "physics-9702-waves",
+          "wave properties"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -3029,11 +4161,51 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 12,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-12.jpg",
-              "assetSha256": "50ea6c4fd2a3af12fdad1b8b3defe367701b4a0958c8d15a2b223a8a065d37aa"
+              "assetSha256": "50ea6c4fd2a3af12fdad1b8b3defe367701b4a0958c8d15a2b223a8a065d37aa",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                220,
+                950,
+                390
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-07",
+        "syllabusPointIds": [
+          "physics-9702-point-7-5-01"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "conceptual understanding"
+        ],
+        "topicTags": [
+          "physics-9702-topic-07",
+          "physics-9702-waves",
+          "wave properties"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -3135,11 +4307,52 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 12,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-12.jpg",
-              "assetSha256": "50ea6c4fd2a3af12fdad1b8b3defe367701b4a0958c8d15a2b223a8a065d37aa"
+              "assetSha256": "50ea6c4fd2a3af12fdad1b8b3defe367701b4a0958c8d15a2b223a8a065d37aa",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                400,
+                950,
+                640
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-08",
+        "syllabusPointIds": [
+          "physics-9702-point-8-1-01"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "application",
+          "calculation"
+        ],
+        "topicTags": [
+          "physics-9702-topic-08",
+          "physics-9702-waves",
+          "superposition"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -3241,11 +4454,52 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 12,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-12.jpg",
-              "assetSha256": "50ea6c4fd2a3af12fdad1b8b3defe367701b4a0958c8d15a2b223a8a065d37aa"
+              "assetSha256": "50ea6c4fd2a3af12fdad1b8b3defe367701b4a0958c8d15a2b223a8a065d37aa",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                650,
+                950,
+                800
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-08",
+        "syllabusPointIds": [
+          "physics-9702-point-8-4-01"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "application",
+          "calculation"
+        ],
+        "topicTags": [
+          "physics-9702-topic-08",
+          "physics-9702-waves",
+          "interference and diffraction"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -3347,11 +4601,52 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 12,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-12.jpg",
-              "assetSha256": "50ea6c4fd2a3af12fdad1b8b3defe367701b4a0958c8d15a2b223a8a065d37aa"
+              "assetSha256": "50ea6c4fd2a3af12fdad1b8b3defe367701b4a0958c8d15a2b223a8a065d37aa",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                810,
+                950,
+                1035
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-08",
+        "syllabusPointIds": [
+          "physics-9702-point-8-1-02"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "application",
+          "calculation"
+        ],
+        "topicTags": [
+          "physics-9702-topic-08",
+          "physics-9702-waves",
+          "stationary waves"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -3454,11 +4749,53 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 12,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-12.jpg",
-              "assetSha256": "50ea6c4fd2a3af12fdad1b8b3defe367701b4a0958c8d15a2b223a8a065d37aa"
+              "assetSha256": "50ea6c4fd2a3af12fdad1b8b3defe367701b4a0958c8d15a2b223a8a065d37aa",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                1040,
+                950,
+                1220
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-09",
+        "syllabusPointIds": [
+          "physics-9702-point-9-3-01"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "recall",
+          "definition"
+        ],
+        "topicTags": [
+          "physics-9702-topic-09",
+          "physics-9702-electricity",
+          "current and charge",
+          "potential difference and resistance"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -3561,11 +4898,53 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 13,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-13.jpg",
-              "assetSha256": "ae10875fe08a22b5060e392965ea3d0c873a505e0bcc1fb46a91ecfcd5a2902b"
+              "assetSha256": "ae10875fe08a22b5060e392965ea3d0c873a505e0bcc1fb46a91ecfcd5a2902b",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                80,
+                950,
+                450
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-09",
+        "syllabusPointIds": [
+          "physics-9702-point-9-3-03"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "interpret graphs",
+          "identify components from characteristics"
+        ],
+        "topicTags": [
+          "physics-9702-topic-09",
+          "physics-9702-electricity",
+          "current and charge",
+          "potential difference and resistance"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -3627,7 +5006,7 @@
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
         "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
-        "knowledgeGroupId": "physics-9702-topic-05",
+        "knowledgeGroupId": "physics-9702-topic-10",
         "mappingStatus": "machine-indexed",
         "schemaVersion": "question-syllabus-mapping-v1",
         "primaryTopicId": "physics-9702-topic-10",
@@ -3669,11 +5048,54 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 13,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-13.jpg",
-              "assetSha256": "ae10875fe08a22b5060e392965ea3d0c873a505e0bcc1fb46a91ecfcd5a2902b"
+              "assetSha256": "ae10875fe08a22b5060e392965ea3d0c873a505e0bcc1fb46a91ecfcd5a2902b",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                460,
+                950,
+                1100
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-10",
+        "syllabusPointIds": [
+          "physics-9702-point-10-2-04"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "circuit analysis",
+          "power dissipation",
+          "symmetry reasoning"
+        ],
+        "topicTags": [
+          "physics-9702-topic-10",
+          "physics-9702-electricity",
+          "DC circuits",
+          "energy and power"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -3734,7 +5156,7 @@
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
         "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
-        "knowledgeGroupId": "physics-9702-topic-09",
+        "knowledgeGroupId": "physics-9702-topic-10",
         "mappingStatus": "machine-indexed",
         "schemaVersion": "question-syllabus-mapping-v1",
         "primaryTopicId": "physics-9702-topic-10",
@@ -3776,11 +5198,53 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 14,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-14.jpg",
-              "assetSha256": "9107c22547156458b255546e2defa34e66fbb46f8c39762a63072d5eca570e96"
+              "assetSha256": "9107c22547156458b255546e2defa34e66fbb46f8c39762a63072d5eca570e96",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                80,
+                950,
+                610
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-10",
+        "syllabusPointIds": [
+          "physics-9702-point-10-3-04"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "interpretation of I-V graphs",
+          "circuit analysis"
+        ],
+        "topicTags": [
+          "physics-9702-topic-10",
+          "physics-9702-electricity",
+          "DC circuits",
+          "current and charge"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -3841,7 +5305,7 @@
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
         "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
-        "knowledgeGroupId": "physics-9702-topic-09",
+        "knowledgeGroupId": "physics-9702-topic-10",
         "mappingStatus": "machine-indexed",
         "schemaVersion": "question-syllabus-mapping-v1",
         "primaryTopicId": "physics-9702-topic-10",
@@ -3883,11 +5347,53 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 14,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-14.jpg",
-              "assetSha256": "9107c22547156458b255546e2defa34e66fbb46f8c39762a63072d5eca570e96"
+              "assetSha256": "9107c22547156458b255546e2defa34e66fbb46f8c39762a63072d5eca570e96",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                620,
+                950,
+                980
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-10",
+        "syllabusPointIds": [
+          "physics-9702-point-10-2-06"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "formula recall",
+          "parallel resistors"
+        ],
+        "topicTags": [
+          "physics-9702-topic-10",
+          "physics-9702-electricity",
+          "DC circuits",
+          "resistance"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -3948,7 +5454,7 @@
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
         "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
-        "knowledgeGroupId": "physics-9702-topic-05",
+        "knowledgeGroupId": "physics-9702-topic-10",
         "mappingStatus": "machine-indexed",
         "schemaVersion": "question-syllabus-mapping-v1",
         "primaryTopicId": "physics-9702-topic-10",
@@ -3990,11 +5496,55 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 15,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-15.jpg",
-              "assetSha256": "8d0ddc33d48a2093ec228d867b743ea0fa097e53bc3c38c22ff2fc74420a22ac"
+              "assetSha256": "8d0ddc33d48a2093ec228d867b743ea0fa097e53bc3c38c22ff2fc74420a22ac",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                80,
+                950,
+                880
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-10",
+        "syllabusPointIds": [
+          "physics-9702-point-10-1-05"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [
+          "graph: p.d./v vs current/ma, linear decreasing line from (0, 1.6) to approx (70, 0.2)"
+        ],
+        "skillTags": [
+          "graph interpretation",
+          "application of E = V + Ir"
+        ],
+        "topicTags": [
+          "physics-9702-topic-10",
+          "physics-9702-electricity",
+          "DC circuits",
+          "energy and power"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -4096,11 +5646,52 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 15,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-15.jpg",
-              "assetSha256": "8d0ddc33d48a2093ec228d867b743ea0fa097e53bc3c38c22ff2fc74420a22ac"
+              "assetSha256": "8d0ddc33d48a2093ec228d867b743ea0fa097e53bc3c38c22ff2fc74420a22ac",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                890,
+                950,
+                1100
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-11",
+        "syllabusPointIds": [
+          "physics-9702-point-11-2-01"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "classification of particles"
+        ],
+        "topicTags": [
+          "physics-9702-topic-11",
+          "physics-9702-particles",
+          "particle interactions",
+          "quarks and leptons"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -4202,11 +5793,52 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 16,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-16.jpg",
-              "assetSha256": "29ee23ba8b95719ecb01c65d9682a1e43dfe5facfe62361cc796053b8020a11c"
+              "assetSha256": "29ee23ba8b95719ecb01c65d9682a1e43dfe5facfe62361cc796053b8020a11c",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                80,
+                950,
+                400
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-11",
+        "syllabusPointIds": [
+          "physics-9702-point-11-1-10"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "conceptual understanding"
+        ],
+        "topicTags": [
+          "physics-9702-topic-11",
+          "physics-9702-particles",
+          "radioactive decay",
+          "particle interactions"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     },
     {
       "qualificationId": "cambridge-9702",
@@ -4308,11 +5940,52 @@
               "documentSha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
               "page": 16,
               "assetUrl": "/question-assets/cie-9702-9702_s25_qp_11/qp-16.jpg",
-              "assetSha256": "29ee23ba8b95719ecb01c65d9682a1e43dfe5facfe62361cc796053b8020a11c"
+              "assetSha256": "29ee23ba8b95719ecb01c65d9682a1e43dfe5facfe62361cc796053b8020a11c",
+              "coordinateSpace": "pixel-xyxy",
+              "imageSize": [
+                1020,
+                1320
+              ],
+              "region": [
+                80,
+                410,
+                950,
+                700
+              ],
+              "safetyMargin": [
+                20,
+                20,
+                20,
+                20
+              ],
+              "safetyStatus": "reviewed-display-bounds-v1"
             }
-          ]
+          ],
+          "sourceRegion": null
         }
-      ]
+      ],
+      "contentAnalysis": {
+        "schemaVersion": "physics-content-analysis-v1",
+        "status": "reviewed",
+        "method": "qp-image-and-paired-ms-review",
+        "syllabusTopicId": "physics-9702-topic-11",
+        "syllabusPointIds": [
+          "physics-9702-point-11-2-02"
+        ],
+        "questionFormat": "multiple-choice",
+        "visualElements": [],
+        "skillTags": [
+          "application of charge quantisation"
+        ],
+        "topicTags": [
+          "physics-9702-topic-11",
+          "physics-9702-particles",
+          "quarks and leptons",
+          "hadrons"
+        ],
+        "reviewedBy": "Codex source-semantic-review / 9702-P1-2025",
+        "reviewedAt": "2026-08-14T15:30:00+08:00"
+      }
     }
   ],
   "answers": [
@@ -5929,6 +7602,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -5945,11 +7620,22 @@
             "marks": 1,
             "questionPage": 3,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              80,
+              950,
+              270
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -5976,6 +7662,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -5992,11 +7680,22 @@
             "marks": 1,
             "questionPage": 3,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              280,
+              950,
+              660
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -6023,6 +7722,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -6039,11 +7740,22 @@
             "marks": 1,
             "questionPage": 3,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              670,
+              950,
+              870
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -6070,6 +7782,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -6086,11 +7800,22 @@
             "marks": 1,
             "questionPage": 4,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              80,
+              950,
+              820
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -6117,6 +7842,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -6133,11 +7860,22 @@
             "marks": 1,
             "questionPage": 4,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              830,
+              950,
+              1040
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -6164,6 +7902,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -6180,11 +7920,22 @@
             "marks": 1,
             "questionPage": 4,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              1050,
+              950,
+              1220
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -6211,6 +7962,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -6227,11 +7980,22 @@
             "marks": 1,
             "questionPage": 5,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              80,
+              950,
+              330
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -6258,6 +8022,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -6274,11 +8040,22 @@
             "marks": 1,
             "questionPage": 5,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              340,
+              950,
+              900
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -6305,6 +8082,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -6321,11 +8100,22 @@
             "marks": 1,
             "questionPage": 5,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              910,
+              950,
+              1120
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -6352,6 +8142,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -6368,11 +8160,22 @@
             "marks": 1,
             "questionPage": 6,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              80,
+              950,
+              650
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -6399,6 +8202,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -6415,11 +8220,22 @@
             "marks": 1,
             "questionPage": 6,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              660,
+              950,
+              1110
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -6446,6 +8262,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -6462,11 +8280,22 @@
             "marks": 1,
             "questionPage": 7,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              80,
+              950,
+              590
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -6493,6 +8322,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -6509,11 +8340,22 @@
             "marks": 1,
             "questionPage": 7,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              600,
+              950,
+              900
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -6540,6 +8382,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -6556,11 +8400,22 @@
             "marks": 1,
             "questionPage": 8,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              80,
+              950,
+              550
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -6587,6 +8442,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -6603,11 +8460,22 @@
             "marks": 1,
             "questionPage": 8,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              560,
+              950,
+              900
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -6634,6 +8502,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -6650,11 +8520,22 @@
             "marks": 1,
             "questionPage": 8,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              910,
+              950,
+              1210
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -6681,6 +8562,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -6697,11 +8580,22 @@
             "marks": 1,
             "questionPage": 9,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              80,
+              950,
+              300
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -6728,6 +8622,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -6744,11 +8640,22 @@
             "marks": 1,
             "questionPage": 9,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              310,
+              950,
+              930
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -6775,6 +8682,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -6791,11 +8700,22 @@
             "marks": 1,
             "questionPage": 9,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              990,
+              950,
+              1210
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -6822,6 +8742,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -6838,11 +8760,22 @@
             "marks": 1,
             "questionPage": 10,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              80,
+              950,
+              300
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -6869,6 +8802,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -6885,11 +8820,22 @@
             "marks": 1,
             "questionPage": 10,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              310,
+              950,
+              790
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -6916,6 +8862,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -6932,11 +8880,22 @@
             "marks": 1,
             "questionPage": 10,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              800,
+              950,
+              1080
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -6963,6 +8922,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -6979,11 +8940,22 @@
             "marks": 1,
             "questionPage": 11,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              80,
+              950,
+              300
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -7010,6 +8982,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -7026,11 +9000,22 @@
             "marks": 1,
             "questionPage": 11,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              310,
+              950,
+              750
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -7057,6 +9042,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -7073,11 +9060,22 @@
             "marks": 1,
             "questionPage": 11,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              760,
+              950,
+              1030
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -7104,6 +9102,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -7120,11 +9120,22 @@
             "marks": 1,
             "questionPage": 11,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              1040,
+              950,
+              1250
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -7151,6 +9162,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -7167,11 +9180,22 @@
             "marks": 1,
             "questionPage": 12,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              80,
+              950,
+              210
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -7198,6 +9222,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -7214,11 +9240,22 @@
             "marks": 1,
             "questionPage": 12,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              220,
+              950,
+              390
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 2,
             "markSchemeRegion": [
               0,
@@ -7245,6 +9282,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -7261,11 +9300,22 @@
             "marks": 1,
             "questionPage": 12,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              400,
+              950,
+              640
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 3,
             "markSchemeRegion": [
               0,
@@ -7292,6 +9342,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -7308,11 +9360,22 @@
             "marks": 1,
             "questionPage": 12,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              650,
+              950,
+              800
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 3,
             "markSchemeRegion": [
               0,
@@ -7339,6 +9402,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -7355,11 +9420,22 @@
             "marks": 1,
             "questionPage": 12,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              810,
+              950,
+              1035
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 3,
             "markSchemeRegion": [
               0,
@@ -7386,6 +9462,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -7402,11 +9480,22 @@
             "marks": 1,
             "questionPage": 12,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              1040,
+              950,
+              1220
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 3,
             "markSchemeRegion": [
               0,
@@ -7433,6 +9522,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -7449,11 +9540,22 @@
             "marks": 1,
             "questionPage": 13,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              80,
+              950,
+              450
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 3,
             "markSchemeRegion": [
               0,
@@ -7480,6 +9582,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -7496,11 +9600,22 @@
             "marks": 1,
             "questionPage": 13,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              460,
+              950,
+              1100
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 3,
             "markSchemeRegion": [
               0,
@@ -7527,6 +9642,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -7543,11 +9660,22 @@
             "marks": 1,
             "questionPage": 14,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              80,
+              950,
+              610
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 3,
             "markSchemeRegion": [
               0,
@@ -7574,6 +9702,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -7590,11 +9720,22 @@
             "marks": 1,
             "questionPage": 14,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              620,
+              950,
+              980
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 3,
             "markSchemeRegion": [
               0,
@@ -7621,6 +9762,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -7637,11 +9780,22 @@
             "marks": 1,
             "questionPage": 15,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              80,
+              950,
+              880
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 3,
             "markSchemeRegion": [
               0,
@@ -7668,6 +9822,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -7684,11 +9840,22 @@
             "marks": 1,
             "questionPage": 15,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              890,
+              950,
+              1100
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 3,
             "markSchemeRegion": [
               0,
@@ -7715,6 +9882,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -7731,11 +9900,22 @@
             "marks": 1,
             "questionPage": 16,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              80,
+              950,
+              400
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 3,
             "markSchemeRegion": [
               0,
@@ -7762,6 +9942,8 @@
       "reviewEvidence": {
         "method": "paired-qp-ms-page-review",
         "sourcePolicy": "personal-study-restricted",
+        "coordinateSpace": "pixel-xyxy",
+        "displaySafetyStatus": "reviewed-display-bounds-v1",
         "questionPaper": {
           "file": "9702_s25_qp_11.pdf",
           "sha256": "857bd87f9e9282c8da371a14ddcd64f05cf26b00f5820e819496d3e10bdc1f80",
@@ -7778,11 +9960,22 @@
             "marks": 1,
             "questionPage": 16,
             "questionRegion": [
-              0,
-              0,
-              1,
-              1
+              80,
+              410,
+              950,
+              700
             ],
+            "imageSize": [
+              1020,
+              1320
+            ],
+            "safetyMargin": [
+              20,
+              20,
+              20,
+              20
+            ],
+            "safetyStatus": "reviewed-display-bounds-v1",
             "markSchemePage": 3,
             "markSchemeRegion": [
               0,
