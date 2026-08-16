@@ -224,7 +224,8 @@
           "privateTextPolicy": "hidden-indexing-and-marking-context"
         }
       },
-      "questionId": "cie-9702-9702_s25_qp_22:q4"
+      "questionId": "cie-9702-9702_s25_qp_22:q4",
+      "answerId": "cie-9702-9702_s25_qp_22:q4:answer"
     },
     {
       "examFamilyId": "cambridge",
@@ -371,7 +372,8 @@
           "privateTextPolicy": "hidden-indexing-and-marking-context"
         }
       },
-      "questionId": "cie-9702-9702_s25_qp_22:q5"
+      "questionId": "cie-9702-9702_s25_qp_22:q5",
+      "answerId": "cie-9702-9702_s25_qp_22:q5:answer"
     }
   ],
   "answers": [

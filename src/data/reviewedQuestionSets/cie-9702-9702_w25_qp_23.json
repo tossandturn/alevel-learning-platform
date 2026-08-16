@@ -263,7 +263,8 @@
           "privateTextPolicy": "hidden-indexing-and-marking-context"
         }
       },
-      "questionId": "cie-9702-9702_w25_qp_23:q1"
+      "questionId": "cie-9702-9702_w25_qp_23:q1",
+      "answerId": "cie-9702-9702_w25_qp_23:q1:answer"
     },
     {
       "examFamilyId": "cambridge",
@@ -488,7 +489,8 @@
           "privateTextPolicy": "hidden-indexing-and-marking-context"
         }
       },
-      "questionId": "cie-9702-9702_w25_qp_23:q3"
+      "questionId": "cie-9702-9702_w25_qp_23:q3",
+      "answerId": "cie-9702-9702_w25_qp_23:q3:answer"
     },
     {
       "examFamilyId": "cambridge",
@@ -674,7 +676,8 @@
           "privateTextPolicy": "hidden-indexing-and-marking-context"
         }
       },
-      "questionId": "cie-9702-9702_w25_qp_23:q4"
+      "questionId": "cie-9702-9702_w25_qp_23:q4",
+      "answerId": "cie-9702-9702_w25_qp_23:q4:answer"
     },
     {
       "examFamilyId": "cambridge",
@@ -862,7 +865,8 @@
           "privateTextPolicy": "hidden-indexing-and-marking-context"
         }
       },
-      "questionId": "cie-9702-9702_w25_qp_23:q5"
+      "questionId": "cie-9702-9702_w25_qp_23:q5",
+      "answerId": "cie-9702-9702_w25_qp_23:q5:answer"
     }
   ],
   "answers": [

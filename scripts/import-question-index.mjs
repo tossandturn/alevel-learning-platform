@@ -7,12 +7,21 @@ import { examStructures } from '../src/data/examStructure.js'
 import { normaliseQuestionGroup, questionPartLabel, validateQuestionGroup } from '../src/data/questionParts.js'
 import {
   isHumanReviewedIndexItem,
+  isReplacementImportComplete,
+  hasCompleteQuestionNumberSequence,
   knowledgeGroupForIndexItem,
   minimumQuestionGroupsForImport,
   replaceMachineIndexedPaperItems,
   syllabusMappingForIndexItem,
 } from './question-index-review-protection.mjs'
-import { normaliseQuestionFragmentHierarchy } from './question-index-fragment-normalization.mjs'
+import { applyOfficialQuestionIndexRepairs } from './official-question-index-repairs.mjs'
+import {
+  alignAnswerFragmentsToQuestionParts,
+  collapseFragments,
+  mergeFragments,
+  normalizeMarkValue,
+  resolvePartMarks,
+} from './question-index-fragments.mjs'
 
 const projectRoot = path.resolve(import.meta.dirname, '..')
 const paperCatalogPath = path.join(projectRoot, 'public', 'data', 'papers.json')
@@ -54,7 +63,7 @@ const subjectConfig = Object.freeze({
 })
 
 function parseArgs(argv) {
-  const values = { subject: '9702', papers: 1, minQuestions: 10, model: '', components: [], files: [], dryRun: false, migrateOnly: false, all: false, force: false }
+  const values = { subject: '9702', papers: 1, minQuestions: 10, model: '', components: [], files: [], dryRun: false, migrateOnly: false, all: false, force: false, offset: 0, limit: null }
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]
     if (arg === '--subject') values.subject = argv[++index]
@@ -63,6 +72,8 @@ function parseArgs(argv) {
     else if (arg === '--model') values.model = argv[++index]
     else if (arg === '--components') values.components = String(argv[++index] || '').split(',').map(Number).filter(Number.isFinite)
     else if (arg === '--files') values.files = String(argv[++index] || '').split(',').map((value) => value.trim()).filter(Boolean)
+    else if (arg === '--offset') values.offset = Math.max(0, Number(argv[++index]) || 0)
+    else if (arg === '--limit') values.limit = Math.max(1, Number(argv[++index]) || 1)
     else if (arg === '--dry-run') values.dryRun = true
     else if (arg === '--migrate-only') values.migrateOnly = true
     else if (arg === '--all') values.all = true
@@ -114,7 +125,7 @@ function run(command, args, options = {}) {
 }
 
 function writeIndexAndRefreshSourceManifest(items) {
-  const nextIndex = `${JSON.stringify(decoupleIndex(items), null, 2)}\n`
+  const nextIndex = `${JSON.stringify(decoupleIndex(applyOfficialQuestionIndexRepairs(items)), null, 2)}\n`
   const previousIndex = fs.existsSync(outputPath) ? fs.readFileSync(outputPath) : null
   const previousManifest = fs.existsSync(sourceManifestPath) ? fs.readFileSync(sourceManifestPath) : null
   fs.writeFileSync(outputPath, nextIndex, 'utf8')
@@ -289,7 +300,7 @@ function questionInstruction(subject, topics, page) {
     `This is page ${page} of an official ${subject} question paper. Index only text genuinely visible on this page.`,
     'Return JSON {"fragments":[...]}. Each fragment is one explicit QuestionPart inside a QuestionGroup: questionNumber (main printed number only), partId, label, promptFragment, startsHere, continues, marks, answerArea {type}, options, topicId, topicTags, skillTags, sourcePage.',
     'Never merge (a), (b), (i), (ii) or any separately marked response area into one fragment. The group total is the sum of its visible part marks.',
-    'If this page continues a question from an earlier page, set continues=true and repeat the same main questionNumber. Never convert a subpart such as (i), (ii), or a letter in prose into questionNumber. If the main number is not visibly printed, use null and rely on continues=true; do not guess it from page position.',
+    'If this page continues a question from an earlier page, set continues=true and repeat the same main questionNumber. Never convert a subpart such as (i), (ii), or a letter in prose into questionNumber. The centered header page number is never a questionNumber; use the printed question number at the left of the question. If the main number is not visibly printed, use null and rely on continues=true; do not guess it from page position.',
     'Never complete missing text from memory. Preserve equations in plain Unicode only. Do not emit LaTeX commands or backslashes. Use answerType multiple-choice only when options are visible; otherwise handwritten.',
     `Choose exactly one topicId from: ${JSON.stringify(topics)}. If no exam question is visible, return {"fragments":[]}.`,
   ].join('\n')
@@ -302,17 +313,6 @@ function answerInstruction(subject, page) {
     'Use the printed part label exactly. Do not combine marks from (a), (b), (i) or (ii). The answer total must reconcile with the QuestionGroup total.',
     'correctOption must be A/B/C/D only when explicitly printed. Use plain Unicode only and do not emit LaTeX commands or backslashes. Never invent missing mark points. If no answer entry is visible, return {"answers":[]}.',
   ].join('\n')
-}
-
-function normalizeQuestionNumber(value) {
-  return String(value || '').trim().replace(/^Q/i, '').match(/^\d+/)?.[0] || ''
-}
-
-function normalizeMarkValue(value) {
-  const numeric = Number(value)
-  if (Number.isInteger(numeric)) return numeric
-  const code = String(value || '').match(/(\d+)\s*$/)
-  return code ? Number(code[1]) : 0
 }
 
 const OFFICIAL_9702_TAG_MAP = Object.freeze([
@@ -350,77 +350,6 @@ function officialPhysicsTopicId(item) {
     if (candidates.some((tag) => tags.has(tag))) return topicId
   }
   return item.knowledgeGroupId
-}
-
-function mergeFragments(records, key) {
-  const grouped = new Map()
-  let activeQuestionNumber = null
-  for (const record of records) {
-    for (const fragment of record[key] || []) {
-      const candidate = normalizeQuestionNumber(fragment.questionNumber)
-      let questionNumber = candidate
-      if (!questionNumber && activeQuestionNumber) questionNumber = activeQuestionNumber
-      if (questionNumber && activeQuestionNumber && questionNumber !== activeQuestionNumber) {
-        const expectedNext = String(Number(activeQuestionNumber) + 1)
-        if (fragment.continues === true || questionNumber !== expectedNext) questionNumber = activeQuestionNumber
-      }
-      if (!questionNumber) continue
-      if (questionNumber !== activeQuestionNumber && (!activeQuestionNumber || Number(questionNumber) >= Number(activeQuestionNumber))) {
-        activeQuestionNumber = questionNumber
-      }
-      const current = grouped.get(questionNumber) || { questionNumber, pages: [], fragments: [] }
-      current.pages.push(record.page)
-      current.fragments.push(fragment)
-      grouped.set(questionNumber, current)
-    }
-  }
-  return grouped
-}
-
-function collapseFragments(fragments, { sumMarks = false, questionHierarchy = false } = {}) {
-  const sourceFragments = questionHierarchy ? normaliseQuestionFragmentHierarchy(fragments) : fragments
-  const grouped = new Map()
-  for (const fragment of sourceFragments) {
-    const label = questionPartLabel(fragment, sourceFragments.length === 1 ? 'a' : '')
-    if (!label) return null
-    const current = grouped.get(label)
-    if (!current) {
-      const key = String(fragment.exactText || fragment.promptFragment || fragment.answerText || '').trim().toLowerCase()
-      grouped.set(label, { ...fragment, label, partId: fragment.partId || label, _markEntryKeys: key ? new Set([key]) : new Set() })
-      continue
-    }
-    const currentMarks = normalizeMarkValue(current.marks)
-    const nextMarks = normalizeMarkValue(fragment.marks)
-    if (!sumMarks && Number.isInteger(currentMarks) && Number.isInteger(nextMarks) && currentMarks > 0 && nextMarks > 0 && currentMarks !== nextMarks) return null
-    const currentText = String(current.promptFragment || current.exactText || '').trim()
-    const nextText = String(fragment.promptFragment || fragment.exactText || '').trim()
-    const mergedText = currentText && nextText && currentText !== nextText ? `${currentText}\n${nextText}` : currentText || nextText
-    const currentPoints = Array.isArray(current.markPoints) ? current.markPoints : []
-    const nextPoints = Array.isArray(fragment.markPoints) ? fragment.markPoints : []
-    const entryKey = String(fragment.exactText || fragment.promptFragment || fragment.answerText || '').trim().toLowerCase()
-    const seenEntry = entryKey && current._markEntryKeys?.has(entryKey)
-    const markTotal = sumMarks
-      ? (currentMarks || 0) + (seenEntry ? 0 : (nextMarks || 0))
-      : currentMarks || nextMarks
-    const markEntryKeys = new Set(current._markEntryKeys || [])
-    if (entryKey) markEntryKeys.add(entryKey)
-    grouped.set(label, {
-      ...current,
-      ...fragment,
-      label,
-      partId: current.partId || fragment.partId || label,
-      promptFragment: mergedText,
-      exactText: mergedText,
-      marks: markTotal,
-      markPoints: [...new Set([...currentPoints, ...nextPoints].map((value) => String(value).trim()).filter(Boolean))],
-      sourcePage: Math.min(Number(current.sourcePage || current.page) || Number.POSITIVE_INFINITY, Number(fragment.sourcePage || fragment.page) || Number.POSITIVE_INFINITY),
-      _markEntryKeys: markEntryKeys,
-    })
-  }
-  return [...grouped.values()].map((fragment) => ({
-    ...(({ _markEntryKeys, ...value }) => value)(fragment),
-    sourcePage: Number.isFinite(fragment.sourcePage) ? fragment.sourcePage : null,
-  }))
 }
 
 function stageTags(paper, config) {
@@ -563,7 +492,10 @@ function buildItems(paper, markScheme, config, questionGroups, answerGroups) {
       continue
     }
     const questionParts = collapseFragments(question.fragments || [], { questionHierarchy: true })
-    const answerParts = collapseFragments(answer.fragments || [], { sumMarks: true })
+    const answerParts = collapseFragments(
+      alignAnswerFragmentsToQuestionParts(questionParts, answer.fragments || []),
+      { sumMarks: true },
+    )
     if (!questionParts || !answerParts) {
       drop('ambiguous-cross-page-fragments')
       continue
@@ -591,9 +523,7 @@ function buildItems(paper, markScheme, config, questionGroups, answerGroups) {
       const answerType = fragment.answerArea?.type || fragment.answerType || (answerPart.correctOption ? 'multiple-choice' : 'handwritten')
       const questionMarks = normalizeMarkValue(fragment.marks)
       const answerMarks = normalizeMarkValue(answerPart.marks)
-      const marks = Number.isInteger(answerMarks) && answerMarks > 0
-        ? answerMarks
-        : answerType === 'multiple-choice' ? 1 : questionMarks
+      const { marks, markSource } = resolvePartMarks({ questionMarks, answerMarks, answerType })
       if (!Number.isInteger(marks) || marks < 1) return null
       const explicitMarkSchemePoints = [...(answerPart.markPoints || fragment.markPoints || [])]
         .map((value) => String(value).trim())
@@ -608,7 +538,7 @@ function buildItems(paper, markScheme, config, questionGroups, answerGroups) {
         promptFragment: String(fragment.promptFragment || fragment.exactText || '').trim(),
         marks,
         questionDeclaredMarks: Number.isInteger(questionMarks) && questionMarks > 0 ? questionMarks : null,
-        markSource: Number.isInteger(answerMarks) && answerMarks > 0 ? 'paired-mark-scheme' : 'question-paper',
+        markSource,
         answerArea: typeof fragment.answerArea === 'object' ? fragment.answerArea : { type: answerType, input: answerType === 'multiple-choice' ? 'choice' : 'handwriting' },
         markSchemePoints,
         answerKey: answerPart.correctOption || fragment.answerKey || null,
@@ -778,9 +708,10 @@ async function main() {
   const candidates = catalog.items
     .filter((item) => item.subject === args.subject && item.kind === 'qp' && item.markSchemeId && item.examProfile && (!args.components.length || args.components.includes(item.examProfile.paperNumber)) && (!args.files.length || args.files.includes(item.file)))
     .sort((left, right) => (right.year - left.year) || left.file.localeCompare(right.file))
-  const papers = args.all ? candidates : candidates.slice(0, args.papers)
+  const selectedCandidates = args.all ? candidates : candidates.slice(0, args.papers)
+  const papers = selectedCandidates.slice(args.offset, args.limit == null ? undefined : args.offset + args.limit)
   if (args.dryRun) {
-    console.log(JSON.stringify({ subject: args.subject, papers: papers.map((paper) => ({ file: paper.file, markScheme: byId.get(paper.markSchemeId)?.file })) }, null, 2))
+    console.log(JSON.stringify({ subject: args.subject, totalCandidates: candidates.length, offset: args.offset, limit: args.limit, papers: papers.map((paper) => ({ file: paper.file, markScheme: byId.get(paper.markSchemeId)?.file })) }, null, 2))
     return
   }
   const imported = JSON.parse(fs.readFileSync(outputPath, 'utf8'))
@@ -795,19 +726,30 @@ async function main() {
     if (!markScheme) continue
     const existingForPaper = [...byBankId.values()].filter((item) => item.sourceRef?.paperId === paper.id).length
     const expectedQuestions = minimumQuestionGroupsForImport(paper)
-    const paperComplete = existingForPaper >= expectedQuestions
+    const existingPaperItems = [...byBankId.values()].filter((item) => item.sourceRef?.paperId === paper.id)
+    const paperComplete = existingForPaper >= expectedQuestions && hasCompleteQuestionNumberSequence(existingPaperItems, expectedQuestions)
     if (paperComplete && !args.force) {
-      console.log(`Skipping ${paper.file}; ${existingForPaper} verified questions are already indexed`)
+      console.log('Skipping ' + paper.file + '; ' + existingForPaper + ' structurally matched question groups are already indexed')
       continue
     }
     console.log(`Indexing ${paper.file} with ${markScheme.file}`)
     const topics = topicsFor(config, paper)
     const items = await indexPaper(paper, markScheme, config, provider, topics)
+    if (!isReplacementImportComplete({
+      existingCount: existingForPaper,
+      incomingCount: items.length,
+      expectedCount: expectedQuestions,
+    })) {
+      console.error(
+        `Rejected ${paper.file}: ${items.length} structurally matched groups is below the required floor of ${Math.max(existingForPaper, expectedQuestions)}. Existing machine-indexed data was preserved.`,
+      )
+      continue
+    }
     const protectedReviews = [...byBankId.values()].filter((item) => item.sourceRef?.paperId === paper.id && isHumanReviewedIndexItem(item)).length
     const refreshedItems = replaceMachineIndexedPaperItems([...byBankId.values()], paper.id, items)
     byBankId.clear()
     for (const item of refreshedItems) byBankId.set(item.bankId || item.questionId, item)
-    console.log(`Indexed ${items.length} verified questions from ${paper.file}`)
+    console.log('Indexed ' + items.length + ' structurally matched question groups from ' + paper.file)
     if (protectedReviews) console.log(`Preserved ${protectedReviews} human-reviewed question${protectedReviews === 1 ? '' : 's'} from reimport.`)
   }
   const items = [...byBankId.values()].sort((left, right) => left.bankId.localeCompare(right.bankId, undefined, { numeric: true }))

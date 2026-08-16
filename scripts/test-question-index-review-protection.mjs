@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import {
   isHumanReviewedIndexItem,
+  isReplacementImportComplete,
+  hasCompleteQuestionNumberSequence,
   knowledgeGroupForIndexItem,
   mergeIndexItemPreservingReview,
   minimumQuestionGroupsForImport,
@@ -46,6 +48,22 @@ assert.equal(refreshedPaper.find((item) => item.bankId === 'paper:q1')?.prompt, 
 assert.equal(refreshedPaper.find((item) => item.bankId === 'paper:q2')?.prompt, 'New OCR prompt', 'A paper refresh must replace stale machine records')
 assert.equal(minimumQuestionGroupsForImport({ subject: '9702', examProfile: { paperNumber: 2, defaultQuestionCount: null } }), 7, 'AS P2 imports must not treat one or two groups as a complete paper')
 assert.equal(minimumQuestionGroupsForImport({ subject: '9702', examProfile: { paperNumber: 1, defaultQuestionCount: 40 } }), 40)
+assert.equal(isReplacementImportComplete({ existingCount: 11, incomingCount: 11, expectedCount: 10 }), true)
+assert.equal(isReplacementImportComplete({ existingCount: 11, incomingCount: 9, expectedCount: 10 }), false, 'A lower-quality force import must not replace a fuller machine-indexed paper')
+assert.equal(isReplacementImportComplete({ existingCount: 0, incomingCount: 9, expectedCount: 10 }), false, 'A new paper below its expected question-group count must remain unindexed')
+assert.equal(
+  hasCompleteQuestionNumberSequence([
+    { questionId: 'paper:q1' },
+    { questionId: 'paper:q2' },
+    { questionId: 'paper:q3' },
+    { questionId: 'paper:q5' },
+    { questionId: 'paper:q6' },
+    { questionId: 'paper:q7' },
+    { questionId: 'paper:q8' },
+  ], 7),
+  false,
+  'a paper with the expected count but a missing printed Q4 must not be treated as complete',
+)
 
 const hierarchicalParts = normaliseQuestionFragmentHierarchy([
   { questionNumber: 2, label: '(a)', partId: 'a', promptFragment: 'Standalone part' },

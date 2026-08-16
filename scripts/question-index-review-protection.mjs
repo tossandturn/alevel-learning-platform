@@ -51,3 +51,21 @@ export function minimumQuestionGroupsForImport(paper) {
   if (paper?.subject === '9702' && Number(paper?.examProfile?.paperNumber) === 2) return 7
   return 1
 }
+
+function questionNumber(item) {
+  const match = String(item?.sourceRef?.question || item?.questionId || item?.bankId || '').match(/(?:^|:)q(\d+)$/i)
+  return match ? Number(match[1]) : null
+}
+
+export function hasCompleteQuestionNumberSequence(items, expectedCount) {
+  const count = Number(expectedCount)
+  if (!Number.isInteger(count) || count < 1) return false
+  const numbers = new Set((items || []).map(questionNumber).filter(Number.isInteger))
+  if (numbers.size !== count) return false
+  for (let number = 1; number <= count; number += 1) if (!numbers.has(number)) return false
+  return true
+}
+
+export function isReplacementImportComplete({ existingCount = 0, incomingCount = 0, expectedCount = 1 }) {
+  return Number(incomingCount) >= Number(expectedCount) && Number(incomingCount) >= Number(existingCount)
+}

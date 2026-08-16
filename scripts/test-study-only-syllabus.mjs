@@ -103,7 +103,7 @@ const asMath = syllabusTopicsInventory({
 })
 assert.deepEqual(
   asMath.topics.map((topic) => topic.availableQuestionCount),
-  [1, 2, 0, 0],
+  [43, 22, 0, 0],
   '9709 AS P1/P2 must expose the real file-complete study inventory by syllabus topic',
 )
 assert.deepEqual(
@@ -111,8 +111,8 @@ assert.deepEqual(
   [0, 0, 0, 0],
   'study-only inventory must not inflate the formal verified count',
 )
-assert.equal(asMath.topics[0].componentCounts['1'].availableQuestionCount, 1)
-assert.equal(asMath.topics[1].componentCounts['2'].availableQuestionCount, 2)
+assert.equal(asMath.topics[0].componentCounts['1'].availableQuestionCount, 43)
+assert.equal(asMath.topics[1].componentCounts['2'].availableQuestionCount, 22)
 
 const asSet = buildSyllabusPracticeSet({
   routeId: 'cie-9709-as-p1-p2',
@@ -124,9 +124,9 @@ const asSet = buildSyllabusPracticeSet({
   seed: 9709,
 })
 assert.equal(asSet.practiceMode, 'study-only')
-assert.equal(asSet.questionCount, 3)
-assert.equal(asSet.availableCount, 3)
-assert.equal(asSet.partial, true)
+assert.equal(asSet.questionCount, 10)
+assert.equal(asSet.availableCount, 65)
+assert.equal(asSet.partial, false)
 assert.ok(asSet.questionGroups.every((group) => group.studyOnly === true))
 assert.ok(asSet.questionGroups.every((group) => group.reviewStatus === 'machine-indexed'))
 assert.ok(asSet.questionGroups.every((group) => group.sourceContent.fileComplete === true))
@@ -208,7 +208,7 @@ const a2Math = syllabusTopicsInventory({
 })
 assert.deepEqual(
   a2Math.topics.map((topic) => topic.availableQuestionCount),
-  [5, 1, 0, 0],
+  [27, 15, 0, 0],
   '9709 A2 P3/P4 must map P3 and P4 to separate syllabus topics',
 )
 const a2Set = buildSyllabusPracticeSet({
@@ -220,7 +220,7 @@ const a2Set = buildSyllabusPracticeSet({
   includeStudyOnly: true,
   seed: 9709,
 })
-assert.equal(a2Set.questionCount, 1)
+assert.equal(a2Set.questionCount, 10)
 assert.ok(a2Set.questionGroups.every((group) => group.paperComponent === 4))
 
 const physics = syllabusTopicsInventory({

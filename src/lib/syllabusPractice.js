@@ -112,6 +112,70 @@ function syllabusConfig(routeId) {
   return SYLLABUS_CONFIGS[routeId] || null
 }
 
+const MATH_9709_COMPONENT_DOMAIN = Object.freeze({
+  1: 'pure',
+  2: 'pure',
+  3: 'pure',
+  4: 'mechanics',
+  5: 'statistics',
+  6: 'statistics',
+})
+
+const MATH_9709_DOMAIN_TOPIC_BY_ROUTE = Object.freeze({
+  'cie-9709-as-p1-p2': Object.freeze({ pure: Object.freeze({ 1: '9709-as-topic-01', 2: '9709-as-topic-02' }) }),
+  'cie-9709-as-p1-p4': Object.freeze({ pure: Object.freeze({ 1: '9709-as-topic-01' }), mechanics: Object.freeze({ 4: '9709-as-topic-03' }) }),
+  'cie-9709-as-p1-p5': Object.freeze({ pure: Object.freeze({ 1: '9709-as-topic-01' }), statistics: Object.freeze({ 5: '9709-as-topic-04' }) }),
+  'cie-9709-a2-after-p1-p5-p3-p4': Object.freeze({ pure: Object.freeze({ 3: '9709-a2-topic-01' }), mechanics: Object.freeze({ 4: '9709-a2-topic-02' }) }),
+  'cie-9709-a2-after-p1-p5-p3-p6': Object.freeze({ pure: Object.freeze({ 3: '9709-a2-topic-01' }), statistics: Object.freeze({ 6: '9709-a2-topic-04' }) }),
+  'cie-9709-a2-after-p1-p4-p3-p5': Object.freeze({ pure: Object.freeze({ 3: '9709-a2-topic-01' }), statistics: Object.freeze({ 5: '9709-a2-topic-03' }) }),
+})
+
+function routeTopicIdsFor9709(routeId, topicId) {
+  const canonical = canonicalSyllabusTopicIdForRoute(routeId, topicId)
+  return canonical && syllabusConfig(routeId)?.syllabus.topics.some((topic) => topic.id === canonical)
+    ? [canonical]
+    : []
+}
+
+/**
+ * Resolve every explicit 9709 syllabus membership available on one question.
+ * The component's canonical parent domain is the baseline; explicitly mapped
+ * secondary memberships are additive only when they are valid for the route.
+ */
+export function topicMembershipIdsForQuestion(question, { routeId = question?.routeId } = {}) {
+  if (String(question?.subjectCode || '') !== '9709') return []
+  const route = String(routeId || '')
+  const config = syllabusConfig(route)
+  if (!config || !MATH_9709_DOMAIN_TOPIC_BY_ROUTE[route]) return []
+  const component = Number(question.sourceRef?.component)
+  const domain = MATH_9709_COMPONENT_DOMAIN[component]
+  if (!domain) return []
+  const validTopics = new Set(config.syllabus.topics.map((topic) => topic.id))
+  const topicTags = new Set((Array.isArray(question.topicTags) ? question.topicTags : []).map((tag) => String(tag || '').trim()))
+  const knowledgeGroup = String(question.knowledgeGroupId || question.topicId || '').split('@')[0]
+  const memberships = []
+  const add = (topicId) => {
+    if (topicId && validTopics.has(topicId) && !memberships.includes(topicId)) memberships.push(topicId)
+  }
+
+  // Narrow skill labels are evidence only after the question declares its
+  // canonical parent domain. This prevents a stray skill label from crossing
+  // the component/topic boundary.
+  const canonicalDomainTag = 'math-9709-' + domain
+  const hasDomainTag = knowledgeGroup === canonicalDomainTag
+    && topicTags.has(canonicalDomainTag)
+  if (hasDomainTag) add(MATH_9709_DOMAIN_TOPIC_BY_ROUTE[route]?.[domain]?.[component])
+
+  const reviewedMapping = question.syllabusMapping || {}
+  const mappingTopics = [reviewedMapping.primaryTopicId, ...(reviewedMapping.secondaryTopicIds || [])]
+  for (const topicId of mappingTopics) {
+    const mapped = routeTopicIdsFor9709(route, topicId)[0]
+    if (mapped) add(mapped)
+  }
+
+  return memberships
+}
+
 function officialFirstBatchPapers(config) {
   return (paperCatalog.items || []).filter((item) => (
     item.subject === config.subjectCode
@@ -162,6 +226,30 @@ function rawSyllabusQuestionGroups(config) {
 function candidateMappingFor(question, syllabus, config = {}) {
   const component = Number(question.sourceRef?.component)
   const knowledgeGroupId = String(question.knowledgeGroupId || question.topicId || '')
+  if (config.subjectCode === '9709') {
+    const topicIds = topicMembershipIdsForQuestion(question, { routeId: syllabus.routeId })
+    if (!topicIds.length) return null
+    const suppliedMapping = question.syllabusMapping || {}
+    const suppliedPrimary = routeTopicIdsFor9709(syllabus.routeId, suppliedMapping.primaryTopicId)[0]
+    const primaryTopicId = suppliedPrimary && topicIds.includes(suppliedPrimary) ? suppliedPrimary : topicIds[0]
+    const secondaryTopicIds = topicIds.filter((topicId) => topicId !== primaryTopicId)
+    const suppliedStatus = String(suppliedMapping.reviewStatus || '').toLowerCase()
+    const reviewed = suppliedStatus === 'reviewed'
+    return Object.freeze({
+      schemaVersion: SYLLABUS_MAPPING_SCHEMA_VERSION,
+      questionGroupId: question.sourceQuestionId || question.questionGroupId,
+      primaryTopicId,
+      secondaryTopicIds: Object.freeze(secondaryTopicIds),
+      topicIds: Object.freeze(topicIds),
+      syllabusPointIds: Object.freeze(suppliedMapping.syllabusPointIds || []),
+      confidence: reviewed ? Number(suppliedMapping.confidence || 1) : 0.5,
+      mappingMethod: reviewed ? 'manual' : 'rule',
+      reviewStatus: reviewed ? 'reviewed' : 'pending',
+      reviewedBy: reviewed ? suppliedMapping.reviewedBy || null : null,
+      reviewedAt: reviewed ? suppliedMapping.reviewedAt || null : null,
+      reviewReason: reviewed ? null : 'Machine-indexed topic tag is a review candidate, not publishable evidence.',
+    })
+  }
   const mappedTopicId = String(config.topicByComponent?.[component] || config.topicByKnowledgeGroup?.[knowledgeGroupId] || knowledgeGroupId)
   const topicId = canonicalSyllabusTopicIdForRoute(syllabus.routeId, mappedTopicId)
   const topic = syllabus.topics.find((item) => item.id === topicId)
@@ -173,6 +261,7 @@ function candidateMappingFor(question, syllabus, config = {}) {
     questionGroupId: question.sourceQuestionId || question.questionGroupId,
     primaryTopicId: topic.id,
     secondaryTopicIds: Object.freeze([]),
+    topicIds: Object.freeze([topic.id]),
     syllabusPointIds: Object.freeze(question.syllabusMapping?.syllabusPointIds || []),
     confidence: reviewed ? Number(question.syllabusMapping?.confidence || 1) : 0.5,
     mappingMethod: reviewed ? 'manual' : 'rule',
@@ -204,7 +293,7 @@ function effectiveQuestionRecords(questionBank, config = SYLLABUS_CONFIGS[CAMBRI
     const sourceBackedStudy = Boolean(
       reviewedQuestion
       && !reviewed
-      && mapping?.primaryTopicId
+      && mapping?.topicIds?.length
       && (isHumanReviewedPastPaperItem(reviewedQuestion) || isStudyOnlyPastPaperItem(reviewedQuestion)),
     )
     return Object.freeze({
@@ -224,6 +313,7 @@ function effectiveQuestionRecords(questionBank, config = SYLLABUS_CONFIGS[CAMBRI
         questionGroupId: sourceQuestionId,
         primaryTopicId: null,
         secondaryTopicIds: Object.freeze([]),
+        topicIds: Object.freeze([]),
         syllabusPointIds: Object.freeze([]),
         confidence: 0,
         mappingMethod: 'rule',
@@ -264,7 +354,7 @@ function topicRowsForRoute(routeId, questionBank) {
 
   const records = effectiveQuestionRecords(questionBank, config)
   return config.syllabus.topics.map((topic) => {
-    const topicRecords = records.filter((record) => record.mapping.primaryTopicId === topic.id)
+    const topicRecords = records.filter((record) => record.mapping.topicIds?.includes(topic.id))
     const eligible = topicRecords.filter((record) => record.eligible)
     const verifiedQuestionCount = eligible.length
     const studyQuestionCount = topicRecords.filter((record) => record.studyEligible).length
@@ -335,7 +425,7 @@ export function syllabusTopicsInventory({ routeId, questionBank = unifiedQuestio
     verifiedQuestionGroupCount: topics.reduce((sum, topic) => sum + topic.verifiedQuestionCount, 0),
     studyQuestionGroupCount: topics.reduce((sum, topic) => sum + topic.studyQuestionCount, 0),
     availableQuestionGroupCount: topics.reduce((sum, topic) => sum + topic.availableQuestionCount, 0),
-    unmappedQuestionGroupCount: effectiveRecords.filter((record) => !record.mapping.primaryTopicId).length,
+    unmappedQuestionGroupCount: effectiveRecords.filter((record) => !record.mapping.topicIds?.length).length,
     source: 'server-syllabus-catalog',
     gate: 'reviewed-or-source-backed-study-question',
   }
@@ -351,6 +441,7 @@ export function syllabusMappingCandidates({ questionBank = unifiedQuestionBank }
     markSchemeId: record.question.answerRef?.documentId || null,
     primaryTopicId: record.mapping.primaryTopicId,
     secondaryTopicIds: record.mapping.secondaryTopicIds,
+    topicIds: record.mapping.topicIds,
     syllabusPointIds: record.mapping.syllabusPointIds,
     confidence: record.mapping.confidence,
     mappingMethod: record.mapping.mappingMethod,
@@ -393,11 +484,11 @@ function questionSortKey(question) {
 
 function selectBalancedQuestions(records, topicIds, requestedCount, attemptedIds, seed, components, includeStudyOnly = false) {
   const random = seededRandom(seed)
-  const eligible = records.filter((record) => (
+  const eligible = [...new Map(records.filter((record) => (
     (record.eligible || (includeStudyOnly && record.studyEligible))
-    && topicIds.includes(record.mapping.primaryTopicId)
+    && topicIds.some((topicId) => record.mapping.topicIds?.includes(topicId))
     && components.includes(record.paperComponent)
-  ))
+  )).map((record) => [record.sourceQuestionId, record])).values()]
   const unseen = eligible.filter((record) => !attemptedIds.has(record.sourceQuestionId))
   const seen = eligible.filter((record) => attemptedIds.has(record.sourceQuestionId))
   const prioritizedPool = (items) => {
@@ -414,19 +505,31 @@ function selectBalancedQuestions(records, topicIds, requestedCount, attemptedIds
   }
   const pools = new Map(topicIds.map((topicId) => [
     topicId,
-    prioritizedPool(unseen.filter((record) => record.mapping.primaryTopicId === topicId)),
+    prioritizedPool(unseen.filter((record) => record.mapping.topicIds?.includes(topicId))),
   ]))
   const seenPools = new Map(topicIds.map((topicId) => [
     topicId,
-    prioritizedPool(seen.filter((record) => record.mapping.primaryTopicId === topicId)),
+    prioritizedPool(seen.filter((record) => record.mapping.topicIds?.includes(topicId))),
   ]))
   const selected = []
+  const selectedIds = new Set()
+  const takeUnique = (pool) => {
+    while (pool?.length) {
+      const next = pool.shift()
+      if (!selectedIds.has(next.sourceQuestionId)) {
+        selectedIds.add(next.sourceQuestionId)
+        return next
+      }
+    }
+    return null
+  }
   while (selected.length < requestedCount) {
     let added = false
     for (const topicId of topicIds) {
       const pool = pools.get(topicId)
-      if (pool?.length) {
-        selected.push(pool.shift())
+      const next = takeUnique(pool)
+      if (next) {
+        selected.push(next)
         added = true
         if (selected.length >= requestedCount) break
       }
@@ -435,8 +538,9 @@ function selectBalancedQuestions(records, topicIds, requestedCount, attemptedIds
     if (!added) {
       for (const topicId of topicIds) {
         const pool = seenPools.get(topicId)
-        if (pool?.length) {
-          selected.push(pool.shift())
+        const next = takeUnique(pool)
+        if (next) {
+          selected.push(next)
           added = true
           if (selected.length >= requestedCount) break
         }
@@ -548,7 +652,7 @@ export function rebindSyllabusPracticeUnit(unit, { questionBank = studyQuestionB
 
   const recordsByQuestionId = new Map(effectiveQuestionRecords(questionBank, config)
     .filter((record) => (record.eligible || record.studyEligible)
-      && topicIds.includes(record.mapping.primaryTopicId)
+      && topicIds.some((topicId) => record.mapping.topicIds?.includes(topicId))
       && selectedComponents.includes(record.paperComponent))
     .map((record) => [record.sourceQuestionId, record]))
   const uniquePartKeys = new Set()
@@ -672,7 +776,7 @@ export function buildSyllabusPracticeSet({
   const attemptedIds = new Set(attemptedQuestionIds.map((value) => String(value || '').trim()).filter(Boolean))
   const availableRecords = records.filter((record) => (
     (record.eligible || (includeStudyOnly && record.studyEligible))
-    && topicIds.includes(record.mapping.primaryTopicId)
+    && topicIds.some((topicId) => record.mapping.topicIds?.includes(topicId))
   ))
   const selected = selectBalancedQuestions(
     records,
@@ -688,7 +792,7 @@ export function buildSyllabusPracticeSet({
     error.code = 'insufficient_verified_questions'
     error.statusCode = 409
     error.availableCount = 0
-    error.indexedCount = records.filter((record) => topicIds.includes(record.mapping.primaryTopicId)).length
+    error.indexedCount = records.filter((record) => topicIds.some((topicId) => record.mapping.topicIds?.includes(topicId))).length
     throw error
   }
   return {
@@ -908,7 +1012,13 @@ export function syllabusDatabaseInventory(database, routeId) {
         THEN groups.id END
       ) AS pendingReviewCount
     FROM syllabus_topics AS topics
-    LEFT JOIN question_syllabus_mapping AS mapping ON mapping.primary_topic_id = topics.id
+      LEFT JOIN question_syllabus_mapping AS mapping
+        ON mapping.primary_topic_id = topics.id
+        OR EXISTS (
+          SELECT 1
+          FROM json_each(mapping.secondary_topic_ids_json)
+          WHERE json_each.value = topics.id
+        )
     LEFT JOIN question_groups AS groups
       ON groups.id = mapping.question_group_id
       AND groups.route_id = topics.route_id

@@ -98,7 +98,7 @@ function structuredPart(question, answer, part, index) {
     // A structured answer part must carry its own reviewed MS page. Falling
     // back to the document's first page can silently bind a mark to the wrong
     // source when an imported record is incomplete.
-    answerSourcePage: Number(answerPart?.sourcePage ?? answerPart?.page) || null,
+    answerSourcePage: Number(answerPart?.sourcePage ?? answerPart?.page ?? part.answerSourcePage) || null,
     // Keep the reviewer-bound image proof on the normalized runtime part.
     // The source-content gate and server marker must verify these bytes again;
     // this does not authorize a client-supplied image.

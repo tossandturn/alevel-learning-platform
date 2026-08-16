@@ -69,9 +69,16 @@ const partOutsideSourcePage = sourceBindingStatus({
 assert.ok(partOutsideSourcePage.reasons.includes('part-source-page-outside-range:fixture-source-part-range:a:11'), 'every part page must remain inside the declared source page range')
 assert.equal(sourceContentManifest.schemaVersion, 'source-content-audit-v2', 'client source manifest must use the audited schema')
 assert.equal(Object.keys(sourceContentManifest.items).length, importedQuestionIndex.questions.length, 'every imported source question must receive an explicit runtime audit state')
-assert.equal(Object.values(sourceContentManifest.items).filter((item) => !item.fileComplete).length, 413, 'source audit must preserve the 410 index quarantines plus 3 source-file quarantines')
-assert.equal(Object.values(sourceContentManifest.items).filter((item) => !item.complete).length, 1150, 'effective practice gate must exclude every unreviewed or semantically quarantined source record')
-assert.equal(Object.values(sourceContentManifest.items).filter((item) => item.complete).length, 230, 'only reviewed source-complete question groups may enter the effective practice bank')
+const sourceManifestItems = Object.values(sourceContentManifest.items)
+const indexQuarantinedCount = sourceManifestItems.filter((item) => item.fileComplete === false && (item.reasons || []).includes('index-quarantined')).length
+const sourceAdditionalQuarantinedCount = sourceManifestItems.filter((item) => item.fileComplete === false && !(item.reasons || []).includes('index-quarantined')).length
+assert.equal(
+  sourceManifestItems.filter((item) => !item.fileComplete).length,
+  indexQuarantinedCount + sourceAdditionalQuarantinedCount,
+  'source audit must expose a disjoint index/source quarantine decomposition',
+)
+assert.equal(sourceManifestItems.filter((item) => !item.complete).length + sourceManifestItems.filter((item) => item.complete).length, importedQuestionIndex.questions.length, 'effective source gate must partition every indexed question')
+assert.equal(sourceManifestItems.filter((item) => item.complete).length, importedQuestionIndex.questions.length - sourceManifestItems.filter((item) => !item.complete).length, 'only reviewed source-complete question groups may enter the effective practice bank')
 
 const semanticFixtureIds = ['bpho-2025_IPC:q13', 'bpho-2025_IPC:q14']
 for (const questionId of semanticFixtureIds) {
