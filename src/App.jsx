@@ -30,16 +30,13 @@ import { fullPaperUnits, importedPdfLibrary, subjects, topicUnits } from './data
 import { learningPlan, stagesForComponentTags } from './data/learningPlan'
 import { courseRoutes, formatRouteComponents, routeById, routeForStagePreservingSubject, routesForSubject } from './data/routeRegistry'
 import { COURSE_STAGE_ORDER } from './data/stages'
-import { AiCoach } from './components/AiCoach'
-import { PaperLibrary } from './components/PaperLibrary'
-import { PracticeWorkspace } from './components/PracticeWorkspace'
 import { usePaperCatalog } from './hooks/usePaperCatalog'
 import { useSyllabusInventory } from './hooks/useSyllabusInventory'
 import { loadState, makeAttemptId, normalizeState, saveState } from './lib/storage'
 import { canonicalSyllabusTopicIdForRoute, supportsSyllabusPracticeRoute, syllabusPracticeComponentsForRoute } from './lib/syllabusPracticeRoutes'
 import { attemptedSourceQuestionIds, buildAttemptReviewQueue, buildProvisionalAttemptEvidence, hasAttemptResponse, hasCurrentSourceBindingForAttempt, isPendingSelfMarkAttempt, isProvisionalAttempt, isScoredAttempt, isStudyOnlyAttempt, isStudyOnlyPracticeUnit, prepareLearningExport, sourceBindingSnapshotForUnit } from './lib/attemptAudit'
 import { mergeNotebookNote, notebookNoteRequest } from './lib/privateNotes'
-import { stripSourceVisualPlaceholders } from './lib/questionContent'
+import { stripSourceVisualPlaceholders } from './lib/questionText'
 import {
   buildPartMarkingLifecycle,
   canUseAiAssistedMarking,
@@ -48,7 +45,6 @@ import {
   markingCapabilityForUnit,
   pendingPartsForLifecycle,
 } from './lib/markingLifecycle'
-import { buildCoachPractice, buildVerifiedPracticeCatalog, coachPracticeOptions, MIN_VERIFIED_GROUPS_FOR_PRACTICE, previewCoachPracticeSourceMix, rebindVerifiedPracticeUnit, resolveVerifiedPracticeSelection } from './lib/verifiedPracticeCatalog'
 import { latestBphoSpcPaper } from './lib/coachIntent'
 import { buildCompletionByUnit, buildLearningProgress, latestSubmittedActivity, recommendForRoute } from './lib/learningProgress'
 import { professionalTermsUrl, requestNativeAccountReadiness, requestSharedAccount, requestSharedWorkspace, requestSyllabusPracticeRebind, requestSyllabusPracticeSet, sharedAccountRequest, signInSharedAccount, signOutSharedAccount } from './lib/sharedAccount'
@@ -58,14 +54,23 @@ import { studentNavigationFromLocation, studentNavigationHref } from './lib/stud
 import { normalizePaperStudyMode, paperDraftKey } from './lib/paperStudyMode'
 import { buildStemVocabularyContext, vocabularyCoverageForRoute } from './data/stemVocabularyTaxonomy'
 import { topicLearningContent } from './data/topicLearningContent'
-import { verifiedPracticeQuestionGroups } from './lib/verifiedPracticeCatalog'
 import { practiceMetricsSummary, practiceUnitMetrics, topicDisplayNames, withPracticePresentation } from './lib/practicePresentation'
+import { MIN_VERIFIED_GROUPS_FOR_PRACTICE } from './lib/practiceConstants'
 import './App.css'
 import './StudentV2.css'
 import './TabletNavFix.css'
 
 const PaperWorkspace = lazy(() =>
   import('./components/PaperWorkspace').then((module) => ({ default: module.PaperWorkspace })),
+)
+const PaperLibrary = lazy(() =>
+  import('./components/PaperLibrary').then((module) => ({ default: module.PaperLibrary })),
+)
+const PracticeWorkspace = lazy(() =>
+  import('./components/PracticeWorkspace').then((module) => ({ default: module.PracticeWorkspace })),
+)
+const AiCoach = lazy(() =>
+  import('./components/AiCoach').then((module) => ({ default: module.AiCoach })),
 )
 const HistoryView = lazy(() =>
   import('./components/HistoryView').then((module) => ({ default: module.HistoryView })),
@@ -75,6 +80,15 @@ const RoleWorkspace = lazy(() =>
 )
 
 const EMPTY_SELF_MARKS = Object.freeze({})
+let practiceRuntimePromise
+
+function loadPracticeRuntime() {
+  practiceRuntimePromise ||= import('./lib/verifiedPracticeCatalog').catch((error) => {
+    practiceRuntimePromise = undefined
+    throw error
+  })
+  return practiceRuntimePromise
+}
 
 function formatTime(totalSec) {
   const minutes = Math.floor(totalSec / 60)
@@ -314,10 +328,10 @@ function unitFromSyllabusPracticeSet(payload) {
   })
 }
 
-function rebindPracticeUnit(unit, validatedSyllabusUnits = new Map()) {
+function rebindPracticeUnit(unit, validatedSyllabusUnits = new Map(), practiceRuntime = null) {
   return unit?.sourceAuthority === 'server-syllabus'
     ? validatedSyllabusUnits.get(unit.id) || null
-    : rebindVerifiedPracticeUnit(unit)
+    : practiceRuntime?.rebindVerifiedPracticeUnit(unit) || null
 }
 
 function syllabusUnitsFingerprint(units) {
@@ -376,13 +390,27 @@ function App() {
   const [stateOwnerId, setStateOwnerId] = useState('')
   const [exportState, setExportState] = useState({ status: 'idle', error: '', exportedAt: '', filename: '' })
   const [syllabusRebindState, setSyllabusRebindState] = useState(() => ({ fingerprint: '', status: 'idle', units: new Map() }))
+  const [practiceRuntimeState, setPracticeRuntimeState] = useState({ status: 'idle', module: null, error: '' })
   const migrationAttemptedRef = useRef(false)
   const notebookSyncTimerRef = useRef(null)
   const stateOwnerIdRef = useRef('')
   const navigationInitializedRef = useRef(false)
   const restoredLocationRef = useRef('')
   const navigationRestorePendingRef = useRef(false)
-  const verifiedCatalogUnits = useMemo(() => buildVerifiedPracticeCatalog(), [])
+  const ensurePracticeRuntime = useCallback(() => {
+    setPracticeRuntimeState((current) => current.module ? current : { ...current, status: 'loading', error: '' })
+    return loadPracticeRuntime()
+      .then((module) => {
+        setPracticeRuntimeState({ status: 'ready', module, error: '' })
+        return module
+      })
+      .catch((error) => {
+        setPracticeRuntimeState({ status: 'error', module: null, error: error.message || 'Practice data could not be loaded.' })
+        throw error
+      })
+  }, [])
+  const practiceRuntime = practiceRuntimeState.module
+  const verifiedCatalogUnits = useMemo(() => practiceRuntime?.buildVerifiedPracticeCatalog() || [], [practiceRuntime])
   const persistedSyllabusUnits = useMemo(() => (
     (appState.generatedUnits || []).filter((unit) => unit?.sourceAuthority === 'server-syllabus')
   ), [appState.generatedUnits])
@@ -418,7 +446,7 @@ function App() {
   const visibleVerifiedUnits = useMemo(() => {
     const persisted = (appState.generatedUnits || [])
       .filter((unit) => unit.agentGenerated || unit.focusedRetestOf)
-      .map((unit) => rebindPracticeUnit(unit, syllabusRebindState.units))
+      .map((unit) => rebindPracticeUnit(unit, syllabusRebindState.units, practiceRuntime))
       .filter(Boolean)
     const labelled = [...persisted, ...verifiedCatalogUnits.filter((catalogUnit) => !persisted.some((unit) => unit.id === catalogUnit.id))]
     return labelled.map((unit) => {
@@ -427,7 +455,7 @@ function App() {
         ? { ...unit, title: `${route.stage} ${route.subject} · ${unit.topic || unit.title}` }
         : unit
     })
-  }, [appState.generatedUnits, syllabusRebindState.units, verifiedCatalogUnits])
+  }, [appState.generatedUnits, practiceRuntime, syllabusRebindState.units, verifiedCatalogUnits])
   const allPracticeUnits = visibleVerifiedUnits
   const migrationUnits = useMemo(() => [...new Map([...allPracticeUnits, ...topicUnits, ...fullPaperUnits].map((unit) => [unit.id, unit])).values()], [allPracticeUnits])
   const routePracticeUnits = useMemo(() => allPracticeUnits.filter((unit) => unit.routeId === activeRouteId), [activeRouteId, allPracticeUnits])
@@ -441,7 +469,7 @@ function App() {
     const attemptIds = new Set(routePaperSessions.map((session) => session.attemptId))
     return safePaperReviews.filter((review) => review.routeId === activeRouteId || attemptIds.has(review.attemptId))
   }, [activeRouteId, routePaperSessions, safePaperReviews])
-  const aiPracticeOptions = useMemo(() => coachPracticeOptions(), [])
+  const aiPracticeOptions = useMemo(() => practiceRuntime?.coachPracticeOptions() || [], [practiceRuntime])
   const syllabusInventory = useSyllabusInventory(activeRouteId, {
     enabled: supportsSyllabusPracticeRoute(activeRouteId),
   })
@@ -505,6 +533,16 @@ function App() {
   }, [activeRoute.subjectId, activeRouteId, activePracticeOptions, learningProgress.topicProgress])
 
   useEffect(() => {
+    if (practiceRuntimeState.status !== 'idle') return undefined
+    if (view !== 'dashboard') {
+      void ensurePracticeRuntime().catch(() => {})
+      return undefined
+    }
+    const timerId = window.setTimeout(() => void ensurePracticeRuntime().catch(() => {}), 2500)
+    return () => window.clearTimeout(timerId)
+  }, [ensurePracticeRuntime, practiceRuntimeState.status, view])
+
+  useEffect(() => {
     if (sharedAccount.status === 'loading') return
     const nextOwnerId = sharedAccount.status === 'ready' ? String(sharedAccount.identity?.id || '') : ''
     if (nextOwnerId === stateOwnerId) return
@@ -533,14 +571,14 @@ function App() {
   }, [appState, stateOwnerId])
 
   useEffect(() => {
-    if (migrationAttemptedRef.current) return
+    if (practiceRuntimeState.status !== 'ready' || migrationAttemptedRef.current) return
     migrationAttemptedRef.current = true
     setAppState((state) => {
       const needsContextMigration = [...(state.attempts || []), ...Object.values(state.drafts || {})]
         .some((record) => record?.routeMigration?.status === 'deferred')
       return needsContextMigration ? normalizeState(state, { units: migrationUnits }) : state
     })
-  }, [migrationUnits])
+  }, [migrationUnits, practiceRuntimeState.status])
 
   function selectRoute(routeId) {
     const route = routeById(routeId)
@@ -902,7 +940,8 @@ function App() {
     const topic = learningPlan.knowledgeGroups.find((group) => group.id === draft.topicId)
     const classroomId = draft.classroomId || account.workspace?.classrooms?.find((classroom) => ['owner', 'teacher'].includes(classroom.role))?.id
     if (!classroomId) throw new Error('Create or join a teacher class before assigning work.')
-    const verifiedUnit = buildCoachPractice({ routeId: route.routeId, knowledgeGroupId: draft.topicId, questionCount: 10 })
+    const runtime = await ensurePracticeRuntime()
+    const verifiedUnit = runtime.buildCoachPractice({ routeId: route.routeId, knowledgeGroupId: draft.topicId, questionCount: 10 })
     const result = await sharedAccountRequest(account.token, '/api/stem/assignments', {
       method: 'POST',
       body: JSON.stringify({
@@ -921,12 +960,13 @@ function App() {
     return result.assignment
   }
 
-  function startAssignedAssignment(assignment) {
+  async function startAssignedAssignment(assignment) {
     const sourceQuestionIds = assignment.sourceScope?.questionIds
     if (!Array.isArray(sourceQuestionIds) || !sourceQuestionIds.length) {
       throw new Error('This assignment has no official question list. Ask the teacher to republish it.')
     }
-    const unit = buildCoachPractice({
+    const runtime = await ensurePracticeRuntime()
+    const unit = runtime.buildCoachPractice({
       routeId: assignment.routeId,
       knowledgeGroupId: assignment.syllabusPointId,
       sourceQuestionIds,
@@ -942,7 +982,7 @@ function App() {
       && unit?.sourceGateStatus === 'current'
       ? unit
       : null
-    const currentBoundUnit = hasSourceParts ? sourceValidatedUnit || rebindPracticeUnit(unit, syllabusRebindState.units) : unit
+    const currentBoundUnit = hasSourceParts ? sourceValidatedUnit || rebindPracticeUnit(unit, syllabusRebindState.units, practiceRuntime) : unit
     if (!currentBoundUnit || !routeById(currentBoundUnit.routeId)) {
       throw new Error('This saved question set is no longer source-complete and cannot be resumed or marked.')
     }
@@ -1045,9 +1085,10 @@ function App() {
     setView('paper')
   }
 
-  function generateCoachPractice(selection) {
+  async function generateCoachPractice(selection) {
     if (!selection) throw new Error('Choose a valid learning route before building practice.')
-    const unit = buildCoachPractice({
+    const runtime = await ensurePracticeRuntime()
+    const unit = runtime.buildCoachPractice({
       ...selection,
       agentGenerated: true,
       allowPartial: false,
@@ -1132,7 +1173,8 @@ function App() {
           ? activeRouteId
           : undefined
         )
-        const selection = resolveVerifiedPracticeSelection({
+        const runtime = await ensurePracticeRuntime()
+        const selection = runtime.resolveVerifiedPracticeSelection({
           routeId: contextualRouteId,
           subjectId: intent.subjectId,
           stage: intent.stage,
@@ -1494,6 +1536,11 @@ function App() {
     if (route && route.routeId !== activeRouteId) selectRoute(route.routeId)
     if (navigation.view === 'library') setActiveTab(navigation.tab)
     if (navigation.topicId) setSelectedTopicId(navigation.topicId)
+    if (['practice', 'result'].includes(navigation.view) && practiceRuntimeState.status !== 'ready') {
+      navigationRestorePendingRef.current = true
+      void ensurePracticeRuntime().catch(() => {})
+      return
+    }
 
     const referencedAttempt = navigation.view === 'result'
       ? appState.attempts.find((item) => item.id === navigation.attemptId)
@@ -1519,7 +1566,7 @@ function App() {
         setView('library')
         return
       }
-      const currentBoundUnit = unit.parts?.some((part) => part.sourceKind === 'past-paper') ? rebindPracticeUnit(unit, syllabusRebindState.units) : unit
+      const currentBoundUnit = unit.parts?.some((part) => part.sourceKind === 'past-paper') ? rebindPracticeUnit(unit, syllabusRebindState.units, practiceRuntime) : unit
       if (!currentBoundUnit) {
         setCurrentAttempt(null)
         setView('library')
@@ -1597,7 +1644,7 @@ function App() {
     setResultAttempt(null)
     setActivePaper(null)
     setView(navigation.view)
-  }, [activeRoute, activeRouteId, allPracticeUnits, appState.attempts, appState.drafts, appState.generatedUnits, appState.paperDrafts, paperCatalogState.catalog, paperCatalogState.status, syllabusRebindState.status, syllabusRebindState.units])
+  }, [activeRoute, activeRouteId, allPracticeUnits, appState.attempts, appState.drafts, appState.generatedUnits, appState.paperDrafts, ensurePracticeRuntime, paperCatalogState.catalog, paperCatalogState.status, practiceRuntime, practiceRuntimeState.status, syllabusRebindState.status, syllabusRebindState.units])
 
   useEffect(() => {
     const restoreLocation = () => {
@@ -1676,6 +1723,7 @@ function App() {
   return (
     <main className={`app-shell app-shell--${view}`}>
       {view !== 'practice' && view !== 'paper' && <TopNav view={view} activeTab={activeTab} activeRoute={activeRoute} setView={setView} profile={appState.profile} sharedAccount={sharedAccount} onDisconnectSharedAccount={disconnectSharedAccount} onOpenAccount={setAccountDialogMode} onAccountPopoverChange={setAccountPopoverOpen} openNotebook={() => setView('notebook')} openRoleWorkspace={() => setView('workspace')} openPractice={() => { setActiveTab('recommended'); setView('library') }} openPapers={() => { setActiveTab('papers'); setView('library') }} />}
+      {practiceRuntimeState.status === 'error' && view !== 'paper' && view !== 'practice' && <div className="inventory-alert" role="alert"><AlertTriangle size={18} /><span>{practiceRuntimeState.error}</span><button type="button" className="text-action" onClick={() => void ensurePracticeRuntime().catch(() => {})}>Retry</button></div>}
 
       {view === 'dashboard' && (
         <StudentDashboard
@@ -1776,6 +1824,7 @@ function App() {
           practiceOptions={activePracticeOptions}
           syllabusInventory={syllabusInventory}
           practiceUnits={routePracticeUnits}
+          verifiedQuestionGroups={practiceRuntime?.verifiedPracticeQuestionGroups || []}
           completionByUnit={completionByUnit}
           learningProgress={learningProgress}
           mistakes={mistakes}
@@ -1831,7 +1880,7 @@ function App() {
       )}
 
       {view === 'practice' && currentUnit && currentAttempt && (
-        <PracticeWorkspace
+        <Suspense fallback={<div className="workspace-loading"><span className="loading-line" />Loading the question workspace...</div>}><PracticeWorkspace
           attempt={currentAttempt}
           unit={currentUnit}
           setActivePart={setActivePart}
@@ -1846,7 +1895,7 @@ function App() {
           immersive={Boolean(appState.profile?.immersiveLearning)}
           onToggleImmersive={setImmersiveLearning}
           goBack={() => returnToLibrary('topics')}
-        />
+        /></Suspense>
       )}
 
       {accountDialogMode && <SharedAccountDialog
@@ -1886,7 +1935,7 @@ function App() {
         />
       )}
       {view !== 'paper' && view !== 'practice' && !(view === 'library' && activeTab === 'papers') && (
-        <AiCoach
+        <Suspense fallback={null}><AiCoach
           key={`${activeRouteId}:${view}:${coachAttempt?.id || 'general'}`}
           stateOwnerId={stateOwnerId}
           context={{
@@ -1911,7 +1960,7 @@ function App() {
           onGeneratePractice={generateCoachPractice}
           onAgentAction={handleCoachAgentAction}
           disabled={Boolean(accountDialogMode || accountPopoverOpen)}
-        />
+        /></Suspense>
       )}
     </main>
   )
@@ -2455,9 +2504,9 @@ function LibraryView({
 
       {activeTab === 'recommended' && <PracticeOverview recommendation={recommendation} selectedTopic={selectedTopic} visibleUnits={visibleUnits} completionByUnit={completionByUnit} favoriteUnitIds={favoriteUnitIds} onToggleFavorite={onToggleFavorite} mistakes={mistakes} paperMistakes={paperMistakes} startPractice={startPractice} onOpenTopic={onOpenTopic} onOpenCoach={onOpenCoach} onOpenPapers={() => setActiveTab('papers')} />}
       {activeTab === 'ai-practice' && <AiPracticeLanding activeRoute={activeRoute} practiceOptions={practiceOptions} startKnowledgeDrill={startKnowledgeDrill} onOpenCoach={onOpenCoach} />}
-      {activeTab === 'papers' && <PaperLibrary catalogState={paperCatalogState} initialSubject={activeRoute.subjectCode} activeRoute={activeRoute} studyMode="past-paper-practice" onOpenPaper={openPaper} />}
+      {activeTab === 'papers' && <Suspense fallback={<div className="workspace-loading"><span className="loading-line" />Loading past papers...</div>}><PaperLibrary catalogState={paperCatalogState} initialSubject={activeRoute.subjectCode} activeRoute={activeRoute} studyMode="past-paper-practice" onOpenPaper={openPaper} /></Suspense>}
 
-      {activeTab === 'exams' && <PaperLibrary catalogState={paperCatalogState} initialSubject={activeRoute.subjectCode} activeRoute={activeRoute} studyMode="exam-simulation" onOpenPaper={(paper) => openPaper({ ...paper, paperStudyMode: 'exam-simulation' })} />}
+      {activeTab === 'exams' && <Suspense fallback={<div className="workspace-loading"><span className="loading-line" />Loading exam papers...</div>}><PaperLibrary catalogState={paperCatalogState} initialSubject={activeRoute.subjectCode} activeRoute={activeRoute} studyMode="exam-simulation" onOpenPaper={(paper) => openPaper({ ...paper, paperStudyMode: 'exam-simulation' })} /></Suspense>}
 
       {activeTab === 'topics' && <PracticeTopicDirectory activeRoute={activeRoute} activeRouteId={activeRouteId} practiceOptions={practiceOptions} visibleUnits={visibleUnits} completionByUnit={completionByUnit} query={selectedTopic?.label || ''} onOpenTopic={onOpenTopic} onOpenPapers={() => setActiveTab('papers')} onClearTopicFilter={() => onSelectTopic('')} syllabusInventory={syllabusInventory} />}
 
@@ -2695,7 +2744,7 @@ function PracticeTopicDirectory({ activeRoute, activeRouteId, practiceOptions, v
   )
 }
 
-function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen = false, practiceOptions, syllabusInventory, learningProgress, mistakes, practiceUnits, completionByUnit, startPractice, startKnowledgeDrill, onBack, onOpenCoach, favoriteUnitIds, onToggleFavorite }) {
+function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen = false, practiceOptions, syllabusInventory, learningProgress, mistakes, practiceUnits, verifiedQuestionGroups = [], completionByUnit, startPractice, startKnowledgeDrill, onBack, onOpenCoach, favoriteUnitIds, onToggleFavorite }) {
   const [startError, setStartError] = useState('')
   const [detailTab, setDetailTab] = useState('overview')
   const [builderOpen, setBuilderOpen] = useState(initialBuilderOpen)
@@ -2757,7 +2806,7 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen =
   }, { practice: 0, deterministic: 0, aiAssisted: 0, selfMark: 0 })
   const nextPracticeUnit = topicPracticeUnits.find((unit) => !completionByUnit[unit.id]?.completed) || topicPracticeUnits[0]
   const topicMistakes = mistakes.filter((mistake) => mistake.unit.knowledgeGroupId === topicId).length
-  const topicQuestions = verifiedPracticeQuestionGroups
+  const topicQuestions = verifiedQuestionGroups
     .filter((question) => topicQuestionMatches(question, activeRouteId, topicId))
     .toSorted((left, right) => (
       (Number(right.sourceRef?.year) || 0) - (Number(left.sourceRef?.year) || 0)
@@ -2915,7 +2964,7 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen =
   )
 }
 
-function LegacyKnowledgeMap({ subjectFilter, setSubjectFilter, completionByUnit, startPractice: _startPractice, startKnowledgeDrill, openPapers, catalogItems, verifiedUnits, practiceOptions }) {
+function LegacyKnowledgeMap({ subjectFilter, setSubjectFilter, completionByUnit, startPractice: _startPractice, startKnowledgeDrill, openPapers, catalogItems, verifiedUnits, practiceOptions, previewPracticeSourceMix = () => ({ status: 'empty', available: 0, partial: false }) }) {
   // oxlint-disable-next-line react-hooks/rules-of-hooks
   const [inventoryError, setInventoryError] = useState('')
   const planSubjectByAppSubject = { 'igcse-math': 'math-0580', 'additional-math': 'math-0606', physics: 'physics-9702', 'igcse-physics': 'physics-0625', biology: 'biology-9700', 'igcse-biology': 'biology-0610', chemistry: 'chemistry-9701', economics: 'economics-9708', math: 'math-9709', 'further-math': 'math-9231' }
@@ -2978,7 +3027,7 @@ function LegacyKnowledgeMap({ subjectFilter, setSubjectFilter, completionByUnit,
         const stageOptions = stageOptionsForGroup(group)
         const previews = stageOptions.map((stageName) => ({
           stage: stageName,
-          sourceMix: previewCoachPracticeSourceMix({
+          sourceMix: previewPracticeSourceMix({
             subjectId: appSubjectId,
             stage: stageName,
             knowledgeGroupId: group.id,

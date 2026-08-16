@@ -7,8 +7,8 @@ import {
   sourcePageFromAssetUrl,
   trustedSourceAssetUrls,
 } from './sourceContentContract.js'
+import { requiresSourceVisual, stripSourceVisualPlaceholders } from './questionText.js'
 
-const VISUAL_PLACEHOLDER = /\[(?:graph|diagram|figure|image|table|chart|map)\s*:[^\]]*\]/gi
 const REVIEWED_SOURCE_FOCUS_SAFETY_VERSION = 'reviewed-display-bounds-v1'
 
 // These crop bounds were visually checked against the checksum-bound official
@@ -44,6 +44,7 @@ const REVIEWED_SOURCE_FOCUS_SAFE_BOUNDS = Object.freeze({
 
 export { trustedSourceAssetUrls }
 export { sourceBindingStatus }
+export { requiresSourceVisual, stripSourceVisualPlaceholders }
 
 const runtimeManifestTrusted = Boolean(
   sourceContentManifest?.schemaVersion === SOURCE_CONTENT_AUDIT_SCHEMA_VERSION
@@ -52,19 +53,6 @@ const runtimeManifestTrusted = Boolean(
   && typeof sourceContentManifest?.checksum === 'string'
   && sourceContentManifest.checksum === SOURCE_CONTENT_MANIFEST_CHECKSUM,
 )
-
-export function requiresSourceVisual(value) {
-  VISUAL_PLACEHOLDER.lastIndex = 0
-  return VISUAL_PLACEHOLDER.test(String(value || ''))
-}
-
-export function stripSourceVisualPlaceholders(value) {
-  VISUAL_PLACEHOLDER.lastIndex = 0
-  return String(value || '')
-    .replace(VISUAL_PLACEHOLDER, '')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
-}
 
 function imageSize(value) {
   if (!Array.isArray(value) || value.length !== 2) return null

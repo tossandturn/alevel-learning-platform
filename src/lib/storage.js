@@ -1,6 +1,5 @@
 import { courseRoutes, LEGACY_UNSCOPED_ROUTE_ID, routeById } from '../data/routeRegistry.js'
 import { migrateLearningState, normalizeAcademicStage, resolveRouteBinding } from './routeMigration.js'
-import { rebindVerifiedPracticeUnit } from './verifiedPracticeCatalog.js'
 
 const STORAGE_KEY = 'alevel-learning-platform-v2'
 const GUEST_STORAGE_KEY = `${STORAGE_KEY}:guest`
@@ -149,22 +148,16 @@ function normalizeGeneratedUnit(unit) {
       sourceGateStatus: 'pending-source-rebind',
     }
   }
-  const rebound = rebindVerifiedPracticeUnit(unit)
-  const binding = resolveRouteBinding(rebound || unit, { routes: courseRoutes })
-  return rebound
-    ? {
-        ...rebound,
-        routeId: binding.routeId,
-        stage: binding.stage,
-        routeBindingReason: binding.reason,
-      }
-    : {
-      ...unit,
-      routeId: binding.routeId,
-      stage: binding.stage,
-      routeBindingReason: binding.reason,
-      sourceGateStatus: 'retired-or-unverified',
-    }
+  const binding = resolveRouteBinding(unit, { routes: courseRoutes })
+  return {
+    ...unit,
+    routeId: binding.routeId,
+    stage: binding.stage,
+    routeBindingReason: binding.reason,
+    // Persisted question data is never trusted during storage parsing. The
+    // current catalog runtime rebinds it before display, resume or scoring.
+    sourceGateStatus: 'pending-source-rebind',
+  }
 }
 
 export function normalizeState(value, options = {}) {

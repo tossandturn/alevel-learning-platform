@@ -2,7 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, CheckCircle2, ChevronLeft, ChevronRight, Clock3, FileText, Lightbulb, ListChecks, Maximize2, Minimize2, RotateCcw, Save, Search, Sparkles, X, ZoomIn, ZoomOut } from 'lucide-react'
 import { AiCoach } from './AiCoach'
 import { HandwritingPad } from './HandwritingPad'
-import { stripSourceVisualPlaceholders, trustedSourceAssetUrls } from '../lib/questionContent.js'
+import { trustedSourceAssetUrls } from '../lib/questionContent.js'
+import { stripSourceVisualPlaceholders } from '../lib/questionText.js'
 import { markingStatusForPart, practiceUnitMetrics } from '../lib/practicePresentation.js'
 import './QuestionPlayer.css'
 

@@ -267,7 +267,8 @@ async function openTopic(page, testCase) {
   await page.locator('.question-block').waitFor({ state: 'visible' })
   if (testCase.expectedGroupCount) {
     const workspaceSummary = (await page.locator('.qp-header__title span').innerText()).replace(/\s+/g, ' ')
-    if (!workspaceSummary.startsWith(`${testCase.expectedGroupCount} source questions ·`)) throw new Error(`${topic} workspace started the wrong set: ${workspaceSummary}`)
+    const workspaceQuestionCount = Number(workspaceSummary.match(/^(\d+) official questions\b/)?.[1])
+    if (workspaceQuestionCount !== testCase.expectedGroupCount) throw new Error(`${topic} workspace started the wrong set: ${workspaceSummary}`)
   }
 }
 

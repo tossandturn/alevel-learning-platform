@@ -6,8 +6,9 @@ import { canonicalSourceMarkingProvenance, canonicalSourceQuestionId } from './s
 import { reviewedSourceFocusBinding, sourceContentStatus, stripSourceVisualPlaceholders } from './questionContent.js'
 import { SOURCE_CONTENT_MANIFEST_CHECKSUM, SOURCE_INDEX_SHA256 } from '../data/sourceContentIdentity.js'
 import { withPracticePresentation } from './practicePresentation.js'
+import { MIN_VERIFIED_GROUPS_FOR_PRACTICE } from './practiceConstants.js'
 
-export const MIN_VERIFIED_GROUPS_FOR_PRACTICE = 10
+export { MIN_VERIFIED_GROUPS_FOR_PRACTICE }
 
 const EXTERNAL_GROUPS = Object.freeze({
   bpho: [

@@ -14,12 +14,24 @@ const entryName = jsAssets.find((name) => /^index-/.test(name))
 assert.ok(entryName, 'built client entry chunk is missing')
 const entry = fs.readFileSync(path.join(assetRoot, entryName))
 const entryGzip = gzipSync(entry, { level: 9 })
+const html = fs.readFileSync(path.join(root, 'dist', 'index.html'), 'utf8')
 const paperWorkspaceName = jsAssets.find((name) => /^PaperWorkspace-/.test(name))
+const paperLibraryName = jsAssets.find((name) => /^PaperLibrary-/.test(name))
 const pdfViewerName = jsAssets.find((name) => /^PdfViewer-/.test(name))
+const practiceWorkspaceName = jsAssets.find((name) => /^PracticeWorkspace-/.test(name))
+const aiCoachName = jsAssets.find((name) => /^AiCoach-/.test(name))
+const practiceRuntimeName = jsAssets.find((name) => /^verifiedPracticeCatalog-/.test(name))
 
-assert.ok(entry.length < 1_150_000, `client entry is too large: ${entry.length} bytes`)
-assert.ok(entryGzip.length < 220_000, `gzipped client entry is too large: ${entryGzip.length} bytes`)
+assert.ok(entry.length < 625_000, `client entry is too large: ${entry.length} bytes`)
+assert.ok(entryGzip.length < 180_000, `gzipped client entry is too large: ${entryGzip.length} bytes`)
 assert.ok(!entry.includes('importedQuestionIndex'), 'the full imported question index must not be embedded in the client entry')
+assert.ok(!entry.includes('sourceContentManifest'), 'the source evidence manifest must not be embedded in the client entry')
+assert.ok(!html.includes('practice-catalog-'), 'the initial HTML must not preload the full verified practice catalog')
+assert.ok(!html.includes('source-content-manifest-'), 'the initial HTML must not preload the source evidence manifest')
+assert.ok(practiceRuntimeName, 'the verified practice runtime must remain an on-demand client chunk')
+assert.ok(practiceWorkspaceName, 'the question workspace must remain an on-demand client chunk')
+assert.ok(aiCoachName, 'AI Coach must remain an on-demand client chunk')
+assert.ok(paperLibraryName, 'the past-paper catalog must remain an on-demand client chunk')
 assert.ok(paperWorkspaceName, 'paper workspace must remain an on-demand client chunk')
 assert.ok(pdfViewerName, 'PDF viewer must remain an on-demand client chunk')
 assert.ok(!entry.includes('pdfjs-dist'), 'the initial client entry must not include PDF parsing code')
@@ -47,6 +59,10 @@ console.log(JSON.stringify({
   entry: entryName,
   entryBytes: entry.length,
   entryGzipBytes: entryGzip.length,
+  practiceRuntime: practiceRuntimeName,
+  practiceWorkspace: practiceWorkspaceName,
+  aiCoach: aiCoachName,
+  paperLibrary: paperLibraryName,
   paperWorkspace: paperWorkspaceName,
   paperWorkspaceBytes: paperWorkspace.length,
   pdfViewer: pdfViewerName,

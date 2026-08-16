@@ -1,0 +1,1 @@
+export const MIN_VERIFIED_GROUPS_FOR_PRACTICE = 10

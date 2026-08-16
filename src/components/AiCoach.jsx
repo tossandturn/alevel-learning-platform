@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom'
 import { BrainCircuit, FileText, ImagePlus, MonitorUp, Send, Sparkles, Wrench, X } from 'lucide-react'
 import { resolveCoachIntent } from '../lib/coachIntent'
 import { parseCoachMessage } from '../lib/coachMessage'
-import { MIN_VERIFIED_GROUPS_FOR_PRACTICE } from '../lib/verifiedPracticeCatalog'
+import { MIN_VERIFIED_GROUPS_FOR_PRACTICE } from '../lib/practiceConstants'
 import {
   beginCurrentPageCapture,
   cropCurrentPageCapture,
