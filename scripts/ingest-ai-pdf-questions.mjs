@@ -20,6 +20,7 @@ import { validateCandidate } from './ai-pdf-ingestion/validate.mjs'
 const DEFAULT_OUTPUT_ROOT = 'data/ai-pdf-ingestion'
 const DEFAULT_RENDER_DPI = 180
 const DEFAULT_MAX_ATTEMPTS = 3
+const DEFAULT_OPENAI_TIMEOUT_MS = 120000
 const SAFE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/
 const PDF_VALIDATION_PROGRAM = 'from pypdf import PdfReader; import sys; reader = PdfReader(sys.argv[1]); expected = int(sys.argv[2]); assert expected > 0 and len(reader.pages) == expected'
 
@@ -82,7 +83,7 @@ export function parseArgs(argv, { cwd = process.cwd(), env = process.env } = {})
   const values = {}
   const flags = new Set(['--dry-run', '--retry'])
   const options = new Set([
-    '--paper-id', '--question-pdf', '--mark-scheme-pdf', '--subject', '--output-root', '--model', '--base-url', '--render-dpi', '--max-attempts',
+    '--paper-id', '--question-pdf', '--mark-scheme-pdf', '--subject', '--output-root', '--model', '--base-url', '--render-dpi', '--max-attempts', '--timeout-ms',
   ])
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -110,6 +111,7 @@ export function parseArgs(argv, { cwd = process.cwd(), env = process.env } = {})
 
   const renderDpi = positiveInteger(values['--render-dpi'] ?? DEFAULT_RENDER_DPI, '--render-dpi')
   const maxAttempts = positiveInteger(values['--max-attempts'] ?? DEFAULT_MAX_ATTEMPTS, '--max-attempts')
+  const timeoutMs = positiveInteger(values['--timeout-ms'] ?? env.AI_PDF_INGESTION_TIMEOUT_MS ?? DEFAULT_OPENAI_TIMEOUT_MS, '--timeout-ms')
   const outputRoot = path.resolve(cwd, values['--output-root'] ?? env.AI_PDF_INGESTION_ROOT ?? DEFAULT_OUTPUT_ROOT)
 
   return Object.freeze({
@@ -124,6 +126,7 @@ export function parseArgs(argv, { cwd = process.cwd(), env = process.env } = {})
     retry: values.retry === true,
     renderDpi,
     maxAttempts,
+    timeoutMs,
   })
 }
 
@@ -140,6 +143,7 @@ export function buildDryRunPlan(options) {
     model: options.model,
     renderDpi: options.renderDpi,
     maxAttempts: options.maxAttempts,
+    timeoutMs: options.timeoutMs,
     retry: options.retry,
     artifactId: id,
     immutableInputs: {
@@ -209,6 +213,7 @@ export async function runCli(options, {
       schema: extractionSchemaFor(source.controlledTags),
       input: buildExtractionInput(source, questionRenderDirectory, markSchemeRenderDirectory),
       maxAttempts: options.maxAttempts,
+      timeoutMs: options.timeoutMs,
     })
     const verification = await callStructured({
       apiKey,
@@ -218,6 +223,7 @@ export async function runCli(options, {
       schema: verifierSchema,
       input: buildVerificationInput(source, extraction, questionRenderDirectory, markSchemeRenderDirectory),
       maxAttempts: options.maxAttempts,
+      timeoutMs: options.timeoutMs,
     })
     const validationCandidate = normalizeExtractionForValidation(extraction)
     const validation = validateCandidate({ candidate: validationCandidate, verification, source })

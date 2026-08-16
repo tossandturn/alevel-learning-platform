@@ -67,6 +67,7 @@ try {
   assert.equal(options.baseUrl, 'https://ai.ieltsist.com/v1')
   assert.equal(options.renderDpi, 180)
   assert.equal(options.maxAttempts, 3)
+  assert.equal(options.timeoutMs, 120000)
   assert.equal(options.dryRun, true)
   assert.equal(parseArgs([
     '--paper-id', 'cie-9702-9702_m25_qp_22',
@@ -77,15 +78,37 @@ try {
     cwd: temporaryRoot,
     env: { AI_PDF_INGESTION_MODEL: '   ', OPENAI_API_KEY: fakeApiKey },
   }).model, 'gpt-5.6')
-  assert.equal(parseArgs([
+  const envTimeoutOptions = parseArgs([
     '--paper-id', 'cie-9702-9702_m25_qp_22',
     '--question-pdf', questionPdf,
     '--mark-scheme-pdf', markSchemePdf,
     '--subject', '9702',
   ], {
     cwd: temporaryRoot,
-    env: { OPENAI_BASE_URL: ' https://ai.ieltsist.com/ ', OPENAI_API_KEY: fakeApiKey },
-  }).baseUrl, 'https://ai.ieltsist.com/')
+    env: { OPENAI_BASE_URL: ' https://ai.ieltsist.com/ ', OPENAI_API_KEY: fakeApiKey, AI_PDF_INGESTION_TIMEOUT_MS: '90000' },
+  })
+  assert.equal(envTimeoutOptions.baseUrl, 'https://ai.ieltsist.com/')
+  assert.equal(envTimeoutOptions.timeoutMs, 90000)
+  assert.equal(parseArgs([
+    '--paper-id', 'cie-9702-9702_m25_qp_22',
+    '--question-pdf', questionPdf,
+    '--mark-scheme-pdf', markSchemePdf,
+    '--subject', '9702',
+    '--timeout-ms', '180000',
+  ], {
+    cwd: temporaryRoot,
+    env: { OPENAI_API_KEY: fakeApiKey, AI_PDF_INGESTION_TIMEOUT_MS: '90000' },
+  }).timeoutMs, 180000)
+  assert.throws(
+    () => parseArgs([
+      '--paper-id', 'cie-9702-9702_m25_qp_22',
+      '--question-pdf', questionPdf,
+      '--mark-scheme-pdf', markSchemePdf,
+      '--subject', '9702',
+      '--timeout-ms', '0',
+    ], { cwd: temporaryRoot, env: { OPENAI_API_KEY: fakeApiKey } }),
+    /--timeout-ms must be a positive integer/,
+  )
   const retryOptions = parseArgs([
     '--paper-id', 'cie-9702-9702_m25_qp_22',
     '--question-pdf', questionPdf,
