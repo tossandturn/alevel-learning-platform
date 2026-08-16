@@ -38,22 +38,28 @@ try {
     process.platform === 'win32' ? 'pdftocairo.exe' : 'pdftocairo',
   )
 
+  const fixturePdfPath = process.platform === 'win32'
+    ? 'D:\\papers\\9702_s25_qp_13.pdf'
+    : '/papers/9702_s25_qp_13.pdf'
+  const fixtureOutputPrefix = process.platform === 'win32'
+    ? 'D:\\renders\\qp'
+    : '/renders/qp'
   assert.deepEqual(
     buildRenderArgs({
-      pdfPath: 'D:\\papers\\9702_s25_qp_13.pdf',
-      outputPrefix: 'D:\\renders\\qp',
+      pdfPath: fixturePdfPath,
+      outputPrefix: fixtureOutputPrefix,
       dpi: 180,
     }),
-    ['-jpeg', '-jpegopt', 'quality=82', '-r', '180', '--', 'D:\\papers\\9702_s25_qp_13.pdf', 'D:\\renders\\qp'],
+    ['-jpeg', '-jpegopt', 'quality=82', '-r', '180', '--', fixturePdfPath, fixtureOutputPrefix],
   )
   assert.throws(() => buildRenderArgs({
     pdfPath: 'relative.pdf',
-    outputPrefix: 'D:\\renders\\qp',
+    outputPrefix: fixtureOutputPrefix,
     dpi: 180,
   }), RangeError)
   assert.throws(() => buildRenderArgs({
-    pdfPath: 'D:\\papers\\source.pdf',
-    outputPrefix: 'D:\\renders\\qp',
+    pdfPath: fixturePdfPath,
+    outputPrefix: fixtureOutputPrefix,
     dpi: 301,
   }), RangeError)
 
