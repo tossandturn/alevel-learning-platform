@@ -31,11 +31,11 @@ try {
   )
   assert.match(
     resolvePopplerExecutable('pdftoppm', { env: {}, existsSync: candidate => candidate.endsWith('pdftoppm.exe') }),
-    /pdftoppm\.exe$/,
+    process.platform === 'win32' ? /pdftoppm\.exe$/ : /^pdftoppm$/,
   )
   assert.equal(
     resolvePopplerExecutable('pdftocairo', { env: {}, existsSync: () => false }),
-    'pdftocairo.exe',
+    process.platform === 'win32' ? 'pdftocairo.exe' : 'pdftocairo',
   )
 
   assert.deepEqual(
@@ -132,8 +132,11 @@ try {
 
   const sourcePdf = path.join(temporaryRoot, 'source.pdf')
   const croppedPdf = path.join(temporaryRoot, 'output', 'paper', 'ai-verified', 'q1', 'question.pdf')
-  const createFixture = spawnSync('py', [
-    '-3.12',
+  const fixturePython = process.platform === 'win32'
+    ? { command: 'py', args: ['-3.12'] }
+    : { command: 'python3', args: [] }
+  const createFixture = spawnSync(fixturePython.command, [
+    ...fixturePython.args,
     '-c',
     'from pypdf import PdfWriter; import sys; writer = PdfWriter(); writer.add_blank_page(width=400, height=600); writer.write(sys.argv[1])',
     sourcePdf,
@@ -148,12 +151,14 @@ try {
     pageSizes: { 1: { width: 400, height: 600 } },
     outputRoot: path.join(temporaryRoot, 'output'),
   })
-  const integrationCommand = buildCropCommand(integrationManifest, { pythonPath: 'py' })
+  const integrationCommand = buildCropCommand(integrationManifest)
+  assert.equal(integrationCommand.command, fixturePython.command)
+  assert.deepEqual(integrationCommand.args.slice(0, fixturePython.args.length), fixturePython.args)
   const cropResult = spawnSync(integrationCommand.command, integrationCommand.args, { encoding: 'utf8' })
   assert.equal(cropResult.status, 0, cropResult.stderr)
   assert.ok(existsSync(croppedPdf))
-  const inspectResult = spawnSync('py', [
-    '-3.12',
+  const inspectResult = spawnSync(fixturePython.command, [
+    ...fixturePython.args,
     '-c',
     'from pypdf import PdfReader; import sys; reader = PdfReader(sys.argv[1]); page = reader.pages[0]; print(len(reader.pages), float(page.mediabox.width), float(page.mediabox.height))',
     croppedPdf,

@@ -103,12 +103,18 @@ export function buildCropManifest({
   }
 }
 
-export function buildCropCommand(manifest, { pythonPath = 'py' } = {}) {
+export function buildCropCommand(manifest, { pythonPath, pythonArgs } = {}) {
   if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
     throw new TypeError('manifest must be an object.')
   }
-  if (typeof pythonPath !== 'string' || !pythonPath.trim()) {
+  const defaultPythonPath = process.platform === 'win32' ? 'py' : 'python3'
+  const resolvedPythonPath = pythonPath ?? defaultPythonPath
+  if (typeof resolvedPythonPath !== 'string' || !resolvedPythonPath.trim()) {
     throw new TypeError('pythonPath must be a non-empty command string.')
+  }
+  const resolvedPythonArgs = pythonArgs ?? (path.basename(resolvedPythonPath).toLowerCase().startsWith('py') ? ['-3.12'] : [])
+  if (!Array.isArray(resolvedPythonArgs) || resolvedPythonArgs.some(argument => typeof argument !== 'string')) {
+    throw new TypeError('pythonArgs must be an array of strings.')
   }
   const sourcePdfPath = assertAbsolutePath(manifest.sourcePdfPath, 'manifest.sourcePdfPath')
   const questionPdfPath = assertAbsolutePath(manifest.questionPdfPath, 'manifest.questionPdfPath')
@@ -116,7 +122,7 @@ export function buildCropCommand(manifest, { pythonPath = 'py' } = {}) {
     throw new RangeError('manifest.crops must be a non-empty array.')
   }
 
-  const args = ['-3.12', cropHelperPath, '--input', sourcePdfPath, '--output', questionPdfPath]
+  const args = [...resolvedPythonArgs, cropHelperPath, '--input', sourcePdfPath, '--output', questionPdfPath]
   for (const crop of manifest.crops) {
     const region = crop?.normalizedRegion
     if (!Number.isInteger(crop?.page) || !region) {
@@ -125,7 +131,7 @@ export function buildCropCommand(manifest, { pythonPath = 'py' } = {}) {
     const normalized = normalizeRegion(region)
     args.push('--region', [crop.page, normalized.x0, normalized.y0, normalized.x1, normalized.y1].join(','))
   }
-  return { command: pythonPath.trim(), args }
+  return { command: resolvedPythonPath.trim(), args }
 }
 
 function buildCropEntry({ region, regionIndex, pageSizes, outputDirectory }) {
