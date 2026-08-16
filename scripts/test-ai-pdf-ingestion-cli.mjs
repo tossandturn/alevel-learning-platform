@@ -225,7 +225,11 @@ function fakeRenderer({ questionPdf, pageHashes, markSchemePageHashes }) {
   return async (pdfPath, outputDirectory) => {
     const hashes = pdfPath === questionPdf ? pageHashes : markSchemePageHashes
     mkdirSync(outputDirectory, { recursive: true })
-    for (const page of Object.keys(hashes)) writeFileSync(path.join(outputDirectory, `page-${page}.jpg`), Buffer.from(`page-${page}`, 'utf8'))
+    const paddedNames = pdfPath === questionPdf && Object.keys(hashes).length >= 2
+    for (const page of Object.keys(hashes)) {
+      const filename = paddedNames ? `page-${String(page).padStart(2, '0')}.jpg` : `page-${page}.jpg`
+      writeFileSync(path.join(outputDirectory, filename), Buffer.from(`page-${page}`, 'utf8'))
+    }
     return {
       pageImageHashes: hashes,
       pageSizes: Object.fromEntries(Object.keys(hashes).map(page => [page, { width: 1200, height: 1600 }])),

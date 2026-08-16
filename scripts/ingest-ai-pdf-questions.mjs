@@ -266,8 +266,8 @@ async function renderPdfPages(pdfPath, outputDirectory, dpi, env) {
     .sort((left, right) => Number(left.match[1]) - Number(right.match[1]))
   if (pages.length === 0) throw codedError('RENDER_NO_PAGES')
   return {
-    pageImageHashes: Object.fromEntries(pages.map(({ name, match }) => [match[1], imageSha256(path.join(outputDirectory, name))])),
-    pageSizes: Object.fromEntries(pages.map(({ name, match }) => [match[1], jpegDimensions(path.join(outputDirectory, name))])),
+    pageImageHashes: Object.fromEntries(pages.map(({ name, match }) => [String(Number(match[1])), imageSha256(path.join(outputDirectory, name))])),
+    pageSizes: Object.fromEntries(pages.map(({ name, match }) => [String(Number(match[1])), jpegDimensions(path.join(outputDirectory, name))])),
   }
 }
 
@@ -312,10 +312,12 @@ async function runCropCommandWithBundledPython(command, manifest) {
 async function validateCropOutputWithBundledPython(questionPdfPath, manifest) {
   const bundledPython = bundledPythonPath()
   const useBundledPython = fs.statSync(bundledPython, { throwIfNoEntry: false })?.isFile()
-  const executable = useBundledPython ? bundledPython : 'py'
+  const executable = useBundledPython ? bundledPython : (process.platform === 'win32' ? 'py' : 'python3')
   const args = useBundledPython
     ? ['-c', PDF_VALIDATION_PROGRAM, questionPdfPath, String(manifest.crops.length)]
-    : ['-3.12', '-c', PDF_VALIDATION_PROGRAM, questionPdfPath, String(manifest.crops.length)]
+    : (process.platform === 'win32'
+      ? ['-3.12', '-c', PDF_VALIDATION_PROGRAM, questionPdfPath, String(manifest.crops.length)]
+      : ['-c', PDF_VALIDATION_PROGRAM, questionPdfPath, String(manifest.crops.length)])
   try {
     await runProcess(executable, args)
   } catch {
@@ -392,12 +394,26 @@ function buildVerificationInput(source, extraction, questionDirectory, markSchem
 
 function imageInputs(directory, label, pageHashes) {
   return Object.keys(pageHashes).map(Number).sort((left, right) => left - right).flatMap((page) => {
-    const imagePath = path.join(directory, `page-${page}.jpg`)
+    const imagePath = renderedPageImagePath(directory, page)
     return [
       { type: 'input_text', text: `${label} page ${page}; sha256:${pageHashes[page]}` },
       { type: 'input_image', image_url: `data:image/jpeg;base64,${fs.readFileSync(imagePath).toString('base64')}` },
     ]
   })
+}
+
+function renderedPageImagePath(directory, page) {
+  const exactPath = path.join(directory, `page-${page}.jpg`)
+  if (fs.statSync(exactPath, { throwIfNoEntry: false })?.isFile()) return exactPath
+  const match = fs.readdirSync(directory, { withFileTypes: true })
+    .filter(entry => entry.isFile())
+    .map(entry => entry.name)
+    .find(name => {
+      const parsed = /^page-(\d+)\.jpg$/i.exec(name)
+      return parsed && Number(parsed[1]) === page
+    })
+  if (!match) throw codedError('RENDER_PAGE_IMAGE_MISSING')
+  return path.join(directory, match)
 }
 
 async function writeQuarantine({ plan, source, writeArtifact, reasonCodes }) {
