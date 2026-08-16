@@ -103,8 +103,8 @@ async function assertPracticeSelfMarkPendingFlow(page) {
   if (await submitDialog.count()) await submitDialog.getByRole('button', { name: 'Submit anyway' }).click()
   const pending = page.locator('.self-mark-result')
   await pending.waitFor()
-  await pending.getByRole('heading', { name: 'Ready to self-mark' }).waitFor()
-  const recordButton = pending.getByRole('button', { name: 'Record self-mark' })
+  await pending.getByRole('heading', { name: /AI review first, then self-mark|AI check unavailable, self-mark next/ }).waitFor()
+  const recordButton = pending.getByRole('button', { name: 'Record self-mark after AI review' })
   if (!await recordButton.isDisabled()) throw new Error('Blank self-mark input must keep Record self-mark disabled')
   const shot = path.join(ARTIFACT_DIR, 'practice-self-mark-pending-desktop.png')
   await page.screenshot({ path: shot, fullPage: false })
@@ -479,9 +479,9 @@ async function assertSelfMarkPendingFlow(browser, errors, shots) {
     await submitDialog.getByText(/Blank written responses remain pending and never become an automatic zero/i).waitFor()
     if (await submitDialog.getByText(/receive zero marks/i).count()) throw new Error('Self-mark-only submit still claims blank answers receive automatic zero')
     await submitDialog.getByRole('button', { name: 'Submit anyway' }).click()
-    await page.getByRole('heading', { name: 'Ready to self-mark' }).waitFor()
+    await page.getByRole('heading', { name: /AI review first, then self-mark|AI check unavailable, self-mark next/ }).waitFor()
     await page.getByText(/No total score, mastery, mistake or learning event is created/i).waitFor()
-    const recordButton = page.getByRole('button', { name: 'Record self-mark' })
+    const recordButton = page.getByRole('button', { name: 'Record self-mark after AI review' })
     if (!(await recordButton.isDisabled())) throw new Error('Blank self-mark fields enabled score recording')
     await page.getByText(/Blank or partial entries remain unscored/i).waitFor()
     const pendingState = await page.evaluate((key) => {
@@ -557,7 +557,7 @@ async function assertMixedMarkingLifecycle(browser, errors, shots) {
     const submitDialog = page.locator('.submit-dialog')
     await submitDialog.getByText(/written responses remain pending and never become an automatic zero/i).waitFor()
     await submitDialog.getByRole('button', { name: 'Submit anyway' }).click()
-    await page.getByRole('heading', { name: 'Ready to self-mark' }).waitFor()
+    await page.getByRole('heading', { name: /AI review first, then self-mark|AI check unavailable, self-mark next/ }).waitFor()
     await page.getByText(/Checked so far/i).waitFor()
     const initialState = await page.evaluate((key) => {
       const state = JSON.parse(localStorage.getItem(key) || '{}')
@@ -594,10 +594,10 @@ async function assertMixedMarkingLifecycle(browser, errors, shots) {
     }
     await pendingRow.waitFor()
     await pendingRow.getByRole('button', { name: 'Continue marking' }).click()
-    await page.getByRole('heading', { name: 'Ready to self-mark' }).waitFor()
+    await page.getByRole('heading', { name: /AI review first, then self-mark|AI check unavailable, self-mark next/ }).waitFor()
     const restoredInput = page.getByRole('spinbutton', { name: /^Self-mark for / }).first()
     if (await restoredInput.inputValue() !== '1') throw new Error('Mixed self-mark draft did not restore after reload and History resume')
-    await page.getByRole('button', { name: 'Record self-mark' }).click()
+    await page.getByRole('button', { name: 'Record self-mark after AI review' }).click()
     await page.waitForFunction(() => document.querySelector('.result-hero h1')?.textContent?.includes('marks'))
 
     const finalState = await page.evaluate(({ key, pendingId, beforeCount }) => {

@@ -183,7 +183,7 @@ export function buildPartMarkingLifecycle(unit, answers = {}, elapsedSec = 0, vi
       capability,
       status: 'student-self-mark-pending',
       maxMarks: Number(part.marks),
-      reason: 'Use the paired official mark scheme and record this part total before the attempt can count.',
+      reason: 'No verified AI marking contract is available for this answered part. Use the paired official mark scheme and record this part total before the attempt can count.',
     }
   }
 

@@ -82,12 +82,14 @@ function formatTime(totalSec) {
 }
 
 function formatDate(value) {
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return 'Date not saved'
   return new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
     month: 'short',
     hour: '2-digit',
     minute: '2-digit',
-  }).format(new Date(value))
+  }).format(date)
 }
 
 function routePickerLabel(route) {
@@ -433,11 +435,15 @@ function App() {
   const migrationUnits = useMemo(() => [...new Map([...allPracticeUnits, ...topicUnits, ...fullPaperUnits].map((unit) => [unit.id, unit])).values()], [allPracticeUnits])
   const routePracticeUnits = useMemo(() => allPracticeUnits.filter((unit) => unit.routeId === activeRouteId), [activeRouteId, allPracticeUnits])
   const routeAttempts = useMemo(() => appState.attempts.filter((attempt) => attempt.routeId === activeRouteId), [activeRouteId, appState.attempts])
-  const routePaperSessions = useMemo(() => appState.paperSessions.filter((session) => session.routeId === activeRouteId), [activeRouteId, appState.paperSessions])
+  const safePaperSessions = useMemo(() => (Array.isArray(appState.paperSessions) ? appState.paperSessions : [])
+    .filter((session) => session && typeof session === 'object' && String(session.attemptId || '').trim()), [appState.paperSessions])
+  const safePaperReviews = useMemo(() => (Array.isArray(appState.paperReviews) ? appState.paperReviews : [])
+    .filter((review) => review && typeof review === 'object' && String(review.attemptId || '').trim()), [appState.paperReviews])
+  const routePaperSessions = useMemo(() => safePaperSessions.filter((session) => session.routeId === activeRouteId), [activeRouteId, safePaperSessions])
   const routePaperReviews = useMemo(() => {
     const attemptIds = new Set(routePaperSessions.map((session) => session.attemptId))
-    return (appState.paperReviews || []).filter((review) => review.routeId === activeRouteId || attemptIds.has(review.attemptId))
-  }, [activeRouteId, appState.paperReviews, routePaperSessions])
+    return safePaperReviews.filter((review) => review.routeId === activeRouteId || attemptIds.has(review.attemptId))
+  }, [activeRouteId, routePaperSessions, safePaperReviews])
   const aiPracticeOptions = useMemo(() => coachPracticeOptions(), [])
   const syllabusInventory = useSyllabusInventory(activeRouteId, {
     enabled: supportsSyllabusPracticeRoute(activeRouteId),
@@ -669,14 +675,14 @@ function App() {
   }), [activeRouteId, allPracticeUnits, appState.attempts])
 
   const paperMistakes = useMemo(() => {
-    const reviews = appState.paperReviews || []
+    const reviews = safePaperReviews
     const latestReviewByAttempt = new Map()
     reviews.forEach((review) => latestReviewByAttempt.set(review.attemptId, review))
-    const sessionByAttempt = new Map(appState.paperSessions.map((session) => [session.attemptId, session]))
+    const sessionByAttempt = new Map(safePaperSessions.map((session) => [session.attemptId, session]))
     const paperById = new Map((paperCatalogState.catalog?.items || []).map((paper) => [paper.id, paper]))
 
     function latestDescendantReview(sourceAttemptId) {
-      for (const candidate of [...appState.paperSessions].reverse()) {
+      for (const candidate of [...safePaperSessions].reverse()) {
         let parentId = candidate.retestOf
         while (parentId) {
           if (parentId === sourceAttemptId) {
@@ -690,7 +696,7 @@ function App() {
       return null
     }
 
-    return appState.paperSessions.flatMap((session) => {
+    return safePaperSessions.flatMap((session) => {
       if (session.retestOf || session.routeId !== activeRouteId) return []
       const sourceReview = latestReviewByAttempt.get(session.attemptId)
       if (!sourceReview) return []
@@ -728,7 +734,7 @@ function App() {
         }]
       })
     })
-  }, [activeRouteId, appState.paperReviews, appState.paperSessions, paperCatalogState.catalog])
+  }, [activeRouteId, paperCatalogState.catalog, safePaperReviews, safePaperSessions])
 
   const topicMastery = useMemo(() => {
     return routePracticeUnits.map((unit) => {
@@ -1338,7 +1344,7 @@ function App() {
     const submittedAttempt = { ...attemptSnapshot, submittedAt, submitting: false }
     const visionReviews = capability.counts['ai-assisted'] ? await requestVisionReviews(unit, submittedAttempt, sharedAccount.token) : {}
     const markingLifecycle = buildPartMarkingLifecycle(unit, attemptSnapshot.answers, attemptSnapshot.elapsedSec, visionReviews)
-    const scoreResult = markingLifecycle.complete
+    const scoreResult = markingLifecycle.complete && markingLifecycle.provisionalCriteria.length > 0
       ? finalizePartMarking(unit, markingLifecycle, {}, attemptSnapshot.elapsedSec)
       : null
     const pendingStatus = capability.mode === 'self-mark' ? 'self-mark-pending' : 'marking-pending'
@@ -3084,7 +3090,7 @@ function StudentNotebook({ activeRoute, routeOptions, selectRoute, attempts, uni
   const noteMatchesSearch = Boolean(search && `${note?.body || ''} ${activeRoute.subjectCode} ${activeRoute.stage}`.toLowerCase().includes(search))
   const filteredMistakes = mistakes.filter((mistake) => (!search || mistake.searchText?.includes(search)) && (severity === 'all' || mistake.severity.toLowerCase() === severity))
   const filteredProvisionalMistakes = provisionalMistakes.filter((mistake) => !search || mistake.searchText?.includes(search))
-  const filteredPaperMistakes = paperMistakes.filter((mistake) => !search || `${mistake.session.file} ${mistake.paper?.id || ''} ${mistake.questionNumber} ${mistake.status}`.toLowerCase().includes(search))
+  const filteredPaperMistakes = paperMistakes.filter((mistake) => !search || `${mistake.session?.file || ''} ${mistake.paper?.id || ''} ${mistake.questionNumber} ${mistake.status}`.toLowerCase().includes(search))
   const recentAttempts = attempts
     .filter((attempt) => {
       const unit = unitById.get(attempt.unitId)
@@ -3135,7 +3141,7 @@ function StudentNotebook({ activeRoute, routeOptions, selectRoute, attempts, uni
               const missedPoints = pointEvidenceMissing ? [] : mistake.criterion.evidence?.filter((point) => !point.awarded) || []
               return <article className="notebook-mistake" key={mistake.id}><header><span className={`status-pill danger ${mistake.severity.toLowerCase()}`}>{mistake.severity} priority</span><span>{mistake.status}</span></header><h3>{mistake.unit.title} - part {displayPartLabel(mistake.part)}</h3><p className="notebook-mistake__topic">{mistake.unit.topic} - {mistake.sourcePaperId || 'Source paper'} - {mistake.sourceQuestion} - {mistake.part.marks} marks - {formatDate(mistake.attempt.submittedAt)}</p><p>{mistake.criterion.feedback}</p><details><summary>{pointEvidenceMissing ? 'Review your response and official mark scheme' : 'Review your response and missed points'}</summary><div className="notebook-evidence-copy"><strong>Your response</strong><pre>{response}</pre>{pointEvidenceMissing && <><p className="self-mark-evidence-note">Your total self-mark is saved, but the specific awarded and missed mark-scheme points were not recorded.</p>{mistake.part.answerRef?.localUrl && <a className="mark-scheme-link" href={mistake.part.answerRef.localUrl} target="_blank" rel="noreferrer">Open exact mark scheme for {displayPartLabel(mistake.part)}</a>}{mistake.part.markPoints?.length > 0 && <><strong>Official mark-scheme points</strong><ul>{mistake.part.markPoints.map((point, index) => <li key={`${mistake.part.id}-official-${index + 1}`}>{point}</li>)}</ul></>}</>}{missedPoints.length > 0 && <><strong>Mark points to add next time</strong><ul>{missedPoints.map((point) => <li key={point.pointId}>{point.point}</li>)}</ul></>}</div></details><footer><span>{mistake.criterion.awarded}/{mistake.criterion.maxMarks} marks</span><button type="button" className="primary-action compact-action" onClick={() => startPractice(mistake.unit, { clearDraft: true, retestOf: mistake.attempt.id, onlyPartId: mistake.part.id })}><RefreshCcw size={15} />Retest this part</button></footer><ReviewQueueActions reviewItemId={mistake.id} onReviewAction={onReviewAction} /></article>
             })}
-            {filteredPaperMistakes.map((mistake) => <article className="notebook-mistake" key={mistake.id}><header><span className="status-pill danger">Paper review</span><span>{mistake.status}</span></header><h3>{mistake.session.file} - question {mistake.questionNumber}</h3><p className="notebook-mistake__topic">{mistake.paper.subject} - {formatDate(mistake.session.completedAt)}</p><p>{mistake.status === 'Blank response' ? 'No final response was submitted for this printed question.' : 'Compare your response with the exact mark scheme and record the awarded marks.'}</p><footer><span>{mistake.awarded == null ? 'Not self-marked' : `${mistake.awarded}/${mistake.maxMarks} marks`}</span><button type="button" className="primary-action compact-action" onClick={() => retestPaper(mistake.paper, mistake.session.attemptId)}><RefreshCcw size={15} />Retest paper</button></footer></article>)}
+            {filteredPaperMistakes.map((mistake) => <article className="notebook-mistake" key={mistake.id}><header><span className="status-pill danger">Paper review</span><span>{mistake.status}</span></header><h3>{mistake.session?.file || mistake.paper?.file || 'Past paper'} - question {mistake.questionNumber}</h3><p className="notebook-mistake__topic">{mistake.paper?.subject || mistake.session?.subject || 'Paper'} - {formatDate(mistake.session?.completedAt || mistake.session?.submittedAt)}</p><p>{mistake.status === 'Blank response' ? 'No final response was submitted for this printed question.' : 'Compare your response with the exact mark scheme and record the awarded marks.'}</p><footer><span>{mistake.awarded == null ? 'Not self-marked' : `${mistake.awarded}/${mistake.maxMarks} marks`}</span><button type="button" className="primary-action compact-action" onClick={() => retestPaper(mistake.paper, mistake.session.attemptId)}><RefreshCcw size={15} />Retest paper</button></footer></article>)}
           </div> : <div className="empty-state notebook-empty"><CheckCircle2 size={28} /><h2>{search || severity !== 'all' ? 'No notebook items match' : 'Your review queue is clear'}</h2><p>{search || severity !== 'all' ? 'Try a different search or priority.' : 'Complete a practice set and missed mark points will be saved here.'}</p>{(search || severity !== 'all') && <button type="button" className="secondary-action" onClick={() => { setQuery(''); setSeverity('all') }}>Clear filters</button>}</div>}
           {filteredProvisionalMistakes.length > 0 && <section className="notebook-provisional-evidence" aria-label="Provisional attempt evidence">
             <header className="notebook-section-heading"><div><p className="section-label">Provisional evidence</p><h2>Answered work awaiting completion</h2></div></header>
@@ -3195,7 +3201,7 @@ function MistakeList({ mistakes, paperMistakes, startPractice, retestPaper, onRe
         <article className="mistake-row paper-mistake-row" key={mistake.id}>
           <div>
             <span className="status-pill danger">{mistake.severity}</span>
-            <h2>{mistake.session.file} · question {mistake.questionNumber}</h2>
+            <h2>{mistake.session?.file || mistake.paper?.file || 'Past paper'} · question {mistake.questionNumber}</h2>
             <p>{mistake.status === 'Blank response' ? 'No final response was submitted for this printed question.' : mistake.status === 'Self-mark needed' ? 'Compare this response with the exact mark scheme and record the awarded marks.' : 'The latest self-mark is below the recorded available marks.'}</p>
           </div>
           <div className="mistake-score">
@@ -3243,6 +3249,15 @@ function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibr
     const pendingParts = pendingPartsForLifecycle(unit, markingLifecycle)
     const marksComplete = hasCompleteStudentMarks(unit, markingLifecycle, selfMarks)
     const resolvedCount = markingLifecycle.provisionalCriteria?.length || 0
+    const unansweredCount = Object.values(markingLifecycle.partStates || {}).filter((state) => state?.status === 'unanswered').length
+    const aiReviewStates = Object.values(attempt.visionReviews || {})
+    const aiReviewAttempted = aiReviewStates.length > 0
+    const pendingHeading = pendingParts.length
+      ? aiReviewAttempted ? 'AI review first, then self-mark' : 'AI check unavailable, self-mark next'
+      : 'No answered parts to score'
+    const pendingIntro = pendingParts.length
+      ? 'Your submission has passed through the AI-capable marking step. Anything still unresolved now needs your reviewed self-mark from the paired official mark scheme.'
+      : 'Your submission is saved, but no answer evidence was submitted. Finish or retake the set before it can create a score, mastery, mistake or progress event.'
     const updateSelfMark = (part, raw) => {
       const nextValue = raw === '' ? '' : Math.max(0, Math.min(part.marks, Number(raw)))
       setSelfMarks((current) => {
@@ -3256,13 +3271,13 @@ function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibr
         <div className="result-hero">
           <div>
             <p className="section-label">Submission saved</p>
-            <h1>Ready to self-mark</h1>
-            <p><span className="result-status result-status--in-progress">Pending</span>Your responses are saved. No total score, mastery, mistake or learning event is created until every pending part has a valid mark.</p>
+            <h1>{pendingHeading}</h1>
+            <p><span className="result-status result-status--in-progress">Pending</span>{pendingIntro}</p>
           </div>
           <div className="result-actions"><button type="button" className="secondary-action" onClick={goLibrary}><ArrowLeft size={18} />Back to library</button></div>
         </div>
         <section className="self-mark-result__guide" aria-label="Record self-mark">
-          <header className="self-mark-result__heading"><div><p className="section-label">Paired mark scheme</p><h2>Finish the unresolved parts</h2><p>Use the exact paired mark scheme. AI failures and missing handwriting stay pending instead of becoming automatic zeroes.</p></div>{resolvedCount > 0 && <div className="self-mark-result__subtotal"><span>Checked so far</span><strong>{markingLifecycle.provisionalRawMarks}/{markingLifecycle.provisionalMaxMarks}</strong><small>Provisional only; not in progress</small></div>}</header>
+          <header className="self-mark-result__heading"><div><p className="section-label">AI-first marking</p><h2>{pendingParts.length ? 'Finish the unresolved parts' : 'Return when you have answer evidence'}</h2><p>AI-reviewed, deterministic or unavailable states are recorded first. Self-marking is only the second step for unresolved answered parts; blanks remain pending, not zero.</p></div>{resolvedCount > 0 && <div className="self-mark-result__subtotal"><span>Checked so far</span><strong>{markingLifecycle.provisionalRawMarks}/{markingLifecycle.provisionalMaxMarks}</strong><small>Provisional only; not in progress</small></div>}{unansweredCount > 0 && <div className="self-mark-result__subtotal"><span>Unanswered</span><strong>{unansweredCount}</strong><small>Not marked as zero</small></div>}</header>
           <div className="self-mark-result__rows">
             {pendingParts.map((part) => {
               const index = unit.parts.findIndex((item) => item.id === part.id)
@@ -3271,7 +3286,7 @@ function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibr
               return <div className="self-mark-result__row" key={part.id}><div className="self-mark-result__question"><span className={`self-mark-result__state self-mark-result__state--${isAiPending ? 'ai' : 'manual'}`}>{isAiPending ? 'AI unresolved' : 'Self-mark'}</span><strong>{displayPartLabel(part, `Question ${index + 1}`)}</strong><small>{partState?.reason || 'Compare your response with the paired mark scheme.'}</small></div><label className="self-mark-result__input"><span>Mark</span><span><input type="number" min="0" max={part.marks} step="1" inputMode="numeric" aria-label={`Self-mark for ${displayPartLabel(part, `Question ${index + 1}`)}`} value={selfMarks[part.id] ?? ''} onChange={(event) => updateSelfMark(part, event.target.value)} /><b>/ {part.marks}</b></span></label>{part.answerRef?.localUrl ? <a className="self-mark-result__scheme" href={part.answerRef.localUrl} target="_blank" rel="noreferrer"><BookOpen size={16} />Mark scheme</a> : <span className="self-mark-result__scheme is-missing">Scheme unavailable</span>}</div>
             })}
           </div>
-          <footer className="self-mark-result__footer"><p className={marksComplete ? 'self-mark-result__validation is-complete' : 'self-mark-result__validation'} role="status">{marksComplete ? 'Every unresolved part has an explicit mark. Saving appends a canonical scored result.' : `Enter all ${pendingParts.length} pending marks. Blank or partial entries remain unscored.`}</p><button type="button" className="primary-action" disabled={!marksComplete} onClick={() => recordSelfMark?.(attempt.id, selfMarks)}>Record self-mark</button></footer>
+          <footer className="self-mark-result__footer"><p className={marksComplete ? 'self-mark-result__validation is-complete' : 'self-mark-result__validation'} role="status">{marksComplete ? 'Every unresolved answered part has an explicit mark. Saving appends a canonical scored result.' : pendingParts.length ? `Enter all ${pendingParts.length} unresolved marks after the AI-first check. Blank or partial entries remain unscored.` : 'There are no answered unresolved parts to self-mark yet.'}</p><button type="button" className="primary-action" disabled={!marksComplete} onClick={() => recordSelfMark?.(attempt.id, selfMarks)}>Record self-mark after AI review</button></footer>
         </section>
       </section>
     )

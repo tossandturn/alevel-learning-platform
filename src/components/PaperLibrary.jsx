@@ -40,6 +40,34 @@ function bytesLabel(bytes) {
   return bytes >= 1_000_000 ? `${(bytes / 1_000_000).toFixed(1)} MB` : `${Math.ceil(bytes / 1000)} KB`
 }
 
+function stageKeyForRoute(route) {
+  const stage = String(route?.stage || '').toLowerCase()
+  if (stage === 'as' || stage === 'a2' || stage === 'full') return stage
+  if (stage === 'igcse') return 'igcse'
+  return stage
+}
+
+function routeNoteForActiveRoute(route) {
+  if (!route) return null
+  const structure = examStructures[route.subjectCode] || {}
+  const stageKey = stageKeyForRoute(route)
+  const componentSet = new Set((route.paperComponents || []).map(String))
+  const matchedRoute = (structure.routes || []).find((candidate) => (
+    candidate.stage === stageKey
+    && candidate.papers?.length === componentSet.size
+    && candidate.papers.every((paper) => componentSet.has(String(paper)))
+  ))
+  const syllabusUrl = route.syllabus?.url || structure.syllabusUrl || structure.sourceUrl
+  if (!syllabusUrl) return null
+  return {
+    label: `${route.stage} ${route.subject} (${route.subjectCode.toUpperCase()})${route.paperComponents?.length ? ` / ${formatRouteComponents(route.paperComponents)}` : ''}`,
+    guidance: matchedRoute?.guidance
+      || structure.stageGuidance?.[stageKey]
+      || `${route.syllabus?.board || 'Official'} syllabus ${route.syllabus?.version || ''} for this course route.`.trim(),
+    url: syllabusUrl,
+  }
+}
+
 export function PaperLibrary({ catalogState, initialSubject = 'all', activeRoute = null, studyMode = 'past-paper-practice', onOpenPaper }) {
   const routeKey = paperFilterStorageKey(activeRoute?.routeId || initialSubject || 'all', studyMode)
   const subject = activeRoute?.subjectCode || initialSubject || 'all'
@@ -161,6 +189,7 @@ export function PaperLibrary({ catalogState, initialSubject = 'all', activeRoute
   const routeSummary = activeRoute
     ? [activeRoute.stage, activeRoute.subjectCode, activeRoute.subject, routeComponents].filter(Boolean).join(' / ')
     : `${items.filter((item) => item.kind === 'qp' && item.markSchemeId).length.toLocaleString()} locally approved question papers have an exact answer file.`
+  const activeRouteNote = routeNoteForActiveRoute(activeRoute)
 
   return (
     <div className="paper-library">
@@ -207,7 +236,9 @@ export function PaperLibrary({ catalogState, initialSubject = 'all', activeRoute
         <label><span>Type</span><select aria-label="Type" value={filters.kind} onChange={(event) => updateFilter('kind', event.target.value)}><option value="all">All files</option><option value="qp">Question papers</option><option value="ms">Mark schemes</option><option value="ak">Answer keys</option><option value="er">Examiner reports</option><option value="gt">Grade thresholds</option><option value="ci">Confidential instructions</option><option value="ir">Inserts</option><option value="guide">Guides</option><option value="other">Other files</option></select></label>
       </div>
 
-      {filters.stage !== 'all' && getStageGuidance(filters.subject, filters.stage) && <div className="paper-route-note"><strong>{routeOptions.find((option) => option.id === filters.route)?.label || stageOptions.find((option) => option.value === filters.stage)?.label}</strong><span>{getRouteGuidance(filters.subject, filters.route) || getStageGuidance(filters.subject, filters.stage)}</span><a href={examStructures[filters.subject]?.syllabusUrl || examStructures[filters.subject]?.sourceUrl} target="_blank" rel="noreferrer">Official syllabus</a></div>}
+      {activeRouteNote
+        ? <div className="paper-route-note"><strong>{activeRouteNote.label}</strong><span>{activeRouteNote.guidance}</span><a href={activeRouteNote.url} target="_blank" rel="noreferrer">Official syllabus</a></div>
+        : filters.stage !== 'all' && getStageGuidance(filters.subject, filters.stage) && <div className="paper-route-note"><strong>{routeOptions.find((option) => option.id === filters.route)?.label || stageOptions.find((option) => option.value === filters.stage)?.label}</strong><span>{getRouteGuidance(filters.subject, filters.route) || getStageGuidance(filters.subject, filters.stage)}</span><a href={examStructures[filters.subject]?.syllabusUrl || examStructures[filters.subject]?.sourceUrl} target="_blank" rel="noreferrer">Official syllabus</a></div>}
 
       <div className="paper-result-bar"><span>{filtered.length.toLocaleString()} files</span><small>Page {safePage} of {pageCount}</small></div>
       {visible.length ? (

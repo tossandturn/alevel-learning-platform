@@ -15,6 +15,41 @@ const fallbackState = {
   attempts: [], drafts: {}, selfMarkDrafts: {}, paperDrafts: {}, paperSessions: [], paperReviews: [], reviewQueueAudit: [], recentPapers: [], recentPractice: [], favoriteUnitIds: [], generatedUnits: [], assignments: [], classrooms: [], syncQueue: [], completedSyncKeys: [],
 }
 
+function sanitizePaperSessions(value) {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter((session) => session && typeof session === 'object' && String(session.attemptId || '').trim())
+    .map((session) => ({
+      ...session,
+      attemptId: String(session.attemptId),
+      routeId: String(session.routeId || ''),
+      paperId: String(session.paperId || session.paperRef?.questionPaperId || ''),
+      file: String(session.file || session.paperRef?.file || 'Past paper'),
+      questionCount: Math.max(0, Math.floor(Number(session.questionCount) || 0)),
+      answeredCount: Math.max(0, Math.floor(Number(session.answeredCount) || 0)),
+      answers: session.answers && typeof session.answers === 'object' ? session.answers : {},
+      profile: session.profile && typeof session.profile === 'object' ? session.profile : {},
+      pdfInkQuestionMap: session.pdfInkQuestionMap && typeof session.pdfInkQuestionMap === 'object' ? session.pdfInkQuestionMap : {},
+      submittedAt: session.submittedAt ? String(session.submittedAt) : null,
+      completedAt: session.completedAt ? String(session.completedAt) : session.submittedAt ? String(session.submittedAt) : null,
+    }))
+}
+
+function sanitizePaperReviews(value) {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter((review) => review && typeof review === 'object' && String(review.attemptId || '').trim())
+    .map((review) => ({
+      ...review,
+      attemptId: String(review.attemptId),
+      routeId: String(review.routeId || ''),
+      selfMarks: review.selfMarks && typeof review.selfMarks === 'object' ? review.selfMarks : {},
+      maxMarksByQuestion: review.maxMarksByQuestion && typeof review.maxMarksByQuestion === 'object' ? review.maxMarksByQuestion : {},
+      reviewedAt: review.reviewedAt ? String(review.reviewedAt) : null,
+      completedAt: review.completedAt ? String(review.completedAt) : review.reviewedAt ? String(review.reviewedAt) : null,
+    }))
+}
+
 function canUseStorage() {
   return typeof window !== 'undefined' && Boolean(window.localStorage)
 }
@@ -150,6 +185,8 @@ export function normalizeState(value, options = {}) {
     recentRouteIds,
   }
 
+  state.paperSessions = sanitizePaperSessions(state.paperSessions)
+  state.paperReviews = sanitizePaperReviews(state.paperReviews)
   state.generatedUnits = (state.generatedUnits || []).map(normalizeGeneratedUnit)
   state.selfMarkDrafts = state.selfMarkDrafts && typeof state.selfMarkDrafts === 'object' ? state.selfMarkDrafts : {}
   state.reviewQueueAudit = Array.isArray(state.reviewQueueAudit)
