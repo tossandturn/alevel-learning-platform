@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { Readable } from 'node:stream'
+import { artifactId } from './ai-pdf-ingestion/contract.mjs'
 import { assignableQuestionIdsForBank, closeStemDatabaseForTests, createStemApi } from '../server/stemApi.js'
 import { unifiedQuestionBank } from '../src/data/questionBank.js'
 
@@ -11,6 +12,7 @@ const signingKey = 'shared-workspace-test-signing-key'
 const databasePath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'stem-workspace-test-')), 'stem.sqlite')
 const legacyDatabasePath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'stem-workspace-legacy-test-')), 'stem.sqlite')
 const stageDriftDatabasePath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'stem-workspace-stage-drift-test-')), 'stem.sqlite')
+const ingestionRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'stem-ai-pdf-candidates-test-'))
 const testOnlyAssignableQuestionBank = Object.freeze([
   ...unifiedQuestionBank,
   ...[
@@ -27,6 +29,62 @@ const testOnlyAssignableQuestionBank = Object.freeze([
 const knownSourceIncompleteBankId = 'esat-ENGAA_2023_S1_QuestionPaper:q24@uatuk-esat-admissions'
 
 assert.equal(assignableQuestionIdsForBank().has(knownSourceIncompleteBankId), false, 'a source-incomplete raw index record must not enter the production assignment allowlist')
+
+const candidateQuestionPdfBytes = Buffer.from('%PDF-ai-question-fixture\n', 'utf8')
+const candidateMarkSchemePdfBytes = Buffer.from('%PDF-ai-mark-scheme-fixture\n', 'utf8')
+const candidateQuestionPdfSha256 = crypto.createHash('sha256').update(candidateQuestionPdfBytes).digest('hex')
+const candidateMarkSchemePdfSha256 = crypto.createHash('sha256').update(candidateMarkSchemePdfBytes).digest('hex')
+const candidatePaperId = 'cie-9702-9702_m25_qp_22'
+const candidateArtifactId = artifactId({
+  paperId: candidatePaperId,
+  questionPdfSha256: candidateQuestionPdfSha256,
+  markSchemePdfSha256: candidateMarkSchemePdfSha256,
+})
+const candidateArtifactPath = path.join(ingestionRoot, candidatePaperId, `${candidateArtifactId.slice('sha256:'.length)}.json`)
+const candidateAssetRoot = path.join(ingestionRoot, candidatePaperId, `${candidateArtifactId.slice('sha256:'.length)}.assets`)
+const candidateAssetPath = path.join(candidateAssetRoot, 'q1', 'question.pdf')
+fs.mkdirSync(path.dirname(candidateAssetPath), { recursive: true })
+fs.writeFileSync(candidateAssetPath, candidateQuestionPdfBytes)
+fs.mkdirSync(path.dirname(candidateArtifactPath), { recursive: true })
+fs.writeFileSync(candidateArtifactPath, JSON.stringify({
+  schemaVersion: 'ai-pdf-ingestion.v1',
+  artifactId: candidateArtifactId,
+  paperId: candidatePaperId,
+  subject: '9702',
+  status: 'ai-verified',
+  source: {
+    paperId: candidatePaperId,
+    questionPdfSha256: candidateQuestionPdfSha256,
+    markSchemePdfSha256: candidateMarkSchemePdfSha256,
+  },
+  candidate: { secretText: 'do-not-return', questions: [{ questionNumber: '1' }] },
+  verification: { questions: [{ questionNumber: '1' }] },
+  assets: [{ questionId: `${candidatePaperId}:q1`, questionNumber: '1', questionPdfPath: candidateAssetPath, questionPdfSha256: candidateQuestionPdfSha256 }],
+}, null, 2))
+
+const quarantinePaperId = 'cie-9702-9702_m25_qp_12'
+const quarantineQuestionPdfBytes = Buffer.from('%PDF-ai-quarantine-question\n', 'utf8')
+const quarantineMarkSchemePdfBytes = Buffer.from('%PDF-ai-quarantine-mark-scheme\n', 'utf8')
+const quarantineArtifactId = artifactId({
+  paperId: quarantinePaperId,
+  questionPdfSha256: crypto.createHash('sha256').update(quarantineQuestionPdfBytes).digest('hex'),
+  markSchemePdfSha256: crypto.createHash('sha256').update(quarantineMarkSchemePdfBytes).digest('hex'),
+})
+const quarantineArtifactPath = path.join(ingestionRoot, quarantinePaperId, `${quarantineArtifactId.slice('sha256:'.length)}.json`)
+fs.mkdirSync(path.dirname(quarantineArtifactPath), { recursive: true })
+fs.writeFileSync(quarantineArtifactPath, JSON.stringify({
+  schemaVersion: 'ai-pdf-ingestion.v1',
+  artifactId: quarantineArtifactId,
+  paperId: quarantinePaperId,
+  subject: '9702',
+  status: 'auto-quarantined',
+  source: {
+    paperId: quarantinePaperId,
+    questionPdfSha256: crypto.createHash('sha256').update(quarantineQuestionPdfBytes).digest('hex'),
+    markSchemePdfSha256: crypto.createHash('sha256').update(quarantineMarkSchemePdfBytes).digest('hex'),
+  },
+  reasonCodes: ['OPENAI_CONFIGURATION_INVALID'],
+}, null, 2))
 
 function tokenFor(userId, username, roles = []) {
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
@@ -55,7 +113,14 @@ function call(api, { method, url, token, body }) {
 }
 
 try {
-  const api = createStemApi({ env: { STEM_IDENTITY_SIGNING_KEY: signingKey, STEM_DB_PATH: databasePath }, questionBank: testOnlyAssignableQuestionBank })
+  const api = createStemApi({
+    env: {
+      STEM_IDENTITY_SIGNING_KEY: signingKey,
+      STEM_DB_PATH: databasePath,
+      AI_PDF_INGESTION_ROOT: ingestionRoot,
+    },
+    questionBank: testOnlyAssignableQuestionBank,
+  })
   const teacherToken = tokenFor(1, 'teacher_one', ['teacher'])
   const assistantTeacherToken = tokenFor(5, 'teacher_two', ['teacher'])
   const studentToken = tokenFor(2, 'student_one')
@@ -77,6 +142,25 @@ try {
   const guestStatus = await call(api, { method: 'GET', url: '/api/auth/status' })
   assert.equal(guestStatus.statusCode, 200, 'a visitor checking current account state must receive a normal anonymous response')
   assert.deepEqual(guestStatus.body, { authenticated: false }, 'anonymous account status must not expose an identity or workspace')
+  const studentCandidateListing = await call(api, {
+    method: 'GET',
+    url: '/api/stem/content/ai-ingestion-candidates',
+    token: studentToken,
+  })
+  assert.equal(studentCandidateListing.statusCode, 403, 'AI ingestion candidates must not be visible to students')
+  const teacherCandidateListing = await call(api, {
+    method: 'GET',
+    url: '/api/stem/content/ai-ingestion-candidates',
+    token: teacherToken,
+  })
+  assert.equal(teacherCandidateListing.statusCode, 200, teacherCandidateListing.body.error)
+  assert.equal(teacherCandidateListing.body.schemaVersion, 'ai-pdf-ingestion-candidates.v1')
+  assert.deepEqual(teacherCandidateListing.body.counts, { 'ai-verified': 1, 'auto-quarantined': 1 })
+  assert.equal(teacherCandidateListing.body.candidates.length, 2)
+  assert.equal(teacherCandidateListing.body.candidates.find((item) => item.declaredStatus === 'ai-verified')?.studentEligibility, 'requires-human-review')
+  assert.equal(teacherCandidateListing.body.candidates.find((item) => item.declaredStatus === 'auto-quarantined')?.studentEligibility, 'blocked')
+  assert.doesNotMatch(JSON.stringify(teacherCandidateListing.body), /do-not-return/)
+  assert.doesNotMatch(JSON.stringify(teacherCandidateListing.body), /questionPdfPath|verification|secretText/)
   const deniedClass = await call(api, { method: 'POST', url: '/api/stem/classrooms', token: unverifiedStaffToken, body: { name: 'Should be denied' } })
   assert.equal(deniedClass.statusCode, 403)
   assert.match(deniedClass.body.error, /server-verified teacher or owner claim/)
@@ -578,4 +662,5 @@ try {
   fs.rmSync(path.dirname(databasePath), { recursive: true, force: true })
   fs.rmSync(path.dirname(legacyDatabasePath), { recursive: true, force: true })
   fs.rmSync(path.dirname(stageDriftDatabasePath), { recursive: true, force: true })
+  fs.rmSync(ingestionRoot, { recursive: true, force: true })
 }

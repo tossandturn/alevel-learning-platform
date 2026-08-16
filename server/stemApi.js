@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { studyQuestionBank, unifiedQuestionBank } from '../src/data/questionBank.js'
+import { listAiPdfIngestionCandidates, resolveAiPdfIngestionRoot } from './aiPdfIngestionCandidates.js'
 import { issueMarkingCapabilities } from './markingCapability.js'
 import { buildSyllabusPracticeSet, rebindSyllabusPracticeUnit, seedSyllabusTables, syllabusDatabaseInventory, syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
 
@@ -1048,6 +1049,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, fetchIm
   const markingCapabilitySigningKey = String(env.STEM_MARKING_CAPABILITY_SIGNING_KEY || signingKey)
   const identityOrigin = String(env.IELTSIST_ORIGIN || 'https://ieltsist.com').replace(/\/$/, '')
   const stemOrigin = String(env.STEM_ORIGIN || 'https://stem.ieltsist.com').replace(/\/$/, '')
+  const aiPdfIngestionRoot = resolveAiPdfIngestionRoot(env)
   // Production uses unifiedQuestionBank, which fails closed on file and
   // semantic source completeness. Supplying a fixture is test-only.
   const assignableQuestionIds = assignableQuestionIdsForBank(questionBank)
@@ -1208,6 +1210,11 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, fetchIm
         return
       }
       const user = identityFromRequest(request, signingKey)
+      if (request.method === 'GET' && url.pathname === '/api/stem/content/ai-ingestion-candidates') {
+        requireVerifiedStaffClaim(user)
+        sendJson(response, 200, listAiPdfIngestionCandidates({ root: aiPdfIngestionRoot }))
+        return
+      }
       if (request.method === 'GET' && url.pathname === '/api/stem/workspace') {
         sendJson(response, 200, currentWorkspace(db, user))
         return

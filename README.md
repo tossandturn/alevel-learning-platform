@@ -83,6 +83,23 @@ npm run questions:index -- --subject bpho --papers 2
 npm run questions:index -- --subject 9702 --all
 ```
 
+The optional server-side AI PDF importer writes only to the ignored
+`data/ai-pdf-ingestion` candidate store (or `AI_PDF_INGESTION_ROOT`). It is
+restricted to 9702, requires separate QP/MS evidence, and auto-quarantines
+failed extraction, verification, or asset checks. `ai-verified` means the
+two-pass model checks passed; it is still not a human-reviewed student
+question and is never added to `unifiedQuestionBank`. Inspect the redacted
+candidate contract with:
+
+```powershell
+npm run questions:ai-ingestion-status
+```
+
+Authenticated teacher/owner accounts may query the same redacted contract at
+`GET /api/stem/content/ai-ingestion-candidates`. The response contains status,
+source checksums, counts, and quarantine reasons only; OCR, source paths,
+question payloads, and mark-scheme payloads remain server-side.
+
 The local PDF route validates the subject and filename against a fixed subject allowlist and serves byte ranges read-only. Do not publish this project as a public past-paper host without confirming distribution rights.
 
 ## Run

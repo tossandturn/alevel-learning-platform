@@ -22,6 +22,7 @@ public/data/papers.json
 data/*.sqlite
 data/*.sqlite-shm
 data/*.sqlite-wal
+data/ai-pdf-ingestion/
 
 # Editor directories and files
 .vscode/*
