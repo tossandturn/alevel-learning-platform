@@ -171,7 +171,7 @@ function qaAuthStatus() {
 }
 
 async function openTopic(page, testCase) {
-  const hasReadyInventory = (text) => /source-backed question|verified question|checked question/i.test(text)
+  const hasReadyInventory = (text) => /official question|verified question|checked question/i.test(text)
   const topic = testCase.topic
   const picker = page.locator('.student-home-guided .student-route-picker')
   await picker.getByRole('tab', { name: 'AS', exact: true }).click()
@@ -182,7 +182,7 @@ async function openTopic(page, testCase) {
   await page.waitForFunction((topicName) => [...document.querySelectorAll('.topic-directory__row')]
     .some((element) => {
       const title = element.querySelector('.topic-directory__copy strong')?.textContent?.trim().replace(/^\d+\s+/, '')
-      return title === topicName && /source-backed question|verified question|checked question/i.test(element.textContent)
+      return title === topicName && /official question|verified question|checked question/i.test(element.textContent)
     }), topic, { timeout: 12_000 })
   const candidates = page.locator('.topic-directory__row').filter({ hasText: topic })
   let row = null
@@ -203,6 +203,10 @@ async function openTopic(page, testCase) {
   if (previews.length && previews.some((text) => !/^Official source image · QP p\./.test(text.trim()))) {
     throw new Error(`Topic detail exposed OCR instead of source metadata: ${JSON.stringify(previews)}`)
   }
+  if (testCase.componentMode || testCase.requestedCount) {
+    const customSet = page.locator('details.topic-detail__set-controls')
+    if (await customSet.count() && !await customSet.evaluate((element) => element.open)) await customSet.locator('summary').click()
+  }
   if (testCase.componentMode) {
     const componentSelect = page.getByRole('combobox', { name: 'Paper components' })
     await componentSelect.selectOption(testCase.componentMode)
@@ -216,7 +220,7 @@ async function openTopic(page, testCase) {
   if (testCase.expectedGroupCount) {
     const summary = (await page.locator('.topic-detail__start').innerText()).replace(/\s+/g, ' ')
     const expectedAvailableCount = testCase.expectedAvailableCount || testCase.expectedGroupCount
-    if (!summary.includes(`${expectedAvailableCount} source-backed P2 questions`)) throw new Error(`${topic} component-aware summary is stale: ${summary}`)
+    if (!summary.includes(`${expectedAvailableCount} official P2 questions`)) throw new Error(`${topic} component-aware summary is stale: ${summary}`)
   }
   const start = page.locator('.topic-detail__start .primary-action').first()
   await start.waitFor({ state: 'visible' })

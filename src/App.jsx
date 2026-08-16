@@ -48,7 +48,7 @@ import {
   markingCapabilityForUnit,
   pendingPartsForLifecycle,
 } from './lib/markingLifecycle'
-import { buildCoachPractice, buildVerifiedPracticeCatalog, coachPracticeOptions, MIN_VERIFIED_GROUPS_FOR_PRACTICE, previewCoachPracticeSourceMix, rebindVerifiedPracticeUnit, resolveVerifiedPracticeSelection, topicQueryForRoute } from './lib/verifiedPracticeCatalog'
+import { buildCoachPractice, buildVerifiedPracticeCatalog, coachPracticeOptions, MIN_VERIFIED_GROUPS_FOR_PRACTICE, previewCoachPracticeSourceMix, rebindVerifiedPracticeUnit, resolveVerifiedPracticeSelection } from './lib/verifiedPracticeCatalog'
 import { latestBphoSpcPaper } from './lib/coachIntent'
 import { buildCompletionByUnit, buildLearningProgress, latestSubmittedActivity, recommendForRoute } from './lib/learningProgress'
 import { professionalTermsUrl, requestNativeAccountReadiness, requestSharedAccount, requestSharedWorkspace, requestSyllabusPracticeRebind, requestSyllabusPracticeSet, sharedAccountRequest, signInSharedAccount, signOutSharedAccount } from './lib/sharedAccount'
@@ -59,6 +59,7 @@ import { normalizePaperStudyMode, paperDraftKey } from './lib/paperStudyMode'
 import { buildStemVocabularyContext, vocabularyCoverageForRoute } from './data/stemVocabularyTaxonomy'
 import { topicLearningContent } from './data/topicLearningContent'
 import { verifiedPracticeQuestionGroups } from './lib/verifiedPracticeCatalog'
+import { practiceMetricsSummary, practiceUnitMetrics, topicDisplayNames, withPracticePresentation } from './lib/practicePresentation'
 import './App.css'
 import './StudentV2.css'
 import './TabletNavFix.css'
@@ -118,18 +119,13 @@ function focusedRetestUnit(unit, partId) {
   if (!partId || unit.parts.length === 1) return unit
   const part = unit.parts.find((item) => item.id === partId)
   if (!part) return unit
-  const ratio = 1 / Math.max(1, unit.parts.length)
-  return {
+  return withPracticePresentation({
     ...unit,
     id: `${unit.id}:focused:${part.id}`,
     title: `${unit.title} · ${displayPartLabel(part)}`,
     parts: [part],
-    maxMarks: part.marks,
-    estimatedMinutes: Math.max(5, Math.ceil((unit.estimatedMinutes || 10) * ratio)),
-    durationSec: Math.max(300, Math.ceil((unit.durationSec || 600) * ratio)),
-    questionGroupCount: 1,
     focusedRetestOf: unit.id,
-  }
+  })
 }
 
 function getUnitAttempts(attempts, unit) {
@@ -282,7 +278,9 @@ function unitFromSyllabusPracticeSet(payload) {
     questionUrl: group.sourceRef?.localUrl,
     markSchemeUrl: group.answerRef?.localUrl,
   }])).values()].filter((paper) => paper.id)
-  return {
+  const topicNames = topicDisplayNames(payload.syllabusTopicIds, payload.syllabusTopics)
+  const topicLabel = topicNames.join(' + ')
+  return withPracticePresentation({
     id: unitId,
     type: 'topic',
     agentGenerated: true,
@@ -290,12 +288,13 @@ function unitFromSyllabusPracticeSet(payload) {
     routeId: payload.routeId,
     qualification: route?.qualification || 'A-Level',
     subject: route?.subject || subjectCode,
+    subjectCode,
     subjectId: route?.subjectId || `subject-${subjectCode}`,
     qualificationId: `cambridge-${subjectCode}`,
     knowledgeGroupId: payload.syllabusTopicIds[0],
     topicId: payload.syllabusTopicIds[0],
-    topic: payload.syllabusTopicIds.map((topicId) => topicId.replace(/^(?:physics-9702|9709-(?:as|a2))-topic-/, 'Topic ')).join(' + '),
-    title: `${route?.stage || 'AS'} ${route?.subject || subjectCode} · ${payload.syllabusTopicIds.join(' + ')}`,
+    topic: topicLabel,
+    title: `${route?.stage || 'AS'} ${route?.subject || subjectCode} · ${topicLabel}`,
     stage: route?.stage || 'AS',
     paperComponent: payload.components,
     syllabusTopic: payload.syllabusTopicIds.join(','),
@@ -312,7 +311,7 @@ function unitFromSyllabusPracticeSet(payload) {
     parts,
     sourceGateVersion: 'server-syllabus-catalog-v2',
     practiceMode: payload.practiceMode || 'verified',
-  }
+  })
 }
 
 function rebindPracticeUnit(unit, validatedSyllabusUnits = new Map()) {
@@ -349,10 +348,10 @@ function App() {
   const [appState, setAppState] = useState(() => loadState())
   const paperCatalogState = usePaperCatalog()
   const incomingContext = getIncomingProductContext()
-  const incomingTopicQuery = topicQueryForRoute(incomingContext.routeId, incomingContext.topicId)
   const [view, setView] = useState(() => initialNavigation.view !== 'dashboard' ? initialNavigation.view : incomingContext.from === 'ieltsist' || incomingContext.focus ? 'library' : 'dashboard')
   const [activeTab, setActiveTab] = useState(() => initialNavigation.tab)
   const [selectedTopicId, setSelectedTopicId] = useState(() => initialNavigation.topicId || incomingContext.topicId || null)
+  const [topicBuilderRequested, setTopicBuilderRequested] = useState(false)
   const [activeRouteId, setActiveRouteId] = useState(() => {
     if (routeById(initialNavigation.routeId)) return initialNavigation.routeId
     if (routeById(incomingContext.routeId)) return incomingContext.routeId
@@ -365,23 +364,21 @@ function App() {
   const activeSubject = subjects.find((subject) => subject.routeIds?.includes(activeRoute.routeId)) || subjects[0]
   const [_subjectFilter, setSubjectFilter] = useState(() => activeSubject.id)
   const [completionFilter] = useState('all')
-  const [query, setQuery] = useState(() => incomingTopicQuery)
   const [currentAttempt, setCurrentAttempt] = useState(null)
   const [resultAttempt, setResultAttempt] = useState(null)
   const [activePaper, setActivePaper] = useState(null)
   const [pendingSession, setPendingSession] = useState(null)
   const [coachOpenRequest, setCoachOpenRequest] = useState(0)
-  const [coachBuilderOpenRequest, setCoachBuilderOpenRequest] = useState(0)
+  const coachBuilderOpenRequest = 0
   const [sharedAccount, setSharedAccount] = useState({ status: 'loading', token: '', workspace: null, error: '' })
   const [accountPopoverOpen, setAccountPopoverOpen] = useState(false)
   const [accountDialogMode, setAccountDialogMode] = useState(null)
   const [stateOwnerId, setStateOwnerId] = useState('')
-  const [exportState, setExportState] = useState({ status: 'idle', error: '', exportedAt: '', checksum: '' })
+  const [exportState, setExportState] = useState({ status: 'idle', error: '', exportedAt: '', filename: '' })
   const [syllabusRebindState, setSyllabusRebindState] = useState(() => ({ fingerprint: '', status: 'idle', units: new Map() }))
   const migrationAttemptedRef = useRef(false)
   const notebookSyncTimerRef = useRef(null)
   const stateOwnerIdRef = useRef('')
-  const incomingTopicManuallyChangedRef = useRef(false)
   const navigationInitializedRef = useRef(false)
   const restoredLocationRef = useRef('')
   const navigationRestorePendingRef = useRef(false)
@@ -528,7 +525,6 @@ function App() {
     setActivePaper(null)
     setPendingSession(null)
     setSelectedTopicId(incomingContext.topicId || null)
-    if (!incomingTopicManuallyChangedRef.current) setQuery(topicQueryForRoute(nextRouteId, incomingContext.topicId))
     restoredLocationRef.current = ''
   }, [incomingContext.routeId, incomingContext.topicId, sharedAccount.identity?.id, sharedAccount.status, stateOwnerId])
 
@@ -750,28 +746,23 @@ function App() {
   }, [appState.attempts, routePracticeUnits])
 
   const recommendation = useMemo(() => {
-    return recommendForRoute({ attempts: appState.attempts, drafts: appState.drafts, units: allPracticeUnits, routes: courseRoutes, routeId: activeRouteId })
-  }, [activeRouteId, allPracticeUnits, appState.attempts, appState.drafts])
+    return recommendForRoute({ attempts: appState.attempts, drafts: appState.drafts, units: allPracticeUnits, routes: courseRoutes, routeId: activeRouteId, topicId: selectedTopicId })
+  }, [activeRouteId, allPracticeUnits, appState.attempts, appState.drafts, selectedTopicId])
 
   const visibleUnits = useMemo(() => {
     const source = activeTab === 'papers' || activeTab === 'exams' || activeTab === 'mistakes' ? [] : routePracticeUnits
-    const normalizedQuery = query.toLowerCase().trim()
-
     return source.filter((unit) => {
       const completion = completionByUnit[unit.id]
       const matchesCompletion =
         completionFilter === 'all' ||
         (completionFilter === 'completed' && completion.completed) ||
         (completionFilter === 'open' && !completion.completed)
-      const matchesQuery =
-        !normalizedQuery ||
-        [unit.title, unit.topic, unit.subtopic, unit.specification, unit.board]
-          .join(' ')
-          .toLowerCase()
-          .includes(normalizedQuery)
-      return matchesCompletion && matchesQuery
+      const matchesTopic = !selectedTopicId || [unit.knowledgeGroupId, unit.topicId, unit.syllabusTopic, ...(unit.syllabusTopicIds || [])]
+        .filter(Boolean)
+        .includes(selectedTopicId)
+      return matchesCompletion && matchesTopic
     })
-  }, [activeTab, completionByUnit, completionFilter, query, routePracticeUnits])
+  }, [activeTab, completionByUnit, completionFilter, routePracticeUnits, selectedTopicId])
 
   function updateProfile(patch) {
     setAppState((state) => ({ ...state, profile: { ...state.profile, ...patch } }))
@@ -933,7 +924,7 @@ function App() {
   function startAssignedAssignment(assignment) {
     const sourceQuestionIds = assignment.sourceScope?.questionIds
     if (!Array.isArray(sourceQuestionIds) || !sourceQuestionIds.length) {
-      throw new Error('This assignment has no verified source question list. Ask the teacher to republish it.')
+      throw new Error('This assignment has no official question list. Ask the teacher to republish it.')
     }
     const unit = buildCoachPractice({
       routeId: assignment.routeId,
@@ -1090,7 +1081,7 @@ function App() {
       attemptedQuestionIds: attemptedSourceQuestionIds(appState.attempts, selection.routeId),
       seed: Date.now(),
     })
-    if (!response?.questionGroups?.length) throw new Error('The selected syllabus topics have no source-backed study questions yet.')
+    if (!response?.questionGroups?.length) throw new Error('The selected syllabus topics have no official practice questions yet.')
     const unit = { ...unitFromSyllabusPracticeSet(response), sourceGateStatus: 'current' }
     setSyllabusRebindState((current) => ({
       ...current,
@@ -1219,20 +1210,20 @@ function App() {
   }
 
   async function exportLearningData() {
-    setExportState({ status: 'preparing', error: '', exportedAt: '', checksum: '' })
+    setExportState({ status: 'preparing', error: '', exportedAt: '', filename: '' })
     try {
       const prepared = await prepareLearningExport(appState, { units: allPracticeUnits })
-      const checksum = prepared.checksum
       const blob = new Blob([prepared.json], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
       const anchor = document.createElement('a')
+      const filename = `stem-learning-data-${new Date().toISOString().slice(0, 10)}.json`
       anchor.href = url
-      anchor.download = `alevel-studio-export-${new Date().toISOString().slice(0, 10)}.json`
+      anchor.download = filename
       anchor.click()
       window.setTimeout(() => URL.revokeObjectURL(url), 0)
-      setExportState({ status: 'ready', error: '', exportedAt: prepared.payload.exportedAt, checksum })
+      setExportState({ status: 'ready', error: '', exportedAt: prepared.payload.exportedAt, filename })
     } catch {
-      setExportState({ status: 'failed', error: 'Your export could not be prepared. Try again.', exportedAt: '', checksum: '' })
+      setExportState({ status: 'failed', error: 'Your export could not be prepared. Try again.', exportedAt: '', filename: '' })
     }
   }
 
@@ -1676,8 +1667,10 @@ function App() {
   function openAiPractice() {
     setActiveTab('ai-practice')
     setView('library')
+  }
+
+  function openCoach() {
     setCoachOpenRequest((value) => value + 1)
-    setCoachBuilderOpenRequest((value) => value + 1)
   }
 
   return (
@@ -1706,11 +1699,10 @@ function App() {
           setView={setView}
           setActiveTab={setActiveTab}
           setSubjectFilter={setSubjectFilter}
-          setQuery={setQuery}
           allPracticeUnits={allPracticeUnits}
           recentPractice={appState.recentPractice || []}
            favoriteUnitIds={appState.favoriteUnitIds || []}
-           openCoach={openAiPractice}
+           openCoach={openCoach}
            sharedAccount={sharedAccount}
            onRefreshSharedAccount={refreshSharedAccount}
            onOpenAccount={setAccountDialogMode}
@@ -1738,6 +1730,7 @@ function App() {
           retestPaper={retestPaper}
           onReviewAction={recordReviewQueueAction}
           reviewQueueAudit={appState.reviewQueueAudit || []}
+          isSyncedAccount={sharedAccount.status === 'ready'}
           openPractice={() => { setActiveTab('topics'); setView('library') }}
         />
       )}
@@ -1749,8 +1742,10 @@ function App() {
             selectRoute={selectRoute}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
-          query={query}
-          onTopicQueryChange={(nextQuery) => { incomingTopicManuallyChangedRef.current = true; setQuery(nextQuery) }}
+          selectedTopicId={selectedTopicId}
+          onSelectTopic={(topicId) => {
+            setSelectedTopicId(topicId || null)
+          }}
           visibleUnits={visibleUnits}
           completionByUnit={completionByUnit}
           favoriteUnitIds={appState.favoriteUnitIds || []}
@@ -1763,8 +1758,10 @@ function App() {
           openPaper={openPaper}
           onReviewAction={recordReviewQueueAction}
             recommendation={recommendation}
-            onOpenTopic={(topicId) => { setSelectedTopicId(topicId); setView('topic') }}
-            onOpenCoach={openAiPractice}
+            onOpenTopic={(topicId, options = {}) => { setSelectedTopicId(topicId); setTopicBuilderRequested(Boolean(options.openBuilder)); setView('topic') }}
+            onOpenAiPractice={openAiPractice}
+            onOpenCoach={openCoach}
+            startKnowledgeDrill={generateSyllabusPractice}
             practiceOptions={activePracticeOptions}
             syllabusInventory={syllabusInventory}
           />
@@ -1775,6 +1772,7 @@ function App() {
           activeRoute={activeRoute}
           activeRouteId={activeRouteId}
           topicId={selectedTopicId}
+          initialBuilderOpen={topicBuilderRequested}
           practiceOptions={activePracticeOptions}
           syllabusInventory={syllabusInventory}
           practiceUnits={routePracticeUnits}
@@ -1783,8 +1781,10 @@ function App() {
           mistakes={mistakes}
           startPractice={startPractice}
           startKnowledgeDrill={generateSyllabusPractice}
-          onBack={() => { setActiveTab('topics'); setView('library') }}
-            onOpenCoach={openAiPractice}
+          onBack={() => { setTopicBuilderRequested(false); setActiveTab('topics'); setView('library') }}
+          onOpenCoach={openCoach}
+          favoriteUnitIds={appState.favoriteUnitIds || []}
+          onToggleFavorite={toggleFavoriteUnit}
         />
       )}
 
@@ -1838,8 +1838,11 @@ function App() {
           updateAnswer={updateAnswer}
           updateEvidence={updateEvidence}
           submitAttempt={submitAttempt}
-            deferredMarking={markingCapabilityForUnit(currentUnit).mode !== 'deterministic'}
+          deferredMarking={markingCapabilityForUnit(currentUnit).mode !== 'deterministic'}
             stateOwnerId={stateOwnerId}
+          practiceOptions={activePracticeOptions}
+          onGeneratePractice={generateCoachPractice}
+          onAgentAction={handleCoachAgentAction}
           immersive={Boolean(appState.profile?.immersiveLearning)}
           onToggleImmersive={setImmersiveLearning}
           goBack={() => returnToLibrary('topics')}
@@ -1882,7 +1885,7 @@ function App() {
           })}
         />
       )}
-      {view !== 'paper' && !(view === 'library' && activeTab === 'papers') && (
+      {view !== 'paper' && view !== 'practice' && !(view === 'library' && activeTab === 'papers') && (
         <AiCoach
           key={`${activeRouteId}:${view}:${coachAttempt?.id || 'general'}`}
           stateOwnerId={stateOwnerId}
@@ -2160,7 +2163,7 @@ function Dashboard({
         <div>
           <p className="section-label">STEM practice studio</p>
           <h1>Learn from the paper, not from made-up questions.</h1>
-          <p>Choose a course, choose the syllabus point, then work through source-backed questions with a teacher beside you.</p>
+          <p>Choose a course and syllabus point, then work through official questions with teacher support.</p>
         </div>
         <div className="streak-note"><span>Weekly target</span><strong>{Math.min(attempts.length, profile.weeklyQuestions)}/{profile.weeklyQuestions}</strong><small>scored questions</small></div>
       </div>
@@ -2307,7 +2310,7 @@ function Dashboard({
 }
 
 /* oxlint-enable no-unused-vars */
-function StudentDashboard({ activeRoute, routeOptions, selectRoute, profile, attempts, completionByUnit, recommendation, topicMastery, mistakes, provisionalEvidence = [], paperMistakes, latestActivity, startPractice, setView, setActiveTab, setSubjectFilter, setQuery, allPracticeUnits, recentPractice, favoriteUnitIds, openNotebook, learningProgress, syllabusRoadmap, sharedAccount, onRefreshSharedAccount, onOpenAccount }) {
+function StudentDashboard({ activeRoute, routeOptions, selectRoute, profile, attempts, completionByUnit, recommendation, latestActivity, startPractice, setView, setActiveTab, allPracticeUnits, learningProgress, syllabusRoadmap, sharedAccount, onRefreshSharedAccount, onOpenAccount }) {
   const nextUnit = recommendation.unit
   const unitById = new Map(allPracticeUnits.map((unit) => [unit.id, unit]))
   const scoredAttempts = attempts.filter((attempt) => {
@@ -2315,40 +2318,17 @@ function StudentDashboard({ activeRoute, routeOptions, selectRoute, profile, att
     return Boolean(unit && isScoredAttempt(attempt, unit) && completionByUnit[attempt.unitId]?.completed)
   })
   const latest = latestActivity || scoredAttempts.at(-1)
-  const average = scoredAttempts.length ? Math.round(scoredAttempts.reduce((total, attempt) => total + attempt.scoreResult.percentage, 0) / scoredAttempts.length) : null
   const weeklyPercent = Math.min(100, Math.round((learningProgress.week.completedQuestions / learningProgress.week.targetQuestions) * 100))
   const goalComplete = learningProgress.week.completedQuestions >= learningProgress.week.targetQuestions
-  const recentUnits = recentPractice.map((item) => unitById.get(item.unitId)).filter((unit) => unit?.routeId === activeRoute.routeId).slice(0, 3)
-  const favoriteUnits = favoriteUnitIds.map((id) => unitById.get(id)).filter((unit) => unit?.routeId === activeRoute.routeId).slice(0, 3)
   const firstName = String(profile.learnerName || '').trim().split(/\s+/)[0]
-  const weakTopic = topicMastery.find((item) => item.score != null && item.score < 65)
   const routeLabel = `${activeRoute.stage} ${activeRoute.subject}`
   const recommendedTopic = String(nextUnit?.topic || nextUnit?.title || 'Choose your first topic').replace(/^\d+\s+/, '')
-  const recommendedQuestionCount = questionGroupCountForUnit(nextUnit)
-  const weakRoadmapTopic = [...syllabusRoadmap]
-    .filter((topic) => topic.mastery != null)
-    .sort((a, b) => a.mastery - b.mastery)[0]
-  const weakAreaName = weakRoadmapTopic?.name?.replace(/^\d+\s+/, '') || weakTopic?.topic || 'Your first completed topic'
-  const weakAreaMastery = weakRoadmapTopic?.mastery ?? weakTopic?.score ?? null
-  const latestProvisionalEvidence = provisionalEvidence.at(-1)
+  const recommendedMetrics = nextUnit ? practiceUnitMetrics(nextUnit) : null
+  const latestUnit = latest?.unitId ? unitById.get(latest.unitId) : null
 
-  function openPractice({ tab = 'topics', subjectId, query } = {}) {
-    if (subjectId) setSubjectFilter(subjectId)
-    if (query != null) setQuery(query)
+  function openPractice({ tab = 'topics' } = {}) {
     setActiveTab(tab)
     setView('library')
-  }
-
-  function takeGoalNextStep() {
-    if (goalComplete && (mistakes.length || paperMistakes.length)) {
-      openNotebook()
-      return
-    }
-    if (nextUnit) {
-      startPractice(nextUnit, recommendation.action === 'Resume' ? { confirmed: true } : {})
-      return
-    }
-    openPractice({ subjectId: activeRoute.subjectId })
   }
 
   return <section className="student-home-guided">
@@ -2364,9 +2344,10 @@ function StudentDashboard({ activeRoute, routeOptions, selectRoute, profile, att
           <p className="recommended-session__eyebrow"><Sparkles size={16} />Continue learning</p>
           <h2>{routeLabel} · {recommendedTopic}</h2>
           <div className="recommended-session__meta">
-            {recommendedQuestionCount > 0 && <span>{recommendedQuestionCount} question{recommendedQuestionCount === 1 ? '' : 's'}</span>}
+            {recommendedMetrics && <span>{recommendedMetrics.sourceQuestionCount} official questions</span>}
+            {recommendedMetrics && <span>{recommendedMetrics.answerPartCount} answer parts</span>}
             {nextUnit?.estimatedMinutes && <span>About {nextUnit.estimatedMinutes} minutes</span>}
-            {nextUnit?.maxMarks && <span>{nextUnit.maxMarks} marks</span>}
+            {recommendedMetrics?.totalMarks > 0 && <span>{recommendedMetrics.totalMarks} marks</span>}
           </div>
           <div className="recommended-session__actions">
             <button className="primary-action student-primary-start" type="button" onClick={() => nextUnit ? startPractice(nextUnit, recommendation.action === 'Resume' ? { confirmed: true } : {}) : openPractice()}><PlayIcon />{nextUnit ? (recommendation.action === 'Resume' ? 'Resume practice' : 'Start this practice') : 'Choose a topic'}</button>
@@ -2380,65 +2361,16 @@ function StudentDashboard({ activeRoute, routeOptions, selectRoute, profile, att
         </div>
       </section>
 
-      <div className="today-focus-grid">
-        <section className="today-focus-panel today-focus-panel--weak" aria-labelledby="weak-area-title">
-          <div className="today-focus-panel__icon"><Target size={20} /></div>
-          <div className="today-focus-panel__body">
-            <p className="section-label">Weak area</p>
-            <h2 id="weak-area-title">{weakAreaName}</h2>
-            <p>{weakAreaMastery == null ? 'Complete a short set and STEM will identify the first concept to revisit.' : `${weakAreaMastery}% mastery. This is the clearest place to gain marks next.`}</p>
-          </div>
-          <button type="button" className="text-action" onClick={() => openPractice({ query: weakRoadmapTopic?.name || weakTopic?.topic || '' })}>{weakAreaMastery == null ? 'Choose a topic' : 'Practise this'}<ChevronRight size={15} /></button>
-        </section>
-
-        <section className="today-focus-panel today-focus-panel--plan" aria-labelledby="today-plan-title">
-          <div className="today-focus-panel__body">
-            <p className="section-label">Today's plan</p>
-            <h2 id="today-plan-title">One focused learning loop</h2>
-            <ol>
-              <li><span>1</span><div><strong>Attempt</strong><small>{recommendedQuestionCount || 'A short set'} verified questions</small></div></li>
-              <li><span>2</span><div><strong>Review</strong><small>See exact mark points and an explanation</small></div></li>
-              <li><span>3</span><div><strong>Retry</strong><small>Correct one weak idea while it is fresh</small></div></li>
-            </ol>
-          </div>
-        </section>
-      </div>
-
-      <section className="study-paths" aria-labelledby="study-paths-title">
-        <div><p className="section-label">Quick actions</p><h2 id="study-paths-title">Choose another study mode</h2></div>
-        <div className="study-paths__grid">
-          <StudyAction icon={<Target size={20} />} tone="green" title="Topic practice" detail="Choose one part of the syllabus" action="Pick a topic" onClick={() => openPractice()} />
-          <StudyAction icon={<FileText size={20} />} tone="blue" title="Past papers" detail="Choose a paper and exam session" action="Browse papers" onClick={() => openPractice({ tab: 'papers' })} />
-          <StudyAction icon={<RefreshCcw size={20} />} tone="amber" title="Fix mistakes" detail={mistakes.length + paperMistakes.length ? `${mistakes.length + paperMistakes.length} question${mistakes.length + paperMistakes.length === 1 ? '' : 's'} ready to review` : 'Review missed questions after submitting'} action={mistakes.length + paperMistakes.length ? 'Review now' : 'Open notebook'} onClick={openNotebook} />
-        </div>
-      </section>
-
       <section className="week-progress-strip" aria-label="Weekly progress">
         <div><p className="section-label">This week</p><h2>{goalComplete ? 'Weekly goal complete' : `${Math.max(0, learningProgress.week.targetQuestions - learningProgress.week.completedQuestions)} questions to reach your goal`}</h2><span>{learningProgress.streak ? `${learningProgress.streak}-day study streak` : 'Your study streak starts with the next question.'}</span></div>
         <div className="week-progress-strip__progress"><strong>{Math.min(learningProgress.week.completedQuestions, learningProgress.week.targetQuestions)} / {learningProgress.week.targetQuestions}</strong><div className="progress-track"><span style={{ width: `${weeklyPercent}%` }} /></div></div>
-        <button type="button" className="text-action" onClick={takeGoalNextStep}>{goalComplete && (mistakes.length + paperMistakes.length) ? 'Review mistakes' : 'Continue'}<ChevronRight size={15} /></button>
+        <button type="button" className="text-action" onClick={() => nextUnit ? startPractice(nextUnit, recommendation.action === 'Resume' ? { confirmed: true } : {}) : openPractice()}>{nextUnit ? 'Continue' : 'Choose a topic'}<ChevronRight size={15} /></button>
       </section>
 
-      {(recentUnits.length > 0 || favoriteUnits.length > 0) && <div className="dashboard-feed-grid">
-        {recentUnits.length > 0 && <MiniUnitPanel eyebrow="Recent practice" title="Pick up where you left off" empty="" units={recentUnits} icon={<Dumbbell size={19} />} openPractice={startPractice} onManage={() => openPractice()} />}
-        {favoriteUnits.length > 0 && <MiniUnitPanel eyebrow="Saved for later" title="Favourite practice" empty="" units={favoriteUnits} icon={<Heart size={19} />} openPractice={startPractice} onManage={() => openPractice({ tab: 'saved' })} favorite />}
-      </div>}
-      <div className="dashboard-lower-grid"><section className="dashboard-panel performance-panel"><header><div><p className="section-label">Your performance</p><h2>Evidence from submitted work</h2></div><button type="button" className="text-action" onClick={() => setView('history')}>View progress <ChevronRight size={15} /></button></header><div className="performance-stats"><Stat label="Accuracy" value={average == null ? 'Not scored' : `${average}%`} detail={average == null ? 'Submit a set to start' : 'Submitted practice'} /><Stat label="Questions done" value={learningProgress.week.completedQuestions} detail="Completed work in the last 7 days" /><Stat label="Open mistakes" value={mistakes.length + paperMistakes.length} detail={weakTopic ? `${weakTopic.topic} needs attention` : 'Review after each result'} /><Stat label="Last attempt" value={latest ? `${latest.rawMarks ?? latest.scoreResult?.rawMarks ?? 0}/${latest.maxMarks ?? latest.scoreResult?.maxMarks ?? '?'}` : 'Not started'} detail={latest ? (latest.partial ? `${latest.answeredCount || 0}/${latest.questionCount || '?'} answered · provisional` : formatDate(latest.date || latest.submittedAt)) : 'No submission yet'} /></div>{latestProvisionalEvidence && <div className="dashboard-provisional-evidence" role="status"><strong>Provisional attempt</strong><span>{latestProvisionalEvidence.projection.answeredQuestionCount} answered · {latestProvisionalEvidence.projection.incorrectQuestionCount} incorrect · {latestProvisionalEvidence.projection.unansweredQuestionCount} unanswered</span><small>Saved for review only. It does not update mastery, progress, weak areas or the formal mistake queue.</small></div>}</section><section className="dashboard-panel mistakes-panel"><header><div><p className="section-label">Recent mistakes</p><h2>What to revisit</h2></div><button type="button" className="text-action" onClick={openNotebook}>Open notebook</button></header>{mistakes.length ? <div className="mistakes-compact">{mistakes.slice(0, 3).map((mistake) => <button type="button" key={mistake.id} onClick={() => startPractice(mistake.unit, { clearDraft: true, retestOf: mistake.attempt.id, onlyPartId: mistake.part.id })}><span>{mistake.unit.topic}</span><strong>{mistake.part.label}</strong><em>{mistake.criterion.maxMarks - mistake.criterion.awarded} mark{mistake.criterion.maxMarks - mistake.criterion.awarded === 1 ? '' : 's'}</em></button>)}</div> : <div className="compact-empty"><CheckCircle2 size={19} /><span>No weak points yet. Your next submitted set will create a focused review list.</span></div>}</section></div>
-      <section className="dashboard-panel roadmap-compact"><header><div><p className="section-label">Skill map</p><h2>Progress through the official syllabus</h2></div><button type="button" className="text-action" onClick={() => openPractice()}>Open all topics <ChevronRight size={15} /></button></header><div>{syllabusRoadmap.slice(0, 6).map((topic, index) => <button type="button" key={topic.id} onClick={() => openPractice({ subjectId: topic.subjectId === 'physics-9702' ? 'physics' : undefined })}><span>{topic.officialTopicNumber || index + 1}</span><strong>{topic.name.replace(/^\d+\s+/, '')}</strong><small>{topic.mastery == null ? 'Not started' : `${topic.mastery}% mastery`}</small><i><b style={{ width: `${topic.mastery || 0}%` }} /></i></button>)}</div></section>
+      <section className="dashboard-panel latest-record-panel"><header><div><p className="section-label">Recent record</p><h2>{latestUnit?.title || latest?.file || 'Complete your first set'}</h2></div><button type="button" className="text-action" onClick={() => setView('history')}>View progress <ChevronRight size={15} /></button></header>{latest ? <div className="latest-record-panel__content"><span>{latest.partial ? 'Provisional attempt' : 'Submitted attempt'}</span><strong>{latest.rawMarks ?? latest.scoreResult?.rawMarks ?? 0}/{latest.maxMarks ?? latest.scoreResult?.maxMarks ?? '?'}</strong><small>{latest.partial ? `${latest.answeredCount || 0}/${latest.questionCount || '?'} answered · excluded from mastery` : formatDate(latest.date || latest.submittedAt)}</small></div> : <p>Finish one practice set to create your first progress record.</p>}</section>
+      <section className="dashboard-panel roadmap-compact"><header><div><p className="section-label">Syllabus mastery</p><h2>Progress through the official syllabus</h2></div><button type="button" className="text-action" onClick={() => openPractice()}>Open all topics <ChevronRight size={15} /></button></header><div>{syllabusRoadmap.slice(0, 6).map((topic, index) => <button type="button" key={topic.id} onClick={() => openPractice()}><span>{topic.officialTopicNumber || index + 1}</span><strong>{topic.name.replace(/^\d+\s+/, '')}</strong><small>{topic.mastery == null ? 'Not started' : `${topic.mastery}% mastery`}</small><i><b style={{ width: `${topic.mastery || 0}%` }} /></i></button>)}</div></section>
     </main>
   </section>
-}
-
-function StudyAction({ icon, tone, title, detail, action, onClick }) {
-  return <button type="button" onClick={onClick}><span className={`action-icon ${tone}`}>{icon}</span><strong>{title}</strong><small>{detail}</small><em>{action} <ChevronRight size={15} /></em></button>
-}
-
-function Stat({ label, value, detail }) {
-  return <div><span>{label}</span><strong>{value}</strong><small>{detail}</small></div>
-}
-
-function MiniUnitPanel({ eyebrow, title, empty, units, icon, openPractice, onManage, favorite = false }) {
-  return <section className="dashboard-panel recent-panel"><header><div><p className="section-label">{eyebrow}</p><h2>{title}</h2></div><button type="button" className="text-action" onClick={onManage}>Library <ChevronRight size={15} /></button></header>{units.length ? <div className="mini-unit-list">{units.map((unit) => <button type="button" key={unit.id} onClick={() => openPractice(unit)}><span>{favorite ? <Heart size={16} fill="currentColor" /> : unit.code || subjects.find((subject) => subject.id === unit.subjectId)?.code}</span><div><strong>{unit.title}</strong><small>{unit.topic} · {unit.estimatedMinutes} min</small></div><ChevronRight size={16} /></button>)}</div> : <div className="compact-empty">{icon}<span>{empty}</span></div>}</section>
 }
 
 function PlayIcon() {
@@ -2466,8 +2398,8 @@ function LibraryView({
   selectRoute,
   activeTab,
   setActiveTab,
-  query,
-  onTopicQueryChange,
+  selectedTopicId,
+  onSelectTopic,
   visibleUnits,
   completionByUnit,
   favoriteUnitIds,
@@ -2481,7 +2413,9 @@ function LibraryView({
   onReviewAction,
   recommendation,
   onOpenTopic,
+  onOpenAiPractice,
   onOpenCoach,
+  startKnowledgeDrill,
   practiceOptions,
   syllabusInventory,
 }) {
@@ -2489,7 +2423,7 @@ function LibraryView({
   const contextSubject = subjects.find((subject) => subject.id === incomingContext.subjectId)
   const practiceTopics = practiceOptions.find((option) => option.routeId === activeRouteId)?.topics || []
   const hasTopicInventory = practiceTopics.some((topic) => Number(topic.inventory || 0) > 0)
-  const selectedTopic = practiceTopics.some((topic) => topic.label === query) ? query : ''
+  const selectedTopic = practiceTopics.find((topic) => topic.id === selectedTopicId) || null
   const practiceModesRef = useRef(null)
 
   useLayoutEffect(() => {
@@ -2507,25 +2441,25 @@ function LibraryView({
         </div>
         <div className="practice-hub__controls">
           <StudentRoutePicker activeRoute={activeRoute} routes={courseRoutes} selectRoute={selectRoute} compact />
-          {hasTopicInventory && <label className="practice-topic-filter"><span>Topic focus</span><select aria-label="Topic focus" value={selectedTopic} onChange={(event) => onTopicQueryChange(event.target.value)}><option value="">All topics in this route</option>{practiceTopics.map((topic) => <option value={topic.label} key={topic.id}>{topic.label.replace(/^\d+\s+/, '')}</option>)}</select></label>}
+          {hasTopicInventory && <label className="practice-topic-filter"><span>Topic focus</span><select aria-label="Topic focus" value={selectedTopicId || ''} onChange={(event) => onSelectTopic(event.target.value)}><option value="">All topics in this route</option>{practiceTopics.map((topic) => <option value={topic.id} key={topic.id}>{topic.label.replace(/^\d+\s+/, '')}</option>)}</select></label>}
         </div>
       </header>
 
       <nav className="practice-modes" ref={practiceModesRef} aria-label="Practice modes">
-        <div className="practice-mode-group" aria-label="Learn by topic"><span>Learn</span><button className={activeTab === 'recommended' ? 'active' : ''} type="button" onClick={() => setActiveTab('recommended')}><Target size={17} />Recommended</button><button className={activeTab === 'ai-practice' ? 'active' : ''} type="button" onClick={onOpenCoach}><Sparkles size={17} />AI Practice</button><button className={activeTab === 'topics' ? 'active' : ''} type="button" onClick={() => setActiveTab('topics')}><Dumbbell size={17} />Topic Drill</button></div>
+        <div className="practice-mode-group" aria-label="Learn by topic"><span>Learn</span><button className={activeTab === 'recommended' ? 'active' : ''} type="button" onClick={() => setActiveTab('recommended')}><Target size={17} />Recommended</button><button className={activeTab === 'ai-practice' ? 'active' : ''} type="button" onClick={onOpenAiPractice}><Sparkles size={17} />AI Practice</button><button className={activeTab === 'topics' ? 'active' : ''} type="button" onClick={() => setActiveTab('topics')}><Dumbbell size={17} />Topic Drill</button></div>
         <div className="practice-mode-group" aria-label="Work through a paper"><span>Exam prep</span><button className={activeTab === 'papers' ? 'active' : ''} type="button" onClick={() => setActiveTab('papers')}><FileText size={17} />Past Papers</button><button className={activeTab === 'exams' ? 'active' : ''} type="button" onClick={() => setActiveTab('exams')}><GraduationCap size={17} />Exam Simulation</button></div>
         <div className="practice-mode-group" aria-label="Review saved work"><span>Review</span><button className={activeTab === 'mistakes' ? 'active' : ''} type="button" onClick={() => setActiveTab('mistakes')}><RefreshCcw size={17} />Mistakes</button><button className={activeTab === 'saved' ? 'active' : ''} type="button" onClick={() => setActiveTab('saved')}><Heart size={17} />Saved</button></div>
       </nav>
 
       {incomingContext.from === 'ieltsist' && <div className="product-bridge-band" role="status"><span className="product-bridge-icon"><Brain size={17} /></span><div><strong>From IELTS-ist Vocabulary</strong><p>{contextSubject ? `You are ready to practise ${contextSubject.name} concepts.` : 'Use IELTS-ist for language support, then practise the subject here.'}</p></div><a href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer">Open IELTS Vocabulary <ChevronRight size={15} /></a></div>}
 
-      {activeTab === 'recommended' && <PracticeOverview recommendation={recommendation} visibleUnits={visibleUnits} completionByUnit={completionByUnit} mistakes={mistakes} paperMistakes={paperMistakes} startPractice={startPractice} onOpenTopic={onOpenTopic} onOpenCoach={onOpenCoach} onOpenPapers={() => setActiveTab('papers')} />}
-      {activeTab === 'ai-practice' && <AiPracticeLanding activeRoute={activeRoute} practiceOptions={practiceOptions} onOpenCoach={onOpenCoach} />}
+      {activeTab === 'recommended' && <PracticeOverview recommendation={recommendation} selectedTopic={selectedTopic} visibleUnits={visibleUnits} completionByUnit={completionByUnit} favoriteUnitIds={favoriteUnitIds} onToggleFavorite={onToggleFavorite} mistakes={mistakes} paperMistakes={paperMistakes} startPractice={startPractice} onOpenTopic={onOpenTopic} onOpenCoach={onOpenCoach} onOpenPapers={() => setActiveTab('papers')} />}
+      {activeTab === 'ai-practice' && <AiPracticeLanding activeRoute={activeRoute} practiceOptions={practiceOptions} startKnowledgeDrill={startKnowledgeDrill} onOpenCoach={onOpenCoach} />}
       {activeTab === 'papers' && <PaperLibrary catalogState={paperCatalogState} initialSubject={activeRoute.subjectCode} activeRoute={activeRoute} studyMode="past-paper-practice" onOpenPaper={openPaper} />}
 
       {activeTab === 'exams' && <PaperLibrary catalogState={paperCatalogState} initialSubject={activeRoute.subjectCode} activeRoute={activeRoute} studyMode="exam-simulation" onOpenPaper={(paper) => openPaper({ ...paper, paperStudyMode: 'exam-simulation' })} />}
 
-      {activeTab === 'topics' && <PracticeTopicDirectory activeRoute={activeRoute} activeRouteId={activeRouteId} practiceOptions={practiceOptions} visibleUnits={visibleUnits} completionByUnit={completionByUnit} query={selectedTopic} onOpenTopic={onOpenTopic} onOpenPapers={() => setActiveTab('papers')} onClearTopicFilter={() => onTopicQueryChange('')} syllabusInventory={syllabusInventory} />}
+      {activeTab === 'topics' && <PracticeTopicDirectory activeRoute={activeRoute} activeRouteId={activeRouteId} practiceOptions={practiceOptions} visibleUnits={visibleUnits} completionByUnit={completionByUnit} query={selectedTopic?.label || ''} onOpenTopic={onOpenTopic} onOpenPapers={() => setActiveTab('papers')} onClearTopicFilter={() => onSelectTopic('')} syllabusInventory={syllabusInventory} />}
 
       {activeTab === 'mistakes' ? (
           <MistakeList mistakes={mistakes} paperMistakes={paperMistakes} startPractice={startPractice} retestPaper={retestPaper} onReviewAction={onReviewAction} />
@@ -2539,29 +2473,75 @@ function LibraryView({
         <div className="empty-state">
           <Brain size={28} />
           <h2>{activeTab === 'saved' ? 'No saved practice yet' : 'No items match these filters'}</h2>
-          <p>{activeTab === 'saved' ? 'Use the heart on any practice card to keep it ready for later.' : 'Clear filters or switch subject to rebuild the practice queue.'}</p>
+          <p>{activeTab === 'saved' ? 'Save a practice set from Recommended or a topic page to keep it ready here.' : 'Clear filters or switch subject to rebuild the practice queue.'}</p>
+          {activeTab === 'saved' && <button type="button" className="primary-action" onClick={() => { onSelectTopic(''); setActiveTab('topics') }}>Browse practice</button>}
         </div>
       )}
     </section>
   )
 }
 
-function AiPracticeLanding({ activeRoute, practiceOptions, onOpenCoach }) {
+function AiPracticeLanding({ activeRoute, practiceOptions, startKnowledgeDrill, onOpenCoach }) {
   const option = practiceOptions.find((item) => item.routeId === activeRoute.routeId)
-  const available = (option?.topics || []).reduce((sum, topic) => sum + Number(topic.inventory || 0), 0)
+  const topics = option?.topics || []
+  const [selectedTopicIds, setSelectedTopicIds] = useState(() => topics[0]?.id ? [topics[0].id] : [])
+  const [questionCount, setQuestionCount] = useState(10)
+  const theoryComponents = (activeRoute.paperComponents || []).map(Number).filter((component) => Number.isFinite(component) && component !== 3)
+  const defaultComponents = theoryComponents.length ? theoryComponents : (activeRoute.paperComponents || []).map(Number).filter(Number.isFinite)
+  const firstTopicId = topics[0]?.id || ''
+  const defaultComponentKey = defaultComponents.join(',')
+  const [componentKey, setComponentKey] = useState(() => defaultComponentKey)
+  const [startError, setStartError] = useState('')
+  const selectedTopics = topics.filter((topic) => selectedTopicIds.includes(topic.id))
+  const available = selectedTopics.reduce((sum, topic) => sum + Number(topic.inventory || 0), 0)
+  const selectedComponents = componentKey.split(',').map(Number).filter(Number.isFinite)
+
+  useEffect(() => {
+    setSelectedTopicIds(firstTopicId ? [firstTopicId] : [])
+    setComponentKey(defaultComponentKey)
+    setStartError('')
+  }, [activeRoute.routeId, defaultComponentKey, firstTopicId])
+
+  async function buildPractice() {
+    if (!selectedTopicIds.length || !selectedComponents.length) return
+    try {
+      setStartError('')
+      await startKnowledgeDrill({
+        routeId: activeRoute.routeId,
+        knowledgeGroupId: selectedTopicIds[0],
+        syllabusTopicIds: selectedTopicIds,
+        questionCount,
+        components: selectedComponents,
+      })
+    } catch (error) {
+      setStartError(error.message || 'This set could not be generated from the current reviewed inventory.')
+    }
+  }
+
   return (
     <section className="practice-overview ai-practice-landing" aria-labelledby="ai-practice-title">
       <div className="practice-overview__header">
         <div>
           <p className="section-label">AI Practice</p>
           <h2 id="ai-practice-title">Build a focused set for {activeRoute.stage} {activeRoute.subject}</h2>
-          <p>Coach stays inside the selected course. Choose a syllabus topic and a question count, then start a guided set.</p>
+          <p>Choose the syllabus scope here. AI Tutor remains available for explanations and hints after the set opens.</p>
         </div>
-        <button type="button" className="primary-action" onClick={onOpenCoach}><Sparkles size={16} />Open practice builder</button>
+        <button type="button" className="secondary-action" onClick={onOpenCoach}><Sparkles size={16} />Ask AI Tutor</button>
       </div>
-      <div className="practice-overview__summary" role="status">
-        <strong>{available} source questions available in this course</strong>
-        <span>{option?.topics?.length || 0} topics · current route only</span>
+      <div className="ai-practice-builder">
+        <fieldset>
+          <legend>Syllabus topics</legend>
+          <div className="ai-practice-builder__topics">{topics.map((topic) => {
+            const selected = selectedTopicIds.includes(topic.id)
+            return <label className={selected ? 'is-selected' : ''} key={topic.id}><input type="checkbox" checked={selected} onChange={(event) => setSelectedTopicIds((current) => event.target.checked ? [...new Set([...current, topic.id])] : current.filter((id) => id !== topic.id))} /><span><strong>{topic.label.replace(/^\d+\s+/, '')}</strong><small>{topic.inventory || 0} official questions</small></span></label>
+          })}</div>
+        </fieldset>
+        <div className="ai-practice-builder__settings">
+          <label><span>Question count</span><select value={questionCount} onChange={(event) => setQuestionCount(Number(event.target.value))}><option value={5}>5 official questions</option><option value={10}>10 official questions</option><option value={15}>15 official questions</option></select></label>
+          <label><span>Paper component</span><select value={componentKey} onChange={(event) => setComponentKey(event.target.value)}>{defaultComponents.length > 1 && <option value={defaultComponents.join(',')}>{formatRouteComponents(defaultComponents, activeRoute)} mixed</option>}{(activeRoute.paperComponents || []).map((component) => <option value={String(component)} key={component}>{formatRouteComponents([component], activeRoute)}{Number(component) === 3 ? ' practical' : ''}</option>)}</select></label>
+        </div>
+        <div className="ai-practice-builder__footer" role="status"><span><strong>{selectedTopics.map((topic) => topic.label.replace(/^\d+\s+/, '')).join(' + ') || 'Choose a topic'}</strong><small>{available} available across the selected topics · {questionCount} requested</small></span><button type="button" className="primary-action" disabled={!selectedTopicIds.length || !selectedComponents.length || available === 0} onClick={buildPractice}><PlayIcon />Build practice</button></div>
+        {startError && <p className="topic-detail__error" role="alert">{startError}</p>}
       </div>
     </section>
   )
@@ -2612,31 +2592,61 @@ function sourcePaperLabel(question) {
   return `${season}${source.year || ''} · ${source.paper || 'Verified question paper'}`.trim()
 }
 
-function PracticeOverview({ recommendation, visibleUnits, completionByUnit, mistakes, paperMistakes, startPractice, onOpenTopic, onOpenCoach, onOpenPapers }) {
+function SavePracticeButton({ unit, favorite, onToggleFavorite }) {
+  const [status, setStatus] = useState('idle')
+
+  useEffect(() => setStatus('idle'), [favorite, unit?.id])
+
+  async function toggle(event) {
+    event?.stopPropagation?.()
+    if (!unit || status === 'saving') return
+    setStatus('saving')
+    try {
+      await Promise.resolve(onToggleFavorite?.(unit.id))
+      setStatus('idle')
+    } catch {
+      setStatus('error')
+    }
+  }
+
+  const label = status === 'error'
+    ? `Try saving ${unit?.title || 'this practice set'} again`
+    : favorite
+      ? `Remove ${unit?.title || 'this practice set'} from saved practice`
+      : `Save ${unit?.title || 'this practice set'} for later`
+
+  return <button type="button" className={`unit-favorite ${favorite ? 'saved' : ''} ${status === 'saving' ? 'is-loading' : ''} ${status === 'error' ? 'is-error' : ''}`} aria-label={label} aria-pressed={favorite} disabled={status === 'saving'} title={status === 'error' ? 'Save failed. Try again.' : favorite ? 'Remove from Saved' : 'Save practice set'} onClick={toggle}><Heart size={17} fill={favorite ? 'currentColor' : 'none'} /></button>
+}
+
+function PracticeOverview({ recommendation, selectedTopic, visibleUnits, completionByUnit, favoriteUnitIds, onToggleFavorite, mistakes, paperMistakes, startPractice, onOpenTopic, onOpenCoach, onOpenPapers }) {
   const nextUnit = recommendation?.unit
   const completedCount = visibleUnits.filter((unit) => completionByUnit[unit.id]?.completed).length
   const openMistakes = mistakes.length + paperMistakes.length
-  const topicId = nextUnit?.knowledgeGroupId
+  const topicId = selectedTopic?.id || nextUnit?.knowledgeGroupId
+  const topicName = selectedTopic?.label?.replace(/^\d+\s+/, '') || nextUnit?.topic
 
   return (
     <div className="practice-overview">
       <section className="practice-overview__primary">
         <div>
-          <p className="section-label">Recommended next</p>
-          <h2>{nextUnit?.title || 'Choose your first syllabus topic'}</h2>
-          <p>{nextUnit ? recommendation.reason : 'Build a short route-specific set from verified past-paper questions.'}</p>
-          {nextUnit && <div className="practice-overview__meta"><span>{nextUnit.parts.length} questions</span><span>{nextUnit.estimatedMinutes} min</span><span>{nextUnit.maxMarks} marks</span></div>}
+          <p className="section-label">{selectedTopic ? 'Selected topic' : 'Recommended next'}</p>
+          <h2>{nextUnit?.title || topicName || 'Choose your first syllabus topic'}</h2>
+          <p>{nextUnit ? recommendation.reason : selectedTopic ? `Open ${topicName} to build a set from the available paper components.` : 'Build a short route-specific set from reviewed past-paper questions.'}</p>
+          {nextUnit && <div className="practice-overview__meta"><span>{practiceMetricsSummary(nextUnit)}</span><span>About {nextUnit.estimatedMinutes} min</span></div>}
         </div>
-        <button type="button" className="primary-action" onClick={() => nextUnit ? startPractice(nextUnit, recommendation.action === 'Resume' ? { confirmed: true } : {}) : onOpenTopic(visibleUnits[0]?.knowledgeGroupId)} disabled={!nextUnit && !visibleUnits.length}><PlayIcon />{nextUnit ? (recommendation.action === 'Resume' ? 'Resume practice' : 'Start practice') : 'Choose a topic'}</button>
+        <div className="practice-overview__primary-actions">
+          {nextUnit && <SavePracticeButton unit={nextUnit} favorite={favoriteUnitIds.includes(nextUnit.id)} onToggleFavorite={onToggleFavorite} />}
+          <button type="button" className="primary-action" onClick={() => nextUnit ? startPractice(nextUnit, recommendation.action === 'Resume' ? { confirmed: true } : {}) : onOpenTopic(topicId || visibleUnits[0]?.knowledgeGroupId)} disabled={!nextUnit && !topicId && !visibleUnits.length}><PlayIcon />{nextUnit ? (recommendation.action === 'Resume' ? 'Resume practice' : 'Start practice') : topicId ? 'Open topic' : 'Choose a topic'}</button>
+        </div>
       </section>
 
       <section className="practice-overview__choices" aria-label="Practice choices">
-        <button type="button" onClick={() => topicId && onOpenTopic(topicId)} disabled={!topicId}><Target size={20} /><span><strong>Focus on this topic</strong><small>{nextUnit?.topic || 'Select from the syllabus'}</small></span><ChevronRight size={17} /></button>
+        <button type="button" onClick={() => topicId && onOpenTopic(topicId)} disabled={!topicId}><Target size={20} /><span><strong>Focus on this topic</strong><small>{topicName || 'Select from the syllabus'}</small></span><ChevronRight size={17} /></button>
         <button type="button" onClick={onOpenCoach}><Sparkles size={20} /><span><strong>Ask AI Tutor to build a set</strong><small>Describe the concept or skill you need</small></span><ChevronRight size={17} /></button>
         <button type="button" onClick={onOpenPapers}><FileText size={20} /><span><strong>Take a past paper</strong><small>Full official paper in exam conditions</small></span><ChevronRight size={17} /></button>
       </section>
 
-      <div className="practice-overview__status"><span><strong>{completedCount}</strong> topics practised</span><span><strong>{openMistakes}</strong> open mistakes</span><span><strong>{visibleUnits.length}</strong> verified sets in this route</span></div>
+      <div className="practice-overview__status"><span><strong>{completedCount}</strong> topics practised</span><span><strong>{openMistakes}</strong> open mistakes</span><span><strong>{visibleUnits.length}</strong> practice sets in this course</span></div>
     </div>
   )
 }
@@ -2650,26 +2660,27 @@ function PracticeTopicDirectory({ activeRoute, activeRouteId, practiceOptions, v
     return !normalizedQuery || [topic.label, metadata?.description, ...(metadata?.themes || [])].join(' ').toLowerCase().includes(normalizedQuery)
   })
   const sourceQuestionCount = routeTopics.reduce((sum, topic) => sum + Number(topic.inventory || 0), 0)
+  const multiTopicTarget = routeTopics.find((topic) => Number(topic.inventory || 0) > 0) || routeTopics[0]
   const topicDirectoryIntro = sourceQuestionCount > 0
     ? 'Choose one topic. Every set stays inside this course and remains linked to its original paper and mark scheme.'
     : 'Topic drills will appear here when complete official questions and marking guidance are ready for this course.'
   const topicContent = syllabusInventory?.status === 'loading'
-    ? <div className="empty-state" role="status"><Dumbbell size={28} /><h2>Loading your topic practice</h2><p>Checking the latest source-backed question inventory for this course.</p></div>
+    ? <div className="empty-state" role="status"><Dumbbell size={28} /><h2>Loading your topic practice</h2><p>Checking the latest official questions for this course.</p></div>
     : syllabusInventory?.status === 'error'
       ? <div className="empty-state" role="alert"><AlertTriangle size={28} /><h2>Topic practice is temporarily unavailable</h2><p>{syllabusInventory.error}</p><button type="button" className="card-action" onClick={() => window.location.reload()}>Retry <RefreshCcw size={15} /></button></div>
       : sourceQuestionCount === 0
         ? <div className="topic-directory__empty topic-directory__empty--inventory"><FileText size={28} /><div><p className="section-label">Topic Drill</p><h2>Topic Drill is being prepared for this course</h2><p>There are not enough checked question groups for {activeRoute.stage} {activeRoute.subject} yet. Use a complete official paper now; a topic set will appear only when its question pages and marking guidance are ready together.</p></div><div className="topic-directory__empty-actions"><span>Available now</span><button type="button" className="primary-action" onClick={onOpenPapers}><FileText size={16} />Browse {activeRoute.stage} {activeRoute.subject} papers</button><a href={activeRoute.syllabus.url} target="_blank" rel="noreferrer">View syllabus <ChevronRight size={15} /></a></div></div>
         : topics.length
-          ? <><div className="topic-directory__route-status" role="status"><div><strong>{routeTopics.length} syllabus topic{routeTopics.length === 1 ? '' : 's'}</strong><span>{sourceQuestionCount} source-backed question{sourceQuestionCount === 1 ? '' : 's'} ready to open</span></div><small>Choose a topic to set the paper style and question count.</small></div><div className="topic-directory__list">{topics.map((topic) => {
+          ? <><div className="topic-directory__route-status" role="status"><div><strong>{routeTopics.length} syllabus topic{routeTopics.length === 1 ? '' : 's'}</strong><span>{sourceQuestionCount} official question{sourceQuestionCount === 1 ? '' : 's'} ready to open</span></div><small>Choose a topic to set the paper style and question count.</small></div><div className="topic-directory__list">{topics.map((topic) => {
             const metadata = topicMetadata(topic.id)
             const mastery = topicMasteryFromUnits(topic.id, visibleUnits, completionByUnit)
             const available = Number(topic.inventory || 0)
             const topicNumber = metadata?.officialTopicNumber || String(routeTopics.indexOf(topic) + 1).padStart(2, '0')
             return <button type="button" className="topic-directory__row" key={topic.id} onClick={() => onOpenTopic(topic.id)}>
               <span className="topic-directory__number">{topicNumber}</span>
-              <span className="topic-directory__copy"><strong>{topic.label.replace(/^\d+\s+/, '')}</strong><small>{metadata?.description || `${activeRoute.stage} ${activeRoute.subject} syllabus topic`}</small></span>
+              <span className="topic-directory__copy"><strong>{topic.label.replace(/^\d+\s+/, '')}</strong><small>{topic.points?.length ? `${topic.points.length} syllabus outcome${topic.points.length === 1 ? '' : 's'}` : 'Open outcomes and past-paper practice'}</small></span>
               <span className={`topic-directory__mastery mastery-${masteryLabel(mastery).toLowerCase().replace(' ', '-')}`}><strong>{mastery == null ? '--' : `${mastery}%`}</strong><small>{masteryLabel(mastery)}</small></span>
-              <span className="topic-directory__available">{available} source-backed question{available === 1 ? '' : 's'}</span>
+              <span className="topic-directory__available">{available} official question{available === 1 ? '' : 's'}</span>
               <span className="topic-directory__open">{available ? 'Open topic' : 'View topic'}</span>
               <ChevronRight size={18} />
             </button>
@@ -2678,14 +2689,16 @@ function PracticeTopicDirectory({ activeRoute, activeRouteId, practiceOptions, v
 
   return (
     <section className="topic-directory">
-      <header><div><p className="section-label">Official syllabus</p><h2>{activeRoute.stage} {activeRoute.subject}</h2><p>{topicDirectoryIntro}</p></div><a href={activeRoute.syllabus.url} target="_blank" rel="noreferrer">View syllabus <ChevronRight size={15} /></a></header>
+      <header><div><p className="section-label">Official syllabus</p><h2>{activeRoute.stage} {activeRoute.subject}</h2><p>{topicDirectoryIntro}</p></div><div className="topic-directory__header-actions"><button type="button" className="primary-action" disabled={!multiTopicTarget || sourceQuestionCount === 0} onClick={() => onOpenTopic(multiTopicTarget.id, { openBuilder: true })}><ListFilter size={16} />Build multi-topic practice</button><a href={activeRoute.syllabus.url} target="_blank" rel="noreferrer">View syllabus <ChevronRight size={15} /></a></div></header>
       {topicContent}
     </section>
   )
 }
 
-function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, syllabusInventory, learningProgress, mistakes, practiceUnits, completionByUnit, startPractice, startKnowledgeDrill, onBack, onOpenCoach }) {
+function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen = false, practiceOptions, syllabusInventory, learningProgress, mistakes, practiceUnits, completionByUnit, startPractice, startKnowledgeDrill, onBack, onOpenCoach, favoriteUnitIds, onToggleFavorite }) {
   const [startError, setStartError] = useState('')
+  const [detailTab, setDetailTab] = useState('overview')
+  const [builderOpen, setBuilderOpen] = useState(initialBuilderOpen)
   const [selectedTopicIds, setSelectedTopicIds] = useState([topicId])
   const [selectedQuestionCount, setSelectedQuestionCount] = useState(10)
   const [componentMode, setComponentMode] = useState('mixed')
@@ -2703,12 +2716,6 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, syl
       ? [routeComponents[1]].filter(Boolean)
       : routeComponents
   const componentLabel = formatRouteComponents(selectedComponents, activeRoute) || 'theory'
-  const componentScopedQuestions = dynamicSyllabusRoute
-    ? verifiedPracticeQuestionGroups.filter((question) => (
-      question.routeId === activeRouteId
-      && selectedComponents.includes(Number(question.paperComponent ?? question.sourceRef?.component))
-    ))
-    : []
   const serverTopicById = new Map((syllabusInventory?.data?.topics || []).map((candidate) => [candidate.id, candidate]))
   const componentInventoryByTopic = new Map((routeOption?.topics || []).map((candidate) => {
     const serverTopic = serverTopicById.get(candidate.id)
@@ -2716,9 +2723,6 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, syl
     const available = selectedComponents.reduce((sum, component) => sum + Number(componentCounts[component]?.availableQuestionCount || 0), 0)
     return [candidate.id, available || (selectedComponents.length === 2 ? Number(serverTopic?.availableQuestionCount || candidate.inventory || 0) : 0)]
   }))
-  const selectedSourceQuestions = dynamicSyllabusRoute
-    ? componentScopedQuestions.filter((question) => selectedTopicIds.some((selectedTopicId) => topicQuestionMatches(question, activeRouteId, selectedTopicId)))
-    : []
   const metadata = topicMetadata(topicId)
   const guide = topicLearningContent(metadata || {
     id: topicId,
@@ -2751,9 +2755,6 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, syl
     }
     return counts
   }, { practice: 0, deterministic: 0, aiAssisted: 0, selfMark: 0 })
-  const selectedAnswerPartCount = dynamicSyllabusRoute
-    ? (selectedSourceQuestions.reduce((sum, question) => sum + (question.parts?.length || 0), 0) || available)
-    : markingCapabilityCounts.practice
   const nextPracticeUnit = topicPracticeUnits.find((unit) => !completionByUnit[unit.id]?.completed) || topicPracticeUnits[0]
   const topicMistakes = mistakes.filter((mistake) => mistake.unit.knowledgeGroupId === topicId).length
   const topicQuestions = verifiedPracticeQuestionGroups
@@ -2783,19 +2784,19 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, syl
   })) || []
   const sessionQuestionCount = practiceReady ? questionCount : sampleReady ? nextPracticeUnit.questionGroupCount || available : 0
   const inventorySummary = dynamicSyllabusRoute
-    ? `${available} ${selectedTopics.some((item) => (item.studyQuestionCount || 0) > 0) ? 'source-backed' : 'reviewed'} ${componentLabel} question${available === 1 ? '' : 's'} match this selection`
-    : `${topicPracticeUnits.length} practice set${topicPracticeUnits.length === 1 ? '' : 's'} · ${available} checked questions`
+    ? `${available} official ${componentLabel} question${available === 1 ? '' : 's'} match this selection`
+    : `${topicPracticeUnits.length} practice set${topicPracticeUnits.length === 1 ? '' : 's'} · ${available} official questions`
   const answerPartSummary = dynamicSyllabusRoute
-    ? `${selectedAnswerPartCount} answer part${selectedAnswerPartCount === 1 ? '' : 's'} · official question images and mark schemes attached`
-    : `${markingCapabilityCounts.practice} answer parts: ${markingCapabilityCounts.selfMark} self-mark, ${markingCapabilityCounts.deterministic} deterministic, ${markingCapabilityCounts.aiAssisted} AI-assisted`
+    ? 'Each official question stays together with every answer part and required page'
+    : `${markingCapabilityCounts.practice} answer parts: ${markingCapabilityCounts.deterministic} Auto-scored, ${markingCapabilityCounts.selfMark} Self-mark, ${markingCapabilityCounts.aiAssisted} Semantic-reviewed`
   const readinessSummary = dynamicSyllabusRoute
     ? questionCount < selectedQuestionCount
-      ? `A shorter ${questionCount}-question set will be generated because only ${available} ${selectedTopics.some((item) => (item.studyQuestionCount || 0) > 0) ? 'source-backed' : 'reviewed'} ${componentLabel} questions are available.`
+      ? `A shorter ${questionCount}-question set will be generated because only ${available} official ${componentLabel} questions are available.`
       : `Ready to generate a ${questionCount}-question ${componentLabel} set.`
     : topicMistakes
       ? `${topicMistakes} mistake${topicMistakes === 1 ? '' : 's'} linked`
       : practiceReady
-        ? 'Ready for a ten-question source set'
+        ? 'Ready for a ten-question official set'
         : sampleReady
           ? `Checked sample only · more questions coming (${available}/${MIN_VERIFIED_GROUPS_FOR_PRACTICE})`
           : topic?.sourceGap || 'More questions are being checked'
@@ -2813,8 +2814,8 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, syl
         }
         throw new Error(
           available > 0
-            ? `${selectedTopicIds.length > 1 ? 'These syllabus topics have' : topic.label + ' has'} ${available} checked source questions. ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} are required before a Topic Drill can start; more official questions are being checked.`
-            : topic?.sourceGap || 'This topic has no checked source question yet. More official questions are being checked.',
+            ? `${selectedTopicIds.length > 1 ? 'These syllabus topics have' : topic.label + ' has'} ${available} official questions available. ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} are required before a Topic Drill can start; more are being prepared.`
+            : topic?.sourceGap || 'This topic has no official questions ready yet. More are being prepared.',
         )
       }
       await startKnowledgeDrill({
@@ -2835,17 +2836,26 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, syl
     <section className="topic-detail page-band">
       <button type="button" className="topic-detail__back" onClick={onBack}><ArrowLeft size={17} />Back to {activeRoute.stage} {activeRoute.subject}</button>
       <header className="topic-detail__header">
-        <div><p className="section-label">{activeRoute.stage} {activeRoute.subject} · syllabus topic</p><h1>{topic.label.replace(/^\d+\s+/, '')}</h1><p>{metadata?.description || `Practise this ${activeRoute.stage} topic using verified source questions.`}</p></div>
+        <div><p className="section-label">{activeRoute.stage} {activeRoute.subject} · syllabus topic</p><h1>{topic.label.replace(/^\d+\s+/, '')}</h1><p>Review the official syllabus outcomes, then practise linked past-paper questions.</p></div>
         <div className="topic-detail__mastery"><span>Mastery</span><strong>{mastery == null ? '--' : `${mastery}%`}</strong><small>{masteryLabel(mastery)}</small></div>
       </header>
 
+      <nav className="topic-detail__tabs" role="tablist" aria-label="Topic details">
+        <button type="button" role="tab" aria-selected={detailTab === 'overview'} className={detailTab === 'overview' ? 'active' : ''} onClick={() => setDetailTab('overview')}>Overview</button>
+        <button type="button" role="tab" aria-selected={detailTab === 'outcomes'} className={detailTab === 'outcomes' ? 'active' : ''} onClick={() => setDetailTab('outcomes')}>Syllabus outcomes</button>
+        <button type="button" role="tab" aria-selected={detailTab === 'papers'} className={detailTab === 'papers' ? 'active' : ''} onClick={() => setDetailTab('papers')}>Past-paper questions</button>
+      </nav>
+
       <div className="topic-detail__layout">
         <main>
-          <section className="topic-detail__concepts"><header><div><p className="section-label">Official syllabus outcomes</p><h2>What this topic covers</h2><p>These outcomes come from the official syllabus. Skill labels are not separate chapters.</p></div></header><div>{topic.points?.length ? topic.points.slice(0, 8).map((item) => <div key={item.id}><span>{item.sectionCode}</span><strong>{item.outcomeNumber}. {item.officialText}</strong><small>Official outcome · syllabus point</small></div>) : chapterItems.map(({ theme, index, count }) => <div key={theme}><span>{topic?.label?.match(/^\d+(?:\.\d+)?/)?.[0] || String(index + 1).padStart(2, '0')}</span><strong>{theme}</strong><small>{count ? `${count} linked checked question${count === 1 ? '' : 's'}` : 'Official syllabus chapter · source questions being mapped'}</small></div>)}</div></section>
+          <section className="topic-detail__concepts" hidden={detailTab !== 'outcomes'}><header><div><p className="section-label">Official syllabus outcomes</p><h2>What this topic covers</h2><p>These outcomes come from the official syllabus. Skill labels are not separate chapters.</p></div></header><div>{topic.points?.length ? topic.points.slice(0, 8).map((item) => <div key={item.id}><span>{item.sectionCode}</span><strong>{item.outcomeNumber}. {item.officialText}</strong><small>Official outcome · syllabus point</small></div>) : chapterItems.map(({ theme, index, count }) => <div key={theme}><span>{topic?.label?.match(/^\d+(?:\.\d+)?/)?.[0] || String(index + 1).padStart(2, '0')}</span><strong>{theme}</strong><small>{count ? `${count} linked question${count === 1 ? '' : 's'}` : 'Questions are still being mapped to this outcome'}</small></div>)}</div></section>
+          <details className="topic-detail__disclosure" hidden={detailTab !== 'overview'}>
+            <summary><span>Study guide and exam habits</span><ChevronRight size={17} /></summary>
+            <div className="topic-detail__disclosure-body">
           <section className="topic-detail__guide" aria-label={`${topic.label} learning guide`}>
             <header>
               <div><p className="section-label">Study guide</p><h2>Learn the idea before you practise</h2><p>{guide.overview}</p></div>
-              <span className="topic-detail__guide-note">Syllabus-aligned content · not a verified past-paper question</span>
+              <span className="topic-detail__guide-note">Syllabus study guide · not an official past-paper question</span>
             </header>
             <div className="topic-detail__guide-grid">
               <article>
@@ -2876,12 +2886,19 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, syl
             <ul>{guide.examChecklist.map((item) => <li key={item}>{item}</li>)}</ul>
           </section>
           {checkpoints.length > 0 && <section className="topic-detail__checkpoints"><header><div><p className="section-label">Progression</p><h2>What good looks like</h2></div><span>Move from recall to exam application</span></header><div>{checkpoints.map((checkpoint) => <article key={checkpoint.id}><strong>{checkpoint.label}</strong><p>{checkpoint.description}</p></article>)}</div></section>}
+            </div>
+          </details>
+          <details className="topic-detail__disclosure topic-detail__disclosure--papers" open={detailTab === 'papers'} hidden={detailTab !== 'papers'}>
+            <summary><span>Past-paper question list</span><strong>{topicQuestions.length} questions · {topicPaperGroups.length} paper{topicPaperGroups.length === 1 ? '' : 's'}</strong></summary>
           <section className="topic-detail__past-papers"><header><div><p className="section-label">Real exam collection</p><h2>Past-paper questions by chapter</h2><p>These are question-level records, grouped by their original paper. Open the source page or mark scheme without losing the topic mapping.</p></div><strong>{topicQuestions.length} questions · {topicPaperGroups.length} paper{topicPaperGroups.length === 1 ? '' : 's'}</strong></header>{topicPaperGroups.length ? <div className="topic-detail__paper-groups">{topicPaperGroups.map((paperQuestions) => { const first = paperQuestions[0]; const source = first.sourceRef || {}; return <article className="topic-detail__paper-group" key={source.paperId || source.paper}><header><div><strong>{sourcePaperLabel(first)}</strong><span>{source.component ? `Component ${source.component}` : 'Official source'} · {paperQuestions.length} linked question{paperQuestions.length === 1 ? '' : 's'}</span></div><div><a href={`${source.localUrl}#page=${source.pageStart || 1}`} target="_blank" rel="noreferrer">Open QP</a><a href={`${first.answerRef?.localUrl || '#'}#page=${first.answerRef?.pageStart || 1}`} target="_blank" rel="noreferrer">Open MS</a></div></header><div>{paperQuestions.map((question) => <div className="topic-detail__question-row" key={question.questionGroupId || question.bankId}><span>{question.sourceRef?.question || 'Question'}</span><p>{sourceQuestionPreview(question) || 'Indexed question text is available in the source paper.'}</p><small>{question.totalMarks || question.marks || 1} mark{(question.totalMarks || question.marks || 1) === 1 ? '' : 's'} · QP p.{question.sourceRef?.pageStart || '?'} · MS p.{question.answerRef?.pageStart || '?'}</small></div>)}</div></article> })}</div> : <div className="topic-detail__empty-source"><FileText size={20} /><strong>No question-level source records yet</strong><p>This topic is in the syllabus map, but its verified paper index has not been attached to this route.</p></div>}</section>
-          <section className="topic-detail__source"><FileText size={20} /><div><strong>Source-backed practice</strong><p>Every study item keeps its original QP/MS pages. Items still awaiting semantic review are available for self-mark practice only and are excluded from AI marking and formal mastery.</p></div><span>{available} available{selectedTopics.some((item) => (item.studyQuestionCount || 0) > 0) ? ' · some self-mark only' : ''}</span></section>
+          </details>
+          <section className="topic-detail__source" hidden={detailTab !== 'overview'}><FileText size={20} /><div><strong>Official question evidence</strong><p>Every question opens with its complete source page and linked marking guidance. You will see how each answer part is checked before starting.</p></div><span>{available} available</span></section>
         </main>
         <aside className="topic-detail__rail" aria-label="Start a topic session">
-          <section className="topic-detail__start"><p className="section-label">Start this session</p><h2>{sessionQuestionCount} source question{sessionQuestionCount === 1 ? '' : 's'}</h2><p className="topic-detail__start-copy">Open the official question page, work in your preferred mode, then review against the linked mark scheme after submission.</p><ul><li>{inventorySummary}</li><li>{answerPartSummary}</li><li>{readinessSummary}</li></ul>{practiceReady || sampleReady ? <button type="button" className="primary-action" onClick={startTopicPractice}><PlayIcon />{practiceReady ? dynamicSyllabusRoute ? `Practice ${questionCount}` : nextPracticeUnit ? `Start set ${nextPracticeUnit.sourceSetIndex}` : `Practice ${questionCount}` : 'Start checked sample'}</button> : <button type="button" className="primary-action" disabled>{available ? `${available} source questions · more coming` : 'Questions not ready yet'}</button>}{topicPracticeUnits.length > 1 && <div className="topic-detail__set-list" aria-label="Past-paper practice sets">{topicPracticeUnits.map((unit) => <button type="button" key={unit.id} data-completed={Boolean(completionByUnit[unit.id]?.completed)} onClick={() => startPractice(unit)}><span>Set {unit.sourceSetIndex}</span><small>{unit.questionGroupCount} source questions · {unit.parts.length} answer parts · {unit.referencePapers.length} papers</small></button>)}</div>}<button type="button" className="topic-detail__ai" onClick={onOpenCoach}><Sparkles size={16} />Ask AI Tutor about this topic</button>{startError && <p className="topic-detail__error" role="alert">{startError}</p>}</section>
-          {dynamicSyllabusRoute && <section className="topic-detail__set-controls" aria-label="Syllabus practice set controls">
+          <section className="topic-detail__start"><div className="topic-detail__start-heading"><div><p className="section-label">Start this session</p><h2>{sessionQuestionCount} official question{sessionQuestionCount === 1 ? '' : 's'}</h2></div>{nextPracticeUnit && <SavePracticeButton unit={nextPracticeUnit} favorite={favoriteUnitIds.includes(nextPracticeUnit.id)} onToggleFavorite={onToggleFavorite} />}</div><p className="topic-detail__start-copy">Open the official question page, work in your preferred mode, then review against the linked mark scheme after submission.</p><ul><li>{inventorySummary}</li><li>{answerPartSummary}</li><li>{readinessSummary}</li></ul>{practiceReady || sampleReady ? <button type="button" className="primary-action" onClick={startTopicPractice}><PlayIcon />{practiceReady ? dynamicSyllabusRoute ? `Practice ${questionCount}` : nextPracticeUnit ? `Start set ${nextPracticeUnit.sourceSetIndex}` : `Practice ${questionCount}` : 'Start checked sample'}</button> : <button type="button" className="primary-action" disabled>{available ? `${available} official questions · more coming` : 'Questions not ready yet'}</button>}{topicPracticeUnits.length > 1 && <div className="topic-detail__set-list" aria-label="Past-paper practice sets">{topicPracticeUnits.map((unit) => { const unitMetrics = practiceUnitMetrics(unit); return <button type="button" key={unit.id} data-completed={Boolean(completionByUnit[unit.id]?.completed)} onClick={() => startPractice(unit)}><span>Set {unit.sourceSetIndex}</span><small>{unitMetrics.sourceQuestionCount} official questions · {unitMetrics.answerPartCount} answer parts · {unitMetrics.paperCount} papers · {unitMetrics.totalMarks} marks</small></button> })}</div>}<button type="button" className="topic-detail__ai" onClick={onOpenCoach}><Sparkles size={16} />Ask AI Tutor about this topic</button>{startError && <p className="topic-detail__error" role="alert">{startError}</p>}</section>
+          {dynamicSyllabusRoute && <details className="topic-detail__set-controls" open={builderOpen} onToggle={(event) => setBuilderOpen(event.currentTarget.open)}>
+            <summary><span><strong>Customize this set</strong><small>{selectedTopics.map((item) => item.label.replace(/^\d+\s+/, '')).join(' + ')} · {selectedQuestionCount} questions · {componentLabel}</small></span><ChevronRight size={17} /></summary>
+            <div className="topic-detail__set-controls-body" aria-label="Syllabus practice set controls">
             <div><p className="section-label">Build your set</p><h2>Choose what to practise</h2><p>Pick one or more syllabus topics, then select the paper style and question count for this session.</p></div>
             <fieldset className="topic-detail__topic-options"><legend>Choose syllabus topics</legend><div className="topic-detail__topic-option-list">{(routeOption?.topics || []).map((candidate) => {
               const selected = selectedTopicIds.includes(candidate.id)
@@ -2890,7 +2907,8 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, syl
             })}</div></fieldset>
             <label><span>Question count</span><select value={selectedQuestionCount} onChange={(event) => setSelectedQuestionCount(Number(event.target.value))}><option value={5}>5 questions</option><option value={10}>10 questions</option><option value={15}>15 questions</option></select></label>
             <label><span>Paper components</span><select value={componentMode} onChange={(event) => setComponentMode(event.target.value)}><option value="mixed">{formatRouteComponents(routeComponents, activeRoute) || 'Theory mixed'}</option><option value="p1">{formatRouteComponents([routeComponents[0] || 1], activeRoute)} only</option><option value="p2" disabled={!routeComponents[1]}>{formatRouteComponents([routeComponents[1] || 2], activeRoute)} only</option></select></label>
-          </section>}
+            </div>
+          </details>}
         </aside>
       </div>
     </section>
@@ -2935,20 +2953,20 @@ function LegacyKnowledgeMap({ subjectFilter, setSubjectFilter, completionByUnit,
         setInventoryError('')
         startKnowledgeDrill({ subjectId: appSubjectId, stage, knowledgeGroupId: group.id, questionCount: MIN_VERIFIED_GROUPS_FOR_PRACTICE })
       } catch (error) {
-        setInventoryError(error.message || 'This topic has no verified source question yet.')
+        setInventoryError(error.message || 'This topic has no official question ready yet.')
       }
       return
     }
     setInventoryError(
       available > 0
-        ? `${group.name} has ${available} checked source questions. ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} are required before a Topic Drill can start; more official questions are being checked.`
-        : `${group.name} has no checked source questions yet. More official questions are being checked.`,
+        ? `${group.name} has ${available} official questions available. ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} are required before a Topic Drill can start; more are being prepared.`
+        : `${group.name} has no official questions ready yet. More are being prepared.`,
     )
   }
 
   return (
     <section className="knowledge-map">
-      <header><div><p className="section-label">Syllabus practice</p><h2>Pick the course, stage and topic you need today.</h2><p>Each drill follows the current Cambridge syllabus and uses only complete question records linked to their paired QP and mark scheme. Smaller inventories remain available and are labelled by stage.</p><div className="knowledge-links">{planSubject?.syllabusUrl && <a className="syllabus-link" href={planSubject.syllabusUrl} target="_blank" rel="noreferrer">Cambridge {planSubject.code} official syllabus <ChevronRight size={14} /></a>}<a className="syllabus-link" href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer">Review subject vocabulary <ChevronRight size={14} /></a></div></div><div className="subject-segments">{subjects.map((subject) => <button type="button" className={(subjectFilter === subject.id || (subjectFilter === 'all' && subject.id === 'physics')) ? 'active' : ''} key={subject.id} onClick={() => setSubjectFilter(subject.id)}><strong>{subject.code}</strong><span>{subject.name}</span></button>)}</div></header>
+      <header><div><p className="section-label">Syllabus practice</p><h2>Pick the course, stage and topic you need today.</h2><p>Each drill follows the current Cambridge syllabus and uses complete official questions with matching mark schemes. Smaller collections remain available and are labelled by stage.</p><div className="knowledge-links">{planSubject?.syllabusUrl && <a className="syllabus-link" href={planSubject.syllabusUrl} target="_blank" rel="noreferrer">Cambridge {planSubject.code} official syllabus <ChevronRight size={14} /></a>}<a className="syllabus-link" href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer">Review subject vocabulary <ChevronRight size={14} /></a></div></div><div className="subject-segments">{subjects.map((subject) => <button type="button" className={(subjectFilter === subject.id || (subjectFilter === 'all' && subject.id === 'physics')) ? 'active' : ''} key={subject.id} onClick={() => setSubjectFilter(subject.id)}><strong>{subject.code}</strong><span>{subject.name}</span></button>)}</div></header>
       {inventoryError && <div className="inventory-alert" role="alert"><AlertTriangle size={18} /><span>{inventoryError}</span></div>}
       <div className="knowledge-rows">{groups.map((group) => {
         const units = unitsForGroup(group)
@@ -2970,7 +2988,7 @@ function LegacyKnowledgeMap({ subjectFilter, setSubjectFilter, completionByUnit,
         }))
         const primaryPreview = previews[0]?.sourceMix
         const subjectCode = subjects.find((subject) => subject.id === appSubjectId)?.code || 'selected'
-        return <article className="knowledge-row" key={group.id}><div className="knowledge-stage"><span>{stage}</span>{group.stageTags?.length > 0 && <small>{group.stageTags.join(' / ')}</small>}<div className="mini-progress"><i style={{ width: `${percentage ?? 4}%` }} /></div></div><div className="knowledge-copy"><h3>{group.name}</h3><p>{group.description}</p><div className="knowledge-themes">{group.themes.map((theme) => <span key={theme}>{theme}</span>)}</div><small className="knowledge-skill-line">Skills: {(group.skills || []).slice(0, 3).join(' · ')}</small><div className="knowledge-source-preview" aria-label={`${group.name} available source questions`}>{previews.map((preview) => <span className={preview.sourceMix.status === 'empty' ? 'not-ready' : preview.sourceMix.partial ? 'partial' : 'ready'} key={preview.stage}><strong>{preview.stage}</strong>{preview.sourceMix.available} checked{preview.sourceMix.partial ? ' · limited' : ''}</span>)}</div><small className="knowledge-source-policy">Stage availability is based on complete question records. Topic Drill starts only at {MIN_VERIFIED_GROUPS_FOR_PRACTICE} checked questions; otherwise use the paper viewer while more questions are prepared.</small></div><div className="knowledge-action"><strong>{percentage == null ? `${primaryPreview?.available || 0} checked questions` : `${percentage}% best`}</strong><div className="knowledge-drill-buttons">{stageOptions.map((stageName) => { const preview = previews.find((item) => item.stage === stageName)?.sourceMix; const count = preview?.available || 0; const ready = count >= MIN_VERIFIED_GROUPS_FOR_PRACTICE; return <button type="button" className="card-action" key={stageName} disabled={!ready} onClick={() => startGroupDrill(group, unit, stageName, count)}>{ready ? `Build ${stageName} drill · ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} questions` : count ? `${stageName} · ${count} checked, more coming` : `${stageName} · no questions ready`}<ChevronRight size={15} /></button> })}</div><button type="button" className="text-action" onClick={() => openPapers(appSubjectId)}>Open {subjectCode} papers</button></div></article>
+        return <article className="knowledge-row" key={group.id}><div className="knowledge-stage"><span>{stage}</span>{group.stageTags?.length > 0 && <small>{group.stageTags.join(' / ')}</small>}<div className="mini-progress"><i style={{ width: `${percentage ?? 4}%` }} /></div></div><div className="knowledge-copy"><h3>{group.name}</h3><p>{group.description}</p><div className="knowledge-themes">{group.themes.map((theme) => <span key={theme}>{theme}</span>)}</div><small className="knowledge-skill-line">Skills: {(group.skills || []).slice(0, 3).join(' · ')}</small><div className="knowledge-source-preview" aria-label={`${group.name} available official questions`}>{previews.map((preview) => <span className={preview.sourceMix.status === 'empty' ? 'not-ready' : preview.sourceMix.partial ? 'partial' : 'ready'} key={preview.stage}><strong>{preview.stage}</strong>{preview.sourceMix.available} available{preview.sourceMix.partial ? ' · limited' : ''}</span>)}</div><small className="knowledge-source-policy">Choose a topic with at least {MIN_VERIFIED_GROUPS_FOR_PRACTICE} available questions for Topic Drill. For smaller collections, open the paper while more questions are prepared.</small></div><div className="knowledge-action"><strong>{percentage == null ? `${primaryPreview?.available || 0} official questions` : `${percentage}% best`}</strong><div className="knowledge-drill-buttons">{stageOptions.map((stageName) => { const preview = previews.find((item) => item.stage === stageName)?.sourceMix; const count = preview?.available || 0; const ready = count >= MIN_VERIFIED_GROUPS_FOR_PRACTICE; return <button type="button" className="card-action" key={stageName} disabled={!ready} onClick={() => startGroupDrill(group, unit, stageName, count)}>{ready ? `Build ${stageName} drill · ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} questions` : count ? `${stageName} · ${count} available, more coming` : `${stageName} · no questions ready`}<ChevronRight size={15} /></button> })}</div><button type="button" className="text-action" onClick={() => openPapers(appSubjectId)}>Open {subjectCode} papers</button></div></article>
       })}</div>
     </section>
   )
@@ -2995,8 +3013,8 @@ function KnowledgeMap({ activeRoute, activeRouteId, selectRoute, completionByUni
     if (available < MIN_VERIFIED_GROUPS_FOR_PRACTICE) {
       setInventoryError(
         available > 0
-          ? `${topic.label} has ${available} checked source questions. ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} are required before a Topic Drill can start; more official questions are being checked.`
-          : `${topic.label} has no checked source questions yet. More official questions are being checked.`,
+          ? `${topic.label} has ${available} official questions available. ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} are required before a Topic Drill can start; more are being prepared.`
+          : `${topic.label} has no official questions ready yet. More are being prepared.`,
       )
       return
     }
@@ -3005,7 +3023,7 @@ function KnowledgeMap({ activeRoute, activeRouteId, selectRoute, completionByUni
       startKnowledgeDrill({ routeId: activeRouteId, knowledgeGroupId: topic.id, questionCount: MIN_VERIFIED_GROUPS_FOR_PRACTICE })
     } catch (error) {
       if (fallbackUnit) startPractice(fallbackUnit)
-      else setInventoryError(error.message || 'This syllabus topic has no verified source question yet.')
+      else setInventoryError(error.message || 'This syllabus topic has no official question ready yet.')
     }
   }
 
@@ -3036,6 +3054,7 @@ KnowledgeMap.displayName = 'KnowledgeMap'
 
 function UnitCard({ unit, completion, startPractice, favorite, onToggleFavorite }) {
   const subject = subjects.find((item) => item.id === unit.subjectId)
+  const metrics = practiceUnitMetrics(unit)
 
   return (
     <article className="unit-card">
@@ -3044,15 +3063,17 @@ function UnitCard({ unit, completion, startPractice, favorite, onToggleFavorite 
           {unit.icon}
         </span>
         <span className="status-pill">{unit.agentGenerated ? 'AI Coach set' : unit.priority}</span>
-        <button type="button" className={`unit-favorite ${favorite ? 'saved' : ''}`} onClick={() => onToggleFavorite(unit.id)} aria-label={favorite ? `Remove ${unit.title} from saved practice` : `Save ${unit.title} for later`}><Heart size={17} fill={favorite ? 'currentColor' : 'none'} /></button>
+        <SavePracticeButton unit={unit} favorite={favorite} onToggleFavorite={onToggleFavorite} />
       </div>
       <h2>{unit.title}</h2>
       <p>{unit.topic} · {unit.subtopic || unit.specification}</p>
       <div className="unit-meta">
         <span>{unit.board}</span>
         <span>{unit.estimatedMinutes} min</span>
-        <span>{unit.maxMarks} marks</span>
-        {unit.referencePapers?.length > 0 && <span>{unit.referencePapers.length} paper refs</span>}
+        <span>{metrics.sourceQuestionCount} official questions</span>
+        <span>{metrics.answerPartCount} answer parts</span>
+        <span>{metrics.paperCount} papers</span>
+        <span>{metrics.totalMarks} marks</span>
       </div>
       <div className="completion-line">
         <span>{completion.completed ? 'Completed' : 'Not completed'}</span>
@@ -3083,7 +3104,7 @@ function ReviewQueueActions({ reviewItemId, onReviewAction }) {
   </div>
 }
 
-function StudentNotebook({ activeRoute, routeOptions, selectRoute, attempts, units, mistakes, provisionalMistakes = [], paperMistakes, note, onChangeNote, onDeleteNote, startPractice, retestPaper, onReviewAction, reviewQueueAudit = [], openPractice }) {
+function StudentNotebook({ activeRoute, routeOptions, selectRoute, attempts, units, mistakes, provisionalMistakes = [], paperMistakes, note, onChangeNote, onDeleteNote, startPractice, retestPaper, onReviewAction, reviewQueueAudit = [], isSyncedAccount = false, openPractice }) {
   const [query, setQuery] = useState('')
   const [severity, setSeverity] = useState('all')
   const unitById = new Map(units.map((unit) => [unit.id, unit]))
@@ -3105,12 +3126,28 @@ function StudentNotebook({ activeRoute, routeOptions, selectRoute, attempts, uni
     return best >= 80
   }).map((unit) => unit.knowledgeGroupId || unit.topic)).size
   const noteStatus = note?.deleted
-    ? note.syncStatus === 'error' ? 'Server deletion failed; the note stays hidden on this device' : note.syncStatus === 'pending' ? 'Deleting privately…' : note.syncStatus === 'synced' ? 'Deleted from this device and your IELTSist ID' : 'Deleted from this device'
-    : note?.syncStatus === 'error' ? 'Sync failed; your local note is safe' : note?.syncStatus === 'pending' ? 'Syncing privately…' : note?.syncStatus === 'synced' ? 'Synced to your IELTSist ID' : 'Saved on this device'
+    ? note.syncStatus === 'error' ? 'Delete failed · local copy hidden' : note.syncStatus === 'pending' ? 'Deleting…' : isSyncedAccount ? 'Synced' : 'Local only'
+    : note?.syncStatus === 'error' ? 'Sync failed · local copy safe' : note?.syncStatus === 'pending' ? 'Syncing…' : isSyncedAccount ? 'Synced' : 'Local only'
   const recentReviewActions = [...reviewQueueAudit]
     .filter((event) => event?.at)
     .toSorted((left, right) => Date.parse(right.at) - Date.parse(left.at))
     .slice(0, 5)
+  const hasReviewItems = mistakes.length > 0 || provisionalMistakes.length > 0 || paperMistakes.length > 0
+
+  if (!hasReviewItems) {
+    return (
+      <section className="notebook-view notebook-view--empty page-band">
+        <header className="notebook-header">
+          <div><p className="section-label">Notebook</p><h1>Turn mistakes into your next marks.</h1><p className="page-intro">Your incorrect answer parts will appear here after a submitted practice set.</p></div>
+          <StudentRoutePicker activeRoute={activeRoute} routes={routeOptions} selectRoute={selectRoute} compact />
+        </header>
+        <div className="notebook-empty-layout">
+          <section className="empty-state notebook-empty"><CheckCircle2 size={28} /><h2>No review items yet</h2><p>Complete a practice set to build a focused queue from the answer parts that need another look.</p><button type="button" className="primary-action" onClick={openPractice}><Dumbbell size={16} />Find practice</button></section>
+          <section className="notebook-note-tool"><header><div><p className="section-label">Private note</p><h2>What will you remember?</h2></div><div className="notebook-note-tool__actions"><BookOpen size={18} />{savedNote && <button type="button" className="icon-button" onClick={onDeleteNote} aria-label="Delete private note" title="Delete private note"><Trash2 size={16} /></button>}</div></header><textarea value={savedNote} onChange={(event) => onChangeNote(event.target.value)} placeholder="Write a short method, formula, or reminder for this route..." aria-label="Private route notebook note" /><small>{note?.updatedAt ? `${noteStatus} · ${formatDate(note.updatedAt)}` : noteStatus}</small></section>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section className="notebook-view page-band">
@@ -3160,7 +3197,7 @@ function StudentNotebook({ activeRoute, routeOptions, selectRoute, attempts, uni
         <aside className="notebook-side">
            <section className="notebook-note-tool"><header><div><p className="section-label">Private note</p><h2>What will you remember?</h2></div><div className="notebook-note-tool__actions"><BookOpen size={18} />{savedNote && <button type="button" className="icon-button" onClick={onDeleteNote} aria-label="Delete private note" title="Delete private note"><Trash2 size={16} /></button>}</div></header><textarea value={savedNote} onChange={(event) => onChangeNote(event.target.value)} placeholder="Write a short method, formula, or reminder for this route..." aria-label="Private route notebook note" /><small>{note?.updatedAt ? `${noteStatus} · ${formatDate(note.updatedAt)}` : noteStatus}</small></section>
           <section className="notebook-recent"><header><div><p className="section-label">Progress</p><h2>Recent results</h2></div><BarChart3 size={18} /></header>{recentAttempts.length ? <div>{recentAttempts.map((attempt) => { const unit = unitById.get(attempt.unitId); return <div className="notebook-result-row" key={attempt.id}><span><strong>{unit?.topic || 'Practice set'}</strong><small>{unit?.title || 'Verified question set'}</small></span><b>{attempt.scoreResult.percentage}%</b></div> })}</div> : <p className="notebook-side-empty">Your completed sets will appear here.</p>}</section>
-          <section className="notebook-recent"><header><div><p className="section-label">Review audit</p><h2>Queue actions</h2></div><History size={18} /></header>{recentReviewActions.length ? <div>{recentReviewActions.map((event) => <div className="notebook-result-row" key={event.id || `${event.reviewItemId}-${event.at}`}><span><strong>{event.action === 'manual-mastered' ? 'Manual mastered' : event.action === 'deleted' ? 'Deleted from queue' : event.action}</strong><small>{event.reason || 'No reason recorded'} · {formatDate(event.at)}</small></span><b>Audit</b></div>)}</div> : <p className="notebook-side-empty">Ignore, archive, snooze, dismiss, delete and manual-mastery actions are recorded here.</p>}</section>
+          {recentReviewActions.length > 0 && <section className="notebook-recent"><header><div><p className="section-label">Activity</p><h2>Review actions</h2></div><History size={18} /></header><div>{recentReviewActions.map((event) => <div className="notebook-result-row" key={event.id || `${event.reviewItemId}-${event.at}`}><span><strong>{event.action === 'manual-mastered' ? 'Marked as reviewed' : event.action === 'deleted' ? 'Deleted from queue' : event.action}</strong><small>{event.reason || 'No reason recorded'} · {formatDate(event.at)}</small></span></div>)}</div></section>}
         </aside>
       </div>
     </section>
@@ -3358,7 +3395,7 @@ function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibr
 
       {isProvisional && <section className="result-learning-signal" aria-label="Provisional result notice"><div><p className="section-label">Saved evidence</p><h2>Finish the remaining questions before mastery updates</h2><p>This score covers only the answered parts. It does not update mastery, grade estimates, mistakes, streaks, weekly goals or class analytics.</p></div><div className="mastery-delta"><span>Answered</span><strong>{answeredParts}/{unit.parts.length}</strong><small>{result.unansweredPartCount} unanswered part{result.unansweredPartCount === 1 ? '' : 's'} remain unmarked</small></div><a className="terms-recommendation" href={termsUrl} target="_blank" rel="noreferrer"><Brain size={18} /><span><strong>Professional terms for this question</strong><small>{(weakest?.topicTags || [unit.topic]).slice(0, 3).join(' · ')}</small></span><ChevronRight size={16} /></a></section>}
 
-      {isStudyOnly && <section className="result-learning-signal" aria-label="Study result notice"><div><p className="section-label">Practice record</p><h2>Use this self-mark to guide the next attempt</h2><p>This source-backed study result is saved with its QP/MS identity, but it does not update mastery, grade estimates, mistakes, streaks, weekly goals, class analytics or AI marking.</p></div><div className="mastery-delta"><span>Self-marked</span><strong>{answeredParts}/{unit.parts.length}</strong><small>Formal review is still pending</small></div></section>}
+      {isStudyOnly && <section className="result-learning-signal" aria-label="Study result notice"><div><p className="section-label">Practice record</p><h2>Use this self-mark to guide the next attempt</h2><p>This practice result stays linked to its question paper and mark scheme, but it does not update mastery, grade estimates, mistakes, streaks, weekly goals, class analytics or AI marking.</p></div><div className="mastery-delta"><span>Self-marked</span><strong>{answeredParts}/{unit.parts.length}</strong><small>Formal review is still pending</small></div></section>}
 
       {hasAiReview && assisted && (
         <section className="ai-review-summary">

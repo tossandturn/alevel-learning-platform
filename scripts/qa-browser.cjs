@@ -174,8 +174,8 @@ async function open9709March2025P1(page) {
   await routePicker.getByRole('tab', { name: 'AS', exact: true }).click()
   await routePicker.getByRole('combobox', { name: 'Current course' }).selectOption('cie-9709-as-p1-p2')
   await page.getByRole('button', { name: /^Past Papers$/ }).click()
-  await page.locator('.paper-search input').fill('9709_m25_qp_12.pdf')
-  const row = page.locator('.paper-table tbody tr').filter({ hasText: '9709_m25_qp_12.pdf' })
+  await page.locator('.paper-search input').fill('9709/12 2025')
+  const row = page.locator('.paper-table tbody tr').filter({ hasText: '9709/12' }).filter({ hasText: 'Mar 2025' }).first()
   await row.getByRole('button', { name: 'Open' }).click()
   await page.locator('.paper-workspace').waitFor()
   await page.waitForSelector('.pdf-canvas-scroll canvas')
@@ -194,8 +194,8 @@ async function open0580March2025P1(page) {
   await routePicker.getByRole('tab', { name: 'IGCSE', exact: true }).click()
   await routePicker.getByRole('combobox', { name: 'Current course' }).selectOption('cie-0580-igcse-mathematics')
   await page.getByRole('button', { name: /^Past Papers$/ }).click()
-  await page.locator('.paper-search input').fill('0580_m25_qp_12.pdf')
-  const row = page.locator('.paper-table tbody tr').filter({ hasText: '0580_m25_qp_12.pdf' })
+  await page.locator('.paper-search input').fill('0580/12 2025')
+  const row = page.locator('.paper-table tbody tr').filter({ hasText: '0580/12' }).filter({ hasText: 'Mar 2025' }).first()
   await row.getByRole('button', { name: 'Open' }).click()
   await page.locator('.paper-workspace').waitFor()
   await page.waitForSelector('.pdf-canvas-scroll canvas')
@@ -340,7 +340,7 @@ async function addPdfInkForFocusedQuestion(page, pointerId) {
 }
 
 async function ensurePdfWritingEnabled(page) {
-  const toggle = page.getByRole('button', { name: 'Write on PDF' })
+  const toggle = page.getByRole('button', { name: 'Annotate PDF' })
   if (await toggle.getAttribute('aria-pressed') !== 'true') await toggle.click()
 }
 
@@ -391,6 +391,7 @@ async function assertNotebookLayout(page, { label, state }) {
     }
     const root = document.querySelector('.notebook-view')
     const summary = document.querySelector('.notebook-summary')
+    const emptyLayout = document.querySelector('.notebook-empty-layout')
     const layout = document.querySelector('.notebook-layout')
     const queue = document.querySelector('.notebook-queue')
     const side = document.querySelector('.notebook-side')
@@ -402,6 +403,7 @@ async function assertNotebookLayout(page, { label, state }) {
       root: rect(root),
       header: rect(document.querySelector('.notebook-header')),
       summary: rect(summary),
+      emptyLayout: rect(emptyLayout),
       summaryItems: [...(summary?.children || [])].map(rect),
       layout: rect(layout),
       layoutDisplay: layout ? getComputedStyle(layout).display : '',
@@ -425,15 +427,17 @@ async function assertNotebookLayout(page, { label, state }) {
     && box.height >= minimumHeight
     && box.display !== 'none'
     && box.visibility !== 'hidden'
-  const required = [metrics.root, metrics.summary, metrics.layout, metrics.queue, metrics.side, metrics.filters, metrics.search, metrics.priority, metrics.note, metrics.noteHeader, metrics.noteInput, metrics.recent]
+  const required = state === 'empty'
+    ? [metrics.root, metrics.header, metrics.emptyLayout, metrics.note, metrics.noteHeader, metrics.noteInput]
+    : [metrics.root, metrics.summary, metrics.layout, metrics.queue, metrics.side, metrics.filters, metrics.search, metrics.priority, metrics.note, metrics.noteHeader, metrics.noteInput, metrics.recent]
   if (required.some((box) => !visible(box))) throw new Error(`${label} notebook has missing or collapsed controls: ${JSON.stringify(metrics)}`)
-  if (metrics.layoutDisplay !== 'grid' || metrics.filtersDisplay !== 'grid' || metrics.summaryItems.length !== 4 || metrics.summaryItems.some((box) => !visible(box, 60, 32))) {
+  if (state === 'populated' && (metrics.layoutDisplay !== 'grid' || metrics.filtersDisplay !== 'grid' || metrics.summaryItems.length !== 4 || metrics.summaryItems.some((box) => !visible(box, 60, 32)))) {
     throw new Error(`${label} notebook layout did not apply its structured CSS: ${JSON.stringify(metrics)}`)
   }
-  if (metrics.scrollWidth > metrics.clientWidth + 1 || metrics.summary.background === 'rgba(0, 0, 0, 0)') {
+  if (metrics.scrollWidth > metrics.clientWidth + 1 || (state === 'populated' && metrics.summary.background === 'rgba(0, 0, 0, 0)')) {
     throw new Error(`${label} notebook has horizontal overflow or unstyled summary: ${JSON.stringify(metrics)}`)
   }
-  for (let first = 0; first < metrics.summaryItems.length; first += 1) {
+  for (let first = 0; state === 'populated' && first < metrics.summaryItems.length; first += 1) {
     for (let second = first + 1; second < metrics.summaryItems.length; second += 1) {
       if (boxesOverlap(metrics.summaryItems[first], metrics.summaryItems[second])) throw new Error(`${label} notebook summary counters overlap: ${JSON.stringify(metrics.summaryItems)}`)
     }
@@ -444,11 +448,12 @@ async function assertNotebookLayout(page, { label, state }) {
     ['private note header and editor', metrics.noteHeader, metrics.noteInput],
     ['private note and recent results', metrics.note, metrics.recent],
   ].filter(([, first, second]) => boxesOverlap(first, second))
-  if (collisions.length) throw new Error(`${label} notebook controls overlap: ${JSON.stringify({ collisions: collisions.map(([name]) => name), metrics })}`)
+  if (state === 'populated' && collisions.length) throw new Error(`${label} notebook controls overlap: ${JSON.stringify({ collisions: collisions.map(([name]) => name), metrics })}`)
   if (metrics.clientWidth <= 540 && visible(metrics.coach) && [metrics.header, metrics.filters, metrics.search, metrics.priority].some((box) => boxesOverlap(metrics.coach, box))) {
     throw new Error(`${label} mobile AI Coach covers notebook content: ${JSON.stringify(metrics)}`)
   }
   if (state === 'empty' && (metrics.emptyCount !== 1 || metrics.itemCount !== 0)) throw new Error(`${label} expected a clear review queue: ${JSON.stringify(metrics)}`)
+  if (state === 'empty' && (metrics.summary || metrics.filters || metrics.recent)) throw new Error(`${label} empty notebook must not show inactive counters, filters or activity panels: ${JSON.stringify(metrics)}`)
   if (state === 'populated' && (metrics.emptyCount !== 0 || metrics.itemCount < 1)) throw new Error(`${label} expected a visible review item: ${JSON.stringify(metrics)}`)
   const shot = path.join(ARTIFACT_DIR, `${label}.png`)
   await page.screenshot({ path: shot, fullPage: false })
@@ -941,7 +946,7 @@ async function run() {
     await igcseCourseSelect.selectOption('cie-0625-igcse-physics')
     await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: /^Practice$/ }).click()
     await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: /^Notebook$/ }).click()
-    if (await page.getByRole('heading', { name: 'What needs another look' }).count() !== 1) throw new Error('Student notebook review queue is missing')
+    if (await page.getByRole('heading', { name: 'No review items yet' }).count() !== 1) throw new Error('Student notebook empty state is missing')
     shots.push(await assertNotebookLayout(page, { label: 'notebook-empty-desktop', state: 'empty' }))
     const notebookRoutePicker = page.locator('.notebook-view .student-route-picker')
     await notebookRoutePicker.getByRole('tab', { name: 'AS', exact: true }).click()

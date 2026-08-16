@@ -105,8 +105,8 @@ function compressImage(file) {
 }
 
 const ANSWER_PANE_STORAGE_KEY = 'alevel-paper-answer-pane-width'
-const DEFAULT_ANSWER_PANE_WIDTH = 450
-const MIN_ANSWER_PANE_WIDTH = 360
+const DEFAULT_ANSWER_PANE_WIDTH = 500
+const MIN_ANSWER_PANE_WIDTH = 400
 const MIN_PDF_PANE_WIDTH = 480
 
 function storedAnswerPaneWidth() {
@@ -215,9 +215,11 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
   const showWorkspaceMarkingSummary = markingSummary && !(submitted && reviewedResponseQuestionNumbers.length > 0)
   const answeredCount = Array.from({ length: questionCount }, (_, index) => index + 1).filter((questionNumber) => hasResponse(profile, answers[questionNumber]) || pdfInkQuestionNumbers.includes(questionNumber)).length
   const displayPaper = documentMode === 'mark' ? markScheme : documentMode === 'report' ? examinerReport : questionPaper || paper
-  const title = documentMode === 'compare' ? `${questionPaper?.file} + ${markScheme?.file}` : displayPaper?.file || paper.file
-  const [minimumQuestions, maximumQuestions] = sharedMarkingContract
-    ? [sharedMarkingContract.answerSlots, sharedMarkingContract.answerSlots]
+  const officialPaperCode = `${String(sourcePaper.subject || '').toUpperCase()}${sourcePaper.variant ? `/${sourcePaper.variant}` : ''}`
+  const title = documentMode === 'compare' ? `${officialPaperCode} · Question paper + mark scheme` : `${officialPaperCode}${profile.paperNumber ? ` · P${profile.paperNumber}` : ''}`
+  const fixedOfficialQuestionCount = Number(officialQuestionSlots)
+  const [minimumQuestions, maximumQuestions] = Number.isInteger(fixedOfficialQuestionCount) && fixedOfficialQuestionCount > 0
+    ? [fixedOfficialQuestionCount, fixedOfficialQuestionCount]
     : profile.questionCountRange || [1, 30]
   const questionCountFixed = minimumQuestions === maximumQuestions
   const componentLabel = profile.paperNumber ? `P${profile.paperNumber}` : profile.title || sourcePaper.subject.toUpperCase()
@@ -827,7 +829,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
     <section className={`paper-workspace ${immersive ? 'paper-workspace--immersive' : ''}`}>
       <header className="paper-workspace-header">
         <button type="button" className="icon-button" onClick={async () => { try { const flushed = await flushPdfInk(); persistLatestDraft({ pdfInkByPage: flushed.pdfInkByPage, pdfInkQuestionMap: pdfInkQuestionMapRef.current }) } catch { persistLatestDraft() } onBack() }} aria-label="Back to paper library"><ArrowLeft size={19} /></button>
-        <div className="workspace-title"><strong>{title}</strong><small>{studyModeLabel} · {profile.title} · {paper.season} {paper.year} · verified local PDF</small></div>
+        <div className="workspace-title"><strong>{title}</strong><small>{studyModeLabel} · {profile.title} · {paper.season} {paper.year} · Official PDF</small></div>
         <div className="paper-workspace-actions">
           <span className={`timer ${isTimedSimulation && remainingSec <= 60 ? 'timer--urgent' : ''}`} role="timer"><Clock3 size={16} />{isTimedSimulation ? `Remaining ${formatTime(remainingSec)}` : formatTime(elapsedSec)}</span>
           {timeUp && <span className="paper-time-status" role="status">Time is up · submitted</span>}
@@ -840,14 +842,18 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
 
       <div className="paper-document-tabs" role="tablist" aria-label="Paper documents">
         <button type="button" className={documentMode === 'question' ? 'active' : ''} disabled={!questionPaper} onClick={() => openDocument('question')}><FileText size={17} />Question paper</button>
-        {isAttempt && profile.mode !== 'mcq' && <button type="button" className={pdfWritingEnabled ? 'active' : ''} aria-pressed={pdfWritingEnabled} disabled={submitted || documentMode !== 'question'} onClick={() => setPdfWritingEnabled((value) => !value)}><NotebookPen size={17} />Write on PDF</button>}
-        {isAttempt && profile.mode !== 'mcq' && pdfWritingEnabled && <><button type="button" className={pdfInkTool === 'pen' ? 'active' : ''} disabled={submitted} onClick={() => setPdfInkTool('pen')} title="Write on the PDF" aria-label="PDF pen"><PenTool size={17} /></button><button type="button" className={pdfInkTool === 'eraser' ? 'active' : ''} disabled={submitted} onClick={() => setPdfInkTool('eraser')} title="Erase PDF handwriting" aria-label="PDF eraser"><Eraser size={17} /></button><button type="button" className={pdfInkTool === 'hand' ? 'active' : ''} disabled={submitted} onClick={() => setPdfInkTool('hand')} title="Drag to scroll the PDF" aria-label="PDF hand"><Hand size={17} /></button></>}
-        {isAttempt && profile.mode !== 'mcq' && Object.keys(pdfInkByPage).length > 0 && <button type="button" disabled={submitted} onClick={clearPdfInk} title="Clear all handwriting placed on the PDF" aria-label="Clear PDF handwriting"><Trash2 size={17} /></button>}
         <button type="button" className={documentMode === 'mark' ? 'active' : ''} disabled={!markScheme || !canReview} title={!canReview ? 'Submit your answer sheet before opening the mark scheme' : 'Open the exact mark scheme'} onClick={() => openDocument('mark')}><FileCheck2 size={17} />Mark scheme</button>
         <button type="button" className={documentMode === 'compare' ? 'active' : ''} disabled={!questionPaper || !markScheme || !canReview} title={!canReview ? 'Submit before comparing answers' : 'Review question paper and mark scheme side by side'} onClick={() => openDocument('compare')}><Columns2 size={17} />Compare</button>
         {examinerReport && <button type="button" className={documentMode === 'report' ? 'active' : ''} disabled={!canReview} onClick={() => openDocument('report')}><NotebookText size={17} />Examiner report</button>}
         <span>{studyModeLabel} · {componentLabel} · {profile.durationMinutes ? `${profile.durationMinutes} min` : 'paper timing'} · {profile.maxMarks ? `${profile.maxMarks} marks` : 'source marks'}</span>
       </div>
+
+      {isAttempt && profile.mode !== 'mcq' && <div className="paper-annotation-tools" aria-label="PDF writing tools">
+        <span>PDF tools</span>
+        <button type="button" className={pdfWritingEnabled ? 'active' : ''} aria-pressed={pdfWritingEnabled} disabled={submitted || documentMode !== 'question'} onClick={() => setPdfWritingEnabled((value) => !value)}><NotebookPen size={17} />Annotate PDF</button>
+        {pdfWritingEnabled && <><button type="button" className={pdfInkTool === 'pen' ? 'active' : ''} disabled={submitted} onClick={() => setPdfInkTool('pen')} title="Write on the PDF" aria-label="PDF pen"><PenTool size={17} /></button><button type="button" className={pdfInkTool === 'eraser' ? 'active' : ''} disabled={submitted} onClick={() => setPdfInkTool('eraser')} title="Erase PDF handwriting" aria-label="PDF eraser"><Eraser size={17} /></button><button type="button" className={pdfInkTool === 'hand' ? 'active' : ''} disabled={submitted} onClick={() => setPdfInkTool('hand')} title="Drag to scroll the PDF" aria-label="PDF hand"><Hand size={17} /></button></>}
+        {Object.keys(pdfInkByPage).length > 0 && <button type="button" disabled={submitted} onClick={clearPdfInk} title="Clear all handwriting placed on the PDF" aria-label="Clear PDF handwriting"><Trash2 size={17} /></button>}
+      </div>}
 
       <div className="paper-pane-switch" role="tablist" aria-label="Mobile paper workspace">
         <button type="button" role="tab" aria-selected={mobilePane === 'paper'} aria-controls="paper-document-pane" className={mobilePane === 'paper' ? 'active' : ''} onClick={() => setMobilePane('paper')}><FileText size={17} />Paper</button>
@@ -916,6 +922,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
             sharedIdentityConnected={Boolean(sharedIdentityToken)}
             onOpenAccount={onOpenAccount}
             aiMarkingInProgress={aiMarkingInProgress}
+            showSubmitAction={false}
             onRequestAiMarking={markAllResponses}
             onRetryMarking={retryMarking}
             disabled={!isAttempt}

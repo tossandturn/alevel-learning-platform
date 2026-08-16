@@ -358,9 +358,12 @@ export function buildCompletionByUnit({ attempts = [], units = [], routes = cour
   }))
 }
 
-export function recommendForRoute({ attempts = [], drafts = {}, units = [], routes = courseRoutes, routeId }) {
+export function recommendForRoute({ attempts = [], drafts = {}, units = [], routes = courseRoutes, routeId, topicId = null }) {
   if (!routeId || routeId === LEGACY_UNSCOPED_ROUTE_ID) return { routeId: routeId || null, unit: null, action: 'Choose practice', reason: 'Select a learning route first.' }
-  const routeUnits = units.filter((unit) => resolveRouteBinding(unit, { routes }).routeId === routeId)
+  const routeUnits = units.filter((unit) => (
+    resolveRouteBinding(unit, { routes }).routeId === routeId
+    && (!topicId || [unit.knowledgeGroupId, unit.topicId, unit.syllabusTopic, ...(unit.syllabusTopicIds || [])].filter(Boolean).includes(topicId))
+  ))
   // Keep smaller source slices discoverable in Topic Drill, but do not make one
   // the first student action when this route already has a complete drill.
   // `parts` is the actual answerable QuestionPart count, not an OCR estimate.

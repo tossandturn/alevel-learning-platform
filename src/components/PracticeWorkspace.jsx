@@ -3,6 +3,7 @@ import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, CheckCircle2, ChevronLeft
 import { AiCoach } from './AiCoach'
 import { HandwritingPad } from './HandwritingPad'
 import { stripSourceVisualPlaceholders, trustedSourceAssetUrls } from '../lib/questionContent.js'
+import { markingStatusForPart, practiceUnitMetrics } from '../lib/practicePresentation.js'
 import './QuestionPlayer.css'
 
 const EMPTY_PARTS = Object.freeze([])
@@ -127,25 +128,7 @@ function sourceMixText(sourceMix) {
 }
 
 function markingCapability(part) {
-  if (part.aiAssistedMarkingAvailable || part.reviewStatus === 'reviewed') {
-    return {
-      mode: 'ai-assisted',
-      label: 'AI-assisted marking',
-      detail: 'Reviewed question-level marks are available after submission.',
-    }
-  }
-  if (part.deterministicScoringAvailable || part.answerKey) {
-    return {
-      mode: 'deterministic',
-      label: 'Deterministic scoring',
-      detail: 'This response is checked against its source-bound answer key.',
-    }
-  }
-  return {
-    mode: 'self-mark',
-    label: 'Self-mark only',
-    detail: 'The source question is available for practice, but its question-level marking metadata still awaits review.',
-  }
+  return markingStatusForPart(part)
 }
 
 function isComplete(attempt, part) {
@@ -194,7 +177,7 @@ function MultipleChoiceAnswer({ part, selected, onChange }) {
   )
 }
 
-export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, updateEvidence, submitAttempt, deferredMarking = false, stateOwnerId = '', goBack, immersive = false, onToggleImmersive = () => {} }) {
+export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, updateEvidence, submitAttempt, deferredMarking = false, stateOwnerId = '', practiceOptions = [], onGeneratePractice, onAgentAction, goBack, immersive = false, onToggleImmersive = () => {} }) {
   const [showSubmitCheck, setShowSubmitCheck] = useState(false)
   const [coachRequest, setCoachRequest] = useState(0)
   const [sourceAssetIndex, setSourceAssetIndex] = useState(0)
@@ -210,9 +193,8 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
   const sourceZoomRestoreTargetRef = useRef(null)
   const sourceZoomRestorePendingRef = useRef(false)
   const parts = unit.parts || EMPTY_PARTS
-  const sourceQuestionCount = Number(unit.questionGroupCount) > 0
-    ? Number(unit.questionGroupCount)
-    : new Set(parts.map((part) => part?.sourceQuestionId || part?.questionGroupId || part?.bankId).filter(Boolean)).size || parts.length
+  const metrics = practiceUnitMetrics(unit)
+  const sourceQuestionCount = metrics.sourceQuestionCount
   const answered = parts.filter((part) => isComplete(attempt, part)).length
   const unanswered = parts.length - answered
   const remaining = Math.max(0, attempt.durationSec - attempt.elapsedSec)
@@ -243,7 +225,6 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
   const unitSourceDeclaredComplete = sourceParts.every((part) => (part.sourceContentAvailable === true || part.sourceContentComplete === true) && sourceUrlsForPart(part).length > 0)
   const unitSourceFailed = allSourceAssetUrls.some((url) => sourceAssetStatuses[url] === 'error')
   const unitSourceComplete = unitSourceDeclaredComplete && !unitSourceFailed && allSourceAssetUrls.every((url) => sourceAssetStatuses[url] === 'loaded')
-  const sourceReasonText = (activePart.sourceContentReasons || []).slice(0, 2).join(', ')
 
   useEffect(() => {
     let cancelled = false
@@ -376,7 +357,7 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
           </button>
           <div className="qp-header__title">
             <strong>{unit.title}</strong>
-            <span>{sourceQuestionCount} source question{sourceQuestionCount === 1 ? '' : 's'} · {parts.length} answer part{parts.length === 1 ? '' : 's'}{unit.sourceSetIndex ? ` · Set ${unit.sourceSetIndex}` : ''}</span>
+            <span>{sourceQuestionCount} official question{sourceQuestionCount === 1 ? '' : 's'} · {metrics.answerPartCount} answer part{metrics.answerPartCount === 1 ? '' : 's'} · {metrics.paperCount} paper{metrics.paperCount === 1 ? '' : 's'} · {metrics.totalMarks} marks{unit.sourceSetIndex ? ` · Set ${unit.sourceSetIndex}` : ''}</span>
           </div>
         </div>
         <div className="qp-header__status">
@@ -429,15 +410,15 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
               <div>
                 <span className="qp-eyebrow">{unit.specification || unit.board || 'Cambridge practice'}</span>
                 <h1>{unit.topic || unit.title}</h1>
-                <p>Read the question, write your answer, then submit when you are ready.</p>
+                <p>{activePart.answerType === 'multiple-choice' ? 'Read the complete question, select one option, then submit when you are ready.' : 'Read the complete question, show your working, then submit when you are ready.'}</p>
               </div>
-              <div className="qp-paper__stats"><span><strong>{unit.maxMarks}</strong> marks</span><span><strong>{unit.estimatedMinutes || '--'}</strong> min</span></div>
+              <div className="qp-paper__stats"><span><strong>{metrics.totalMarks}</strong> marks</span><span><strong>{unit.estimatedMinutes || '--'}</strong> min</span></div>
             </div>
 
             {unit.sourceMix && (
               <details className="qp-provenance">
-                <summary><FileText size={16} /><span><strong>Source details</strong><small>{sourceMixText(unit.sourceMix)} · paired answers available after submission</small></span></summary>
-                <div className="qp-provenance__body"><strong>{unit.practiceMode === 'study-only' ? 'Source-backed study set' : 'Verified past-paper set'}</strong><span>Every question stays linked to its official source and answer record.</span></div>
+                <summary><FileText size={16} /><span><strong>Paper details</strong><small>{sourceMixText(unit.sourceMix)} · paired answers available after submission</small></span></summary>
+                <div className="qp-provenance__body"><strong>{unit.practiceMode === 'study-only' ? 'Official-question study set' : 'Official past-paper practice'}</strong><span>Every question stays linked to its original paper and marking guidance.</span></div>
               </details>
             )}
 
@@ -467,7 +448,7 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
                       <img src={activeSourceAssetUrl} style={showSourceFocus && activeSourceFocus ? sourceFocusImageStyle(activeSourceFocus) : undefined} alt={`${showSourceFocus ? 'Focused' : 'Complete'} official source page ${sourceAssetPosition + 1} for ${displayPartLabel(activePart, `Question ${activeIndex + 1}`)}`} loading="eager" onLoad={() => markSourceAsset(activeSourceAssetUrl, 'loaded')} onError={() => markSourceAsset(activeSourceAssetUrl, 'error')} />
                     </button>
                     <figcaption>{showSourceFocus ? `Verified crop for ${sourceQuestionLabel(activePart, `Question ${activeIndex + 1}`)}. Use the expand control to inspect the complete original page.` : 'Complete source-bound question material. The paired mark scheme stays hidden until submission.'}</figcaption>
-                  </figure> : activeSourceLoading ? <div className="qp-source-loading" role="status" aria-live="polite"><FileText size={18} /><strong>Loading complete source material</strong><span>Checking {visualSourceUrls.length} required question page{visualSourceUrls.length === 1 ? '' : 's'} before this answer area opens.</span></div> : activeRequiresBoundSource ? <div className="qp-source-incomplete" role="alert"><AlertTriangle size={18} /><strong>This source question is not complete enough to practise.</strong><span>{activeSourceFailed ? 'A required official question page could not be loaded. Answering and submission are blocked for this attempt.' : `It has been quarantined and cannot be submitted${sourceReasonText ? ` (${sourceReasonText})` : ''}.`}</span></div> : null}
+                  </figure> : activeSourceLoading ? <div className="qp-source-loading" role="status" aria-live="polite"><FileText size={18} /><strong>Loading the complete question</strong><span>Checking {visualSourceUrls.length} required question page{visualSourceUrls.length === 1 ? '' : 's'} before this answer area opens.</span></div> : activeRequiresBoundSource ? <div className="qp-source-incomplete" role="alert"><AlertTriangle size={18} /><strong>This question is temporarily unavailable.</strong><span>{activeSourceFailed ? 'A required official question page could not be loaded. Answering and submission are blocked for this attempt.' : 'The complete official question and marking guidance could not be confirmed, so answering and submission are blocked.'}</span></div> : null}
                   {!activePart.sourceRef?.paperId && <h2>{displayPrompt(activePart)}</h2>}
                   {activePart.sourceRef && <div className="question-source-label qp-source-label"><strong>Official Cambridge question · {displayPartLabel(activePart, `Question ${activeIndex + 1}`)}</strong><span>Source-bound question from the original paper. Marking feedback appears after submission.</span></div>}
                   {activePart.studyOnly && <div className="qp-source-study-note" role="status"><strong>Study mode</strong><span>This official source is ready for practice while formal review is pending. You can submit and self-mark; it is excluded from AI marking and formal mastery.</span></div>}
@@ -477,7 +458,7 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
                 </section>
 
                 <section className="qp-question__answer-panel" id={`qp-answer-panel-${activePart.id}`} aria-label="Answer workspace">
-                  <div className="qp-attempt-label"><span>2</span><div><strong>Your answer</strong><small>Show enough reasoning for method marks.</small></div><span className={complete ? 'qp-answer-status qp-answer-status--saved' : 'qp-answer-status'}>{complete ? <><CheckCircle2 size={15} />Saved</> : 'Not answered'}</span></div>
+                  <div className="qp-attempt-label"><span>2</span><div><strong>Your answer</strong><small>{activePart.answerType === 'multiple-choice' ? 'Select one option. It will be checked automatically after submission.' : activePart.answerType === 'numeric' ? 'Enter the final value and include working when method marks apply.' : 'Show enough reasoning for the available marks.'}</small></div><span className={complete ? 'qp-answer-status qp-answer-status--saved' : 'qp-answer-status'}>{complete ? <><CheckCircle2 size={15} />Saved</> : 'Not answered'}</span></div>
 
                   {activeSourceComplete && activePart.answerType === 'multiple-choice' && <MultipleChoiceAnswer part={activePart} selected={attempt.answers[activePart.id]} onChange={(value) => updateAnswer(activePart.id, value)} />}
                   {activeSourceComplete && activePart.answerType === 'numeric' && <NumericAnswer part={activePart} value={attempt.answers[activePart.id]} onChange={(value) => updateAnswer(activePart.id, value)} />}
@@ -495,7 +476,7 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
 
                   <div className="qp-question__help">
                     <div><Lightbulb size={17} /><span>Need a nudge?</span></div>
-                    {settings.mode !== 'exam' && <button type="button" className="qp-text-action" onClick={openCoach}><Sparkles size={15} />Open AI Tutor</button>}
+                    {settings.mode !== 'exam' && <button type="button" className="qp-text-action" onClick={openCoach} aria-label="Chat with AI Tutor"><Sparkles size={15} />Chat with AI Tutor</button>}
                     {settings.mode === 'exam' && <small>Hints are available after you submit this exam.</small>}
                   </div>
 
@@ -517,14 +498,14 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
         <aside className="exam-checklist qp-checklist" aria-label="Answer checklist">
           <div><ListChecks size={17} /><strong>Before submitting</strong></div>
           <span>Have you answered every command word and included units where needed?</span>
-          <small>{settings.mode === 'exam' ? 'Your working and mark scheme stay hidden until submission.' : 'Your answer and any handwriting evidence are saved as you work.'}</small>
+          <small>{activePart.answerType === 'multiple-choice' ? 'Your selected option is saved as you work and checked after submission.' : settings.mode === 'exam' ? 'Your working and mark scheme stay hidden until submission.' : 'Your answer and any handwriting evidence are saved as you work.'}</small>
         </aside>
       </div>
 
       {showSubmitCheck && <div className="submit-dialog-backdrop qp-dialog-backdrop" role="presentation" onMouseDown={() => setShowSubmitCheck(false)}>
         <div className="submit-dialog qp-dialog" role="dialog" aria-modal="true" aria-labelledby="submit-check-title" onMouseDown={(event) => event.stopPropagation()}>
           <AlertTriangle size={24} />
-          <h2 id="submit-check-title">{unanswered} {unanswered === 1 ? 'question is' : 'questions are'} unanswered</h2>
+          <h2 id="submit-check-title">{unanswered} {unanswered === 1 ? 'answer part is' : 'answer parts are'} unanswered</h2>
           <p>{deferredMarking ? 'Blank written responses remain pending and never become an automatic zero. Objective blanks can still score zero. You can keep working or save this submission for review.' : 'Blank objective answers receive zero marks. You can return to the paper or submit it now.'}</p>
           <div><button type="button" className="qp-secondary-action" onClick={() => setShowSubmitCheck(false)}>Keep working</button><button type="button" className="qp-submit-button" disabled={attempt.submitting || flushing} onClick={() => void performSubmit()}>{attempt.submitting || flushing ? (deferredMarking ? 'Saving and checking...' : 'Marking...') : 'Submit anyway'}</button></div>
         </div>
@@ -532,10 +513,13 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
 
       {settings.mode !== 'exam' && <AiCoach
         key={`${attempt.id}:${activePart.id}`}
-        stateOwnerId={stateOwnerId}
-        openRequest={coachRequest}
-        showTrigger={false}
-        context={{
+          stateOwnerId={stateOwnerId}
+          openRequest={coachRequest}
+          showTrigger={false}
+          practiceOptions={practiceOptions}
+          onGeneratePractice={onGeneratePractice}
+          onAgentAction={onAgentAction}
+          context={{
           attemptId: attempt.id,
           stateOwnerId,
           view: 'chapter-practice',

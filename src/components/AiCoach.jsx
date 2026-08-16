@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { BrainCircuit, FileText, ImagePlus, MonitorUp, Send, Sparkles, X } from 'lucide-react'
+import { BrainCircuit, FileText, ImagePlus, MonitorUp, Send, Sparkles, Wrench, X } from 'lucide-react'
 import { resolveCoachIntent } from '../lib/coachIntent'
 import { parseCoachMessage } from '../lib/coachMessage'
 import { MIN_VERIFIED_GROUPS_FOR_PRACTICE } from '../lib/verifiedPracticeCatalog'
@@ -83,6 +83,8 @@ export function AiCoach({
   const [error, setError] = useState('')
   const endRef = useRef(null)
   const triggerRef = useRef(null)
+  const dialogRef = useRef(null)
+  const closeButtonRef = useRef(null)
   const captureButtonRef = useRef(null)
   const screenshotInputRef = useRef(null)
   const requestAbortRef = useRef(null)
@@ -225,6 +227,30 @@ export function AiCoach({
     window.addEventListener('keydown', closeOnEscape)
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [closeCoach, open])
+
+  useEffect(() => {
+    if (!open) return undefined
+    const dialog = dialogRef.current
+    if (!dialog) return undefined
+    const focusableSelector = 'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), a[href]'
+    closeButtonRef.current?.focus?.()
+    function keepFocusInside(event) {
+      if (event.key !== 'Tab') return
+      const focusable = [...dialog.querySelectorAll(focusableSelector)].filter((element) => element.offsetParent !== null)
+      if (!focusable.length) return
+      const first = focusable[0]
+      const last = focusable.at(-1)
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    dialog.addEventListener('keydown', keepFocusInside)
+    return () => dialog.removeEventListener('keydown', keepFocusInside)
+  }, [open, builderOpen, captureOpen])
 
   useEffect(() => {
     if (!captureOpen) return undefined
@@ -452,7 +478,7 @@ export function AiCoach({
     if (!onGeneratePractice || !builderSubject || !builderTopicId || generating) return
     if (!sourceReady) {
       setError(hasMinimumVerifiedSource
-        ? `This topic currently has ${verifiedCount} verified source questions. Choose an available set size.`
+        ? `This topic currently has ${verifiedCount} checked official questions. Choose an available set size.`
         : `Source indexing is in progress. At least ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} verified question groups are required before AI can build a set.`)
       return
     }
@@ -489,10 +515,10 @@ export function AiCoach({
         <Sparkles size={18} /><span>AI Coach</span>
       </button>}
       {open && <button type="button" className="ai-coach-backdrop" onPointerDown={closeCoach} onClick={closeCoach} aria-label="Close AI Coach" />}
-      <aside className={`ai-coach ${open ? 'open' : ''} ${builderOpen ? 'builder-open' : ''}`} inert={!open ? true : undefined} aria-hidden={!open} aria-label="AI Coach">
+      <aside ref={dialogRef} className={`ai-coach ${open ? 'open' : ''} ${builderOpen ? 'builder-open' : ''}`} inert={!open ? true : undefined} aria-hidden={!open} aria-modal="true" role="dialog" aria-label="AI Coach">
         <header>
           <div className="ai-coach__identity"><span><BrainCircuit size={19} /></span><div><strong>AI Coach</strong><small>{context.question?.label || context.question?.title || context.subject?.code || 'Study support'}</small></div></div>
-          <button type="button" className="icon-button" onClick={closeCoach} aria-label="Close AI Coach"><X size={18} /></button>
+          <button ref={closeButtonRef} type="button" className="icon-button" onClick={closeCoach} aria-label="Close AI Coach"><X size={18} /></button>
         </header>
 
         <div className="ai-coach__context">
@@ -501,23 +527,26 @@ export function AiCoach({
           {!context.submitted && <small>Before submission, Coach gives progressive hints without revealing the final answer.</small>}
         </div>
 
-        <div className="ai-coach__quick-actions">
-          {onGeneratePractice && <button type="button" className={builderOpen ? 'active' : ''} onClick={() => setBuilderOpen((value) => !value)}><Sparkles size={13} />Build practice</button>}
-          <button ref={captureButtonRef} type="button" className="ai-coach__screenshot" aria-label="Capture question area" disabled={capturing} onClick={captureCurrentPage}><MonitorUp size={13} />{capturing ? 'Capturing...' : 'Capture question area'}</button>
-          <button type="button" className="ai-coach__screenshot" onClick={() => screenshotInputRef.current?.click()}><ImagePlus size={13} />Provide screenshot</button>
-          {canOpenBphoSpc && <button type="button" onClick={() => ask('打开最新的 BPhO SPC 真题，带答案。')}><FileText size={13} />Latest BPhO SPC</button>}
-          <button type="button" onClick={() => ask('Give me a hint for the next step.', hintLevel)}>Hint {hintLevel}/5</button>
-          <button type="button" onClick={() => ask('Check my method and identify the first issue.', 3)}>Check method</button>
-          {imageDataUrl && <button type="button" onClick={() => ask('Read my attached work. Give me the first issue and one next step, without giving the final answer.', hintLevel)}><ImagePlus size={13} />Review screenshot</button>}
-          <button type="button" onClick={() => ask('What should I practise next based on this response?', 2)}>Next practice</button>
-        </div>
+        <details className="ai-coach__tools">
+          <summary><Wrench size={14} />Tools</summary>
+          <div className="ai-coach__quick-actions">
+            {onGeneratePractice && <button type="button" className={builderOpen ? 'active' : ''} onClick={() => setBuilderOpen((value) => !value)}><Sparkles size={13} />Build practice</button>}
+            <button ref={captureButtonRef} type="button" className="ai-coach__screenshot" aria-label="Capture question area" disabled={capturing} onClick={captureCurrentPage}><MonitorUp size={13} />{capturing ? 'Capturing...' : 'Capture question area'}</button>
+            <button type="button" className="ai-coach__screenshot" onClick={() => screenshotInputRef.current?.click()}><ImagePlus size={13} />Provide screenshot</button>
+            {canOpenBphoSpc && <button type="button" onClick={() => ask('打开最新的 BPhO SPC 真题，带答案。')}><FileText size={13} />Latest BPhO SPC</button>}
+            <button type="button" onClick={() => ask('Give me a hint for the next step.', hintLevel)}>Hint {hintLevel}/5</button>
+            <button type="button" onClick={() => ask('Check my method and identify the first issue.', 3)}>Check method</button>
+            {imageDataUrl && <button type="button" onClick={() => ask('Read my attached work. Give me the first issue and one next step, without giving the final answer.', hintLevel)}><ImagePlus size={13} />Review screenshot</button>}
+            <button type="button" onClick={() => ask('What should I practise next based on this response?', 2)}>Next practice</button>
+          </div>
+        </details>
 
         {builderOpen && <section className="ai-coach__builder" aria-label="Generate a focused practice set">
           <header><div><strong>Build a focused set</strong><span>Choose the syllabus point, then start writing.</span></div><Sparkles size={18} /></header>
           <label><span>Learning route</span><select value={builderSubject?.id || ''} onChange={(event) => setBuilderSubjectId(event.target.value)}>{practiceOptions.map((item) => <option value={item.id} key={item.id}>{item.label}</option>)}</select></label>
           <label><span>Knowledge point</span><select value={builderTopicId} onChange={(event) => setBuilderTopicId(event.target.value)}>{builderTopics.map((topic) => <option value={topic.id} key={topic.id}>{topic.label}</option>)}</select></label>
           <label><span>Questions</span><select value={builderCount} onChange={(event) => setBuilderCount(event.target.value)}><option value="10">10 questions</option><option value="15" disabled={verifiedCount < 15}>15 questions</option><option value="20" disabled={verifiedCount < 20}>20 questions</option></select></label>
-          <p>Source policy: verified official-paper items only. Each question remains bound to its QP and mark scheme. <strong>{verifiedCount} verified for this stage</strong>{sourceReady ? ' · ready to build' : hasMinimumVerifiedSource ? ` · choose ${Math.min(verifiedCount, 10)} verified questions or fewer` : ` · indexing in progress (${MIN_VERIFIED_GROUPS_FOR_PRACTICE} needed for a set)`}</p>
+          <p>Uses complete official questions with linked mark schemes. <strong>{verifiedCount} available for this stage</strong>{sourceReady ? ' · ready to build' : hasMinimumVerifiedSource ? ` · choose ${Math.min(verifiedCount, 10)} questions or fewer` : ` · more questions are being prepared (${MIN_VERIFIED_GROUPS_FOR_PRACTICE} needed for a set)`}</p>
           <button type="button" className="primary-action" onClick={generatePractice} disabled={generating || !builderTopicId || !sourceReady}><Sparkles size={16} />{generating ? 'Building...' : sourceReady ? 'Generate and start' : hasMinimumVerifiedSource ? 'Choose an available size' : 'Source indexing in progress'}</button>
         </section>}
 

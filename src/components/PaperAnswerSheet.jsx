@@ -177,6 +177,7 @@ export function PaperAnswerSheet({
   sharedIdentityConnected = false,
   onOpenAccount,
   aiMarkingInProgress = false,
+  showSubmitAction = true,
   disabled = false,
   onAnswerChange,
   onQuestionFocus,
@@ -311,7 +312,7 @@ export function PaperAnswerSheet({
                   </div>
                 </fieldset>
               ) : pdfInkActive && !submitted ? (
-                <div className="paper-answer-sheet__pdf-note"><strong>Write on the original PDF</strong><span>{aiReviewEligible ? 'Select the pen on the paper pane and write your working beside this question. Your PDF page and handwriting are available for AI-assisted review after submission.' : 'Select the pen on the paper pane and write your working beside this question. Your handwriting is saved with this attempt; after submission, use the paired mark scheme to self-mark.'}</span><button type="button" onClick={() => onLinkPdfInkQuestion?.(questionNumber)}>Link current PDF writing</button></div>
+                <div className="paper-answer-sheet__pdf-note"><strong>Write on the original PDF</strong><span>{aiReviewEligible ? 'Select the pen on the paper pane and write your working beside this question. Your PDF page and handwriting are available for AI-assisted review after submission.' : 'Select the pen on the paper pane and write your working beside this question. Your handwriting is saved with this attempt; after submission, use the paired mark scheme to self-mark.'}</span><button type="button" onClick={() => onLinkPdfInkQuestion?.(questionNumber)}>Attach writing on this PDF page to Question {questionNumber}</button></div>
               ) : submitted && pdfInkQuestions.has(questionNumber) && !hasText(legacyResponse(answer)) && !answer.image ? (
                 <div className="paper-answer-sheet__pdf-note paper-answer-sheet__pdf-note--saved"><strong>Handwriting saved on the original PDF</strong><span>Your Pencil response remains visible on the question-paper pane and is bound to this submitted attempt.</span></div>
               ) : (
@@ -349,9 +350,9 @@ export function PaperAnswerSheet({
 
       <footer className="paper-answer-sheet__footer">
         {!submitted ? (
-          <button type="submit" disabled={disabled || totalQuestions === 0}>
-            Submit answer sheet
-          </button>
+          showSubmitAction
+            ? <button type="submit" disabled={disabled || totalQuestions === 0}>Submit answer sheet</button>
+            : <span>Use Submit paper in the top bar when your answer sheet is ready.</span>
         ) : (
           <><span role="status">{saveNotice || 'Self-mark progress is saved in this attempt.'}</span><button type="button" onClick={saveSelfMark}>Save self-mark</button></>
         )}

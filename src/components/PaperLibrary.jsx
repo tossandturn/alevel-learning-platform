@@ -37,8 +37,10 @@ const KIND_NAMES = {
   other: 'Other file',
 }
 
-function bytesLabel(bytes) {
-  return bytes >= 1_000_000 ? `${(bytes / 1_000_000).toFixed(1)} MB` : `${Math.ceil(bytes / 1000)} KB`
+function studentPaperCode(item) {
+  const subject = String(item.subject || '').toUpperCase()
+  const variant = String(item.variant || '').trim()
+  return variant ? `${subject}/${variant}` : subject || 'Official paper'
 }
 
 function stageKeyForRoute(route) {
@@ -125,6 +127,8 @@ export function PaperLibrary({ catalogState, initialSubject = 'all', activeRoute
     const query = filters.query.trim().toLowerCase()
     return items.filter((item) => {
       const isSeriesDocument = !item.variant && ['er', 'gt'].includes(item.kind)
+      const searchText = `${studentPaperCode(item)} ${item.file} ${item.subject} ${item.year} ${item.season} ${item.variant}`.toLowerCase()
+      const matchesQuery = !query || query.split(/\s+/).every((term) => searchText.includes(term))
       return (
         paperItemMatchesActiveRoute(item, activeRoute)
         && (filters.subject === 'all' || item.subject === filters.subject)
@@ -134,7 +138,7 @@ export function PaperLibrary({ catalogState, initialSubject = 'all', activeRoute
         && (filters.year === 'all' || String(item.year) === filters.year)
         && (filters.season === 'all' || item.season === filters.season)
         && (filters.kind === 'all' || item.kind === filters.kind)
-        && (!query || `${item.file} ${item.subject} ${item.year} ${item.season} ${item.variant}`.toLowerCase().includes(query))
+        && matchesQuery
       )
     })
   }, [activeRoute, filters, items])
@@ -170,22 +174,15 @@ export function PaperLibrary({ catalogState, initialSubject = 'all', activeRoute
   const routeComponents = activeRoute ? formatRouteComponents(activeRoute.paperComponents, activeRoute) : ''
   const routeSummary = activeRoute
     ? [activeRoute.stage, activeRoute.subjectCode, activeRoute.subject, routeComponents].filter(Boolean).join(' / ')
-    : `${items.filter((item) => item.kind === 'qp' && item.markSchemeId).length.toLocaleString()} locally approved question papers have an exact answer file.`
+    : 'Choose a subject, session and component to find an official question paper and its answer file.'
   const activeRouteNote = routeNoteForActiveRoute(activeRoute)
 
   return (
     <div className="paper-library">
       <div className="paper-summary">
-        <div>
-          <strong>{(archiveStats?.questionPapers ?? catalogState.catalog.totals.files).toLocaleString()}</strong>
-          <span>{archiveStats ? 'historical question papers' : 'approved local PDFs'}</span>
-        </div>
-        <div>
-          <strong>{archiveStats?.yearLabel || `${(catalogState.catalog.totals.bytes / 1_000_000_000).toFixed(2)} GB`}</strong>
-          <span>{archiveStats ? 'year coverage' : 'local library'}</span>
-        </div>
+        <div><strong>Past papers</strong><span>Question papers and paired answer files</span></div>
         <p>{archiveStats
-          ? `${archiveStats.pairedQuestionPapers.toLocaleString()} question papers include a linked answer or mark scheme across ${archiveStats.files.toLocaleString()} verified files.`
+          ? `${SUBJECT_NAMES[filters.subject]} · choose a round and year.`
           : routeSummary}</p>
       </div>
       <div className="paper-study-mode-note" role="status">
@@ -208,7 +205,7 @@ export function PaperLibrary({ catalogState, initialSubject = 'all', activeRoute
       </section>}
 
       <div className="paper-filters" aria-label="Past paper filters">
-        <label className="search-box paper-search"><Search size={17} /><input value={filters.query} onChange={(event) => updateFilter('query', event.target.value)} placeholder="Search filename or paper code" /></label>
+        <label className="search-box paper-search"><Search size={17} /><input value={filters.query} onChange={(event) => updateFilter('query', event.target.value)} placeholder="Search paper code or session" /></label>
         {!isRouteScoped && <label><SlidersHorizontal size={17} /><select aria-label="Subject" value={filters.subject} onChange={(event) => updateFilter('subject', event.target.value)}><option value="all">All subjects</option>{Object.entries(SUBJECT_NAMES).map(([code, name]) => <option value={code} key={code}>{code} {name}</option>)}</select></label>}
         {!isRouteScoped && stageOptions.length > 0 && <label><span>Stage</span><select aria-label="Stage" value={filters.stage} onChange={(event) => updateFilter('stage', event.target.value)}><option value="all">All stages</option>{stageOptions.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select></label>}
         {!isRouteScoped && routeOptions.length > 0 && <label><span>Route</span><select aria-label="Route" value={filters.route} onChange={(event) => updateFilter('route', event.target.value)}><option value="all">All routes</option>{routeOptions.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}</select></label>}
@@ -222,19 +219,18 @@ export function PaperLibrary({ catalogState, initialSubject = 'all', activeRoute
         ? <div className="paper-route-note"><strong>{activeRouteNote.label}</strong><span>{activeRouteNote.guidance}</span><a href={activeRouteNote.url} target="_blank" rel="noreferrer">Official syllabus</a></div>
         : filters.stage !== 'all' && getStageGuidance(filters.subject, filters.stage) && <div className="paper-route-note"><strong>{routeOptions.find((option) => option.id === filters.route)?.label || stageOptions.find((option) => option.value === filters.stage)?.label}</strong><span>{getRouteGuidance(filters.subject, filters.route) || getStageGuidance(filters.subject, filters.stage)}</span><a href={examStructures[filters.subject]?.syllabusUrl || examStructures[filters.subject]?.sourceUrl} target="_blank" rel="noreferrer">Official syllabus</a></div>}
 
-      <div className="paper-result-bar"><span>{filtered.length.toLocaleString()} files</span><small>Page {safePage} of {pageCount}</small></div>
+      <div className="paper-result-bar"><span>Matching papers</span><small>Page {safePage} of {pageCount}</small></div>
       {visible.length ? (
         <div className="paper-table-wrap">
           <table className="paper-table">
-            <thead><tr><th>Paper</th><th>Subject</th><th>{filters.subject === 'bpho' ? 'Round / year' : 'Session'}</th><th>Type</th><th>Answer</th><th>Size</th><th><span className="sr-only">Action</span></th></tr></thead>
+            <thead><tr><th>Paper</th><th>Subject</th><th>{filters.subject === 'bpho' ? 'Round / year' : 'Session'}</th><th>Type</th><th>QP / MS</th><th><span className="sr-only">Action</span></th></tr></thead>
             <tbody>{visible.map((item) => (
               <tr key={item.id}>
-                <td><strong>{item.file}</strong><small>{item.examProfile ? `${item.examProfile.paperNumber ? `P${item.examProfile.paperNumber} ` : ''}${item.examProfile.title}` : `Variant ${item.variant || 'general'}`} / {item.sha256.slice(0, 10)} / {item.governance?.sourcePolicyId === 'cie-mirror-restricted-v1' ? 'Source policy applies' : 'Source access checked'}</small></td>
+                <td><strong>{studentPaperCode(item)}</strong><small>{item.examProfile ? `${item.examProfile.paperNumber ? `P${item.examProfile.paperNumber} ` : ''}${item.examProfile.title}` : KIND_NAMES[item.kind] || 'Official paper'}</small></td>
                 <td><span className="subject-code">{item.subject}</span><small>{SUBJECT_NAMES[item.subject]}</small></td>
                 <td>{archiveSeasonLabel(item.subject, item.season)} {Number(item.year) > 0 ? item.year : 'Specimen'}</td>
                 <td><span className={`document-kind ${item.kind}`}>{KIND_NAMES[item.kind] || item.kind.toUpperCase()}</span></td>
-                <td>{item.kind === 'qp' ? <span className={`answer-availability ${item.markSchemeId ? 'available' : 'missing'}`}>{item.markSchemeId ? 'Answer file' : 'Not in source'}</span> : <span className="answer-availability neutral">-</span>}</td>
-                <td>{bytesLabel(item.bytes)}</td>
+                <td>{item.kind === 'qp' ? <span className={`answer-availability ${item.markSchemeId ? 'available' : 'missing'}`}>{item.markSchemeId ? 'QP + MS' : 'QP only'}</span> : <span className="answer-availability neutral">Answer file</span>}</td>
                 <td><button type="button" className="table-action" onClick={() => onOpenPaper(item)}>{item.kind === 'ms' ? <FileCheck2 size={16} /> : <FileText size={16} />}Open</button></td>
               </tr>
             ))}</tbody>

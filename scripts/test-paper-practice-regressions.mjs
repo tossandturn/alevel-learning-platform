@@ -44,11 +44,12 @@ const p2Metadata = paperQuestionMarkingMetadata({
 assert.deepEqual(Object.keys(p2Metadata).map(Number), [1, 2, 3, 4, 5, 6, 7], '9702 M25 P2 must not create phantom Q8-Q12 answer slots')
 
 const paperWorkspaceSource = fs.readFileSync(new URL('../src/components/PaperWorkspace.jsx', import.meta.url), 'utf8')
+assert.match(paperWorkspaceSource, /\[fixedOfficialQuestionCount, fixedOfficialQuestionCount\]/, 'reviewed paper question counts must lock the answer slots to the canonical question map')
 assert.match(paperWorkspaceSource, /if \(score == null\) continue/, 'paper MCQ submission must retain an explicit zero score')
 assert.doesNotMatch(paperWorkspaceSource, /if \(!score\) continue/, 'paper MCQ submission must not treat an explicit zero score as missing')
 
 const practiceWorkspaceSource = fs.readFileSync(new URL('../src/components/PracticeWorkspace.jsx', import.meta.url), 'utf8')
-assert.match(practiceWorkspaceSource, /source question/, 'topic workspace must distinguish source question groups from answer parts')
+assert.match(practiceWorkspaceSource, /official question/, 'topic workspace must distinguish official question groups from answer parts')
 assert.match(practiceWorkspaceSource, /answer part/, 'topic workspace must label answer-part progress explicitly')
 
 console.log(JSON.stringify({

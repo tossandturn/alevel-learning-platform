@@ -6,8 +6,8 @@ const styles = readFileSync(new URL('../src/StudentV2.css', import.meta.url), 'u
 
 assert.match(
   appSource,
-  /<PracticeTopicDirectory[\s\S]*query=\{selectedTopic\}/,
-  'an unmatched topic query must not empty the current route topic directory',
+  /value=\{selectedTopicId \|\| ''\}[\s\S]*<PracticeTopicDirectory[\s\S]*query=\{selectedTopic\?\.label \|\| ''\}/,
+  'the topic directory must derive its filter from the canonical selected topic ID, not a free-text query',
 )
 assert.match(
   appSource,
@@ -31,7 +31,7 @@ assert.match(
 )
 assert.match(
   appSource,
-  /available \? `\$\{available\} source questions · more coming` : 'Questions not ready yet'/,
+  /available \? `\$\{available\} official questions · more coming` : 'Questions not ready yet'/,
   'zero-inventory syllabus detail pages must keep the start control disabled',
 )
 assert.match(

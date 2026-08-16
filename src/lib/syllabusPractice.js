@@ -755,6 +755,10 @@ export function rebindSyllabusPracticeUnit(unit, { questionBank = studyQuestionB
     }
   }
   const hasStudyOnlyPart = reboundParts.some((part) => part.studyOnly)
+  const selectedTopicNames = config.syllabus.topics
+    .filter((topic) => topicIds.includes(topic.id))
+    .map((topic) => topic.name)
+  const topicLabel = selectedTopicNames.join(' + ') || 'Selected syllabus topic'
   return Object.freeze({
     ...unit,
     routeId: route.routeId,
@@ -762,6 +766,8 @@ export function rebindSyllabusPracticeUnit(unit, { questionBank = studyQuestionB
     subject: route.subject,
     subjectId: route.subjectId,
     stage: route.stage,
+    topic: topicLabel,
+    title: `${route.stage} ${route.subject} · ${topicLabel}`,
     paperComponent: selectedComponents,
     parts: Object.freeze(reboundParts),
     maxMarks: reboundParts.reduce((sum, part) => sum + Number(part.marks || 0), 0),
@@ -843,6 +849,9 @@ export function buildSyllabusPracticeSet({
     subjectCode: config.subjectCode,
     syllabusVersion: config.syllabus.syllabusVersion,
     syllabusTopicIds: topicIds,
+    syllabusTopics: config.syllabus.topics
+      .filter((topic) => topicIds.includes(topic.id))
+      .map(({ id, code, name, order }) => ({ id, code, name, order })),
     components: selectedComponents,
     requestedCount,
     availableCount: availableRecords.length,

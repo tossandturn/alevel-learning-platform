@@ -148,7 +148,7 @@ async function runViewport(page, server, viewport) {
   await page.screenshot({ path: path.join(ARTIFACT_DIR, `qa-student-hierarchy-a2-${viewport.name}.png`), fullPage: false })
   const a2RouteStatus = page.locator('.topic-directory__route-status')
   await a2RouteStatus.waitFor({ state: 'visible' })
-  assert.match((await a2RouteStatus.innerText()).replace(/\s+/g, ' '), /15 syllabus topics.*11 source-backed questions/i)
+  assert.match((await a2RouteStatus.innerText()).replace(/\s+/g, ' '), /15 syllabus topics.*11 official questions/i)
   const a2TopicRows = page.locator('.topic-directory__row')
   assert.equal(await a2TopicRows.count(), 15, 'A2 Physics must show every official syllabus topic, including topics still awaiting source-backed practice')
   await a2TopicRows.filter({ hasText: 'Gravitational fields' }).click()
@@ -186,6 +186,18 @@ async function runViewport(page, server, viewport) {
   assert.equal(await page.getByText('Open topic', { exact: true }).count(), 11, 'every topic row must provide an explicit next action')
   await page.screenshot({ path: path.join(ARTIFACT_DIR, `qa-student-hierarchy-as-directory-${viewport.name}.png`), fullPage: false })
 
+  const topicFocus = page.getByLabel('Topic focus')
+  await topicFocus.selectOption({ label: 'Kinematics' })
+  const selectedTopicValue = await topicFocus.inputValue()
+  assert.match(selectedTopicValue, /topic-02$/, 'Topic focus must store the canonical topic ID, not its display label')
+  await page.getByRole('button', { name: /^Recommended$/ }).click()
+  const recommendedText = (await page.locator('.practice-overview').innerText()).replace(/\s+/g, ' ')
+  assert.match(recommendedText, /Kinematics/i, 'Topic 2 selection must refresh the Recommended title and CTA')
+  assert.doesNotMatch(recommendedText, /Physical quantities and units|topic-01/i, 'Topic 1 must not leak into a Topic 2 recommendation')
+  await page.screenshot({ path: path.join(ARTIFACT_DIR, `qa-student-hierarchy-topic-focus-${viewport.name}.png`), fullPage: false })
+  await page.getByRole('button', { name: /^Topic Drill$/ }).click()
+  await topicFocus.selectOption('')
+
   const dynamics = topicRows.filter({ hasText: 'Dynamics' }).first()
   await dynamics.click()
   const start = page.locator('.topic-detail__start .primary-action').first()
@@ -199,11 +211,7 @@ async function runViewport(page, server, viewport) {
   assert.equal(hit, true, 'the session start action must remain clickable at every viewport')
   await page.getByRole('button', { name: /Ask AI Tutor about this topic/i }).waitFor({ state: 'visible' })
   const globalCoachTrigger = page.locator('.ai-coach-trigger')
-  if (viewport.width <= 540) {
-    assert.equal(await globalCoachTrigger.isVisible(), false, 'the global Coach trigger must not cover the mobile topic setup controls')
-  } else {
-    assert.equal(await globalCoachTrigger.isVisible(), true, 'the global Coach trigger must remain available outside the mobile topic setup')
-  }
+  assert.equal(await globalCoachTrigger.isVisible(), false, 'the duplicate floating Coach trigger must not cover topic setup controls')
   await page.screenshot({ path: path.join(ARTIFACT_DIR, `qa-student-hierarchy-as-topic-${viewport.name}.png`), fullPage: false })
 }
 

@@ -4,6 +4,7 @@ import { questionInventory, selectTaggedQuestions, sourceMixForQuestions, unifie
 import { courseRoutes, routeById, routesForSubject } from '../data/routeRegistry.js'
 import { requiresSourceVisual, stripSourceVisualPlaceholders } from './questionContent.js'
 import { canonicalSourceMarkingProvenance, canonicalSourceQuestionId } from './sourceContentContract.js'
+import { withPracticePresentation } from './practicePresentation.js'
 
 const EXTERNAL_GROUPS = Object.freeze({
   bpho: [
@@ -145,7 +146,7 @@ export function previewCoachPracticeSourceMix({ routeId, subjectId, stage, knowl
   }
   const { subject, group } = selection
   const available = group ? questionInventory({ routeId: subject.routeId, qualificationId: subject.qualificationId, stage: subject.stage, knowledgeGroupId: group.id }) : 0
-  return {
+  return withPracticePresentation({
     questionCount: requestedCount,
     available,
     shortfall: Math.max(0, requestedCount - available),
@@ -155,7 +156,7 @@ export function previewCoachPracticeSourceMix({ routeId, subjectId, stage, knowl
     generatedPractice: 0,
     referencedPapers: 0,
     referencePapers: [],
-  }
+  })
 }
 
 export function buildCoachPractice({ routeId, subjectId, stage, knowledgeGroupId, questionCount = 10, questionOffset = 0, allowPartial = false, unitId = '', sourceQuestionIds = null }) {
@@ -249,7 +250,7 @@ export function buildCoachPractice({ routeId, subjectId, stage, knowledgeGroupId
   const appSubject = subjects.find((item) => item.id === subject.subjectId)
   const sourceMix = sourceMixForQuestions(parts)
 
-  return {
+  return withPracticePresentation({
     id: stableUnitId,
     type: 'topic',
     agentGenerated: true,
@@ -269,6 +270,7 @@ export function buildCoachPractice({ routeId, subjectId, stage, knowledgeGroupId
     title: `${subject.stage} ${routeById(subject.routeId)?.subject} · ${group.name}`,
     board: subject.label,
     code: subject.code,
+    subjectCode: subject.code,
     specification: `${subject.stage} · official past-paper questions`,
     inventoryStatus: parts.length < requestedCount ? 'partial-source-inventory' : 'verified-source-inventory',
     stage: subject.stage,
@@ -293,7 +295,7 @@ export function buildCoachPractice({ routeId, subjectId, stage, knowledgeGroupId
     questionOffset: Math.max(0, Math.floor(Number(questionOffset) || 0)),
     referencePapers: [...sourcePapers.values()],
     parts,
-  }
+  })
 }
 
 function persistedPartReference(part) {
@@ -345,7 +347,7 @@ export function rebindVerifiedPracticeUnit(unit, { questionBank = unifiedQuestio
 
   const totalMarks = parts.reduce((sum, part) => sum + Number(part.marks || 0), 0)
   const ratio = parts.length / Math.max(1, rebuilt.parts.length)
-  return {
+  return withPracticePresentation({
     ...rebuilt,
     id: String(unit.id || rebuilt.id),
     parts,
@@ -358,7 +360,7 @@ export function rebindVerifiedPracticeUnit(unit, { questionBank = unifiedQuestio
     sourceSetIndex: unit.sourceSetIndex || null,
     sourceSetCount: unit.sourceSetCount || null,
     sourceGateVersion: 'current-reviewed-source-v1',
-  }
+  })
 }
 
 function stableCatalogUnitId(routeId, topicId, setNumber) {

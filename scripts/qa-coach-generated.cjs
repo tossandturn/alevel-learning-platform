@@ -195,6 +195,8 @@ async function assertCoachScreenshotFlow(page) {
       throw new Error(`Desktop Coach trigger must remain a right-bottom floating control: ${JSON.stringify({ viewport, triggerBox })}`)
     }
     await page.getByRole('button', { name: 'Open AI Coach' }).click()
+    const tools = page.locator('.ai-coach__tools')
+    if (await tools.count() && !await tools.evaluate((element) => element.open)) await tools.locator('summary').click()
     await page.getByRole('button', { name: 'Capture question area' }).waitFor()
     await page.locator('button.ai-coach__screenshot', { hasText: 'Provide screenshot' }).waitFor()
     await page.evaluate(() => {
@@ -334,7 +336,8 @@ async function run() {
 
       await sendCoachMessage(page, '给我一套最新的 BPhO SPC 真题，带答案')
       await page.waitForSelector('.paper-workspace')
-      await page.getByText('BPhO_SPC_2025_QP.pdf', { exact: false }).waitFor()
+      const bphoWorkspaceTitle = await page.locator('.workspace-title strong').innerText()
+      if (!/^BPHO\b/i.test(bphoWorkspaceTitle)) throw new Error(`Coach opened the wrong competition paper: ${bphoWorkspaceTitle}`)
       await page.waitForFunction((key) => JSON.parse(localStorage.getItem(key) || '{}').profile?.activeRouteId === 'bpho-admissions-physics', STORAGE_KEY)
       if (await page.getByRole('button', { name: 'Mark scheme' }).isEnabled()) throw new Error('BPhO mark scheme leaked before submission')
       await page.getByRole('button', { name: 'Enter paper focus mode' }).click()
@@ -349,6 +352,8 @@ async function run() {
       await waitForDashboard(page)
       if (await page.getByRole('combobox', { name: 'Current course' }).inputValue() !== 'bpho-admissions-physics') throw new Error('BPhO paper action did not retain the exact Competition route')
       await page.getByRole('button', { name: 'Open AI Coach' }).click()
+      const coachTools = page.locator('.ai-coach__tools')
+      if (await coachTools.count() && !await coachTools.evaluate((element) => element.open)) await coachTools.locator('summary').click()
       if (await page.getByRole('button', { name: 'Latest BPhO SPC' }).count() !== 1) throw new Error('Competition Coach is missing its scoped BPhO quick action')
 
       await sendCoachMessage(page, 'ESAT Physics 10 questions')
