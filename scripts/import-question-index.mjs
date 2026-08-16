@@ -394,9 +394,12 @@ function decoupleIndex(items) {
   const answers = []
   const bindings = []
   for (const item of items) {
-    const { answer, answerKey, markPoints, exactAnswer, answerRef, answerBinding, answerParts: _answerParts, bankId, ...question } = item
+    const { answer, answerKey, markPoints, exactAnswer, answerRef, answerBinding, answerParts, bankId, ...question } = item
     const questionId = bankId || item.questionId
     const questionGroup = normaliseQuestionGroup({ ...question, questionId }, item)
+    // Reviewed records are pinned to a reviewer-owned artifact. A schema migration
+    // may validate them, but must not silently rewrite their part labels or evidence.
+    const preserveReviewedStructure = isHumanReviewedIndexItem(item)
     const knowledgeGroupId = knowledgeGroupForIndexItem(item, officialPhysicsTopicId(item))
     const answerId = `${questionId}:answer`
     const preservedReviewEvidence = answerBinding?.verificationStatus === 'reviewed'
@@ -412,7 +415,7 @@ function decoupleIndex(items) {
     const migratedStageTags = item.subjectCode === '9709' && componentTags.some((component) => [4, 5, '4', '5'].includes(component))
       ? ['AS', 'A2']
       : question.stageTags
-    const questionParts = (questionGroup.parts || []).map((part) => ({
+    const questionParts = preserveReviewedStructure ? question.parts : (questionGroup.parts || []).map((part) => ({
       partId: part.partId,
       label: part.label,
       promptFragment: part.promptFragment,
@@ -424,7 +427,7 @@ function decoupleIndex(items) {
       sourceEvidence: part.sourceEvidence || [],
       sourceRegion: part.sourceRegion || null,
     }))
-    const answerPartRecords = (questionGroup.parts || []).map((part) => ({
+    const answerPartRecords = preserveReviewedStructure ? answerParts : (questionGroup.parts || []).map((part) => ({
       partId: part.partId,
       label: part.label,
       marks: part.marks,
@@ -438,10 +441,10 @@ function decoupleIndex(items) {
       ...question,
       questionId,
       questionGroupId: questionGroup.questionGroupId || questionId,
-      questionGroupStatus: questionGroup.status,
-      totalMarks: questionGroup.totalMarks || 0,
+      questionGroupStatus: preserveReviewedStructure ? question.questionGroupStatus : questionGroup.status,
+      totalMarks: preserveReviewedStructure ? question.totalMarks : (questionGroup.totalMarks || 0),
       parts: questionParts,
-      marks: questionGroup.totalMarks || (question.answerType === 'multiple-choice' ? 1 : question.marks),
+      marks: preserveReviewedStructure ? question.marks : (questionGroup.totalMarks || (question.answerType === 'multiple-choice' ? 1 : question.marks)),
       stageTags: migratedStageTags,
       examFamilyId: question.examFamilyId || config?.examFamilyId || 'unknown',
       specificationId,
@@ -465,7 +468,7 @@ function decoupleIndex(items) {
     bindings.push({
       questionId,
       answerId,
-      verificationStatus: questionGroup.status === 'quarantined'
+      verificationStatus: preserveReviewedStructure ? 'reviewed' : questionGroup.status === 'quarantined'
         ? 'quarantined'
         : answerBinding?.verificationStatus === 'reviewed' ? 'reviewed' : 'machine-indexed',
       questionDocumentSha256: item.sourceRef?.sha256,

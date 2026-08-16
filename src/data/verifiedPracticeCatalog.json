@@ -1,7 +1,7 @@
 {
   "schemaVersion": "verified-practice-catalog-v1",
-  "sourceIndexSha256": "b4828872e852fc085da8cd9ab8ecc639316f7792846d333cd19e5556f7c0beb3",
-  "sourceContentManifestChecksum": "eb93bac9be7556be504f05af233f30241a44cf01aaa748385ea5612dac704a58",
+  "sourceIndexSha256": "d54cb75c8cc1552c11b1260e1c0c0a35f732920b8f2a952fdc3ef7ddac17417a",
+  "sourceContentManifestChecksum": "a71c97d9ba9b134f1dab45a9cb963b5459853d8981321f1b7949a9e58f3095fa",
   "groups": [
     {
       "examFamilyId": "cambridge",
@@ -43524,7 +43524,7 @@
         },
         {
           "partId": "cie-9702-9702_m25_qp_22:q1:part-b-i",
-          "label": "b(i)",
+          "label": "b-i",
           "marks": 2,
           "markSchemePoints": [
             "Use density = mass / volume.",
@@ -43552,7 +43552,7 @@
         },
         {
           "partId": "cie-9702-9702_m25_qp_22:q1:part-b-ii",
-          "label": "b(ii)",
+          "label": "b-ii",
           "marks": 2,
           "markSchemePoints": [
             "Use the stated mass or length fractional uncertainty.",
@@ -43580,7 +43580,7 @@
         },
         {
           "partId": "cie-9702-9702_m25_qp_22:q1:part-b-iii",
-          "label": "b(iii)",
+          "label": "b-iii",
           "marks": 2,
           "markSchemePoints": [
             "Identify that the density ranges overlap or are within uncertainty.",
@@ -44117,7 +44117,7 @@
         },
         {
           "partId": "cie-9702-9702_m25_qp_22:q2:part-b-i",
-          "label": "b(i)",
+          "label": "b-i",
           "marks": 3,
           "markSchemePoints": [
             "Set up moments about A using the beam, person and cylinder forces.",
@@ -44153,7 +44153,7 @@
         },
         {
           "partId": "cie-9702-9702_m25_qp_22:q2:part-b-ii",
-          "label": "b(ii)",
+          "label": "b-ii",
           "marks": 1,
           "markSchemePoints": [
             "Calculate upthrust as 11 x 9.81 + 1300 = 1400 N."
@@ -44173,7 +44173,7 @@
         },
         {
           "partId": "cie-9702-9702_m25_qp_22:q2:part-b-iii",
-          "label": "b(iii)",
+          "label": "b-iii",
           "marks": 2,
           "markSchemePoints": [
             "Use upthrust = density x g x area x depth.",
@@ -44201,7 +44201,7 @@
         },
         {
           "partId": "cie-9702-9702_m25_qp_22:q2:part-b-iv",
-          "label": "b(iv)",
+          "label": "b-iv",
           "marks": 2,
           "markSchemePoints": [
             "Start at a non-zero depth when distance is zero.",
@@ -44740,7 +44740,7 @@
       "answerParts": [
         {
           "partId": "cie-9702-9702_m25_qp_22:q3:part-a-i",
-          "label": "a(i)",
+          "label": "a-i",
           "marks": 2,
           "markSchemePoints": [
             "Use a valid constant-acceleration equation.",
@@ -44768,7 +44768,7 @@
         },
         {
           "partId": "cie-9702-9702_m25_qp_22:q3:part-a-ii",
-          "label": "a(ii)",
+          "label": "a-ii",
           "marks": 3,
           "markSchemePoints": [
             "Use the kinetic-energy change expression.",
@@ -44804,7 +44804,7 @@
         },
         {
           "partId": "cie-9702-9702_m25_qp_22:q3:part-b-i",
-          "label": "b(i)",
+          "label": "b-i",
           "marks": 1,
           "markSchemePoints": [
             "Force is the rate of change of momentum."
@@ -44824,7 +44824,7 @@
         },
         {
           "partId": "cie-9702-9702_m25_qp_22:q3:part-b-ii",
-          "label": "b(ii)",
+          "label": "b-ii",
           "marks": 1,
           "markSchemePoints": [
             "Calculate the stated average force from the momentum change."
@@ -44844,7 +44844,7 @@
         },
         {
           "partId": "cie-9702-9702_m25_qp_22:q3:part-b-iii",
-          "label": "b(iii)",
+          "label": "b-iii",
           "marks": 3,
           "markSchemePoints": [
             "Identify that the stopping momentum change is the same.",
@@ -45379,7 +45379,7 @@
         },
         {
           "partId": "cie-9702-9702_m25_qp_22:q4:part-b-i",
-          "label": "b(i)",
+          "label": "b-i",
           "marks": 2,
           "markSchemePoints": [
             "Use wavelength = c / f.",
@@ -45407,7 +45407,7 @@
         },
         {
           "partId": "cie-9702-9702_m25_qp_22:q4:part-b-ii",
-          "label": "b(ii)",
+          "label": "b-ii",
           "marks": 1,
           "markSchemePoints": [
             "Calculate PQ = one quarter wavelength = 0.012 m."
@@ -45427,7 +45427,7 @@
         },
         {
           "partId": "cie-9702-9702_m25_qp_22:q4:part-b-iii",
-          "label": "b(iii)",
+          "label": "b-iii",
           "marks": 1,
           "markSchemePoints": [
             "State QR is the same as PQ because wavelength and node-antinode spacing are unchanged."
@@ -46374,7 +46374,7 @@
         },
         {
           "partId": "cie-9702-9702_m25_qp_22:q6:part-b-i",
-          "label": "b(i)",
+          "label": "b-i",
           "marks": 2,
           "markSchemePoints": [
             "Use A = rho L / R.",
@@ -46402,7 +46402,7 @@
         },
         {
           "partId": "cie-9702-9702_m25_qp_22:q6:part-b-ii",
-          "label": "b(ii)",
+          "label": "b-ii",
           "marks": 1,
           "markSchemePoints": [
             "Calculate 8.3 x 10^28 m^-3 from the stated carrier count, area and length."
@@ -46422,7 +46422,7 @@
         },
         {
           "partId": "cie-9702-9702_m25_qp_22:q6:part-b-iii",
-          "label": "b(iii)",
+          "label": "b-iii",
           "marks": 2,
           "markSchemePoints": [
             "Use I = Anvq or the equivalent carrier-count relation.",
@@ -46450,7 +46450,7 @@
         },
         {
           "partId": "cie-9702-9702_m25_qp_22:q6:part-c-i",
-          "label": "c(i)",
+          "label": "c-i",
           "marks": 4,
           "markSchemePoints": [
             "State that Q has greater length than P.",
@@ -46494,7 +46494,7 @@
         },
         {
           "partId": "cie-9702-9702_m25_qp_22:q6:part-c-ii",
-          "label": "c(ii)",
+          "label": "c-ii",
           "marks": 2,
           "markSchemePoints": [
             "Start at non-zero drift speed at distance zero.",

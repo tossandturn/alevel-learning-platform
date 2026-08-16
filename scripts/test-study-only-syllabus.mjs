@@ -208,8 +208,8 @@ const a2Math = syllabusTopicsInventory({
 })
 assert.deepEqual(
   a2Math.topics.map((topic) => topic.availableQuestionCount),
-  [27, 15, 0, 0],
-  '9709 A2 P3/P4 must map P3 and P4 to separate syllabus topics',
+  [31, 21, 0, 0],
+  '9709 A2 study-only inventory must retain the source-backed P3 and P5 structural repairs without promoting them to formal practice',
 )
 const a2Set = buildSyllabusPracticeSet({
   routeId: 'cie-9709-a2-after-p1-p5-p3-p4',

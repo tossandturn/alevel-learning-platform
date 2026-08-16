@@ -2,11 +2,12 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
-import importedIndex from '../src/data/importedQuestionIndex.json' with { type: 'json' }
 import { sourcePageFromAssetUrl, documentPageFromAssetUrl } from '../src/lib/sourceContentContract.js'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const assetRoot = path.resolve(process.env.SOURCE_AUDIT_ASSET_ROOT || path.join(root, 'public', 'question-assets'))
+const importedIndexPath = path.resolve(process.env.SOURCE_9709_SECOND_AUDIT_INDEX || path.join(root, 'src', 'data', 'importedQuestionIndex.json'))
+const importedIndex = JSON.parse(fs.readFileSync(importedIndexPath, 'utf8'))
 const reportPath = path.join(root, 'artifacts', '9709-second-pass-audit.json')
 const writeReport = process.argv.includes('--write-report')
 const jsonOutput = process.argv.includes('--json')
@@ -241,6 +242,9 @@ function auditQuestion(question, answer, binding) {
     if (!Number.isInteger(page) || !msPages.has(page)) issues.push(`mark-scheme-part-page-unbound:${part.partId || part.label}`)
   }
   const reviewed = binding?.verificationStatus === 'reviewed'
+  if (!reviewed && binding?.verificationStatus !== 'machine-indexed' && binding?.verificationStatus !== 'quarantined') {
+    issues.push('unexpected-binding-status')
+  }
   if (reviewed) {
     const evidence = binding.reviewEvidence
     if (evidence?.method !== 'paired-qp-ms-page-review' || !binding.reviewedBy || !binding.reviewedAt) issues.push('review-evidence-incomplete')
@@ -263,7 +267,6 @@ function auditQuestion(question, answer, binding) {
     }
   }
   const status = issues.length ? 'semantic-quarantined' : reviewed ? 'verified-complete' : 'unreviewed'
-  if (!reviewed && binding?.verificationStatus !== 'machine-indexed' && binding?.verificationStatus !== 'quarantined') issues.push('unexpected-binding-status')
   return { status, issues: [...new Set(issues)], qpAssets: qp.assets, msAssets: ms.assets }
 }
 
@@ -310,13 +313,14 @@ const summary = {
   papersWithQuestionNumberGaps: new Set(paperIssues.filter((issue) => issue.reason === 'question-number-gap').map((issue) => issue.paperId)).size,
   rangeGapCandidates: paperIssues.filter((issue) => issue.reason === 'source-range-gap-candidate').length,
   reviewedFailures: records.filter((record) => record.bindingStatus === 'reviewed' && record.issues.length > 0).length,
+  invalidBindingStatuses: records.filter((record) => record.issues.includes('unexpected-binding-status')).length,
 }
 const report = { schemaVersion: '9709-second-pass-audit-v1', generatedAt: new Date().toISOString(), assetRoot, summary, paperIssues, records }
 if (writeReport) {
   fs.mkdirSync(path.dirname(reportPath), { recursive: true })
   fs.writeFileSync(reportPath, JSON.stringify(report, null, 2) + '\n', 'utf8')
 }
-if (summary.reviewedFailures > 0) process.exitCode = 1
+if (summary.reviewedFailures > 0 || summary.invalidBindingStatuses > 0) process.exitCode = 1
 const stdout = jsonOutput
   ? { ...report, reportPath: writeReport ? path.relative(root, reportPath).replaceAll('\\', '/') : null }
   : {

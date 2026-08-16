@@ -1,6 +1,6 @@
 {
   "schemaVersion": "source-content-audit-v2",
-  "sourceIndexSha256": "b4828872e852fc085da8cd9ab8ecc639316f7792846d333cd19e5556f7c0beb3",
+  "sourceIndexSha256": "d54cb75c8cc1552c11b1260e1c0c0a35f732920b8f2a952fdc3ef7ddac17417a",
   "items": {
     "amc12-amc12-2025A-exam:q1": {
       "complete": false,
@@ -11060,13 +11060,12 @@
     },
     "cie-9709-9709_m25_qp_32:q3": {
       "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
+      "fileComplete": true,
+      "semanticStatus": "unreviewed",
       "reasons": [
-        "index-quarantined",
-        "missing-question-parts"
+        "human-semantic-review-required"
       ],
-      "bindingSignature": "fnv1a64:00dffe56ee7fa80a"
+      "bindingSignature": "fnv1a64:995662c946312aff"
     },
     "cie-9709-9709_m25_qp_32:q4": {
       "complete": false,
@@ -11097,13 +11096,12 @@
     },
     "cie-9709-9709_m25_qp_32:q7": {
       "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
+      "fileComplete": true,
+      "semanticStatus": "unreviewed",
       "reasons": [
-        "index-quarantined",
-        "missing-question-parts"
+        "human-semantic-review-required"
       ],
-      "bindingSignature": "fnv1a64:3ec483006a9a1bb7"
+      "bindingSignature": "fnv1a64:cfa9c0621b6ada66"
     },
     "cie-9709-9709_m25_qp_32:q8": {
       "complete": false,
@@ -11117,23 +11115,21 @@
     },
     "cie-9709-9709_m25_qp_32:q9": {
       "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
+      "fileComplete": true,
+      "semanticStatus": "unreviewed",
       "reasons": [
-        "index-quarantined",
-        "missing-question-parts"
+        "human-semantic-review-required"
       ],
-      "bindingSignature": "fnv1a64:f9cb7fc0f356db79"
+      "bindingSignature": "fnv1a64:87312a199a41d9dc"
     },
     "cie-9709-9709_m25_qp_32:q10": {
       "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
+      "fileComplete": true,
+      "semanticStatus": "unreviewed",
       "reasons": [
-        "index-quarantined",
-        "missing-question-parts"
+        "human-semantic-review-required"
       ],
-      "bindingSignature": "fnv1a64:c6c07223cd276389"
+      "bindingSignature": "fnv1a64:44b4b15ef0334ba4"
     },
     "cie-9709-9709_m25_qp_32:q11": {
       "complete": false,
@@ -11171,6 +11167,15 @@
       ],
       "bindingSignature": "fnv1a64:9b6762dbdcc529d6"
     },
+    "cie-9709-9709_m25_qp_42:q4": {
+      "complete": false,
+      "fileComplete": true,
+      "semanticStatus": "unreviewed",
+      "reasons": [
+        "human-semantic-review-required"
+      ],
+      "bindingSignature": "fnv1a64:c20db1e0f7ca205c"
+    },
     "cie-9709-9709_m25_qp_42:q5": {
       "complete": false,
       "fileComplete": true,
@@ -11200,63 +11205,57 @@
     },
     "cie-9709-9709_m25_qp_52:q1": {
       "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
+      "fileComplete": true,
+      "semanticStatus": "unreviewed",
       "reasons": [
-        "index-quarantined",
-        "missing-question-parts"
+        "human-semantic-review-required"
       ],
-      "bindingSignature": "fnv1a64:eeefb62fb0ce1700"
+      "bindingSignature": "fnv1a64:e45dfacfaa86c51e"
     },
     "cie-9709-9709_m25_qp_52:q2": {
       "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
+      "fileComplete": true,
+      "semanticStatus": "unreviewed",
       "reasons": [
-        "index-quarantined",
-        "missing-question-parts"
+        "human-semantic-review-required"
       ],
-      "bindingSignature": "fnv1a64:f59346b01fdfa93d"
+      "bindingSignature": "fnv1a64:8e6cb8379896fa7d"
     },
     "cie-9709-9709_m25_qp_52:q3": {
       "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
+      "fileComplete": true,
+      "semanticStatus": "unreviewed",
       "reasons": [
-        "index-quarantined",
-        "missing-question-parts"
+        "human-semantic-review-required"
       ],
-      "bindingSignature": "fnv1a64:e9208a04e713abb6"
+      "bindingSignature": "fnv1a64:d8825e3695171c33"
     },
     "cie-9709-9709_m25_qp_52:q4": {
       "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
+      "fileComplete": true,
+      "semanticStatus": "unreviewed",
       "reasons": [
-        "index-quarantined",
-        "missing-question-parts"
+        "human-semantic-review-required"
       ],
-      "bindingSignature": "fnv1a64:1f6ab3edc573ff77"
+      "bindingSignature": "fnv1a64:b17120dcb60ece5b"
     },
     "cie-9709-9709_m25_qp_52:q5": {
       "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
+      "fileComplete": true,
+      "semanticStatus": "unreviewed",
       "reasons": [
-        "index-quarantined",
-        "missing-question-parts"
+        "human-semantic-review-required"
       ],
-      "bindingSignature": "fnv1a64:371c9e51de1ff989"
+      "bindingSignature": "fnv1a64:e18adb2df66e173a"
     },
     "cie-9709-9709_m25_qp_52:q6": {
       "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
+      "fileComplete": true,
+      "semanticStatus": "unreviewed",
       "reasons": [
-        "index-quarantined",
-        "missing-question-parts"
+        "human-semantic-review-required"
       ],
-      "bindingSignature": "fnv1a64:eb17bd7fe5dae5a8"
+      "bindingSignature": "fnv1a64:8f7471562b24bfbc"
     },
     "cie-9709-9709_m25_qp_62:q1": {
       "complete": false,
@@ -11269,53 +11268,48 @@
     },
     "cie-9709-9709_m25_qp_62:q2": {
       "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
+      "fileComplete": true,
+      "semanticStatus": "unreviewed",
       "reasons": [
-        "index-quarantined",
-        "missing-question-parts"
+        "human-semantic-review-required"
       ],
-      "bindingSignature": "fnv1a64:b5158c32dbac735d"
+      "bindingSignature": "fnv1a64:8f162360fcdc28d5"
     },
     "cie-9709-9709_m25_qp_62:q3": {
       "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
+      "fileComplete": true,
+      "semanticStatus": "unreviewed",
       "reasons": [
-        "index-quarantined",
-        "missing-question-parts"
+        "human-semantic-review-required"
       ],
-      "bindingSignature": "fnv1a64:20c73b75533905ca"
+      "bindingSignature": "fnv1a64:f87ff5a6233eb337"
     },
     "cie-9709-9709_m25_qp_62:q4": {
       "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
+      "fileComplete": true,
+      "semanticStatus": "unreviewed",
       "reasons": [
-        "index-quarantined",
-        "missing-question-parts"
+        "human-semantic-review-required"
       ],
-      "bindingSignature": "fnv1a64:6121239e8ae6648f"
+      "bindingSignature": "fnv1a64:168e6615f58e7240"
     },
     "cie-9709-9709_m25_qp_62:q5": {
       "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
+      "fileComplete": true,
+      "semanticStatus": "unreviewed",
       "reasons": [
-        "index-quarantined",
-        "missing-question-parts"
+        "human-semantic-review-required"
       ],
-      "bindingSignature": "fnv1a64:03dec1b8caa90391"
+      "bindingSignature": "fnv1a64:f070896947ba4f52"
     },
     "cie-9709-9709_m25_qp_62:q6": {
       "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
+      "fileComplete": true,
+      "semanticStatus": "unreviewed",
       "reasons": [
-        "index-quarantined",
-        "missing-question-parts"
+        "human-semantic-review-required"
       ],
-      "bindingSignature": "fnv1a64:7a5be2899a5ab388"
+      "bindingSignature": "fnv1a64:d059d5b317acba67"
     },
     "cie-9709-9709_s25_qp_11:q1": {
       "complete": false,
@@ -13537,16 +13531,7 @@
         "human-semantic-review-required"
       ],
       "bindingSignature": "fnv1a64:a0315e0ab0dddf52"
-    },
-    "cie-9709-9709_m25_qp_42:q4": {
-      "complete": false,
-      "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:c20db1e0f7ca205c"
     }
   },
-  "checksum": "eb93bac9be7556be504f05af233f30241a44cf01aaa748385ea5612dac704a58"
+  "checksum": "a71c97d9ba9b134f1dab45a9cb963b5459853d8981321f1b7949a9e58f3095fa"
 }

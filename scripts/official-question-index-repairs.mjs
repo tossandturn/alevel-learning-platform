@@ -1,3 +1,5 @@
+import { applyOfficial9709StructuralRepairs, OFFICIAL_9709_STRUCTURAL_REPAIR_IDS } from './official-9709-structural-repairs.mjs'
+
 const PAPER_ID = 'cie-9709-9709_m25_qp_42'
 const QUESTION_DOCUMENT_SHA256 = '2160290042b4186b06b0563ff53cccf042a77fba5fdf9cb98d2cc84bbb672e0b'
 const MARK_SCHEME_ID = 'cie-9709-9709_m25_ms_42'
@@ -194,7 +196,10 @@ export function applyOfficialQuestionIndexRepairs(items = []) {
     if (isHumanReviewed(existing)) continue
     next.set(questionId, repairItem(existing || fallbackTemplate, definition))
   }
-  return [...next.values()]
+  return applyOfficial9709StructuralRepairs([...next.values()])
 }
 
-export const OFFICIAL_QUESTION_INDEX_REPAIR_IDS = Object.freeze(MECHANICS_GROUPS.map((definition) => `${PAPER_ID}:q${definition.number}`))
+export const OFFICIAL_QUESTION_INDEX_REPAIR_IDS = Object.freeze([
+  ...MECHANICS_GROUPS.map((definition) => `${PAPER_ID}:q${definition.number}`),
+  ...OFFICIAL_9709_STRUCTURAL_REPAIR_IDS,
+])
