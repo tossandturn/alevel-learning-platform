@@ -360,10 +360,14 @@ function getIncomingProductContext() {
 function App() {
   const [initialNavigation] = useState(() => studentNavigationFromLocation())
   const [appState, setAppState] = useState(() => loadState())
-  const paperCatalogState = usePaperCatalog()
   const incomingContext = getIncomingProductContext()
   const [view, setView] = useState(() => initialNavigation.view !== 'dashboard' ? initialNavigation.view : incomingContext.from === 'ieltsist' || incomingContext.focus ? 'library' : 'dashboard')
   const [activeTab, setActiveTab] = useState(() => initialNavigation.tab)
+  const paperCatalogState = usePaperCatalog({
+    enabled: view === 'paper'
+      || (view === 'library' && ['papers', 'exams'].includes(activeTab))
+      || Boolean(appState.paperSessions?.length || appState.paperReviews?.length),
+  })
   const [selectedTopicId, setSelectedTopicId] = useState(() => initialNavigation.topicId || incomingContext.topicId || null)
   const [topicBuilderRequested, setTopicBuilderRequested] = useState(false)
   const [activeRouteId, setActiveRouteId] = useState(() => {
@@ -1147,7 +1151,15 @@ function App() {
       if (!bphoRoute || bphoRoute.subjectId !== 'bpho' || bphoRoute.stage !== 'Competition') {
         return { handled: true, message: 'This Competition paper request is not bound to a verified learning route.' }
       }
-      const paper = latestBphoSpcPaper(paperCatalogState.catalog?.items || [])
+      let catalog = paperCatalogState.catalog
+      if (!catalog) {
+        try {
+          catalog = await paperCatalogState.load()
+        } catch {
+          return { handled: true, message: 'BPhO SPC 的本地 PDF 目录暂时无法加载。请稍后再试。' }
+        }
+      }
+      const paper = latestBphoSpcPaper(catalog.items || [])
       if (!paper) {
         return {
           handled: true,

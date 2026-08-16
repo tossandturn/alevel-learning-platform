@@ -51,9 +51,13 @@ const paperAnswerSheet = fs.readFileSync(path.join(root, 'src', 'components', 'P
 assert.ok(paperAnswerSheet.includes('const renderedQuestionNumbers = [currentQuestion]'), 'structured paper answer sheets must mount only the active question')
 assert.ok(paperAnswerSheet.includes('QUESTION_INDEX_WINDOW = 11'), 'answer navigation must keep a bounded question-index window')
 const runtimePerformance = fs.readFileSync(path.join(root, 'src', 'lib', 'runtimePerformance.js'), 'utf8')
+const appSource = fs.readFileSync(path.join(root, 'src', 'App.jsx'), 'utf8')
+const paperCatalogHook = fs.readFileSync(path.join(root, 'src', 'hooks', 'usePaperCatalog.js'), 'utf8')
 assert.ok(runtimePerformance.includes("observe('largest-contentful-paint'"), 'runtime monitoring must observe LCP where supported')
 assert.ok(runtimePerformance.includes("observe('event'"), 'runtime monitoring must observe interaction latency where supported')
 assert.ok(runtimePerformance.includes('performance.memory'), 'runtime monitoring must sample supported memory metrics')
+assert.ok(appSource.includes("view === 'library' && ['papers', 'exams'].includes(activeTab)"), 'the paper catalog must load only when the student opens a paper workflow')
+assert.ok(paperCatalogHook.includes('if (enabled) void load()'), 'the paper catalog request must remain gated behind the enabled state')
 
 console.log(JSON.stringify({
   entry: entryName,

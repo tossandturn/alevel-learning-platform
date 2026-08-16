@@ -1,11 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
-export function usePaperCatalog() {
+export function usePaperCatalog({ enabled = true } = {}) {
   const [state, setState] = useState({ status: 'loading', catalog: null, error: null })
+  const requestRef = useRef(null)
+  const catalogRef = useRef(null)
 
-  useEffect(() => {
-    const controller = new AbortController()
-    fetch('/data/papers.json', { signal: controller.signal })
+  const load = useCallback(() => {
+    if (catalogRef.current) return Promise.resolve(catalogRef.current)
+    if (requestRef.current) return requestRef.current
+    setState((current) => current.catalog ? current : { status: 'loading', catalog: null, error: null })
+    const request = fetch('/data/papers.json')
       .then((response) => {
         if (!response.ok) throw new Error(`Catalog request failed (${response.status})`)
         const contentType = response.headers.get('content-type') || ''
@@ -18,13 +22,24 @@ export function usePaperCatalog() {
         if (catalog.schemaVersion !== 2 || !catalog.paperGovernance?.schemaVersion || !Array.isArray(catalog.items) || !catalog.totals?.files) {
           throw new Error('Catalog response is missing the verified paper inventory.')
         }
+        catalogRef.current = catalog
         setState({ status: 'ready', catalog, error: null })
+        return catalog
       })
       .catch((error) => {
-        if (error.name !== 'AbortError') setState({ status: 'error', catalog: null, error: error.message })
+        setState({ status: 'error', catalog: null, error: error.message })
+        throw error
       })
-    return () => controller.abort()
+      .finally(() => {
+        requestRef.current = null
+      })
+    requestRef.current = request
+    return request
   }, [])
 
-  return state
+  useEffect(() => {
+    if (enabled) void load().catch(() => {})
+  }, [enabled, load])
+
+  return { ...state, load }
 }
