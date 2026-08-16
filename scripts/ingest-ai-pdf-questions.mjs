@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url'
 import { spawn } from 'node:child_process'
 
 import { CAMBRIDGE_9702_AS_SYLLABUS } from '../src/data/syllabus/cambridge-9702-as-2025-2027.js'
+import { CAMBRIDGE_0580_IGCSE_SYLLABUS } from '../src/data/syllabus/cambridge-0580-igcse-2025-2027.js'
+import { CAMBRIDGE_0625_IGCSE_SYLLABUS } from '../src/data/syllabus/cambridge-0625-igcse-2026-2028.js'
 import { CAMBRIDGE_9709_AS_P1_S1_SYLLABUS } from '../src/data/syllabus/cambridge-9709-as-p1-s1-2026-2027.js'
 import { AI_PDF_INGESTION_SCHEMA_VERSION, artifactId } from './ai-pdf-ingestion/contract.mjs'
 import { callOpenAiStructured } from './ai-pdf-ingestion/openai-structured.mjs'
@@ -25,6 +27,8 @@ const DEFAULT_OPENAI_TIMEOUT_MS = 120000
 const SAFE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/
 const PDF_VALIDATION_PROGRAM = 'from pypdf import PdfReader; import sys; reader = PdfReader(sys.argv[1]); expected = int(sys.argv[2]); assert expected > 0 and len(reader.pages) == expected'
 const SUPPORTED_SYLLABUSES = Object.freeze({
+  '0580': CAMBRIDGE_0580_IGCSE_SYLLABUS,
+  '0625': CAMBRIDGE_0625_IGCSE_SYLLABUS,
   '9702': CAMBRIDGE_9702_AS_SYLLABUS,
   '9709': CAMBRIDGE_9709_AS_P1_S1_SYLLABUS,
 })
