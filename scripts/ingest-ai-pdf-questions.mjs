@@ -225,8 +225,9 @@ export async function runCli(options, {
       maxAttempts: options.maxAttempts,
       timeoutMs: options.timeoutMs,
     })
-    const validationCandidate = normalizeExtractionForValidation(extraction)
-    const validation = validateCandidate({ candidate: validationCandidate, verification, source })
+    const normalizedVerification = normalizeVerificationForValidation(verification)
+    const validationCandidate = normalizeExtractionForValidation(extraction, normalizedVerification)
+    const validation = validateCandidate({ candidate: validationCandidate, verification: normalizedVerification, source })
     let assets = []
     if (validation.status === 'ai-verified') {
       createdAssetsRoot = assetsRootFor(plan.outputArtifactPath, plan.artifactId)
@@ -246,7 +247,7 @@ export async function runCli(options, {
         throw codedError('CROP_FAILED')
       }
     }
-    return writeArtifact(plan.outputArtifactPath, artifactForResult(plan, source, options, validation, validationCandidate, verification, assets))
+    return writeArtifact(plan.outputArtifactPath, artifactForResult(plan, source, options, validation, validationCandidate, normalizedVerification, assets))
   } catch (error) {
     if (createdAssetsRoot) fs.rmSync(createdAssetsRoot, { recursive: true, force: true })
     return writeQuarantine({
@@ -554,12 +555,19 @@ function supportedSubject(subject) {
   return subject === '9702'
 }
 
-function normalizeExtractionForValidation(extraction) {
+function normalizeExtractionForValidation(extraction, verification) {
   if (!extraction || typeof extraction !== 'object' || !Array.isArray(extraction.questions)) return extraction
+  const verificationEvidenceByQuestion = new Map((verification?.questions || [])
+    .filter(question => typeof question?.questionNumber === 'string')
+    .map(question => [question.questionNumber, Array.isArray(question.markSchemeEvidence) ? question.markSchemeEvidence : []]))
   return {
     ...extraction,
     questions: extraction.questions.map(question => ({
       ...question,
+      parts: normalizeSingleAnswerParts(question.parts),
+      markSchemeEvidence: Array.isArray(question.markSchemeEvidence) && question.markSchemeEvidence.length
+        ? question.markSchemeEvidence
+        : verificationEvidenceByQuestion.get(question.questionNumber) || question.markSchemeEvidence,
       tags: {
         ...question.tags,
         skillTagIds: [],
@@ -567,6 +575,26 @@ function normalizeExtractionForValidation(extraction) {
       },
     })),
   }
+}
+
+function normalizeVerificationForValidation(verification) {
+  if (!verification || typeof verification !== 'object' || !Array.isArray(verification.questions)) return verification
+  return {
+    ...verification,
+    questions: verification.questions.map(question => ({
+      ...question,
+      parts: normalizeSingleAnswerParts(question.parts),
+    })),
+  }
+}
+
+function normalizeSingleAnswerParts(parts) {
+  if (!Array.isArray(parts)) return parts
+  if (parts.length !== 1) return parts
+  const [part] = parts
+  if (!part || typeof part !== 'object' || Array.isArray(part)) return parts
+  if (typeof part.label === 'string' && part.label.trim()) return parts
+  return [{ ...part, label: 'answer' }]
 }
 
 function assertPathWithinRoot(root, target) {

@@ -188,6 +188,36 @@ try {
   assert.doesNotMatch(verifierUserText, /extraction|Part a|primaryTopicId|x0/)
   assert.doesNotMatch(JSON.stringify(structuredInputs[1].schema), /skillTagIds|questionFormatIds/)
 
+  const mcqOutputRoot = path.join(temporaryRoot, 'mcq-artifacts')
+  const mcqOptions = { ...liveOptions, outputRoot: mcqOutputRoot }
+  const mcqPlan = buildDryRunPlan(mcqOptions)
+  const mcqExtraction = validExtraction({ plan: mcqPlan, pageHashes, markSchemePageHashes })
+  mcqExtraction.questions = mcqExtraction.questions.map(question => ({
+    ...question,
+    parts: question.parts.map(part => ({ ...part, label: '' })),
+    markSchemeEvidence: [],
+  }))
+  const mcqVerification = validVerification(markSchemePageHashes)
+  mcqVerification.questions = mcqVerification.questions.map(question => ({
+    ...question,
+    parts: question.parts.map(part => ({ ...part, label: '' })),
+  }))
+  structuredCalls = 0
+  const mcqResult = await runCli(mcqOptions, {
+    env: { OPENAI_API_KEY: fakeApiKey },
+    renderPdf: fakeRenderer({ questionPdf, pageHashes, markSchemePageHashes }),
+    callStructured: async () => structuredCalls++ === 0 ? mcqExtraction : mcqVerification,
+    runCropCommand: async (_command, manifest) => {
+      mkdirSync(path.dirname(manifest.questionPdfPath), { recursive: true })
+      writeFileSync(manifest.questionPdfPath, singlePagePdfFixture())
+    },
+    validateCropOutput: async () => {},
+  })
+  assert.equal(mcqResult.status, 'ai-verified', JSON.stringify(mcqResult.reasonCodes))
+  assert.ok(mcqResult.candidate.questions.every(question => question.parts[0].label === 'answer'))
+  assert.ok(mcqResult.verification.questions.every(question => question.parts[0].label === 'answer'))
+  assert.ok(mcqResult.candidate.questions.every(question => question.markSchemeEvidence.length === 1))
+
   const artifactBytes = readFileSync(plan.outputArtifactPath)
   const assetBytes = verifiedResult.assets.map(asset => readFileSync(asset.questionPdfPath))
   let rerunCalls = 0
