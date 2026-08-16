@@ -150,7 +150,7 @@ async function runViewport(page, server, viewport) {
   await a2RouteStatus.waitFor({ state: 'visible' })
   assert.match((await a2RouteStatus.innerText()).replace(/\s+/g, ' '), /15 syllabus topics.*11 source-backed questions/i)
   const a2TopicRows = page.locator('.topic-directory__row')
-  assert.equal(await a2TopicRows.count(), 7, 'A2 Physics must show every currently source-backed syllabus topic')
+  assert.equal(await a2TopicRows.count(), 15, 'A2 Physics must show every official syllabus topic, including topics still awaiting source-backed practice')
   await a2TopicRows.filter({ hasText: 'Gravitational fields' }).click()
   const a2Start = page.getByRole('button', { name: /Practice 2/i }).first()
   await a2Start.waitFor({ state: 'visible' })

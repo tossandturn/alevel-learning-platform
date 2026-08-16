@@ -1761,6 +1761,7 @@ function App() {
           retestPaper={retestPaper}
           paperCatalogState={paperCatalogState}
           openPaper={openPaper}
+          onReviewAction={recordReviewQueueAction}
             recommendation={recommendation}
             onOpenTopic={(topicId) => { setSelectedTopicId(topicId); setView('topic') }}
             onOpenCoach={openAiPractice}
@@ -2477,6 +2478,7 @@ function LibraryView({
   retestPaper,
   paperCatalogState,
   openPaper,
+  onReviewAction,
   recommendation,
   onOpenTopic,
   onOpenCoach,
@@ -2526,7 +2528,7 @@ function LibraryView({
       {activeTab === 'topics' && <PracticeTopicDirectory activeRoute={activeRoute} activeRouteId={activeRouteId} practiceOptions={practiceOptions} visibleUnits={visibleUnits} completionByUnit={completionByUnit} query={selectedTopic} onOpenTopic={onOpenTopic} onOpenPapers={() => setActiveTab('papers')} onClearTopicFilter={() => onTopicQueryChange('')} syllabusInventory={syllabusInventory} />}
 
       {activeTab === 'mistakes' ? (
-          <MistakeList mistakes={mistakes} paperMistakes={paperMistakes} startPractice={startPractice} retestPaper={retestPaper} onReviewAction={recordReviewQueueAction} />
+          <MistakeList mistakes={mistakes} paperMistakes={paperMistakes} startPractice={startPractice} retestPaper={retestPaper} onReviewAction={onReviewAction} />
       ) : activeTab === 'papers' || activeTab === 'exams' || activeTab === 'recommended' || activeTab === 'ai-practice' || activeTab === 'topics' ? null : (activeTab === 'saved' ? visibleUnits.filter((unit) => favoriteUnitIds.includes(unit.id)) : visibleUnits).length ? (
         <div className="unit-grid">
           {(activeTab === 'saved' ? visibleUnits.filter((unit) => favoriteUnitIds.includes(unit.id)) : visibleUnits).map((unit) => (

@@ -61,10 +61,11 @@
     "test:ai-coach": "node scripts/test-ai-coach.mjs",
     "test:shared-workspace": "node scripts/test-shared-workspace.mjs",
     "test:vocabulary-contract": "node scripts/test-vocabulary-contract.mjs",
-    "qa:browser": "node scripts/qa-source-gate.cjs && node scripts/qa-reviewed-9702.cjs && node scripts/qa-practice-student-hierarchy.cjs",
+    "qa:browser": "node scripts/qa-source-gate.cjs && node scripts/qa-reviewed-9702.cjs && node scripts/qa-practice-student-hierarchy.cjs && node scripts/qa-ai-first-mistakes-syllabus.cjs",
     "qa:student-hierarchy": "node scripts/qa-practice-student-hierarchy.cjs",
     "qa:9702": "node scripts/qa-reviewed-9702.cjs",
     "qa:0625": "node scripts/qa-reviewed-0625-s25.cjs",
+    "qa:ai-first-mistakes-syllabus": "node scripts/qa-ai-first-mistakes-syllabus.cjs",
     "qa:coach": "node scripts/qa-coach-generated.cjs",
     "preview": "vite preview"
   },

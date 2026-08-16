@@ -34,6 +34,8 @@ assert.equal(normalized.paperReviews[0].selfMarks[1], 0, 'explicit zero paper ma
 
 const appSource = fs.readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8')
 assert.match(appSource, /safePaperSessions/, 'App must consume sanitized paper sessions so one bad record cannot blank the page')
+assert.match(appSource, /function LibraryView\([\s\S]*onReviewAction,[\s\S]*\)/, 'LibraryView must receive the review queue handler as a prop instead of closing over App internals')
+assert.match(appSource, /<MistakeList mistakes=\{mistakes\} paperMistakes=\{paperMistakes\} startPractice=\{startPractice\} retestPaper=\{retestPaper\} onReviewAction=\{onReviewAction\} \/>/, 'Practice > Mistakes must not reference an out-of-scope review handler')
 assert.match(appSource, /markingLifecycle\.complete && markingLifecycle\.provisionalCriteria\.length > 0/, 'blank submissions must not finalize an empty score result')
 assert.match(appSource, /AI review first, then self-mark/, 'pending submitted work must present AI review as the first marking step')
 assert.match(appSource, /Record self-mark after AI review/, 'self-mark action must be explicitly secondary to the AI-first review step')
