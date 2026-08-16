@@ -60,6 +60,23 @@ try {
   const passing = runAudit()
   assert.equal(passing.status, 0, `a governed local PDF must pass:\n${passing.stdout}\n${passing.stderr}`)
 
+  const releaseRoot = path.join(scratch, 'deploy', 'releases', 'candidate')
+  const adjacentLibraryRoot = path.join(scratch, 'deploy', 'library', 'pdf')
+  const adjacentFixturePath = path.join(adjacentLibraryRoot, fixtureSource.subject, fixtureSource.file)
+  fs.mkdirSync(path.dirname(adjacentFixturePath), { recursive: true })
+  fs.copyFileSync(path.join(sourceRoot, fixtureSource.subject, fixtureSource.file), adjacentFixturePath)
+  fs.mkdirSync(path.join(releaseRoot, 'public', 'data'), { recursive: true })
+  fs.copyFileSync(catalogPath, path.join(releaseRoot, 'public', 'data', 'papers.json'))
+  const adjacentEnv = { ...process.env, PAPER_CATALOG_AUDIT_ROOT: releaseRoot }
+  delete adjacentEnv.CIE_LIBRARY_ROOT
+  delete adjacentEnv.CIE_SOURCE_ROOT
+  const adjacentRun = spawnSync(process.execPath, [path.join(root, 'scripts', 'audit-paper-catalog.mjs')], {
+    cwd: root,
+    env: adjacentEnv,
+    encoding: 'utf8',
+  })
+  assert.equal(adjacentRun.status, 0, `release-adjacent PDF library fallback must pass:\n${adjacentRun.stdout}\n${adjacentRun.stderr}`)
+
   fs.appendFileSync(fixturePath, Buffer.from('tamper', 'utf8'))
   const tampered = runAudit()
   assert.notEqual(tampered.status, 0, 'same-URL PDF byte tampering must fail catalog audit')
@@ -95,7 +112,7 @@ try {
   console.log(JSON.stringify({
     ok: true,
     fixture: fixtureSource.id,
-    checks: ['valid-local-pdf', 'same-url-byte-tamper', 'withdrawn-audit-state', 'evidence-backed-damage-quarantine'],
+    checks: ['valid-local-pdf', 'release-adjacent-library-root', 'same-url-byte-tamper', 'withdrawn-audit-state', 'evidence-backed-damage-quarantine'],
   }))
 } finally {
   fs.rmSync(scratch, { recursive: true, force: true })

@@ -21,8 +21,18 @@ assert.match(
 )
 assert.match(
   appSource,
-  /const availableTopics = topics\.filter\(\(topic\) => Number\(topic\.inventory \|\| 0\) > 0\)/,
-  'zero-inventory syllabus topics must not be presented as openable Topic Drill sessions',
+  /topics\.map\(\(topic\) =>/,
+  'official syllabus topics must remain visible even when some topics are still being mapped',
+)
+assert.match(
+  appSource,
+  /available \? 'Open topic' : 'View topic'/,
+  'zero-inventory syllabus topics must be labelled as view-only rather than openable practice',
+)
+assert.match(
+  appSource,
+  /available \? `\$\{available\} source questions · more coming` : 'Questions not ready yet'/,
+  'zero-inventory syllabus detail pages must keep the start control disabled',
 )
 assert.match(
   appSource,

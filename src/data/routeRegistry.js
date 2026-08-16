@@ -1,9 +1,12 @@
 import { CAMBRIDGE_9702_AS_TOPICS } from './syllabus/cambridge-9702-as-2025-2027.js'
+import { CAMBRIDGE_9709_AS_P1_S1_TOPICS } from './syllabus/cambridge-9709-as-p1-s1-2026-2027.js'
 
 export const LEGACY_UNSCOPED_ROUTE_ID = 'legacy-unscoped'
 
-export function formatRouteComponents(components = []) {
+export function formatRouteComponents(components = [], context = {}) {
+  const componentLabels = context?.paperComponentLabels || context?.componentLabels || {}
   return components.map((component) => {
+    if (componentLabels[component]) return componentLabels[component]
     if (typeof component === 'number') return `P${component}`
     return String(component)
       .replaceAll('-', ' ')
@@ -61,10 +64,12 @@ function freezeTopics(key) {
   })))
 }
 
-function cieRoute({ routeId, qualification, stage, subject, subjectId, code, paperComponents, topicKey }) {
+function cieRoute({ routeId, qualification, stage, subject, subjectId, code, paperComponents, topicKey, paperComponentLabels = {} }) {
   const [version, url] = SYLLABUS[code]
   const syllabusTopics = code === '9702' && stage === 'AS'
     ? CAMBRIDGE_9702_AS_TOPICS.map((topic) => Object.freeze({ id: topic.id, title: `${topic.code} ${topic.name}` }))
+    : routeId === 'cie-9709-as-p1-p5'
+      ? CAMBRIDGE_9709_AS_P1_S1_TOPICS.map((topic) => Object.freeze({ id: topic.id, title: `${topic.code} ${topic.name}` }))
     : freezeTopics(topicKey)
   return Object.freeze({
     routeId,
@@ -75,6 +80,7 @@ function cieRoute({ routeId, qualification, stage, subject, subjectId, code, pap
     subjectId,
     subjectCode: code,
     paperComponents: Object.freeze([...paperComponents]),
+    paperComponentLabels: Object.freeze({ ...paperComponentLabels }),
     syllabus: Object.freeze({ board: 'Cambridge International', code, version, url, topics: Object.freeze(syllabusTopics) }),
   })
 }
@@ -116,7 +122,7 @@ export const courseRoutes = Object.freeze([
   cieRoute({ routeId: 'cie-9708-a2-economics', qualification: QUALIFICATIONS.A_LEVEL, stage: 'A2', subject: 'Economics', subjectId: 'economics-9708', code: '9708', paperComponents: [3, 4], topicKey: '9708-a2' }),
   cieRoute({ routeId: 'cie-9709-as-p1-p2', qualification: QUALIFICATIONS.A_LEVEL, stage: 'AS', subject: 'Mathematics', subjectId: 'math-9709', code: '9709', paperComponents: [1, 2], topicKey: '9709-as' }),
   cieRoute({ routeId: 'cie-9709-as-p1-p4', qualification: QUALIFICATIONS.A_LEVEL, stage: 'AS', subject: 'Mathematics', subjectId: 'math-9709', code: '9709', paperComponents: [1, 4], topicKey: '9709-as' }),
-  cieRoute({ routeId: 'cie-9709-as-p1-p5', qualification: QUALIFICATIONS.A_LEVEL, stage: 'AS', subject: 'Mathematics', subjectId: 'math-9709', code: '9709', paperComponents: [1, 5], topicKey: '9709-as' }),
+  cieRoute({ routeId: 'cie-9709-as-p1-p5', qualification: QUALIFICATIONS.A_LEVEL, stage: 'AS', subject: 'Mathematics', subjectId: 'math-9709', code: '9709', paperComponents: [1, 5], paperComponentLabels: { 5: 'S1' }, topicKey: '9709-as' }),
   cieRoute({ routeId: 'cie-9709-a2-after-p1-p5-p3-p4', qualification: QUALIFICATIONS.A_LEVEL, stage: 'A2', subject: 'Mathematics', subjectId: 'math-9709', code: '9709', paperComponents: [3, 4], topicKey: '9709-a2' }),
   cieRoute({ routeId: 'cie-9709-a2-after-p1-p5-p3-p6', qualification: QUALIFICATIONS.A_LEVEL, stage: 'A2', subject: 'Mathematics', subjectId: 'math-9709', code: '9709', paperComponents: [3, 6], topicKey: '9709-a2' }),
   cieRoute({ routeId: 'cie-9709-a2-after-p1-p4-p3-p5', qualification: QUALIFICATIONS.A_LEVEL, stage: 'A2', subject: 'Mathematics', subjectId: 'math-9709', code: '9709', paperComponents: [3, 5], topicKey: '9709-a2' }),

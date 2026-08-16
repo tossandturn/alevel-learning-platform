@@ -83,10 +83,10 @@ const LEGACY_TOPIC_BY_ROUTE = Object.freeze({
     'math-9709-problem-solving': '9709-as-topic-01',
   }),
   'cie-9709-as-p1-p5': Object.freeze({
-    'math-9709-pure': '9709-as-topic-01',
-    'math-9709-mechanics': '9709-as-topic-03',
-    'math-9709-statistics': '9709-as-topic-04',
-    'math-9709-problem-solving': '9709-as-topic-01',
+    'math-9709-pure': '9709-p1-topic-01',
+    'math-9709-mechanics': '9709-p1-topic-01',
+    'math-9709-statistics': '9709-s1-topic-01',
+    'math-9709-problem-solving': '9709-p1-topic-01',
   }),
   'cie-9709-a2-after-p1-p5-p3-p4': Object.freeze({
     'math-9709-pure': '9709-a2-topic-01',

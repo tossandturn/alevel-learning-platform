@@ -3,6 +3,7 @@ import paperCatalog from '../../public/data/papers.json' with { type: 'json' }
 import { CAMBRIDGE_9702_AS_SYLLABUS } from '../data/syllabus/cambridge-9702-as-2025-2027.js'
 import { CAMBRIDGE_0625_IGCSE_SYLLABUS } from '../data/syllabus/cambridge-0625-igcse-2026-2028.js'
 import { CAMBRIDGE_0606_IGCSE_SYLLABUS } from '../data/syllabus/cambridge-0606-igcse-2025-2027.js'
+import { CAMBRIDGE_9709_AS_P1_S1_SYLLABUS } from '../data/syllabus/cambridge-9709-as-p1-s1-2026-2027.js'
 import { isHumanReviewedPastPaperItem, isStudyOnlyPastPaperItem, normalizeImportedQuestion, studyQuestionBank, unifiedQuestionBank } from '../data/questionBank.js'
 import { routeById } from '../data/routeRegistry.js'
 import { canonicalSourceMarkingProvenance, canonicalSourcePracticeProvenance } from './sourceContentContract.js'
@@ -102,7 +103,13 @@ const SYLLABUS_CONFIGS = Object.freeze({
   }),
   'cie-9709-as-p1-p2': math9709Config('cie-9709-as-p1-p2', { 1: '9709-as-topic-01', 2: '9709-as-topic-02' }),
   'cie-9709-as-p1-p4': math9709Config('cie-9709-as-p1-p4', { 1: '9709-as-topic-01', 4: '9709-as-topic-03' }),
-  'cie-9709-as-p1-p5': math9709Config('cie-9709-as-p1-p5', { 1: '9709-as-topic-01', 5: '9709-as-topic-04' }),
+  [CAMBRIDGE_9709_AS_P1_S1_SYLLABUS.routeId]: Object.freeze({
+    syllabus: CAMBRIDGE_9709_AS_P1_S1_SYLLABUS,
+    subjectCode: '9709',
+    stage: 'AS',
+    components: Object.freeze([1, 5]),
+    topicByComponent: Object.freeze({ 1: '9709-p1-topic-01', 5: '9709-s1-topic-01' }),
+  }),
   'cie-9709-a2-after-p1-p5-p3-p4': math9709Config('cie-9709-a2-after-p1-p5-p3-p4', { 3: '9709-a2-topic-01', 4: '9709-a2-topic-02' }),
   'cie-9709-a2-after-p1-p5-p3-p6': math9709Config('cie-9709-a2-after-p1-p5-p3-p6', { 3: '9709-a2-topic-01', 6: '9709-a2-topic-04' }),
   'cie-9709-a2-after-p1-p4-p3-p5': math9709Config('cie-9709-a2-after-p1-p4-p3-p5', { 3: '9709-a2-topic-01', 5: '9709-a2-topic-03' }),
@@ -124,7 +131,7 @@ const MATH_9709_COMPONENT_DOMAIN = Object.freeze({
 const MATH_9709_DOMAIN_TOPIC_BY_ROUTE = Object.freeze({
   'cie-9709-as-p1-p2': Object.freeze({ pure: Object.freeze({ 1: '9709-as-topic-01', 2: '9709-as-topic-02' }) }),
   'cie-9709-as-p1-p4': Object.freeze({ pure: Object.freeze({ 1: '9709-as-topic-01' }), mechanics: Object.freeze({ 4: '9709-as-topic-03' }) }),
-  'cie-9709-as-p1-p5': Object.freeze({ pure: Object.freeze({ 1: '9709-as-topic-01' }), statistics: Object.freeze({ 5: '9709-as-topic-04' }) }),
+  'cie-9709-as-p1-p5': Object.freeze({ pure: Object.freeze({ 1: '9709-p1-topic-01' }), statistics: Object.freeze({ 5: '9709-s1-topic-01' }) }),
   'cie-9709-a2-after-p1-p5-p3-p4': Object.freeze({ pure: Object.freeze({ 3: '9709-a2-topic-01' }), mechanics: Object.freeze({ 4: '9709-a2-topic-02' }) }),
   'cie-9709-a2-after-p1-p5-p3-p6': Object.freeze({ pure: Object.freeze({ 3: '9709-a2-topic-01' }), statistics: Object.freeze({ 6: '9709-a2-topic-04' }) }),
   'cie-9709-a2-after-p1-p4-p3-p5': Object.freeze({ pure: Object.freeze({ 3: '9709-a2-topic-01' }), statistics: Object.freeze({ 5: '9709-a2-topic-03' }) }),
@@ -135,6 +142,38 @@ function routeTopicIdsFor9709(routeId, topicId) {
   return canonical && syllabusConfig(routeId)?.syllabus.topics.some((topic) => topic.id === canonical)
     ? [canonical]
     : []
+}
+
+const MATH_9709_TAG_TOPIC_BY_ROUTE_COMPONENT = Object.freeze({
+  'cie-9709-as-p1-p5': Object.freeze({
+    1: Object.freeze([
+      [/quadratic|polynomial|discriminant|factor/i, '9709-p1-topic-01'],
+      [/function|graph|transformation/i, '9709-p1-topic-02'],
+      [/coordinate|straight.?line|circle|vectors?/i, '9709-p1-topic-03'],
+      [/circular|radian|arc|sector/i, '9709-p1-topic-04'],
+      [/trigonometry|trig|sine|cosine|tangent/i, '9709-p1-topic-05'],
+      [/series|sequence|progression|binomial/i, '9709-p1-topic-06'],
+      [/differentiat|derivative|gradient/i, '9709-p1-topic-07'],
+      [/integration|integral|area under/i, '9709-p1-topic-08'],
+    ]),
+    5: Object.freeze([
+      [/representation of data|histogram|box.?and.?whisker|stem.?and.?leaf|data/i, '9709-s1-topic-01'],
+      [/permutation|combination|arrangement|selection/i, '9709-s1-topic-02'],
+      [/probability|conditional|independent|mutually exclusive/i, '9709-s1-topic-03'],
+      [/discrete|random variables?|binomial distribution|expectation|variance/i, '9709-s1-topic-04'],
+      [/normal distribution|normal approximation|standard normal|z.?score/i, '9709-s1-topic-05'],
+    ]),
+  }),
+})
+
+function tagTopicIdsFor9709(routeId, component, topicTags) {
+  const mappings = MATH_9709_TAG_TOPIC_BY_ROUTE_COMPONENT[routeId]?.[component] || []
+  const text = [...topicTags].join(' | ')
+  const topicIds = []
+  for (const [pattern, topicId] of mappings) {
+    if (pattern.test(text) && !topicIds.includes(topicId)) topicIds.push(topicId)
+  }
+  return topicIds
 }
 
 /**
@@ -164,7 +203,8 @@ export function topicMembershipIdsForQuestion(question, { routeId = question?.ro
   const canonicalDomainTag = 'math-9709-' + domain
   const hasDomainTag = knowledgeGroup === canonicalDomainTag
     && topicTags.has(canonicalDomainTag)
-  if (hasDomainTag) add(MATH_9709_DOMAIN_TOPIC_BY_ROUTE[route]?.[domain]?.[component])
+  for (const topicId of tagTopicIdsFor9709(route, component, topicTags)) add(topicId)
+  if (!memberships.length && hasDomainTag) add(MATH_9709_DOMAIN_TOPIC_BY_ROUTE[route]?.[domain]?.[component])
 
   const reviewedMapping = question.syllabusMapping || {}
   const mappingTopics = [reviewedMapping.primaryTopicId, ...(reviewedMapping.secondaryTopicIds || [])]
@@ -987,6 +1027,9 @@ export function seedSyllabusTables(database, questionBank = []) {
 }
 
 export function syllabusDatabaseInventory(database, routeId) {
+  const config = syllabusConfig(routeId)
+  const components = config?.components?.length ? config.components : [1, 2]
+  const componentPlaceholders = components.map(() => '?').join(', ')
   const topics = database.prepare(`
     SELECT
       topics.id,
@@ -1022,11 +1065,11 @@ export function syllabusDatabaseInventory(database, routeId) {
     LEFT JOIN question_groups AS groups
       ON groups.id = mapping.question_group_id
       AND groups.route_id = topics.route_id
-      AND groups.paper_component IN (1, 2)
+      AND groups.paper_component IN (${componentPlaceholders})
     WHERE topics.route_id = ?
     GROUP BY topics.id
     ORDER BY topics.order_index ASC
-  `).all(routeId)
+  `).all(...components, routeId)
   return topics.map((topic) => {
     const verifiedQuestionCount = Number(topic.verifiedQuestionCount) || 0
     const indexedQuestionCount = Number(topic.indexedQuestionCount) || 0

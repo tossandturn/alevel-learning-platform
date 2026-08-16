@@ -11,10 +11,18 @@ import {
 
 const projectRoot = path.resolve(process.env.PAPER_CATALOG_AUDIT_ROOT || path.join(import.meta.dirname, '..'))
 const catalogPath = path.join(projectRoot, 'public', 'data', 'papers.json')
-const libraryRoot = path.resolve(process.env.CIE_LIBRARY_ROOT || process.env.CIE_SOURCE_ROOT || 'D:/CodexWork/cie-fraft-fetcher/output/pdf')
+const libraryRoot = resolveLibraryRoot()
 const writeReport = process.argv.includes('--write-report')
 const reportPath = path.join(projectRoot, 'artifacts', 'paper-catalog-audit.json')
 const errors = []
+
+function resolveLibraryRoot() {
+  const configuredRoot = process.env.CIE_LIBRARY_ROOT || process.env.CIE_SOURCE_ROOT
+  if (configuredRoot) return path.resolve(configuredRoot)
+  const releaseAdjacentRoot = path.resolve(projectRoot, '..', '..', 'library', 'pdf')
+  if (fs.existsSync(releaseAdjacentRoot)) return releaseAdjacentRoot
+  return path.resolve('D:/CodexWork/cie-fraft-fetcher/output/pdf')
+}
 
 function hashFile(filePath) {
   const hash = crypto.createHash('sha256')

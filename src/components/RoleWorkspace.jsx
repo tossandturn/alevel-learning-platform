@@ -30,7 +30,7 @@ const DEFAULT_ASSIGNMENT_ROUTE_ID = "cie-9702-as-physics";
 
 function routeLabel(route) {
   if (!route) return "Legacy unscoped route";
-  const papers = formatRouteComponents(route.paperComponents);
+  const papers = formatRouteComponents(route.paperComponents, route);
   return `${route.stage} ${route.subjectCode.toUpperCase()} ${route.subject}${papers ? ` · ${papers}` : ""}`;
 }
 

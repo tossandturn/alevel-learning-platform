@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { spawn } from 'node:child_process'
 
 import { CAMBRIDGE_9702_AS_SYLLABUS } from '../src/data/syllabus/cambridge-9702-as-2025-2027.js'
+import { CAMBRIDGE_9709_AS_P1_S1_SYLLABUS } from '../src/data/syllabus/cambridge-9709-as-p1-s1-2026-2027.js'
 import { AI_PDF_INGESTION_SCHEMA_VERSION, artifactId } from './ai-pdf-ingestion/contract.mjs'
 import { callOpenAiStructured } from './ai-pdf-ingestion/openai-structured.mjs'
 import {
@@ -23,6 +24,10 @@ const DEFAULT_MAX_ATTEMPTS = 3
 const DEFAULT_OPENAI_TIMEOUT_MS = 120000
 const SAFE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/
 const PDF_VALIDATION_PROGRAM = 'from pypdf import PdfReader; import sys; reader = PdfReader(sys.argv[1]); expected = int(sys.argv[2]); assert expected > 0 and len(reader.pages) == expected'
+const SUPPORTED_SYLLABUSES = Object.freeze({
+  '9702': CAMBRIDGE_9702_AS_SYLLABUS,
+  '9709': CAMBRIDGE_9709_AS_P1_S1_SYLLABUS,
+})
 
 const extractorSchema = {
   type: 'object', additionalProperties: false, required: ['source', 'questions'], properties: {
@@ -198,7 +203,9 @@ export async function runCli(options, {
     const questionRender = normalizeRenderResult(await renderPdf(options.questionPdf, questionRenderDirectory, options.renderDpi, env))
     const markSchemeRender = normalizeRenderResult(await renderPdf(options.markSchemePdf, markSchemeRenderDirectory, options.renderDpi, env))
     source.pageImageHashes = questionRender.pageImageHashes
+    source.pageSizes = questionRender.pageSizes
     source.markSchemePageHashes = markSchemeRender.pageImageHashes
+    source.markSchemePageSizes = markSchemeRender.pageSizes
 
     const apiKey = env.OPENAI_API_KEY
     if (typeof apiKey !== 'string' || !apiKey.trim()) {
@@ -356,24 +363,41 @@ function sourceMetadata(plan, options) {
     accessPolicyId: 'personal-study-restricted-v1',
     questionPdfSha256: plan.immutableInputs.questionPdf.sha256,
     markSchemePdfSha256: plan.immutableInputs.markSchemePdf.sha256,
+    questionPdfPath: options.questionPdf,
+    markSchemePdfPath: options.markSchemePdf,
     pageImageHashes: {},
+    pageSizes: {},
     markSchemePageHashes: {},
+    markSchemePageSizes: {},
     controlledTags: controlledTagsForSubject(options.subject),
+    controlledTopicCatalog: controlledTopicCatalogForSubject(options.subject),
   }
 }
 
 function controlledTagsForSubject(subject) {
-  if (subject !== '9702') throw codedError('UNSUPPORTED_SUBJECT')
-  const topics = CAMBRIDGE_9702_AS_SYLLABUS.topics
+  const syllabus = SUPPORTED_SYLLABUSES[subject]
+  if (!syllabus) throw codedError('UNSUPPORTED_SUBJECT')
+  const topics = syllabus.topics
   const topicIds = new Set(topics.map(topic => topic.id))
   return {
     primaryTopicIds: topicIds,
     secondaryTopicIds: new Set(topicIds),
-    syllabusPointIds: new Set(CAMBRIDGE_9702_AS_SYLLABUS.points.map(point => point.id)),
+    syllabusPointIds: new Set(syllabus.points.map(point => point.id)),
     // These legacy validator fields stay empty because the platform has no canonical registry yet.
     skillTagIds: new Set(),
     questionFormatIds: new Set(),
   }
+}
+
+function controlledTopicCatalogForSubject(subject) {
+  const syllabus = SUPPORTED_SYLLABUSES[subject]
+  if (!syllabus) throw codedError('UNSUPPORTED_SUBJECT')
+  return syllabus.topics.map((topic) => ({
+    id: topic.id,
+    code: topic.code,
+    name: topic.name,
+    component: topic.component || null,
+  }))
 }
 
 function buildExtractionInput(source, questionDirectory, markSchemeDirectory) {
@@ -552,7 +576,7 @@ function safeArtifactFilename(id) {
 }
 
 function supportedSubject(subject) {
-  return subject === '9702'
+  return Boolean(SUPPORTED_SYLLABUSES[subject])
 }
 
 function normalizeExtractionForValidation(extraction, verification) {

@@ -94,7 +94,7 @@ function formatDate(value) {
 
 function routePickerLabel(route) {
   const siblings = courseRoutes.filter((item) => item.qualification === route.qualification && item.subjectId === route.subjectId && item.stage === route.stage)
-  const componentLabel = siblings.length > 1 ? ` · ${formatRouteComponents(route.paperComponents)}` : ''
+  const componentLabel = siblings.length > 1 ? ` · ${formatRouteComponents(route.paperComponents, route)}` : ''
   const stageLabel = route.stage === 'Competition' || route.stage === 'Admissions' ? '' : `${route.stage} `
   return `${stageLabel}${route.subject} (${route.subjectCode.toUpperCase()})${componentLabel}`
 }
@@ -2648,7 +2648,6 @@ function PracticeTopicDirectory({ activeRoute, activeRouteId, practiceOptions, v
     return !normalizedQuery || [topic.label, metadata?.description, ...(metadata?.themes || [])].join(' ').toLowerCase().includes(normalizedQuery)
   })
   const sourceQuestionCount = routeTopics.reduce((sum, topic) => sum + Number(topic.inventory || 0), 0)
-  const availableTopics = topics.filter((topic) => Number(topic.inventory || 0) > 0)
   const topicDirectoryIntro = sourceQuestionCount > 0
     ? 'Choose one topic. Every set stays inside this course and remains linked to its original paper and mark scheme.'
     : 'Topic drills will appear here when complete official questions and marking guidance are ready for this course.'
@@ -2658,8 +2657,8 @@ function PracticeTopicDirectory({ activeRoute, activeRouteId, practiceOptions, v
       ? <div className="empty-state" role="alert"><AlertTriangle size={28} /><h2>Topic practice is temporarily unavailable</h2><p>{syllabusInventory.error}</p><button type="button" className="card-action" onClick={() => window.location.reload()}>Retry <RefreshCcw size={15} /></button></div>
       : sourceQuestionCount === 0
         ? <div className="topic-directory__empty topic-directory__empty--inventory"><FileText size={28} /><div><p className="section-label">Topic Drill</p><h2>Topic Drill is being prepared for this course</h2><p>There are not enough checked question groups for {activeRoute.stage} {activeRoute.subject} yet. Use a complete official paper now; a topic set will appear only when its question pages and marking guidance are ready together.</p></div><div className="topic-directory__empty-actions"><span>Available now</span><button type="button" className="primary-action" onClick={onOpenPapers}><FileText size={16} />Browse {activeRoute.stage} {activeRoute.subject} papers</button><a href={activeRoute.syllabus.url} target="_blank" rel="noreferrer">View syllabus <ChevronRight size={15} /></a></div></div>
-        : availableTopics.length
-          ? <><div className="topic-directory__route-status" role="status"><div><strong>{routeTopics.length} syllabus topic{routeTopics.length === 1 ? '' : 's'}</strong><span>{sourceQuestionCount} source-backed question{sourceQuestionCount === 1 ? '' : 's'} ready to open</span></div><small>Choose a topic to set the paper style and question count.</small></div><div className="topic-directory__list">{availableTopics.map((topic) => {
+        : topics.length
+          ? <><div className="topic-directory__route-status" role="status"><div><strong>{routeTopics.length} syllabus topic{routeTopics.length === 1 ? '' : 's'}</strong><span>{sourceQuestionCount} source-backed question{sourceQuestionCount === 1 ? '' : 's'} ready to open</span></div><small>Choose a topic to set the paper style and question count.</small></div><div className="topic-directory__list">{topics.map((topic) => {
             const metadata = topicMetadata(topic.id)
             const mastery = topicMasteryFromUnits(topic.id, visibleUnits, completionByUnit)
             const available = Number(topic.inventory || 0)
@@ -2669,7 +2668,7 @@ function PracticeTopicDirectory({ activeRoute, activeRouteId, practiceOptions, v
               <span className="topic-directory__copy"><strong>{topic.label.replace(/^\d+\s+/, '')}</strong><small>{metadata?.description || `${activeRoute.stage} ${activeRoute.subject} syllabus topic`}</small></span>
               <span className={`topic-directory__mastery mastery-${masteryLabel(mastery).toLowerCase().replace(' ', '-')}`}><strong>{mastery == null ? '--' : `${mastery}%`}</strong><small>{masteryLabel(mastery)}</small></span>
               <span className="topic-directory__available">{available} source-backed question{available === 1 ? '' : 's'}</span>
-              <span className="topic-directory__open">Open topic</span>
+              <span className="topic-directory__open">{available ? 'Open topic' : 'View topic'}</span>
               <ChevronRight size={18} />
             </button>
           })}</div></>
@@ -2701,7 +2700,7 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, syl
     : componentMode === 'p2'
       ? [routeComponents[1]].filter(Boolean)
       : routeComponents
-  const componentLabel = selectedComponents.map((component) => `P${component}`).join(' + ') || 'theory'
+  const componentLabel = formatRouteComponents(selectedComponents, activeRoute) || 'theory'
   const componentScopedQuestions = dynamicSyllabusRoute
     ? verifiedPracticeQuestionGroups.filter((question) => (
       question.routeId === activeRouteId
@@ -2770,7 +2769,7 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, syl
     groups.set(key, current)
     return groups
   }, new Map()).values()]
-  const chapterItems = (metadata?.themes?.length ? metadata.themes : ['Core method selection', 'Complete working', 'Accuracy and checking']).map((theme, index) => {
+  const chapterItems = (metadata?.themes?.length ? metadata.themes : topic ? [`${topic.label.replace(/^\d+(?:\.\d+)?\s+/, '')}`] : ['Core method selection', 'Complete working', 'Accuracy and checking']).map((theme, index) => {
     const normalizedTheme = theme.toLowerCase()
     const count = topicQuestions.filter((question) => (question.topicTags || []).some((tag) => String(tag).toLowerCase().includes(normalizedTheme) || normalizedTheme.includes(String(tag).toLowerCase()))).length
     return { theme, index, count }
@@ -2840,7 +2839,7 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, syl
 
       <div className="topic-detail__layout">
         <main>
-          <section className="topic-detail__concepts"><header><div><p className="section-label">Official syllabus outcomes</p><h2>What this topic covers</h2><p>These outcomes come from the official syllabus. Skill labels are not separate chapters.</p></div></header><div>{topic.points?.length ? topic.points.slice(0, 8).map((item) => <div key={item.id}><span>{item.sectionCode}</span><strong>{item.outcomeNumber}. {item.officialText}</strong><small>Official outcome · syllabus point</small></div>) : chapterItems.map(({ theme, index, count }) => <div key={theme}><span>{String(index + 1).padStart(2, '0')}</span><strong>{theme}</strong><small>{count ? `${count} linked checked question${count === 1 ? '' : 's'}` : 'Learning guide available · more official questions coming'}</small></div>)}</div></section>
+          <section className="topic-detail__concepts"><header><div><p className="section-label">Official syllabus outcomes</p><h2>What this topic covers</h2><p>These outcomes come from the official syllabus. Skill labels are not separate chapters.</p></div></header><div>{topic.points?.length ? topic.points.slice(0, 8).map((item) => <div key={item.id}><span>{item.sectionCode}</span><strong>{item.outcomeNumber}. {item.officialText}</strong><small>Official outcome · syllabus point</small></div>) : chapterItems.map(({ theme, index, count }) => <div key={theme}><span>{topic?.label?.match(/^\d+(?:\.\d+)?/)?.[0] || String(index + 1).padStart(2, '0')}</span><strong>{theme}</strong><small>{count ? `${count} linked checked question${count === 1 ? '' : 's'}` : 'Official syllabus chapter · source questions being mapped'}</small></div>)}</div></section>
           <section className="topic-detail__guide" aria-label={`${topic.label} learning guide`}>
             <header>
               <div><p className="section-label">Study guide</p><h2>Learn the idea before you practise</h2><p>{guide.overview}</p></div>
@@ -2888,7 +2887,7 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, practiceOptions, syl
               return <label className={`topic-detail__topic-option ${selected ? 'is-selected' : ''}`} key={candidate.id}><input type="checkbox" checked={selected} onChange={(event) => setSelectedTopicIds((current) => event.target.checked ? [...new Set([...current, candidate.id])] : current.filter((id) => id !== candidate.id))} /><span><strong>{candidate.label}</strong><small>{componentCount} {componentLabel} question{componentCount === 1 ? '' : 's'} · {candidate.inventory || 0} total</small></span></label>
             })}</div></fieldset>
             <label><span>Question count</span><select value={selectedQuestionCount} onChange={(event) => setSelectedQuestionCount(Number(event.target.value))}><option value={5}>5 questions</option><option value={10}>10 questions</option><option value={15}>15 questions</option></select></label>
-            <label><span>Paper components</span><select value={componentMode} onChange={(event) => setComponentMode(event.target.value)}><option value="mixed">{routeComponents.map((component) => `P${component}`).join(' + ') || 'Theory mixed'}</option><option value="p1">P{routeComponents[0] || 1} only</option><option value="p2" disabled={!routeComponents[1]}>P{routeComponents[1] || 2} only</option></select></label>
+            <label><span>Paper components</span><select value={componentMode} onChange={(event) => setComponentMode(event.target.value)}><option value="mixed">{formatRouteComponents(routeComponents, activeRoute) || 'Theory mixed'}</option><option value="p1">{formatRouteComponents([routeComponents[0] || 1], activeRoute)} only</option><option value="p2" disabled={!routeComponents[1]}>{formatRouteComponents([routeComponents[1] || 2], activeRoute)} only</option></select></label>
           </section>}
         </aside>
       </div>
@@ -3015,7 +3014,7 @@ function KnowledgeMap({ activeRoute, activeRouteId, selectRoute, completionByUni
         <label><span>Qualification</span><select value={activeRoute.qualification} onChange={(event) => chooseFirst(courseRoutes.filter((route) => route.qualification === event.target.value))}>{[...new Set(courseRoutes.map((route) => route.qualification))].map((qualification) => <option value={qualification} key={qualification}>{qualification}</option>)}</select></label>
         <label><span>Subject</span><select value={activeRoute.subjectId} onChange={(event) => chooseFirst(qualificationRoutes.filter((route) => route.subjectId === event.target.value))}>{[...new Map(qualificationRoutes.map((route) => [route.subjectId, route])).values()].map((route) => <option value={route.subjectId} key={route.subjectId}>{route.subjectCode.toUpperCase()} {route.subject}</option>)}</select></label>
         <label><span>Stage</span><select value={activeRoute.stage} onChange={(event) => chooseFirst(subjectRoutes.filter((route) => route.stage === event.target.value))}>{[...new Set(subjectRoutes.map((route) => route.stage))].map((stage) => <option value={stage} key={stage}>{stage}</option>)}</select></label>
-        {stageRoutes.length > 1 && <label><span>Paper route</span><select value={activeRouteId} onChange={(event) => selectRoute(event.target.value)}>{stageRoutes.map((route) => <option value={route.routeId} key={route.routeId}>{formatRouteComponents(route.paperComponents)}</option>)}</select></label>}
+        {stageRoutes.length > 1 && <label><span>Paper route</span><select value={activeRouteId} onChange={(event) => selectRoute(event.target.value)}>{stageRoutes.map((route) => <option value={route.routeId} key={route.routeId}>{formatRouteComponents(route.paperComponents, route)}</option>)}</select></label>}
       </div>
     </header>
     {inventoryError && <div className="inventory-alert" role="alert"><AlertTriangle size={18} /><span>{inventoryError}</span></div>}

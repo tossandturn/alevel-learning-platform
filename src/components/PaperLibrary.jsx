@@ -60,7 +60,7 @@ function routeNoteForActiveRoute(route) {
   const syllabusUrl = route.syllabus?.url || structure.syllabusUrl || structure.sourceUrl
   if (!syllabusUrl) return null
   return {
-    label: `${route.stage} ${route.subject} (${route.subjectCode.toUpperCase()})${route.paperComponents?.length ? ` / ${formatRouteComponents(route.paperComponents)}` : ''}`,
+    label: `${route.stage} ${route.subject} (${route.subjectCode.toUpperCase()})${route.paperComponents?.length ? ` / ${formatRouteComponents(route.paperComponents, route)}` : ''}`,
     guidance: matchedRoute?.guidance
       || structure.stageGuidance?.[stageKey]
       || `${route.syllabus?.board || 'Official'} syllabus ${route.syllabus?.version || ''} for this course route.`.trim(),
@@ -185,7 +185,7 @@ export function PaperLibrary({ catalogState, initialSubject = 'all', activeRoute
     return <div className="paper-state error"><FileText size={24} />Catalog unavailable: {catalogState.error}</div>
   }
 
-  const routeComponents = activeRoute ? formatRouteComponents(activeRoute.paperComponents) : ''
+  const routeComponents = activeRoute ? formatRouteComponents(activeRoute.paperComponents, activeRoute) : ''
   const routeSummary = activeRoute
     ? [activeRoute.stage, activeRoute.subjectCode, activeRoute.subject, routeComponents].filter(Boolean).join(' / ')
     : `${items.filter((item) => item.kind === 'qp' && item.markSchemeId).length.toLocaleString()} locally approved question papers have an exact answer file.`

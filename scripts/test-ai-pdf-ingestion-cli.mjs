@@ -69,6 +69,19 @@ try {
   assert.equal(options.maxAttempts, 3)
   assert.equal(options.timeoutMs, 120000)
   assert.equal(options.dryRun, true)
+  const mathOptions = parseArgs([
+    '--paper-id', 'cie-9709-9709_m25_qp_52',
+    '--question-pdf', questionPdf,
+    '--mark-scheme-pdf', markSchemePdf,
+    '--subject', '9709',
+    '--output-root', outputRoot,
+    '--dry-run',
+  ], {
+    cwd: temporaryRoot,
+    env: { OPENAI_API_KEY: fakeApiKey },
+  })
+  assert.equal(mathOptions.subject, '9709')
+  assert.equal(buildDryRunPlan(mathOptions).paperId, 'cie-9709-9709_m25_qp_52')
   assert.equal(parseArgs([
     '--paper-id', 'cie-9702-9702_m25_qp_22',
     '--question-pdf', questionPdf,
@@ -169,6 +182,11 @@ try {
   })
 
   assert.equal(verifiedResult.status, 'ai-verified', JSON.stringify(verifiedResult))
+  assert.equal(verifiedResult.source.questionPdfPath, questionPdf)
+  assert.equal(verifiedResult.source.markSchemePdfPath, markSchemePdf)
+  assert.deepEqual(verifiedResult.source.pageSizes, { 1: { width: 1200, height: 1600 }, 2: { width: 1200, height: 1600 } })
+  assert.deepEqual(verifiedResult.source.markSchemePageSizes, { 1: { width: 1200, height: 1600 } })
+  assert.ok(verifiedResult.source.controlledTopicCatalog.some((topic) => topic.id === 'physics-9702-topic-01'))
   assert.equal(cropCalls.length, 2)
   assert.deepEqual(cropCalls.map(call => call.manifest.crops.length), [3, 1])
   assert.equal(cropValidationCalls.length, 2)
@@ -269,7 +287,7 @@ try {
   assert.equal(JSON.parse(readFileSync(failurePlan.outputArtifactPath, 'utf8')).status, 'auto-quarantined')
   assert.equal(JSON.stringify(quarantinedResult).includes('sensitive crop failure'), false)
 
-  console.log(JSON.stringify({ status: 'passed', checks: 48 }))
+  console.log(JSON.stringify({ status: 'passed', checks: 54 }))
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true })
 }
