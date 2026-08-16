@@ -5,6 +5,7 @@ import { ARCHIVE_SOURCES, SPECIAL_ARCHIVE_SUBJECTS, archiveSeasonLabel, buildArc
 import { formatRouteComponents } from '../data/routeRegistry'
 import { isPaperAvailableToStudents } from '../lib/paperGovernance'
 import { filterDefaults, paperFilterStorageKey, readPaperFilters, restorePaperFilters, writePaperFilters } from '../lib/paperFilters'
+import { paperItemMatchesActiveRoute } from '../lib/paperRouteEligibility'
 
 const PAGE_SIZE = 20
 const EMPTY_ITEMS = []
@@ -107,17 +108,11 @@ export function PaperLibrary({ catalogState, initialSubject = 'all', activeRoute
   )
   const archiveSources = ARCHIVE_SOURCES[filters.subject] || EMPTY_ITEMS
   const paperOptions = useMemo(() => {
-    const routeComponents = activeRoute?.paperComponents || []
-    const specialistRoute = activeRoute?.stage === 'Competition' || activeRoute?.stage === 'Admissions'
     const profiles = items
       .filter((item) => {
-        const component = Number(item.examProfile?.paperNumber)
         return (filters.subject === 'all' || item.subject === filters.subject)
           && item.examProfile?.paperNumber
-          && (!activeRoute || (
-            item.subject === activeRoute.subjectCode
-            && (specialistRoute || !routeComponents.length || routeComponents.includes(component))
-          ))
+          && paperItemMatchesActiveRoute(item, activeRoute)
       })
       .sort((left, right) => right.year - left.year)
     const byNumber = new Map()
@@ -130,21 +125,8 @@ export function PaperLibrary({ catalogState, initialSubject = 'all', activeRoute
     const query = filters.query.trim().toLowerCase()
     return items.filter((item) => {
       const isSeriesDocument = !item.variant && ['er', 'gt'].includes(item.kind)
-      const component = item.examProfile?.paperNumber == null ? null : Number(item.examProfile.paperNumber)
-      const specialistRoute = activeRoute?.stage === 'Competition' || activeRoute?.stage === 'Admissions'
-      const matchesActiveRoute = !activeRoute || (
-        item.subject === activeRoute.subjectCode
-        && (
-          specialistRoute
-          || isSeriesDocument
-          || component == null
-          || !Number.isFinite(component)
-          || !activeRoute.paperComponents.length
-          || activeRoute.paperComponents.includes(component)
-        )
-      )
       return (
-        matchesActiveRoute
+        paperItemMatchesActiveRoute(item, activeRoute)
         && (filters.subject === 'all' || item.subject === filters.subject)
         && (filters.stage === 'all' || item.examProfile?.stages.includes(filters.stage) || isSeriesDocument)
         && (filters.route === 'all' || item.examProfile?.routeIds?.includes(filters.route) || isSeriesDocument)
