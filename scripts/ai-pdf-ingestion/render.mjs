@@ -112,7 +112,8 @@ export function buildCropCommand(manifest, { pythonPath, pythonArgs } = {}) {
   if (typeof resolvedPythonPath !== 'string' || !resolvedPythonPath.trim()) {
     throw new TypeError('pythonPath must be a non-empty command string.')
   }
-  const resolvedPythonArgs = pythonArgs ?? (path.basename(resolvedPythonPath).toLowerCase().startsWith('py') ? ['-3.12'] : [])
+  const pythonLauncher = path.basename(resolvedPythonPath).toLowerCase()
+  const resolvedPythonArgs = pythonArgs ?? (pythonLauncher === 'py' || pythonLauncher === 'py.exe' ? ['-3.12'] : [])
   if (!Array.isArray(resolvedPythonArgs) || resolvedPythonArgs.some(argument => typeof argument !== 'string')) {
     throw new TypeError('pythonArgs must be an array of strings.')
   }

@@ -101,6 +101,9 @@ try {
     '-3.12',
     path.join(process.cwd(), 'scripts', 'ai-pdf-ingestion', 'crop_pdf.py'),
   ])
+  const python3CropCommand = buildCropCommand(manifest, { pythonPath: 'python3' })
+  assert.equal(python3CropCommand.command, 'python3')
+  assert.equal(python3CropCommand.args[0], path.join(process.cwd(), 'scripts', 'ai-pdf-ingestion', 'crop_pdf.py'))
   assert.deepEqual(cropCommand.args.slice(2, 6), [
     '--input', manifest.sourcePdfPath,
     '--output', manifest.questionPdfPath,
