@@ -54,12 +54,43 @@ function timeoutError() {
   return sanitizedError('OPENAI_TIMEOUT', 'OpenAI request timed out.', { retryable: true })
 }
 
+export function resolveOpenAiResponsesUrl(baseUrl) {
+  if (typeof baseUrl !== 'string' || !baseUrl.trim()) {
+    return OPENAI_RESPONSES_URL
+  }
+
+  let url
+  try {
+    url = new URL(baseUrl.trim())
+  } catch {
+    throw sanitizedError('OPENAI_BASE_URL_INVALID', 'OPENAI_BASE_URL must be a valid http(s) URL.')
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    throw sanitizedError('OPENAI_BASE_URL_INVALID', 'OPENAI_BASE_URL must be a valid http(s) URL.')
+  }
+
+  const pathname = url.pathname.replace(/\/+$/, '')
+  if (!pathname) {
+    url.pathname = '/v1/responses'
+  } else if (pathname.endsWith('/v1/responses')) {
+    url.pathname = pathname
+  } else if (pathname.endsWith('/v1')) {
+    url.pathname = `${pathname}/responses`
+  } else {
+    url.pathname = `${pathname}/v1/responses`
+  }
+  url.search = ''
+  url.hash = ''
+  return url.toString()
+}
+
 export async function callOpenAiStructured({
   apiKey,
   model,
   schemaName,
   schema,
   input,
+  baseUrl,
   fetchImpl = fetch,
   maxAttempts = 3,
   timeoutMs = 30000,
@@ -68,6 +99,7 @@ export async function callOpenAiStructured({
 }) {
   assertPositiveInteger(maxAttempts, 'maxAttempts')
   assertPositiveInteger(timeoutMs, 'timeoutMs')
+  const responsesUrl = resolveOpenAiResponsesUrl(baseUrl)
 
   const body = JSON.stringify({
     model,
@@ -92,7 +124,7 @@ export async function callOpenAiStructured({
     try {
       let response
       try {
-        response = await fetchImpl(OPENAI_RESPONSES_URL, {
+        response = await fetchImpl(responsesUrl, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${apiKey}`,

@@ -82,7 +82,7 @@ export function parseArgs(argv, { cwd = process.cwd(), env = process.env } = {})
   const values = {}
   const flags = new Set(['--dry-run', '--retry'])
   const options = new Set([
-    '--paper-id', '--question-pdf', '--mark-scheme-pdf', '--subject', '--output-root', '--model', '--render-dpi', '--max-attempts',
+    '--paper-id', '--question-pdf', '--mark-scheme-pdf', '--subject', '--output-root', '--model', '--base-url', '--render-dpi', '--max-attempts',
   ])
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -119,6 +119,7 @@ export function parseArgs(argv, { cwd = process.cwd(), env = process.env } = {})
     subject: values['--subject'],
     outputRoot,
     model: nonemptyString(values['--model'] ?? env.AI_PDF_INGESTION_MODEL) ?? 'gpt-5.6',
+    baseUrl: nonemptyString(values['--base-url'] ?? env.OPENAI_BASE_URL),
     dryRun: values.dryRun === true,
     retry: values.retry === true,
     renderDpi,
@@ -203,6 +204,7 @@ export async function runCli(options, {
     const extraction = await callStructured({
       apiKey,
       model: options.model,
+      baseUrl: options.baseUrl,
       schemaName: 'ai_pdf_question_extraction_v1',
       schema: extractionSchemaFor(source.controlledTags),
       input: buildExtractionInput(source, questionRenderDirectory, markSchemeRenderDirectory),
@@ -211,6 +213,7 @@ export async function runCli(options, {
     const verification = await callStructured({
       apiKey,
       model: options.model,
+      baseUrl: options.baseUrl,
       schemaName: 'ai_pdf_question_verification_v1',
       schema: verifierSchema,
       input: buildVerificationInput(source, extraction, questionRenderDirectory, markSchemeRenderDirectory),

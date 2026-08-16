@@ -50,12 +50,13 @@ try {
     /UNSUPPORTED_SUBJECT/,
   )
 
-const options = parseArgs([
+  const options = parseArgs([
     '--paper-id', 'cie-9702-9702_m25_qp_22',
     '--question-pdf', questionPdf,
     '--mark-scheme-pdf', markSchemePdf,
     '--subject', '9702',
     '--output-root', outputRoot,
+    '--base-url', 'https://ai.ieltsist.com/v1',
     '--dry-run',
   ], {
     cwd: temporaryRoot,
@@ -63,19 +64,29 @@ const options = parseArgs([
   })
 
   assert.equal(options.model, 'gpt-5.6')
+  assert.equal(options.baseUrl, 'https://ai.ieltsist.com/v1')
   assert.equal(options.renderDpi, 180)
-assert.equal(options.maxAttempts, 3)
-assert.equal(options.dryRun, true)
-assert.equal(parseArgs([
-  '--paper-id', 'cie-9702-9702_m25_qp_22',
-  '--question-pdf', questionPdf,
-  '--mark-scheme-pdf', markSchemePdf,
-  '--subject', '9702',
-], {
-  cwd: temporaryRoot,
-  env: { AI_PDF_INGESTION_MODEL: '   ', OPENAI_API_KEY: fakeApiKey },
-}).model, 'gpt-5.6')
-const retryOptions = parseArgs([
+  assert.equal(options.maxAttempts, 3)
+  assert.equal(options.dryRun, true)
+  assert.equal(parseArgs([
+    '--paper-id', 'cie-9702-9702_m25_qp_22',
+    '--question-pdf', questionPdf,
+    '--mark-scheme-pdf', markSchemePdf,
+    '--subject', '9702',
+  ], {
+    cwd: temporaryRoot,
+    env: { AI_PDF_INGESTION_MODEL: '   ', OPENAI_API_KEY: fakeApiKey },
+  }).model, 'gpt-5.6')
+  assert.equal(parseArgs([
+    '--paper-id', 'cie-9702-9702_m25_qp_22',
+    '--question-pdf', questionPdf,
+    '--mark-scheme-pdf', markSchemePdf,
+    '--subject', '9702',
+  ], {
+    cwd: temporaryRoot,
+    env: { OPENAI_BASE_URL: ' https://ai.ieltsist.com/ ', OPENAI_API_KEY: fakeApiKey },
+  }).baseUrl, 'https://ai.ieltsist.com/')
+  const retryOptions = parseArgs([
     '--paper-id', 'cie-9702-9702_m25_qp_22',
     '--question-pdf', questionPdf,
     '--mark-scheme-pdf', markSchemePdf,

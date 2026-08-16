@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { callOpenAiStructured } from './ai-pdf-ingestion/openai-structured.mjs'
+import { callOpenAiStructured, resolveOpenAiResponsesUrl } from './ai-pdf-ingestion/openai-structured.mjs'
 
 const schema = {
   type: 'object',
@@ -38,11 +38,13 @@ assert.deepEqual(parsed, { questionNumber: '7' })
 assert.equal(requests.length, 1)
 assert.equal(requests[0].url, 'https://api.openai.com/v1/responses')
 assert.equal(requests[0].init.method, 'POST')
-assert.equal(requests[0].init.headers.Authorization, 'Bearer fake-secret-do-not-log')
+assert.equal(requests[0].init.headers.Authorization, `Bearer ${request.apiKey}`)
 assert.equal(requests[0].init.headers['Content-Type'], 'application/json')
 assert.ok(requests[0].init.signal instanceof AbortSignal)
 const requestBody = JSON.parse(requests[0].init.body)
 assert.deepEqual(Object.keys(requestBody).sort(), ['input', 'model', 'store', 'text'])
+assert.doesNotMatch(requests[0].url, /fake-secret-do-not-log/)
+assert.doesNotMatch(requests[0].init.body, /fake-secret-do-not-log/)
 assert.deepEqual(requestBody, {
   model: 'gpt-5.6',
   store: false,
@@ -56,6 +58,45 @@ assert.deepEqual(requestBody, {
     },
   },
 })
+
+assert.equal(resolveOpenAiResponsesUrl(), 'https://api.openai.com/v1/responses')
+assert.equal(resolveOpenAiResponsesUrl('   '), 'https://api.openai.com/v1/responses')
+assert.equal(resolveOpenAiResponsesUrl('https://ai.ieltsist.com/'), 'https://ai.ieltsist.com/v1/responses')
+assert.equal(resolveOpenAiResponsesUrl('https://ai.ieltsist.com'), 'https://ai.ieltsist.com/v1/responses')
+assert.equal(resolveOpenAiResponsesUrl('https://ai.ieltsist.com/v1'), 'https://ai.ieltsist.com/v1/responses')
+assert.equal(resolveOpenAiResponsesUrl('https://ai.ieltsist.com/v1/'), 'https://ai.ieltsist.com/v1/responses')
+assert.equal(resolveOpenAiResponsesUrl('https://ai.ieltsist.com/v1/responses'), 'https://ai.ieltsist.com/v1/responses')
+assert.equal(resolveOpenAiResponsesUrl('https://ai.ieltsist.com/v1/responses/'), 'https://ai.ieltsist.com/v1/responses')
+assert.equal(resolveOpenAiResponsesUrl('https://ai.ieltsist.com/proxy'), 'https://ai.ieltsist.com/proxy/v1/responses')
+assert.equal(resolveOpenAiResponsesUrl('https://ai.ieltsist.com/proxy/v1'), 'https://ai.ieltsist.com/proxy/v1/responses')
+await assert.rejects(
+  () => callOpenAiStructured({
+    ...request,
+    baseUrl: 'file:///tmp/responses',
+    fetchImpl: async () => {
+      throw new Error('fetch should not run for invalid base URL')
+    },
+  }),
+  (error) => {
+    assert.equal(error.code, 'OPENAI_BASE_URL_INVALID')
+    assert.doesNotMatch(error.message, /fake-secret-do-not-log/)
+    return true
+  },
+)
+
+const customBaseRequests = []
+await callOpenAiStructured({
+  ...request,
+  baseUrl: 'https://ai.ieltsist.com/',
+  fetchImpl: async (url, init) => {
+    customBaseRequests.push({ url, init })
+    return jsonResponse(200, { status: 'completed', output_text: '{"questionNumber":"13"}' })
+  },
+})
+assert.equal(customBaseRequests[0].url, 'https://ai.ieltsist.com/v1/responses')
+assert.equal(JSON.parse(customBaseRequests[0].init.body).store, false)
+assert.doesNotMatch(customBaseRequests[0].url, /fake-secret-do-not-log/)
+assert.doesNotMatch(customBaseRequests[0].init.body, /fake-secret-do-not-log/)
 
 const contentParsed = await callOpenAiStructured({
   ...request,
@@ -264,4 +305,4 @@ await assert.rejects(
 )
 assert.ok(timeoutSignal.aborted)
 
-console.log(JSON.stringify({ status: 'passed', checks: 58 }))
+console.log(JSON.stringify({ status: 'passed', checks: 72 }))
