@@ -161,11 +161,31 @@
 .qp-numeric-entry input { width: 100%; min-height: 48px; padding: 0 13px; border: 1px solid #b9c8dc; border-radius: 9px; color: var(--qp-text); background: #fff; font-size: 15px; }
 .qp-numeric-entry input:focus { border-color: var(--qp-primary); outline: 0; box-shadow: 0 0 0 3px rgba(115, 87, 232, .18); }
 .qp-numeric-entry p { margin: 0 0 2px; color: var(--qp-muted); font-size: 12px; line-height: 1.5; }
-.qp-player .handwriting-pad { margin: 0; border: 1px solid var(--qp-border); border-radius: 10px; box-shadow: none; }
-.qp-player .handwriting-pad__header { padding: 13px 15px; background: #fbfcfe; }
+.qp-player .handwriting-pad { container-type: inline-size; margin: 0; border: 1px solid var(--qp-border); border-radius: 10px; box-shadow: none; }
+.qp-player .handwriting-pad__header {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(0, 620px);
+  align-items: start;
+  gap: 12px;
+  padding: 13px 15px;
+  background: #fbfcfe;
+}
+.qp-player .handwriting-pad__header > div:first-child {
+  min-width: 0;
+}
 .qp-player .handwriting-pad__header strong { font-size: 13px; }
-.qp-player .handwriting-pad__header span { color: var(--qp-muted); font-size: 11px; }
-.qp-player .handwriting-pad__modes button { min-height: 36px; border-radius: 7px; }
+.qp-player .handwriting-pad__header span { color: var(--qp-muted); font-size: 11px; line-height: 1.45; }
+.qp-player .handwriting-pad__modes {
+  width: 100%;
+  justify-self: end;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.qp-player .handwriting-pad__modes button {
+  min-width: 0;
+  min-height: 36px;
+  border-radius: 7px;
+  white-space: nowrap;
+}
 .qp-player .handwriting-pad__surface { border-top-color: var(--qp-border); }
 .qp-player .handwriting-pad__toolbar { min-height: 56px; flex-wrap: wrap; padding: 6px 10px; background: #fafafe; }
 .qp-player .handwriting-pad__toolbar button { width: 44px; height: 44px; border-radius: 7px; }
@@ -279,6 +299,27 @@
   .qp-stepper button { min-height: 42px; }
   .qp-checklist { display: grid; align-items: start; gap: 5px; margin-bottom: 0; }
   .qp-checklist > small { margin-left: 0; }
+}
+
+@container (max-width: 760px) {
+  .qp-player .handwriting-pad__header {
+    grid-template-columns: 1fr;
+  }
+
+  .qp-player .handwriting-pad__modes {
+    justify-self: stretch;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 430px) {
+  .qp-player .handwriting-pad__header {
+    padding: 12px;
+  }
+
+  .qp-player .handwriting-pad__modes {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

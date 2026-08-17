@@ -48,12 +48,15 @@ assert.match(paperWorkspaceSource, /if \(score == null\) continue/, 'paper MCQ s
 assert.doesNotMatch(paperWorkspaceSource, /if \(!score\) continue/, 'paper MCQ submission must not treat an explicit zero score as missing')
 
 const practiceWorkspaceSource = fs.readFileSync(new URL('../src/components/PracticeWorkspace.jsx', import.meta.url), 'utf8')
+const questionPlayerCss = fs.readFileSync(new URL('../src/components/QuestionPlayer.css', import.meta.url), 'utf8')
 assert.match(practiceWorkspaceSource, /source question/, 'topic workspace must distinguish source question groups from answer parts')
 assert.match(practiceWorkspaceSource, /answer part/, 'topic workspace must label answer-part progress explicitly')
 assert.match(practiceWorkspaceSource, /const questionGroups = useMemo\(\(\) => groupQuestionParts\(parts\), \[parts\]\)/, 'topic workspace must group answer parts into whole questions')
 assert.match(practiceWorkspaceSource, /\{answeredQuestions\}\/\{sourceQuestionCount\}/, 'topic workspace must count whole questions in the navigation summary')
 assert.match(practiceWorkspaceSource, /activeQuestion\.parts\.map/, 'topic workspace must render every answer part inside the active whole question')
 assert.doesNotMatch(practiceWorkspaceSource, /Move between answer parts in this question/, 'topic workspace bottom navigation must move between whole source questions, not split one question into repeated answer-part screens')
+assert.match(questionPlayerCss, /\.qp-player \.handwriting-pad \{[^}]*container-type:\s*inline-size/s, 'practice handwriting pad must respond to its answer-column width, not only viewport width')
+assert.match(questionPlayerCss, /@container \(max-width:\s*760px\)[\s\S]*\.qp-player \.handwriting-pad__modes[\s\S]*repeat\(2,\s*minmax\(0,\s*1fr\)\)/, 'practice handwriting mode buttons must wrap before they squeeze the instruction text')
 
 console.log(JSON.stringify({
   status: 'passed',
