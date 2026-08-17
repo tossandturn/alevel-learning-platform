@@ -79,7 +79,7 @@ assert.match(
 )
 assert.match(
   appSource,
-  /isPendingSelfMarkAttempt\(attempt\) \|\| isProvisionalAttempt\(attempt, unit\) \|\| isScoredAttempt\(attempt, unit\)/,
+  /isPendingSelfMarkAttempt\(attempt\) \|\| isProvisionalAttempt\(attempt, unit\) \|\| isStudyOnlyAttempt\(attempt, unit\) \|\| isScoredAttempt\(attempt, unit\)/,
   'a partial result must remain addressable by its result URL after refresh',
 )
 assert.match(

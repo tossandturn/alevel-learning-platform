@@ -8,6 +8,7 @@ const {
   recommendedPracticeMinutes,
   markingStatusForPart,
   topicDisplayNames,
+  topicPracticeInventory,
 } = practicePresentation
 
 const mixedUnit = {
@@ -80,6 +81,28 @@ const topics = [
   { id: 'physics-9702-topic-03', code: '3', name: 'Dynamics' },
 ]
 assert.deepEqual(topicDisplayNames(['physics-9702-topic-02', 'physics-9702-topic-03'], topics), ['Kinematics', 'Dynamics'])
+assert.deepEqual(topicPracticeInventory({
+  verifiedQuestionCount: 8,
+  studyQuestionCount: 5,
+  availableQuestionCount: 13,
+  componentCounts: {
+    1: { verifiedQuestionCount: 4, studyQuestionCount: 2, availableQuestionCount: 6 },
+    2: { verifiedQuestionCount: 4, studyQuestionCount: 3, availableQuestionCount: 7 },
+  },
+}, [1]), {
+  verifiedQuestionCount: 4,
+  studyQuestionCount: 2,
+  availableQuestionCount: 6,
+  indexedQuestionCount: 0,
+  pendingReviewCount: 0,
+}, 'AI Practice inventory must follow the selected paper component')
+assert.deepEqual(topicPracticeInventory({ verifiedQuestionCount: 8, studyQuestionCount: 5, availableQuestionCount: 13 }), {
+  verifiedQuestionCount: 8,
+  studyQuestionCount: 5,
+  availableQuestionCount: 13,
+  indexedQuestionCount: 0,
+  pendingReviewCount: 0,
+}, 'available source questions must not be presented as all formally reviewed')
 
 const recommendationUnits = [
   {
@@ -113,6 +136,12 @@ assert.match(appSource, /Build multi-topic practice/, 'Topic Drill must expose t
 assert.match(appSource, /view !== 'practice'/, 'the global Coach must not duplicate the workspace Coach during an attempt')
 assert.match(appSource, /recommendForRoute\(\{[\s\S]*topicId: selectedTopicId[\s\S]*\}\)/, 'Recommended must query with the selected topic ID')
 assert.match(appSource, /value=\{selectedTopicId \|\| ''\}/, 'Topic focus must bind to a topic ID instead of a display label or search query')
+assert.match(appSource, /AiPracticeLanding activeRoute=\{activeRoute\} selectedTopicId=\{selectedTopicId\}/, 'AI Practice must inherit the current Topic focus instead of silently resetting to the first topic')
+assert.match(appSource, /topicPracticeInventory\(topic, selectedComponents\)/, 'AI Practice must calculate inventory for the selected paper components')
+assert.match(appSource, /available for study only/, 'study-only inventory must be explicit in AI Practice')
+assert.match(appSource, /const syllabusComponents = syllabusPracticeComponentsForRoute\(activeRoute\.routeId\)/, 'AI Practice must use the canonical route component allowlist')
+assert.match(appSource, /defaultComponents\.map\(\(component\)/, 'AI Practice must not expose raw practical or out-of-route components')
+assert.match(appSource, /activeRoute\.subjectCode === '9702' && Number\(component\) === 3/, 'practical labeling must use subject semantics, not a global component number')
 assert.match(appSource, /Browse practice/, 'Saved empty state must offer a discoverable path back to practice')
 assert.doesNotMatch(appSource, /function openAiPractice\(\)[\s\S]{0,220}setCoachBuilderOpenRequest/, 'opening AI Practice must not duplicate the builder inside Coach')
 assert.doesNotMatch(paperLibrarySource, /item\.sha256\.slice/, 'student paper rows must not expose file hashes')

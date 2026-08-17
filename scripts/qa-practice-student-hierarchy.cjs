@@ -195,6 +195,16 @@ async function runViewport(page, server, viewport) {
   assert.match(recommendedText, /Kinematics/i, 'Topic 2 selection must refresh the Recommended title and CTA')
   assert.doesNotMatch(recommendedText, /Physical quantities and units|topic-01/i, 'Topic 1 must not leak into a Topic 2 recommendation')
   await page.screenshot({ path: path.join(ARTIFACT_DIR, `qa-student-hierarchy-topic-focus-${viewport.name}.png`), fullPage: false })
+
+  await page.getByRole('button', { name: /^AI Practice$/ }).click()
+  await page.locator('.ai-practice-builder').waitFor({ state: 'visible' })
+  const aiTopicRows = page.locator('.ai-practice-builder__topics label')
+  assert.equal(await aiTopicRows.filter({ hasText: 'Kinematics' }).locator('input').isChecked(), true, 'AI Practice must inherit the selected Topic focus')
+  assert.equal(await aiTopicRows.filter({ hasText: 'Physical quantities and units' }).locator('input').isChecked(), false, 'AI Practice must not reset to Topic 1 after a Topic 2 focus')
+  const aiComponentOptions = await page.locator('.ai-practice-builder__settings select').nth(1).locator('option').allTextContents()
+  assert.deepEqual(aiComponentOptions, ['P1 + P2 mixed', 'P1', 'P2'], '9702 AS AI Practice must keep practical P3 outside the theory builder')
+  assert.match((await page.locator('.ai-practice-builder').innerText()).replace(/\s+/g, ' '), /source questions.*ready for formal progress/i, 'AI Practice must distinguish source inventory from formal progress readiness')
+  await page.screenshot({ path: path.join(ARTIFACT_DIR, `qa-student-hierarchy-ai-practice-${viewport.name}.png`), fullPage: false })
   await page.getByRole('button', { name: /^Topic Drill$/ }).click()
   await topicFocus.selectOption('')
 

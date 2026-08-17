@@ -54,7 +54,7 @@ import { studentNavigationFromLocation, studentNavigationHref } from './lib/stud
 import { normalizePaperStudyMode, paperDraftKey } from './lib/paperStudyMode'
 import { buildStemVocabularyContext, vocabularyCoverageForRoute } from './data/stemVocabularyTaxonomy'
 import { topicLearningContent } from './data/topicLearningContent'
-import { practiceMetricsSummary, practiceUnitMetrics, topicDisplayNames, withPracticePresentation } from './lib/practicePresentation'
+import { practiceMetricsSummary, practiceUnitMetrics, topicDisplayNames, topicPracticeInventory, withPracticePresentation } from './lib/practicePresentation'
 import { MIN_VERIFIED_GROUPS_FOR_PRACTICE } from './lib/practiceConstants'
 import './App.css'
 import './StudentV2.css'
@@ -494,6 +494,7 @@ function App() {
           verifiedQuestionCount: serverTopic.verifiedQuestionCount,
           studyQuestionCount: serverTopic.studyQuestionCount || 0,
           availableQuestionCount: serverTopic.availableQuestionCount ?? serverTopic.verifiedQuestionCount,
+          componentCounts: serverTopic.componentCounts || {},
           indexedQuestionCount: serverTopic.indexedQuestionCount,
           pendingReviewCount: serverTopic.pendingReviewCount,
           availableSetSizes: serverTopic.availableSetSizes,
@@ -2515,7 +2516,7 @@ function LibraryView({
       {incomingContext.from === 'ieltsist' && <div className="product-bridge-band" role="status"><span className="product-bridge-icon"><Brain size={17} /></span><div><strong>From IELTS-ist Vocabulary</strong><p>{contextSubject ? `You are ready to practise ${contextSubject.name} concepts.` : 'Use IELTS-ist for language support, then practise the subject here.'}</p></div><a href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer">Open IELTS Vocabulary <ChevronRight size={15} /></a></div>}
 
       {activeTab === 'recommended' && <PracticeOverview recommendation={recommendation} selectedTopic={selectedTopic} visibleUnits={visibleUnits} completionByUnit={completionByUnit} favoriteUnitIds={favoriteUnitIds} onToggleFavorite={onToggleFavorite} mistakes={mistakes} paperMistakes={paperMistakes} startPractice={startPractice} onOpenTopic={onOpenTopic} onOpenCoach={onOpenCoach} onOpenPapers={() => setActiveTab('papers')} />}
-      {activeTab === 'ai-practice' && <AiPracticeLanding activeRoute={activeRoute} practiceOptions={practiceOptions} startKnowledgeDrill={startKnowledgeDrill} onOpenCoach={onOpenCoach} />}
+      {activeTab === 'ai-practice' && <AiPracticeLanding activeRoute={activeRoute} selectedTopicId={selectedTopicId} practiceOptions={practiceOptions} startKnowledgeDrill={startKnowledgeDrill} onOpenCoach={onOpenCoach} />}
       {activeTab === 'papers' && <Suspense fallback={<div className="workspace-loading"><span className="loading-line" />Loading past papers...</div>}><PaperLibrary catalogState={paperCatalogState} initialSubject={activeRoute.subjectCode} activeRoute={activeRoute} studyMode="past-paper-practice" onOpenPaper={openPaper} /></Suspense>}
 
       {activeTab === 'exams' && <Suspense fallback={<div className="workspace-loading"><span className="loading-line" />Loading exam papers...</div>}><PaperLibrary catalogState={paperCatalogState} initialSubject={activeRoute.subjectCode} activeRoute={activeRoute} studyMode="exam-simulation" onOpenPaper={(paper) => openPaper({ ...paper, paperStudyMode: 'exam-simulation' })} /></Suspense>}
@@ -2542,26 +2543,37 @@ function LibraryView({
   )
 }
 
-function AiPracticeLanding({ activeRoute, practiceOptions, startKnowledgeDrill, onOpenCoach }) {
+function AiPracticeLanding({ activeRoute, selectedTopicId, practiceOptions, startKnowledgeDrill, onOpenCoach }) {
   const option = practiceOptions.find((item) => item.routeId === activeRoute.routeId)
   const topics = option?.topics || []
-  const [selectedTopicIds, setSelectedTopicIds] = useState(() => topics[0]?.id ? [topics[0].id] : [])
-  const [questionCount, setQuestionCount] = useState(10)
-  const theoryComponents = (activeRoute.paperComponents || []).map(Number).filter((component) => Number.isFinite(component) && component !== 3)
-  const defaultComponents = theoryComponents.length ? theoryComponents : (activeRoute.paperComponents || []).map(Number).filter(Number.isFinite)
   const firstTopicId = topics[0]?.id || ''
+  const preferredTopicId = topics.some((topic) => topic.id === selectedTopicId) ? selectedTopicId : firstTopicId
+  const [selectedTopicIds, setSelectedTopicIds] = useState(() => preferredTopicId ? [preferredTopicId] : [])
+  const [questionCount, setQuestionCount] = useState(10)
+  const routeComponents = (activeRoute.paperComponents || []).map(Number).filter(Number.isFinite)
+  const syllabusComponents = syllabusPracticeComponentsForRoute(activeRoute.routeId)
+  const defaultComponents = syllabusComponents.length ? syllabusComponents : routeComponents
   const defaultComponentKey = defaultComponents.join(',')
   const [componentKey, setComponentKey] = useState(() => defaultComponentKey)
   const [startError, setStartError] = useState('')
-  const selectedTopics = topics.filter((topic) => selectedTopicIds.includes(topic.id))
-  const available = selectedTopics.reduce((sum, topic) => sum + Number(topic.inventory || 0), 0)
   const selectedComponents = componentKey.split(',').map(Number).filter(Number.isFinite)
+  const selectedTopics = topics.filter((topic) => selectedTopicIds.includes(topic.id))
+  const selectedInventory = selectedTopics.reduce((summary, topic) => {
+    const inventory = topicPracticeInventory(topic, selectedComponents)
+    return {
+      verifiedQuestionCount: summary.verifiedQuestionCount + inventory.verifiedQuestionCount,
+      studyQuestionCount: summary.studyQuestionCount + inventory.studyQuestionCount,
+      availableQuestionCount: summary.availableQuestionCount + inventory.availableQuestionCount,
+      pendingReviewCount: summary.pendingReviewCount + inventory.pendingReviewCount,
+    }
+  }, { verifiedQuestionCount: 0, studyQuestionCount: 0, availableQuestionCount: 0, pendingReviewCount: 0 })
+  const available = selectedInventory.availableQuestionCount
 
   useEffect(() => {
-    setSelectedTopicIds(firstTopicId ? [firstTopicId] : [])
+    setSelectedTopicIds(preferredTopicId ? [preferredTopicId] : [])
     setComponentKey(defaultComponentKey)
     setStartError('')
-  }, [activeRoute.routeId, defaultComponentKey, firstTopicId])
+  }, [activeRoute.routeId, defaultComponentKey, preferredTopicId])
 
   async function buildPractice() {
     if (!selectedTopicIds.length || !selectedComponents.length) return
@@ -2594,14 +2606,16 @@ function AiPracticeLanding({ activeRoute, practiceOptions, startKnowledgeDrill, 
           <legend>Syllabus topics</legend>
           <div className="ai-practice-builder__topics">{topics.map((topic) => {
             const selected = selectedTopicIds.includes(topic.id)
-            return <label className={selected ? 'is-selected' : ''} key={topic.id}><input type="checkbox" checked={selected} onChange={(event) => setSelectedTopicIds((current) => event.target.checked ? [...new Set([...current, topic.id])] : current.filter((id) => id !== topic.id))} /><span><strong>{topic.label.replace(/^\d+\s+/, '')}</strong><small>{topic.inventory || 0} official questions</small></span></label>
+            const inventory = topicPracticeInventory(topic, selectedComponents)
+            return <label className={selected ? 'is-selected' : ''} key={topic.id}><input type="checkbox" checked={selected} onChange={(event) => setSelectedTopicIds((current) => event.target.checked ? [...new Set([...current, topic.id])] : current.filter((id) => id !== topic.id))} /><span><strong>{topic.label.replace(/^\d+\s+/, '')}</strong><small>{inventory.availableQuestionCount} source questions · {inventory.verifiedQuestionCount} ready for formal progress</small></span></label>
           })}</div>
         </fieldset>
         <div className="ai-practice-builder__settings">
           <label><span>Question count</span><select value={questionCount} onChange={(event) => setQuestionCount(Number(event.target.value))}><option value={5}>5 official questions</option><option value={10}>10 official questions</option><option value={15}>15 official questions</option></select></label>
-          <label><span>Paper component</span><select value={componentKey} onChange={(event) => setComponentKey(event.target.value)}>{defaultComponents.length > 1 && <option value={defaultComponents.join(',')}>{formatRouteComponents(defaultComponents, activeRoute)} mixed</option>}{(activeRoute.paperComponents || []).map((component) => <option value={String(component)} key={component}>{formatRouteComponents([component], activeRoute)}{Number(component) === 3 ? ' practical' : ''}</option>)}</select></label>
+          <label><span>Paper component</span><select value={componentKey} onChange={(event) => setComponentKey(event.target.value)}>{defaultComponents.length > 1 && <option value={defaultComponents.join(',')}>{formatRouteComponents(defaultComponents, activeRoute)} mixed</option>}{defaultComponents.map((component) => <option value={String(component)} key={component}>{formatRouteComponents([component], activeRoute)}{activeRoute.subjectCode === '9702' && Number(component) === 3 ? ' practical' : ''}</option>)}</select></label>
         </div>
-        <div className="ai-practice-builder__footer" role="status"><span><strong>{selectedTopics.map((topic) => topic.label.replace(/^\d+\s+/, '')).join(' + ') || 'Choose a topic'}</strong><small>{available} available across the selected topics · {questionCount} requested</small></span><button type="button" className="primary-action" disabled={!selectedTopicIds.length || !selectedComponents.length || available === 0} onClick={buildPractice}><PlayIcon />Build practice</button></div>
+        <div className="ai-practice-builder__footer" role="status" data-available-source-questions={available} data-requested-source-questions={questionCount}><span><strong>{selectedTopics.map((topic) => topic.label.replace(/^\d+\s+/, '')).join(' + ') || 'Choose a topic'}</strong><small>{available} matching source questions · {questionCount} requested{available < questionCount ? ` · set will contain up to ${available}` : ''}</small>{selectedInventory.verifiedQuestionCount < available && <small>{selectedInventory.verifiedQuestionCount} ready for formal progress · {selectedInventory.studyQuestionCount} available for study only</small>}{selectedInventory.pendingReviewCount > 0 && <small>{selectedInventory.pendingReviewCount} more indexed questions are still being checked</small>}</span><button type="button" className="primary-action" disabled={!selectedTopicIds.length || !selectedComponents.length || available === 0} onClick={buildPractice}><PlayIcon />Build practice</button></div>
+        {selectedInventory.studyQuestionCount > 0 && <p className="ai-practice-builder__notice" role="status">This selection may include source questions that are still being checked. You can practise and self-mark them, but AI marking and formal progress remain unavailable until review is complete.</p>}
         {startError && <p className="topic-detail__error" role="alert">{startError}</p>}
       </div>
     </section>

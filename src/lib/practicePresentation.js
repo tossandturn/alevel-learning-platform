@@ -136,3 +136,41 @@ export function topicDisplayNames(topicIds = [], topics = []) {
     .filter(Boolean))]
   return names.length ? names : ['Selected syllabus topic']
 }
+
+function nonNegativeInteger(value) {
+  const number = Number(value)
+  return Number.isInteger(number) && number > 0 ? number : 0
+}
+
+/**
+ * Project the server syllabus inventory for the components selected in a
+ * builder. The UI must not use availableQuestionCount as a synonym for
+ * formally reviewed questions because source-backed study items are included.
+ */
+export function topicPracticeInventory(topic = {}, components = []) {
+  const componentCounts = topic?.componentCounts && typeof topic.componentCounts === 'object'
+    ? topic.componentCounts
+    : null
+  const selectedComponents = [...new Set((Array.isArray(components) ? components : [components])
+    .map((component) => String(component))
+    .filter(Boolean))]
+  const hasComponentInventory = Boolean(componentCounts && selectedComponents.length)
+  const rows = hasComponentInventory
+    ? selectedComponents.map((component) => componentCounts[component] || {})
+    : [topic]
+  const sum = (field) => rows.reduce((total, row) => total + nonNegativeInteger(row?.[field]), 0)
+  const directAvailable = nonNegativeInteger(topic.availableQuestionCount ?? topic.inventory)
+  const directVerified = nonNegativeInteger(topic.verifiedQuestionCount)
+  const directStudyOnly = nonNegativeInteger(topic.studyQuestionCount)
+  const availableQuestionCount = hasComponentInventory ? sum('availableQuestionCount') : directAvailable
+  const verifiedQuestionCount = hasComponentInventory ? sum('verifiedQuestionCount') : directVerified
+  const studyQuestionCount = hasComponentInventory ? sum('studyQuestionCount') : directStudyOnly
+
+  return {
+    verifiedQuestionCount,
+    studyQuestionCount,
+    availableQuestionCount: availableQuestionCount || verifiedQuestionCount + studyQuestionCount,
+    indexedQuestionCount: nonNegativeInteger(topic.indexedQuestionCount),
+    pendingReviewCount: nonNegativeInteger(topic.pendingReviewCount),
+  }
+}
