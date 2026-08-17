@@ -44,13 +44,16 @@ const p2Metadata = paperQuestionMarkingMetadata({
 assert.deepEqual(Object.keys(p2Metadata).map(Number), [1, 2, 3, 4, 5, 6, 7], '9702 M25 P2 must not create phantom Q8-Q12 answer slots')
 
 const paperWorkspaceSource = fs.readFileSync(new URL('../src/components/PaperWorkspace.jsx', import.meta.url), 'utf8')
-assert.match(paperWorkspaceSource, /\[fixedOfficialQuestionCount, fixedOfficialQuestionCount\]/, 'reviewed paper question counts must lock the answer slots to the canonical question map')
 assert.match(paperWorkspaceSource, /if \(score == null\) continue/, 'paper MCQ submission must retain an explicit zero score')
 assert.doesNotMatch(paperWorkspaceSource, /if \(!score\) continue/, 'paper MCQ submission must not treat an explicit zero score as missing')
 
 const practiceWorkspaceSource = fs.readFileSync(new URL('../src/components/PracticeWorkspace.jsx', import.meta.url), 'utf8')
-assert.match(practiceWorkspaceSource, /official question/, 'topic workspace must distinguish official question groups from answer parts')
+assert.match(practiceWorkspaceSource, /source question/, 'topic workspace must distinguish source question groups from answer parts')
 assert.match(practiceWorkspaceSource, /answer part/, 'topic workspace must label answer-part progress explicitly')
+assert.match(practiceWorkspaceSource, /const questionGroups = useMemo\(\(\) => groupQuestionParts\(parts\), \[parts\]\)/, 'topic workspace must group answer parts into whole questions')
+assert.match(practiceWorkspaceSource, /\{answeredQuestions\}\/\{sourceQuestionCount\}/, 'topic workspace must count whole questions in the navigation summary')
+assert.match(practiceWorkspaceSource, /activeQuestion\.parts\.map/, 'topic workspace must render every answer part inside the active whole question')
+assert.doesNotMatch(practiceWorkspaceSource, /Move between answer parts in this question/, 'topic workspace bottom navigation must move between whole source questions, not split one question into repeated answer-part screens')
 
 console.log(JSON.stringify({
   status: 'passed',

@@ -167,7 +167,7 @@
 .qp-player .handwriting-pad__header span { color: var(--qp-muted); font-size: 11px; }
 .qp-player .handwriting-pad__modes button { min-height: 36px; border-radius: 7px; }
 .qp-player .handwriting-pad__surface { border-top-color: var(--qp-border); }
-.qp-player .handwriting-pad__toolbar { min-height: 56px; padding: 6px 10px; background: #fafafe; }
+.qp-player .handwriting-pad__toolbar { min-height: 56px; flex-wrap: wrap; padding: 6px 10px; background: #fafafe; }
 .qp-player .handwriting-pad__toolbar button { width: 44px; height: 44px; border-radius: 7px; }
 .qp-player .handwriting-pad__canvas { min-height: 300px; background-color: #fff; background-image: linear-gradient(#eef0f8 1px, transparent 1px); background-size: 100% 34px; touch-action: none; }
 .qp-player .handwriting-pad__canvas.pencil-only { touch-action: none; }
@@ -307,6 +307,45 @@
   min-height: 0;
 }
 
+.qp-answer-panel__heading {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--qp-border);
+}
+
+.qp-answer-panel__heading strong {
+  font-size: 14px;
+}
+
+.qp-answer-panel__heading span {
+  color: var(--qp-muted);
+  font-size: 11px;
+}
+
+.qp-answer-list {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+.qp-answer-part {
+  min-width: 0;
+  padding: 0 0 18px;
+  border-bottom: 1px solid var(--qp-border);
+  scroll-margin-top: 118px;
+}
+
+.qp-answer-part:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.qp-answer-part--active {
+  border-color: #c7d3ee;
+}
+
 .qp-workbench-jumps {
   display: none;
 }
@@ -366,9 +405,9 @@
   object-fit: contain;
 }
 
-@media (min-width: 900px) {
+@media (min-width: 1080px) {
   .qp-question__workbench {
-    grid-template-columns: minmax(0, 1.08fr) minmax(340px, .92fr);
+    grid-template-columns: minmax(0, 1fr) minmax(300px, .86fr);
     align-items: start;
     gap: clamp(18px, 2.3vw, 30px);
   }
@@ -386,6 +425,10 @@
     top: 94px;
   }
 
+  .qp-question__answer-panel--multi {
+    position: static;
+  }
+
   .qp-question__source-panel .qp-question-asset__image--page {
     height: min(46vh, 470px);
   }
@@ -395,7 +438,7 @@
   }
 }
 
-@media (max-width: 899px) {
+@media (max-width: 1079px) {
   .qp-workbench-jumps {
     position: sticky;
     z-index: 8;
