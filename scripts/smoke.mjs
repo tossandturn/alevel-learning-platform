@@ -472,17 +472,18 @@ const aiScoredResult = finalizePartMarking(reviewedAiUnit, aiScoredLifecycle, {}
 assert.equal(aiScoredResult.rawMarks, reviewedAiPart.marks)
 assert.equal(aiScoredResult.criteria[0].scoringSource, 'vision-assisted')
 assert.ok(aiScoredResult.criteria[0].evidence.length > 0, 'AI marks must retain point-level evidence')
-const selfMarkPendingAttempt = { id: 'pending-self-mark', unitId: selfMarkUnit.id, routeId: selfMarkUnit.routeId, stage: selfMarkUnit.stage, attemptStatus: 'self-mark-pending', submittedAt: '2026-08-10T00:00:00.000Z', selfMarkPending: true }
+const recentSelfMarkSubmittedAt = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+const selfMarkPendingAttempt = { id: 'pending-self-mark', unitId: selfMarkUnit.id, routeId: selfMarkUnit.routeId, stage: selfMarkUnit.stage, attemptStatus: 'self-mark-pending', submittedAt: recentSelfMarkSubmittedAt, selfMarkPending: true }
 assert.equal(buildLearningEvents({ attempts: [selfMarkPendingAttempt], units: [selfMarkUnit], routeId: selfMarkUnit.routeId }).length, 0, 'self-mark-pending submissions must not create learning events')
 assert.equal(buildLearningProgress({ attempts: [selfMarkPendingAttempt], units: [selfMarkUnit], routeId: selfMarkUnit.routeId }).completedSets, 0, 'self-mark-pending submissions must not change mastery or weekly completion')
 assert.equal(buildCompletionByUnit({ attempts: [selfMarkPendingAttempt], units: [selfMarkUnit], routeId: selfMarkUnit.routeId })[selfMarkUnit.id].completed, false, 'self-mark-pending submissions must not mark a unit complete')
 const partialAnsweredAttempt = {
-  id: 'partial-answered', unitId: selfMarkUnit.id, routeId: selfMarkUnit.routeId, stage: selfMarkUnit.stage, attemptStatus: 'result', submittedAt: '2026-08-10T00:00:00.000Z',
+  id: 'partial-answered', unitId: selfMarkUnit.id, routeId: selfMarkUnit.routeId, stage: selfMarkUnit.stage, attemptStatus: 'result', submittedAt: recentSelfMarkSubmittedAt,
   answers: { 'self-mark-part': 'Use the resultant force.' },
   scoreResult: { percentage: 25, rawMarks: 1, maxMarks: 4, criteria: [{ partId: 'self-mark-part', awarded: 1, maxMarks: 4 }] },
 }
 const blankScoredAttempt = {
-  id: 'blank-scored', unitId: selfMarkUnit.id, routeId: selfMarkUnit.routeId, stage: selfMarkUnit.stage, attemptStatus: 'result', submittedAt: '2026-08-10T00:00:00.000Z',
+  id: 'blank-scored', unitId: selfMarkUnit.id, routeId: selfMarkUnit.routeId, stage: selfMarkUnit.stage, attemptStatus: 'result', submittedAt: recentSelfMarkSubmittedAt,
   answers: {}, scoreResult: { percentage: 0, rawMarks: 0, maxMarks: 4, criteria: [{ partId: 'self-mark-part', awarded: 0, maxMarks: 4, status: 'blank' }] },
 }
 assert.equal(hasAttemptResponse(partialAnsweredAttempt, 'self-mark-part'), true, 'non-empty answers must be auditable as a response')
