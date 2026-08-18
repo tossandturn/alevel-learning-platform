@@ -171,6 +171,8 @@ async function assertAccountOverlayOwnsCoachLayer(page) {
 
 async function assertCoachScreenshotFlow(page) {
   const screenshotPayloads = []
+  const formulaAnswer = String.raw`**Hint:** \(v=f\lambda\)
+\[GMm/r^2=mv^2/r,\qquad v=2\pi r/T\]`
   await page.route('**/api/ai/coach/stream', async (route) => {
     screenshotPayloads.push(JSON.parse(route.request().postData() || '{}'))
     await route.fulfill({
@@ -181,10 +183,10 @@ async function assertCoachScreenshotFlow(page) {
         'data: {"mode":"ai"}',
         '',
         'event: delta',
-        'data: {"text":"**Hint:** $v=f\\\\lambda$"}',
+        `data: ${JSON.stringify({ text: formulaAnswer })}`,
         '',
         'event: done',
-        'data: {"answer":"**Hint:** $v=f\\\\lambda$","mode":"ai"}',
+        `data: ${JSON.stringify({ answer: formulaAnswer, mode: 'ai' })}`,
         '',
       ].join('\n'),
     })
@@ -223,16 +225,18 @@ async function assertCoachScreenshotFlow(page) {
     await page.mouse.move(332, 382, { steps: 8 })
     await page.mouse.up()
     await page.getByRole('button', { name: 'Attach screenshot' }).click()
-    await page.getByText('Image attached', { exact: true }).waitFor()
-    await page.getByRole('button', { name: 'Review screenshot' }).click()
+    await page.locator('.ai-coach__attachments').waitFor()
+    await page.getByText('1/4 photos ready', { exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Review photo', exact: true }).click()
     await page.waitForFunction(() => [...document.querySelectorAll('.ai-message--assistant')].some((node) => node.textContent.includes('Hint:')))
-    if (!screenshotPayloads[0]?.imageDataUrl?.startsWith('data:image/jpeg;base64,')) {
-      throw new Error('Coach current-page capture request did not include the captured JPEG data')
+    if (!screenshotPayloads[0]?.imageDataUrls?.[0]?.startsWith('data:image/jpeg;base64,')) {
+      throw new Error('Coach current-page capture request did not include the captured JPEG in imageDataUrls')
     }
     const coachText = await page.locator('.ai-message--assistant').last().innerText()
-    if (/\*\*|\$|\\lambda/.test(coachText) || !coachText.includes('λ')) {
-      throw new Error(`Coach screenshot response exposed raw Markdown or TeX: ${coachText}`)
+    if (/\*\*|\$|\\|qquad/.test(coachText) || !coachText.includes('λ') || !coachText.includes('r²') || !coachText.includes('π')) {
+      throw new Error(`Coach screenshot response exposed raw Markdown or TeX or lost readable formula characters: ${coachText}`)
     }
+    await page.screenshot({ path: path.join(ARTIFACT_DIR, 'qa-coach-formula-preview.png'), fullPage: false })
 
     await page.locator('.ai-coach.open').getByRole('button', { name: 'Close AI Coach' }).click()
     await page.evaluate(() => {
@@ -271,11 +275,12 @@ async function assertCoachScreenshotFlow(page) {
     await page.mouse.move(400, 350, { steps: 8 })
     await page.mouse.up()
     await page.getByRole('button', { name: 'Attach screenshot' }).click()
-    await page.getByText('Image attached', { exact: true }).waitFor()
-    await page.getByRole('button', { name: 'Review screenshot' }).click()
+    await page.locator('.ai-coach__attachments').waitFor()
+    await page.getByText('1/4 photos ready', { exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Review photo', exact: true }).click()
     await page.waitForFunction(() => document.querySelectorAll('.ai-message--assistant').length >= 2)
-    if (!screenshotPayloads[1]?.imageDataUrl?.startsWith('data:image/jpeg;base64,')) {
-      throw new Error('Coach visible-page fallback did not attach a JPEG data URL')
+    if (!screenshotPayloads[1]?.imageDataUrls?.[0]?.startsWith('data:image/jpeg;base64,')) {
+      throw new Error('Coach visible-page fallback did not attach a JPEG in imageDataUrls')
     }
     await page.locator('#coach-capture-fallback-fixture').evaluate((node) => node.remove())
     await page.locator('.ai-coach.open').getByRole('button', { name: 'Close AI Coach' }).click()

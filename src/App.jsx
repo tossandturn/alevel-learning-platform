@@ -55,7 +55,7 @@ import { studentNavigationFromLocation, studentNavigationHref } from './lib/stud
 import { normalizePaperStudyMode, paperDraftKey } from './lib/paperStudyMode'
 import { buildStemVocabularyContext, vocabularyCoverageForRoute } from './data/stemVocabularyTaxonomy'
 import { topicLearningContent } from './data/topicLearningContent'
-import { evidencePresent, practiceAttemptMetrics, practiceMetricsSummary, practiceUnitMetrics, topicDisplayNames, topicPracticeInventory, withPracticePresentation } from './lib/practicePresentation'
+import { aggregateTopicPracticeInventory, evidencePresent, practiceAttemptMetrics, practiceMetricsSummary, practiceUnitMetrics, topicDisplayNames, topicPracticeInventory, withPracticePresentation } from './lib/practicePresentation'
 import { MIN_VERIFIED_GROUPS_FOR_PRACTICE } from './lib/practiceConstants'
 import './App.css'
 import './StudentV2.css'
@@ -508,6 +508,7 @@ function App() {
           studyQuestionCount: serverTopic.studyQuestionCount || 0,
           availableQuestionCount: serverTopic.availableQuestionCount ?? serverTopic.verifiedQuestionCount,
           componentCounts: serverTopic.componentCounts || {},
+          questionIdsByComponent: serverTopic.questionIdsByComponent || {},
           indexedQuestionCount: serverTopic.indexedQuestionCount,
           pendingReviewCount: serverTopic.pendingReviewCount,
           availableSetSizes: serverTopic.availableSetSizes,
@@ -1995,15 +1996,15 @@ function App() {
 
 function SessionSetup({ session, onChange, onCancel, onStart }) {
   const { unit } = session
-  const isPaper = unit.type === 'paper'
+  const metrics = practiceUnitMetrics(unit)
   const markingCapability = markingCapabilityForUnit(unit)
   return (
     <div className="setup-backdrop" role="presentation" onMouseDown={onCancel}>
       <section className="session-setup" role="dialog" aria-modal="true" aria-labelledby="setup-title" onMouseDown={(event) => event.stopPropagation()}>
-        <header><div><p className="section-label">Session setup</p><h2 id="setup-title">{unit.title}</h2><p>{unit.topic} · {questionGroupCountForUnit(unit)} questions · {unit.maxMarks} marks</p></div><button type="button" className="setup-close" onClick={onCancel} aria-label="Close setup">×</button></header>
+        <header><div><p className="section-label">Session setup</p><h2 id="setup-title">{unit.title}</h2><p>{unit.topic} · {metrics.sourceQuestionCount} official questions · {metrics.answerPartCount} answer parts · {metrics.paperCount} papers · {metrics.totalMarks} marks</p></div><button type="button" className="setup-close" onClick={onCancel} aria-label="Close setup">×</button></header>
         <div className="setup-section"><span className="setup-label">How do you want to practise?</span><div className="mode-segments"><button type="button" className={session.mode === 'guided' ? 'active' : ''} onClick={() => onChange({ mode: 'guided', hints: true })}><Sparkles size={16} /><strong>Guided</strong><small>Hints available</small></button><button type="button" className={session.mode === 'practice' ? 'active' : ''} onClick={() => onChange({ mode: 'practice' })}><Dumbbell size={16} /><strong>Practice</strong><small>Independent set</small></button><button type="button" className={session.mode === 'exam' ? 'active' : ''} onClick={() => onChange({ mode: 'exam', timing: 'timed', hints: false })}><GraduationCap size={16} /><strong>Exam</strong><small>Answers hidden</small></button></div></div>
         <div className="setup-options"><label><span>Timing</span><select value={session.timing} onChange={(event) => onChange({ timing: event.target.value })}><option value="recommended">Recommended · {unit.estimatedMinutes} min</option><option value="timed">Strict timer</option><option value="untimed">Untimed</option></select></label><label className="toggle-row"><span><strong>Question hints</strong><small>Hints never reveal the final answer.</small></span><input type="checkbox" checked={session.hints} disabled={session.mode === 'exam'} onChange={(event) => onChange({ hints: event.target.checked })} /></label></div>
-        <div className="setup-summary"><ListFilter size={18} /><div><strong>{questionGroupCountForUnit(unit)} questions ready</strong><span>{isPaper ? 'Mixed paper practice' : `${unit.subtopic || unit.topic} knowledge drill`} · autosave on</span></div></div>
+        <div className="setup-summary"><ListFilter size={18} /><div><strong>{metrics.sourceQuestionCount} official questions ready</strong><span>{metrics.answerPartCount} answer parts · {metrics.paperCount} papers · autosave on</span></div></div>
         <div className={`setup-marking-note setup-marking-note--${markingCapability.mode}`} role="status"><strong>{markingCapability.label}</strong><span>{markingCapability.description}</span></div>
         <footer><button type="button" className="secondary-action" onClick={onCancel}>Cancel</button><button type="button" className="primary-action" onClick={onStart}><PlayIcon />Start session</button></footer>
       </section>
@@ -2422,6 +2423,7 @@ function StudentDashboard({ activeRoute, routeOptions, selectRoute, profile, att
           <div className="recommended-session__meta">
             {recommendedMetrics && <span>{recommendedMetrics.sourceQuestionCount} official questions</span>}
             {recommendedMetrics && <span>{recommendedMetrics.answerPartCount} answer parts</span>}
+            {recommendedMetrics && <span>{recommendedMetrics.paperCount} papers</span>}
             {nextUnit?.estimatedMinutes && <span>About {nextUnit.estimatedMinutes} minutes</span>}
             {recommendedMetrics?.totalMarks > 0 && <span>{recommendedMetrics.totalMarks} marks</span>}
           </div>
@@ -2572,15 +2574,7 @@ function AiPracticeLanding({ activeRoute, selectedTopicId, practiceOptions, star
   const [startError, setStartError] = useState('')
   const selectedComponents = componentKey.split(',').map(Number).filter(Number.isFinite)
   const selectedTopics = topics.filter((topic) => selectedTopicIds.includes(topic.id))
-  const selectedInventory = selectedTopics.reduce((summary, topic) => {
-    const inventory = topicPracticeInventory(topic, selectedComponents)
-    return {
-      verifiedQuestionCount: summary.verifiedQuestionCount + inventory.verifiedQuestionCount,
-      studyQuestionCount: summary.studyQuestionCount + inventory.studyQuestionCount,
-      availableQuestionCount: summary.availableQuestionCount + inventory.availableQuestionCount,
-      pendingReviewCount: summary.pendingReviewCount + inventory.pendingReviewCount,
-    }
-  }, { verifiedQuestionCount: 0, studyQuestionCount: 0, availableQuestionCount: 0, pendingReviewCount: 0 })
+  const selectedInventory = aggregateTopicPracticeInventory(selectedTopics, selectedComponents)
   const available = selectedInventory.availableQuestionCount
 
   useEffect(() => {

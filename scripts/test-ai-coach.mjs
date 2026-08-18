@@ -122,6 +122,18 @@ try {
     !productionStyleMessage.some((token) => /\\xrightarrow|\\text|\$\$|CO_2|H_2O|C_6H_\{12\}/.test(String(token.value || ''))),
     'Production Qwen formula output must not expose raw TeX delimiters or unformatted subscripts',
   )
+  const screenshotFormulaMessage = parseCoachMessage(String.raw`目前能看到的第一处需要确认之处是：你似乎在使用 \(G\)、\(M\)、\(r\) 和周期 \(T\) 的关系。
+
+\[
+GMm/r^2=mv^2/r,\qquad v=2πr/T,
+\]
+
+然后整理成题目要求的 \(T^2\) 与 \(r^3\) 形式，数值因子是 \(4π^2\)。`)
+  const screenshotFormulaValues = screenshotFormulaMessage.filter((token) => token.type === 'math').map((token) => token.value)
+  assert.ok(screenshotFormulaValues.includes('G') && screenshotFormulaValues.includes('M') && screenshotFormulaValues.includes('r') && screenshotFormulaValues.includes('T'), 'Coach must recognize LaTeX inline math delimiters')
+  assert.ok(screenshotFormulaValues.includes('GMm/r²=mv²/r, v=2πr/T,'), 'Coach must recognize multiline LaTeX block math and spacing commands')
+  assert.ok(screenshotFormulaValues.includes('T²') && screenshotFormulaValues.includes('r³') && screenshotFormulaValues.includes('4π²'), 'Coach must preserve formula exponents as readable superscripts')
+  assert.doesNotMatch(JSON.stringify(screenshotFormulaMessage), /\\[()[\]]|\\qquad/, 'Coach must not expose raw LaTeX delimiters or spacing commands')
 
   const local = await post('/api/ai/coach/stream', {
     message: 'Give me a hint for the next step.',
@@ -162,10 +174,14 @@ try {
     : providerUserMessage.content?.find((item) => item.type === 'text')?.text || ''
   assert.ok(providerText.length <= 4_800, `focused Coach context must stay bounded, received ${providerText.length} characters`)
 
+  const attachedImages = [
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+1P6Q6QAAAABJRU5ErkJggg==',
+  ]
   const screenshot = await post('/api/ai/coach/stream', {
     message: 'Read the attached work and identify the first issue.',
     hintLevel: 3,
-    imageDataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+    imageDataUrls: attachedImages,
     context: {
       stage: 'AS',
       topic: 'Mechanics',
@@ -177,7 +193,11 @@ try {
   assert.equal(providerBodies.length, 2, 'screenshot questions must reach the configured vision provider')
   const screenshotMessage = providerBodies[1].messages.at(-1)
   assert.ok(Array.isArray(screenshotMessage.content), 'vision requests must use multimodal provider content')
-  assert.ok(screenshotMessage.content.some((item) => item.type === 'image_url'), 'vision request must include the attached screenshot')
+  assert.equal(
+    screenshotMessage.content.filter((item) => item.type === 'image_url').length,
+    attachedImages.length,
+    'vision requests must preserve every attached image in order',
+  )
 
   failNextProviderRequest = true
   const failed = await post('/api/ai/coach/stream', {
@@ -300,6 +320,57 @@ try {
     await Promise.all([close(fallbackAppServer), close(openAiFallbackServer), close(qwenFallbackServer)])
   }
 
+  let partialFallbackRequests = 0
+  const partialOpenAiServer = http.createServer(async (request, response) => {
+    for await (const _chunk of request) {}
+    response.statusCode = 200
+    response.setHeader('Content-Type', 'text/event-stream')
+    response.write('data: {"choices":[{"delta":{"content":"discard this partial answer"}}]}\n\n')
+    setTimeout(() => response.destroy(), 5)
+  })
+  const partialQwenServer = http.createServer(async (request, response) => {
+    partialFallbackRequests += 1
+    for await (const _chunk of request) {}
+    response.statusCode = 200
+    response.setHeader('Content-Type', 'text/event-stream')
+    response.end('data: {"choices":[{"delta":{"content":"complete qwen recovery"}}]}\n\ndata: [DONE]\n\n')
+  })
+  const partialOpenAiBase = await listen(partialOpenAiServer)
+  const partialQwenBase = await listen(partialQwenServer)
+  const partialFallbackApi = createAiApi({
+    env: {
+      OPENAI_API_KEY: 'test-openai-partial-key',
+      OPENAI_BASE_URL: partialOpenAiBase,
+      OPENAI_MODEL: 'gpt-5.6-test',
+      DASHSCOPE_API_KEY: 'test-qwen-partial-key',
+      DASHSCOPE_COMPAT_BASE_URL: partialQwenBase,
+      COACH_AI_MODEL: 'qwen-partial-recovery',
+    },
+    libraryRoot: path.join(tempRoot, 'library'),
+    allowedSubjects: new Set(['0580']),
+  })
+  const partialFallbackAppServer = requestHandler(partialFallbackApi)
+  const partialFallbackAppBase = await listen(partialFallbackAppServer)
+  try {
+    const partialFallback = await fetch(`${partialFallbackAppBase}/api/ai/coach/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: 'Explain this method fully and check the units.',
+        hintLevel: 3,
+        context: { stage: 'AS', topic: 'Mechanics', question: { prompt: 'Partial stream fallback fixture.', number: 6 } },
+      }),
+    })
+    const partialFallbackText = await partialFallback.text()
+    assert.equal(partialFallback.status, 200)
+    assert.equal(partialFallbackRequests, 1, 'Qwen must take over when OpenAI fails after emitting a partial stream')
+    assert.match(partialFallbackText, /event: reset/, 'the client must be told to discard incomplete OpenAI output')
+    assert.match(partialFallbackText, /complete qwen recovery/)
+    assert.match(partialFallbackText, /"provider":"qwen"/)
+  } finally {
+    await Promise.all([close(partialFallbackAppServer), close(partialOpenAiServer), close(partialQwenServer)])
+  }
+
   const coachSource = fs.readFileSync(path.join(root, 'src', 'components', 'AiCoach.jsx'), 'utf8')
   const appSource = fs.readFileSync(path.join(root, 'src', 'App.jsx'), 'utf8')
   const appStyles = fs.readFileSync(path.join(root, 'src', 'App.css'), 'utf8')
@@ -323,6 +394,10 @@ try {
   assert.match(coachSource, /Capture question area/, 'Coach must expose an explicit current-page capture action')
   assert.match(coachSource, /cropVisiblePageVisuals/, 'Coach must fall back to visible official question or handwriting visuals when browser capture is unavailable')
   assert.match(coachSource, /Provide screenshot/, 'Coach must also let a student provide an existing screenshot')
+  assert.match(coachSource, /const \[imageDataUrls, setImageDataUrls\]/, 'Coach must retain multiple pending image attachments')
+  assert.match(coachSource, /type="file"[^>]*multiple/, 'Coach image selection must support choosing several photos at once')
+  assert.match(coachSource, /imageDataUrls\.map\(/, 'Coach must render every pending attachment for review and removal')
+  assert.match(appStyles, /\.ai-coach__attachments/, 'Coach must provide a visible multi-image attachment tray')
   assert.match(practiceWorkspaceSource, /export function PracticeWorkspace\(\{[\s\S]*onGeneratePractice[\s\S]*onAgentAction/, 'Practice workspace must receive the App Coach action callbacks')
   assert.match(practiceWorkspaceSource, /<AiCoach[\s\S]*onGeneratePractice=\{onGeneratePractice\}[\s\S]*onAgentAction=\{onAgentAction\}/, 'Practice workspace must forward Coach action callbacks into its in-practice tutor')
   assert.match(handwritingSource, /Upload photo/, 'paper responses need a normal photo upload action')

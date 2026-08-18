@@ -244,6 +244,7 @@ try {
   assert.equal(inventory.officialPaperCount, 46)
   assert.equal(inventory.officialPairedPaperCount, 46)
   assert.ok(inventory.topics.every((topic) => topic.points.length > 0), 'API must return official syllabus points')
+  assert.ok(inventory.topics.every((topic) => topic.questionIdsByComponent && topic.questionIdsByComponent[1] && topic.questionIdsByComponent[2]), 'API inventory must expose stable question identities for multi-topic count deduplication')
 
   const unauthenticatedSet = await fetch(`${origin}/api/stem/practice-sets`, {
     method: 'POST',
@@ -259,6 +260,10 @@ try {
   const unauthenticatedPayload = await unauthenticatedSet.json()
   assert.equal(unauthenticatedPayload.ownerId, null)
   assert.equal(unauthenticatedPayload.questionCount, 5)
+  assert.equal(unauthenticatedPayload.sourceQuestionCount, 5)
+  assert.equal(unauthenticatedPayload.answerPartCount, unauthenticatedPayload.questionGroups.reduce((sum, group) => sum + group.parts.length, 0))
+  assert.equal(unauthenticatedPayload.paperCount, new Set(unauthenticatedPayload.questionGroups.map((group) => group.sourceRef?.paperId).filter(Boolean)).size)
+  assert.equal(unauthenticatedPayload.totalMarks, unauthenticatedPayload.questionGroups.reduce((sum, group) => sum + group.parts.reduce((partSum, part) => partSum + Number(part.marks || 0), 0), 0))
 
   const verifiedSet = await fetch(`${origin}/api/stem/practice-sets`, {
     method: 'POST',
@@ -277,12 +282,18 @@ try {
   assert.equal(verifiedSet.status, 201, 'a reviewed topic must create a real practice set through the API')
   const verifiedSetPayload = await verifiedSet.json()
   assert.equal(verifiedSetPayload.questionCount, 5)
+  assert.equal(verifiedSetPayload.sourceQuestionCount, 5)
+  assert.equal(verifiedSetPayload.answerPartCount, verifiedSetPayload.questionGroups.reduce((sum, group) => sum + group.parts.length, 0))
+  assert.equal(verifiedSetPayload.paperCount, new Set(verifiedSetPayload.questionGroups.map((group) => group.sourceRef?.paperId).filter(Boolean)).size)
+  assert.equal(verifiedSetPayload.totalMarks, verifiedSetPayload.questionGroups.reduce((sum, group) => sum + group.parts.reduce((partSum, part) => partSum + Number(part.marks || 0), 0), 0))
   assert.equal(verifiedSetPayload.availableCount, 5)
   assert.ok(verifiedSetPayload.questionGroups.every((question) => question.paperComponent === 1), 'P1 selection must remain component-isolated')
 
   const persistedUnit = {
     id: 'syllabus-set:http-rebind-fixture',
     type: 'topic',
+    title: 'client-forged-title-must-not-survive-rebind',
+    prompt: 'client-forged-prompt-must-not-survive-rebind',
     sourceAuthority: 'server-syllabus',
     sourceGateVersion: 'server-syllabus-catalog-v2',
     routeId,
@@ -294,8 +305,11 @@ try {
       sourceKind: 'past-paper',
       sourceQuestionId: group.id,
       questionPartId: part.partId,
+      prompt: 'client-forged-part-prompt-must-not-survive-rebind',
+      sourceRef: { localUrl: 'https://example.invalid/forged-source.pdf' },
       sourceBindingProvenance: part.sourceBindingProvenance,
     }))),
+    sourceRef: { localUrl: 'https://example.invalid/forged-source.pdf' },
   }
   const rebindResponse = await fetch(`${origin}/api/stem/practice-sets/rebind`, {
     method: 'POST',
@@ -306,6 +320,11 @@ try {
   const reboundPayload = await rebindResponse.json()
   assert.equal(reboundPayload.unit.sourceGateStatus, 'current')
   assert.equal(reboundPayload.unit.questionGroupCount, verifiedSetPayload.questionCount)
+  assert.notEqual(reboundPayload.unit.title, persistedUnit.title, 'the server must rebuild the student-facing title from canonical route/topic data')
+  assert.notEqual(reboundPayload.unit.prompt, persistedUnit.prompt, 'arbitrary client prompt data must not be echoed by rebind')
+  assert.notEqual(reboundPayload.unit.sourceRef?.localUrl, persistedUnit.sourceRef.localUrl, 'arbitrary client source references must not be echoed by rebind')
+  assert.notEqual(reboundPayload.unit.parts[0].prompt, persistedUnit.parts[0].prompt, 'arbitrary client part prompt data must not be echoed by rebind')
+  assert.notEqual(reboundPayload.unit.parts[0].sourceRef?.localUrl, persistedUnit.parts[0].sourceRef.localUrl, 'part source references must come from the canonical bank')
 
   const forgedUnit = structuredClone(persistedUnit)
   forgedUnit.parts[0].sourceBindingProvenance.bindingSignature = 'fnv1a64:0000000000000000'
@@ -332,6 +351,20 @@ try {
     }),
   })
   assert.equal(invalidPracticalSet.status, 400, 'authenticated Topic Drill requests containing P3 must be rejected explicitly')
+
+  const invalidRebind = await fetch(`${origin}/api/stem/practice-sets/rebind`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  })
+  assert.equal(invalidRebind.status, 400, 'rebind must reject a missing persisted unit before catalog lookup')
+
+  const oversizedRebind = await fetch(`${origin}/api/stem/practice-sets/rebind`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ unit: { ...persistedUnit, untrustedPadding: 'x'.repeat(300_000) } }),
+  })
+  assert.equal(oversizedRebind.status, 413, 'rebind must reject oversized persisted payloads before source work')
 } finally {
   await new Promise((resolve) => server.close(resolve))
   closeStemDatabaseForTests()

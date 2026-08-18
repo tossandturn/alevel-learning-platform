@@ -3435,14 +3435,20 @@ textarea:focus-visible {
 .ai-message__content { overflow-wrap: anywhere; }
 .ai-message__content strong { font-weight: 850; }
 .ai-message__math { padding: 1px 3px; border-radius: 3px; color: #273b5d; background: #eef3fb; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .95em; white-space: pre-wrap; }
+.ai-message__attachments { display: flex; max-width: 100%; gap: 5px; overflow-x: auto; }
+.ai-message__attachments img { width: 48px; height: 48px; flex: 0 0 48px; object-fit: cover; border: 1px solid rgba(255, 255, 255, .65); border-radius: 4px; background: #fff; }
 .ai-message small { color: #8b6512; font-size: 9px; line-height: 1.4; }
 .ai-coach__thinking { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 10px; }
 .ai-coach__thinking > span { width: 8px; height: 8px; border-radius: 50%; background: #7357e8; animation: pulse 1s infinite; }
 
 .ai-coach > footer { display: grid; gap: 7px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); border-top: 1px solid #dce3ec; background: #fff; }
-.ai-coach__attachment { display: grid; grid-template-columns: 36px 1fr 28px; align-items: center; gap: 7px; padding: 5px; border: 1px solid #b8d8cd; border-radius: 5px; background: #f2fbf7; font-size: 10px; }
-.ai-coach__attachment img { width: 36px; height: 36px; object-fit: cover; }
-.ai-coach__attachment button { width: 28px; height: 28px; display: grid; place-items: center; border: 0; background: transparent; }
+.ai-coach__attachments { display: flex; min-width: 0; min-height: 58px; align-items: center; gap: 7px; overflow-x: auto; padding: 5px 6px; border: 1px solid #b8d8cd; border-radius: 5px; background: #f2fbf7; }
+.ai-coach__attachment-summary { min-width: 64px; display: grid; flex: 0 0 64px; gap: 1px; color: #48675e; font-size: 9px; line-height: 1.25; }
+.ai-coach__attachment-summary strong { color: #174f40; font-size: 11px; }
+.ai-coach__attachment { position: relative; width: 48px; height: 48px; flex: 0 0 48px; overflow: hidden; border: 1px solid #98c7b8; border-radius: 4px; background: #fff; }
+.ai-coach__attachment img { width: 100%; height: 100%; object-fit: cover; }
+.ai-coach__attachment button { position: absolute; top: 0; right: 0; width: 28px; height: 28px; display: grid; place-items: center; border: 0; color: #fff; background: rgba(22, 34, 42, .78); }
+.ai-coach__attachment-status { margin: 0; color: #48675e; font-size: 10px; }
 .ai-coach__error { margin: 0; color: #a53d45; font-size: 10px; }
 .ai-coach__composer { display: grid; grid-template-columns: 38px minmax(0, 1fr) 40px; align-items: end; gap: 6px; }
 .ai-coach__composer label,

@@ -282,6 +282,8 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
   const sourceQuestionCount = questionGroups.length || parts.length
   const answeredQuestions = questionGroups.filter((group) => group.parts.every((part) => isComplete(attempt, part))).length
   const answerPartCount = parts.length
+  const paperCount = attemptMetrics.paperCount
+  const totalMarks = attemptMetrics.totalMarks
   const answeredPartCount = attemptMetrics.answeredPartCount
   const unansweredAnswerPartCount = Math.max(0, answerPartCount - answeredPartCount)
   const remaining = Math.max(0, attempt.durationSec - attempt.elapsedSec)
@@ -456,7 +458,7 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
           </button>
           <div className="qp-header__title">
             <strong>{unit.title}</strong>
-            <span>{sourceQuestionCount} official question{sourceQuestionCount === 1 ? '' : 's'} · {answerPartCount} answer part{answerPartCount === 1 ? '' : 's'}{unit.sourceSetIndex ? ` · Set ${unit.sourceSetIndex}` : ''}</span>
+            <span>{sourceQuestionCount} official question{sourceQuestionCount === 1 ? '' : 's'} · {answerPartCount} answer part{answerPartCount === 1 ? '' : 's'} · {paperCount} paper{paperCount === 1 ? '' : 's'} · {totalMarks} mark{totalMarks === 1 ? '' : 's'}{unit.sourceSetIndex ? ` · Set ${unit.sourceSetIndex}` : ''}</span>
           </div>
         </div>
         <div className="qp-header__status">
@@ -512,7 +514,7 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
                 <h1>{unit.topic || unit.title}</h1>
                 <p>Read the question, write your answer, then submit when you are ready.</p>
               </div>
-              <div className="qp-paper__stats"><span><strong>{unit.maxMarks}</strong> marks</span><span><strong>{unit.estimatedMinutes || '--'}</strong> min</span></div>
+              <div className="qp-paper__stats"><span><strong>{totalMarks}</strong> marks</span><span><strong>{unit.estimatedMinutes || '--'}</strong> min</span></div>
             </div>
 
             {unit.sourceMix && (

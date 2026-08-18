@@ -16,6 +16,9 @@ import { verifyMarkingCapability } from './markingCapability.js'
 const IMAGE_PATTERN = /^data:image\/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=]+)$/
 const MAX_BODY_BYTES = 16 * 1024 * 1024
 const MAX_IMAGE_BYTES = 12 * 1024 * 1024
+const MAX_COACH_IMAGE_COUNT = 4
+const MAX_COACH_IMAGE_BYTES = 4 * 1024 * 1024
+const MAX_COACH_TOTAL_IMAGE_BYTES = 10 * 1024 * 1024
 const TEMP_IMAGE_TTL_MS = 5 * 60 * 1000
 const PDF_TEXT_CACHE_MAX_ENTRIES = 6
 const COACH_CONTEXT_CACHE_MAX_ENTRIES = 48
@@ -123,10 +126,34 @@ function safeCoachContext(value) {
 
 function imageBytes(dataUrl) {
   const match = String(dataUrl || '').match(IMAGE_PATTERN)
-  if (!match) throw Object.assign(new Error('Handwriting image must be PNG, JPEG or WebP.'), { statusCode: 400 })
+  if (!match) throw Object.assign(new Error('Attached image must be PNG, JPEG or WebP.'), { statusCode: 400 })
   const bytes = Buffer.byteLength(match[2], 'base64')
-  if (!bytes || bytes > MAX_IMAGE_BYTES) throw Object.assign(new Error('Handwriting image is empty or too large.'), { statusCode: 400 })
+  if (!bytes || bytes > MAX_IMAGE_BYTES) throw Object.assign(new Error('Attached image is empty or too large.'), { statusCode: 400 })
   return bytes
+}
+
+function coachImageDataUrls(payload) {
+  const source = Array.isArray(payload?.imageDataUrls)
+    ? payload.imageDataUrls
+    : payload?.imageDataUrl
+      ? [payload.imageDataUrl]
+      : []
+  const images = source.map((value) => String(value || '').trim()).filter(Boolean)
+  if (images.length > MAX_COACH_IMAGE_COUNT) {
+    throw Object.assign(new Error(`Attach no more than ${MAX_COACH_IMAGE_COUNT} images.`), { statusCode: 400 })
+  }
+  let totalBytes = 0
+  for (const image of images) {
+    const bytes = imageBytes(image)
+    if (bytes > MAX_COACH_IMAGE_BYTES) {
+      throw Object.assign(new Error('Each Coach image must be under 4 MB after compression.'), { statusCode: 400 })
+    }
+    totalBytes += bytes
+  }
+  if (totalBytes > MAX_COACH_TOTAL_IMAGE_BYTES) {
+    throw Object.assign(new Error('Coach attachments are too large. Remove a photo or choose smaller images.'), { statusCode: 400 })
+  }
+  return images
 }
 
 function cleanupTemporaryImages() {
@@ -158,6 +185,25 @@ async function temporaryImageUrl(dataUrl, publicBaseUrl) {
       fs.rm(filePath, { force: true }, () => {})
     },
   }
+}
+
+async function temporaryProviderImages(dataUrls, publicBaseUrl) {
+  const images = []
+  try {
+    for (const dataUrl of dataUrls) images.push(await temporaryImageUrl(dataUrl, publicBaseUrl))
+    return images
+  } catch (error) {
+    images.forEach((image) => image.cleanup())
+    throw error
+  }
+}
+
+function providerMessageContent(text, providerImages) {
+  if (!providerImages.length) return text
+  return [
+    { type: 'text', text },
+    ...providerImages.map((image) => ({ type: 'image_url', image_url: { url: image.url } })),
+  ]
 }
 
 function handleTemporaryImage(requestUrl, response) {
@@ -598,7 +644,9 @@ async function callCompatibleAi(provider, { messages, temperature = 0.2, json = 
       throw new Error(`AI provider returned ${response.status}${providerCode ? ` (${providerCode})` : ''}${providerDetail ? `: ${providerDetail}` : ''}`)
     }
     const payload = await response.json()
-    return String(payload?.choices?.[0]?.message?.content || '').trim()
+    const answer = String(payload?.choices?.[0]?.message?.content || '').trim()
+    if (!answer) throw new Error('AI provider returned an empty response.')
+    return answer
   } finally {
     clearTimeout(timeout)
   }
@@ -675,8 +723,8 @@ async function hydrateCoachPaperContext(context, libraryRoot, allowedSubjects) {
   return { ...context, sourceQuestionExtract: compactText(questionText, COACH_CONTEXT_MAX_CHARS) }
 }
 
-function shouldUseLocalCoachFirst({ message, imageDataUrl, hintLevel }) {
-  if (imageDataUrl) return false
+function shouldUseLocalCoachFirst({ message, hasImages, hintLevel }) {
+  if (hasImages) return false
   const clean = String(message || '').trim()
   if (!clean || clean.length > 180 || Number(hintLevel) > 2) return false
   return /(?:hint|nudge|next step|what should i practise|check my method|提示|下一步|练什么|方法检查)/i.test(clean)
@@ -705,11 +753,11 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   const context = await hydrateCoachPaperContext(suppliedContext, libraryRoot, allowedSubjects)
   const verifiedSubmitted = verifiedCoachSubmission(payload, request, env)
   const hintLevel = Math.min(5, Math.max(1, Number(payload.hintLevel) || 1))
-  const imageDataUrl = payload.imageDataUrl || ''
-  if (imageDataUrl) imageBytes(imageDataUrl)
-  if (!message && !imageDataUrl) throw Object.assign(new Error('Ask a question or attach an image.'), { statusCode: 400 })
+  const imageDataUrls = coachImageDataUrls(payload)
+  const hasImages = imageDataUrls.length > 0
+  if (!message && !hasImages) throw Object.assign(new Error('Ask a question or attach an image.'), { statusCode: 400 })
   const localAnswer = localCoachReply(context, hintLevel)
-  if (shouldUseLocalCoachFirst({ message, imageDataUrl, hintLevel })) {
+  if (shouldUseLocalCoachFirst({ message, hasImages, hintLevel })) {
     return sendJson(response, 200, {
       mode: 'local',
       providerStatus: 'skipped',
@@ -719,15 +767,16 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
       canEscalate: true,
     })
   }
-  const configuredProvider = imageDataUrl ? visionProvider : provider
+  const configuredProvider = hasImages ? visionProvider : provider
   const activeProviders = providerCandidates(configuredProvider)
   if (!activeProviders.length) return sendJson(response, 200, { mode: 'offline', providerStatus: 'not_configured', answer: localAnswer, warning: 'AI Coach provider is not configured on this server. This is an offline hint, not an AI review.' })
   const userText = coachRequestContext(context, message)
   let lastError = null
   for (const activeProvider of activeProviders) {
-    const providerImage = imageDataUrl ? await temporaryImageUrl(imageDataUrl, imagePublicBase(activeProvider, request)) : null
-    const content = providerImage ? [{ type: 'text', text: userText }, { type: 'image_url', image_url: { url: providerImage.url } }] : userText
+    let providerImages = []
     try {
+      providerImages = await temporaryProviderImages(imageDataUrls, imagePublicBase(activeProvider, request))
+      const content = providerMessageContent(userText, providerImages)
       const answer = await callCompatibleAi(activeProvider, {
         messages: [{ role: 'system', content: buildCoachSystemPrompt({ verifiedSubmitted, hintLevel }) }, ...history, { role: 'user', content }],
         temperature: 0.2,
@@ -736,7 +785,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
     } catch (error) {
       lastError = error
     } finally {
-      providerImage?.cleanup()
+      providerImages.forEach((image) => image.cleanup())
     }
   }
   const failedProvider = activeProviders.at(-1)
@@ -766,7 +815,8 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, o
     if (!response.body || !contentType.includes('text/event-stream')) {
       const payload = await response.json().catch(() => ({}))
       answer = String(payload?.choices?.[0]?.message?.content || '').trim()
-      if (answer) await onDelta?.(answer)
+      if (!answer) throw new Error('AI provider returned an empty response.')
+      await onDelta?.(answer)
       return { answer, providerStatus: 'connected' }
     }
 
@@ -799,7 +849,9 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, o
       if (done) break
     }
     if (buffer) await consumeLine(buffer)
-    return { answer: answer.trim(), providerStatus: 'connected' }
+    answer = answer.trim()
+    if (!answer) throw new Error('AI provider returned an empty response.')
+    return { answer, providerStatus: 'connected' }
   } finally {
     clearTimeout(timeout)
   }
@@ -822,9 +874,9 @@ async function handleCoachStream(request, response, provider, visionProvider, li
   const context = await hydrateCoachPaperContext(suppliedContext, libraryRoot, allowedSubjects)
   const verifiedSubmitted = verifiedCoachSubmission(payload, request, env)
   const hintLevel = Math.min(5, Math.max(1, Number(payload.hintLevel) || 1))
-  const imageDataUrl = payload.imageDataUrl || ''
-  if (imageDataUrl) imageBytes(imageDataUrl)
-  if (!message && !imageDataUrl) throw Object.assign(new Error('Ask a question or attach an image.'), { statusCode: 400 })
+  const imageDataUrls = coachImageDataUrls(payload)
+  const hasImages = imageDataUrls.length > 0
+  if (!message && !hasImages) throw Object.assign(new Error('Ask a question or attach an image.'), { statusCode: 400 })
 
   response.statusCode = 200
   response.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
@@ -833,7 +885,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
   response.flushHeaders?.()
 
   const localAnswer = localCoachReply(context, hintLevel)
-  if (shouldUseLocalCoachFirst({ message, imageDataUrl, hintLevel })) {
+  if (shouldUseLocalCoachFirst({ message, hasImages, hintLevel })) {
     sendCoachEvent(response, 'meta', { mode: 'local', providerStatus: 'skipped', canEscalate: true })
     sendCoachEvent(response, 'delta', { text: localAnswer })
     sendCoachEvent(response, 'done', {
@@ -847,7 +899,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
     return
   }
 
-  const configuredProvider = imageDataUrl ? visionProvider : provider
+  const configuredProvider = hasImages ? visionProvider : provider
   const activeProviders = providerCandidates(configuredProvider)
   if (!activeProviders.length) {
     sendCoachEvent(response, 'meta', { mode: 'offline', providerStatus: 'not_configured' })
@@ -868,27 +920,27 @@ async function handleCoachStream(request, response, provider, visionProvider, li
   let lastAttemptedProvider = activeProviders[0]
   for (const activeProvider of activeProviders) {
     lastAttemptedProvider = activeProvider
-    let providerImage = null
+    let providerImages = []
+    let attemptAnswer = ''
     try {
-      providerImage = imageDataUrl ? await temporaryImageUrl(imageDataUrl, imagePublicBase(activeProvider, request)) : null
-      const content = providerImage
-        ? [{ type: 'text', text: userText }, { type: 'image_url', image_url: { url: providerImage.url } }]
-        : userText
+      providerImages = await temporaryProviderImages(imageDataUrls, imagePublicBase(activeProvider, request))
+      const content = providerMessageContent(userText, providerImages)
       sendCoachEvent(response, 'meta', {
         mode: 'ai',
         provider: activeProvider.name,
-        providerStatus: 'connected',
+        providerStatus: 'connecting',
         model: activeProvider.model,
       })
       const result = await callCompatibleAiStream(activeProvider, {
         messages: [{ role: 'system', content: buildCoachSystemPrompt({ verifiedSubmitted, hintLevel }) }, ...history, { role: 'user', content }],
         temperature: 0.2,
         onDelta: async (delta) => {
-          streamedAnswer += delta
+          attemptAnswer += delta
           sendCoachEvent(response, 'delta', { text: delta })
         },
       })
-      const answer = result.answer || streamedAnswer || localAnswer
+      streamedAnswer = result.answer || attemptAnswer
+      const answer = streamedAnswer || localAnswer
       sendCoachEvent(response, 'done', {
         mode: 'ai',
         provider: activeProvider.name,
@@ -900,9 +952,12 @@ async function handleCoachStream(request, response, provider, visionProvider, li
       return
     } catch (error) {
       lastError = error
-      if (streamedAnswer) break
+      if (attemptAnswer) {
+        streamedAnswer = ''
+        sendCoachEvent(response, 'reset', { provider: activeProvider.name })
+      }
     } finally {
-      providerImage?.cleanup()
+      providerImages.forEach((image) => image.cleanup())
     }
   }
   const failedProvider = lastAttemptedProvider

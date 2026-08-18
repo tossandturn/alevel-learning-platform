@@ -1,6 +1,7 @@
 import { enqueueSharedSync, listPendingSharedSync, markSharedSyncAttempt, markSharedSyncComplete } from './storage.js'
 import { SHARED_IDENTITY_ORIGIN } from './identityOrigin.js'
 import { applyProductContext, termIdsForStemContext } from './productContext.js'
+import { syllabusPracticeRebindPayload } from './syllabusPracticeRebind.js'
 
 const IDENTITY_ORIGIN = SHARED_IDENTITY_ORIGIN
 const IDENTITY_TIMEOUT_MS = 12_000
@@ -225,9 +226,10 @@ export async function requestSyllabusPracticeSet(token, selection) {
 }
 
 export async function requestSyllabusPracticeRebind(token, unit) {
+  const compactUnit = syllabusPracticeRebindPayload(unit)
   const options = {
     method: 'POST',
-    body: JSON.stringify({ unit }),
+    body: JSON.stringify({ unit: compactUnit }),
   }
   if (token) return sharedAccountRequest(token, '/api/stem/practice-sets/rebind', options)
   const { response, payload } = await jsonFetch('/api/stem/practice-sets/rebind', {

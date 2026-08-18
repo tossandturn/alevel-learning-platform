@@ -1,7 +1,11 @@
 const MAX_IMAGE_BYTES = 12 * 1024 * 1024
+const MAX_UPLOAD_SOURCE_BYTES = 24 * 1024 * 1024
+const MAX_UPLOAD_OUTPUT_BYTES = 3 * 1024 * 1024
+const MAX_UPLOAD_SIDE = 2000
 const MAX_CAPTURE_SIDE = 2400
 const MAX_CROP_SIDE = 1800
 export const MIN_CAPTURE_SELECTION_SIDE = 28
+export const MAX_COACH_IMAGE_ATTACHMENTS = 4
 
 function blobToDataUrl(blob) {
   return new Promise((resolve, reject) => {
@@ -12,7 +16,7 @@ function blobToDataUrl(blob) {
   })
 }
 
-function canvasToBlob(canvas) {
+function canvasToBlob(canvas, quality = 0.88) {
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (!blob) {
@@ -20,7 +24,7 @@ function canvasToBlob(canvas) {
         return
       }
       resolve(blob)
-    }, 'image/jpeg', 0.88)
+    }, 'image/jpeg', quality)
   })
 }
 
@@ -242,9 +246,59 @@ function fileToDataUrl(file) {
   })
 }
 
-export async function imageFileToDataUrl(file) {
-  if (!file?.type?.startsWith('image/') || file.size > MAX_IMAGE_BYTES) {
-    throw new Error('Choose a screenshot under 12 MB.')
+function loadUploadImage(file) {
+  const objectUrl = window.URL.createObjectURL(file)
+  return new Promise((resolve, reject) => {
+    const image = new window.Image()
+    image.onload = () => resolve({ image, objectUrl })
+    image.onerror = () => {
+      window.URL.revokeObjectURL(objectUrl)
+      reject(new Error('This photo format could not be prepared. Choose a JPEG, PNG or WebP image.'))
+    }
+    image.src = objectUrl
+  })
+}
+
+function uploadCanvas(image, scale) {
+  const canvas = window.document.createElement('canvas')
+  canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
+  canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('The browser could not prepare this photo.')
+  context.fillStyle = '#ffffff'
+  context.fillRect(0, 0, canvas.width, canvas.height)
+  context.drawImage(image, 0, 0, canvas.width, canvas.height)
+  return canvas
+}
+
+async function compressedUploadBlob(image) {
+  let scale = Math.min(1, MAX_UPLOAD_SIDE / Math.max(image.naturalWidth, image.naturalHeight))
+  for (let sizeAttempt = 0; sizeAttempt < 3; sizeAttempt += 1) {
+    const canvas = uploadCanvas(image, scale)
+    for (const quality of [0.9, 0.82, 0.74, 0.66]) {
+      const blob = await canvasToBlob(canvas, quality)
+      if (blob.size <= MAX_UPLOAD_OUTPUT_BYTES) return blob
+    }
+    scale *= 0.8
   }
-  return fileToDataUrl(file)
+  throw new Error('This photo is still too large after compression. Crop it or choose a smaller image.')
+}
+
+export async function imageFileToDataUrl(file) {
+  if (!file?.type?.startsWith('image/') || file.size > MAX_UPLOAD_SOURCE_BYTES) {
+    throw new Error('Choose an image under 24 MB.')
+  }
+  let loaded
+  try {
+    loaded = await loadUploadImage(file)
+    const blob = await compressedUploadBlob(loaded.image)
+    return blobToDataUrl(blob)
+  } catch (error) {
+    if (/^image\/(?:png|jpe?g|webp)$/i.test(file.type) && file.size <= MAX_UPLOAD_OUTPUT_BYTES) {
+      return fileToDataUrl(file)
+    }
+    throw error
+  } finally {
+    if (loaded?.objectUrl) window.URL.revokeObjectURL(loaded.objectUrl)
+  }
 }

@@ -7,6 +7,7 @@ import { issueMarkingCapabilities } from './markingCapability.js'
 import { buildSyllabusPracticeSet, rebindSyllabusPracticeUnit, seedSyllabusTables, syllabusDatabaseInventory, syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024
+const REBIND_BODY_BYTES = 256 * 1024
 const TOKEN_AUDIENCE = 'stem.ieltsist.com'
 const TOKEN_ISSUER = 'ieltsist.com'
 const STEM_SESSION_COOKIE = 'stem_session'
@@ -61,27 +62,35 @@ function sendJson(response, statusCode, body) {
   response.end(JSON.stringify(body))
 }
 
-function readJson(request) {
+function readJson(request, maxBytes = MAX_BODY_BYTES) {
   return new Promise((resolve, reject) => {
     const chunks = []
     let size = 0
+    let settled = false
     request.on('data', (chunk) => {
+      if (settled) return
       size += chunk.length
-      if (size > MAX_BODY_BYTES) {
+      if (size > maxBytes) {
+        settled = true
         reject(Object.assign(new Error('Request is too large.'), { statusCode: 413 }))
-        request.destroy()
         return
       }
       chunks.push(chunk)
     })
     request.on('end', () => {
+      if (settled) return
+      settled = true
       try {
         resolve(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'))
       } catch {
         reject(Object.assign(new Error('Request body must be valid JSON.'), { statusCode: 400 }))
       }
     })
-    request.on('error', reject)
+    request.on('error', (error) => {
+      if (settled) return
+      settled = true
+      reject(error)
+    })
   })
 }
 
@@ -1198,7 +1207,13 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, fetchIm
         return
       }
       if (request.method === 'POST' && url.pathname === '/api/stem/practice-sets/rebind') {
-        const payload = await readJson(request)
+        const payload = await readJson(request, REBIND_BODY_BYTES)
+        if (!payload || typeof payload !== 'object' || !payload.unit || typeof payload.unit !== 'object') {
+          throw Object.assign(new Error('A persisted syllabus practice unit is required.'), {
+            statusCode: 400,
+            code: 'invalid_syllabus_practice_set',
+          })
+        }
         const unit = rebindSyllabusPracticeUnit(payload.unit, { questionBank: topicPracticeQuestionBank })
         if (!unit) {
           throw Object.assign(new Error('This saved syllabus set no longer matches the current source catalog.'), {

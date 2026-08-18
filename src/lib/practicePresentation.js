@@ -238,3 +238,72 @@ export function topicPracticeInventory(topic = {}, components = []) {
     pendingReviewCount: nonNegativeInteger(topic.pendingReviewCount),
   }
 }
+
+function questionIdsForComponent(topic, component) {
+  const rows = topic?.questionIdsByComponent
+  if (!rows || typeof rows !== 'object') return null
+  const row = rows[String(component)] || rows[component]
+  if (!row || typeof row !== 'object') return null
+  const ids = (field) => Array.isArray(row[field])
+    ? row[field].map((value) => String(value || '').trim()).filter(Boolean)
+    : null
+  const indexedQuestionIds = ids('indexedQuestionIds')
+  const verifiedQuestionIds = ids('verifiedQuestionIds')
+  const studyQuestionIds = ids('studyQuestionIds')
+  const pendingReviewQuestionIds = ids('pendingReviewQuestionIds')
+  if (!indexedQuestionIds || !verifiedQuestionIds || !studyQuestionIds || !pendingReviewQuestionIds) return null
+  return { indexedQuestionIds, verifiedQuestionIds, studyQuestionIds, pendingReviewQuestionIds }
+}
+
+/**
+ * Aggregate selected syllabus topics by stable question identity. A question
+ * may be mapped to more than one topic, so adding per-topic counts would
+ * overstate the set size before the server builds the actual practice set.
+ */
+export function aggregateTopicPracticeInventory(topics = [], components = []) {
+  const selectedTopics = Array.isArray(topics) ? topics : []
+  const selectedComponents = [...new Set((Array.isArray(components) ? components : [components])
+    .map((component) => Number(component))
+    .filter((component) => Number.isInteger(component) && component > 0))]
+  const identityRows = selectedTopics.flatMap((topic) => selectedComponents.map((component) => questionIdsForComponent(topic, component)))
+  const canDeduplicate = selectedTopics.length > 0
+    && selectedComponents.length > 0
+    && identityRows.length === selectedTopics.length * selectedComponents.length
+    && identityRows.every(Boolean)
+
+  if (!canDeduplicate) {
+    return selectedTopics.reduce((summary, topic) => {
+      const inventory = topicPracticeInventory(topic, selectedComponents)
+      return {
+        verifiedQuestionCount: summary.verifiedQuestionCount + inventory.verifiedQuestionCount,
+        studyQuestionCount: summary.studyQuestionCount + inventory.studyQuestionCount,
+        availableQuestionCount: summary.availableQuestionCount + inventory.availableQuestionCount,
+        indexedQuestionCount: summary.indexedQuestionCount + inventory.indexedQuestionCount,
+        pendingReviewCount: summary.pendingReviewCount + inventory.pendingReviewCount,
+      }
+    }, {
+      verifiedQuestionCount: 0,
+      studyQuestionCount: 0,
+      availableQuestionCount: 0,
+      indexedQuestionCount: 0,
+      pendingReviewCount: 0,
+    })
+  }
+
+  const ids = {
+    indexedQuestionIds: new Set(),
+    verifiedQuestionIds: new Set(),
+    studyQuestionIds: new Set(),
+    pendingReviewQuestionIds: new Set(),
+  }
+  identityRows.forEach((row) => {
+    Object.entries(ids).forEach(([field, target]) => row[field].forEach((id) => target.add(id)))
+  })
+  return {
+    verifiedQuestionCount: ids.verifiedQuestionIds.size,
+    studyQuestionCount: ids.studyQuestionIds.size,
+    availableQuestionCount: new Set([...ids.verifiedQuestionIds, ...ids.studyQuestionIds]).size,
+    indexedQuestionCount: ids.indexedQuestionIds.size,
+    pendingReviewCount: ids.pendingReviewQuestionIds.size,
+  }
+}

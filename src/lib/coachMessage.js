@@ -59,18 +59,35 @@ function superscript(value) {
   return [...String(value || '')].map((character) => SUPERSCRIPT[character] || character).join('')
 }
 
+function normalizeMathDelimiters(value) {
+  let result = String(value || '')
+  result = result.replace(/\\\[([\s\S]*?)\\\]/g, (_, content) => `$$${content.trim()}$$`)
+  result = result.replace(/\\\(([\s\S]*?)\\\)/g, (_, content) => `$${content}$`)
+  return result
+}
+
+function normalizeLatexLayout(value) {
+  return String(value || '')
+    .replace(/\\(?:qquad|quad)\b/g, ' ')
+    .replace(/\\[,;:!]/g, ' ')
+    .replace(/\\(?:left|right)\b/g, '')
+    .replace(/\\(?:mathrm|mathbf|mathit)\s*\{([^{}]+)\}/g, '$1')
+    .replace(/\\\\/g, ' ')
+    .replace(/\\(?:\(|\)|\[|\])/g, '')
+}
+
 function normalizeMath(value) {
-  let result = String(value || '').trim()
+  let result = normalizeLatexLayout(String(value || '').trim())
   result = result.replace(/\\xrightarrow\s*\{\s*\\text\s*\{([^{}]+)\}\s*\}/g, ' --$1→ ')
   result = result.replace(/\\text\s*\{([^{}]+)\}/g, '$1')
   result = result.replace(/\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, '$1/$2')
   result = result.replace(/\^\{([^{}]+)\}/g, '^$1')
   result = result.replace(/_\{([^{}]+)\}/g, '_$1')
   for (const [pattern, replacement] of LATEX_REPLACEMENTS) result = result.replace(pattern, replacement)
-  result = result.replace(/([A-Za-z0-9)])\^([0-9+\-()]+)/g, (_, base, exponent) => (
+  result = result.replace(/([A-Za-z0-9)\p{L}])\^([0-9+\-()]+)/gu, (_, base, exponent) => (
     `${base}${superscript(exponent)}`
   ))
-  result = result.replace(/([A-Za-z0-9)])_([0-9+\-()]+)/g, (_, base, value) => (
+  result = result.replace(/([A-Za-z0-9)\p{L}])_([0-9+\-()]+)/gu, (_, base, value) => (
     `${base}${subscript(value)}`
   ))
   result = result.replace(/(\d+\/\d+)(?=[A-Za-z])/g, '$1 ')
@@ -78,17 +95,17 @@ function normalizeMath(value) {
 }
 
 function normalizeLegacyText(value) {
-  let result = String(value || '')
+  let result = normalizeLatexLayout(String(value || ''))
   result = result.replace(/\\xrightarrow\s*\{\s*\\text\s*\{([^{}]+)\}\s*\}/g, ' --$1→ ')
   result = result.replace(/\\text\s*\{([^{}]+)\}/g, '$1')
   result = result.replace(/\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, '$1/$2')
   result = result.replace(/\^\{([^{}]+)\}/g, '^$1')
   result = result.replace(/_\{([^{}]+)\}/g, '_$1')
   for (const [pattern, replacement] of LATEX_REPLACEMENTS) result = result.replace(pattern, replacement)
-  result = result.replace(/([A-Za-z0-9)])\^([0-9+\-()]+)/g, (_, base, exponent) => (
+  result = result.replace(/([A-Za-z0-9)\p{L}])\^([0-9+\-()]+)/gu, (_, base, exponent) => (
     `${base}${superscript(exponent)}`
   ))
-  result = result.replace(/([A-Za-z0-9)])_([0-9+\-()]+)/g, (_, base, value) => (
+  result = result.replace(/([A-Za-z0-9)\p{L}])_([0-9+\-()]+)/gu, (_, base, value) => (
     `${base}${subscript(value)}`
   ))
   return result.replace(/\$+/g, '').replace(/\*\*/g, '')
@@ -131,7 +148,7 @@ function parseInline(value, tokens) {
 
 export function parseCoachMessage(value) {
   const tokens = []
-  const lines = String(value || '').replace(/\r\n?/g, '\n').split('\n')
+  const lines = normalizeMathDelimiters(value).replace(/\r\n?/g, '\n').split('\n')
   lines.forEach((line, index) => {
     const trimmed = line.trim()
     if (/^\*\*[^*]+\*\*$/.test(trimmed)) {

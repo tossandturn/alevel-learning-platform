@@ -9,6 +9,7 @@ import {
   cropCurrentPageCapture,
   cropVisiblePageVisuals,
   imageFileToDataUrl,
+  MAX_COACH_IMAGE_ATTACHMENTS,
   MIN_CAPTURE_SELECTION_SIDE,
 } from '../lib/coachScreenshot'
 
@@ -66,7 +67,7 @@ export function AiCoach({
   const [messages, setMessages] = useState(() => loadMessages(storageKey))
   const [draft, setDraft] = useState('')
   const [hintLevel, setHintLevel] = useState(1)
-  const [imageDataUrl, setImageDataUrl] = useState('')
+  const [imageDataUrls, setImageDataUrls] = useState([])
   const [builderOpen, setBuilderOpen] = useState(false)
   const [builderSubjectId, setBuilderSubjectId] = useState(practiceOptions[0]?.id || '')
   const [builderStage, setBuilderStage] = useState(practiceOptions[0]?.stages?.[0] || 'AS')
@@ -80,6 +81,7 @@ export function AiCoach({
   const [captureSelection, setCaptureSelection] = useState(null)
   const [captureError, setCaptureError] = useState('')
   const [attachingCapture, setAttachingCapture] = useState(false)
+  const [preparingImages, setPreparingImages] = useState(false)
   const [error, setError] = useState('')
   const endRef = useRef(null)
   const triggerRef = useRef(null)
@@ -110,6 +112,7 @@ export function AiCoach({
     && captureSelection.width >= MIN_CAPTURE_SELECTION_SIDE
     && captureSelection.height >= MIN_CAPTURE_SELECTION_SIDE,
   )
+  const hasImageAttachments = imageDataUrls.length > 0
   const closeCoach = useCallback(() => {
     setOpen(false)
     setBuilderOpen(false)
@@ -145,7 +148,11 @@ export function AiCoach({
     // Do not write A's in-memory messages into B's storage key during an
     // account switch. The reset effect below hydrates the new scoped history.
     if (hydratedStorageKeyRef.current !== storageKey) return
-    window.localStorage.setItem(storageKey, JSON.stringify(messages.slice(-30)))
+    const storedMessages = messages.slice(-30).map(({ imageDataUrls: messageImages, ...message }) => ({
+      ...message,
+      attachmentCount: Number(message.attachmentCount) || messageImages?.length || 0,
+    }))
+    window.localStorage.setItem(storageKey, JSON.stringify(storedMessages))
     endRef.current?.scrollIntoView({ block: 'nearest' })
   }, [messages, storageKey])
 
@@ -157,7 +164,7 @@ export function AiCoach({
     setMessages(loadMessages(storageKey))
     setDraft('')
     setHintLevel(1)
-    setImageDataUrl('')
+    setImageDataUrls([])
     setError('')
     setLoading(false)
     setCapturing(false)
@@ -168,6 +175,7 @@ export function AiCoach({
     setCaptureSelection(null)
     setCaptureError('')
     setAttachingCapture(false)
+    setPreparingImages(false)
     setBuilderOpen(false)
     setOpen(false)
   }, [storageKey])
@@ -214,7 +222,8 @@ export function AiCoach({
     setCaptureError('')
     setAttachingCapture(false)
     setDraft('')
-    setImageDataUrl('')
+    setImageDataUrls([])
+    setPreparingImages(false)
     setError('')
   }, [disabled])
 
@@ -265,10 +274,17 @@ export function AiCoach({
 
   async function ask(message, level = hintLevel) {
     const clean = String(message || '').trim()
-    if ((!clean && !imageDataUrl) || loading) return
-    const studentMessage = { role: 'user', content: clean || 'Please check the attached work.', createdAt: new Date().toISOString() }
+    const attachments = imageDataUrls.slice(0, MAX_COACH_IMAGE_ATTACHMENTS)
+    if ((!clean && !attachments.length) || loading) return
+    const studentMessage = {
+      role: 'user',
+      content: clean || 'Please check the attached work.',
+      imageDataUrls: attachments,
+      attachmentCount: attachments.length,
+      createdAt: new Date().toISOString(),
+    }
     const previous = messages.slice(-10).map(({ role, content }) => ({ role, content }))
-    const intent = imageDataUrl ? null : resolveCoachIntent(clean, previous)
+    const intent = attachments.length ? null : resolveCoachIntent(clean, previous)
     const assistantId = `coach-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`
     setMessages((current) => [...current, studentMessage])
     setDraft('')
@@ -291,7 +307,7 @@ export function AiCoach({
             mode: 'agent',
             createdAt: new Date().toISOString(),
           }])
-          setImageDataUrl('')
+          setImageDataUrls([])
           if (!action.keepOpen) closeCoach()
           return
         }
@@ -307,7 +323,7 @@ export function AiCoach({
       const response = await fetch('/api/ai/coach/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: studentMessage.content, history: previous, context: intent?.type === 'clarify-practice' ? { ...context, agentIntent: intent } : context, hintLevel: level, imageDataUrl }),
+        body: JSON.stringify({ message: studentMessage.content, history: previous, context: intent?.type === 'clarify-practice' ? { ...context, agentIntent: intent } : context, hintLevel: level, imageDataUrls: attachments }),
         signal: controller.signal,
       })
       const contentType = response.headers.get('content-type') || ''
@@ -340,6 +356,10 @@ export function AiCoach({
             streamedAnswer += String(payload.text || '')
             updateAssistant({ content: streamedAnswer, mode: 'ai' })
           }
+          if (eventName === 'reset') {
+            streamedAnswer = ''
+            updateAssistant({ content: '', mode: 'streaming', warning: '' })
+          }
           if (eventName === 'done') {
             updateAssistant({
               content: payload.answer || streamedAnswer,
@@ -348,7 +368,7 @@ export function AiCoach({
             })
             if (payload.mode === 'offline') setError(payload.warning || 'AI Coach is offline. This response is only a controlled offline hint.')
           }
-          if (eventName === 'meta' && payload.mode) updateAssistant({ mode: payload.mode })
+          if (eventName === 'meta' && payload.mode) updateAssistant({ mode: payload.mode, provider: payload.provider || '' })
         }
         while (true) {
           const { value, done } = await reader.read()
@@ -360,7 +380,7 @@ export function AiCoach({
         }
         if (buffer) consumeEvent(buffer)
       }
-      setImageDataUrl('')
+      setImageDataUrls([])
       if (/hint|提示|下一步|截图|手写/i.test(clean)) setHintLevel((current) => Math.min(5, current + 1))
     } catch (requestError) {
       if (requestError?.name === 'AbortError') return
@@ -373,19 +393,39 @@ export function AiCoach({
   }
 
   async function attachImage(event) {
-    const file = event.target.files?.[0]
+    const files = [...(event.target.files || [])]
     event.target.value = ''
-    if (!file) return
+    if (!files.length) return
+    const available = MAX_COACH_IMAGE_ATTACHMENTS - imageDataUrls.length
+    if (available <= 0) {
+      setError(`Remove a photo before adding more. Coach accepts up to ${MAX_COACH_IMAGE_ATTACHMENTS}.`)
+      return
+    }
+    const selected = files.slice(0, available)
+    setPreparingImages(true)
+    setError('')
     try {
-      setImageDataUrl(await imageFileToDataUrl(file))
-      setError('')
+      const prepared = await Promise.allSettled(selected.map((file) => imageFileToDataUrl(file)))
+      const ready = prepared.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
+      if (ready.length) {
+        setImageDataUrls((current) => [...current, ...ready].slice(0, MAX_COACH_IMAGE_ATTACHMENTS))
+      }
+      const rejected = prepared.find((result) => result.status === 'rejected')
+      if (rejected) setError(rejected.reason?.message || 'One of the selected photos could not be attached.')
+      else if (files.length > selected.length) setError(`Only the first ${MAX_COACH_IMAGE_ATTACHMENTS} photos were attached.`)
     } catch (attachError) {
       setError(attachError.message)
+    } finally {
+      setPreparingImages(false)
     }
   }
 
   async function captureCurrentPage() {
     if (capturing) return
+    if (imageDataUrls.length >= MAX_COACH_IMAGE_ATTACHMENTS) {
+      setError(`Remove a photo before adding more. Coach accepts up to ${MAX_COACH_IMAGE_ATTACHMENTS}.`)
+      return
+    }
     setError('')
     setCapturing(true)
     setCaptureError('')
@@ -460,7 +500,7 @@ export function AiCoach({
       const screenshot = captureFrameRef.current
         ? await cropCurrentPageCapture(captureFrameRef.current, captureSelection)
         : await cropVisiblePageVisuals(captureSelection)
-      setImageDataUrl(screenshot)
+      setImageDataUrls((current) => [...current, screenshot].slice(0, MAX_COACH_IMAGE_ATTACHMENTS))
       setError('')
       closeScreenshotCapture({ focus: false })
     } catch (selectionError) {
@@ -532,11 +572,11 @@ export function AiCoach({
           <div className="ai-coach__quick-actions">
             {onGeneratePractice && <button type="button" className={builderOpen ? 'active' : ''} onClick={() => setBuilderOpen((value) => !value)}><Sparkles size={13} />Build practice</button>}
             <button ref={captureButtonRef} type="button" className="ai-coach__screenshot" aria-label="Capture question area" disabled={capturing} onClick={captureCurrentPage}><MonitorUp size={13} />{capturing ? 'Capturing...' : 'Capture question area'}</button>
-            <button type="button" className="ai-coach__screenshot" onClick={() => screenshotInputRef.current?.click()}><ImagePlus size={13} />Provide screenshot</button>
+            <button type="button" className="ai-coach__screenshot" disabled={preparingImages || imageDataUrls.length >= MAX_COACH_IMAGE_ATTACHMENTS} onClick={() => screenshotInputRef.current?.click()}><ImagePlus size={13} />{preparingImages ? 'Preparing...' : `Provide screenshots (${imageDataUrls.length}/${MAX_COACH_IMAGE_ATTACHMENTS})`}</button>
             {canOpenBphoSpc && <button type="button" onClick={() => ask('打开最新的 BPhO SPC 真题，带答案。')}><FileText size={13} />Latest BPhO SPC</button>}
             <button type="button" onClick={() => ask('Give me a hint for the next step.', hintLevel)}>Hint {hintLevel}/5</button>
             <button type="button" onClick={() => ask('Check my method and identify the first issue.', 3)}>Check method</button>
-            {imageDataUrl && <button type="button" onClick={() => ask('Read my attached work. Give me the first issue and one next step, without giving the final answer.', hintLevel)}><ImagePlus size={13} />Review screenshot</button>}
+            {hasImageAttachments && <button type="button" onClick={() => ask('Read my attached work. Give me the first issue and one next step, without giving the final answer.', hintLevel)}><ImagePlus size={13} />Review {imageDataUrls.length > 1 ? 'photos' : 'photo'}</button>}
             <button type="button" onClick={() => ask('What should I practise next based on this response?', 2)}>Next practice</button>
           </div>
         </details>
@@ -556,6 +596,8 @@ export function AiCoach({
             <article className={`ai-message ai-message--${message.role}`} key={`${message.createdAt || index}-${index}`}>
               <span>{message.role === 'assistant' ? 'Coach' : 'You'}</span>
               <CoachMessage content={message.content} />
+              {message.imageDataUrls?.length ? <div className="ai-message__attachments" aria-label={`${message.imageDataUrls.length} photos sent`}>{message.imageDataUrls.map((image, imageIndex) => <img src={image} alt={`Sent work ${imageIndex + 1}`} key={`${message.createdAt}-image-${imageIndex}`} />)}</div> : null}
+              {!message.imageDataUrls?.length && message.attachmentCount > 0 ? <small>{message.attachmentCount} photos were attached to this message.</small> : null}
               {message.warning && <small>{message.warning}</small>}
               {message.role === 'assistant' && message.mode === 'local' && <small>Local hint first. Ask for a detailed explanation to use AI Coach.</small>}
               {message.role === 'assistant' && message.mode === 'offline' && <small>Offline hint only; retry when AI Coach is available.</small>}
@@ -566,18 +608,25 @@ export function AiCoach({
         </div>
 
         <footer>
-          {imageDataUrl && <div className="ai-coach__attachment"><img src={imageDataUrl} alt="Attached work" /><span>Image attached</span><button type="button" onClick={() => setImageDataUrl('')} aria-label="Remove attachment"><X size={15} /></button></div>}
+          {hasImageAttachments && <div className="ai-coach__attachments" role="status" aria-live="polite">
+            <span className="ai-coach__attachment-summary"><strong>{imageDataUrls.length}/{MAX_COACH_IMAGE_ATTACHMENTS}</strong> photos ready</span>
+            {imageDataUrls.map((image, index) => <div className="ai-coach__attachment" key={`${image.slice(-24)}-${index}`}>
+              <img src={image} alt={`Attached work ${index + 1}`} />
+              <button type="button" onClick={() => setImageDataUrls((current) => current.filter((_, itemIndex) => itemIndex !== index))} aria-label={`Remove attached photo ${index + 1}`}><X size={14} /></button>
+            </div>)}
+          </div>}
+          {preparingImages && <p className="ai-coach__attachment-status" role="status">Preparing photos...</p>}
           {error && <p className="ai-coach__error" role="alert">{error}</p>}
           <form className="ai-coach__composer" onSubmit={submitComposer}>
-            <button type="button" className="ai-coach__composer-attach" title="Provide screenshot" aria-label="Provide screenshot" onClick={() => screenshotInputRef.current?.click()}><ImagePlus size={18} /></button>
-            <input ref={screenshotInputRef} type="file" accept="image/*" hidden onChange={attachImage} />
+            <button type="button" className="ai-coach__composer-attach" title="Add photos" aria-label="Add photos" disabled={preparingImages || imageDataUrls.length >= MAX_COACH_IMAGE_ATTACHMENTS} onClick={() => screenshotInputRef.current?.click()}><ImagePlus size={18} /></button>
+            <input ref={screenshotInputRef} type="file" accept="image/*" multiple hidden onChange={attachImage} />
             <textarea rows="2" value={draft} placeholder="Ask about a concept or your next step..." onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault()
                 void ask(draft)
               }
             }} />
-            <button type="submit" disabled={loading || (!draft.trim() && !imageDataUrl)} aria-label="Send to AI Coach"><Send size={18} /></button>
+            <button type="submit" disabled={loading || preparingImages || (!draft.trim() && !hasImageAttachments)} aria-label="Send to AI Coach"><Send size={18} /></button>
           </form>
         </footer>
       </aside>

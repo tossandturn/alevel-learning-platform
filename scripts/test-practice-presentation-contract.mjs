@@ -13,6 +13,7 @@ const {
   sourceQuestionDisplayLabel,
   responsePresent,
   evidencePresent,
+  aggregateTopicPracticeInventory,
 } = practicePresentation
 
 const mixedUnit = {
@@ -125,6 +126,37 @@ assert.deepEqual(topicPracticeInventory({ verifiedQuestionCount: 8, studyQuestio
   pendingReviewCount: 0,
 }, 'available source questions must not be presented as all formally reviewed')
 
+assert.deepEqual(aggregateTopicPracticeInventory([
+  {
+    id: 'topic-a',
+    questionIdsByComponent: {
+      1: {
+        indexedQuestionIds: ['q1', 'shared'],
+        verifiedQuestionIds: ['q1'],
+        studyQuestionIds: ['shared'],
+        pendingReviewQuestionIds: ['shared'],
+      },
+    },
+  },
+  {
+    id: 'topic-b',
+    questionIdsByComponent: {
+      1: {
+        indexedQuestionIds: ['shared', 'q2'],
+        verifiedQuestionIds: ['q2'],
+        studyQuestionIds: ['shared'],
+        pendingReviewQuestionIds: ['shared'],
+      },
+    },
+  },
+], [1]), {
+  verifiedQuestionCount: 2,
+  studyQuestionCount: 1,
+  availableQuestionCount: 3,
+  indexedQuestionCount: 3,
+  pendingReviewCount: 1,
+}, 'multi-topic inventory must deduplicate a question mapped to more than one syllabus topic')
+
 const recommendationUnits = [
   {
     id: 'topic-1-set',
@@ -171,6 +203,8 @@ assert.doesNotMatch(paperLibrarySource, /catalogState\.catalog\.totals\.bytes/, 
 assert.match(workspaceSource, /unansweredAnswerPartCount/, 'submit confirmation must use the canonical unanswered answer-part count')
 assert.match(workspaceSource, /answer part is|answer parts are/, 'submit confirmation must describe unresolved answer parts explicitly')
 assert.match(workspaceSource, /sourceQuestionDisplayLabel/, 'question navigation must identify the source paper and question')
+assert.match(workspaceSource, /paperCount/, 'practice workspace must display the canonical paper count')
+assert.match(workspaceSource, /totalMarks/, 'practice workspace must display the canonical total marks')
 assert.match(workspaceSource, /Semantic-reviewed/, 'reviewed written parts must use the student-facing semantic-reviewed status')
 assert.match(workspaceSource, /official question/, 'student practice metrics must call question groups official questions')
 assert.doesNotMatch(workspaceSource, /metrics\.markTotal|source question\{/, 'student practice metrics must use the canonical totalMarks and official-question terminology')

@@ -9,6 +9,7 @@ import { isHumanReviewedPastPaperItem, isStudyOnlyPastPaperItem, normalizeImport
 import { routeById } from '../data/routeRegistry.js'
 import { canonicalSourceMarkingProvenance, canonicalSourcePracticeProvenance } from './sourceContentContract.js'
 import { canonicalSyllabusTopicIdForRoute } from './syllabusPracticeRoutes.js'
+import { practiceUnitMetrics, withPracticePresentation } from './practicePresentation.js'
 
 export { supportsSyllabusPracticeRoute } from './syllabusPracticeRoutes.js'
 
@@ -400,6 +401,16 @@ function topicRowsForRoute(routeId, questionBank) {
     const verifiedQuestionCount = eligible.length
     const studyQuestionCount = topicRecords.filter((record) => record.studyEligible).length
     const availableQuestionCount = verifiedQuestionCount + studyQuestionCount
+    const questionIdsByComponent = Object.fromEntries(config.components.map((component) => {
+      const componentRecords = topicRecords.filter((record) => record.paperComponent === component)
+      const componentIds = (filter) => componentRecords.filter(filter).map((record) => record.sourceQuestionId)
+      return [component, {
+        indexedQuestionIds: componentIds(() => true),
+        verifiedQuestionIds: componentIds((record) => record.eligible),
+        studyQuestionIds: componentIds((record) => record.studyEligible),
+        pendingReviewQuestionIds: componentIds((record) => !record.eligible),
+      }]
+    }))
     const componentCounts = Object.fromEntries(config.components.map((component) => {
       const componentRecords = topicRecords.filter((record) => record.paperComponent === component)
       const componentVerified = componentRecords.filter((record) => record.eligible).length
@@ -419,6 +430,7 @@ function topicRowsForRoute(routeId, questionBank) {
       studyQuestionCount,
       availableQuestionCount,
       componentCounts,
+      questionIdsByComponent,
       indexedQuestionCount,
       pendingReviewCount,
       availableSetSizes: SET_SIZES.filter((size) => size <= availableQuestionCount),
@@ -661,6 +673,19 @@ function publicQuestionGroup(record) {
   }
 }
 
+function questionGroupSetMetrics(questionGroups) {
+  const parts = questionGroups.flatMap((group) => (group.parts || []).map((part) => ({
+    ...part,
+    sourceQuestionId: group.id,
+    questionGroupId: group.questionGroupId || group.id,
+    sourceRef: group.sourceRef,
+    paperComponent: group.paperComponent,
+    reviewStatus: group.reviewStatus,
+    studyOnly: group.studyOnly === true,
+  })))
+  return practiceUnitMetrics({ parts })
+}
+
 function samePracticeBinding(left, right) {
   return Boolean(left && right
     && left.sourceQuestionId === right.sourceQuestionId
@@ -699,7 +724,7 @@ export function rebindSyllabusPracticeUnit(unit, { questionBank = studyQuestionB
     .map((value) => Number(value))
     .filter((value) => config.components.includes(value)))]
   const persistedParts = Array.isArray(unit.parts) ? unit.parts : []
-  if (!topicIds.length || !selectedComponents.length || !persistedParts.length) return null
+  if (!topicIds.length || !selectedComponents.length || !persistedParts.length || persistedParts.length > 500) return null
 
   const recordsByQuestionId = new Map(effectiveQuestionRecords(questionBank, config)
     .filter((record) => (record.eligible || record.studyEligible)
@@ -723,7 +748,6 @@ export function rebindSyllabusPracticeUnit(unit, { questionBank = studyQuestionB
     if (!record || !group || !currentPart || !samePracticeBinding(persistedBinding, currentPart.sourceBindingProvenance)) return null
 
     reboundParts.push(Object.freeze({
-      ...persistedPart,
       ...currentPart,
       id: String(persistedPart.id || ''),
       sourceQuestionId,
@@ -775,24 +799,35 @@ export function rebindSyllabusPracticeUnit(unit, { questionBank = studyQuestionB
     .filter((topic) => topicIds.includes(topic.id))
     .map((topic) => topic.name)
   const topicLabel = selectedTopicNames.join(' + ') || 'Selected syllabus topic'
-  return Object.freeze({
-    ...unit,
+  return Object.freeze(withPracticePresentation({
+    id: String(unit.id || ''),
+    type: 'topic',
+    agentGenerated: true,
+    sourceAuthority: 'server-syllabus',
     routeId: route.routeId,
     qualification: route.qualification,
     subject: route.subject,
+    subjectCode: config.subjectCode,
     subjectId: route.subjectId,
+    qualificationId: `cambridge-${config.subjectCode}`,
     stage: route.stage,
+    knowledgeGroupId: topicIds[0],
+    topicId: topicIds[0],
+    syllabusTopic: topicIds.join(','),
     topic: topicLabel,
     title: `${route.stage} ${route.subject} · ${topicLabel}`,
     paperComponent: selectedComponents,
+    sourcePaper: [...paperById.values()].map((paper) => paper.file).filter(Boolean).join(', '),
+    difficulty: 'Past paper',
+    priority: 'Syllabus set',
+    inventoryStatus: hasStudyOnlyPart ? 'study-source-inventory' : 'verified-source-inventory',
     parts: Object.freeze(reboundParts),
-    maxMarks: reboundParts.reduce((sum, part) => sum + Number(part.marks || 0), 0),
     questionGroupCount: new Set(reboundParts.map((part) => part.sourceQuestionId)).size,
     referencePapers: Object.freeze([...paperById.values()]),
     practiceMode: hasStudyOnlyPart ? 'study-only' : 'verified',
     sourceGateVersion: 'server-syllabus-catalog-v2',
     sourceGateStatus: 'current',
-  })
+  }))
 }
 
 export function buildSyllabusPracticeSet({
@@ -858,6 +893,7 @@ export function buildSyllabusPracticeSet({
     error.indexedCount = records.filter((record) => topicIds.some((topicId) => record.mapping.topicIds?.includes(topicId))).length
     throw error
   }
+  const metrics = questionGroupSetMetrics(selected.map(publicQuestionGroup))
   return {
     schemaVersion: 'syllabus-practice-set-v1',
     routeId,
@@ -871,7 +907,14 @@ export function buildSyllabusPracticeSet({
     components: selectedComponents,
     requestedCount,
     availableCount: availableRecords.length,
-    questionCount: selected.length,
+    sourceQuestionCount: metrics.sourceQuestionCount,
+    answerPartCount: metrics.answerPartCount,
+    paperCount: metrics.paperCount,
+    totalMarks: metrics.totalMarks,
+    autoScoredPartCount: metrics.autoScoredPartCount,
+    selfMarkPartCount: metrics.selfMarkPartCount,
+    semanticReviewedPartCount: metrics.semanticReviewedPartCount,
+    questionCount: metrics.sourceQuestionCount,
     practiceMode: selected.some((record) => record.studyOnly) ? 'study-only' : 'verified',
     partial: selected.length < requestedCount,
     seed: Number(seed) >>> 0,
