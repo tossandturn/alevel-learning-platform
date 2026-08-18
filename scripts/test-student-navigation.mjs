@@ -69,6 +69,11 @@ assert.match(
 )
 assert.match(
   appSource,
+  /\.filter\(\(unit\) => unit\.agentGenerated \|\| unit\.focusedRetestOf \|\| unit\.sourceAuthority === 'server-syllabus'\)/,
+  'a current server-syllabus AI Practice set must remain a restoration candidate after refresh',
+)
+assert.match(
+  appSource,
   /navigation\.view === 'paper' && paperCatalogState\.status === 'loading'/,
   'paper restoration must wait for catalog readiness instead of falling back to the library',
 )

@@ -205,6 +205,30 @@ async function runViewport(page, server, viewport) {
   assert.deepEqual(aiComponentOptions, ['P1 + P2 mixed', 'P1', 'P2'], '9702 AS AI Practice must keep practical P3 outside the theory builder')
   assert.match((await page.locator('.ai-practice-builder').innerText()).replace(/\s+/g, ' '), /source questions.*ready for formal progress/i, 'AI Practice must distinguish source inventory from formal progress readiness')
   await page.screenshot({ path: path.join(ARTIFACT_DIR, `qa-student-hierarchy-ai-practice-${viewport.name}.png`), fullPage: false })
+
+  const buildPracticeResponse = page.waitForResponse((response) => response.url().includes('/api/stem/practice-sets') && response.request().method() === 'POST')
+  await page.getByRole('button', { name: /^Build practice$/ }).click()
+  const builtPracticeResponse = await buildPracticeResponse
+  assert.equal(builtPracticeResponse.status(), 201, 'AI Practice must create a current source-backed set before entering the workspace')
+  await page.locator('.qp-player').waitFor({ state: 'visible' })
+  await page.getByRole('button', { name: /^Next question$/ }).click()
+  await page.getByLabel('Question progress').getByText(/Question 2 of 10/).waitFor({ state: 'visible' })
+  const attemptBeforeReload = new URL(page.url())
+  const rebindResponse = page.waitForResponse((response) => response.url().includes('/api/stem/practice-sets/rebind') && response.request().method() === 'POST')
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  const reboundPracticeResponse = await rebindResponse
+  assert.equal(reboundPracticeResponse.status(), 200, 'a saved AI Practice set must pass the current server-side source rebind on refresh')
+  await page.locator('.qp-player').waitFor({ state: 'visible' })
+  await page.getByLabel('Question progress').getByText(/Question 2 of 10/).waitFor({ state: 'visible' })
+  const attemptAfterReload = new URL(page.url())
+  assert.equal(attemptAfterReload.pathname, '/attempt', 'refresh must retain the AI Practice workspace instead of returning to Topic Drill')
+  for (const key of ['routeId', 'unitId', 'attemptId', 'partId']) {
+    assert.equal(attemptAfterReload.searchParams.get(key), attemptBeforeReload.searchParams.get(key), `refresh must retain the current ${key}`)
+  }
+  await page.screenshot({ path: path.join(ARTIFACT_DIR, `qa-student-hierarchy-ai-practice-restored-${viewport.name}.png`), fullPage: false })
+
+  await page.getByRole('button', { name: 'Back to library' }).click()
+  await page.locator('.practice-hub').waitFor({ state: 'visible' })
   await page.getByRole('button', { name: /^Topic Drill$/ }).click()
   await topicFocus.selectOption('')
 

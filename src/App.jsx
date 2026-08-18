@@ -462,7 +462,7 @@ function App() {
 
   const visibleVerifiedUnits = useMemo(() => {
     const persisted = (appState.generatedUnits || [])
-      .filter((unit) => unit.agentGenerated || unit.focusedRetestOf)
+      .filter((unit) => unit.agentGenerated || unit.focusedRetestOf || unit.sourceAuthority === 'server-syllabus')
       .map((unit) => rebindPracticeUnit(unit, syllabusRebindState.units, practiceRuntime))
       .filter(Boolean)
     const labelled = [...persisted, ...verifiedCatalogUnits.filter((catalogUnit) => !persisted.some((unit) => unit.id === catalogUnit.id))]
