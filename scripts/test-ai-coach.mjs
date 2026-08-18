@@ -195,6 +195,57 @@ try {
   assert.match(failed.text, /Qwen upstream returned HTTP 503/)
   assert.doesNotMatch(failed.text, /provider secret balance detail|insufficient_balance/)
 
+  let openAiFallbackRequests = 0
+  let qwenFallbackRequests = 0
+  const openAiFallbackServer = http.createServer((request, response) => {
+    openAiFallbackRequests += 1
+    response.statusCode = 503
+    response.setHeader('Content-Type', 'application/json')
+    response.end(JSON.stringify({ error: { code: 'model_not_supported', message: 'provider detail must stay server-side' } }))
+  })
+  const qwenFallbackServer = http.createServer((request, response) => {
+    qwenFallbackRequests += 1
+    response.statusCode = 200
+    response.setHeader('Content-Type', 'text/event-stream')
+    response.end('data: {"choices":[{"delta":{"content":"qwen fallback answer"}}]}\n\ndata: [DONE]\n\n')
+  })
+  const openAiFallbackBase = await listen(openAiFallbackServer)
+  const qwenFallbackBase = await listen(qwenFallbackServer)
+  const fallbackApi = createAiApi({
+    env: {
+      OPENAI_API_KEY: 'test-openai-key',
+      OPENAI_BASE_URL: openAiFallbackBase,
+      OPENAI_MODEL: 'gpt-5.6-test',
+      DASHSCOPE_API_KEY: 'test-qwen-key',
+      DASHSCOPE_COMPAT_BASE_URL: qwenFallbackBase,
+      COACH_AI_MODEL: 'qwen-fallback-coach',
+    },
+    libraryRoot: path.join(tempRoot, 'library'),
+    allowedSubjects: new Set(['0580']),
+  })
+  const fallbackAppServer = requestHandler(fallbackApi)
+  const fallbackAppBase = await listen(fallbackAppServer)
+  try {
+    const fallback = await fetch(`${fallbackAppBase}/api/ai/coach/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: 'Explain the method and check the units in detail.',
+        hintLevel: 3,
+        context: { stage: 'AS', topic: 'Mechanics', question: { prompt: 'Fallback fixture.', number: 4 } },
+      }),
+    })
+    const fallbackText = await fallback.text()
+    assert.equal(fallback.status, 200)
+    assert.match(fallbackText, /qwen fallback answer/)
+    assert.match(fallbackText, /"provider":"qwen"/)
+    assert.equal(openAiFallbackRequests, 1, 'OpenAI must be attempted first')
+    assert.equal(qwenFallbackRequests, 1, 'Qwen must take over when OpenAI is unsupported')
+    assert.doesNotMatch(fallbackText, /provider detail must stay server-side/)
+  } finally {
+    await Promise.all([close(fallbackAppServer), close(openAiFallbackServer), close(qwenFallbackServer)])
+  }
+
   const coachSource = fs.readFileSync(path.join(root, 'src', 'components', 'AiCoach.jsx'), 'utf8')
   const appSource = fs.readFileSync(path.join(root, 'src', 'App.jsx'), 'utf8')
   const appStyles = fs.readFileSync(path.join(root, 'src', 'App.css'), 'utf8')

@@ -318,7 +318,7 @@ export function AiCoach({
       if (!contentType.includes('text/event-stream')) {
         const payload = await response.json().catch(() => ({}))
         updateAssistant({ content: payload.answer || '', mode: payload.mode, warning: payload.warning || '' })
-        if (payload.mode === 'offline') setError(payload.warning || 'Qwen is offline. This response is only a controlled offline hint.')
+        if (payload.mode === 'offline') setError(payload.warning || 'AI Coach is offline. This response is only a controlled offline hint.')
       } else {
         const reader = response.body?.getReader()
         if (!reader) throw new Error('AI Coach returned no stream body.')
@@ -346,7 +346,7 @@ export function AiCoach({
               mode: payload.mode,
               warning: payload.warning || '',
             })
-            if (payload.mode === 'offline') setError(payload.warning || 'Qwen is offline. This response is only a controlled offline hint.')
+            if (payload.mode === 'offline') setError(payload.warning || 'AI Coach is offline. This response is only a controlled offline hint.')
           }
           if (eventName === 'meta' && payload.mode) updateAssistant({ mode: payload.mode })
         }
@@ -557,8 +557,8 @@ export function AiCoach({
               <span>{message.role === 'assistant' ? 'Coach' : 'You'}</span>
               <CoachMessage content={message.content} />
               {message.warning && <small>{message.warning}</small>}
-              {message.role === 'assistant' && message.mode === 'local' && <small>Local hint first. Ask for a detailed explanation to use Qwen.</small>}
-              {message.role === 'assistant' && message.mode === 'offline' && <small>Offline hint only; retry when Qwen is available.</small>}
+              {message.role === 'assistant' && message.mode === 'local' && <small>Local hint first. Ask for a detailed explanation to use AI Coach.</small>}
+              {message.role === 'assistant' && message.mode === 'offline' && <small>Offline hint only; retry when AI Coach is available.</small>}
             </article>
           ))}
           {loading && <div className="ai-coach__thinking"><span />Reviewing the current question...</div>}

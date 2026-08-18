@@ -448,6 +448,15 @@ export function canonicalHandwritingMarkingContext(payload = {}) {
 }
 
 export function providerConfig(env = {}) {
+  const explicitProvider = String(env.AI_PROVIDER || env.COACH_AI_PROVIDER || env.PHYSICS_AI_PROVIDER || '').trim().toLowerCase()
+  const openAiKey = env.OPENAI_API_KEY || env.OPENAI_COACH_API_KEY || ''
+  const selectedProvider = explicitProvider === 'qwen' || explicitProvider === 'dashscope'
+    ? 'qwen'
+    : explicitProvider === 'openai'
+      ? 'openai'
+      : openAiKey
+        ? 'openai'
+        : 'qwen'
   const workspaceId = env.DASHSCOPE_WORKSPACE_ID || env.QWEN_WORKSPACE_ID || ''
   const region = env.DASHSCOPE_REGION || 'cn-beijing'
   const dashscopeBase = workspaceId
@@ -459,29 +468,64 @@ export function providerConfig(env = {}) {
   const sharedBaseUrl = (env.PHYSICS_AI_BASE_URL || compatibleBaseUrl).replace(/\/+$/, '')
   const publicBaseUrl = env.PHYSICS_PUBLIC_BASE_URL || env.PUBLIC_BASE_URL || ''
   const imageMode = env.PHYSICS_AI_IMAGE_MODE === 'url' ? 'url' : 'data-url'
+  const qwenCoach = {
+    name: 'qwen',
+    label: 'Qwen',
+    apiKey: env.COACH_AI_API_KEY || env.QWEN_COACH_API_KEY || sharedKey,
+    baseUrl: normalizeCompatibleBaseUrl(env.COACH_AI_BASE_URL || env.QWEN_COACH_BASE_URL || sharedBaseUrl),
+    model: env.COACH_AI_MODEL || env.QWEN_COACH_MODEL || env.PHYSICS_COACH_MODEL || 'qwen3.7-max',
+    publicBaseUrl,
+    imageMode,
+  }
+  const qwenVision = {
+    name: 'qwen',
+    label: 'Qwen',
+    apiKey: env.VISION_AI_API_KEY || env.QWEN_VISION_API_KEY || sharedKey,
+    baseUrl: normalizeCompatibleBaseUrl(env.VISION_AI_BASE_URL || env.QWEN_VISION_BASE_URL || sharedBaseUrl),
+    model: env.VISION_AI_MODEL || env.QWEN_VISION_MODEL || env.PHYSICS_VISION_MODEL || 'qwen3-vl-plus',
+    publicBaseUrl,
+    imageMode,
+  }
+  if (selectedProvider === 'openai') {
+    const openAiBaseUrl = normalizeCompatibleBaseUrl(env.OPENAI_CHAT_BASE_URL || env.OPENAI_BASE_URL || 'https://api.openai.com/v1')
+    const openAiCoachModel = env.OPENAI_COACH_MODEL || env.OPENAI_MODEL || 'gpt-5.6'
+    const openAiCoach = {
+      name: 'openai',
+      label: 'OpenAI',
+      apiKey: openAiKey,
+      baseUrl: openAiBaseUrl,
+      model: openAiCoachModel,
+      publicBaseUrl,
+      imageMode,
+      fallback: qwenCoach,
+    }
+    const openAiVision = {
+      name: 'openai',
+      label: 'OpenAI',
+      apiKey: env.OPENAI_VISION_API_KEY || openAiKey,
+      baseUrl: normalizeCompatibleBaseUrl(env.OPENAI_VISION_BASE_URL || openAiBaseUrl),
+      model: env.OPENAI_VISION_MODEL || env.OPENAI_MODEL || openAiCoachModel,
+      publicBaseUrl,
+      imageMode,
+      fallback: qwenVision,
+    }
+    return {
+      provider: 'openai',
+      coach: openAiCoach,
+      vision: openAiVision,
+    }
+  }
   return {
     provider: 'qwen',
-    coach: {
-      apiKey: env.COACH_AI_API_KEY || env.QWEN_COACH_API_KEY || sharedKey,
-      baseUrl: normalizeCompatibleBaseUrl(env.COACH_AI_BASE_URL || env.QWEN_COACH_BASE_URL || sharedBaseUrl),
-      model: env.COACH_AI_MODEL || env.QWEN_COACH_MODEL || env.PHYSICS_COACH_MODEL || 'qwen3.7-max',
-      publicBaseUrl,
-      imageMode,
-    },
-    vision: {
-      apiKey: env.VISION_AI_API_KEY || env.QWEN_VISION_API_KEY || sharedKey,
-      baseUrl: normalizeCompatibleBaseUrl(env.VISION_AI_BASE_URL || env.QWEN_VISION_BASE_URL || sharedBaseUrl),
-      model: env.VISION_AI_MODEL || env.QWEN_VISION_MODEL || env.PHYSICS_VISION_MODEL || 'qwen3-vl-plus',
-      publicBaseUrl,
-      imageMode,
-    },
+    coach: qwenCoach,
+    vision: qwenVision,
   }
 }
 
 function normalizeCompatibleBaseUrl(value) {
   const source = String(value || '').trim().replace(/[\r\n]+/g, '').replace(/\/+$/, '')
   if (!source) return ''
-  if (/\/chat\/completions$/i.test(source)) return source.replace(/\/chat\/completions$/i, '')
+  if (/\/(?:chat\/completions|responses)$/i.test(source)) return source.replace(/\/(?:chat\/completions|responses)$/i, '')
   return source
 }
 
@@ -497,15 +541,32 @@ function publicBaseUrlFromRequest(request) {
   return `${proto}://${host}`
 }
 
-function providerMessage(error) {
+function providerMessage(error, provider) {
+  const label = provider?.label || 'AI provider'
   const message = String(error?.message || error || '')
-  if (/timeout|timed out|abort/i.test(message)) return 'Qwen request timed out. Check the server network and retry.'
-  if (/fetch failed|econn|enotfound|network/i.test(message)) return 'Qwen network request failed. Check the server network and retry.'
+  if (/timeout|timed out|abort/i.test(message)) return `${label} request timed out. Check the server network and retry.`
+  if (/fetch failed|econn|enotfound|network/i.test(message)) return `${label} network request failed. Check the server network and retry.`
   const status = message.match(/AI provider returned (\d{3})/)?.[1]
-  if (status === '401' || status === '403') return 'Qwen authentication or model access failed. Check the server key and model permission.'
-  if (status === '404') return 'Qwen model or endpoint was not found. Check the Base URL and model ID.'
-  if (status) return `Qwen upstream returned HTTP ${status}. Retry or check the provider configuration.`
-  return 'Qwen review is temporarily unavailable. Your answer remains saved.'
+  if (status === '401' || status === '403') return `${label} authentication or model access failed. Check the server key and model permission.`
+  if (status === '404') return `${label} model or endpoint was not found. Check the Base URL and model ID.`
+  if (status) return `${label} upstream returned HTTP ${status}. Retry or check the provider configuration.`
+  return `${label} review is temporarily unavailable. Your answer remains saved.`
+}
+
+function providerSampling(provider, temperature) {
+  return provider?.name === 'openai' && /^gpt-5/i.test(String(provider.model || '')) ? {} : { temperature }
+}
+
+function providerCandidates(provider) {
+  const candidates = []
+  const seen = new Set()
+  let current = provider
+  while (current && !seen.has(current)) {
+    seen.add(current)
+    if (current.apiKey) candidates.push(current)
+    current = current.fallback
+  }
+  return candidates
 }
 
 async function callCompatibleAi(provider, { messages, temperature = 0.2, json = false }) {
@@ -516,7 +577,7 @@ async function callCompatibleAi(provider, { messages, temperature = 0.2, json = 
     const response = await fetch(`${provider.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${provider.apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: provider.model, messages, temperature, stream: false, ...(json ? { response_format: { type: 'json_object' } } : {}) }),
+      body: JSON.stringify({ model: provider.model, messages, ...providerSampling(provider, temperature), stream: false, ...(json ? { response_format: { type: 'json_object' } } : {}) }),
       signal: controller.signal,
     })
     if (!response.ok) {
@@ -642,27 +703,33 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
       mode: 'local',
       providerStatus: 'skipped',
       answer: localAnswer,
-      warning: 'Local first hint. Ask for a detailed explanation to escalate to Qwen.',
+      warning: 'Local first hint. Ask for a detailed explanation to escalate to AI Coach.',
       retryable: false,
       canEscalate: true,
     })
   }
-  const activeProvider = imageDataUrl && visionProvider?.apiKey ? visionProvider : provider
-  if (!activeProvider.apiKey) return sendJson(response, 200, { mode: 'offline', providerStatus: 'not_configured', answer: localAnswer, warning: 'Qwen AI Coach is not configured on this server. This is an offline hint, not an AI review.' })
+  const configuredProvider = imageDataUrl ? visionProvider : provider
+  const activeProviders = providerCandidates(configuredProvider)
+  if (!activeProviders.length) return sendJson(response, 200, { mode: 'offline', providerStatus: 'not_configured', answer: localAnswer, warning: 'AI Coach provider is not configured on this server. This is an offline hint, not an AI review.' })
   const userText = coachRequestContext(context, message)
-  const providerImage = imageDataUrl ? await temporaryImageUrl(imageDataUrl, imagePublicBase(activeProvider, request)) : null
-  const content = providerImage ? [{ type: 'text', text: userText }, { type: 'image_url', image_url: { url: providerImage.url } }] : userText
-  try {
-    const answer = await callCompatibleAi(activeProvider, {
-      messages: [{ role: 'system', content: buildCoachSystemPrompt({ verifiedSubmitted, hintLevel }) }, ...history, { role: 'user', content }],
-      temperature: 0.2,
-    })
-    return sendJson(response, 200, { mode: 'ai', provider: 'qwen', providerStatus: 'connected', answer: answer || localAnswer, model: activeProvider.model })
-  } catch (error) {
-    return sendJson(response, 200, { mode: 'offline', provider: 'qwen', providerStatus: 'error', answer: localAnswer, warning: providerMessage(error), retryable: true })
-  } finally {
-    providerImage?.cleanup()
+  let lastError = null
+  for (const activeProvider of activeProviders) {
+    const providerImage = imageDataUrl ? await temporaryImageUrl(imageDataUrl, imagePublicBase(activeProvider, request)) : null
+    const content = providerImage ? [{ type: 'text', text: userText }, { type: 'image_url', image_url: { url: providerImage.url } }] : userText
+    try {
+      const answer = await callCompatibleAi(activeProvider, {
+        messages: [{ role: 'system', content: buildCoachSystemPrompt({ verifiedSubmitted, hintLevel }) }, ...history, { role: 'user', content }],
+        temperature: 0.2,
+      })
+      return sendJson(response, 200, { mode: 'ai', provider: activeProvider.name, providerStatus: 'connected', answer: answer || localAnswer, model: activeProvider.model })
+    } catch (error) {
+      lastError = error
+    } finally {
+      providerImage?.cleanup()
+    }
   }
+  const failedProvider = activeProviders.at(-1)
+  return sendJson(response, 200, { mode: 'offline', provider: failedProvider.name, providerStatus: 'error', answer: localAnswer, warning: providerMessage(lastError, failedProvider), retryable: true })
 }
 
 async function callCompatibleAiStream(provider, { messages, temperature = 0.2, onDelta }) {
@@ -674,7 +741,7 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, o
     const response = await fetch(`${provider.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${provider.apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: provider.model, messages, temperature, stream: true }),
+      body: JSON.stringify({ model: provider.model, messages, ...providerSampling(provider, temperature), stream: true }),
       signal: controller.signal,
     })
     if (!response.ok) {
@@ -763,67 +830,80 @@ async function handleCoachStream(request, response, provider, visionProvider, li
       providerStatus: 'skipped',
       answer: localAnswer,
       canEscalate: true,
-      warning: 'Local first hint. Ask for a detailed explanation to escalate to Qwen.',
+      warning: 'Local first hint. Ask for a detailed explanation to escalate to AI Coach.',
     })
     response.end()
     return
   }
 
-  const activeProvider = imageDataUrl && visionProvider?.apiKey ? visionProvider : provider
-  if (!activeProvider.apiKey) {
+  const configuredProvider = imageDataUrl ? visionProvider : provider
+  const activeProviders = providerCandidates(configuredProvider)
+  if (!activeProviders.length) {
     sendCoachEvent(response, 'meta', { mode: 'offline', providerStatus: 'not_configured' })
     sendCoachEvent(response, 'delta', { text: localAnswer })
     sendCoachEvent(response, 'done', {
       mode: 'offline',
       providerStatus: 'not_configured',
       answer: localAnswer,
-      warning: 'Qwen AI Coach is not configured on this server. This is an offline hint, not an AI review.',
+      warning: 'AI Coach provider is not configured on this server. This is an offline hint, not an AI review.',
     })
     response.end()
     return
   }
 
-  const providerImage = imageDataUrl ? await temporaryImageUrl(imageDataUrl, imagePublicBase(activeProvider, request)) : null
-  const content = providerImage
-    ? [{ type: 'text', text: coachRequestContext(context, message) }, { type: 'image_url', image_url: { url: providerImage.url } }]
-    : coachRequestContext(context, message)
+  const userText = coachRequestContext(context, message)
   let streamedAnswer = ''
-  try {
-    sendCoachEvent(response, 'meta', {
-      mode: 'ai',
-      provider: 'qwen',
-      providerStatus: 'connected',
-      model: activeProvider.model,
-    })
-    const result = await callCompatibleAiStream(activeProvider, {
-      messages: [{ role: 'system', content: buildCoachSystemPrompt({ verifiedSubmitted, hintLevel }) }, ...history, { role: 'user', content }],
-      temperature: 0.2,
-      onDelta: async (delta) => {
-        streamedAnswer += delta
-        sendCoachEvent(response, 'delta', { text: delta })
-      },
-    })
-    const answer = result.answer || streamedAnswer || localAnswer
-    sendCoachEvent(response, 'done', {
-      mode: 'ai',
-      provider: 'qwen',
-      providerStatus: 'connected',
-      answer,
-      model: activeProvider.model,
-    })
-  } catch (error) {
-    sendCoachEvent(response, 'done', {
-      mode: 'offline',
-      provider: 'qwen',
-      providerStatus: 'error',
-      answer: streamedAnswer || localAnswer,
-      warning: providerMessage(error),
-      retryable: true,
-    })
-  } finally {
-    providerImage?.cleanup()
-    response.end()
+  let lastError = null
+  let lastAttemptedProvider = activeProviders[0]
+  for (const activeProvider of activeProviders) {
+    lastAttemptedProvider = activeProvider
+    let providerImage = null
+    try {
+      providerImage = imageDataUrl ? await temporaryImageUrl(imageDataUrl, imagePublicBase(activeProvider, request)) : null
+      const content = providerImage
+        ? [{ type: 'text', text: userText }, { type: 'image_url', image_url: { url: providerImage.url } }]
+        : userText
+      sendCoachEvent(response, 'meta', {
+        mode: 'ai',
+        provider: activeProvider.name,
+        providerStatus: 'connected',
+        model: activeProvider.model,
+      })
+      const result = await callCompatibleAiStream(activeProvider, {
+        messages: [{ role: 'system', content: buildCoachSystemPrompt({ verifiedSubmitted, hintLevel }) }, ...history, { role: 'user', content }],
+        temperature: 0.2,
+        onDelta: async (delta) => {
+          streamedAnswer += delta
+          sendCoachEvent(response, 'delta', { text: delta })
+        },
+      })
+      const answer = result.answer || streamedAnswer || localAnswer
+      sendCoachEvent(response, 'done', {
+        mode: 'ai',
+        provider: activeProvider.name,
+        providerStatus: 'connected',
+        answer,
+        model: activeProvider.model,
+      })
+      response.end()
+      return
+    } catch (error) {
+      lastError = error
+      if (streamedAnswer) break
+    } finally {
+      providerImage?.cleanup()
+    }
   }
+  const failedProvider = lastAttemptedProvider
+  sendCoachEvent(response, 'done', {
+    mode: 'offline',
+    provider: failedProvider.name,
+    providerStatus: 'error',
+    answer: streamedAnswer || localAnswer,
+    warning: providerMessage(lastError, failedProvider),
+    retryable: true,
+  })
+  response.end()
 }
 
 async function handleHandwritingMark(request, response, provider, libraryRoot, allowedSubjects, sourceAssetRoot, env) {
@@ -872,7 +952,8 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
   }
   const { questionImages, markSchemeImages } = officialImages
   const requestedMaxMarks = Number(canonical.part.marks)
-  if (!provider.apiKey) return sendJson(response, 503, { code: 'vision_not_configured', error: 'Qwen vision marking is not configured on this local server.' })
+  const activeProviders = providerCandidates(provider)
+  if (!activeProviders.length) return sendJson(response, 503, { code: 'vision_not_configured', error: 'AI vision marking is not configured on this local server.' })
   const context = {
     subject: canonical.subject,
     syllabus: compactText(canonical.question.specification || canonical.question.qualification, 200),
@@ -895,43 +976,48 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
     'Return JSON only with: rawMarks, maxMarks, confidence (0-1), reviewRequired, summary, recognizedWork, correctedSolution, nextAction, markPoints[].',
     'Each markPoints item must contain id, awarded, marks, reason and studentEvidence.',
   ].join('\n')
-  try {
-    const publicBase = imagePublicBase(provider, request)
-    const officialSourceImages = [...questionImages, ...markSchemeImages]
-    const [studentImage, ...sourceImages] = await Promise.all([
-      hasStudentImage ? temporaryImageUrl(payload.imageDataUrl, publicBase) : null,
-      ...officialSourceImages.map((image) => temporaryImageUrl(image.dataUrl, publicBase)),
-    ])
-    const questionProviderImages = sourceImages.slice(0, questionImages.length)
-    const markSchemeProviderImages = sourceImages.slice(questionImages.length)
-    const content = [
-      { type: 'text', text: compactText(JSON.stringify({ ...context, imageOrder: { questionPaperPages: questionImages.length, markSchemePages: markSchemeImages.length, studentResponsePages: hasStudentImage ? 1 : 0 } }), 30000) },
-      ...questionProviderImages.flatMap((image, index) => [
-        { type: 'text', text: `Official question-paper page ${questionImages[index].page}; SHA-256 ${questionImages[index].sha256}.` },
-        { type: 'image_url', image_url: { url: image.url } },
-      ]),
-      ...markSchemeProviderImages.flatMap((image, index) => [
-        { type: 'text', text: `Official mark-scheme page ${markSchemeImages[index].page}; SHA-256 ${markSchemeImages[index].sha256}.` },
-        { type: 'image_url', image_url: { url: image.url } },
-      ]),
-      { type: 'text', text: hasStudentImage ? 'Student handwritten response.' : 'Student typed response (no handwriting image attached).' },
-      ...(studentImage ? [{ type: 'image_url', image_url: { url: studentImage.url } }] : []),
-    ]
-    // Qwen-VL accepts the OpenAI-compatible image message, but some DashScope
-    // deployments reject response_format. The prompt still requires JSON and
-    // parseStructuredJson validates the returned structure server-side.
+  let lastError = null
+  let lastAttemptedProvider = activeProviders[0]
+  for (const activeProvider of activeProviders) {
+    lastAttemptedProvider = activeProvider
+    let studentImage = null
+    let sourceImages = []
     try {
-      const raw = await callCompatibleAi(provider, { messages: [{ role: 'system', content: system }, { role: 'user', content }], temperature: 0.05 })
+      const publicBase = imagePublicBase(activeProvider, request)
+      const officialSourceImages = [...questionImages, ...markSchemeImages]
+      ;[studentImage, ...sourceImages] = await Promise.all([
+        hasStudentImage ? temporaryImageUrl(payload.imageDataUrl, publicBase) : null,
+        ...officialSourceImages.map((image) => temporaryImageUrl(image.dataUrl, publicBase)),
+      ])
+      const questionProviderImages = sourceImages.slice(0, questionImages.length)
+      const markSchemeProviderImages = sourceImages.slice(questionImages.length)
+      const content = [
+        { type: 'text', text: compactText(JSON.stringify({ ...context, imageOrder: { questionPaperPages: questionImages.length, markSchemePages: markSchemeImages.length, studentResponsePages: hasStudentImage ? 1 : 0 } }), 30000) },
+        ...questionProviderImages.flatMap((image, index) => [
+          { type: 'text', text: `Official question-paper page ${questionImages[index].page}; SHA-256 ${questionImages[index].sha256}.` },
+          { type: 'image_url', image_url: { url: image.url } },
+        ]),
+        ...markSchemeProviderImages.flatMap((image, index) => [
+          { type: 'text', text: `Official mark-scheme page ${markSchemeImages[index].page}; SHA-256 ${markSchemeImages[index].sha256}.` },
+          { type: 'image_url', image_url: { url: image.url } },
+        ]),
+        { type: 'text', text: hasStudentImage ? 'Student handwritten response.' : 'Student typed response (no handwriting image attached).' },
+        ...(studentImage ? [{ type: 'image_url', image_url: { url: studentImage.url } }] : []),
+      ]
+      // Providers accept the OpenAI-compatible image message, but some reject
+      // response_format. The prompt still requires JSON and the parser validates it.
+      const raw = await callCompatibleAi(activeProvider, { messages: [{ role: 'system', content: system }, { role: 'user', content }], temperature: 0.05 })
       const result = normalizeMarkResult(parseStructuredJson(raw), requestedMaxMarks)
-      return sendJson(response, 200, { mode: 'vision', provider: 'qwen', providerStatus: 'connected', model: provider.model, ...result })
+      return sendJson(response, 200, { mode: 'vision', provider: activeProvider.name, providerStatus: 'connected', model: activeProvider.model, ...result })
+    } catch (error) {
+      lastError = error
     } finally {
       studentImage?.cleanup()
       sourceImages.forEach((image) => image.cleanup())
     }
-  } catch (error) {
-    console.error(`[qwen-vision] ${String(error?.message || error).slice(0, 180)}`)
-    return sendJson(response, 200, { mode: 'offline', code: 'vision_review_failed', provider: 'qwen', providerStatus: 'error', error: providerMessage(error), retryable: true })
   }
+  console.error(`[${lastAttemptedProvider.name}-vision] ${providerMessage(lastError, lastAttemptedProvider)}`)
+  return sendJson(response, 200, { mode: 'offline', code: 'vision_review_failed', provider: lastAttemptedProvider.name, providerStatus: 'error', error: providerMessage(lastError, lastAttemptedProvider), retryable: true })
 }
 
 export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT }) {
@@ -942,12 +1028,16 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
     try {
       if (request.method === 'GET' && requestUrl.pathname.startsWith('/api/ai/image/')) return handleTemporaryImage(requestUrl, response)
       if (request.method === 'GET' && requestUrl.pathname === '/api/ai/status') {
+        const coachProvider = providerCandidates(config.coach)[0]
+        const visionProvider = providerCandidates(config.vision)[0]
         return sendJson(response, 200, {
           provider: config.provider,
-          coachEnabled: Boolean(config.coach.apiKey),
-          visionEnabled: Boolean(config.vision.apiKey),
-          coachModel: config.coach.apiKey ? config.coach.model : null,
-          visionModel: config.vision.apiKey ? config.vision.model : null,
+          coachEnabled: Boolean(coachProvider),
+          visionEnabled: Boolean(visionProvider),
+          coachProvider: coachProvider?.name || null,
+          visionProvider: visionProvider?.name || null,
+          coachModel: coachProvider?.model || null,
+          visionModel: visionProvider?.model || null,
         })
       }
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach') return await handleCoach(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env)

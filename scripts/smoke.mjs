@@ -180,7 +180,25 @@ assert.equal(qwenProviders.provider, 'qwen', 'AI routing must use Qwen')
 assert.equal(qwenProviders.coach.apiKey, 'test-only', 'Coach must inherit the IELTS-ist DashScope key')
 assert.equal(qwenProviders.coach.model, 'qwen-coach-test', 'Coach must use its Qwen model override')
 assert.equal(qwenProviders.vision.model, 'qwen-vision-test', 'Vision marking must use its Qwen vision model override')
-assert.equal(providerConfig({ OPENAI_API_KEY: 'legacy-only' }).coach.apiKey, '', 'OpenAI credentials must not silently replace Qwen')
+const openAiProviders = providerConfig({
+  OPENAI_API_KEY: 'openai-test-only',
+  OPENAI_BASE_URL: 'https://api.openai.test/v1',
+  OPENAI_MODEL: 'gpt-5.6-test',
+})
+assert.equal(openAiProviders.provider, 'openai', 'AI routing must use OpenAI when an OpenAI key is configured')
+assert.equal(openAiProviders.coach.apiKey, 'openai-test-only', 'Coach must inherit the server-side OpenAI key')
+assert.equal(openAiProviders.coach.baseUrl, 'https://api.openai.test/v1', 'Coach must use the configured OpenAI-compatible base URL')
+assert.equal(openAiProviders.coach.model, 'gpt-5.6-test', 'Coach must use the OpenAI model override')
+assert.equal(openAiProviders.vision.model, 'gpt-5.6-test', 'Vision must inherit the OpenAI model when no separate vision model is configured')
+assert.equal(openAiProviders.coach.fallback.name, 'qwen', 'OpenAI Coach must retain a Qwen fallback provider')
+assert.equal(openAiProviders.vision.fallback.name, 'qwen', 'OpenAI vision must retain a Qwen fallback provider')
+const forcedQwenProviders = providerConfig({
+  AI_PROVIDER: 'qwen',
+  OPENAI_API_KEY: 'openai-test-only',
+  DASHSCOPE_API_KEY: 'qwen-test-only',
+})
+assert.equal(forcedQwenProviders.provider, 'qwen', 'An explicit Qwen provider selection must remain supported')
+assert.equal(forcedQwenProviders.coach.apiKey, 'qwen-test-only', 'Explicit Qwen routing must not consume the OpenAI key')
 const localIdentityOrigin = configuredIdentityOrigin('http://127.0.0.1:4999/auth/path')
 let markingAvailabilityRequestUrl = ''
 await readSharedMarkingAvailability({
