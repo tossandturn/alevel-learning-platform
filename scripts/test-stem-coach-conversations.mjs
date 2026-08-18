@@ -162,6 +162,47 @@ try {
     'the central history write must always use the subject from the verified STEM token',
   )
 
+  remoteStore.set('stem-conv-stream-retry', {
+    conversationId: 'stem-conv-stream-retry',
+    sourceProduct: 'stem',
+    messages: [{
+      id: 'assistant-stream-1',
+      role: 'assistant',
+      content: 'Long partial guidance that was visible before the connection dropped.',
+      createdAt: '2026-08-18T00:00:40.000Z',
+      updatedAt: '2026-08-18T00:00:41.000Z',
+      status: 'interrupted',
+    }],
+  })
+  const retriedStream = await call(api, {
+    method: 'PUT',
+    url: '/api/stem/coach/conversations',
+    body: {
+      conversation: {
+        conversationId: 'stem-conv-stream-retry',
+        sourceProduct: 'stem',
+        messages: [{
+          id: 'assistant-stream-1',
+          role: 'assistant',
+          content: 'Use F = ma for the resultant force.',
+          createdAt: '2026-08-18T00:00:40.000Z',
+          updatedAt: '2026-08-18T00:00:42.000Z',
+          status: 'completed',
+        }],
+      },
+    },
+  })
+  assert.equal(retriedStream.statusCode, 200)
+  assert.deepEqual(
+    remoteStore.get('stem-conv-stream-retry').messages.map(({ id, content, status }) => ({ id, content, status })),
+    [{
+      id: 'assistant-stream-1',
+      content: 'Use F = ma for the resultant force.',
+      status: 'completed',
+    }],
+    'a completed retry must overwrite the same persisted assistant slot instead of creating a duplicate partial reply',
+  )
+
   remoteStore.delete('stem-conv-concurrent')
   const concurrentStart = remoteCalls.length
   const [firstConcurrent, secondConcurrent] = await Promise.all([
@@ -207,7 +248,7 @@ try {
     token: identityToken({ expiresAt: Math.floor(Date.now() / 1000) - 1 }),
   })
   assert.equal(expired.statusCode, 401)
-  assert.equal(remoteCalls.length, 9)
+  assert.equal(remoteCalls.length, 11)
   console.log('STEM Coach conversation proxy checks passed')
 } finally {
   closeStemDatabaseForTests()

@@ -698,8 +698,35 @@ function coachMessageFingerprint(message) {
   return `${role}|${createdAt}|${content}`
 }
 
+function coachMessageId(message) {
+  return asText(message?.id, 120)
+}
+
+function coachMessageUpdatedAt(message) {
+  return Date.parse(String(message?.updatedAt || message?.createdAt || '')) || 0
+}
+
+function mergeCoachMessage(existing, candidate) {
+  const candidateIsNewer = coachMessageUpdatedAt(candidate) > coachMessageUpdatedAt(existing)
+    || (coachMessageUpdatedAt(candidate) === coachMessageUpdatedAt(existing) && candidate._position >= existing._position)
+  const primary = candidateIsNewer ? candidate : existing
+  const secondary = primary === candidate ? existing : candidate
+  const attachments = Array.isArray(primary.attachments) && primary.attachments.length
+    ? primary.attachments
+    : Array.isArray(secondary.attachments) && secondary.attachments.length
+      ? secondary.attachments
+      : []
+  return {
+    ...secondary,
+    ...primary,
+    ...(attachments.length ? { attachments } : {}),
+    _position: Math.min(existing._position, candidate._position),
+  }
+}
+
 function mergeCoachConversationMessages(...messageLists) {
-  const messages = new Map()
+  const byFingerprint = new Map()
+  const byId = new Map()
   let position = 0
   for (const list of messageLists) {
     for (const message of Array.isArray(list) ? list : []) {
@@ -707,24 +734,23 @@ function mergeCoachConversationMessages(...messageLists) {
       const currentPosition = position
       position += 1
       if (!fingerprint) continue
-      const existing = messages.get(fingerprint)
+      const normalized = { ...message, _position: currentPosition }
+      const id = coachMessageId(normalized)
+      const existing = (id && byId.get(id)) || byFingerprint.get(fingerprint)
       if (!existing) {
-        messages.set(fingerprint, { ...message, _position: currentPosition })
+        byFingerprint.set(fingerprint, normalized)
+        if (id) byId.set(id, normalized)
         continue
       }
-      messages.set(fingerprint, {
-        ...existing,
-        ...message,
-        ...(Array.isArray(message.attachments) && message.attachments.length
-          ? { attachments: message.attachments }
-          : Array.isArray(existing.attachments) && existing.attachments.length
-            ? { attachments: existing.attachments }
-            : {}),
-        _position: Math.min(existing._position, currentPosition),
-      })
+      const merged = mergeCoachMessage(existing, normalized)
+      byFingerprint.set(coachMessageFingerprint(existing), merged)
+      byFingerprint.set(fingerprint, merged)
+      byFingerprint.set(coachMessageFingerprint(merged), merged)
+      if (coachMessageId(existing)) byId.set(coachMessageId(existing), merged)
+      if (id) byId.set(id, merged)
     }
   }
-  return [...messages.values()]
+  return [...new Set(byFingerprint.values())]
     .sort((left, right) => {
       const leftTime = Date.parse(left.createdAt || '') || 0
       const rightTime = Date.parse(right.createdAt || '') || 0

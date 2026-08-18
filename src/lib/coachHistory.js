@@ -45,6 +45,7 @@ function normalizeMessage(message, position) {
     role,
     content,
     ...(isoDate(message?.createdAt) ? { createdAt: isoDate(message.createdAt) } : {}),
+    ...(isoDate(message?.updatedAt) ? { updatedAt: isoDate(message.updatedAt) } : {}),
     ...(text(message?.status, 40) ? { status: text(message.status, 40) } : {}),
     ...(text(message?.mode, 40) ? { mode: text(message.mode, 40) } : {}),
     ...(text(message?.warning, 500) ? { warning: text(message.warning, 500) } : {}),
@@ -59,7 +60,11 @@ function messageFingerprint(message) {
 }
 
 function richerMessage(current, candidate) {
-  const primary = candidate.content.length > current.content.length ? candidate : current
+  const currentUpdatedAt = Date.parse(current.updatedAt || current.createdAt || '') || 0
+  const candidateUpdatedAt = Date.parse(candidate.updatedAt || candidate.createdAt || '') || 0
+  const candidateIsNewer = candidateUpdatedAt > currentUpdatedAt
+    || (candidateUpdatedAt === currentUpdatedAt && candidate._position >= current._position)
+  const primary = candidateIsNewer ? candidate : current
   const secondary = primary === candidate ? current : candidate
   const primaryImages = Array.isArray(primary.imageDataUrls) ? primary.imageDataUrls : []
   const secondaryImages = Array.isArray(secondary.imageDataUrls) ? secondary.imageDataUrls : []
@@ -163,9 +168,11 @@ export function serializeCoachConversation({ conversationId, context = {}, messa
   const persistedMessages = mergedMessages.map((message) => {
     const attachments = attachmentMetadata(message)
     return {
+      ...(text(message.id, 120) ? { id: text(message.id, 120) } : {}),
       role: message.role,
       content: message.content,
       createdAt: isoDate(message.createdAt, now),
+      updatedAt: isoDate(message.updatedAt, isoDate(message.createdAt, now)),
       ...(attachments.length ? { attachments } : {}),
       ...(text(message.status, 40) ? { status: text(message.status, 40) } : {}),
     }

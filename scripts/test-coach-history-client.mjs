@@ -63,17 +63,54 @@ assert.deepEqual(merged.map(({ role, content }) => `${role}:${content}`), [
   'assistant:Then resolve the forces.',
 ])
 
+const recoveredStream = mergeCoachMessages(
+  [{
+    id: 'assistant-stream-1',
+    role: 'assistant',
+    content: 'Long partial guidance that was visible before the connection dropped.',
+    createdAt: '2026-08-19T01:00:03.000Z',
+    updatedAt: '2026-08-19T01:00:04.000Z',
+    status: 'interrupted',
+  }],
+  [{
+    id: 'assistant-stream-1',
+    role: 'assistant',
+    content: 'Use F = ma for the resultant force.',
+    createdAt: '2026-08-19T01:00:03.000Z',
+    updatedAt: '2026-08-19T01:00:05.000Z',
+    status: 'completed',
+  }],
+)
+assert.deepEqual(
+  recoveredStream.map(({ id, content, status }) => ({ id, content, status })),
+  [{
+    id: 'assistant-stream-1',
+    content: 'Use F = ma for the resultant force.',
+    status: 'completed',
+  }],
+  'a retry must replace the same interrupted assistant slot rather than restoring both partial and completed copies',
+)
+
 const serialized = serializeCoachConversation({
   conversationId: stableId,
   context: baseContext,
   messages: [
     { role: 'user', content: 'Look at this', imageDataUrls: ['data:image/png;base64,secret'] },
-    { role: 'assistant', content: 'The first step is to label the forces.', mode: 'ai' },
+    {
+      id: 'assistant-stream-1',
+      role: 'assistant',
+      content: 'The first step is to label the forces.',
+      mode: 'ai',
+      createdAt: '2026-08-19T01:00:06.000Z',
+      updatedAt: '2026-08-19T01:00:07.000Z',
+    },
   ],
 })
 assert.equal(serialized.conversationId, stableId)
 assert.equal(serialized.sourceProduct, 'stem')
 assert.equal(serialized.messages[0].attachments.length, 1)
+assert.equal(serialized.messages[1].id, 'assistant-stream-1')
+assert.equal(serialized.messages[1].updatedAt, '2026-08-19T01:00:07.000Z')
 assert.doesNotMatch(JSON.stringify(serialized), /data:image|base64|secret/)
 
 console.log('Client Coach history contract checks passed.')

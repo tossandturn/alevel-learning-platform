@@ -402,6 +402,7 @@ export function AiCoach({
       attachmentCount: attachments.length,
       createdAt: new Date().toISOString(),
     }
+    studentMessage.updatedAt = studentMessage.createdAt
     const previous = Array.isArray(options.history)
       ? options.history.map(({ role, content }) => ({ role, content }))
       : messages.slice(-10).map(({ role, content }) => ({ role, content }))
@@ -410,15 +411,17 @@ export function AiCoach({
       : attachments.length ? null : resolveCoachIntent(clean, previous)
     const assistantId = retryAssistantId || `coach-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`
     const updateAssistant = (patch) => {
+      const updatedAt = new Date().toISOString()
       setMessages((current) => {
         const existing = current.some((item) => item.id === assistantId)
         const next = existing
-          ? current.map((item) => item.id === assistantId ? { ...item, ...patch } : item)
+          ? current.map((item) => item.id === assistantId ? { ...item, ...patch, updatedAt } : item)
           : [...current, {
               id: assistantId,
               role: 'assistant',
               content: '',
-              createdAt: new Date().toISOString(),
+              createdAt: updatedAt,
+              updatedAt,
               ...patch,
             }]
         messagesRef.current = next
