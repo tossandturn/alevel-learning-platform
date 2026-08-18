@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { BrainCircuit, FileText, ImagePlus, MonitorUp, Send, Sparkles, Wrench, X } from 'lucide-react'
+import { BrainCircuit, FileText, ImagePlus, MonitorUp, RefreshCcw, Send, Sparkles, Wrench, X } from 'lucide-react'
 import { resolveCoachIntent } from '../lib/coachIntent'
+import { buildCoachConversationId, buildCoachStorageKey, buildLegacyCoachStorageKey, mergeCoachMessages, serializeCoachConversation } from '../lib/coachHistory'
 import { parseCoachMessage } from '../lib/coachMessage'
 import { MIN_VERIFIED_GROUPS_FOR_PRACTICE } from '../lib/practiceConstants'
+import { sharedAccountRequest } from '../lib/sharedAccount'
 import {
   beginCurrentPageCapture,
   cropCurrentPageCapture,
@@ -13,7 +15,6 @@ import {
   MIN_CAPTURE_SELECTION_SIDE,
 } from '../lib/coachScreenshot'
 
-const STORAGE_PREFIX = 'alevel-ai-coach-v3'
 const EMPTY_PRACTICE_OPTIONS = Object.freeze([])
 
 function CoachMessage({ content }) {
@@ -29,31 +30,42 @@ function CoachMessage({ content }) {
   )
 }
 
-function conversationKey(context) {
-  // Coach history is learning-context data. It must never cross a route, stage,
-  // course or workspace simply because the question label happens to match.
-  const owner = String(context.stateOwnerId || 'guest').trim() || 'guest'
-  const route = context.routeId || 'unscoped-route'
-  const stage = context.stage || 'unscoped-stage'
-  const course = context.subject?.code || context.subject?.id || 'unscoped-course'
-  const view = context.view || 'general'
-  const attempt = context.attemptId || 'no-attempt'
-  const question = context.question?.id || context.question?.number || context.question?.label || 'overview'
-  return `${STORAGE_PREFIX}:${encodeURIComponent(owner)}:${route}:${stage}:${course}:${view}:${attempt}:${question}`
-}
-
 function loadMessages(key) {
   try {
     const value = JSON.parse(window.localStorage.getItem(key) || '[]')
-    return Array.isArray(value) ? value.slice(-30) : []
+    return Array.isArray(value) ? mergeCoachMessages(value) : []
   } catch {
     return []
+  }
+}
+
+function legacyStorageKeys(context, ownerId) {
+  const owner = String(ownerId || 'guest').trim() || 'guest'
+  return [...new Set([
+    buildLegacyCoachStorageKey(context, owner),
+    ...(owner === 'guest' ? [] : [buildLegacyCoachStorageKey(context, 'guest')]),
+  ])]
+}
+
+function loadLocalMessages(context, storageKey, ownerId) {
+  const owner = String(ownerId || 'guest').trim() || 'guest'
+  const guestV4Key = buildCoachStorageKey(buildCoachConversationId(context), 'guest')
+  const migrationKeys = [...new Set([
+    ...legacyStorageKeys(context, owner),
+    ...(owner === 'guest' || guestV4Key === storageKey ? [] : [guestV4Key]),
+  ])]
+  const legacy = migrationKeys.map((key) => ({ key, messages: loadMessages(key) }))
+  return {
+    messages: mergeCoachMessages(loadMessages(storageKey), ...legacy.map((item) => item.messages)),
+    legacyKeys: legacy.filter((item) => item.messages.length).map((item) => item.key),
   }
 }
 
 export function AiCoach({
   context = {},
   stateOwnerId = '',
+  sharedIdentityToken = '',
+  sharedIdentityUserId = '',
   openRequest = 0,
   openBuilderRequest = 0,
   showTrigger = true,
@@ -62,9 +74,13 @@ export function AiCoach({
   onAgentAction,
   disabled = false,
 }) {
-  const storageKey = conversationKey({ ...context, stateOwnerId: context.stateOwnerId || stateOwnerId || 'guest' })
+  const sharedOwnerId = String(sharedIdentityUserId || '').trim()
+  const storageOwnerId = sharedOwnerId || String(context.stateOwnerId || stateOwnerId || '').trim() || 'guest'
+  const conversationId = buildCoachConversationId(context)
+  const storageKey = buildCoachStorageKey(conversationId, storageOwnerId)
+  const historyScope = sharedIdentityToken && sharedOwnerId ? `${storageKey}:${sharedIdentityToken}` : ''
   const [open, setOpen] = useState(false)
-  const [messages, setMessages] = useState(() => loadMessages(storageKey))
+  const [messages, setMessages] = useState(() => loadLocalMessages(context, storageKey, storageOwnerId).messages)
   const [draft, setDraft] = useState('')
   const [hintLevel, setHintLevel] = useState(1)
   const [imageDataUrls, setImageDataUrls] = useState([])
@@ -83,6 +99,8 @@ export function AiCoach({
   const [attachingCapture, setAttachingCapture] = useState(false)
   const [preparingImages, setPreparingImages] = useState(false)
   const [error, setError] = useState('')
+  const [historySyncState, setHistorySyncState] = useState('local')
+  const [retryRequest, setRetryRequest] = useState(null)
   const endRef = useRef(null)
   const triggerRef = useRef(null)
   const dialogRef = useRef(null)
@@ -90,11 +108,22 @@ export function AiCoach({
   const captureButtonRef = useRef(null)
   const screenshotInputRef = useRef(null)
   const requestAbortRef = useRef(null)
+  const historySyncTimerRef = useRef(null)
+  const historyRequestVersionRef = useRef(0)
+  const historyReadyScopeRef = useRef('')
+  const activeHistoryScopeRef = useRef(historyScope)
+  const pendingLegacyStorageKeysRef = useRef(new Set())
+  const lastRequestRef = useRef(null)
   const lastOpenRequestRef = useRef(openRequest)
   const lastOpenBuilderRequestRef = useRef(openBuilderRequest)
   const hydratedStorageKeyRef = useRef(storageKey)
   const captureFrameRef = useRef(null)
   const captureStartRef = useRef(null)
+  const messagesRef = useRef(messages)
+  const messageStorageKeyRef = useRef(storageKey)
+  const contextRef = useRef(context)
+  contextRef.current = context
+  activeHistoryScopeRef.current = historyScope
   const canOpenBphoSpc = Boolean(onAgentAction && (context.stage === 'Competition' || context.routeId === 'bpho-admissions-physics'))
 
   const builderSubject = useMemo(
@@ -144,24 +173,71 @@ export function AiCoach({
     setBuilderTopicId((current) => builderTopics.some((topic) => topic.id === current) ? current : builderTopics[0]?.id || '')
   }, [builderSubject, builderTopics, practiceOptions])
 
+  const queueHistorySync = useCallback((messageSnapshot, { immediate = false } = {}) => {
+    const token = String(sharedIdentityToken || '')
+    const scope = historyScope
+    if (!token || !scope || !Array.isArray(messageSnapshot) || !messageSnapshot.length) return
+    const payload = serializeCoachConversation({
+      conversationId,
+      context: contextRef.current,
+      messages: messageSnapshot,
+    })
+    if (!payload.messages.length) return
+    const legacyKeys = [...pendingLegacyStorageKeysRef.current]
+    const save = async () => {
+      if (activeHistoryScopeRef.current === scope) setHistorySyncState('syncing')
+      try {
+        await sharedAccountRequest(token, '/api/stem/coach/conversations', {
+          method: 'PUT',
+          headers: { 'Idempotency-Key': conversationId },
+          body: JSON.stringify({ conversation: payload }),
+        })
+        legacyKeys.forEach((key) => window.localStorage.removeItem(key))
+        if (activeHistoryScopeRef.current !== scope) return
+        pendingLegacyStorageKeysRef.current.clear()
+        setHistorySyncState('saved')
+      } catch {
+        if (activeHistoryScopeRef.current === scope) setHistorySyncState('pending')
+      }
+    }
+    if (historySyncTimerRef.current) window.clearTimeout(historySyncTimerRef.current)
+    if (immediate) {
+      historySyncTimerRef.current = null
+      void save()
+      return
+    }
+    historySyncTimerRef.current = window.setTimeout(() => {
+      historySyncTimerRef.current = null
+      void save()
+    }, 350)
+  }, [conversationId, historyScope, sharedIdentityToken])
+
   useEffect(() => {
     // Do not write A's in-memory messages into B's storage key during an
     // account switch. The reset effect below hydrates the new scoped history.
     if (hydratedStorageKeyRef.current !== storageKey) return
-    const storedMessages = messages.slice(-30).map(({ imageDataUrls: messageImages, ...message }) => ({
+    messagesRef.current = messages
+    const storedMessages = messages.slice(-80).map(({ imageDataUrls: messageImages, ...message }) => ({
       ...message,
       attachmentCount: Number(message.attachmentCount) || messageImages?.length || 0,
     }))
     window.localStorage.setItem(storageKey, JSON.stringify(storedMessages))
     endRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [messages, storageKey])
+    if (historyScope && historyReadyScopeRef.current === historyScope) queueHistorySync(messages)
+  }, [historyScope, messages, queueHistorySync, storageKey])
 
   useEffect(() => {
     if (hydratedStorageKeyRef.current === storageKey) return
     requestAbortRef.current?.abort()
     requestAbortRef.current = null
+    if (historySyncTimerRef.current) window.clearTimeout(historySyncTimerRef.current)
     hydratedStorageKeyRef.current = storageKey
-    setMessages(loadMessages(storageKey))
+    historyReadyScopeRef.current = ''
+    const local = loadLocalMessages(context, storageKey, storageOwnerId)
+    pendingLegacyStorageKeysRef.current = new Set(local.legacyKeys)
+    messageStorageKeyRef.current = storageKey
+    messagesRef.current = local.messages
+    setMessages(local.messages)
     setDraft('')
     setHintLevel(1)
     setImageDataUrls([])
@@ -177,8 +253,45 @@ export function AiCoach({
     setAttachingCapture(false)
     setPreparingImages(false)
     setBuilderOpen(false)
+    setHistorySyncState(historyScope ? 'loading' : 'local')
+    setRetryRequest(null)
+    lastRequestRef.current = null
     setOpen(false)
-  }, [storageKey])
+  }, [context, historyScope, storageKey, storageOwnerId])
+
+  useEffect(() => {
+    const requestVersion = historyRequestVersionRef.current + 1
+    historyRequestVersionRef.current = requestVersion
+    if (!historyScope) {
+      historyReadyScopeRef.current = ''
+      setHistorySyncState('local')
+      return undefined
+    }
+    const local = loadLocalMessages(contextRef.current, storageKey, storageOwnerId)
+    pendingLegacyStorageKeysRef.current = new Set(local.legacyKeys)
+    setHistorySyncState('loading')
+    sharedAccountRequest(sharedIdentityToken, '/api/stem/coach/conversations?limit=80')
+      .then((payload) => {
+        if (historyRequestVersionRef.current !== requestVersion || activeHistoryScopeRef.current !== historyScope || messageStorageKeyRef.current !== storageKey) return
+        const remoteConversation = (payload?.conversations || []).find((item) => item?.conversationId === conversationId)
+        historyReadyScopeRef.current = historyScope
+        setMessages((current) => {
+          const merged = mergeCoachMessages(current, local.messages, remoteConversation?.messages || [])
+          messagesRef.current = merged
+          return merged
+        })
+        setHistorySyncState('saved')
+      })
+      .catch(() => {
+        if (historyRequestVersionRef.current !== requestVersion || activeHistoryScopeRef.current !== historyScope) return
+        historyReadyScopeRef.current = historyScope
+        setHistorySyncState('pending')
+        queueHistorySync(messagesRef.current, { immediate: true })
+      })
+    return () => {
+      if (historyRequestVersionRef.current === requestVersion) historyRequestVersionRef.current += 1
+    }
+  }, [conversationId, historyScope, queueHistorySync, sharedIdentityToken, storageKey, storageOwnerId])
 
   useEffect(() => {
     if (openRequest === lastOpenRequestRef.current) return
@@ -202,6 +315,8 @@ export function AiCoach({
 
   useEffect(() => () => {
     requestAbortRef.current?.abort()
+    if (historySyncTimerRef.current) window.clearTimeout(historySyncTimerRef.current)
+    historyRequestVersionRef.current += 1
     captureFrameRef.current = null
     captureStartRef.current = null
   }, [])
@@ -272,58 +387,79 @@ export function AiCoach({
     return () => window.removeEventListener('keydown', closeCaptureOnEscape)
   }, [captureOpen, closeScreenshotCapture])
 
-  async function ask(message, level = hintLevel) {
+  async function ask(message, level = hintLevel, options = {}) {
     const clean = String(message || '').trim()
-    const attachments = imageDataUrls.slice(0, MAX_COACH_IMAGE_ATTACHMENTS)
+    const attachments = Array.isArray(options.attachments)
+      ? options.attachments.slice(0, MAX_COACH_IMAGE_ATTACHMENTS)
+      : imageDataUrls.slice(0, MAX_COACH_IMAGE_ATTACHMENTS)
+    const retryAssistantId = String(options.retryAssistantId || '')
     if ((!clean && !attachments.length) || loading) return
     const studentMessage = {
+      id: `coach-user-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
       role: 'user',
       content: clean || 'Please check the attached work.',
       imageDataUrls: attachments,
       attachmentCount: attachments.length,
       createdAt: new Date().toISOString(),
     }
-    const previous = messages.slice(-10).map(({ role, content }) => ({ role, content }))
-    const intent = attachments.length ? null : resolveCoachIntent(clean, previous)
-    const assistantId = `coach-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`
-    setMessages((current) => [...current, studentMessage])
+    const previous = Array.isArray(options.history)
+      ? options.history.map(({ role, content }) => ({ role, content }))
+      : messages.slice(-10).map(({ role, content }) => ({ role, content }))
+    const intent = Object.hasOwn(options, 'intent')
+      ? options.intent
+      : attachments.length ? null : resolveCoachIntent(clean, previous)
+    const assistantId = retryAssistantId || `coach-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`
+    const updateAssistant = (patch) => {
+      setMessages((current) => {
+        const existing = current.some((item) => item.id === assistantId)
+        const next = existing
+          ? current.map((item) => item.id === assistantId ? { ...item, ...patch } : item)
+          : [...current, {
+              id: assistantId,
+              role: 'assistant',
+              content: '',
+              createdAt: new Date().toISOString(),
+              ...patch,
+            }]
+        messagesRef.current = next
+        return next
+      })
+    }
+    if (retryAssistantId) {
+      updateAssistant({ content: '', mode: 'streaming', status: 'retrying', warning: '' })
+    } else {
+      setMessages((current) => {
+        const next = [...current, studentMessage]
+        messagesRef.current = next
+        return next
+      })
+    }
     setDraft('')
     setLoading(true)
     setError('')
+    setRetryRequest(null)
+    lastRequestRef.current = { assistantId, message: studentMessage.content, level, attachments, previous, intent }
     requestAbortRef.current?.abort()
     const controller = new AbortController()
     requestAbortRef.current = controller
-    const updateAssistant = (patch) => {
-      setMessages((current) => current.map((item) => item.id === assistantId ? { ...item, ...patch } : item))
-    }
+    let streamedAnswer = ''
+    let streamCompleted = false
     try {
       if (intent && onAgentAction) {
         const action = await onAgentAction(intent)
         if (action?.handled) {
-          setMessages((current) => [...current, {
-            id: assistantId,
-            role: 'assistant',
-            content: action.message,
-            mode: 'agent',
-            createdAt: new Date().toISOString(),
-          }])
+          updateAssistant({ content: String(action.message || ''), mode: 'agent', status: 'completed', warning: '' })
           setImageDataUrls([])
           if (!action.keepOpen) closeCoach()
           return
         }
       }
 
-      setMessages((current) => [...current, {
-        id: assistantId,
-        role: 'assistant',
-        content: '',
-        mode: 'streaming',
-        createdAt: new Date().toISOString(),
-      }])
+      updateAssistant({ content: '', mode: 'streaming', status: 'streaming', warning: '' })
       const response = await fetch('/api/ai/coach/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: studentMessage.content, history: previous, context: intent?.type === 'clarify-practice' ? { ...context, agentIntent: intent } : context, hintLevel: level, imageDataUrls: attachments }),
+        body: JSON.stringify({ message: studentMessage.content, history: previous, context: intent?.type === 'clarify-practice' ? { ...contextRef.current, agentIntent: intent } : contextRef.current, hintLevel: level, imageDataUrls: attachments }),
         signal: controller.signal,
       })
       const contentType = response.headers.get('content-type') || ''
@@ -333,14 +469,20 @@ export function AiCoach({
       }
       if (!contentType.includes('text/event-stream')) {
         const payload = await response.json().catch(() => ({}))
-        updateAssistant({ content: payload.answer || '', mode: payload.mode, warning: payload.warning || '' })
+        const answer = String(payload.answer || '').trim() || 'AI Coach returned an empty response.'
+        updateAssistant({
+          content: answer,
+          mode: payload.mode || 'ai',
+          status: payload.mode === 'offline' ? 'fallback' : 'completed',
+          warning: payload.warning || '',
+        })
+        streamCompleted = true
         if (payload.mode === 'offline') setError(payload.warning || 'AI Coach is offline. This response is only a controlled offline hint.')
       } else {
         const reader = response.body?.getReader()
         if (!reader) throw new Error('AI Coach returned no stream body.')
         const decoder = new TextDecoder()
         let buffer = ''
-        let streamedAnswer = ''
         const consumeEvent = (rawEvent) => {
           const lines = rawEvent.split(/\r?\n/)
           const eventName = lines.find((line) => line.startsWith('event:'))?.slice(6).trim() || 'message'
@@ -354,16 +496,18 @@ export function AiCoach({
           }
           if (eventName === 'delta') {
             streamedAnswer += String(payload.text || '')
-            updateAssistant({ content: streamedAnswer, mode: 'ai' })
+            updateAssistant({ content: streamedAnswer, mode: 'ai', status: 'streaming', warning: '' })
           }
           if (eventName === 'reset') {
             streamedAnswer = ''
-            updateAssistant({ content: '', mode: 'streaming', warning: '' })
+            updateAssistant({ content: '', mode: 'streaming', status: 'streaming', warning: '' })
           }
           if (eventName === 'done') {
+            streamCompleted = true
             updateAssistant({
-              content: payload.answer || streamedAnswer,
-              mode: payload.mode,
+              content: String(payload.answer || streamedAnswer || '').trim() || 'AI Coach returned an empty response.',
+              mode: payload.mode || 'ai',
+              status: payload.mode === 'offline' ? 'fallback' : 'completed',
               warning: payload.warning || '',
             })
             if (payload.mode === 'offline') setError(payload.warning || 'AI Coach is offline. This response is only a controlled offline hint.')
@@ -379,17 +523,46 @@ export function AiCoach({
           if (done) break
         }
         if (buffer) consumeEvent(buffer)
+        if (!streamCompleted) throw new Error('The response stream ended before completion.')
       }
       setImageDataUrls([])
       if (/hint|提示|下一步|截图|手写/i.test(clean)) setHintLevel((current) => Math.min(5, current + 1))
     } catch (requestError) {
-      if (requestError?.name === 'AbortError') return
-      updateAssistant({ content: 'AI Coach is temporarily unavailable.', mode: 'offline', warning: requestError.message || '' })
-      setError(requestError.message || 'AI Coach is temporarily unavailable.')
+      if (requestError?.name === 'AbortError' && requestAbortRef.current !== controller) return
+      const partialAnswer = streamedAnswer.trim()
+      const failureMessage = partialAnswer || (requestError?.name === 'AbortError'
+        ? 'The response was cancelled before it completed.'
+        : 'AI Coach is temporarily unavailable.')
+      updateAssistant({
+        content: failureMessage,
+        mode: partialAnswer ? 'interrupted' : 'offline',
+        status: partialAnswer ? 'interrupted' : 'failed',
+        warning: requestError.message || '',
+      })
+      if (requestError?.name !== 'AbortError') {
+        setRetryRequest({ assistantId, message: studentMessage.content, level, attachments, previous, intent })
+        setError(partialAnswer
+          ? 'The connection was interrupted. The partial response was kept; retry to continue.'
+          : requestError.message || 'AI Coach is temporarily unavailable.')
+      }
     } finally {
-      if (requestAbortRef.current === controller) requestAbortRef.current = null
-      setLoading(false)
+      if (requestAbortRef.current === controller) {
+        requestAbortRef.current = null
+        setLoading(false)
+      }
     }
+  }
+
+  function retryLastRequest() {
+    const retry = retryRequest || lastRequestRef.current
+    if (!retry || loading) return
+    setImageDataUrls(retry.attachments || [])
+    void ask(retry.message, retry.level, {
+      attachments: retry.attachments,
+      history: retry.previous,
+      intent: retry.intent,
+      retryAssistantId: retry.assistantId,
+    })
   }
 
   async function attachImage(event) {
@@ -601,6 +774,7 @@ export function AiCoach({
               {message.warning && <small>{message.warning}</small>}
               {message.role === 'assistant' && message.mode === 'local' && <small>Local hint first. Ask for a detailed explanation to use AI Coach.</small>}
               {message.role === 'assistant' && message.mode === 'offline' && <small>Offline hint only; retry when AI Coach is available.</small>}
+              {message.role === 'assistant' && retryRequest?.assistantId === message.id && <button type="button" className="ai-message__retry" disabled={loading} onClick={retryLastRequest}><RefreshCcw size={13} />Retry</button>}
             </article>
           ))}
           {loading && <div className="ai-coach__thinking"><span />Reviewing the current question...</div>}
@@ -616,6 +790,8 @@ export function AiCoach({
             </div>)}
           </div>}
           {preparingImages && <p className="ai-coach__attachment-status" role="status">Preparing photos...</p>}
+          {(historySyncState === 'loading' || historySyncState === 'syncing') && <p className="ai-coach__history-status" role="status">Saving chat history...</p>}
+          {historySyncState === 'pending' && <p className="ai-coach__history-status ai-coach__history-status--pending" role="status">Chat is kept on this device and will sync when the account service is available.</p>}
           {error && <p className="ai-coach__error" role="alert">{error}</p>}
           <form className="ai-coach__composer" onSubmit={submitComposer}>
             <button type="button" className="ai-coach__composer-attach" title="Add photos" aria-label="Add photos" disabled={preparingImages || imageDataUrls.length >= MAX_COACH_IMAGE_ATTACHMENTS} onClick={() => screenshotInputRef.current?.click()}><ImagePlus size={18} /></button>

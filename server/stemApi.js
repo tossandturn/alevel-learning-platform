@@ -18,6 +18,7 @@ const NATIVE_AUTH_PROBE_CACHE_MS = 15_000
 const NATIVE_AUTH_PROBE_USERNAME = 'stem_bridge_probe'
 const NATIVE_AUTH_PROBE_PASSWORD = 'not-a-real-password'
 const LEGACY_SCOPE = 'legacy-unscoped'
+const MAX_COACH_HISTORY_MESSAGES = 80
 const ROUTE_STAGES = new Map([
   ['igcse', 'IGCSE'],
   ['as', 'AS'],
@@ -54,6 +55,7 @@ const REGISTERED_ROUTES = new Map(Object.entries({
   'uatuk-tmua-admissions': ['Admissions', 'tmua'],
 }))
 let database = null
+const coachHistoryWriteQueues = new Map()
 
 function sendJson(response, statusCode, body) {
   response.statusCode = statusCode
@@ -604,6 +606,202 @@ function signedInternalAuthRequest({ mode, username, password, env }) {
       'X-Stem-Auth-Signature': signature,
     },
   }
+}
+
+function internalCoachConversationsEndpoint(origin) {
+  const endpoint = internalAuthEndpoint(origin)
+  const url = new URL(endpoint)
+  url.pathname = '/api/internal/stem/coach/conversations'
+  return url.toString()
+}
+
+function coachHistoryLimit(value) {
+  const parsed = Number.parseInt(String(value || ''), 10)
+  return Math.max(1, Math.min(MAX_COACH_HISTORY_MESSAGES, Number.isFinite(parsed) ? parsed : 40))
+}
+
+function signedCoachConversationsRequest({ method, userId, payload, query = {}, env }) {
+  const signingKey = String(env.STEM_INTERNAL_AUTH_KEY || env.STEM_IDENTITY_SIGNING_KEY || '')
+  if (!signingKey) throw nativeAuthNotConfigured()
+  const normalizedMethod = String(method || 'GET').toUpperCase()
+  const body = normalizedMethod === 'GET'
+    ? ''
+    : JSON.stringify({ ...(payload || {}), userId: asText(userId, 80) })
+  const timestamp = String(Date.now())
+  const endpoint = new URL(internalCoachConversationsEndpoint(nativeAuthOrigin(env)))
+  if (normalizedMethod === 'GET') {
+    endpoint.searchParams.set('userId', asText(userId, 80))
+    endpoint.searchParams.set('limit', String(coachHistoryLimit(query.limit)))
+  }
+  const signedPayload = normalizedMethod === 'GET'
+    ? `${body}\n${endpoint.pathname}${endpoint.search}`
+    : body
+  const digest = crypto.createHash('sha256').update(signedPayload).digest('hex')
+  const signature = crypto.createHmac('sha256', signingKey).update(`${timestamp}.${digest}`).digest('base64url')
+  return {
+    endpoint: endpoint.toString(),
+    body,
+    headers: {
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+      'X-Stem-Auth-Timestamp': timestamp,
+      'X-Stem-Auth-Signature': signature,
+    },
+  }
+}
+
+async function requestCoachConversations({ method, userId, payload, query, env, fetchImpl = fetch }) {
+  if (!nativeAuthConfigured(env)) {
+    throw Object.assign(new Error('Shared Coach history is not configured on this server.'), {
+      statusCode: 503,
+      code: 'coach_history_not_configured',
+    })
+  }
+  const request = signedCoachConversationsRequest({ method, userId, payload, query, env })
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 8_000)
+  try {
+    const response = await fetchImpl(request.endpoint, {
+      method: String(method || 'GET').toUpperCase(),
+      headers: request.headers,
+      ...(request.body ? { body: request.body } : {}),
+      signal: controller.signal,
+    })
+    const result = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      throw Object.assign(new Error(asText(result.error, 'Shared Coach history is temporarily unavailable.')), {
+        statusCode: response.status >= 500 ? 503 : response.status,
+        code: asText(result.code, 'coach_history_remote_error'),
+        retryable: response.status >= 500,
+      })
+    }
+    return result
+  } catch (error) {
+    if (error?.statusCode) throw error
+    throw Object.assign(new Error(error?.name === 'AbortError'
+      ? 'Shared Coach history request timed out.'
+      : 'Shared Coach history is temporarily unavailable.'), {
+      statusCode: 503,
+      code: error?.name === 'AbortError' ? 'coach_history_timeout' : 'coach_history_unavailable',
+      retryable: true,
+      cause: error,
+    })
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+function coachMessageFingerprint(message) {
+  const role = asText(message?.role, 20).toLowerCase()
+  const content = String(message?.content || '').replaceAll(String.fromCharCode(0), '').trim().slice(0, 12_000)
+  const createdAt = String(message?.createdAt || '').trim().slice(0, 80)
+  if (!['user', 'assistant'].includes(role) || !content) return ''
+  return `${role}|${createdAt}|${content}`
+}
+
+function mergeCoachConversationMessages(...messageLists) {
+  const messages = new Map()
+  let position = 0
+  for (const list of messageLists) {
+    for (const message of Array.isArray(list) ? list : []) {
+      const fingerprint = coachMessageFingerprint(message)
+      const currentPosition = position
+      position += 1
+      if (!fingerprint) continue
+      const existing = messages.get(fingerprint)
+      if (!existing) {
+        messages.set(fingerprint, { ...message, _position: currentPosition })
+        continue
+      }
+      messages.set(fingerprint, {
+        ...existing,
+        ...message,
+        ...(Array.isArray(message.attachments) && message.attachments.length
+          ? { attachments: message.attachments }
+          : Array.isArray(existing.attachments) && existing.attachments.length
+            ? { attachments: existing.attachments }
+            : {}),
+        _position: Math.min(existing._position, currentPosition),
+      })
+    }
+  }
+  return [...messages.values()]
+    .sort((left, right) => {
+      const leftTime = Date.parse(left.createdAt || '') || 0
+      const rightTime = Date.parse(right.createdAt || '') || 0
+      return leftTime - rightTime || left._position - right._position
+    })
+    .slice(-MAX_COACH_HISTORY_MESSAGES)
+    .map(({ _position, ...message }) => message)
+}
+
+function mergeCoachConversation(remote, incoming) {
+  const current = incoming && typeof incoming === 'object' ? incoming : {}
+  const previous = remote && typeof remote === 'object' ? remote : {}
+  const now = new Date().toISOString()
+  return {
+    ...previous,
+    ...current,
+    sourceProduct: 'stem',
+    binding: {
+      ...(previous.binding && typeof previous.binding === 'object' ? previous.binding : {}),
+      ...(current.binding && typeof current.binding === 'object' ? current.binding : {}),
+    },
+    messages: mergeCoachConversationMessages(previous.messages, current.messages),
+    metadata: {
+      ...(previous.metadata && typeof previous.metadata === 'object' ? previous.metadata : {}),
+      ...(current.metadata && typeof current.metadata === 'object' ? current.metadata : {}),
+      updatedAt: now,
+    },
+    createdAt: current.createdAt || previous.createdAt || now,
+    updatedAt: now,
+  }
+}
+
+function mergeCoachConversationPayload(payload, remoteConversations) {
+  const incoming = Array.isArray(payload?.conversations)
+    ? payload.conversations
+    : payload?.conversation
+      ? [payload.conversation]
+      : []
+  const byConversationId = new Map((Array.isArray(remoteConversations) ? remoteConversations : [])
+    .filter((conversation) => conversation && typeof conversation === 'object' && asText(conversation.conversationId, 180))
+    .map((conversation) => [asText(conversation.conversationId, 180), conversation]))
+  return {
+    ...(payload && typeof payload === 'object' ? payload : {}),
+    conversations: incoming.map((conversation) => mergeCoachConversation(
+      byConversationId.get(asText(conversation?.conversationId, 180)),
+      conversation,
+    )),
+  }
+}
+
+function withCoachHistoryWriteLock(env, userId, operation) {
+  const lockKey = `${nativeAuthOrigin(env)}:${asText(userId, 80)}`
+  const previous = coachHistoryWriteQueues.get(lockKey) || Promise.resolve()
+  const next = previous.catch(() => undefined).then(operation)
+  coachHistoryWriteQueues.set(lockKey, next)
+  return next.finally(() => {
+    if (coachHistoryWriteQueues.get(lockKey) === next) coachHistoryWriteQueues.delete(lockKey)
+  })
+}
+
+async function mergeAndSaveCoachConversations({ userId, payload, env, fetchImpl }) {
+  return withCoachHistoryWriteLock(env, userId, async () => {
+    const remote = await requestCoachConversations({
+      method: 'GET',
+      userId,
+      query: { limit: MAX_COACH_HISTORY_MESSAGES },
+      env,
+      fetchImpl,
+    })
+    return requestCoachConversations({
+      method: 'PUT',
+      userId,
+      payload: mergeCoachConversationPayload(payload, remote?.conversations),
+      env,
+      fetchImpl,
+    })
+  })
 }
 
 async function probeNativeAuthBridge({ env, fetchImpl = fetch }) {
@@ -1225,6 +1423,25 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, fetchIm
         return
       }
       const user = identityFromRequest(request, signingKey)
+      if (url.pathname === '/api/stem/coach/conversations' && ['GET', 'PUT', 'POST'].includes(request.method)) {
+        const payload = request.method === 'GET' ? {} : await readJson(request, 8 * 1024 * 1024)
+        const result = request.method === 'GET'
+          ? await requestCoachConversations({
+              method: 'GET',
+              userId: user.id,
+              query: { limit: url.searchParams.get('limit') },
+              env,
+              fetchImpl,
+            })
+          : await mergeAndSaveCoachConversations({
+              userId: user.id,
+              payload,
+              env,
+              fetchImpl,
+            })
+        sendJson(response, 200, result)
+        return
+      }
       if (request.method === 'GET' && url.pathname === '/api/stem/content/ai-ingestion-candidates') {
         requireVerifiedStaffClaim(user)
         sendJson(response, 200, listAiPdfIngestionCandidates({ root: aiPdfIngestionRoot }))

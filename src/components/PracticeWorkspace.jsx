@@ -258,7 +258,7 @@ function AnswerPartWorkspace({ part, partIndex, totalParts, attempt, active, sou
   )
 }
 
-export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, updateEvidence, submitAttempt, deferredMarking = false, stateOwnerId = '', goBack, immersive = false, onToggleImmersive = () => {}, onGeneratePractice, onAgentAction }) {
+export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, updateEvidence, submitAttempt, deferredMarking = false, stateOwnerId = '', sharedIdentityToken = '', sharedIdentityUserId = '', goBack, immersive = false, onToggleImmersive = () => {}, onGeneratePractice, onAgentAction }) {
   const [showSubmitCheck, setShowSubmitCheck] = useState(false)
   const [coachRequest, setCoachRequest] = useState(0)
   const [sourceAssetIndex, setSourceAssetIndex] = useState(0)
@@ -611,6 +611,8 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
       {settings.mode !== 'exam' && <AiCoach
         key={`${attempt.id}:${activePart.id}`}
         stateOwnerId={stateOwnerId}
+        sharedIdentityToken={sharedIdentityToken}
+        sharedIdentityUserId={sharedIdentityUserId}
         openRequest={coachRequest}
         showTrigger={false}
         onGeneratePractice={onGeneratePractice}

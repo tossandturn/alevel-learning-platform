@@ -136,7 +136,7 @@ function questionBatches(questionNumbers, size = SHARED_MARKING_BATCH_SIZE) {
   return batches
 }
 
-export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null, sharedIdentityToken = '', stateOwnerId = '', onBack, onSaveDraft, onFinish, onFinishReview, onOpenAccount, onAttemptReady, immersive = false, onToggleImmersive = () => {} }) {
+export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null, sharedIdentityToken = '', sharedIdentityUserId = '', stateOwnerId = '', onBack, onSaveDraft, onFinish, onFinishReview, onOpenAccount, onAttemptReady, immersive = false, onToggleImmersive = () => {} }) {
   const itemById = useMemo(() => new Map((catalog?.items || []).map((item) => [item.id, item])), [catalog])
   const questionPaper = itemById.get(paper.questionPaperId) || (paper.kind === 'qp' ? paper : null)
   const markScheme = itemById.get(paper.markSchemeId)
@@ -946,6 +946,8 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
       {submitted && <AiCoach
         key={`${attemptId}:${focusedQuestion}`}
         stateOwnerId={stateOwnerId}
+        sharedIdentityToken={sharedIdentityToken}
+        sharedIdentityUserId={sharedIdentityUserId}
         openRequest={coachRequest}
         showTrigger={false}
         context={{

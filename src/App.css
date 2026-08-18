@@ -3438,6 +3438,8 @@ textarea:focus-visible {
 .ai-message__attachments { display: flex; max-width: 100%; gap: 5px; overflow-x: auto; }
 .ai-message__attachments img { width: 48px; height: 48px; flex: 0 0 48px; object-fit: cover; border: 1px solid rgba(255, 255, 255, .65); border-radius: 4px; background: #fff; }
 .ai-message small { color: #8b6512; font-size: 9px; line-height: 1.4; }
+.ai-message__retry { width: max-content; min-height: 32px; display: inline-flex; align-items: center; gap: 5px; padding: 5px 8px; border: 1px solid #b8c8da; border-radius: 5px; color: #245fae; background: #f7fbff; font: inherit; font-size: 10px; font-weight: 750; cursor: pointer; }
+.ai-message__retry:disabled { opacity: .5; cursor: wait; }
 .ai-coach__thinking { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 10px; }
 .ai-coach__thinking > span { width: 8px; height: 8px; border-radius: 50%; background: #7357e8; animation: pulse 1s infinite; }
 
@@ -3449,6 +3451,8 @@ textarea:focus-visible {
 .ai-coach__attachment img { width: 100%; height: 100%; object-fit: cover; }
 .ai-coach__attachment button { position: absolute; top: 0; right: 0; width: 28px; height: 28px; display: grid; place-items: center; border: 0; color: #fff; background: rgba(22, 34, 42, .78); }
 .ai-coach__attachment-status { margin: 0; color: #48675e; font-size: 10px; }
+.ai-coach__history-status { margin: 0; color: #48675e; font-size: 10px; line-height: 1.4; }
+.ai-coach__history-status--pending { color: #8b6512; }
 .ai-coach__error { margin: 0; color: #a53d45; font-size: 10px; }
 .ai-coach__composer { display: grid; grid-template-columns: 38px minmax(0, 1fr) 40px; align-items: end; gap: 6px; }
 .ai-coach__composer label,

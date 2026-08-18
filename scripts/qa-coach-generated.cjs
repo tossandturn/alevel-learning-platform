@@ -289,6 +289,56 @@ async function assertCoachScreenshotFlow(page) {
   }
 }
 
+async function assertCoachInterruptedStreamRecovery(page) {
+  let requestCount = 0
+  await page.route('**/api/ai/coach/stream', async (route) => {
+    requestCount += 1
+    const body = requestCount === 1
+      ? [
+          'event: meta',
+          'data: {"mode":"ai"}',
+          '',
+          'event: delta',
+          'data: {"text":"Partial guidance kept after the stream ended."}',
+          '',
+        ].join('\n')
+      : [
+          'event: meta',
+          'data: {"mode":"ai"}',
+          '',
+          'event: delta',
+          'data: {"text":"Recovered guidance after retry."}',
+          '',
+          'event: done',
+          'data: {"answer":"Recovered guidance after retry.","mode":"ai"}',
+          '',
+        ].join('\n')
+    await route.fulfill({ status: 200, contentType: 'text/event-stream', body })
+  })
+  try {
+    await page.getByRole('button', { name: 'Open AI Coach' }).click()
+    const coachDrawer = page.locator('.ai-coach.open')
+    const userMessagesBefore = await coachDrawer.locator('.ai-message--user').count()
+    await coachDrawer.getByRole('textbox').fill('Explain the next method step in detail.')
+    await coachDrawer.getByRole('button', { name: 'Send to AI Coach' }).click()
+    await coachDrawer.getByText('Partial guidance kept after the stream ended.').waitFor()
+    const retry = coachDrawer.getByRole('button', { name: 'Retry' })
+    await retry.waitFor()
+    if (await coachDrawer.locator('.ai-message--user').count() !== userMessagesBefore + 1) {
+      throw new Error('An interrupted Coach stream must add exactly one student message before retry.')
+    }
+    await retry.click()
+    await coachDrawer.getByText('Recovered guidance after retry.').waitFor()
+    if (await coachDrawer.locator('.ai-message--user').count() !== userMessagesBefore + 1) {
+      throw new Error('Retrying a partial Coach stream must reuse the original student message rather than duplicate it.')
+    }
+    if (requestCount !== 2) throw new Error(`Coach interrupted-stream recovery expected two requests, received ${requestCount}`)
+    await coachDrawer.getByRole('button', { name: 'Close AI Coach' }).click()
+  } finally {
+    await page.unroute('**/api/ai/coach/stream')
+  }
+}
+
 async function run() {
   fs.accessSync(path.join(REPO_ROOT, 'src', 'App.jsx'))
   fs.mkdirSync(ARTIFACT_DIR, { recursive: true })
@@ -427,6 +477,7 @@ async function run() {
       await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: /^Today$/ }).click()
       await waitForDashboard(page)
       await assertCoachScreenshotFlow(page)
+      await assertCoachInterruptedStreamRecovery(page)
 
       if (errors.length) throw new Error(`Browser errors: ${errors.join(' | ')}`)
       console.log(JSON.stringify({

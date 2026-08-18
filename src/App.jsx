@@ -1892,6 +1892,7 @@ function App() {
               return assignment ? { assignmentId: assignment.id, classroomId: assignment.classroomId, organizationId: assignment.organizationId || null } : null
             })()}
             sharedIdentityToken={sharedAccount.token}
+            sharedIdentityUserId={sharedAccount.identity?.id || ''}
             onOpenAccount={() => setAccountDialogMode('login')}
             onAttemptReady={handlePaperAttemptReady}
             stateOwnerId={stateOwnerId}
@@ -1916,7 +1917,9 @@ function App() {
           updateEvidence={updateEvidence}
           submitAttempt={submitAttempt}
           deferredMarking={markingCapabilityForUnit(currentUnit).mode !== 'deterministic'}
-            stateOwnerId={stateOwnerId}
+          stateOwnerId={stateOwnerId}
+          sharedIdentityToken={sharedAccount.token}
+          sharedIdentityUserId={sharedAccount.identity?.id || ''}
           practiceOptions={activePracticeOptions}
           onGeneratePractice={generateCoachPractice}
           onAgentAction={handleCoachAgentAction}
@@ -1966,6 +1969,8 @@ function App() {
         <Suspense fallback={null}><AiCoach
           key={`${activeRouteId}:${view}:${coachAttempt?.id || 'general'}`}
           stateOwnerId={stateOwnerId}
+          sharedIdentityToken={sharedAccount.token}
+          sharedIdentityUserId={sharedAccount.identity?.id || ''}
           context={{
             attemptId: coachAttempt?.id,
             stateOwnerId,
