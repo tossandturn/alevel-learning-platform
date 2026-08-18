@@ -195,6 +195,60 @@ try {
   assert.match(failed.text, /Qwen upstream returned HTTP 503/)
   assert.doesNotMatch(failed.text, /provider secret balance detail|insufficient_balance/)
 
+  const openAiRoutingPaths = []
+  const openAiRoutingServer = http.createServer(async (request, response) => {
+    openAiRoutingPaths.push(request.url)
+    for await (const _chunk of request) {}
+    if (request.url !== '/v1/chat/completions') {
+      response.statusCode = 404
+      response.setHeader('Content-Type', 'application/json')
+      response.end(JSON.stringify({ error: { message: 'The versioned chat endpoint is required.' } }))
+      return
+    }
+    response.statusCode = 200
+    response.setHeader('Content-Type', 'text/event-stream')
+    response.end('data: {"choices":[{"delta":{"content":"versioned answer"}}]}\n\ndata: [DONE]\n\n')
+  })
+  const openAiRoutingBase = await listen(openAiRoutingServer)
+  const routingAppServers = []
+  try {
+    for (const configuredBase of [openAiRoutingBase, `${openAiRoutingBase}/v1`, `${openAiRoutingBase}/v1/chat/completions`]) {
+      const routingApi = createAiApi({
+        env: {
+          AI_PROVIDER: 'openai',
+          OPENAI_API_KEY: 'test-openai-routing-key',
+          OPENAI_BASE_URL: configuredBase,
+          OPENAI_MODEL: 'gpt-5.6-test',
+        },
+        libraryRoot: path.join(tempRoot, 'library'),
+        allowedSubjects: new Set(['0580']),
+      })
+      const routingAppServer = requestHandler(routingApi)
+      const routingAppBase = await listen(routingAppServer)
+      routingAppServers.push(routingAppServer)
+      const routingResponse = await fetch(`${routingAppBase}/api/ai/coach/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: 'Explain the method and check the units in detail.',
+          hintLevel: 3,
+          context: { stage: 'AS', topic: 'Mechanics', question: { prompt: 'Versioned endpoint fixture.', number: 5 } },
+        }),
+      })
+      const routingText = await routingResponse.text()
+      assert.equal(routingResponse.status, 200)
+      assert.match(routingText, /"providerStatus":"connected"/, `OpenAI base ${configuredBase} must reach the versioned chat endpoint`)
+      assert.match(routingText, /versioned answer/)
+    }
+    assert.deepEqual(
+      openAiRoutingPaths,
+      ['/v1/chat/completions', '/v1/chat/completions', '/v1/chat/completions'],
+      'OpenAI root, /v1 and full /v1/chat/completions bases must normalize to one endpoint',
+    )
+  } finally {
+    await Promise.all([...routingAppServers.map(close), close(openAiRoutingServer)])
+  }
+
   let openAiFallbackRequests = 0
   let qwenFallbackRequests = 0
   const openAiFallbackServer = http.createServer((request, response) => {

@@ -487,7 +487,7 @@ export function providerConfig(env = {}) {
     imageMode,
   }
   if (selectedProvider === 'openai') {
-    const openAiBaseUrl = normalizeCompatibleBaseUrl(env.OPENAI_CHAT_BASE_URL || env.OPENAI_BASE_URL || 'https://api.openai.com/v1')
+    const openAiBaseUrl = normalizeOpenAiChatBaseUrl(env.OPENAI_CHAT_BASE_URL || env.OPENAI_BASE_URL || 'https://api.openai.com/v1')
     const openAiCoachModel = env.OPENAI_COACH_MODEL || env.OPENAI_MODEL || 'gpt-5.6'
     const openAiCoach = {
       name: 'openai',
@@ -503,7 +503,7 @@ export function providerConfig(env = {}) {
       name: 'openai',
       label: 'OpenAI',
       apiKey: env.OPENAI_VISION_API_KEY || openAiKey,
-      baseUrl: normalizeCompatibleBaseUrl(env.OPENAI_VISION_BASE_URL || openAiBaseUrl),
+      baseUrl: normalizeOpenAiChatBaseUrl(env.OPENAI_VISION_BASE_URL || openAiBaseUrl),
       model: env.OPENAI_VISION_MODEL || env.OPENAI_MODEL || openAiCoachModel,
       publicBaseUrl,
       imageMode,
@@ -527,6 +527,17 @@ function normalizeCompatibleBaseUrl(value) {
   if (!source) return ''
   if (/\/(?:chat\/completions|responses)$/i.test(source)) return source.replace(/\/(?:chat\/completions|responses)$/i, '')
   return source
+}
+
+export function normalizeOpenAiChatBaseUrl(value) {
+  const source = String(value || '').trim().replace(/[\r\n]+/g, '').replace(/\/+$/, '')
+  if (!source) return ''
+  const hasExplicitEndpoint = /\/chat\/completions$/i.test(source)
+  const withoutEndpoint = hasExplicitEndpoint
+    ? source.replace(/\/chat\/completions$/i, '')
+    : source
+  if (hasExplicitEndpoint || /\/v1$/i.test(withoutEndpoint)) return withoutEndpoint
+  return `${withoutEndpoint}/v1`
 }
 
 function imagePublicBase(provider, request) {
