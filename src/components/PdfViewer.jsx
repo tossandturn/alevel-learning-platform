@@ -372,6 +372,7 @@ export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage 
 
   useEffect(() => {
     let active = true
+    let loadedDocument = null
     const task = pdfjs.getDocument({
       url: file.localUrl,
       cMapUrl: '/pdfjs/cmaps/',
@@ -386,7 +387,8 @@ export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage 
     setActivePage(1)
     task.promise
       .then((nextDocument) => {
-        if (!active) return nextDocument.destroy()
+        loadedDocument = nextDocument
+        if (!active) return nextDocument.destroy().catch(() => {})
         setDocument(nextDocument)
         setStatus('ready')
       })
@@ -398,7 +400,7 @@ export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage 
       })
     return () => {
       active = false
-      task.destroy().catch(() => {})
+      if (loadedDocument) void loadedDocument.destroy().catch(() => {})
     }
   }, [file.id, file.localUrl])
 

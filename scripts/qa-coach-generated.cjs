@@ -299,7 +299,7 @@ async function run() {
     page = await context.newPage()
     page.setDefaultTimeout(20_000)
     const errors = []
-    page.on('pageerror', (error) => errors.push(error.message))
+    page.on('pageerror', (error) => errors.push(error.stack || error.message))
     page.on('response', (response) => {
       const expectedGuestIdentity = response.status() === 401 && new URL(response.url()).pathname === '/api/auth/status'
       if (response.status() >= 400 && !expectedGuestIdentity) errors.push(`${response.status()} ${response.url()}`)
