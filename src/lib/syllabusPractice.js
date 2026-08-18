@@ -616,24 +616,34 @@ function publicQuestionGroup(record) {
     questionNumber: question.sourceRef?.question || null,
     totalMarks: Number(question.totalMarks || question.marks || 0),
     prompt: question.prompt || '',
-    parts: (question.parts || []).map((part) => ({
-      partId: part.partId,
-      label: part.label,
-      displayLabel: sourceQuestionDisplayLabel(question, part),
-      marks: Number(part.marks || 0),
-      promptFragment: part.promptFragment || '',
-      answerArea: part.answerArea || null,
-      options: part.options || [],
-      answerKey: part.answerKey || null,
-      markSchemePoints: part.markSchemePoints || [],
-      sourcePage: part.sourcePage || question.sourceRef?.pageStart || null,
-      answerSourcePage: part.answerSourcePage || question.answerRef?.pageStart || null,
-      sourceEvidence: part.sourceEvidence || [],
-      markSchemeEvidence: part.markSchemeEvidence || [],
-      sourceFocus: part.sourceFocus || null,
-      markingProvenance: canonicalSourceMarkingProvenance(question, part),
-      sourceBindingProvenance: canonicalSourcePracticeProvenance(question, part),
-    })),
+    parts: (question.parts || []).map((part) => {
+      const markingProvenance = canonicalSourceMarkingProvenance(question, part)
+      const sourceBindingProvenance = canonicalSourcePracticeProvenance(question, part)
+      return {
+        partId: part.partId,
+        label: part.label,
+        displayLabel: sourceQuestionDisplayLabel(question, part),
+        marks: Number(part.marks || 0),
+        promptFragment: part.promptFragment || '',
+        answerArea: part.answerArea || null,
+        options: part.options || [],
+        answerKey: part.answerKey || null,
+        markSchemePoints: part.markSchemePoints || [],
+        sourcePage: part.sourcePage || question.sourceRef?.pageStart || null,
+        answerSourcePage: part.answerSourcePage || question.answerRef?.pageStart || null,
+        sourceEvidence: part.sourceEvidence || [],
+        markSchemeEvidence: part.markSchemeEvidence || [],
+        sourceFocus: part.sourceFocus || null,
+        markingProvenance,
+        sourceBindingProvenance,
+        aiAssistedMarkingAvailable: Boolean(
+          question.answerBinding?.verificationStatus === 'reviewed'
+          && !record.studyOnly
+          && markingProvenance
+          && sourceBindingProvenance,
+        ),
+      }
+    }),
     sourceRef: question.sourceRef,
     answerRef: question.answerRef,
     reviewStatus: question.answerBinding?.verificationStatus || 'machine-indexed',
@@ -732,7 +742,13 @@ export function rebindSyllabusPracticeUnit(unit, { questionBank = studyQuestionB
       studyOnly: group.studyOnly === true,
       practiceAvailable: true,
       deterministicScoringAvailable: Boolean(currentPart.answerKey),
-      aiAssistedMarkingAvailable: Boolean(group.reviewStatus === 'reviewed' && !group.studyOnly && currentPart.markingProvenance),
+      aiAssistedMarkingAvailable: Boolean(
+        group.reviewStatus === 'reviewed'
+        && !group.studyOnly
+        && currentPart.aiAssistedMarkingAvailable
+        && currentPart.markingProvenance
+        && currentPart.sourceBindingProvenance,
+      ),
       markPoints: currentPart.markSchemePoints || [],
       sourceAuthority: 'server-syllabus',
     }))

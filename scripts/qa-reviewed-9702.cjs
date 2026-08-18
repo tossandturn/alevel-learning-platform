@@ -388,18 +388,18 @@ async function verifyQuestion(page, testCase, viewport, responses) {
 }
 
 async function verifyFullPageQuestion(page, testCase, viewport, responses) {
-  const buttons = page.locator('.qp-index__list button')
-  const groupParts = []
-  for (let index = 0; index < await buttons.count(); index += 1) {
-    await buttons.nth(index).click()
-    const sourceLabel = await page.locator('.qp-source-label strong').innerText().catch(() => '')
-    if (!sourceLabel.includes(`${testCase.paper} · ${testCase.question}(`)) continue
-    const markText = await page.locator('.qp-question__meta strong').innerText()
-    groupParts.push({ sourceLabel, marks: Number(markText.match(/\d+/)?.[0] || 0) })
-  }
   const label = await activateQuestion(page, testCase.question, testCase.paper)
   const expectedLabel = new RegExp(`${testCase.paper.replace('/', '\\/')}.*${testCase.question}\\(`, 'i')
   if (!expectedLabel.test(label)) throw new Error(`Question identity drifted: ${label}`)
+  const groupParts = []
+  const partCards = page.locator('.qp-answer-part[data-source-question]')
+  for (let index = 0; index < await partCards.count(); index += 1) {
+    const card = partCards.nth(index)
+    const sourceLabel = await card.getAttribute('data-source-question') || ''
+    if (!sourceLabel.startsWith(`${testCase.paper} · ${testCase.question}(`)) continue
+    const markText = await card.locator('.qp-attempt-label small').innerText()
+    groupParts.push({ sourceLabel, marks: Number(markText.match(/\d+/)?.[0] || 0) })
+  }
   if (groupParts.length !== testCase.expectedParts) throw new Error(`${testCase.paper} ${testCase.question} exposed ${groupParts.length} parts instead of ${testCase.expectedParts}: ${JSON.stringify(groupParts)}`)
   const groupMarks = groupParts.reduce((sum, part) => sum + part.marks, 0)
   if (groupMarks !== testCase.expectedMarks) throw new Error(`${testCase.paper} ${testCase.question} exposed ${groupMarks} marks instead of ${testCase.expectedMarks}`)

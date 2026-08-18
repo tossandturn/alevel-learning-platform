@@ -691,7 +691,8 @@
       "reasons": [
         "answer-text-has-unbound-part-labels:a,b,c",
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:10<11"
       ],
       "bindingSignature": "fnv1a64:0130c36d94946648"
     },
@@ -702,7 +703,8 @@
       "reasons": [
         "answer-text-has-unbound-part-labels:a,b,c",
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:12<13"
       ],
       "bindingSignature": "fnv1a64:b143bf4c5a8de0e1"
     },
@@ -1097,7 +1099,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:18<19"
       ],
       "bindingSignature": "fnv1a64:6cf50bf0ed6a0fac"
     },
@@ -1666,7 +1669,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:10<11"
       ],
       "bindingSignature": "fnv1a64:3f538b4f93df7a4a"
     },
@@ -1876,7 +1880,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:4<5"
       ],
       "bindingSignature": "fnv1a64:0e8571b5071deefb"
     },
@@ -1948,7 +1953,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:12<13"
       ],
       "bindingSignature": "fnv1a64:9997b669eef725d5"
     },
@@ -2027,7 +2033,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:8<9"
       ],
       "bindingSignature": "fnv1a64:257a4bab12cfe103"
     },
@@ -2182,7 +2189,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:12<13"
       ],
       "bindingSignature": "fnv1a64:4d54304ca85c43f9"
     },
@@ -3212,7 +3220,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:2<3"
       ],
       "bindingSignature": "fnv1a64:9933e2d27318ff70"
     },
@@ -3222,7 +3231,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:4<5"
       ],
       "bindingSignature": "fnv1a64:2fdfada99f4ac3a9"
     },
@@ -3232,7 +3242,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:6<7"
       ],
       "bindingSignature": "fnv1a64:8fb4afb8340aa726"
     },
@@ -3272,7 +3283,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:12<13"
       ],
       "bindingSignature": "fnv1a64:84bafb62f39b2a59"
     },
@@ -3282,7 +3294,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:14<15"
       ],
       "bindingSignature": "fnv1a64:04759b438523b4d4"
     },
@@ -3292,7 +3305,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:16<17"
       ],
       "bindingSignature": "fnv1a64:ab90ee4c6eeec727"
     },
@@ -3952,7 +3966,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:2<3"
       ],
       "bindingSignature": "fnv1a64:ac3f186dcfbccf48"
     },
@@ -3962,7 +3977,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:4<5"
       ],
       "bindingSignature": "fnv1a64:319fbb2963044bad"
     },
@@ -3972,7 +3988,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:6<7"
       ],
       "bindingSignature": "fnv1a64:2b6e20ba5b597dda"
     },
@@ -3982,7 +3999,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:8<9"
       ],
       "bindingSignature": "fnv1a64:3653de6ab7c5b183"
     },
@@ -3992,7 +4010,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:10<11"
       ],
       "bindingSignature": "fnv1a64:e879c0aeff73065d"
     },
@@ -4002,7 +4021,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:12<13"
       ],
       "bindingSignature": "fnv1a64:3f9aa93019851ca8"
     },
@@ -4023,7 +4043,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:2<3"
       ],
       "bindingSignature": "fnv1a64:e76c13015812b832"
     },
@@ -4033,7 +4054,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:4<5"
       ],
       "bindingSignature": "fnv1a64:07d7ff3b5a593083"
     },
@@ -4043,7 +4065,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:6<7"
       ],
       "bindingSignature": "fnv1a64:aa76276d7518d678"
     },
@@ -4053,7 +4076,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:8<9"
       ],
       "bindingSignature": "fnv1a64:0796643e7825c29d"
     },
@@ -4063,7 +4087,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:10<11"
       ],
       "bindingSignature": "fnv1a64:ba345f3e5bdde0b7"
     },
@@ -4073,7 +4098,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:12<13"
       ],
       "bindingSignature": "fnv1a64:55ba7bc183df7f46"
     },
@@ -4093,7 +4119,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:2<3"
       ],
       "bindingSignature": "fnv1a64:537ecf196aefaf42"
     },
@@ -4114,7 +4141,8 @@
       "reasons": [
         "answer-text-has-unbound-part-labels:a,b",
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:6<7"
       ],
       "bindingSignature": "fnv1a64:e0b4e1e5cbf4db44"
     },
@@ -4124,7 +4152,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:8<9"
       ],
       "bindingSignature": "fnv1a64:4117e7607986c599"
     },
@@ -4134,7 +4163,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:10<11"
       ],
       "bindingSignature": "fnv1a64:5e3cde1f55ffc693"
     },
@@ -4144,7 +4174,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:12<15"
       ],
       "bindingSignature": "fnv1a64:fcca5be76b716656"
     },
@@ -4164,7 +4195,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:2<3"
       ],
       "bindingSignature": "fnv1a64:eb27397cfb767098"
     },
@@ -4184,7 +4216,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:6<7"
       ],
       "bindingSignature": "fnv1a64:e9cc04ee096d2316"
     },
@@ -4194,7 +4227,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:8<9"
       ],
       "bindingSignature": "fnv1a64:fe7363a5a56f4013"
     },
@@ -4204,7 +4238,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:10<11"
       ],
       "bindingSignature": "fnv1a64:38ab5c5cd0ad5fb1"
     },
@@ -4214,7 +4249,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:12<13"
       ],
       "bindingSignature": "fnv1a64:0a21bae18380a5c8"
     },
@@ -4264,7 +4300,8 @@
       "reasons": [
         "answer-text-has-unbound-part-labels:a",
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:6<7"
       ],
       "bindingSignature": "fnv1a64:45841bf734fd3f4b"
     },
@@ -4283,7 +4320,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:10<11"
       ],
       "bindingSignature": "fnv1a64:cb4dc87270d8a4d0"
     },
@@ -4343,7 +4381,8 @@
       "reasons": [
         "answer-text-has-unbound-part-labels:a",
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:6<7"
       ],
       "bindingSignature": "fnv1a64:40b90229701502a7"
     },
@@ -4363,7 +4402,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:10<11"
       ],
       "bindingSignature": "fnv1a64:627f4d94b2cfd848"
     },
@@ -5113,7 +5153,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:2<3"
       ],
       "bindingSignature": "fnv1a64:2cc90ad3c87ef7ea"
     },
@@ -5123,7 +5164,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:4<5"
       ],
       "bindingSignature": "fnv1a64:8ca210ac48d33cab"
     },
@@ -5133,7 +5175,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:6<8"
       ],
       "bindingSignature": "fnv1a64:b8f91c09c7e91d80"
     },
@@ -5143,7 +5186,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:10<11"
       ],
       "bindingSignature": "fnv1a64:7618853f6c4dc97b"
     },
@@ -5168,7 +5212,8 @@
       "reasons": [
         "answer-text-has-unbound-part-labels:p,q,r",
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:16<17"
       ],
       "bindingSignature": "fnv1a64:74cbfd7a23b86a7a"
     },
@@ -5178,7 +5223,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:18<19"
       ],
       "bindingSignature": "fnv1a64:9e6a22ad2a0ce731"
     },
@@ -5217,7 +5263,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:2<3"
       ],
       "bindingSignature": "fnv1a64:50940bd3cfa9acf8"
     },
@@ -5236,7 +5283,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:6<7"
       ],
       "bindingSignature": "fnv1a64:cb38f63a645d337f"
     },
@@ -5256,7 +5304,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:10<11"
       ],
       "bindingSignature": "fnv1a64:709f7182caeb44f9"
     },
@@ -5266,7 +5315,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:13<14"
       ],
       "bindingSignature": "fnv1a64:3f000c7982c10b0a"
     },
@@ -5276,7 +5326,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:15<17"
       ],
       "bindingSignature": "fnv1a64:8a59f305339bc146"
     },
@@ -5286,7 +5337,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:18<19"
       ],
       "bindingSignature": "fnv1a64:533b9c669eceb5bc"
     },
@@ -5296,7 +5348,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:20<21"
       ],
       "bindingSignature": "fnv1a64:46f9956f0ec49858"
     },
@@ -5676,7 +5729,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:2<4"
       ],
       "bindingSignature": "fnv1a64:9fe2ff2ef4e0028e"
     },
@@ -5686,7 +5740,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:5<7"
       ],
       "bindingSignature": "fnv1a64:645dc93b118c63fc"
     },
@@ -5696,7 +5751,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:8<9"
       ],
       "bindingSignature": "fnv1a64:9863ae02e744f7b6"
     },
@@ -5725,7 +5781,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:6<12"
       ],
       "bindingSignature": "fnv1a64:63db72584814d2e3"
     },
@@ -5757,7 +5814,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:13<15"
       ],
       "bindingSignature": "fnv1a64:ed778c6ddca679d3"
     },
@@ -5767,7 +5825,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:16<21"
       ],
       "bindingSignature": "fnv1a64:339c796809b3365b"
     },
@@ -6517,7 +6576,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:4<5"
       ],
       "bindingSignature": "fnv1a64:f09d1444bfe3323d"
     },
@@ -6547,7 +6607,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:10<11"
       ],
       "bindingSignature": "fnv1a64:85dc380dbb8153f5"
     },
@@ -6557,7 +6618,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:12<17"
       ],
       "bindingSignature": "fnv1a64:84fc5657812aaf5c"
     },
@@ -6589,7 +6651,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:18<21"
       ],
       "bindingSignature": "fnv1a64:ad173271646fa0dc"
     },
@@ -6659,7 +6722,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:6<10"
       ],
       "bindingSignature": "fnv1a64:8321f6d7689dd3f4"
     },
@@ -6685,7 +6749,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:11<12"
       ],
       "bindingSignature": "fnv1a64:e73c56fdd6df2562"
     },
@@ -6695,7 +6760,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:13<15"
       ],
       "bindingSignature": "fnv1a64:9a7f8da63e788773"
     },
@@ -6705,7 +6771,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:16<17"
       ],
       "bindingSignature": "fnv1a64:3f6ca073edca5f4f"
     },
@@ -6715,7 +6782,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:18<19"
       ],
       "bindingSignature": "fnv1a64:a42643e1f57d8c66"
     },
@@ -6793,7 +6861,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:12<17"
       ],
       "bindingSignature": "fnv1a64:e98f79438a5f5df4"
     },
@@ -6825,7 +6894,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:18<21"
       ],
       "bindingSignature": "fnv1a64:a202fdc5b65c38ec"
     },
@@ -6875,7 +6945,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:3<5"
       ],
       "bindingSignature": "fnv1a64:0af194d97bf1e46d"
     },
@@ -6885,7 +6956,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:6<7"
       ],
       "bindingSignature": "fnv1a64:80e414388feea755"
     },
@@ -6895,7 +6967,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:8<11"
       ],
       "bindingSignature": "fnv1a64:42600364acb6792a"
     },
@@ -6905,7 +6978,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:12<13"
       ],
       "bindingSignature": "fnv1a64:7a7d9406e5f803b8"
     },
@@ -6915,7 +6989,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:14<16"
       ],
       "bindingSignature": "fnv1a64:bd20a57269164517"
     },
@@ -6937,7 +7012,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:20<21"
       ],
       "bindingSignature": "fnv1a64:93a37161c3a84c50"
     },
@@ -6961,9 +7037,10 @@
     "cie-9702-9702_m24_qp_22:q2": {
       "complete": false,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
+      "semanticStatus": "semantic-quarantined",
       "reasons": [
-        "human-semantic-review-required"
+        "human-semantic-review-required",
+        "source-range-ends-before-next-question:7<9"
       ],
       "bindingSignature": "fnv1a64:89d9be730bc3a21b"
     },
@@ -7046,7 +7123,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:11<13"
       ],
       "bindingSignature": "fnv1a64:258c56267c2656d1"
     },
@@ -7078,7 +7156,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:14<19"
       ],
       "bindingSignature": "fnv1a64:591494e009e80884"
     },
@@ -7118,7 +7197,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:20<24"
       ],
       "bindingSignature": "fnv1a64:555aa567963abdd7"
     },
@@ -7519,7 +7599,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:10<11"
       ],
       "bindingSignature": "fnv1a64:7a0376be55846707"
     },
@@ -7529,7 +7610,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:12<13"
       ],
       "bindingSignature": "fnv1a64:4122f3958e1de572"
     },
@@ -7539,7 +7621,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:14<15"
       ],
       "bindingSignature": "fnv1a64:0c49545349d60f0d"
     },
@@ -7558,7 +7641,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:18<20"
       ],
       "bindingSignature": "fnv1a64:88e630318b81fb83"
     },
@@ -7626,7 +7710,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:10<13"
       ],
       "bindingSignature": "fnv1a64:a44729c72c387d50"
     },
@@ -7658,7 +7743,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:14<17"
       ],
       "bindingSignature": "fnv1a64:2c394a17a44e73c6"
     },
@@ -7694,7 +7780,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:18<21"
       ],
       "bindingSignature": "fnv1a64:258cd256f663679c"
     },
@@ -7770,7 +7857,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:6<8"
       ],
       "bindingSignature": "fnv1a64:119ea26ab9d532fb"
     },
@@ -7790,7 +7878,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:10<13"
       ],
       "bindingSignature": "fnv1a64:bd9c0b6134f5ed1c"
     },
@@ -7822,7 +7911,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:14<15"
       ],
       "bindingSignature": "fnv1a64:ec7f4536bb5a3c5e"
     },
@@ -7832,7 +7922,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:16<17"
       ],
       "bindingSignature": "fnv1a64:af8b1c79b7e9eeb1"
     },
@@ -7842,7 +7933,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:18<19"
       ],
       "bindingSignature": "fnv1a64:b4dc2139e22cd330"
     },
@@ -7852,7 +7944,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:20<22"
       ],
       "bindingSignature": "fnv1a64:e4646c55e0cc6b08"
     },
@@ -8283,9 +8376,10 @@
     "cie-9702-9702_s25_qp_23:q3": {
       "complete": false,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
+      "semanticStatus": "semantic-quarantined",
       "reasons": [
-        "human-semantic-review-required"
+        "human-semantic-review-required",
+        "source-range-ends-before-next-question:9<10"
       ],
       "bindingSignature": "fnv1a64:6768cf7cbff4620b"
     },
@@ -8380,9 +8474,10 @@
     "cie-9702-9702_s25_qp_24:q6": {
       "complete": false,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
+      "semanticStatus": "semantic-quarantined",
       "reasons": [
-        "human-semantic-review-required"
+        "human-semantic-review-required",
+        "source-range-ends-before-next-question:13<14"
       ],
       "bindingSignature": "fnv1a64:713119d5f6753c07"
     },
@@ -8410,7 +8505,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:6<7"
       ],
       "bindingSignature": "fnv1a64:c89dd35a78922135"
     },
@@ -8470,7 +8566,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:16<17"
       ],
       "bindingSignature": "fnv1a64:b2ae9dbdfcf73b14"
     },
@@ -8528,7 +8625,8 @@
       "fileComplete": true,
       "semanticStatus": "semantic-quarantined",
       "reasons": [
-        "answer-text-has-unbound-part-labels:m"
+        "answer-text-has-unbound-part-labels:m",
+        "source-range-ends-before-next-question:11<13"
       ],
       "bindingSignature": "fnv1a64:ff34c9b6a2dc4d17"
     },
@@ -8569,7 +8667,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:16<17"
       ],
       "bindingSignature": "fnv1a64:c65cfff06717050d"
     },
@@ -8579,7 +8678,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:18<21"
       ],
       "bindingSignature": "fnv1a64:b0de449904d195f8"
     },
@@ -8629,7 +8729,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:4<5"
       ],
       "bindingSignature": "fnv1a64:8ef6db6d7888a882"
     },
@@ -8639,7 +8740,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:6<7"
       ],
       "bindingSignature": "fnv1a64:8c8d4368cf34700f"
     },
@@ -8691,7 +8793,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:14<15"
       ],
       "bindingSignature": "fnv1a64:1e5ba6dd80f72a67"
     },
@@ -8701,7 +8804,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:16<17"
       ],
       "bindingSignature": "fnv1a64:26f4e53f911cafce"
     },
@@ -8796,7 +8900,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:14<15"
       ],
       "bindingSignature": "fnv1a64:a727f006989c3acb"
     },
@@ -8806,7 +8911,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:16<19"
       ],
       "bindingSignature": "fnv1a64:d4e52ce2ae80f666"
     },
@@ -8842,7 +8948,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:20<22"
       ],
       "bindingSignature": "fnv1a64:2c2b469e4f7bb82c"
     },
@@ -9064,7 +9171,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:8<9"
       ],
       "bindingSignature": "fnv1a64:3a0c00ffda99b2c4"
     },
@@ -9074,7 +9182,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:10<13"
       ],
       "bindingSignature": "fnv1a64:8c36feb44ed74c40"
     },
@@ -9106,7 +9215,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:14<15"
       ],
       "bindingSignature": "fnv1a64:0eec1c6cbd1b207a"
     },
@@ -9116,7 +9226,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:16<17"
       ],
       "bindingSignature": "fnv1a64:d0c0b986f75029d5"
     },
@@ -9126,7 +9237,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:18<19"
       ],
       "bindingSignature": "fnv1a64:62a351cfd77c6ddc"
     },
@@ -9136,7 +9248,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:20<21"
       ],
       "bindingSignature": "fnv1a64:1b7147a39401e934"
     },
@@ -9156,7 +9269,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:4<5"
       ],
       "bindingSignature": "fnv1a64:598763d4cf08c7b4"
     },
@@ -9166,7 +9280,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:6<7"
       ],
       "bindingSignature": "fnv1a64:2be3cf276f595385"
     },
@@ -9186,7 +9301,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:10<11"
       ],
       "bindingSignature": "fnv1a64:9567ebd116f27bf2"
     },
@@ -9196,7 +9312,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:12<13"
       ],
       "bindingSignature": "fnv1a64:1e80eeebabf115d5"
     },
@@ -9206,7 +9323,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:14<15"
       ],
       "bindingSignature": "fnv1a64:d6bcd22264c7d438"
     },
@@ -9216,7 +9334,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:16<17"
       ],
       "bindingSignature": "fnv1a64:6b5491c09dc9a3df"
     },
@@ -9226,7 +9345,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:18<21"
       ],
       "bindingSignature": "fnv1a64:c191ee8ff67b544e"
     },
@@ -9296,7 +9416,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:8<9"
       ],
       "bindingSignature": "fnv1a64:b4214240bdc59978"
     },
@@ -9306,7 +9427,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:10<13"
       ],
       "bindingSignature": "fnv1a64:2e19f38c66c1da18"
     },
@@ -9338,7 +9460,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:14<15"
       ],
       "bindingSignature": "fnv1a64:d2e7f7b480bbd84a"
     },
@@ -9348,7 +9471,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:16<17"
       ],
       "bindingSignature": "fnv1a64:ef58d7ea74abb0b1"
     },
@@ -9358,7 +9482,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:18<19"
       ],
       "bindingSignature": "fnv1a64:6d84a8261b4490ac"
     },
@@ -9368,7 +9493,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:20<21"
       ],
       "bindingSignature": "fnv1a64:2bbbb9ba63dc00b4"
     },
@@ -9398,7 +9524,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:6<7"
       ],
       "bindingSignature": "fnv1a64:0bf5173ea2075ae1"
     },
@@ -9418,7 +9545,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:10<14"
       ],
       "bindingSignature": "fnv1a64:6afa60be2cba08f6"
     },
@@ -9450,7 +9578,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:15<17"
       ],
       "bindingSignature": "fnv1a64:110707d37ec8f5a5"
     },
@@ -9460,7 +9589,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:18<19"
       ],
       "bindingSignature": "fnv1a64:ff1e76c085875f49"
     },
@@ -9470,7 +9600,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:20<22"
       ],
       "bindingSignature": "fnv1a64:0757d60c420d4c8f"
     },
@@ -11377,9 +11508,10 @@
     "cie-9709-9709_s25_qp_11:q8": {
       "complete": false,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
+      "semanticStatus": "semantic-quarantined",
       "reasons": [
-        "human-semantic-review-required"
+        "human-semantic-review-required",
+        "source-range-ends-before-next-question:12<13"
       ],
       "bindingSignature": "fnv1a64:41f7dee4e6641260"
     },
@@ -11710,9 +11842,10 @@
     "cie-9709-9709_s25_qp_22:q6": {
       "complete": false,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
+      "semanticStatus": "semantic-quarantined",
       "reasons": [
-        "human-semantic-review-required"
+        "human-semantic-review-required",
+        "source-range-ends-before-next-question:10<11"
       ],
       "bindingSignature": "fnv1a64:a3e280b833da8059"
     },
@@ -11746,18 +11879,20 @@
     "cie-9709-9709_s25_qp_31:q3": {
       "complete": false,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
+      "semanticStatus": "semantic-quarantined",
       "reasons": [
-        "human-semantic-review-required"
+        "human-semantic-review-required",
+        "source-range-ends-before-next-question:4<5"
       ],
       "bindingSignature": "fnv1a64:4fbfcf32d45104d9"
     },
     "cie-9709-9709_s25_qp_31:q4": {
       "complete": false,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
+      "semanticStatus": "semantic-quarantined",
       "reasons": [
-        "human-semantic-review-required"
+        "human-semantic-review-required",
+        "source-range-ends-before-next-question:6<7"
       ],
       "bindingSignature": "fnv1a64:beb379dda893cd76"
     },
@@ -11809,9 +11944,10 @@
     "cie-9709-9709_s25_qp_31:q10": {
       "complete": false,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
+      "semanticStatus": "semantic-quarantined",
       "reasons": [
-        "human-semantic-review-required"
+        "human-semantic-review-required",
+        "source-range-ends-before-next-question:16<17"
       ],
       "bindingSignature": "fnv1a64:2436f2e1747f6270"
     },
@@ -11890,9 +12026,10 @@
     "cie-9709-9709_s25_qp_32:q8": {
       "complete": false,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
+      "semanticStatus": "semantic-quarantined",
       "reasons": [
-        "human-semantic-review-required"
+        "human-semantic-review-required",
+        "source-range-ends-before-next-question:12<13"
       ],
       "bindingSignature": "fnv1a64:4bc3b858851a4ae6"
     },
@@ -11908,9 +12045,10 @@
     "cie-9709-9709_s25_qp_32:q10": {
       "complete": false,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
+      "semanticStatus": "semantic-quarantined",
       "reasons": [
-        "human-semantic-review-required"
+        "human-semantic-review-required",
+        "source-range-ends-before-next-question:16<17"
       ],
       "bindingSignature": "fnv1a64:e7648c65344f343c"
     },
@@ -12299,7 +12437,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:23<24"
       ],
       "bindingSignature": "fnv1a64:629ca4ac61de0eaf"
     },
@@ -12577,7 +12716,8 @@
       "semanticStatus": "semantic-quarantined",
       "reasons": [
         "index-quarantined",
-        "missing-question-parts"
+        "missing-question-parts",
+        "source-range-ends-before-next-question:16<17"
       ],
       "bindingSignature": "fnv1a64:8d012165efc35294"
     },
@@ -13533,5 +13673,5 @@
       "bindingSignature": "fnv1a64:a0315e0ab0dddf52"
     }
   },
-  "checksum": "a71c97d9ba9b134f1dab45a9cb963b5459853d8981321f1b7949a9e58f3095fa"
+  "checksum": "3510373246b9b5295b61564ae689b521223aaefcecd3d594e628012825f03d1b"
 }

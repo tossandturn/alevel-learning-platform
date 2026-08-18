@@ -11,7 +11,7 @@ import {
   sourcePageFromAssetUrl,
   sourceQuestionId,
 } from '../src/lib/sourceContentContract.js'
-import { HIGH_PRIORITY_SOURCE_RANGE_REVIEW_IDS, RESOLVED_NON_CONTENT_PAGE_GAPS, sourceSemanticVerificationStatus, sourceStructuralConsistencyIssues } from '../src/lib/sourceSemanticContract.js'
+import { HIGH_PRIORITY_SOURCE_RANGE_REVIEW_IDS, RESOLVED_NON_CONTENT_PAGE_GAPS, sourceRangeReviewCandidates, sourceSemanticVerificationStatus, sourceStructuralConsistencyIssues } from '../src/lib/sourceSemanticContract.js'
 import { canonicalTextSha256, canonicalTextFileSha256, canonicalUtf8LfText } from './canonical-text.mjs'
 
 const root = path.resolve(process.env.SOURCE_AUDIT_ROOT || path.join(import.meta.dirname, '..'))
@@ -36,55 +36,15 @@ const inventory = new Map()
 const errors = []
 const sourceContentItems = {}
 
-function printedQuestionNumber(question) {
-  const match = String(question?.sourceRef?.question || '').match(/\d+/)
-  return match ? Number(match[0]) : null
-}
-
-function validPage(value) {
-  const page = Number(value)
-  return Number.isInteger(page) && page > 0 ? page : null
-}
-
-// A gap before the next printed question is a high-priority review candidate,
-// not proof that every intervening page belongs to the previous group. It
-// fails closed until a reviewer checks continuations, shared figures and pages.
-// Final-paper questions remain review candidates only; do not auto-extend them.
-function declaredRangeCandidates(questions) {
-  const observations = []
-  const byPaper = Map.groupBy(questions.filter((question) => question.sourceRef?.paperId), (question) => question.sourceRef.paperId)
-  for (const [paperId, paperQuestions] of byPaper) {
-    const ordered = [...paperQuestions]
-      .filter((question) => validPage(question.sourceRef?.pageStart) && validPage(question.sourceRef?.pageEnd ?? question.sourceRef?.pageStart))
-      .toSorted((left, right) => validPage(left.sourceRef.pageStart) - validPage(right.sourceRef.pageStart) || (printedQuestionNumber(left) || 0) - (printedQuestionNumber(right) || 0))
-    for (let index = 0; index < ordered.length; index += 1) {
-      const current = ordered[index]
-      const next = ordered[index + 1]
-      const end = validPage(current.sourceRef?.pageEnd ?? current.sourceRef?.pageStart)
-      if (!next) continue
-      const nextStart = validPage(next.sourceRef?.pageStart)
-      if (end < nextStart - 1) {
-        observations.push({
-          questionId: current.questionId,
-          paperId,
-          pageEnd: end,
-          nextQuestionId: next.questionId,
-          nextQuestionPageStart: nextStart,
-          reason: `source-range-ends-before-next-question:${end}<${nextStart - 1}`,
-        })
-      }
-    }
-  }
-  return observations
-}
-
-const rangeGapObservations = declaredRangeCandidates(index.questions)
+const rangeGapObservations = sourceRangeReviewCandidates(index.questions)
 const highPriorityRangeCandidateIds = new Set(HIGH_PRIORITY_SOURCE_RANGE_REVIEW_IDS)
 const highPriorityRangeCandidates = rangeGapObservations.filter((candidate) => highPriorityRangeCandidateIds.has(candidate.questionId))
 const resolvedNonContentRangeCandidates = rangeGapObservations
   .filter((candidate) => RESOLVED_NON_CONTENT_PAGE_GAPS[candidate.questionId])
   .map((candidate) => ({ ...candidate, resolution: RESOLVED_NON_CONTENT_PAGE_GAPS[candidate.questionId] }))
-const highConfidenceRangeReasons = new Map(highPriorityRangeCandidates.map((candidate) => [candidate.questionId, candidate.reason]))
+const unresolvedRangeCandidates = rangeGapObservations
+  .filter((candidate) => !RESOLVED_NON_CONTENT_PAGE_GAPS[candidate.questionId])
+const unresolvedRangeReasons = new Map(unresolvedRangeCandidates.map((candidate) => [candidate.questionId, candidate.reason]))
 
 function digest(value) {
   return createHash('sha256').update(value).digest('hex')
@@ -370,7 +330,12 @@ function auditSourceContent(question, binding, answer) {
     required: reviewed,
   }))
   const semantic = sourceSemanticVerificationStatus(sourceQuestion, { binding, answer })
-  const rangeReason = highConfidenceRangeReasons.get(question.questionId)
+  // A candidate is fail-closed for machine-indexed/study records. A binding
+  // that already carries the strict paired QP/MS reviewed evidence has an
+  // explicit semantic decision and is allowed to use that decision.
+  const rangeReason = binding?.verificationStatus === 'reviewed'
+    ? null
+    : unresolvedRangeReasons.get(question.questionId)
   const semanticStatus = rangeReason ? 'semantic-quarantined' : semantic.status
   const semanticReasons = rangeReason ? [...semantic.reasons, rangeReason] : semantic.reasons
   const structuralIssues = sourceStructuralConsistencyIssues(sourceQuestion, answer)
@@ -453,7 +418,7 @@ for (const question of index.questions) {
 
 for (const questionId of duplicateBindings) errors.push(`${questionId}: duplicate answer binding`)
 for (const questionId of HIGH_PRIORITY_SOURCE_RANGE_REVIEW_IDS) {
-  if (!highConfidenceRangeReasons.has(questionId)) errors.push(`${questionId}: high-priority range-review fixture no longer matches a declared page gap`)
+  if (!rangeGapObservations.some((candidate) => candidate.questionId === questionId)) errors.push(`${questionId}: high-priority range-review fixture no longer matches a declared page gap`)
 }
 for (const questionId of Object.keys(RESOLVED_NON_CONTENT_PAGE_GAPS)) {
   if (!rangeGapObservations.some((candidate) => candidate.questionId === questionId)) errors.push(`${questionId}: resolved non-content page-gap fixture no longer matches a declared page gap`)

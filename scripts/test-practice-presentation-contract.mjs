@@ -9,6 +9,10 @@ const {
   markingStatusForPart,
   topicDisplayNames,
   topicPracticeInventory,
+  practiceAttemptMetrics,
+  sourceQuestionDisplayLabel,
+  responsePresent,
+  evidencePresent,
 } = practicePresentation
 
 const mixedUnit = {
@@ -76,6 +80,23 @@ assert.deepEqual(markingStatusForPart({ answerKey: 'D', reviewStatus: 'machine-i
 assert.equal(markingStatusForPart({ aiAssistedMarkingAvailable: true, reviewStatus: 'reviewed' }).label, 'Semantic-reviewed')
 assert.equal(markingStatusForPart({ reviewStatus: 'machine-indexed' }).label, 'Self-mark')
 
+const attemptMetricsUnit = {
+  parts: [
+    { id: 'attempt-q1-a', sourceQuestionId: 'paper:q1', displayLabel: 'M25/12 · Q1(a)', marks: 1, answerType: 'numeric', paperComponent: 1 },
+    { id: 'attempt-q1-b', sourceQuestionId: 'paper:q1', displayLabel: 'M25/12 · Q1(b)', marks: 2, answerType: 'written', paperComponent: 1 },
+    { id: 'attempt-q2-a', sourceQuestionId: 'paper:q2', displayLabel: 'M25/12 · Q2(a)', marks: 1, answerType: 'numeric', paperComponent: 1 },
+  ],
+}
+const attemptMetrics = practiceAttemptMetrics({ answers: { 'attempt-q1-a': 0 } }, attemptMetricsUnit)
+assert.equal(attemptMetrics.answeredPartCount, 1, 'numeric zero is an answered part, not an empty response')
+assert.equal(attemptMetrics.unansweredAnswerPartCount, 2, 'unanswered counts must use answer parts')
+assert.equal(attemptMetrics.answeredQuestionCount, 0, 'a partially answered source question is not complete')
+assert.equal(attemptMetrics.unansweredSourceQuestionCount, 2, 'source question completion remains separate from answer-part completion')
+assert.equal(sourceQuestionDisplayLabel(attemptMetricsUnit.parts[0], 'Question 1'), 'M25/12 · Q1(a)')
+assert.equal(responsePresent(0), true, 'numeric zero must remain a response in every consumer')
+assert.equal(evidencePresent({ dataUrl: 'data:image/jpeg;base64,fixture', hasVisualContent: false }), false, 'an explicitly blank handwriting snapshot must not become answer evidence')
+assert.equal(evidencePresent({ dataUrl: 'data:image/jpeg;base64,fixture', hasVisualContent: true }), true, 'real handwriting/image evidence must remain eligible')
+
 const topics = [
   { id: 'physics-9702-topic-02', code: '2', name: 'Kinematics' },
   { id: 'physics-9702-topic-03', code: '3', name: 'Dynamics' },
@@ -131,6 +152,7 @@ const workspaceSource = await import('node:fs').then(({ readFileSync }) => readF
 const paperLibrarySource = await import('node:fs').then(({ readFileSync }) => readFileSync(new URL('../src/components/PaperLibrary.jsx', import.meta.url), 'utf8'))
 const paperAnswerSheetSource = await import('node:fs').then(({ readFileSync }) => readFileSync(new URL('../src/components/PaperAnswerSheet.jsx', import.meta.url), 'utf8'))
 const historySource = await import('node:fs').then(({ readFileSync }) => readFileSync(new URL('../src/components/HistoryView.jsx', import.meta.url), 'utf8'))
+const handwritingSource = await import('node:fs').then(({ readFileSync }) => readFileSync(new URL('../src/components/HandwritingPad.jsx', import.meta.url), 'utf8'))
 
 assert.match(appSource, /Build multi-topic practice/, 'Topic Drill must expose the multi-topic builder before opening a topic')
 assert.match(appSource, /view !== 'practice'/, 'the global Coach must not duplicate the workspace Coach during an attempt')
@@ -146,12 +168,17 @@ assert.match(appSource, /Browse practice/, 'Saved empty state must offer a disco
 assert.doesNotMatch(appSource, /function openAiPractice\(\)[\s\S]{0,220}setCoachBuilderOpenRequest/, 'opening AI Practice must not duplicate the builder inside Coach')
 assert.doesNotMatch(paperLibrarySource, /item\.sha256\.slice/, 'student paper rows must not expose file hashes')
 assert.doesNotMatch(paperLibrarySource, /catalogState\.catalog\.totals\.bytes/, 'student Papers must not expose storage diagnostics')
-assert.match(workspaceSource, /question is|questions are/, 'submit confirmation must count unanswered whole source questions')
-assert.doesNotMatch(workspaceSource, /answer part is|answer parts are/, 'submit confirmation must not split one source question into repeated answer-part screens')
+assert.match(workspaceSource, /unansweredAnswerPartCount/, 'submit confirmation must use the canonical unanswered answer-part count')
+assert.match(workspaceSource, /answer part is|answer parts are/, 'submit confirmation must describe unresolved answer parts explicitly')
+assert.match(workspaceSource, /sourceQuestionDisplayLabel/, 'question navigation must identify the source paper and question')
+assert.match(workspaceSource, /Semantic-reviewed/, 'reviewed written parts must use the student-facing semantic-reviewed status')
 assert.match(workspaceSource, /official question/, 'student practice metrics must call question groups official questions')
 assert.doesNotMatch(workspaceSource, /metrics\.markTotal|source question\{/, 'student practice metrics must use the canonical totalMarks and official-question terminology')
 assert.doesNotMatch(workspaceSource, /Source-backed study set|Verified past-paper set|It has been quarantined/, 'student practice must not expose internal source-gate terminology')
 assert.match(workspaceSource, /Select one option/, 'MCQ instructions must not reuse written-response copy')
+assert.match(handwritingSource, /hasVisualResponseRef/, 'blank handwriting pads must track whether visual response content exists')
+assert.match(handwritingSource, /!hasVisualResponseRef\.current/, 'submit flush must skip blank handwriting pads')
+assert.match(handwritingSource, /hasVisualContent: true/, 'saved handwriting evidence must identify real visual content')
 assert.doesNotMatch(historySource, /SHA-256/, 'student exports must show the downloaded filename instead of an internal checksum')
 assert.match(paperAnswerSheetSource, /showSubmitAction/, 'the paper answer sheet must allow PaperWorkspace to keep one primary submit action')
 

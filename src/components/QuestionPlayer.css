@@ -92,11 +92,13 @@
 .qp-index { position: sticky; top: 94px; border: 1px solid var(--qp-border); border-radius: 12px; background: var(--qp-card); }
 .qp-index__heading { display: grid; justify-items: center; gap: 2px; padding: 12px 6px 10px; border-bottom: 1px solid var(--qp-border); color: var(--qp-muted); font-size: 10px; }
 .qp-index__heading strong { color: var(--qp-text); font-size: 12px; }
+.qp-index__heading small { color: var(--qp-muted); font-size: 9px; }
 .qp-index__list { display: grid; gap: 2px; padding: 7px; }
 .qp-index__list button { position: relative; display: grid; grid-template-columns: 1fr auto; gap: 2px; align-items: center; min-height: 50px; padding: 5px; border: 0; border-radius: 8px; color: var(--qp-muted); background: transparent; cursor: pointer; }
 .qp-index__list button:hover { background: #f8fafc; }
 .qp-index__list button.active { color: var(--qp-primary); background: var(--qp-primary-soft); }
 .qp-index__list button > span { justify-self: center; font-size: 13px; font-weight: 850; }
+.qp-index__list button > .qp-index__label { min-width: 0; justify-self: start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; line-height: 1.25; text-align: left; }
 .qp-index__list button small { justify-self: center; font-size: 10px; }
 .qp-index__list button i { position: absolute; top: 7px; right: 7px; width: 6px; height: 6px; border-radius: 50%; background: #cbd5e1; }
 .qp-index__list button svg { position: absolute; top: 4px; right: 3px; color: #178267; }
@@ -128,6 +130,7 @@
 .qp-question__number strong { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 50%; color: #fff; background: var(--qp-primary); font-size: 15px; }
 .qp-question__meta { display: flex; align-items: center; gap: 11px; color: var(--qp-muted); font-size: 11px; }
 .qp-question__meta strong { color: var(--qp-text); font-size: 12px; }
+.qp-question__meta small { color: var(--qp-muted); font-size: 10px; }
 .qp-question__body { max-width: 840px; margin: 21px 0 25px; }
 .qp-question__body h2 { margin: 0; font-size: clamp(18px, 2.2vw, 22px); line-height: 1.65; font-weight: 650; }
 .qp-marking-capability { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 10px 0 0; color: var(--qp-muted); font-size: 12px; font-weight: 650; }
@@ -252,7 +255,7 @@
   .qp-index { position: sticky; top: 123px; z-index: 10; display: flex; align-items: stretch; overflow-x: auto; }
   .qp-index__heading { flex: 0 0 74px; align-content: center; border-right: 1px solid var(--qp-border); border-bottom: 0; }
   .qp-player .qp-index__list { display: flex; min-width: max-content; }
-  .qp-index__list button { width: 54px; min-height: 56px; }
+  .qp-index__list button { width: 104px; min-height: 56px; }
   .qp-checklist { margin-top: 12px; }
 }
 

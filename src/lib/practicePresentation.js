@@ -5,6 +5,70 @@ function positiveNumber(value) {
   return Number.isFinite(number) && number > 0 ? number : 0
 }
 
+export function responsePresent(value) {
+  if (value == null) return false
+  if (typeof value === 'string') return value.trim().length > 0
+  if (typeof value === 'number') return Number.isFinite(value)
+  if (Array.isArray(value)) return value.length > 0
+  if (typeof value === 'object') return Object.values(value).some(responsePresent)
+  return Boolean(value)
+}
+
+export function evidencePresent(value) {
+  if (typeof value === 'string') return value.trim().length > 0
+  if (!value || typeof value !== 'object') return false
+  if (value.hasVisualContent === false) return false
+  return Boolean(value.dataUrl || value.previewUrl || value.blobUrl || value.url || value.bytes)
+}
+
+function partResponsePresent(attempt, part) {
+  const partId = part?.id
+  if (!partId) return false
+  return responsePresent(attempt?.answers?.[partId])
+    || responsePresent(attempt?.working?.[partId])
+    || evidencePresent(attempt?.evidence?.[partId])
+    || (Array.isArray(attempt?.imageEvidence) && attempt.imageEvidence.some((item) => item?.partId === partId && evidencePresent(item)))
+}
+
+function sourceQuestionKey(part) {
+  return String(part?.sourceQuestionId || part?.questionGroupId || part?.bankId || part?.sourceRef?.question || part?.id || '')
+}
+
+function compactSourcePaperLabel(sourceRef = {}) {
+  const file = String(sourceRef.paper || sourceRef.paperId || '').replace(/\.[^.]+$/, '').replace(/^cie-\d{4}-/i, '')
+  const match = file.match(/(?:^|[_-])([msw])(\d{2})[_-]qp[_-]?(\d{1,2})(?:$|[_-])/i)
+  return match ? `${match[1].toUpperCase()}${match[2]}/${match[3]}` : file
+}
+
+export function sourceQuestionDisplayLabel(part = {}, fallback = 'Question') {
+  const explicit = String(part.displayLabel || '').trim()
+  const paper = compactSourcePaperLabel(part.sourceRef)
+  if (explicit && (!paper || explicit.includes(`${paper} ·`))) return explicit
+  const question = String(part.sourceRef?.question || part.label || explicit || fallback).trim()
+  return paper ? `${paper} · ${question}` : question
+}
+
+export function practiceAttemptMetrics(attempt = {}, unit = {}) {
+  const metrics = practiceUnitMetrics(unit)
+  const parts = Array.isArray(unit.parts) ? unit.parts : []
+  const groups = new Map()
+  for (const part of parts) {
+    const key = sourceQuestionKey(part)
+    const group = groups.get(key)
+    if (group) group.push(part)
+    else groups.set(key, [part])
+  }
+  const answeredPartCount = parts.filter((part) => partResponsePresent(attempt, part)).length
+  const answeredQuestionCount = [...groups.values()].filter((group) => group.every((part) => partResponsePresent(attempt, part))).length
+  return {
+    ...metrics,
+    answeredPartCount,
+    unansweredAnswerPartCount: Math.max(0, metrics.answerPartCount - answeredPartCount),
+    answeredQuestionCount,
+    unansweredSourceQuestionCount: Math.max(0, groups.size - answeredQuestionCount),
+  }
+}
+
 function partComponent(part, unit) {
   const direct = Number(part?.paperComponent ?? part?.sourceRef?.component)
   if (Number.isFinite(direct) && direct > 0) return direct

@@ -1,6 +1,11 @@
 import { scoreAttempt } from './scoring.js'
+import { evidencePresent, responsePresent } from './practicePresentation.js'
 
 const MIN_AI_CONFIDENCE = 0.55
+
+export function isFormalScoreResult(scoreResult, studyOnly = false) {
+  return Boolean(scoreResult && scoreResult.partial !== true && studyOnly !== true)
+}
 
 function boundedMark(value, maxMarks) {
   const mark = Number(value)
@@ -117,23 +122,19 @@ function deterministicCriteria(unit, answers, elapsedSec) {
   }))
 }
 
-function hasPartResponse(answers, partId) {
+function hasPartResponse(answers, evidence, partId) {
   const value = answers?.[partId]
-  if (typeof value === 'string') return value.trim().length > 0
-  if (typeof value === 'number') return Number.isFinite(value)
-  if (Array.isArray(value)) return value.length > 0
-  if (!value || typeof value !== 'object') return false
-  return Object.values(value).some((item) => String(item ?? '').trim().length > 0)
+  return responsePresent(value) || evidencePresent(evidence?.[partId])
 }
 
-export function buildPartMarkingLifecycle(unit, answers = {}, elapsedSec = 0, visionReviews = {}) {
+export function buildPartMarkingLifecycle(unit, answers = {}, elapsedSec = 0, visionReviews = {}, evidence = {}) {
   const deterministicByPart = new Map(deterministicCriteria(unit, answers, elapsedSec).map((criterion) => [criterion.partId, criterion]))
   const partStates = {}
   const provisionalCriteria = []
 
   for (const part of unit?.parts || []) {
     const capability = partMarkingCapability(part)
-    if (!hasPartResponse(answers, part.id)) {
+    if (!hasPartResponse(answers, evidence, part.id)) {
       partStates[part.id] = {
         capability,
         status: 'unanswered',

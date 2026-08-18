@@ -125,6 +125,7 @@ export function HandwritingPad({
   const redoRef = useRef([])
   const historyBytesRef = useRef(0)
   const latestSnapshotRef = useRef('')
+  const hasVisualResponseRef = useRef(Boolean(imageUrl(image)))
   const initializedRef = useRef(false)
   const pendingPageEmitRef = useRef(false)
   const saveVersionRef = useRef(0)
@@ -187,6 +188,8 @@ export function HandwritingPad({
       name,
       type: 'image/jpeg',
       dataUrl,
+      hasVisualContent: true,
+      inkMetrics: { ...inkMetricsRef.current },
       width: exportCanvas.width,
       height: exportCanvas.height,
       pages: pageCount,
@@ -199,6 +202,7 @@ export function HandwritingPad({
   }
 
   async function emitCanvas(canvas) {
+    if (!hasVisualResponseRef.current) return null
     const version = saveVersionRef.current + 1
     saveVersionRef.current = version
     if (mountedRef.current) setStatus('Saving locally...')
@@ -243,7 +247,7 @@ export function HandwritingPad({
   }, [])
 
   useEffect(() => registerFlush?.(async () => {
-    if (mode !== 'handwrite' || !canvasRef.current) return null
+    if (mode !== 'handwrite' || !canvasRef.current || !hasVisualResponseRef.current) return null
     window.clearTimeout(emitTimerRef.current)
     emitTimerRef.current = null
     const evidence = await emitCanvasRef.current(canvasRef.current)
@@ -279,8 +283,10 @@ export function HandwritingPad({
         finishResize()
       } else if (previousUrl) {
         drawImage(canvas, previousUrl).then(() => {
+          hasVisualResponseRef.current = true
           finishResize()
         }).catch(() => {
+          hasVisualResponseRef.current = false
           fillPaper(canvas)
           finishResize()
         })
@@ -433,6 +439,7 @@ export function HandwritingPad({
     activePointerIdRef.current = null
     lastPointRef.current = null
     movedRef.current = false
+    hasVisualResponseRef.current = true
     exposeInkMetrics(canvas, inkMetricsRef.current)
     snapshot(canvas)
     scheduleEmit(canvas)
@@ -461,6 +468,7 @@ export function HandwritingPad({
     historyBytesRef.current = historyRef.current.reduce((total, entry) => total + entry.bytes, 0)
     const previous = historyRef.current.at(-1)
     restoreCanvas(canvasRef.current, previous)
+    hasVisualResponseRef.current = historyRef.current.length > 1 || Boolean(imageUrl(image))
     updateHistoryControls()
     scheduleEmit(canvasRef.current)
   }
@@ -473,6 +481,7 @@ export function HandwritingPad({
     historyRef.current = bounded.entries
     historyBytesRef.current = bounded.bytes
     restoreCanvas(canvasRef.current, next)
+    hasVisualResponseRef.current = true
     updateHistoryControls()
     scheduleEmit(canvasRef.current)
   }
@@ -481,6 +490,7 @@ export function HandwritingPad({
     if (disabled) return
     fillPaper(canvasRef.current)
     saveVersionRef.current += 1
+    hasVisualResponseRef.current = false
     setBaseline(canvasRef.current)
     setStatus('Answer area cleared')
     onSnapshotChange?.(null)
@@ -498,6 +508,7 @@ export function HandwritingPad({
     const source = URL.createObjectURL(file)
     try {
       await drawImage(canvasRef.current, source, { allowUpscale: false })
+      hasVisualResponseRef.current = true
       snapshot(canvasRef.current)
       scheduleEmit(canvasRef.current)
     } finally {

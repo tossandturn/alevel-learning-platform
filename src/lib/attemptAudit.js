@@ -1,6 +1,7 @@
 const EXPORT_SCHEMA_VERSION = 'alevel-learning-export-v2'
 export const ATTEMPT_SOURCE_BINDING_SCHEMA_VERSION = 'attempt-source-binding.v1'
 import { canonicalSourceQuestionId } from './sourceContentContract.js'
+import { evidencePresent, responsePresent } from './practicePresentation.js'
 
 export { EXPORT_SCHEMA_VERSION }
 
@@ -136,15 +137,15 @@ function hasValidAttemptScore(attempt) {
 }
 
 function hasText(value) {
-  return typeof value === 'string' ? value.trim().length > 0 : Boolean(value)
+  return responsePresent(value)
 }
 
 export function hasAttemptResponse(attempt, partId) {
   if (!attempt || !partId) return false
   return hasText(attempt.answers?.[partId])
     || hasText(attempt.working?.[partId])
-    || Boolean(attempt.evidence?.[partId])
-    || Boolean(attempt.imageEvidence?.some((evidence) => evidence?.partId === partId))
+    || evidencePresent(attempt.evidence?.[partId])
+    || Boolean(attempt.imageEvidence?.some((evidence) => evidence?.partId === partId && evidencePresent(evidence)))
 }
 
 export function answeredPartIds(attempt, parts = []) {
@@ -372,9 +373,9 @@ export function buildLearningExport(state, { units = [], exportedAt = new Date()
       attemptId: attempt.id,
       unitId: attempt.unitId || unit?.id || null,
       partId,
-      answer: attempt.answers?.[partId] || '',
-      working: attempt.working?.[partId] || '',
-      evidence: attempt.evidence?.[partId] || attempt.imageEvidence?.find((item) => item?.partId === partId) || null,
+      answer: attempt.answers?.[partId] ?? '',
+      working: attempt.working?.[partId] ?? '',
+      evidence: attempt.evidence?.[partId] ?? attempt.imageEvidence?.find((item) => item?.partId === partId && evidencePresent(item)) ?? null,
     }))
   })
   const notebookItems = buildAttemptReviewQueue({

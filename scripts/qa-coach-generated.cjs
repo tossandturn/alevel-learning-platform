@@ -135,11 +135,11 @@ async function startQaServer() {
 
 async function sendCoachMessage(page, text) {
   const floatingTrigger = page.getByRole('button', { name: 'Open AI Coach' })
-  const tutorCard = page.getByRole('button', { name: 'Chat with AI Tutor' })
+  const tutorEntry = page.getByRole('button', { name: /^(Chat with AI Tutor|Open AI Tutor)$/ }).first()
   const coachDrawer = page.locator('.ai-coach.open')
   if (!(await coachDrawer.count())) {
     if (await floatingTrigger.isVisible()) await floatingTrigger.click()
-    else await tutorCard.click()
+    else await tutorEntry.click()
   }
   if (await coachDrawer.count() !== 1) throw new Error(`Expected one interactive AI Coach drawer, received ${await coachDrawer.count()}`)
   await coachDrawer.getByRole('textbox').fill(text)
@@ -312,7 +312,6 @@ async function run() {
         for (const item of Object.keys(localStorage)) if (item.includes('ai-coach')) localStorage.removeItem(item)
       }, STORAGE_KEY)
       await page.reload({ waitUntil: 'domcontentloaded' })
-      await page.waitForFunction(() => performance.getEntriesByType('resource').some((entry) => entry.name.endsWith('/data/papers.json')))
       await waitForDashboard(page)
       await assertAccountOverlayOwnsCoachLayer(page)
 
@@ -374,7 +373,9 @@ async function run() {
       await page.waitForSelector('.practice-view')
       const generated = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)).generatedUnits[0], STORAGE_KEY)
       if (generated.questionGroupCount !== 10) throw new Error(`Coach did not assemble ten source-backed Number question groups: ${JSON.stringify(generated)}`)
-      if ((await page.locator('.index-list button').count()) !== generated.parts.length) throw new Error('Coach workspace did not expose every answer part from the selected ten question groups')
+      if ((await page.locator('.index-list button').count()) !== generated.questionGroupCount) throw new Error('Coach workspace did not expose one navigation item per selected source question')
+      const activeAnswerPartCount = await page.locator('.qp-answer-part').count()
+      if (activeAnswerPartCount < 1 || activeAnswerPartCount > generated.parts.length) throw new Error(`Coach workspace rendered an invalid answer-part count for the focused source question: ${activeAnswerPartCount}`)
       if ((await page.locator('.question-block').count()) !== 1) throw new Error('Student workspace must show one focused question')
       if (!(await page.getByText('Study mode', { exact: true }).count())) throw new Error('Self-mark study status is missing')
       await page.getByRole('button', { name: 'Enter focus mode' }).click()

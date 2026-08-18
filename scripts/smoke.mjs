@@ -16,7 +16,7 @@ import { buildCompletionByUnit, buildLearningEvents, buildLearningProgress, reco
 import { answeredQuestionCount, buildLearningExport, hasAttemptResponse, hasCurrentSourceBindingForAttempt, isPendingSelfMarkAttempt, isScoredAttempt, prepareLearningExport, sourceBindingSnapshotForUnit } from '../src/lib/attemptAudit.js'
 import { mergeNotebookNote, notebookNoteRequest } from '../src/lib/privateNotes.js'
 import { scoreAttempt } from '../src/lib/scoring.js'
-import { buildPartMarkingLifecycle, finalizePartMarking, hasCompleteStudentMarks, markingCapabilityForUnit, pendingPartsForLifecycle } from '../src/lib/markingLifecycle.js'
+import { buildPartMarkingLifecycle, finalizePartMarking, hasCompleteStudentMarks, isFormalScoreResult, markingCapabilityForUnit, pendingPartsForLifecycle } from '../src/lib/markingLifecycle.js'
 import { normalizeState } from '../src/lib/storage.js'
 import { canonicalReturnUrl } from '../src/lib/sharedAccount.js'
 import { configuredIdentityOrigin } from '../src/lib/identityOrigin.js'
@@ -487,6 +487,7 @@ const blankScoredAttempt = {
   answers: {}, scoreResult: { percentage: 0, rawMarks: 0, maxMarks: 4, criteria: [{ partId: 'self-mark-part', awarded: 0, maxMarks: 4, status: 'blank' }] },
 }
 assert.equal(hasAttemptResponse(partialAnsweredAttempt, 'self-mark-part'), true, 'non-empty answers must be auditable as a response')
+assert.equal(hasAttemptResponse({ answers: { 'self-mark-part': 0 } }, 'self-mark-part'), true, 'numeric zero must remain an auditable response')
 assert.equal(hasAttemptResponse(blankScoredAttempt, 'self-mark-part'), false, 'scoring a blank must not invent a response')
 assert.equal(answeredQuestionCount(partialAnsweredAttempt, selfMarkUnit.parts), 1, 'only answered parts count as questions done')
 assert.equal(answeredQuestionCount(blankScoredAttempt, selfMarkUnit.parts), 0, 'blank scored criteria must not count as questions done')
@@ -1044,6 +1045,9 @@ assert.equal(isScoredAttempt({ attemptStatus: 'self-mark-pending', selfMarkPendi
 assert.equal(isPendingSelfMarkAttempt({ attemptStatus: 'self-mark-pending' }), true, 'pending self-mark attempts must remain identifiable for append-only history')
 assert.equal(isScoredAttempt({ attemptStatus: 'result', submittedAt: '2026-08-10T00:00:00.000Z', scoreResult: { rawMarks: 4, maxMarks: 5, percentage: 80 } }), true, 'a valid finalized result must enter score consumers')
 assert.equal(isScoredAttempt({ attemptStatus: 'provisional-result', submittedAt: '2026-08-10T00:00:00.000Z', scoreResult: { rawMarks: 1, maxMarks: 1, percentage: 100, partial: true } }), false, 'a partial result must never enter mastery, grade, mistake or progress consumers')
+assert.equal(isFormalScoreResult({ rawMarks: 1, maxMarks: 1, percentage: 100, partial: true }, false), false, 'partial results must not create formal learning signals')
+assert.equal(isFormalScoreResult({ rawMarks: 1, maxMarks: 1, percentage: 100, partial: false }, false), true, 'complete non-study results may create formal learning signals')
+assert.equal(isFormalScoreResult({ rawMarks: 1, maxMarks: 1, percentage: 100, partial: false }, true), false, 'study-only results must not create formal learning signals')
 assert.equal(isScoredAttempt({ attemptStatus: 'result', submittedAt: '2026-08-10T00:00:00.000Z', scoreResult: { rawMarks: 0, maxMarks: 0, percentage: 0 } }), false, 'an invalid zero-mark score shell must not enter score consumers')
 const pendingAuditExport = buildLearningExport({ attempts: [selfMarkPendingAttempt] }, { units: [selfMarkUnit], exportedAt: '2026-08-10T01:00:00.000Z' })
 assert.equal(pendingAuditExport.data.attempts.length, 1, 'append-only export must preserve the pending source attempt')

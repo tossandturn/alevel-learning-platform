@@ -203,10 +203,22 @@ try {
   assert.ok(q5Images.labels.some((label) => /question-paper page 4; SHA-256 [a-f0-9]{64}/.test(label)))
   assert.ok(q5Images.labels.some((label) => /mark-scheme page 7; SHA-256 [a-f0-9]{64}/.test(label)))
 
+  const typedOnly = await post(appBase, {
+    ...q5Request.request,
+    imageDataUrl: '',
+    typedResponse: 'typed response without a photo',
+  }, q5Request.token)
+  assert.equal(typedOnly.response.status, 200, 'a reviewed typed response must use the same submitted AI marking boundary')
+  assert.equal(providerCalls.length, 2)
+  const typedImages = officialImagesFromCall(providerCalls.at(-1))
+  assert.deepEqual(typedImages.context.imageOrder, { questionPaperPages: 1, markSchemePages: 1, studentResponsePages: 0 })
+  assert.equal(typedImages.images.length, 2, 'typed-only marking must send exact QP/MS images without inventing a student image')
+  assert.equal(typedImages.context.typedResponse, 'typed response without a photo')
+
   const q14Request = await authorizedRequest(appBase, 14, 'c')
   const q14 = await post(appBase, q14Request.request, q14Request.token)
   assert.equal(q14.response.status, 200, 'reviewed cross-page Q14 must reach the provider with all required official pages')
-  assert.equal(providerCalls.length, 2)
+  assert.equal(providerCalls.length, 3)
   const q14Images = officialImagesFromCall(providerCalls.at(-1))
   assert.deepEqual(q14Images.context.imageOrder, { questionPaperPages: 1, markSchemePages: 1, studentResponsePages: 1 })
   assert.deepEqual(q14Images.context.officialSourceImages.map((item) => [item.role, item.page]), [
@@ -225,7 +237,7 @@ try {
   })
   const fullPaper = await post(appBase, fullPaperRequest.request, fullPaperRequest.token)
   assert.equal(fullPaper.response.status, 200, 'a submitted full-paper capability must reach the provider')
-  assert.equal(providerCalls.length, 3)
+  assert.equal(providerCalls.length, 4)
 
   const callsBeforeForgedPaper = providerCalls.length
   const forgedPaper = {

@@ -313,19 +313,29 @@ async function activateQuestionPart(page, number, label, paper = 'M25/12') {
   const buttons = page.locator('.qp-index__list button')
   const count = await buttons.count()
   const identities = []
+  let groupButton = null
   for (let index = 0; index < count; index += 1) {
     const button = buttons.nth(index)
     const identity = await button.getAttribute('data-source-question')
     identities.push(identity)
-    if (!String(identity || '').includes(`${paper} · Q${number}(${label})`)) continue
-    await button.click()
-    await page.waitForFunction(({ paperLabel, questionNumber, partLabel }) => {
+    if (!groupButton && String(identity || '').startsWith(`${paper} · Q${number}(`)) groupButton = button
+  }
+  if (!groupButton) throw new Error(`Could not activate Q${number}(${label}) from the reviewed source set: ${JSON.stringify(identities)}`)
+  await groupButton.click()
+  const targetLabel = `${paper} · Q${number}(${label})`
+  const partCards = page.locator('.qp-answer-part[data-source-question]')
+  const partCount = await partCards.count()
+  for (let index = 0; index < partCount; index += 1) {
+    const card = partCards.nth(index)
+    if (await card.getAttribute('data-source-question') !== targetLabel) continue
+    await card.focus()
+    await page.waitForFunction((expectedLabel) => {
       const text = document.querySelector('.qp-source-label strong')?.textContent || ''
-      return text.includes(`${paperLabel} · Q${questionNumber}(${partLabel})`)
-    }, { paperLabel: paper, questionNumber: number, partLabel: label }, { timeout: 3_000 })
+      return text.includes(expectedLabel)
+    }, targetLabel, { timeout: 3_000 })
     return
   }
-  throw new Error(`Could not activate Q${number}(${label}) from the reviewed source set: ${JSON.stringify(identities)}`)
+  throw new Error(`Could not focus Q${number}(${label}) answer part in the reviewed source set: ${JSON.stringify(identities)}`)
 }
 
 async function sourceMetrics(figure) {

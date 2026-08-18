@@ -3,6 +3,7 @@ import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, CheckCircle2, ChevronLeft
 import { AiCoach } from './AiCoach'
 import { HandwritingPad } from './HandwritingPad'
 import { stripSourceVisualPlaceholders, trustedSourceAssetUrls } from '../lib/questionContent.js'
+import { evidencePresent, practiceAttemptMetrics, sourceQuestionDisplayLabel } from '../lib/practicePresentation.js'
 import './QuestionPlayer.css'
 
 const EMPTY_PARTS = Object.freeze([])
@@ -13,7 +14,9 @@ function formatTime(totalSec) {
 }
 
 function hasAnswer(value) {
-  return Boolean(String(value || '').trim())
+  if (value == null) return false
+  if (typeof value === 'number') return Number.isFinite(value)
+  return Boolean(String(value).trim())
 }
 
 function answerTypeLabel(part) {
@@ -109,7 +112,7 @@ function groupQuestionParts(parts) {
 }
 
 function sourceQuestionLabel(part, fallback = 'this question') {
-  return String(part?.sourceRef?.question || '').trim() || fallback
+  return sourceQuestionDisplayLabel(part, fallback)
 }
 
 function sourceLabelsOnPage(parts, activePart, assetUrl) {
@@ -140,34 +143,35 @@ function sourceMixText(sourceMix) {
 }
 
 function markingCapability(part) {
-  if (part.aiAssistedMarkingAvailable || part.reviewStatus === 'reviewed') {
+  if (part.aiAssistedMarkingAvailable && part.reviewStatus === 'reviewed' && part.studyOnly !== true) {
     return {
       mode: 'ai-assisted',
-      label: 'AI-assisted marking',
-      detail: 'Reviewed question-level marks are available after submission.',
+      label: 'Semantic-reviewed',
+      detail: 'AI reviews submitted evidence first, then you can compare the result with the paired mark scheme.',
     }
   }
   if (part.deterministicScoringAvailable || part.answerKey) {
     return {
       mode: 'deterministic',
-      label: 'Deterministic scoring',
-      detail: 'This response is checked against its source-bound answer key.',
+      label: 'Auto-scored',
+      detail: 'This response is checked against its source-bound answer key after submission.',
     }
   }
   return {
     mode: 'self-mark',
-    label: 'Self-mark only',
-    detail: 'The source question is available for practice, but its question-level marking metadata still awaits review.',
+    label: 'Self-mark',
+    detail: 'Compare this response with the paired mark scheme after the AI check; it stays outside formal mastery.',
   }
 }
 
 function isComplete(attempt, part) {
   if (part.answerType === 'multiple-choice') return hasAnswer(attempt.answers[part.id])
-  return hasAnswer(attempt.answers[part.id]) || Boolean(attempt.evidence?.[part.id])
+  return hasAnswer(attempt.answers[part.id]) || evidencePresent(attempt.evidence?.[part.id])
 }
 
 function NumericAnswer({ part, value, onChange }) {
-  const displayValue = String(value || '').includes('\n') ? '' : value || ''
+  const normalizedValue = value ?? ''
+  const displayValue = String(normalizedValue).includes('\n') ? '' : normalizedValue
   return (
     <div className="qp-numeric-entry">
       <label htmlFor={`numeric-${part.id}`}>
@@ -213,7 +217,7 @@ function AnswerPartWorkspace({ part, partIndex, totalParts, attempt, active, sou
   const partLabel = part.displayLabel || part.label || `Part ${partIndex + 1}`
 
   return (
-    <article className={`qp-answer-part ${active ? 'qp-answer-part--active' : ''}`} id={`qp-answer-panel-${part.id}`} onFocus={() => onFocusPart(part.id)}>
+    <article className={`qp-answer-part ${active ? 'qp-answer-part--active' : ''}`} id={`qp-answer-panel-${part.id}`} data-source-question={partLabel} tabIndex="-1" onFocus={() => onFocusPart(part.id)} onPointerDown={() => onFocusPart(part.id)}>
       <div className="qp-attempt-label">
         <span>{totalParts > 1 ? partIndex + 1 : 2}</span>
         <div>
@@ -231,7 +235,7 @@ function AnswerPartWorkspace({ part, partIndex, totalParts, attempt, active, sou
         aiReviewEligible={Boolean(part.aiAssistedMarkingAvailable && part.reviewStatus === 'reviewed')}
         image={attempt.evidence?.[part.id]}
         label={part.answerType === 'numeric' ? 'Working and method' : `${answerTypeLabel(part)} area`}
-        text={attempt.answers[part.id] || attempt.working?.[part.id] || ''}
+        text={attempt.answers[part.id] ?? attempt.working?.[part.id] ?? ''}
         onTextChange={(value) => updateAnswer(part.id, value)}
         onSnapshotChange={(evidence) => updateEvidence(part.id, evidence)}
         registerFlush={registerFlush}
@@ -254,7 +258,7 @@ function AnswerPartWorkspace({ part, partIndex, totalParts, attempt, active, sou
   )
 }
 
-export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, updateEvidence, submitAttempt, deferredMarking = false, stateOwnerId = '', goBack, immersive = false, onToggleImmersive = () => {} }) {
+export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, updateEvidence, submitAttempt, deferredMarking = false, stateOwnerId = '', goBack, immersive = false, onToggleImmersive = () => {}, onGeneratePractice, onAgentAction }) {
   const [showSubmitCheck, setShowSubmitCheck] = useState(false)
   const [coachRequest, setCoachRequest] = useState(0)
   const [sourceAssetIndex, setSourceAssetIndex] = useState(0)
@@ -271,11 +275,15 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
   const sourceZoomRestorePendingRef = useRef(false)
   const parts = unit.parts || EMPTY_PARTS
   const questionGroups = useMemo(() => groupQuestionParts(parts), [parts])
-  const sourceQuestionCount = Number(unit.questionGroupCount) > 0
-    ? Number(unit.questionGroupCount)
-    : questionGroups.length || parts.length
+  const attemptMetrics = useMemo(() => practiceAttemptMetrics(attempt, unit), [attempt, unit])
+  // The rendered group map is the authoritative count. A persisted or
+  // client-generated declaration can be stale, and must never turn answer
+  // parts into phantom questions in the student workflow.
+  const sourceQuestionCount = questionGroups.length || parts.length
   const answeredQuestions = questionGroups.filter((group) => group.parts.every((part) => isComplete(attempt, part))).length
-  const unansweredQuestions = Math.max(0, sourceQuestionCount - answeredQuestions)
+  const answerPartCount = parts.length
+  const answeredPartCount = attemptMetrics.answeredPartCount
+  const unansweredAnswerPartCount = Math.max(0, answerPartCount - answeredPartCount)
   const remaining = Math.max(0, attempt.durationSec - attempt.elapsedSec)
   const settings = attempt.settings || { mode: 'practice', timing: 'recommended', hints: true }
   const activePart = parts.find((part) => part.id === attempt.activePartId) || parts[0]
@@ -340,7 +348,7 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
       ? visualSourceUrls.findIndex((url) => Number(sourcePageFromUrl(url)) === focusPage)
       : -1
     setSourceAssetIndex(focusIndex >= 0 ? focusIndex : 0)
-    setSourceViewMode(activeQuestion.parts.length > 1 || activePart?.sourceFocus?.defaultView === 'original' ? 'original' : 'focus')
+    setSourceViewMode(activePart?.sourceFocus?.defaultView === 'original' ? 'original' : 'focus')
     setSourceZoomOpen(false)
     setSourceZoomScale(1)
   }, [activePart?.id, activePart?.sourceFocus?.defaultView, activePart?.sourceFocus?.focusPage, activeQuestion.parts.length, visualSourceUrls])
@@ -433,7 +441,7 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
 
   function requestSubmit() {
     if (!unitSourceComplete) return
-    if (unansweredQuestions > 0) setShowSubmitCheck(true)
+    if (unansweredAnswerPartCount > 0) setShowSubmitCheck(true)
     else void performSubmit()
   }
 
@@ -448,12 +456,12 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
           </button>
           <div className="qp-header__title">
             <strong>{unit.title}</strong>
-            <span>{sourceQuestionCount} official question{sourceQuestionCount === 1 ? '' : 's'} · {parts.length} answer part{parts.length === 1 ? '' : 's'}{unit.sourceSetIndex ? ` · Set ${unit.sourceSetIndex}` : ''}</span>
+            <span>{sourceQuestionCount} official question{sourceQuestionCount === 1 ? '' : 's'} · {answerPartCount} answer part{answerPartCount === 1 ? '' : 's'}{unit.sourceSetIndex ? ` · Set ${unit.sourceSetIndex}` : ''}</span>
           </div>
         </div>
         <div className="qp-header__status">
           <span className={`qp-mode qp-mode--${settings.mode}`}>{modeLabel}</span>
-          <span className="qp-status-item"><CheckCircle2 size={16} />{answeredQuestions}/{sourceQuestionCount} questions</span>
+          <span className="qp-status-item"><CheckCircle2 size={16} />{answeredPartCount}/{answerPartCount} answer parts</span>
           <span className="qp-status-item qp-timer"><Clock3 size={16} />{settings.timing === 'untimed' ? formatTime(attempt.elapsedSec) : formatTime(remaining)}</span>
           <span className="qp-status-item qp-save" aria-live="polite"><Save size={15} />{attempt.saveStatus || 'Saved'}</span>
           <button type="button" className="qp-focus-button" onClick={() => onToggleImmersive(!immersive)} aria-label={immersive ? 'Exit focus mode' : 'Enter focus mode'} aria-pressed={immersive} title={immersive ? 'Exit focus mode' : 'Enter focus mode'}>
@@ -472,7 +480,7 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
           <span className="qp-flow__step qp-flow__step--current"><span>2</span>Attempt</span>
           <span className="qp-flow__line" />
           <span className="qp-flow__step"><span>3</span>Submit</span>
-          <div className="qp-flow__meta"><strong>{progress}% complete</strong><span>{unansweredQuestions ? `${unansweredQuestions} to go` : 'Ready to submit'}</span></div>
+          <div className="qp-flow__meta"><strong>{progress}% complete</strong><span>{unansweredAnswerPartCount ? `${unansweredAnswerPartCount} answer part${unansweredAnswerPartCount === 1 ? '' : 's'} to go` : 'Ready to submit'}</span></div>
         </div>
 
         <div className="practice-progress-strip qp-progress" aria-label="Question progress">
@@ -482,15 +490,15 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
 
         <div className="qp-layout">
           <aside className="question-index qp-index" aria-label="Question navigation">
-            <div className="qp-index__heading"><span>Questions</span><strong>{answeredQuestions}/{sourceQuestionCount}</strong></div>
+            <div className="qp-index__heading"><span>Questions</span><strong>{answeredQuestions}/{sourceQuestionCount} complete</strong><small>{answeredPartCount}/{answerPartCount} parts</small></div>
             <div className="index-list qp-index__list">
               {questionGroups.map((group, index) => {
                 const partComplete = group.parts.every((part) => isComplete(attempt, part))
-                const sourceQuestionIdentity = sourceQuestionLabel(group.parts[0], `Question ${index + 1}`)
+                const sourceQuestionIdentity = sourceQuestionDisplayLabel(group.parts[0], `Question ${index + 1}`)
                 const groupMarks = group.parts.reduce((sum, part) => sum + Number(part.marks || 0), 0)
                 return (
                   <button type="button" key={group.id} className={group.id === activeQuestion.id ? 'active' : ''} onClick={() => goToQuestion(group.id)} data-source-question={sourceQuestionIdentity} aria-label={`${sourceQuestionIdentity}, question ${index + 1}${partComplete ? ', answered' : ', not answered'}`} aria-current={group.id === activeQuestion.id ? 'step' : undefined}>
-                    <span>{index + 1}</span><small>{groupMarks}m</small>{partComplete ? <CheckCircle2 size={15} /> : <i />}
+                    <span className="qp-index__label" title={sourceQuestionIdentity}>{sourceQuestionIdentity}</span><small>{groupMarks}m</small>{partComplete ? <CheckCircle2 size={15} /> : <i />}
                   </button>
                 )
               })}
@@ -514,10 +522,10 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
               </details>
             )}
 
-            <section className="question-block qp-question" id={`question-${activePart.id}`} onFocus={() => setActivePart(activePart.id)}>
+            <section className="question-block qp-question" id={`question-${activePart.id}`}>
               <div className="qp-question__topline">
                 <div className="qp-question__number"><span>Question</span><strong>{activeQuestionIndex + 1}</strong></div>
-                <div className="qp-question__meta"><span>{activeQuestion.parts.length} answer part{activeQuestion.parts.length === 1 ? '' : 's'}</span><strong>{activeQuestion.parts.reduce((sum, part) => sum + Number(part.marks || 0), 0)} marks</strong></div>
+                <div className="qp-question__meta"><span>{activeQuestion.parts.length} answer part{activeQuestion.parts.length === 1 ? '' : 's'} · current {activePart.label || 'part'}</span><strong>{activePart.marks} marks</strong><small>{activeQuestion.parts.reduce((sum, part) => sum + Number(part.marks || 0), 0)} marks total</small></div>
               </div>
 
               <nav className="qp-workbench-jumps" aria-label="Question and answer navigation">
@@ -592,8 +600,8 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
       {showSubmitCheck && <div className="submit-dialog-backdrop qp-dialog-backdrop" role="presentation" onMouseDown={() => setShowSubmitCheck(false)}>
         <div className="submit-dialog qp-dialog" role="dialog" aria-modal="true" aria-labelledby="submit-check-title" onMouseDown={(event) => event.stopPropagation()}>
           <AlertTriangle size={24} />
-          <h2 id="submit-check-title">{unansweredQuestions} {unansweredQuestions === 1 ? 'question is' : 'questions are'} unanswered</h2>
-          <p>{deferredMarking ? 'Blank written responses remain pending and never become an automatic zero. Objective blanks can still score zero. You can keep working or save this submission for review.' : 'Blank objective answers receive zero marks. You can return to the paper or submit it now.'}</p>
+          <h2 id="submit-check-title">{unansweredAnswerPartCount} {unansweredAnswerPartCount === 1 ? 'answer part is' : 'answer parts are'} unanswered</h2>
+          <p>{deferredMarking ? 'Blank written responses remain pending and never become an automatic zero. Objective blanks can still score zero. You can submit now; answered parts go through the AI or automatic check first.' : 'Blank objective answers receive zero marks. You can return to the paper or submit it now.'}</p>
           <div><button type="button" className="qp-secondary-action" onClick={() => setShowSubmitCheck(false)}>Keep working</button><button type="button" className="qp-submit-button" disabled={attempt.submitting || flushing} onClick={() => void performSubmit()}>{attempt.submitting || flushing ? (deferredMarking ? 'Saving and checking...' : 'Marking...') : 'Submit anyway'}</button></div>
         </div>
       </div>}
@@ -603,6 +611,8 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
         stateOwnerId={stateOwnerId}
         openRequest={coachRequest}
         showTrigger={false}
+        onGeneratePractice={onGeneratePractice}
+        onAgentAction={onAgentAction}
         context={{
           attemptId: attempt.id,
           stateOwnerId,
@@ -613,7 +623,7 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
           topic: unit.topic,
           paper: activePart.sourceRef && activePart.answerRef ? { questionFile: activePart.sourceRef.paper, markSchemeFile: activePart.answerRef.file } : null,
           question: { id: activePart.id, label: sourceQuestionLabel(activePart, `Question ${activeQuestionIndex + 1}`), prompt: displayPrompt(activePart), hint: activePart.hint, marks: activePart.marks },
-          response: attempt.answers[activePart.id] || attempt.working?.[activePart.id] || '',
+          response: attempt.answers[activePart.id] ?? attempt.working?.[activePart.id] ?? '',
           handwritingAttached: Boolean(attempt.evidence?.[activePart.id]),
           submitted: false,
         }}

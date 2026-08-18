@@ -850,7 +850,16 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
       reviewRequired: true,
     })
   }
-  imageBytes(payload.imageDataUrl)
+  const typedResponse = compactText(payload.typedResponse, 6000)
+  const hasStudentImage = Boolean(String(payload.imageDataUrl || '').trim())
+  if (!hasStudentImage && !typedResponse) {
+    return sendJson(response, 400, {
+      code: 'student_response_missing',
+      error: 'Add a typed response or a handwriting image before requesting AI marking.',
+      reviewRequired: true,
+    })
+  }
+  if (hasStudentImage) imageBytes(payload.imageDataUrl)
   let officialImages
   try {
     officialImages = canonicalHandwritingMarkingImages(canonical, { assetRoot: sourceAssetRoot })
@@ -871,7 +880,7 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
     question: { prompt: canonical.part.promptFragment, answerType: canonical.part.answerArea?.type || canonical.question.answerType },
     expectedMarkPoints: canonical.part.markSchemePoints || [],
     requestedMaxMarks,
-    typedResponse: compactText(payload.typedResponse, 6000),
+    typedResponse,
     officialSourceImages: [
       ...questionImages.map((image) => ({ role: image.role, page: image.page, sha256: image.sha256 })),
       ...markSchemeImages.map((image) => ({ role: image.role, page: image.page, sha256: image.sha256 })),
@@ -889,14 +898,14 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
   try {
     const publicBase = imagePublicBase(provider, request)
     const officialSourceImages = [...questionImages, ...markSchemeImages]
-    const [providerImage, ...sourceImages] = await Promise.all([
-      temporaryImageUrl(payload.imageDataUrl, publicBase),
+    const [studentImage, ...sourceImages] = await Promise.all([
+      hasStudentImage ? temporaryImageUrl(payload.imageDataUrl, publicBase) : null,
       ...officialSourceImages.map((image) => temporaryImageUrl(image.dataUrl, publicBase)),
     ])
     const questionProviderImages = sourceImages.slice(0, questionImages.length)
     const markSchemeProviderImages = sourceImages.slice(questionImages.length)
     const content = [
-      { type: 'text', text: compactText(JSON.stringify({ ...context, imageOrder: { questionPaperPages: questionImages.length, markSchemePages: markSchemeImages.length, studentResponsePages: 1 } }), 30000) },
+      { type: 'text', text: compactText(JSON.stringify({ ...context, imageOrder: { questionPaperPages: questionImages.length, markSchemePages: markSchemeImages.length, studentResponsePages: hasStudentImage ? 1 : 0 } }), 30000) },
       ...questionProviderImages.flatMap((image, index) => [
         { type: 'text', text: `Official question-paper page ${questionImages[index].page}; SHA-256 ${questionImages[index].sha256}.` },
         { type: 'image_url', image_url: { url: image.url } },
@@ -905,8 +914,8 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
         { type: 'text', text: `Official mark-scheme page ${markSchemeImages[index].page}; SHA-256 ${markSchemeImages[index].sha256}.` },
         { type: 'image_url', image_url: { url: image.url } },
       ]),
-      { type: 'text', text: 'Student handwritten response.' },
-      { type: 'image_url', image_url: { url: providerImage.url } },
+      { type: 'text', text: hasStudentImage ? 'Student handwritten response.' : 'Student typed response (no handwriting image attached).' },
+      ...(studentImage ? [{ type: 'image_url', image_url: { url: studentImage.url } }] : []),
     ]
     // Qwen-VL accepts the OpenAI-compatible image message, but some DashScope
     // deployments reject response_format. The prompt still requires JSON and
@@ -916,7 +925,7 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
       const result = normalizeMarkResult(parseStructuredJson(raw), requestedMaxMarks)
       return sendJson(response, 200, { mode: 'vision', provider: 'qwen', providerStatus: 'connected', model: provider.model, ...result })
     } finally {
-      providerImage.cleanup()
+      studentImage?.cleanup()
       sourceImages.forEach((image) => image.cleanup())
     }
   } catch (error) {

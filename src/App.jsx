@@ -42,6 +42,7 @@ import {
   canUseAiAssistedMarking,
   finalizePartMarking,
   hasCompleteStudentMarks,
+  isFormalScoreResult,
   markingCapabilityForUnit,
   pendingPartsForLifecycle,
 } from './lib/markingLifecycle'
@@ -54,7 +55,7 @@ import { studentNavigationFromLocation, studentNavigationHref } from './lib/stud
 import { normalizePaperStudyMode, paperDraftKey } from './lib/paperStudyMode'
 import { buildStemVocabularyContext, vocabularyCoverageForRoute } from './data/stemVocabularyTaxonomy'
 import { topicLearningContent } from './data/topicLearningContent'
-import { practiceMetricsSummary, practiceUnitMetrics, topicDisplayNames, topicPracticeInventory, withPracticePresentation } from './lib/practicePresentation'
+import { evidencePresent, practiceAttemptMetrics, practiceMetricsSummary, practiceUnitMetrics, topicDisplayNames, topicPracticeInventory, withPracticePresentation } from './lib/practicePresentation'
 import { MIN_VERIFIED_GROUPS_FOR_PRACTICE } from './lib/practiceConstants'
 import './App.css'
 import './StudentV2.css'
@@ -155,12 +156,14 @@ function bestResultFor(attempts, unit) {
 
 async function requestVisionReviews(unit, attempt, identityToken = '') {
   const eligibleParts = (unit.parts || []).filter(canUseAiAssistedMarking)
+  const responseTextFor = (part) => String(attempt.answers?.[part.id] ?? attempt.working?.[part.id] ?? '').trim()
+  const hasEvidenceFor = (part) => evidencePresent(attempt.evidence?.[part.id])
   const reviews = Object.fromEntries(eligibleParts.map((part) => [part.id, {
-    status: attempt.evidence?.[part.id]?.dataUrl ? 'queued' : 'no_evidence',
+    status: hasEvidenceFor(part) || responseTextFor(part) ? 'queued' : 'no_evidence',
   }]))
   const eligibleEntries = eligibleParts
-    .map((part) => [part.id, attempt.evidence?.[part.id]])
-    .filter(([, evidence]) => Boolean(evidence?.dataUrl))
+    .map((part) => [part.id, { evidence: attempt.evidence?.[part.id] || null, typedResponse: responseTextFor(part) }])
+    .filter(([, response]) => evidencePresent(response.evidence) || Boolean(response.typedResponse))
   if (!eligibleEntries.length) return reviews
   let capabilityByPartId
   try {
@@ -193,7 +196,7 @@ async function requestVisionReviews(unit, attempt, identityToken = '') {
     return { ...reviews, ...Object.fromEntries(eligibleEntries.map(([partId]) => [partId, { status: 'error', error: 'AI service status could not be checked.' }])) }
   }
 
-  const results = await Promise.all(eligibleEntries.map(async ([partId, evidence]) => {
+  const results = await Promise.all(eligibleEntries.map(async ([partId, responseEntry]) => {
     const part = unit.parts.find((item) => item.id === partId)
     if (!part) return [partId, { status: 'error', error: 'Question context is unavailable.' }]
     try {
@@ -208,8 +211,8 @@ async function requestVisionReviews(unit, attempt, identityToken = '') {
           mode: 'topic',
           submitted: true,
           markingGrant: capabilityByPartId?.[part.markingProvenance?.questionPartId] || '',
-          imageDataUrl: evidence.dataUrl,
-          typedResponse: attempt.answers[partId] || attempt.working?.[partId] || '',
+          imageDataUrl: responseEntry.evidence?.dataUrl || '',
+          typedResponse: responseEntry.typedResponse,
           provenance: {
             routeId: unit.routeId,
             ...(part.markingProvenance || {}),
@@ -231,8 +234,8 @@ async function requestVisionReviews(unit, attempt, identityToken = '') {
 function migratePracticeAnswers(unit, draft) {
   if (!draft) return {}
   return Object.fromEntries(unit.parts.map((part) => {
-    const answer = String(draft.answers?.[part.id] || '').trim()
-    const working = String(draft.working?.[part.id] || '').trim()
+    const answer = String(draft.answers?.[part.id] ?? '').trim()
+    const working = String(draft.working?.[part.id] ?? '').trim()
     if (part.answerType === 'multiple-choice') {
       const keyedAnswer = answer.match(/^([A-D])(?:\b|[.)\s:-])/i)?.[1]?.toUpperCase()
       const optionIndex = part.options?.findIndex((option) => option === answer) ?? -1
@@ -277,7 +280,17 @@ function unitFromSyllabusPracticeSet(payload) {
     reviewStatus: group.reviewStatus || 'machine-indexed',
     practiceAvailable: true,
     deterministicScoringAvailable: Boolean(questionPart.answerKey),
-    aiAssistedMarkingAvailable: false,
+    // The server's reviewed provenance is the authority for a freshly built
+    // syllabus unit. Do not leave this false and then silently diverge from
+    // the rebind path, which would make new and restored attempts score under
+    // different contracts.
+    aiAssistedMarkingAvailable: Boolean(
+      group.reviewStatus === 'reviewed'
+      && group.studyOnly !== true
+      && payload.practiceMode !== 'study-only'
+      && questionPart.markingProvenance
+      && questionPart.sourceBindingProvenance,
+    ),
     markPoints: questionPart.markSchemePoints || [],
     sourceAuthority: 'server-syllabus',
     markingProvenance: questionPart.markingProvenance,
@@ -1389,18 +1402,19 @@ function App() {
     const submittedAt = new Date().toISOString()
     const submittedAttempt = { ...attemptSnapshot, submittedAt, submitting: false }
     const visionReviews = capability.counts['ai-assisted'] ? await requestVisionReviews(unit, submittedAttempt, sharedAccount.token) : {}
-    const markingLifecycle = buildPartMarkingLifecycle(unit, attemptSnapshot.answers, attemptSnapshot.elapsedSec, visionReviews)
+    const markingLifecycle = buildPartMarkingLifecycle(unit, attemptSnapshot.answers, attemptSnapshot.elapsedSec, visionReviews, attemptSnapshot.evidence)
     const scoreResult = markingLifecycle.complete && markingLifecycle.provisionalCriteria.length > 0
       ? finalizePartMarking(unit, markingLifecycle, {}, attemptSnapshot.elapsedSec)
       : null
+    const formalScore = isFormalScoreResult(scoreResult, studyOnly)
     const pendingStatus = capability.mode === 'self-mark' ? 'self-mark-pending' : 'marking-pending'
-    const imageEvidence = Object.entries(attemptSnapshot.evidence || {}).filter(([, evidence]) => Boolean(evidence)).map(([partId, evidence]) => ({ partId, ...evidence }))
+    const imageEvidence = Object.entries(attemptSnapshot.evidence || {}).filter(([, evidence]) => evidencePresent(evidence)).map(([partId, evidence]) => ({ partId, ...evidence }))
     const completedAttempt = {
       ...attemptSnapshot,
       submitting: false,
       routeId: unit.routeId,
       stage: unit.stage,
-      attemptStatus: scoreResult ? (studyOnly ? 'study-result' : 'result') : pendingStatus,
+       attemptStatus: scoreResult ? (scoreResult.partial ? 'provisional-result' : studyOnly ? 'study-result' : 'result') : pendingStatus,
       submittedAt,
       sourceBinding,
       ...(scoreResult ? { scoreResult } : {}),
@@ -1409,7 +1423,7 @@ function App() {
       visionReviews,
       markingLifecycle,
       selfMarkPending: !scoreResult,
-      formalResult: !studyOnly,
+      formalResult: formalScore,
       contentScope: {
         unitId: unit.id,
         title: unit.title,
@@ -1428,7 +1442,7 @@ function App() {
     const masteryBefore = previousScores.length
       ? Math.round(previousScores.reduce((total, score) => total + score, 0) / previousScores.length)
       : null
-    if (scoreResult && !studyOnly) {
+    if (formalScore) {
       completedAttempt.learningSignal = {
         masteryBefore,
         masteryAfter: scoreResult.percentage,
@@ -1436,7 +1450,7 @@ function App() {
       }
     }
 
-    if (scoreResult && !studyOnly && attemptSnapshot.assignmentId && sharedAccount.status === 'ready') {
+    if (formalScore && attemptSnapshot.assignmentId && sharedAccount.status === 'ready') {
       try {
         await sharedAccountRequest(sharedAccount.token, `/api/stem/assignments/${encodeURIComponent(attemptSnapshot.assignmentId)}/submissions`, {
           method: 'POST',
@@ -1507,7 +1521,7 @@ function App() {
       finalizedFromAttemptId: pending.id,
       attemptStatus: scoreResult.partial ? 'provisional-result' : studyOnly ? 'study-result' : 'result',
       selfMarkPending: false,
-      formalResult: !studyOnly,
+      formalResult: isFormalScoreResult(scoreResult, studyOnly),
       studentSelfMarks: Object.fromEntries(pendingPartsForLifecycle(unit, markingLifecycle).map((part) => [part.id, Number(marksByPart[part.id])])),
       selfMarkRecordedAt: new Date().toISOString(),
       scoreResult,
@@ -3335,7 +3349,9 @@ function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibr
   const safeInitialSelfMarks = initialSelfMarks || EMPTY_SELF_MARKS
   const [selfMarks, setSelfMarks] = useState(() => safeInitialSelfMarks)
   const result = attempt.scoreResult || null
-  const answeredParts = unit.parts.filter((part) => Boolean(String(attempt.answers?.[part.id] || attempt.working?.[part.id] || '').trim()) || Boolean(attempt.evidence?.[part.id])).length
+  const attemptMetrics = practiceAttemptMetrics(attempt, unit)
+  const answeredParts = attemptMetrics.answeredPartCount
+  const unansweredAnswerPartCount = attemptMetrics.unansweredAnswerPartCount
   const pendingSelfMark = isPendingSelfMarkAttempt(attempt)
 
   useEffect(() => {
@@ -3468,7 +3484,7 @@ function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibr
         <a className="terms-recommendation" href={termsUrl} target="_blank" rel="noreferrer"><Brain size={18} /><span><strong>Professional terms for this question</strong><small>{(weakest?.topicTags || [unit.topic]).slice(0, 3).join(' · ')}</small></span><ChevronRight size={16} /></a>
       </section>}
 
-      {isProvisional && <section className="result-learning-signal" aria-label="Provisional result notice"><div><p className="section-label">Saved evidence</p><h2>Finish the remaining questions before mastery updates</h2><p>This score covers only the answered parts. It does not update mastery, grade estimates, mistakes, streaks, weekly goals or class analytics.</p></div><div className="mastery-delta"><span>Answered</span><strong>{answeredParts}/{unit.parts.length}</strong><small>{result.unansweredPartCount} unanswered part{result.unansweredPartCount === 1 ? '' : 's'} remain unmarked</small></div><a className="terms-recommendation" href={termsUrl} target="_blank" rel="noreferrer"><Brain size={18} /><span><strong>Professional terms for this question</strong><small>{(weakest?.topicTags || [unit.topic]).slice(0, 3).join(' · ')}</small></span><ChevronRight size={16} /></a></section>}
+       {isProvisional && <section className="result-learning-signal" aria-label="Provisional result notice"><div><p className="section-label">Saved evidence</p><h2>Finish the remaining answer parts before mastery updates</h2><p>This score covers only the answered parts. It does not update mastery, grade estimates, mistakes, streaks, weekly goals or class analytics.</p></div><div className="mastery-delta"><span>Answered</span><strong>{answeredParts}/{unit.parts.length}</strong><small>{unansweredAnswerPartCount} unanswered part{unansweredAnswerPartCount === 1 ? '' : 's'} remain unmarked</small></div><a className="terms-recommendation" href={termsUrl} target="_blank" rel="noreferrer"><Brain size={18} /><span><strong>Professional terms for this question</strong><small>{(weakest?.topicTags || [unit.topic]).slice(0, 3).join(' · ')}</small></span><ChevronRight size={16} /></a></section>}
 
       {isStudyOnly && <section className="result-learning-signal" aria-label="Study result notice"><div><p className="section-label">Practice record</p><h2>Use this self-mark to guide the next attempt</h2><p>This practice result stays linked to its question paper and mark scheme, but it does not update mastery, grade estimates, mistakes, streaks, weekly goals, class analytics or AI marking.</p></div><div className="mastery-delta"><span>Self-marked</span><strong>{answeredParts}/{unit.parts.length}</strong><small>Formal review is still pending</small></div></section>}
 
@@ -3504,7 +3520,7 @@ function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibr
                     <p>{criterion.feedback}</p>
                     <div className="student-submission">
                       <span>Your response</span>
-                      <strong>{attempt.answers[part.id] || (attempt.evidence?.[part.id] ? 'Handwritten response submitted' : 'No answer submitted')}</strong>
+                       <strong>{attempt.answers[part.id] ?? (attempt.evidence?.[part.id] ? 'Handwritten response submitted' : 'No answer submitted')}</strong>
                       {attempt.working?.[part.id] && !attempt.answers[part.id] && <pre>{attempt.working[part.id]}</pre>}
                     </div>
                     {visionPart?.status === 'success' && <div className="vision-result-inline"><header><Sparkles size={14} /><strong>Handwriting review: {visionPart.rawMarks}/{visionPart.maxMarks}</strong><span>{Math.round(visionPart.confidence * 100)}% confidence{visionPart.reviewRequired ? ' · check required' : ''}</span></header>{visionPart.recognizedWork && <p>{visionPart.recognizedWork}</p>}{visionPart.correctedSolution && <details><summary>Correction</summary><p>{visionPart.correctedSolution}</p></details>}</div>}

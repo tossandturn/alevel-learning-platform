@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
+import importedQuestionIndex from '../src/data/importedQuestionIndex.json' with { type: 'json' }
 import * as syllabusPractice from '../src/lib/syllabusPractice.js'
 import { studyQuestionBank, unifiedQuestionBank } from '../src/data/questionBank.js'
+import { sourceContentStatus } from '../src/lib/questionContent.js'
+import { normaliseQuestionGroup } from '../src/data/questionParts.js'
 import { isScoredAttempt, sourceBindingSnapshotForUnit } from '../src/lib/attemptAudit.js'
 import { buildLearningProgress } from '../src/lib/learningProgress.js'
 import { courseRoutes } from '../src/data/routeRegistry.js'
@@ -101,18 +104,43 @@ const asMath = syllabusTopicsInventory({
   routeId: 'cie-9709-as-p1-p2',
   questionBank: studyQuestionBank,
 })
+const excluded9709StudyIds = [
+  'cie-9709-9709_s25_qp_11:q8',
+  'cie-9709-9709_s25_qp_22:q6',
+]
+const imported9709ById = new Map(importedQuestionIndex.questions.map((question) => [question.questionId, question]))
+for (const questionId of excluded9709StudyIds) {
+  const question = imported9709ById.get(questionId)
+  assert.ok(question, `${questionId} must remain represented in the source index`)
+  const group = normaliseQuestionGroup(question, question)
+  assert.equal(group.status, 'quarantined', `${questionId} must remain quarantined until QP/MS parts reconcile`)
+  assert.equal(group.reason, 'question-mark-scheme-parts-do-not-reconcile', `${questionId} quarantine must be structural, not a relaxed inventory choice`)
+  const audit = sourceContentStatus({ ...question, parts: group.parts }).audit
+  assert.ok(
+    audit?.reasons?.some((reason) => reason.startsWith('source-range-ends-before-next-question:')),
+    `${questionId} must retain the source-range audit blocker`,
+  )
+}
+assert.deepEqual(
+  studyQuestionBank
+    .filter((question) => question.routeId === 'cie-9709-as-p1-p2')
+    .map((question) => question.sourceQuestionId)
+    .filter((questionId) => excluded9709StudyIds.includes(questionId)),
+  [],
+  'structurally incomplete 9709 groups must not enter the study pool',
+)
 assert.deepEqual(
   asMath.topics.map((topic) => topic.availableQuestionCount),
-  [43, 22, 0, 0],
-  '9709 AS P1/P2 must expose the real file-complete study inventory by syllabus topic',
+  [42, 21, 0, 0],
+  '9709 AS P1/P2 must expose the current audit-backed file-complete study inventory by syllabus topic',
 )
 assert.deepEqual(
   asMath.topics.map((topic) => topic.verifiedQuestionCount),
   [0, 0, 0, 0],
   'study-only inventory must not inflate the formal verified count',
 )
-assert.equal(asMath.topics[0].componentCounts['1'].availableQuestionCount, 43)
-assert.equal(asMath.topics[1].componentCounts['2'].availableQuestionCount, 22)
+assert.equal(asMath.topics[0].componentCounts['1'].availableQuestionCount, 42)
+assert.equal(asMath.topics[1].componentCounts['2'].availableQuestionCount, 21)
 
 const asSet = buildSyllabusPracticeSet({
   routeId: 'cie-9709-as-p1-p2',
@@ -125,7 +153,7 @@ const asSet = buildSyllabusPracticeSet({
 })
 assert.equal(asSet.practiceMode, 'study-only')
 assert.equal(asSet.questionCount, 10)
-assert.equal(asSet.availableCount, 65)
+assert.equal(asSet.availableCount, 63)
 assert.equal(asSet.partial, false)
 assert.ok(asSet.questionGroups.every((group) => group.studyOnly === true))
 assert.ok(asSet.questionGroups.every((group) => group.reviewStatus === 'machine-indexed'))
@@ -206,10 +234,37 @@ const a2Math = syllabusTopicsInventory({
   routeId: 'cie-9709-a2-after-p1-p5-p3-p4',
   questionBank: studyQuestionBank,
 })
+const excluded9709A2StudyIds = [
+  'cie-9709-9709_m25_qp_32:q2',
+  'cie-9709-9709_m25_qp_32:q8',
+  'cie-9709-9709_s25_qp_31:q3',
+  'cie-9709-9709_s25_qp_31:q4',
+  'cie-9709-9709_s25_qp_31:q10',
+]
+for (const questionId of excluded9709A2StudyIds) {
+  const question = imported9709ById.get(questionId)
+  assert.ok(question, `${questionId} must remain represented in the source index`)
+  const group = normaliseQuestionGroup(question, question)
+  assert.equal(group.status, 'quarantined', `${questionId} must remain quarantined until QP/MS parts reconcile`)
+  assert.equal(group.reason, 'question-mark-scheme-parts-do-not-reconcile', `${questionId} quarantine must be structural, not a relaxed inventory choice`)
+  const audit = sourceContentStatus({ ...question, parts: group.parts }).audit
+  assert.ok(
+    audit?.reasons?.some((reason) => reason.startsWith('source-range-ends-before-next-question:')),
+    `${questionId} must retain the source-range audit blocker`,
+  )
+}
+assert.deepEqual(
+  studyQuestionBank
+    .filter((question) => question.routeId === 'cie-9709-a2-after-p1-p5-p3-p4')
+    .map((question) => question.sourceQuestionId)
+    .filter((questionId) => excluded9709A2StudyIds.includes(questionId)),
+  [],
+  'structurally incomplete 9709 A2 groups must not enter the study pool',
+)
 assert.deepEqual(
   a2Math.topics.map((topic) => topic.availableQuestionCount),
-  [31, 21, 0, 0],
-  '9709 A2 study-only inventory must retain the source-backed P3 and P5 structural repairs without promoting them to formal practice',
+  [26, 21, 0, 0],
+  '9709 A2 study-only inventory must retain only the current audit-backed P3/P4 source groups',
 )
 const a2Set = buildSyllabusPracticeSet({
   routeId: 'cie-9709-a2-after-p1-p5-p3-p4',

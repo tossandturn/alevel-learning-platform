@@ -125,7 +125,9 @@ function semanticQuarantine(questionId, reasons) {
 }
 
 function canonicalPartLabel(value) {
-  return String(value || '').trim().toLowerCase().replace(/^\(|\)$/g, '')
+  const normalized = String(value || '').trim().toLowerCase()
+  const wrapped = normalized.match(/^\((.*)\)$/)
+  return wrapped ? wrapped[1] : normalized
 }
 
 function explicitPartLabels(value) {
@@ -137,6 +139,67 @@ function explicitPartLabels(value) {
     match = pattern.exec(String(value || ''))
   }
   return labels
+}
+
+function partLabelSequence(label) {
+  const normalized = canonicalPartLabel(label)
+  const nested = normalized.match(/^([a-z])(?:\(([^()]+)\)|[-_: ]([ivx]+))$/i)
+  if (nested) return { parent: nested[1].toLowerCase(), child: (nested[2] || nested[3]).toLowerCase(), nested: true }
+  return { parent: normalized, child: null, nested: false }
+}
+
+function romanValue(value) {
+  const table = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9, x: 10 }
+  return table[value] || null
+}
+
+function alphaValue(value) {
+  if (!/^[a-z]$/i.test(value)) return null
+  return value.toLowerCase().charCodeAt(0) - 96
+}
+
+/**
+ * A declared end page before the next printed question is an audit
+ * candidate, never proof that the intervening page belongs to the previous
+ * question. Consumers must resolve it with page evidence or keep it closed.
+ */
+export function sourceRangeReviewCandidates(questions = []) {
+  const observations = []
+  const byPaper = new Map()
+  for (const question of Array.isArray(questions) ? questions : []) {
+    const paperId = question?.sourceRef?.paperId
+    if (!paperId) continue
+    const bucket = byPaper.get(paperId) || []
+    bucket.push(question)
+    byPaper.set(paperId, bucket)
+  }
+  const page = (value) => {
+    const number = Number(value)
+    return Number.isInteger(number) && number > 0 ? number : null
+  }
+  for (const [paperId, paperQuestions] of byPaper) {
+    const ordered = paperQuestions
+      .filter((question) => page(question.sourceRef?.pageStart) && page(question.sourceRef?.pageEnd ?? question.sourceRef?.pageStart))
+      .toSorted((left, right) => page(left.sourceRef.pageStart) - page(right.sourceRef.pageStart)
+        || (Number(String(left.sourceRef.question || '').match(/\d+/)?.[0]) || 0)
+        - (Number(String(right.sourceRef.question || '').match(/\d+/)?.[0]) || 0))
+    for (let index = 0; index < ordered.length - 1; index += 1) {
+      const current = ordered[index]
+      const next = ordered[index + 1]
+      const end = page(current.sourceRef.pageEnd ?? current.sourceRef.pageStart)
+      const nextStart = page(next.sourceRef.pageStart)
+      if (!end || !nextStart || end >= nextStart - 1) continue
+      observations.push(Object.freeze({
+        questionId: current.questionId,
+        paperId,
+        pageEnd: end,
+        nextQuestionId: next.questionId,
+        nextQuestionPageStart: nextStart,
+        reason: `source-range-ends-before-next-question:${end}<${nextStart - 1}`,
+      }))
+    }
+  }
+  return Object.freeze(observations)
 }
 
 /**
@@ -151,9 +214,51 @@ export function sourceStructuralConsistencyIssues(question = {}, answer = null) 
   const questionMarks = questionParts.reduce((sum, part) => sum + (asInteger(part?.marks) || 0), 0)
   const answerMarks = answerParts.reduce((sum, part) => sum + (asInteger(part?.marks) || 0), 0)
   const totalMarks = asInteger(question.totalMarks ?? question.marks)
-  const questionLabels = new Set(questionParts.map((part) => canonicalPartLabel(part?.label || part?.partId?.split(':part-')[1])).filter(Boolean))
+  const rawQuestionLabels = questionParts.map((part) => canonicalPartLabel(part?.label || part?.partId?.split(':part-')[1])).filter(Boolean)
+  const questionLabels = new Set(rawQuestionLabels)
   const answerLabels = new Set(answerParts.map((part) => canonicalPartLabel(part?.label || part?.partId?.split(':part-')[1])).filter(Boolean))
   const explicitLabels = explicitPartLabels(answer?.exactAnswer || answer?.answer || '')
+
+  const questionPartIds = new Set()
+  for (const part of questionParts) {
+    const partId = String(part?.partId || '').trim()
+    if (!partId) continue
+    if (questionPartIds.has(partId)) reasons.push(`question-part-id-duplicate:${partId}`)
+    questionPartIds.add(partId)
+    if (question.questionId && !partId.startsWith(`${question.questionId}:part-`)) {
+      reasons.push(`question-part-id-mismatch:${partId}`)
+    }
+  }
+  const labels = [...questionLabels]
+  if (questionLabels.size !== rawQuestionLabels.length) reasons.push('question-part-label-duplicate')
+
+  // A source group that starts at b/c or at a later nested sub-part is almost
+  // always a truncated import. It must stay quarantined until a reviewer
+  // proves the preceding material is not part of the question.
+  const sequences = labels.map(partLabelSequence)
+  const topLevel = sequences.map((item) => item.parent)
+  const topLevelValues = topLevel.map(alphaValue).filter(Boolean).sort((left, right) => left - right)
+  if (topLevelValues.length && topLevelValues[0] > 1) reasons.push(`question-part-sequence-starts-after-a:${topLevel[0]}`)
+  if (topLevelValues.length > 1) {
+    for (let value = 1; value <= topLevelValues.at(-1); value += 1) {
+      if (!topLevelValues.includes(value)) reasons.push(`question-part-sequence-gap:${String.fromCharCode(96 + value)}`)
+    }
+  }
+  const childrenByParent = new Map()
+  for (const item of sequences.filter((candidate) => candidate.nested)) {
+    const values = childrenByParent.get(item.parent) || []
+    values.push(item.child)
+    childrenByParent.set(item.parent, values)
+  }
+  for (const [parent, children] of childrenByParent) {
+    const romanValues = children.map(romanValue).filter(Boolean).sort((left, right) => left - right)
+    if (romanValues.length && romanValues[0] > 1) reasons.push(`nested-part-sequence-starts-after-i:${parent}`)
+    if (romanValues.length > 1) {
+      for (let value = 1; value <= romanValues.at(-1); value += 1) {
+        if (!romanValues.includes(value)) reasons.push(`nested-part-sequence-gap:${parent}(${['', 'i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii', 'ix', 'x'][value] || value})`)
+      }
+    }
+  }
 
   if (totalMarks && questionMarks !== totalMarks) reasons.push(`question-part-marks-do-not-sum-to-total:${questionMarks}/${totalMarks}`)
   if (totalMarks && answerParts.length && answerMarks !== totalMarks) reasons.push(`mark-scheme-part-marks-do-not-sum-to-total:${answerMarks}/${totalMarks}`)
