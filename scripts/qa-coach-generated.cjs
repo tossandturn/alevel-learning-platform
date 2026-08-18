@@ -137,10 +137,11 @@ async function sendCoachMessage(page, text) {
   const floatingTrigger = page.getByRole('button', { name: 'Open AI Coach' })
   const tutorEntry = page.getByRole('button', { name: /^(Chat with AI Tutor|Open AI Tutor)$/ }).first()
   const coachDrawer = page.locator('.ai-coach.open')
-  if (!(await coachDrawer.count())) {
+  if (!(await coachDrawer.isVisible())) {
     if (await floatingTrigger.isVisible()) await floatingTrigger.click()
     else await tutorEntry.click()
   }
+  await coachDrawer.waitFor({ state: 'visible' })
   if (await coachDrawer.count() !== 1) throw new Error(`Expected one interactive AI Coach drawer, received ${await coachDrawer.count()}`)
   await coachDrawer.getByRole('textbox').fill(text)
   await coachDrawer.getByRole('button', { name: 'Send to AI Coach' }).click()

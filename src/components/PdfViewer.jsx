@@ -398,7 +398,7 @@ export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage 
       })
     return () => {
       active = false
-      task.destroy()
+      task.destroy().catch(() => {})
     }
   }, [file.id, file.localUrl])
 

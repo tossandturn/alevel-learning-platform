@@ -45,6 +45,7 @@ assert.ok(pdfViewer.includes('requestedPages'), 'PDF viewer must retain a render
 assert.ok(pdfViewer.includes('PAGE_WINDOW_BUFFER = 2'), 'PDF viewer must retain only a bounded page window')
 assert.ok(pdfViewer.includes('data-virtualized-pages="true"'), 'PDF viewer must mark the bounded virtualized page stack')
 assert.ok(pdfViewer.includes('for (const pageNumber of requestedPages)'), 'PDF rendering must iterate the bounded visible page set, not every document page')
+assert.ok(pdfViewer.includes('task.destroy().catch(() => {})'), 'PDF worker cancellation must consume its expected termination rejection')
 assert.ok(paperWorkspaceSource.includes("import('./PdfViewer')"), 'the paper workspace must lazy-load the PDF viewer')
 assert.ok(paperWorkspaceSource.includes('Suspense fallback={<PdfViewerLoading />}'), 'PDF loading must expose an accessible loading state')
 const paperAnswerSheet = fs.readFileSync(path.join(root, 'src', 'components', 'PaperAnswerSheet.jsx'), 'utf8')
