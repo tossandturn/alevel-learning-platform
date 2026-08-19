@@ -47,10 +47,17 @@ assert.deepEqual(refreshedPaper.map((item) => item.bankId).sort(), ['other:q1', 
 assert.equal(refreshedPaper.find((item) => item.bankId === 'paper:q1')?.prompt, 'Human-reviewed prompt', 'A paper refresh must preserve reviewed records')
 assert.equal(refreshedPaper.find((item) => item.bankId === 'paper:q2')?.prompt, 'New OCR prompt', 'A paper refresh must replace stale machine records')
 assert.equal(minimumQuestionGroupsForImport({ subject: '9702', examProfile: { paperNumber: 2, defaultQuestionCount: null } }), 7, 'AS P2 imports must not treat one or two groups as a complete paper')
+assert.equal(minimumQuestionGroupsForImport({ subject: '9702', examProfile: { paperNumber: 4, defaultQuestionCount: null } }), 10, 'A2 P4 imports must not treat a partial structured paper as complete')
 assert.equal(minimumQuestionGroupsForImport({ subject: '9702', examProfile: { paperNumber: 1, defaultQuestionCount: 40 } }), 40)
 assert.equal(isReplacementImportComplete({ existingCount: 11, incomingCount: 11, expectedCount: 10 }), true)
 assert.equal(isReplacementImportComplete({ existingCount: 11, incomingCount: 9, expectedCount: 10 }), false, 'A lower-quality force import must not replace a fuller machine-indexed paper')
 assert.equal(isReplacementImportComplete({ existingCount: 0, incomingCount: 9, expectedCount: 10 }), false, 'A new paper below its expected question-group count must remain unindexed')
+assert.equal(isReplacementImportComplete({
+  existingCount: 10,
+  incomingCount: 10,
+  expectedCount: 10,
+  incomingItems: Array.from({ length: 10 }, (_, index) => ({ questionId: `paper:q${index < 8 ? index + 1 : index + 2}` })),
+}), false, 'a ten-item replacement with a missing printed question number must be rejected')
 assert.equal(
   hasCompleteQuestionNumberSequence([
     { questionId: 'paper:q1' },

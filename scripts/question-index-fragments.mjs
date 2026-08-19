@@ -26,28 +26,67 @@ export function resolvePartMarks({ questionMarks, answerMarks, answerType }) {
   return { marks: 0, markSource: '' }
 }
 
-export function mergeFragments(records, key) {
+export function mergeFragments(records, key, { pageQuestionNumbers = null } = {}) {
   const grouped = new Map()
   let activeQuestionNumber = null
+  let activePage = null
   for (const record of records) {
+    const recordPage = Number(record?.page)
     for (const fragment of record[key] || []) {
       const candidate = normalizeQuestionNumber(fragment.questionNumber)
       let questionNumber = candidate
-      if (!questionNumber && activeQuestionNumber) questionNumber = activeQuestionNumber
-      if (questionNumber && activeQuestionNumber && questionNumber !== activeQuestionNumber && fragment.continues === true) {
+      const pageQuestionNumber = pageQuestionNumbers instanceof Map ? pageQuestionNumbers.get(recordPage) : undefined
+      const pageHasNoNewQuestion = pageQuestionNumbers instanceof Map
+        && pageQuestionNumbers.has(recordPage)
+        && pageQuestionNumbers.get(recordPage) === null
+      const canContinue = Boolean(
+        activeQuestionNumber
+        && fragment.continues === true
+        && Number.isInteger(recordPage)
+        && Number.isInteger(activePage)
+        && recordPage >= activePage
+        && recordPage <= activePage + 1,
+      )
+      const canInheritFromContinuationPage = Boolean(
+        activeQuestionNumber
+        && (pageHasNoNewQuestion || (pageQuestionNumbers instanceof Map && pageQuestionNumbers.size > 0 && pageQuestionNumber === undefined))
+        && (!candidate || pageHasNoNewQuestion)
+        && Number.isInteger(recordPage)
+        && Number.isInteger(activePage)
+        && recordPage >= activePage
+        && recordPage <= activePage + 1,
+      )
+
+      // A noisy `continues` flag must never override an explicitly printed
+      // question number. A local PDF anchor also lets us correct OCR that
+      // mistakes a continuation part such as (c) for a question number.
+      // Inherit only on the same or next page, which prevents A2 questions
+      // separated by several pages from being merged into one broken question.
+      if (canInheritFromContinuationPage) {
         questionNumber = activeQuestionNumber
       }
+      else if (!candidate && canContinue) {
+        questionNumber = activeQuestionNumber
+      }
+      else if (typeof pageQuestionNumber === 'string' && (fragment.startsHere === true || !candidate)) {
+        questionNumber = pageQuestionNumber
+      }
       if (!questionNumber) continue
-      if (questionNumber !== activeQuestionNumber && (!activeQuestionNumber || Number(questionNumber) >= Number(activeQuestionNumber))) {
+
+      const selectedPageAnchor = typeof pageQuestionNumber === 'string'
+        && questionNumber === pageQuestionNumber
+        && (fragment.startsHere === true || !candidate)
+      if (candidate || selectedPageAnchor || !activeQuestionNumber) {
         activeQuestionNumber = questionNumber
       }
       const current = grouped.get(questionNumber) || { questionNumber, pages: [], fragments: [] }
-      current.pages.push(record.page)
+      current.pages.push(recordPage)
       current.fragments.push({
         ...fragment,
-        sourcePage: Number(fragment.sourcePage || record.page) || null,
+        sourcePage: Number(fragment.sourcePage || recordPage) || null,
       })
       grouped.set(questionNumber, current)
+      if (Number.isInteger(recordPage)) activePage = recordPage
     }
   }
   return grouped

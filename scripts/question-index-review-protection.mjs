@@ -49,6 +49,7 @@ export function minimumQuestionGroupsForImport(paper) {
   const explicit = Number(paper?.examProfile?.defaultQuestionCount)
   if (Number.isInteger(explicit) && explicit > 0) return explicit
   if (paper?.subject === '9702' && Number(paper?.examProfile?.paperNumber) === 2) return 7
+  if (paper?.subject === '9702' && Number(paper?.examProfile?.paperNumber) === 4) return 10
   return 1
 }
 
@@ -66,6 +67,7 @@ export function hasCompleteQuestionNumberSequence(items, expectedCount) {
   return true
 }
 
-export function isReplacementImportComplete({ existingCount = 0, incomingCount = 0, expectedCount = 1 }) {
-  return Number(incomingCount) >= Number(expectedCount) && Number(incomingCount) >= Number(existingCount)
+export function isReplacementImportComplete({ existingCount = 0, incomingCount = 0, expectedCount = 1, incomingItems = null }) {
+  if (Number(incomingCount) < Number(expectedCount) || Number(incomingCount) < Number(existingCount)) return false
+  return !Array.isArray(incomingItems) || hasCompleteQuestionNumberSequence(incomingItems, expectedCount)
 }

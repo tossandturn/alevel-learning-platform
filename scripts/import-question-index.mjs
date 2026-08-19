@@ -22,6 +22,7 @@ import {
   normalizeMarkValue,
   resolvePartMarks,
 } from './question-index-fragments.mjs'
+import { extractQuestionPageAnchors } from './question-index-page-anchors.mjs'
 
 const projectRoot = path.resolve(import.meta.dirname, '..')
 const paperCatalogPath = path.join(projectRoot, 'public', 'data', 'papers.json')
@@ -654,6 +655,8 @@ async function indexPaper(paper, markScheme, config, provider, topics) {
   try {
     const paperPath = path.join(libraryRoot, paper.subject, paper.file)
     const markSchemePath = path.join(libraryRoot, markScheme.subject, markScheme.file)
+    const pageQuestionNumbers = await safeExtractQuestionPageAnchors(paperPath)
+    const pageAnswerNumbers = await safeExtractQuestionPageAnchors(markSchemePath)
     const qpPages = renderPdf(paperPath, path.join(tempDirectory, 'qp'), 'page')
     const msPages = renderPdf(markSchemePath, path.join(tempDirectory, 'ms'), 'page')
     const questionRecords = await mapLimited(qpPages, visionConcurrency, async (page) => {
@@ -678,6 +681,8 @@ async function indexPaper(paper, markScheme, config, provider, topics) {
       })
       console.log(JSON.stringify({
         paper: paper.file,
+        pageQuestionNumbers: Object.fromEntries(pageQuestionNumbers),
+        pageAnswerNumbers: Object.fromEntries(pageAnswerNumbers),
         questionPages: questionRecords.map((record) => summarize(record, 'fragments')),
         answerPages: answerRecords.map((record) => summarize(record, 'answers')),
       }))
@@ -695,9 +700,26 @@ async function indexPaper(paper, markScheme, config, provider, topics) {
     const outputDirectory = path.join(assetRoot, paper.id)
     copyRenderedPages(qpPages, outputDirectory, 'qp')
     copyRenderedPages(msPages, outputDirectory, 'ms')
-    return buildItems(paper, markScheme, config, mergeFragments(questionRecords, 'fragments'), mergeFragments(answerRecords, 'answers'))
+    return buildItems(
+      paper,
+      markScheme,
+      config,
+      mergeFragments(questionRecords, 'fragments', { pageQuestionNumbers }),
+      mergeFragments(answerRecords, 'answers', { pageQuestionNumbers: pageAnswerNumbers }),
+    )
   } finally {
     fs.rmSync(tempDirectory, { recursive: true, force: true })
+  }
+}
+
+async function safeExtractQuestionPageAnchors(pdfPath) {
+  try {
+    return await extractQuestionPageAnchors(pdfPath)
+  } catch (error) {
+    // Scanned or malformed PDFs still go through the AI page extractor. The
+    // page-anchor layer is an optional deterministic guard, not a prerequisite.
+    console.warn(`[question-index] PDF text-anchor fallback for ${path.basename(pdfPath)}: ${error?.name || 'unknown-error'}`)
+    return new Map()
   }
 }
 
@@ -742,6 +764,7 @@ async function main() {
       existingCount: existingForPaper,
       incomingCount: items.length,
       expectedCount: expectedQuestions,
+      incomingItems: items,
     })) {
       console.error(
         `Rejected ${paper.file}: ${items.length} structurally matched groups is below the required floor of ${Math.max(existingForPaper, expectedQuestions)}. Existing machine-indexed data was preserved.`,

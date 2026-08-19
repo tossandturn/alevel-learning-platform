@@ -1,7 +1,7 @@
 {
   "schemaVersion": "verified-practice-catalog-v1",
-  "sourceIndexSha256": "d54cb75c8cc1552c11b1260e1c0c0a35f732920b8f2a952fdc3ef7ddac17417a",
-  "sourceContentManifestChecksum": "3510373246b9b5295b61564ae689b521223aaefcecd3d594e628012825f03d1b",
+  "sourceIndexSha256": "b8876300572521a0d835e6ddffdede4f47b5190e138b68d4a144176e9b79fb08",
+  "sourceContentManifestChecksum": "4e10849a06773dfbcac368797bbf8366505aa557bb3cb9c2df940cbc7f42f1df",
   "groups": [
     {
       "examFamilyId": "cambridge",

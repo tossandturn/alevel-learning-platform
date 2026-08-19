@@ -1,6 +1,6 @@
 {
   "schemaVersion": "source-content-audit-v2",
-  "sourceIndexSha256": "d54cb75c8cc1552c11b1260e1c0c0a35f732920b8f2a952fdc3ef7ddac17417a",
+  "sourceIndexSha256": "b8876300572521a0d835e6ddffdede4f47b5190e138b68d4a144176e9b79fb08",
   "items": {
     "amc12-amc12-2025A-exam:q1": {
       "complete": false,
@@ -7089,162 +7089,93 @@
     },
     "cie-9702-9702_m24_qp_42:q1": {
       "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
+      "fileComplete": true,
+      "semanticStatus": "unreviewed",
       "reasons": [
-        "index-quarantined",
-        "missing-question-parts"
+        "human-semantic-review-required"
       ],
-      "bindingSignature": "fnv1a64:223f2895ccab6c40"
+      "bindingSignature": "fnv1a64:8f66705bbf8209e8"
     },
     "cie-9702-9702_m24_qp_42:q2": {
       "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
+      "fileComplete": true,
+      "semanticStatus": "unreviewed",
       "reasons": [
-        "index-quarantined",
-        "missing-question-parts"
+        "human-semantic-review-required"
       ],
-      "bindingSignature": "fnv1a64:fbb3e4644eef570d"
+      "bindingSignature": "fnv1a64:4c1ccb74f0675c15"
     },
     "cie-9702-9702_m24_qp_42:q3": {
       "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
+      "fileComplete": true,
+      "semanticStatus": "unreviewed",
       "reasons": [
-        "index-quarantined",
-        "missing-question-parts"
+        "human-semantic-review-required"
       ],
-      "bindingSignature": "fnv1a64:d70ca9fb7e7f68e2"
+      "bindingSignature": "fnv1a64:40d5165861dd5bf8"
     },
     "cie-9702-9702_m24_qp_42:q4": {
       "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
+      "fileComplete": true,
+      "semanticStatus": "unreviewed",
       "reasons": [
-        "index-quarantined",
-        "missing-question-parts",
-        "source-range-ends-before-next-question:11<13"
+        "human-semantic-review-required"
       ],
-      "bindingSignature": "fnv1a64:258c56267c2656d1"
+      "bindingSignature": "fnv1a64:8bd7cb02b9fa0561"
     },
     "cie-9702-9702_m24_qp_42:q5": {
       "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
+      "fileComplete": true,
+      "semanticStatus": "unreviewed",
       "reasons": [
-        "decoded-page-missing:10",
-        "decoded-page-missing:11",
-        "decoded-page-missing:6",
-        "decoded-page-missing:7",
-        "decoded-page-missing:8",
-        "decoded-page-missing:9",
-        "index-quarantined",
-        "missing-page-asset:10",
-        "missing-page-asset:11",
-        "missing-page-asset:6",
-        "missing-page-asset:7",
-        "missing-page-asset:8",
-        "missing-page-asset:9",
-        "missing-question-parts"
+        "human-semantic-review-required"
       ],
-      "bindingSignature": "fnv1a64:93f1169161095fe2"
+      "bindingSignature": "fnv1a64:9b229658c138a391"
     },
     "cie-9702-9702_m24_qp_42:q6": {
       "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
+      "fileComplete": true,
+      "semanticStatus": "unreviewed",
       "reasons": [
-        "index-quarantined",
-        "missing-question-parts",
-        "source-range-ends-before-next-question:14<19"
+        "human-semantic-review-required"
       ],
-      "bindingSignature": "fnv1a64:591494e009e80884"
+      "bindingSignature": "fnv1a64:f4006672af5a185d"
     },
     "cie-9702-9702_m24_qp_42:q7": {
       "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
+      "fileComplete": true,
+      "semanticStatus": "unreviewed",
       "reasons": [
-        "decoded-page-missing:10",
-        "decoded-page-missing:11",
-        "decoded-page-missing:12",
-        "decoded-page-missing:13",
-        "decoded-page-missing:14",
-        "decoded-page-missing:15",
-        "decoded-page-missing:16",
-        "decoded-page-missing:17",
-        "decoded-page-missing:8",
-        "decoded-page-missing:9",
-        "index-quarantined",
-        "missing-page-asset:10",
-        "missing-page-asset:11",
-        "missing-page-asset:12",
-        "missing-page-asset:13",
-        "missing-page-asset:14",
-        "missing-page-asset:15",
-        "missing-page-asset:16",
-        "missing-page-asset:17",
-        "missing-page-asset:8",
-        "missing-page-asset:9",
-        "missing-question-parts"
+        "human-semantic-review-required"
       ],
-      "bindingSignature": "fnv1a64:be14301a1ba43e54"
+      "bindingSignature": "fnv1a64:75227a2878495950"
     },
     "cie-9702-9702_m24_qp_42:q8": {
       "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
+      "fileComplete": true,
+      "semanticStatus": "unreviewed",
       "reasons": [
-        "index-quarantined",
-        "missing-question-parts",
-        "source-range-ends-before-next-question:20<24"
+        "human-semantic-review-required"
       ],
-      "bindingSignature": "fnv1a64:555aa567963abdd7"
+      "bindingSignature": "fnv1a64:ee617d794261c92a"
     },
     "cie-9702-9702_m24_qp_42:q9": {
       "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
+      "fileComplete": true,
+      "semanticStatus": "unreviewed",
       "reasons": [
-        "decoded-page-missing:10",
-        "decoded-page-missing:11",
-        "decoded-page-missing:12",
-        "decoded-page-missing:13",
-        "decoded-page-missing:14",
-        "decoded-page-missing:15",
-        "decoded-page-missing:16",
-        "decoded-page-missing:17",
-        "decoded-page-missing:18",
-        "decoded-page-missing:19",
-        "decoded-page-missing:20",
-        "decoded-page-missing:21",
-        "index-quarantined",
-        "missing-page-asset:10",
-        "missing-page-asset:11",
-        "missing-page-asset:12",
-        "missing-page-asset:13",
-        "missing-page-asset:14",
-        "missing-page-asset:15",
-        "missing-page-asset:16",
-        "missing-page-asset:17",
-        "missing-page-asset:18",
-        "missing-page-asset:19",
-        "missing-page-asset:20",
-        "missing-page-asset:21",
-        "missing-question-parts"
+        "human-semantic-review-required"
       ],
-      "bindingSignature": "fnv1a64:d8535f5e8e62d162"
+      "bindingSignature": "fnv1a64:575e38863b5f03b2"
     },
     "cie-9702-9702_m24_qp_42:q10": {
       "complete": false,
-      "fileComplete": false,
-      "semanticStatus": "semantic-quarantined",
+      "fileComplete": true,
+      "semanticStatus": "unreviewed",
       "reasons": [
-        "index-quarantined",
-        "missing-question-parts"
+        "human-semantic-review-required"
       ],
-      "bindingSignature": "fnv1a64:57baf9abb9e47f89"
+      "bindingSignature": "fnv1a64:69fdae32019a9778"
     },
     "cie-9702-9702_m25_qp_12:q1": {
       "complete": true,
@@ -13673,5 +13604,5 @@
       "bindingSignature": "fnv1a64:a0315e0ab0dddf52"
     }
   },
-  "checksum": "3510373246b9b5295b61564ae689b521223aaefcecd3d594e628012825f03d1b"
+  "checksum": "4e10849a06773dfbcac368797bbf8366505aa557bb3cb9c2df940cbc7f42f1df"
 }

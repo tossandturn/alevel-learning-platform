@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { sourceRangeReviewCandidates, sourceStructuralConsistencyIssues } from '../src/lib/sourceSemanticContract.js'
+import { resolvedNonContentPageGapIssues, sourceRangeReviewCandidates, sourceStructuralConsistencyIssues } from '../src/lib/sourceSemanticContract.js'
 import { buildPartMarkingLifecycle, markingCapabilityForUnit } from '../src/lib/markingLifecycle.js'
 import { practiceUnitMetrics } from '../src/lib/practicePresentation.js'
 import { buildSyllabusPracticeSet } from '../src/lib/syllabusPractice.js'
@@ -50,6 +50,23 @@ const rangeCandidates = sourceRangeReviewCandidates([
   { questionId: 'paper:q3', sourceRef: { paperId: 'paper', pageStart: 6, pageEnd: 6 } },
 ])
 assert.deepEqual(rangeCandidates.map((candidate) => candidate.questionId), ['paper:q1'], 'a page gap before the next question is an explicit review candidate')
+assert.deepEqual(
+  resolvedNonContentPageGapIssues(
+    { sourceRef: { pageStart: 2, pageEnd: 3 } },
+    rangeCandidates[0],
+    { sourceContentPages: [2, 3], ignoredPage: 4, reason: 'blank-page' },
+  ),
+  [],
+  'a resolved page-gap exception must match the declared content range and unique ignored page',
+)
+assert.ok(
+  resolvedNonContentPageGapIssues(
+    { sourceRef: { pageStart: 2, pageEnd: 3 } },
+    rangeCandidates[0],
+    { sourceContentPages: [2], ignoredPage: 4, reason: 'blank-page' },
+  ).includes('resolved-page-gap-content-pages-mismatch'),
+  'a resolved page-gap exception with incomplete evidence must fail closed',
+)
 
 const mixedUnit = {
   routeId: 'cie-9702-as-physics',

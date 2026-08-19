@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-16T08:43:05.085Z",
+  "generatedAt": "2026-08-19T17:41:37.031Z",
   "questions": [
     {
       "examFamilyId": "admissions",
@@ -61018,26 +61018,87 @@
         4
       ],
       "topicTags": [
-        "physics-9702-fields",
-        "gravitational fields",
-        "field strength and potential"
+        "physics-9702-topic-13",
+        "gravitational field",
+        "gravitational potential"
       ],
       "skillTags": [
-        "explanation",
-        "conceptual understanding"
+        "explanation"
       ],
-      "answerType": "handwritten",
-      "prompt": "(a) Explain why the gravitational potential near to a point mass is negative.\n(b) A planet may be assumed to be a uniform sphere. It has gravitational potential φ at distance r from the centre of the planet.\n\nThe variation with 1/r of φ is shown in Fig. 1.1.",
-      "marks": 2,
+      "answerType": "structured",
+      "prompt": "Explain why the gravitational potential near to a point mass is negative.\nA planet may be assumed to be a uniform sphere. It has gravitational potential φ at distance r from the centre of the planet.\n\nThe variation with 1/r of φ is shown in Fig. 1.1.\nShow that the mass of the planet is 8.8 × 10²⁵ kg.\nThe period of rotation of the planet is 0.72 Earth days.\nA satellite in orbit around the planet remains above the same point on the surface of the planet.\nUse the mass of the planet in (b)(i) to determine the radius R of the orbit of the satellite.\nThe speed of the satellite in (b)(ii) is 8400 m s⁻¹. The mass of the satellite is 1200 kg.\nDetermine the additional energy required to move the satellite from its orbit to infinity.",
+      "questionGroupId": "cie-9702-9702_m24_qp_42:q1",
+      "questionGroupStatus": "verified",
+      "totalMarks": 10,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q1:part-a",
+          "label": "a",
+          "promptFragment": "Explain why the gravitational potential near to a point mass is negative.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "question-paper",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 4,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q1:part-b(i)",
+          "label": "b(i)",
+          "promptFragment": "A planet may be assumed to be a uniform sphere. It has gravitational potential φ at distance r from the centre of the planet.\n\nThe variation with 1/r of φ is shown in Fig. 1.1.\nShow that the mass of the planet is 8.8 × 10²⁵ kg.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 5,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q1:part-b(ii)",
+          "label": "b(ii)",
+          "promptFragment": "The period of rotation of the planet is 0.72 Earth days.\nA satellite in orbit around the planet remains above the same point on the surface of the planet.\nUse the mass of the planet in (b)(i) to determine the radius R of the orbit of the satellite.",
+          "marks": 3,
+          "questionDeclaredMarks": 3,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 5,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q1:part-b(iii)",
+          "label": "b(iii)",
+          "promptFragment": "The speed of the satellite in (b)(ii) is 8400 m s⁻¹. The mass of the satellite is 1200 kg.\nDetermine the additional energy required to move the satellite from its orbit to infinity.",
+          "marks": 3,
+          "questionDeclaredMarks": 3,
+          "markSource": "question-paper",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 5,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        }
+      ],
+      "marks": 10,
       "sourceRef": {
         "paperId": "cie-9702-9702_m24_qp_42",
         "paper": "9702_m24_qp_42.pdf",
         "question": "Q1",
         "localUrl": "/local-pdf/9702/9702_m24_qp_42.pdf",
         "pageStart": 4,
-        "pageEnd": 4,
+        "pageEnd": 5,
         "assetUrls": [
-          "/question-assets/cie-9702-9702_m24_qp_42/qp-04.jpg"
+          "/question-assets/cie-9702-9702_m24_qp_42/qp-04.jpg",
+          "/question-assets/cie-9702-9702_m24_qp_42/qp-05.jpg"
         ],
         "year": 2024,
         "season": "Mar",
@@ -61046,7 +61107,7 @@
       },
       "provenance": {
         "licenseStatus": "Official exam material; personal study library",
-        "indexedAt": "2026-08-06T19:36:55.444Z"
+        "indexedAt": "2026-08-19T17:41:36.992Z"
       },
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
@@ -61054,12 +61115,7 @@
         "knowledgeGroupId": "physics-9702-topic-13",
         "mappingStatus": "machine-indexed"
       },
-      "questionId": "cie-9702-9702_m24_qp_42:q1",
-      "answerId": "cie-9702-9702_m24_qp_42:q1:answer",
-      "questionGroupId": "cie-9702-9702_m24_qp_42:q1",
-      "questionGroupStatus": "quarantined",
-      "totalMarks": 0,
-      "parts": []
+      "questionId": "cie-9702-9702_m24_qp_42:q1"
     },
     {
       "examFamilyId": "cambridge",
@@ -61067,8 +61123,8 @@
       "specificationId": "cambridge-9702-2025-2027",
       "subjectId": "physics",
       "subjectCode": "9702",
-      "knowledgeGroupId": "physics-9702-topic-14",
-      "topicId": "physics-9702-topic-14",
+      "knowledgeGroupId": "physics-9702-topic-15",
+      "topicId": "physics-9702-topic-15",
       "stageTags": [
         "A2"
       ],
@@ -61076,25 +61132,101 @@
         4
       ],
       "topicTags": [
-        "physics-9702-thermal",
-        "temperature and internal energy",
-        "ideal gases"
+        "physics-9702-topic-15",
+        "ideal gases",
+        "kinetic theory"
       ],
       "skillTags": [
         "explain"
       ],
-      "answerType": "handwritten",
-      "prompt": "(a) By referring to both kinetic energy and potential energy, explain what is meant by the internal energy of an ideal gas.\n(b) A fixed mass of an ideal gas at a temperature of 20 °C is sealed in a cylinder by a piston, as shown in Fig. 2.1.\n\nFig. 2.1\n\nThe initial volume of the gas is 1.24 × 10⁻⁴ m³.\nThermal energy is supplied to the gas and its volume increases by 5.20 × 10⁻⁵ m³.\n\n(i) The piston is freely moving so that the gas is always at atmospheric pressure.\n\nAtmospheric pressure is 1.01 × 10⁵ Pa.\n\nCalculate the work done by the gas.",
-      "marks": 2,
+      "answerType": "structured",
+      "prompt": "By referring to both kinetic energy and potential energy, explain what is meant by the internal energy of an ideal gas.\nA fixed mass of an ideal gas at a temperature of 20 °C is sealed in a cylinder by a piston, as shown in Fig. 2.1.\nThe piston is freely moving so that the gas is always at atmospheric pressure.\nAtmospheric pressure is 1.01 × 10⁵ Pa.\nCalculate the work done by the gas.\nCalculate the final thermodynamic temperature T of the gas.\nThe mass of the gas is 16 g. For this expansion, there is a net transfer of 960 J of thermal energy to the gas.\n\nCalculate the specific heat capacity c of the gas at this pressure.\nThe gas in (b) is allowed to return to its starting temperature. The piston is now fixed in position.\n\nThermal energy is supplied to increase the temperature to the same final temperature as in (b).\n\nUse the first law of thermodynamics to suggest and explain how the specific heat capacity of the gas for this situation compares with the value in (b)(iii).",
+      "questionGroupId": "cie-9702-9702_m24_qp_42:q2",
+      "questionGroupStatus": "verified",
+      "totalMarks": 11,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q2:part-a",
+          "label": "a",
+          "promptFragment": "By referring to both kinetic energy and potential energy, explain what is meant by the internal energy of an ideal gas.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 6,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q2:part-b(i)",
+          "label": "b(i)",
+          "promptFragment": "A fixed mass of an ideal gas at a temperature of 20 °C is sealed in a cylinder by a piston, as shown in Fig. 2.1.\nThe piston is freely moving so that the gas is always at atmospheric pressure.\nAtmospheric pressure is 1.01 × 10⁵ Pa.\nCalculate the work done by the gas.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 6,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q2:part-b(ii)",
+          "label": "b(ii)",
+          "promptFragment": "Calculate the final thermodynamic temperature T of the gas.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 7,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q2:part-b(iii)",
+          "label": "b(iii)",
+          "promptFragment": "The mass of the gas is 16 g. For this expansion, there is a net transfer of 960 J of thermal energy to the gas.\n\nCalculate the specific heat capacity c of the gas at this pressure.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 7,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q2:part-c",
+          "label": "c",
+          "promptFragment": "The gas in (b) is allowed to return to its starting temperature. The piston is now fixed in position.\n\nThermal energy is supplied to increase the temperature to the same final temperature as in (b).\n\nUse the first law of thermodynamics to suggest and explain how the specific heat capacity of the gas for this situation compares with the value in (b)(iii).",
+          "marks": 3,
+          "questionDeclaredMarks": 3,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 7,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        }
+      ],
+      "marks": 11,
       "sourceRef": {
         "paperId": "cie-9702-9702_m24_qp_42",
         "paper": "9702_m24_qp_42.pdf",
         "question": "Q2",
         "localUrl": "/local-pdf/9702/9702_m24_qp_42.pdf",
         "pageStart": 6,
-        "pageEnd": 6,
+        "pageEnd": 7,
         "assetUrls": [
-          "/question-assets/cie-9702-9702_m24_qp_42/qp-06.jpg"
+          "/question-assets/cie-9702-9702_m24_qp_42/qp-06.jpg",
+          "/question-assets/cie-9702-9702_m24_qp_42/qp-07.jpg"
         ],
         "year": 2024,
         "season": "Mar",
@@ -61103,20 +61235,15 @@
       },
       "provenance": {
         "licenseStatus": "Official exam material; personal study library",
-        "indexedAt": "2026-08-06T19:36:55.444Z"
+        "indexedAt": "2026-08-19T17:41:36.993Z"
       },
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
         "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
-        "knowledgeGroupId": "physics-9702-topic-14",
+        "knowledgeGroupId": "physics-9702-topic-15",
         "mappingStatus": "machine-indexed"
       },
-      "questionId": "cie-9702-9702_m24_qp_42:q2",
-      "answerId": "cie-9702-9702_m24_qp_42:q2:answer",
-      "questionGroupId": "cie-9702-9702_m24_qp_42:q2",
-      "questionGroupStatus": "quarantined",
-      "totalMarks": 0,
-      "parts": []
+      "questionId": "cie-9702-9702_m24_qp_42:q2"
     },
     {
       "examFamilyId": "cambridge",
@@ -61133,27 +61260,74 @@
         4
       ],
       "topicTags": [
-        "physics-9702-mechanics",
-        "oscillations",
-        "simple harmonic motion"
+        "physics-9702-topic-17",
+        "simple harmonic oscillations",
+        "energy in SHM"
       ],
       "skillTags": [
         "calculation",
-        "energy in SHM",
-        "angular frequency"
+        "application"
       ],
-      "answerType": "handwritten",
-      "prompt": "A small object of mass 24 g rests on a platform. The platform is attached to an oscillator, as shown in Fig. 3.1.\n\nFig. 3.1\n\nThe oscillator moves the platform up and down.\n\n(a) The total energy of the oscillations of the object is 2.2 × 10⁻⁴ J.\nIn one oscillation the object travels a total distance of 14 mm.\n\nCalculate the angular frequency ω of the oscillations.\n(b) The frequency of the oscillator is fixed, and the amplitude of the oscillations is gradually increased.\n\n(i) Calculate the maximum amplitude of the oscillations so the object does not lose contact with the platform.",
-      "marks": 3,
+      "answerType": "structured",
+      "prompt": "The total energy of the oscillations of the object is 2.2 × 10⁻⁴ J. In one oscillation the object travels a total distance of 14 mm. Calculate the angular frequency ω of the oscillations.\nThe frequency of the oscillator is fixed, and the amplitude of the oscillations is gradually increased. Calculate the maximum amplitude of the oscillations so the object does not lose contact with the platform.\nThe amplitude of the oscillations is increased so it is greater than the value in (b)(i).\nState and explain the position in an oscillation where the object first loses contact with the platform.",
+      "questionGroupId": "cie-9702-9702_m24_qp_42:q3",
+      "questionGroupStatus": "verified",
+      "totalMarks": 7,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q3:part-a",
+          "label": "a",
+          "promptFragment": "The total energy of the oscillations of the object is 2.2 × 10⁻⁴ J. In one oscillation the object travels a total distance of 14 mm. Calculate the angular frequency ω of the oscillations.",
+          "marks": 3,
+          "questionDeclaredMarks": 3,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 8,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q3:part-b(i)",
+          "label": "b(i)",
+          "promptFragment": "The frequency of the oscillator is fixed, and the amplitude of the oscillations is gradually increased. Calculate the maximum amplitude of the oscillations so the object does not lose contact with the platform.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 8,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q3:part-b(ii)",
+          "label": "b(ii)",
+          "promptFragment": "The amplitude of the oscillations is increased so it is greater than the value in (b)(i).\nState and explain the position in an oscillation where the object first loses contact with the platform.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 9,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        }
+      ],
+      "marks": 7,
       "sourceRef": {
         "paperId": "cie-9702-9702_m24_qp_42",
         "paper": "9702_m24_qp_42.pdf",
         "question": "Q3",
         "localUrl": "/local-pdf/9702/9702_m24_qp_42.pdf",
         "pageStart": 8,
-        "pageEnd": 8,
+        "pageEnd": 9,
         "assetUrls": [
-          "/question-assets/cie-9702-9702_m24_qp_42/qp-08.jpg"
+          "/question-assets/cie-9702-9702_m24_qp_42/qp-08.jpg",
+          "/question-assets/cie-9702-9702_m24_qp_42/qp-09.jpg"
         ],
         "year": 2024,
         "season": "Mar",
@@ -61162,7 +61336,7 @@
       },
       "provenance": {
         "licenseStatus": "Official exam material; personal study library",
-        "indexedAt": "2026-08-06T19:36:55.444Z"
+        "indexedAt": "2026-08-19T17:41:36.993Z"
       },
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
@@ -61170,12 +61344,7 @@
         "knowledgeGroupId": "physics-9702-topic-17",
         "mappingStatus": "machine-indexed"
       },
-      "questionId": "cie-9702-9702_m24_qp_42:q3",
-      "answerId": "cie-9702-9702_m24_qp_42:q3:answer",
-      "questionGroupId": "cie-9702-9702_m24_qp_42:q3",
-      "questionGroupStatus": "quarantined",
-      "totalMarks": 0,
-      "parts": []
+      "questionId": "cie-9702-9702_m24_qp_42:q3"
     },
     {
       "examFamilyId": "cambridge",
@@ -61183,8 +61352,8 @@
       "specificationId": "cambridge-9702-2025-2027",
       "subjectId": "physics",
       "subjectCode": "9702",
-      "knowledgeGroupId": "physics-9702-topic-09",
-      "topicId": "physics-9702-topic-09",
+      "knowledgeGroupId": "physics-9702-topic-19",
+      "topicId": "physics-9702-topic-19",
       "stageTags": [
         "A2"
       ],
@@ -61192,17 +61361,105 @@
         4
       ],
       "topicTags": [
-        "physics-9702-electricity",
-        "current and charge",
-        "DC circuits"
+        "physics-9702-topic-19",
+        "capacitors"
       ],
       "skillTags": [
         "circuit analysis",
-        "capacitor combinations"
+        "calculation"
       ],
-      "answerType": "handwritten",
-      "prompt": "(a) Three capacitors are connected as shown in Fig. 4.1.\n\nFig. 4.1\n\nDetermine the total capacitance, in μF, of the network of three capacitors.\n\ncapacitance = ………………………………………… μF [2]\n(b) A capacitor of capacitance 45 μF is connected to a variable power supply initially set at 8.0 V. The output of the power supply increases so that the potential difference (p.d.) across the capacitor increases to 9.6 V.\n\nCalculate the increase in energy ΔE stored in the capacitor.\n\nΔE = ………………………………………… J [2]\n(c) A sinusoidal a.c. power supply is connected to the input of a bridge rectifier.\nThe output of the rectifier is connected to a load resistor.\n\n(i) Complete the circuit in Fig. 4.2 by adding a capacitor to smooth the p.d. across the load resistor.\n\nFig. 4.2\n(ii) The variation with time t of the p.d. V of the smoothed output is shown in Fig. 4.3.\n\nFig. 4.3\n\nDetermine the time constant, in ms, of the smoothing circuit.\n(d) A sinusoidal a.c. power supply has a maximum power of 16W.\n\nState the value of the mean power when the output of the power supply is:\n\n(i) full-wave rectified\n\n(ii) half-wave rectified.",
-      "marks": 2,
+      "answerType": "structured",
+      "prompt": "Three capacitors are connected as shown in Fig. 4.1.\nDetermine the total capacitance, in μF, of the network of three capacitors.\nA capacitor of capacitance 45 μF is connected to a variable power supply initially set at 8.0 V. The output of the power supply increases so that the potential difference (p.d.) across the capacitor increases to 9.6 V.\nCalculate the increase in energy ΔE stored in the capacitor.\nA sinusoidal a.c. power supply is connected to the input of a bridge rectifier. The output of the rectifier is connected to a load resistor.\nComplete the circuit in Fig. 4.2 by adding a capacitor to smooth the p.d. across the load resistor.\nThe variation with time t of the p.d. V of the smoothed output is shown in Fig. 4.3.\nfull-wave rectified\nhalf-wave rectified.",
+      "questionGroupId": "cie-9702-9702_m24_qp_42:q4",
+      "questionGroupStatus": "verified",
+      "totalMarks": 10,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q4:part-a",
+          "label": "a",
+          "promptFragment": "Three capacitors are connected as shown in Fig. 4.1.\nDetermine the total capacitance, in μF, of the network of three capacitors.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 10,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q4:part-b",
+          "label": "b",
+          "promptFragment": "A capacitor of capacitance 45 μF is connected to a variable power supply initially set at 8.0 V. The output of the power supply increases so that the potential difference (p.d.) across the capacitor increases to 9.6 V.\nCalculate the increase in energy ΔE stored in the capacitor.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 10,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q4:part-c(i)",
+          "label": "c(i)",
+          "promptFragment": "A sinusoidal a.c. power supply is connected to the input of a bridge rectifier. The output of the rectifier is connected to a load resistor.\nComplete the circuit in Fig. 4.2 by adding a capacitor to smooth the p.d. across the load resistor.",
+          "marks": 1,
+          "questionDeclaredMarks": 1,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 10,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q4:part-c(ii)",
+          "label": "c(ii)",
+          "promptFragment": "The variation with time t of the p.d. V of the smoothed output is shown in Fig. 4.3.",
+          "marks": 3,
+          "questionDeclaredMarks": 3,
+          "markSource": "question-paper",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 11,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q4:part-d(i)",
+          "label": "d(i)",
+          "promptFragment": "full-wave rectified",
+          "marks": 1,
+          "questionDeclaredMarks": 1,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 11,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q4:part-d(ii)",
+          "label": "d(ii)",
+          "promptFragment": "half-wave rectified.",
+          "marks": 1,
+          "questionDeclaredMarks": 1,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 11,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        }
+      ],
+      "marks": 10,
       "sourceRef": {
         "paperId": "cie-9702-9702_m24_qp_42",
         "paper": "9702_m24_qp_42.pdf",
@@ -61221,20 +61478,15 @@
       },
       "provenance": {
         "licenseStatus": "Official exam material; personal study library",
-        "indexedAt": "2026-08-06T19:36:55.444Z"
+        "indexedAt": "2026-08-19T17:41:36.993Z"
       },
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
         "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
-        "knowledgeGroupId": "physics-9702-topic-09",
+        "knowledgeGroupId": "physics-9702-topic-19",
         "mappingStatus": "machine-indexed"
       },
-      "questionId": "cie-9702-9702_m24_qp_42:q4",
-      "answerId": "cie-9702-9702_m24_qp_42:q4:answer",
-      "questionGroupId": "cie-9702-9702_m24_qp_42:q4",
-      "questionGroupStatus": "quarantined",
-      "totalMarks": 0,
-      "parts": []
+      "questionId": "cie-9702-9702_m24_qp_42:q4"
     },
     {
       "examFamilyId": "cambridge",
@@ -61242,8 +61494,8 @@
       "specificationId": "cambridge-9702-2025-2027",
       "subjectId": "physics",
       "subjectCode": "9702",
-      "knowledgeGroupId": "physics-9702-topic-13",
-      "topicId": "physics-9702-topic-13",
+      "knowledgeGroupId": "physics-9702-topic-12",
+      "topicId": "physics-9702-topic-12",
       "stageTags": [
         "A2"
       ],
@@ -61251,27 +61503,102 @@
         4
       ],
       "topicTags": [
-        "physics-9702-fields",
-        "gravitational fields",
-        "orbits"
+        "physics-9702-topic-12",
+        "motion in a circle",
+        "circular motion"
       ],
       "skillTags": [
-        "calculation",
-        "derivation"
+        "recall",
+        "conceptual understanding"
       ],
-      "answerType": "handwritten",
-      "prompt": "(i) Show that the mass of the planet is 8.8 × 10²⁵ kg.\n(ii) The period of rotation of the planet is 0.72 Earth days.\nA satellite in orbit around the planet remains above the same point on the surface of the planet.\nUse the mass of the planet in (b)(i) to determine the radius R of the orbit of the satellite.\nR = ……………………………………… m [3]\n(iii) The speed of the satellite in (b)(ii) is 8400 m s⁻¹. The mass of the satellite is 1200 kg.\nDetermine the additional energy required to move the satellite from its orbit to infinity.\nenergy required = ……………………………………… J [3]\n(a) An object travels in a circle at constant speed.\n\nState the names of two quantities that vary during the motion of the object.\n\n1 ....................................................................................................................\n\n2 ....................................................................................................................\n(b) A charged particle of mass m and with charge q enters a region of uniform magnetic field, perpendicular to the field lines. The magnetic flux density is B.\n\nThe particle travels in a circle with period T and radius r.\n\n(i) By considering the magnetic force acting on the particle, show that\n\nB = \\frac{2\\pi m}{qT}.\n(ii) The particle is an alpha particle. The period of the circular motion is 2.5 μs.\n\nCalculate B.\n\nB = ........................................................................................................ T\n(iii) A second alpha particle is in the same uniform field. It travels in a circle of radius 2r.\n\nState and explain how the periods of the motion of the two particles compare.",
-      "marks": 2,
+      "answerType": "structured",
+      "prompt": "An object travels in a circle at constant speed.\nState the names of two quantities that vary during the motion of the object.\nA charged particle of mass m and with charge q enters a region of uniform magnetic field, perpendicular to the field lines. The magnetic flux density is B.\nThe particle travels in a circle with period T and radius r.\nBy considering the magnetic force acting on the particle, show that\nB = 2πm / (qT).\nThe particle is an alpha particle. The period of the circular motion is 2.5 μs.\nCalculate B.\nA second alpha particle is in the same uniform field. It travels in a circle of radius 2r.\nState and explain how the periods of the motion of the two particles compare.\nThe speed of the alpha particle in (b)(ii) is 1.1 × 10⁶ m s⁻¹. An electric field is applied so that this particle now moves with constant velocity.\n\nUse your answer in (b)(ii) to calculate the electric field strength E. Give the unit with your answer.",
+      "questionGroupId": "cie-9702-9702_m24_qp_42:q5",
+      "questionGroupStatus": "verified",
+      "totalMarks": 10,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q5:part-a",
+          "label": "a",
+          "promptFragment": "An object travels in a circle at constant speed.\nState the names of two quantities that vary during the motion of the object.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 12,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q5:part-b(i)",
+          "label": "b(i)",
+          "promptFragment": "A charged particle of mass m and with charge q enters a region of uniform magnetic field, perpendicular to the field lines. The magnetic flux density is B.\nThe particle travels in a circle with period T and radius r.\nBy considering the magnetic force acting on the particle, show that\nB = 2πm / (qT).",
+          "marks": 3,
+          "questionDeclaredMarks": 3,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 12,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q5:part-b(ii)",
+          "label": "b(ii)",
+          "promptFragment": "The particle is an alpha particle. The period of the circular motion is 2.5 μs.\nCalculate B.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 12,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q5:part-b(iii)",
+          "label": "b(iii)",
+          "promptFragment": "A second alpha particle is in the same uniform field. It travels in a circle of radius 2r.\nState and explain how the periods of the motion of the two particles compare.",
+          "marks": 1,
+          "questionDeclaredMarks": 1,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 12,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q5:part-b(iv)",
+          "label": "b(iv)",
+          "promptFragment": "The speed of the alpha particle in (b)(ii) is 1.1 × 10⁶ m s⁻¹. An electric field is applied so that this particle now moves with constant velocity.\n\nUse your answer in (b)(ii) to calculate the electric field strength E. Give the unit with your answer.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 13,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        }
+      ],
+      "marks": 10,
       "sourceRef": {
         "paperId": "cie-9702-9702_m24_qp_42",
         "paper": "9702_m24_qp_42.pdf",
         "question": "Q5",
         "localUrl": "/local-pdf/9702/9702_m24_qp_42.pdf",
-        "pageStart": 5,
-        "pageEnd": 12,
+        "pageStart": 12,
+        "pageEnd": 13,
         "assetUrls": [
-          "/question-assets/cie-9702-9702_m24_qp_42/qp-05.jpg",
-          "/question-assets/cie-9702-9702_m24_qp_42/qp-12.jpg"
+          "/question-assets/cie-9702-9702_m24_qp_42/qp-12.jpg",
+          "/question-assets/cie-9702-9702_m24_qp_42/qp-13.jpg"
         ],
         "year": 2024,
         "season": "Mar",
@@ -61280,20 +61607,15 @@
       },
       "provenance": {
         "licenseStatus": "Official exam material; personal study library",
-        "indexedAt": "2026-08-06T19:36:55.444Z"
+        "indexedAt": "2026-08-19T17:41:36.993Z"
       },
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
         "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
-        "knowledgeGroupId": "physics-9702-topic-13",
+        "knowledgeGroupId": "physics-9702-topic-12",
         "mappingStatus": "machine-indexed"
       },
-      "questionId": "cie-9702-9702_m24_qp_42:q5",
-      "answerId": "cie-9702-9702_m24_qp_42:q5:answer",
-      "questionGroupId": "cie-9702-9702_m24_qp_42:q5",
-      "questionGroupStatus": "quarantined",
-      "totalMarks": 0,
-      "parts": []
+      "questionId": "cie-9702-9702_m24_qp_42:q5"
     },
     {
       "examFamilyId": "cambridge",
@@ -61310,26 +61632,103 @@
         4
       ],
       "topicTags": [
-        "physics-9702-fields",
-        "magnetic fields",
-        "field strength and potential"
+        "physics-9702-topic-20",
+        "magnetic field",
+        "electromagnetic induction"
       ],
       "skillTags": [
-        "graph skills",
-        "explanation"
+        "interpretation",
+        "graph sketching"
       ],
-      "answerType": "handwritten",
-      "prompt": "(a) A small coil C has 64 turns and cross-sectional area 0.71 cm². The coil is placed inside a solenoid as shown in Fig. 6.1.\n\nThe centre of coil C is on the central axis of the solenoid.\n\n(i) There is a constant current in the solenoid.\nCoil C is moved through the solenoid from position X to position Y.\n\nOn Fig. 6.2, sketch a line to show the variation of the magnetic flux linkage in coil C with position as it moves from X to Y.\n\n(ii) Explain the shape of your line in (a)(i).",
-      "marks": 3,
+      "answerType": "structured",
+      "prompt": "There is a constant current in the solenoid. Coil C is moved through the solenoid from position X to position Y. On Fig. 6.2, sketch a line to show the variation of the magnetic flux linkage in coil C with position as it moves from X to Y.\nExplain the shape of your line in (a)(i).\nCoil C is now held stationary at X. The current in the solenoid varies so that the magnetic flux density B at X varies from time 0 to time 4t as shown in Fig. 6.3.\nCalculate the maximum magnetic flux linkage in coil C.\nOn Fig. 6.4, sketch a line to show the induced electromotive force (e.m.f.) E in coil C from time 0 to time 4t.\nA metal spring rests on a smooth table. The turns of the spring are equally spaced. The ends of the spring are connected to a d.c. power supply, as shown in Fig. 6.5.\n\nThe spring is connected to the d.c. power supply using flexible leads. The spring is not under tension.\n\nWith reference to magnetic fields, describe and explain the change in the distance between the turns of the spring when the power supply is first switched on.",
+      "questionGroupId": "cie-9702-9702_m24_qp_42:q6",
+      "questionGroupStatus": "verified",
+      "totalMarks": 11,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q6:part-a(i)",
+          "label": "a(i)",
+          "promptFragment": "There is a constant current in the solenoid. Coil C is moved through the solenoid from position X to position Y. On Fig. 6.2, sketch a line to show the variation of the magnetic flux linkage in coil C with position as it moves from X to Y.",
+          "marks": 1,
+          "questionDeclaredMarks": 1,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 14,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q6:part-a(ii)",
+          "label": "a(ii)",
+          "promptFragment": "Explain the shape of your line in (a)(i).",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "question-paper",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 14,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q6:part-a(iii)",
+          "label": "a(iii)",
+          "promptFragment": "Coil C is now held stationary at X. The current in the solenoid varies so that the magnetic flux density B at X varies from time 0 to time 4t as shown in Fig. 6.3.\nCalculate the maximum magnetic flux linkage in coil C.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 15,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q6:part-a(iv)",
+          "label": "a(iv)",
+          "promptFragment": "On Fig. 6.4, sketch a line to show the induced electromotive force (e.m.f.) E in coil C from time 0 to time 4t.",
+          "marks": 3,
+          "questionDeclaredMarks": 3,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 15,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q6:part-b",
+          "label": "b",
+          "promptFragment": "A metal spring rests on a smooth table. The turns of the spring are equally spaced. The ends of the spring are connected to a d.c. power supply, as shown in Fig. 6.5.\n\nThe spring is connected to the d.c. power supply using flexible leads. The spring is not under tension.\n\nWith reference to magnetic fields, describe and explain the change in the distance between the turns of the spring when the power supply is first switched on.",
+          "marks": 3,
+          "questionDeclaredMarks": 3,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 16,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        }
+      ],
+      "marks": 11,
       "sourceRef": {
         "paperId": "cie-9702-9702_m24_qp_42",
         "paper": "9702_m24_qp_42.pdf",
         "question": "Q6",
         "localUrl": "/local-pdf/9702/9702_m24_qp_42.pdf",
         "pageStart": 14,
-        "pageEnd": 14,
+        "pageEnd": 16,
         "assetUrls": [
-          "/question-assets/cie-9702-9702_m24_qp_42/qp-14.jpg"
+          "/question-assets/cie-9702-9702_m24_qp_42/qp-14.jpg",
+          "/question-assets/cie-9702-9702_m24_qp_42/qp-15.jpg",
+          "/question-assets/cie-9702-9702_m24_qp_42/qp-16.jpg"
         ],
         "year": 2024,
         "season": "Mar",
@@ -61338,7 +61737,7 @@
       },
       "provenance": {
         "licenseStatus": "Official exam material; personal study library",
-        "indexedAt": "2026-08-06T19:36:55.444Z"
+        "indexedAt": "2026-08-19T17:41:36.994Z"
       },
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
@@ -61346,12 +61745,7 @@
         "knowledgeGroupId": "physics-9702-topic-20",
         "mappingStatus": "machine-indexed"
       },
-      "questionId": "cie-9702-9702_m24_qp_42:q6",
-      "answerId": "cie-9702-9702_m24_qp_42:q6:answer",
-      "questionGroupId": "cie-9702-9702_m24_qp_42:q6",
-      "questionGroupStatus": "quarantined",
-      "totalMarks": 0,
-      "parts": []
+      "questionId": "cie-9702-9702_m24_qp_42:q6"
     },
     {
       "examFamilyId": "cambridge",
@@ -61359,8 +61753,8 @@
       "specificationId": "cambridge-9702-2025-2027",
       "subjectId": "physics",
       "subjectCode": "9702",
-      "knowledgeGroupId": "physics-9702-topic-14",
-      "topicId": "physics-9702-topic-14",
+      "knowledgeGroupId": "physics-9702-topic-22",
+      "topicId": "physics-9702-topic-22",
       "stageTags": [
         "A2"
       ],
@@ -61368,27 +61762,102 @@
         4
       ],
       "topicTags": [
-        "physics-9702-thermal",
-        "temperature and internal energy",
-        "ideal gases"
+        "physics-9702-topic-22",
+        "photons",
+        "wave-particle duality"
       ],
       "skillTags": [
         "calculation",
         "application"
       ],
-      "answerType": "handwritten",
-      "prompt": "(ii) Calculate the final thermodynamic temperature T of the gas.\n(iii) The mass of the gas is 16 g. For this expansion, there is a net transfer of 960 J of thermal energy to the gas.\nCalculate the specific heat capacity c of the gas at this pressure.\n(c) The gas in (b) is allowed to return to its starting temperature. The piston is now fixed in position.\nThermal energy is supplied to increase the temperature to the same final temperature as in (b).\nUse the first law of thermodynamics to suggest and explain how the specific heat capacity of the gas for this situation compares with the value in (b)(iii).\n(a) A photon has an energy of 3.11 × 10⁻¹⁹ J.\nCalculate the momentum of the photon.\n(b) A laser beam has a power of 350 mW. The light from the laser has a wavelength of 640 nm.\n(i) Determine the number of photons emitted by the laser in a time of 1.0 s.\n(ii) The laser beam is incident normally on a surface that absorbs all of the photons.\nShow that the force F exerted on the surface by the laser beam is given by\nF = P/c\nwhere P is the power of the laser beam and c is the speed of light.",
-      "marks": 2,
+      "answerType": "structured",
+      "prompt": "A photon has an energy of 3.11 × 10⁻¹⁹ J.\nCalculate the momentum of the photon.\nA laser beam has a power of 350 mW. The light from the laser has a wavelength of 640 nm.\nDetermine the number of photons emitted by the laser in a time of 1.0 s.\nThe laser beam is incident normally on a surface that absorbs all of the photons.\nShow that the force F exerted on the surface by the laser beam is given by\nF = P/c\nwhere P is the power of the laser beam and c is the speed of light.\nExplain the term threshold wavelength.\nFor the metals in Table 7.1, calculate the value of the largest threshold wavelength.",
+      "questionGroupId": "cie-9702-9702_m24_qp_42:q7",
+      "questionGroupStatus": "verified",
+      "totalMarks": 9,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q7:part-a",
+          "label": "a",
+          "promptFragment": "A photon has an energy of 3.11 × 10⁻¹⁹ J.\nCalculate the momentum of the photon.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 18,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q7:part-b(i)",
+          "label": "b(i)",
+          "promptFragment": "A laser beam has a power of 350 mW. The light from the laser has a wavelength of 640 nm.\nDetermine the number of photons emitted by the laser in a time of 1.0 s.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 18,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q7:part-b(ii)",
+          "label": "b(ii)",
+          "promptFragment": "The laser beam is incident normally on a surface that absorbs all of the photons.\nShow that the force F exerted on the surface by the laser beam is given by\nF = P/c\nwhere P is the power of the laser beam and c is the speed of light.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 18,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q7:part-c(i)",
+          "label": "c(i)",
+          "promptFragment": "Explain the term threshold wavelength.",
+          "marks": 1,
+          "questionDeclaredMarks": 1,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 19,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q7:part-c(ii)",
+          "label": "c(ii)",
+          "promptFragment": "For the metals in Table 7.1, calculate the value of the largest threshold wavelength.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 19,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        }
+      ],
+      "marks": 9,
       "sourceRef": {
         "paperId": "cie-9702-9702_m24_qp_42",
         "paper": "9702_m24_qp_42.pdf",
         "question": "Q7",
         "localUrl": "/local-pdf/9702/9702_m24_qp_42.pdf",
-        "pageStart": 7,
-        "pageEnd": 18,
+        "pageStart": 18,
+        "pageEnd": 19,
         "assetUrls": [
-          "/question-assets/cie-9702-9702_m24_qp_42/qp-07.jpg",
-          "/question-assets/cie-9702-9702_m24_qp_42/qp-18.jpg"
+          "/question-assets/cie-9702-9702_m24_qp_42/qp-18.jpg",
+          "/question-assets/cie-9702-9702_m24_qp_42/qp-19.jpg"
         ],
         "year": 2024,
         "season": "Mar",
@@ -61397,20 +61866,15 @@
       },
       "provenance": {
         "licenseStatus": "Official exam material; personal study library",
-        "indexedAt": "2026-08-06T19:36:55.444Z"
+        "indexedAt": "2026-08-19T17:41:36.994Z"
       },
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
         "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
-        "knowledgeGroupId": "physics-9702-topic-14",
+        "knowledgeGroupId": "physics-9702-topic-22",
         "mappingStatus": "machine-indexed"
       },
-      "questionId": "cie-9702-9702_m24_qp_42:q7",
-      "answerId": "cie-9702-9702_m24_qp_42:q7:answer",
-      "questionGroupId": "cie-9702-9702_m24_qp_42:q7",
-      "questionGroupStatus": "quarantined",
-      "totalMarks": 0,
-      "parts": []
+      "questionId": "cie-9702-9702_m24_qp_42:q7"
     },
     {
       "examFamilyId": "cambridge",
@@ -61427,25 +61891,101 @@
         4
       ],
       "topicTags": [
-        "physics-9702-particles",
-        "nuclear structure",
-        "mass energy"
+        "physics-9702-topic-23",
+        "nuclear physics",
+        "binding energy"
       ],
       "skillTags": [
-        "definition"
+        "define"
       ],
-      "answerType": "handwritten",
-      "prompt": "(a) State what is meant by the binding energy of a nucleus.\n(b) A nucleus of uranium-235 absorbs a neutron and becomes unstable. It then undergoes a fission reaction. One possible reaction is\n\n²³⁵₉₂U + ¹₀n → ¹⁴²₅₄Xe + ⁹⁰₃₈Sr + neutrons.\n\n(i) Determine the number of neutrons produced in this fission reaction.\n(ii) Data for the binding energies per nucleon for this fission reaction are given in Table 8.1.\n\nTable 8.1\n\n| isotope        | binding energy per nucleon / MeV |\n|----------------|----------------------------------|\n| uranium-235    | 7.59                             |\n| xenon-142      | 8.37                             |\n| strontium-90   | 8.72                             |\n\nCalculate the energy released, in MeV, from the fission of one nucleus of uranium-235.",
-      "marks": 2,
+      "answerType": "structured",
+      "prompt": "State what is meant by the binding energy of a nucleus.\nDetermine the number of neutrons produced in this fission reaction.\nCalculate the energy released, in MeV, from the fission of one nucleus of uranium-235.\nThe isotope xenon-142 is unstable. The isotope xenon-132 is stable.\nSuggest a reason why xenon-142 is unstable.\nXenon-142 decays into the isotope caesium-142.\nA sample initially contains only nuclei of xenon-142. After a time equal to 6.0 s, the ratio\nnumber of decayed nuclei of xenon-142 / number of undecayed nuclei of xenon-142\nis equal to 31.\nCalculate the half-life of xenon-142. Show your working.",
+      "questionGroupId": "cie-9702-9702_m24_qp_42:q8",
+      "questionGroupStatus": "verified",
+      "totalMarks": 9,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q8:part-a",
+          "label": "a",
+          "promptFragment": "State what is meant by the binding energy of a nucleus.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 20,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q8:part-b(i)",
+          "label": "b(i)",
+          "promptFragment": "Determine the number of neutrons produced in this fission reaction.",
+          "marks": 1,
+          "questionDeclaredMarks": 1,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 20,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q8:part-b(ii)",
+          "label": "b(ii)",
+          "promptFragment": "Calculate the energy released, in MeV, from the fission of one nucleus of uranium-235.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 20,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q8:part-b(iii)",
+          "label": "b(iii)",
+          "promptFragment": "The isotope xenon-142 is unstable. The isotope xenon-132 is stable.\nSuggest a reason why xenon-142 is unstable.",
+          "marks": 1,
+          "questionDeclaredMarks": 1,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 21,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q8:part-b(iv)",
+          "label": "b(iv)",
+          "promptFragment": "Xenon-142 decays into the isotope caesium-142.\nA sample initially contains only nuclei of xenon-142. After a time equal to 6.0 s, the ratio\nnumber of decayed nuclei of xenon-142 / number of undecayed nuclei of xenon-142\nis equal to 31.\nCalculate the half-life of xenon-142. Show your working.",
+          "marks": 3,
+          "questionDeclaredMarks": 3,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 21,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        }
+      ],
+      "marks": 9,
       "sourceRef": {
         "paperId": "cie-9702-9702_m24_qp_42",
         "paper": "9702_m24_qp_42.pdf",
         "question": "Q8",
         "localUrl": "/local-pdf/9702/9702_m24_qp_42.pdf",
         "pageStart": 20,
-        "pageEnd": 20,
+        "pageEnd": 21,
         "assetUrls": [
-          "/question-assets/cie-9702-9702_m24_qp_42/qp-20.jpg"
+          "/question-assets/cie-9702-9702_m24_qp_42/qp-20.jpg",
+          "/question-assets/cie-9702-9702_m24_qp_42/qp-21.jpg"
         ],
         "year": 2024,
         "season": "Mar",
@@ -61454,7 +61994,7 @@
       },
       "provenance": {
         "licenseStatus": "Official exam material; personal study library",
-        "indexedAt": "2026-08-06T19:36:55.444Z"
+        "indexedAt": "2026-08-19T17:41:36.994Z"
       },
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
@@ -61462,12 +62002,7 @@
         "knowledgeGroupId": "physics-9702-topic-23",
         "mappingStatus": "machine-indexed"
       },
-      "questionId": "cie-9702-9702_m24_qp_42:q8",
-      "answerId": "cie-9702-9702_m24_qp_42:q8:answer",
-      "questionGroupId": "cie-9702-9702_m24_qp_42:q8",
-      "questionGroupStatus": "quarantined",
-      "totalMarks": 0,
-      "parts": []
+      "questionId": "cie-9702-9702_m24_qp_42:q8"
     },
     {
       "examFamilyId": "cambridge",
@@ -61475,8 +62010,8 @@
       "specificationId": "cambridge-9702-2025-2027",
       "subjectId": "physics",
       "subjectCode": "9702",
-      "knowledgeGroupId": "physics-9702-topic-17",
-      "topicId": "physics-9702-topic-17",
+      "knowledgeGroupId": "physics-9702-topic-22",
+      "topicId": "physics-9702-topic-22",
       "stageTags": [
         "A2"
       ],
@@ -61484,27 +62019,117 @@
         4
       ],
       "topicTags": [
-        "physics-9702-mechanics",
-        "oscillations",
-        "simple harmonic motion"
+        "physics-9702-topic-22",
+        "photons",
+        "quantum physics"
       ],
       "skillTags": [
-        "explanation",
+        "calculation",
         "application"
       ],
-      "answerType": "handwritten",
-      "prompt": "(ii) The amplitude of the oscillations is increased so it is greater than the value in (b)(i).\nState and explain the position in an oscillation where the object first loses contact with the platform.\n(a) Electrons in a vacuum are accelerated through a potential difference of 84 kV. The electrons then strike a metal target and X-rays are produced.\n\n(i) Calculate the minimum wavelength of the X-rays that are produced.\n(ii) The melting points of two metals are given in Table 9.1.\n\nTable 9.1\n\nmetal | melting point/°C\n---|---\ncopper | 1090\ntungsten | 3420\n\nSuggest why the metal target is made from tungsten rather than copper.\n(b) An X-ray beam is incident normally on a sample of soft tissue and bone as shown in Fig. 9.1.\n\nFig. 9.1\n\nData for the two materials are given in Table 9.2.",
-      "marks": 2,
+      "answerType": "structured",
+      "prompt": "Calculate the minimum wavelength of the X-rays that are produced.\nThe melting points of two metals are given in Table 9.1.\n\nSuggest why the metal target is made from tungsten rather than copper.\nAn X-ray beam is incident normally on a sample of soft tissue and bone as shown in Fig. 9.1.\n\nData for the two materials are given in Table 9.2.\nDefine the specific acoustic impedance of a medium.\nUse data from Table 9.2 to calculate the percentage of the intensity of ultrasound that is transmitted at a boundary between soft tissue and bone.\nThe ultrasound is now incident on the sample of soft tissue and bone shown in Fig. 9.1. Suggest two reasons why the transmitted intensity through the sample is less than the answer in (c)(ii).",
+      "questionGroupId": "cie-9702-9702_m24_qp_42:q9",
+      "questionGroupStatus": "verified",
+      "totalMarks": 13,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q9:part-a(i)",
+          "label": "a(i)",
+          "promptFragment": "Calculate the minimum wavelength of the X-rays that are produced.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 22,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q9:part-a(ii)",
+          "label": "a(ii)",
+          "promptFragment": "The melting points of two metals are given in Table 9.1.\n\nSuggest why the metal target is made from tungsten rather than copper.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 22,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q9:part-b",
+          "label": "b",
+          "promptFragment": "An X-ray beam is incident normally on a sample of soft tissue and bone as shown in Fig. 9.1.\n\nData for the two materials are given in Table 9.2.",
+          "marks": 3,
+          "questionDeclaredMarks": null,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 22,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q9:part-c(i)",
+          "label": "c(i)",
+          "promptFragment": "Define the specific acoustic impedance of a medium.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 23,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q9:part-c(ii)",
+          "label": "c(ii)",
+          "promptFragment": "Use data from Table 9.2 to calculate the percentage of the intensity of ultrasound that is transmitted at a boundary between soft tissue and bone.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "question-paper",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 23,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q9:part-c(iii)",
+          "label": "c(iii)",
+          "promptFragment": "The ultrasound is now incident on the sample of soft tissue and bone shown in Fig. 9.1. Suggest two reasons why the transmitted intensity through the sample is less than the answer in (c)(ii).",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 24,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        }
+      ],
+      "marks": 13,
       "sourceRef": {
         "paperId": "cie-9702-9702_m24_qp_42",
         "paper": "9702_m24_qp_42.pdf",
         "question": "Q9",
         "localUrl": "/local-pdf/9702/9702_m24_qp_42.pdf",
-        "pageStart": 9,
-        "pageEnd": 22,
+        "pageStart": 22,
+        "pageEnd": 24,
         "assetUrls": [
-          "/question-assets/cie-9702-9702_m24_qp_42/qp-09.jpg",
-          "/question-assets/cie-9702-9702_m24_qp_42/qp-22.jpg"
+          "/question-assets/cie-9702-9702_m24_qp_42/qp-22.jpg",
+          "/question-assets/cie-9702-9702_m24_qp_42/qp-23.jpg",
+          "/question-assets/cie-9702-9702_m24_qp_42/qp-24.jpg"
         ],
         "year": 2024,
         "season": "Mar",
@@ -61513,20 +62138,15 @@
       },
       "provenance": {
         "licenseStatus": "Official exam material; personal study library",
-        "indexedAt": "2026-08-06T19:36:55.444Z"
+        "indexedAt": "2026-08-19T17:41:36.994Z"
       },
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
         "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
-        "knowledgeGroupId": "physics-9702-topic-17",
+        "knowledgeGroupId": "physics-9702-topic-22",
         "mappingStatus": "machine-indexed"
       },
-      "questionId": "cie-9702-9702_m24_qp_42:q9",
-      "answerId": "cie-9702-9702_m24_qp_42:q9:answer",
-      "questionGroupId": "cie-9702-9702_m24_qp_42:q9",
-      "questionGroupStatus": "quarantined",
-      "totalMarks": 0,
-      "parts": []
+      "questionId": "cie-9702-9702_m24_qp_42:q9"
     },
     {
       "examFamilyId": "cambridge",
@@ -61534,8 +62154,8 @@
       "specificationId": "cambridge-9702-2025-2027",
       "subjectId": "physics",
       "subjectCode": "9702",
-      "knowledgeGroupId": "physics-9702-topic-14",
-      "topicId": "physics-9702-topic-14",
+      "knowledgeGroupId": "physics-9702-topic-13",
+      "topicId": "physics-9702-topic-13",
       "stageTags": [
         "A2"
       ],
@@ -61543,29 +62163,118 @@
         4
       ],
       "topicTags": [
-        "physics-9702-thermal",
-        "temperature and internal energy",
-        "blackbody radiation",
-        "Stefan-Boltzmann law",
-        "Wien's displacement law"
+        "physics-9702-topic-13",
+        "gravitational field",
+        "Newton law of gravitation",
+        "gravitational potential",
+        "orbits"
       ],
       "skillTags": [
         "calculation",
-        "graph sketching",
-        "application of physical laws"
+        "application of Stefan-Boltzmann law"
       ],
-      "answerType": "handwritten",
-      "prompt": "(a) The Sun has a surface temperature of 5780 K. The luminosity of the Sun is 3.85 × 10²⁶ W.\n(i) Calculate the radius of the Sun.\n\nradius = ………………………………………… m [2]\n(ii) The Earth is a distance of 1.50 × 10¹¹ m from the Sun.\nCalculate the radiant flux intensity F of the radiation from the Sun at a distance of 1.50 × 10¹¹ m. Give a unit with your answer.\n\nF = ………………………………………… unit ………………………………………… [2]\n(iii) The variation with wavelength of the intensity of radiation emitted from the Sun is shown in Fig. 10.1.\n[graph: intensity vs wavelength, peak near visible, decreasing on both sides]\nFig. 10.1\nAnother star has the same radius as the Sun but has a lower surface temperature.\nOn Fig. 10.1, sketch a line to show the variation with wavelength of the intensity of the radiation emitted for this star. [2]",
-      "marks": 6,
+      "answerType": "structured",
+      "prompt": "Calculate the radius of the Sun.\nThe Earth is a distance of 1.50 × 10¹¹ m from the Sun. Calculate the radiant flux intensity F of the radiation from the Sun at a distance of 1.50 × 10¹¹ m. Give a unit with your answer.\nThe variation with wavelength of the intensity of radiation emitted from the Sun is shown in Fig. 10.1. Another star has the same radius as the Sun but has a lower surface temperature. On Fig. 10.1, sketch a line to show the variation with wavelength of the intensity of the radiation emitted for this star.\nThe visible emission spectrum for the Sun is shown in Fig. 10.2.\n\nThe lines are at wavelengths of 397 nm, 410 nm, 434 nm, 486 nm and 656 nm. The compositions of the Sun and a star in the Corona Borealis galaxy are similar.\n\nOn Fig. 10.3, sketch the emission spectrum for the star in the Corona Borealis galaxy as observed from the Earth. No calculations are required.\nThe galaxy in Corona Borealis is moving away from the Earth at a speed of 21 400 km s⁻¹.\n\nUse information from (b)(i) to calculate, in nm, the observed wavelength of the lowest visible energy emission for the star in the Corona Borealis galaxy.\nThe wavelength in (b)(ii) is used to calculate a value for the surface temperature of the star in the Corona Borealis galaxy. The calculation does not give an accurate value.\n\nState and explain whether this value of temperature is too high or too low.",
+      "questionGroupId": "cie-9702-9702_m24_qp_42:q10",
+      "questionGroupStatus": "verified",
+      "totalMarks": 10,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q10:part-a(i)",
+          "label": "a(i)",
+          "promptFragment": "Calculate the radius of the Sun.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "question-paper",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 25,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q10:part-a(ii)",
+          "label": "a(ii)",
+          "promptFragment": "The Earth is a distance of 1.50 × 10¹¹ m from the Sun. Calculate the radiant flux intensity F of the radiation from the Sun at a distance of 1.50 × 10¹¹ m. Give a unit with your answer.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 25,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q10:part-a(iii)",
+          "label": "a(iii)",
+          "promptFragment": "The variation with wavelength of the intensity of radiation emitted from the Sun is shown in Fig. 10.1. Another star has the same radius as the Sun but has a lower surface temperature. On Fig. 10.1, sketch a line to show the variation with wavelength of the intensity of the radiation emitted for this star.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 25,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q10:part-b(i)",
+          "label": "b(i)",
+          "promptFragment": "The visible emission spectrum for the Sun is shown in Fig. 10.2.\n\nThe lines are at wavelengths of 397 nm, 410 nm, 434 nm, 486 nm and 656 nm. The compositions of the Sun and a star in the Corona Borealis galaxy are similar.\n\nOn Fig. 10.3, sketch the emission spectrum for the star in the Corona Borealis galaxy as observed from the Earth. No calculations are required.",
+          "marks": 1,
+          "questionDeclaredMarks": 1,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 26,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q10:part-b(ii)",
+          "label": "b(ii)",
+          "promptFragment": "The galaxy in Corona Borealis is moving away from the Earth at a speed of 21 400 km s⁻¹.\n\nUse information from (b)(i) to calculate, in nm, the observed wavelength of the lowest visible energy emission for the star in the Corona Borealis galaxy.",
+          "marks": 2,
+          "questionDeclaredMarks": 2,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 26,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q10:part-b(iii)",
+          "label": "b(iii)",
+          "promptFragment": "The wavelength in (b)(ii) is used to calculate a value for the surface temperature of the star in the Corona Borealis galaxy. The calculation does not give an accurate value.\n\nState and explain whether this value of temperature is too high or too low.",
+          "marks": 1,
+          "questionDeclaredMarks": 1,
+          "markSource": "paired-mark-scheme",
+          "answerArea": {
+            "type": "handwritten"
+          },
+          "sourcePage": 26,
+          "sourceEvidence": [],
+          "sourceRegion": null
+        }
+      ],
+      "marks": 10,
       "sourceRef": {
         "paperId": "cie-9702-9702_m24_qp_42",
         "paper": "9702_m24_qp_42.pdf",
         "question": "Q10",
         "localUrl": "/local-pdf/9702/9702_m24_qp_42.pdf",
         "pageStart": 25,
-        "pageEnd": 25,
+        "pageEnd": 26,
         "assetUrls": [
-          "/question-assets/cie-9702-9702_m24_qp_42/qp-25.jpg"
+          "/question-assets/cie-9702-9702_m24_qp_42/qp-25.jpg",
+          "/question-assets/cie-9702-9702_m24_qp_42/qp-26.jpg"
         ],
         "year": 2024,
         "season": "Mar",
@@ -61574,20 +62283,15 @@
       },
       "provenance": {
         "licenseStatus": "Official exam material; personal study library",
-        "indexedAt": "2026-08-06T19:36:55.444Z"
+        "indexedAt": "2026-08-19T17:41:36.994Z"
       },
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
         "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
-        "knowledgeGroupId": "physics-9702-topic-14",
+        "knowledgeGroupId": "physics-9702-topic-13",
         "mappingStatus": "machine-indexed"
       },
-      "questionId": "cie-9702-9702_m24_qp_42:q10",
-      "answerId": "cie-9702-9702_m24_qp_42:q10:answer",
-      "questionGroupId": "cie-9702-9702_m24_qp_42:q10",
-      "questionGroupStatus": "quarantined",
-      "totalMarks": 0,
-      "parts": []
+      "questionId": "cie-9702-9702_m24_qp_42:q10"
     },
     {
       "qualificationId": "cambridge-9702",
@@ -153660,20 +154364,20 @@
         "(gravitational force between two masses is attractive so)",
         "either work is done on a mass to move it away from another mass",
         "or work is done on a mass to move it to infinity",
-        "M = (−) gradient / G",
+        "M = (–) gradient / G",
         "e.g. M = (1.76 × 10⁹) / (3.0 × 10⁻⁸ × 6.67 × 10⁻¹¹) = 8.8 × 10²⁵ kg",
         "either GMm / r² = mrω² and ω = 2π / T",
         "or GMm / r² = mv² / r and v = 2πr / T",
         "or GMm / r² = 4π²mr / T²",
         "R³ = 6.67 × 10⁻¹¹ × 8.8 × 10²⁵ × (0.72 × 24 × 60 × 60)² / 4π²",
         "R = 8.3 × 10⁷ m",
-        "ΔE = (GMm / r) − ½mv²",
+        "ΔE = (GMm / r) – ½mv²",
         "kinetic energy = (½ × 1200 × 8400²)",
-        "potential energy = (−)[(6.67 × 10⁻¹¹ × 8.8 × 10²⁵ × 1200) / (8.3 × 10⁷)]",
-        "ΔE = [(6.67 × 10⁻¹¹ × 8.8 × 10²⁵ × 1200) / (8.3 × 10⁷)] − (½ × 1200 × 8400²)",
+        "potential energy = (–)[(6.67 × 10⁻¹¹ × 8.8 × 10²⁵ × 1200) / (8.3 × 10⁷)]",
+        "ΔE = [(6.67 × 10⁻¹¹ × 8.8 × 10²⁵ × 1200) / (8.3 × 10⁷)] – (½ × 1200 × 8400²)",
         "= 4.3 × 10¹⁰ J"
       ],
-      "exactAnswer": "(gravitational) potential is zero at infinity\n(gravitational force between two masses is attractive so)\neither work is done on a mass to move it away from another mass\nor work is done on a mass to move it to infinity\nM = (−) gradient / G\ne.g. M = (1.76 × 10⁹) / (3.0 × 10⁻⁸ × 6.67 × 10⁻¹¹) = 8.8 × 10²⁵ kg\neither GMm / r² = mrω² and ω = 2π / T\nor GMm / r² = mv² / r and v = 2πr / T\nor GMm / r² = 4π²mr / T²\nR³ = 6.67 × 10⁻¹¹ × 8.8 × 10²⁵ × (0.72 × 24 × 60 × 60)² / 4π²\nR = 8.3 × 10⁷ m\nΔE = (GMm / r) − ½mv²\nkinetic energy = (½ × 1200 × 8400²)\npotential energy = (−)[(6.67 × 10⁻¹¹ × 8.8 × 10²⁵ × 1200) / (8.3 × 10⁷)]\nΔE = [(6.67 × 10⁻¹¹ × 8.8 × 10²⁵ × 1200) / (8.3 × 10⁷)]\n− (½ × 1200 × 8400²)\n= 4.3 × 10¹⁰ J",
+      "exactAnswer": "(gravitational) potential is zero at infinity\n(gravitational force between two masses is attractive so)\neither work is done on a mass to move it away from another mass or work is done on a mass to move it to infinity\nM = (–) gradient / G\ne.g. M = (1.76 × 10⁹) / (3.0 × 10⁻⁸ × 6.67 × 10⁻¹¹) = 8.8 × 10²⁵ kg\neither GMm / r² = mrω² and ω = 2π / T or GMm / r² = mv² / r and v = 2πr / T or GMm / r² = 4π²mr / T²\nR³ = 6.67 × 10⁻¹¹ × 8.8 × 10²⁵ × (0.72 × 24 × 60 × 60)² / 4π²\nR = 8.3 × 10⁷ m\nΔE = (GMm / r) – ½mv²\nkinetic energy = (½ × 1200 × 8400²)\npotential energy = (–)[(6.67 × 10⁻¹¹ × 8.8 × 10²⁵ × 1200) / (8.3 × 10⁷)]\nΔE = [(6.67 × 10⁻¹¹ × 8.8 × 10²⁵ × 1200) / (8.3 × 10⁷)] – (½ × 1200 × 8400²) = 4.3 × 10¹⁰ J",
       "answerRef": {
         "documentId": "cie-9702-9702_m24_ms_42",
         "file": "9702_m24_ms_42.pdf",
@@ -153685,27 +154389,83 @@
         ],
         "sha256": "530e51be21ac2164a8ff7cec4e0a09f82d605da25125a4a8054daf6ac3b6fa30"
       },
-      "answerParts": []
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q1:part-a",
+          "label": "a",
+          "marks": 2,
+          "markSchemePoints": [
+            "(gravitational) potential is zero at infinity",
+            "(gravitational force between two masses is attractive so)",
+            "either work is done on a mass to move it away from another mass",
+            "or work is done on a mass to move it to infinity"
+          ],
+          "answerKey": null,
+          "answerText": "(gravitational) potential is zero at infinity\n(gravitational force between two masses is attractive so)\neither work is done on a mass to move it away from another mass or work is done on a mass to move it to infinity",
+          "sourcePage": 6,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q1:part-b(i)",
+          "label": "b(i)",
+          "marks": 2,
+          "markSchemePoints": [
+            "M = (–) gradient / G",
+            "e.g. M = (1.76 × 10⁹) / (3.0 × 10⁻⁸ × 6.67 × 10⁻¹¹) = 8.8 × 10²⁵ kg"
+          ],
+          "answerKey": null,
+          "answerText": "M = (–) gradient / G\ne.g. M = (1.76 × 10⁹) / (3.0 × 10⁻⁸ × 6.67 × 10⁻¹¹) = 8.8 × 10²⁵ kg",
+          "sourcePage": 6,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q1:part-b(ii)",
+          "label": "b(ii)",
+          "marks": 3,
+          "markSchemePoints": [
+            "either GMm / r² = mrω² and ω = 2π / T",
+            "or GMm / r² = mv² / r and v = 2πr / T",
+            "or GMm / r² = 4π²mr / T²",
+            "R³ = 6.67 × 10⁻¹¹ × 8.8 × 10²⁵ × (0.72 × 24 × 60 × 60)² / 4π²",
+            "R = 8.3 × 10⁷ m"
+          ],
+          "answerKey": null,
+          "answerText": "either GMm / r² = mrω² and ω = 2π / T or GMm / r² = mv² / r and v = 2πr / T or GMm / r² = 4π²mr / T²\nR³ = 6.67 × 10⁻¹¹ × 8.8 × 10²⁵ × (0.72 × 24 × 60 × 60)² / 4π²\nR = 8.3 × 10⁷ m",
+          "sourcePage": 6,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q1:part-b(iii)",
+          "label": "b(iii)",
+          "marks": 3,
+          "markSchemePoints": [
+            "ΔE = (GMm / r) – ½mv²",
+            "kinetic energy = (½ × 1200 × 8400²)",
+            "potential energy = (–)[(6.67 × 10⁻¹¹ × 8.8 × 10²⁵ × 1200) / (8.3 × 10⁷)]",
+            "ΔE = [(6.67 × 10⁻¹¹ × 8.8 × 10²⁵ × 1200) / (8.3 × 10⁷)] – (½ × 1200 × 8400²)",
+            "= 4.3 × 10¹⁰ J"
+          ],
+          "answerKey": null,
+          "answerText": "ΔE = (GMm / r) – ½mv²\nkinetic energy = (½ × 1200 × 8400²)\npotential energy = (–)[(6.67 × 10⁻¹¹ × 8.8 × 10²⁵ × 1200) / (8.3 × 10⁷)]\nΔE = [(6.67 × 10⁻¹¹ × 8.8 × 10²⁵ × 1200) / (8.3 × 10⁷)] – (½ × 1200 × 8400²) = 4.3 × 10¹⁰ J",
+          "sourcePage": 6,
+          "markSchemeEvidence": []
+        }
+      ]
     },
     {
       "answerId": "cie-9702-9702_m24_qp_42:q2:answer",
       "answer": null,
       "answerKey": null,
       "markPoints": [
-        "total kinetic energy associated with random motion of molecules",
-        "plus total potential energy (of molecules) but potential energy is zero",
-        "W = pΔV",
-        "= 1.01 × 10⁵ × 5.20 × 10⁻⁵",
-        "= (+)5.25 J",
-        "V ∝ T or V / T = constant",
-        "1.24 / (273 + 20) = (1.24 + 0.520) / T",
-        "T = 416 K",
-        "c = Q / mΔT",
-        "= 960 / (0.016 × (416 − 293))",
-        "= 490 J kg⁻¹ K⁻¹",
-        "no change in volume so no work is done (by the gas)",
-        "(same temperature change so) same change in internal energy",
-        "less thermal energy needs to be supplied so c is less"
+        "M1",
+        "A1",
+        "C1",
+        "A1",
+        "C1",
+        "A1",
+        "C1",
+        "A1",
+        "B1"
       ],
       "exactAnswer": "total kinetic energy associated with random motion of molecules\nplus total potential energy (of molecules) but potential energy is zero\nW = pΔV\n= 1.01 × 10⁵ × 5.20 × 10⁻⁵\n= (+)5.25 J\nV ∝ T or V / T = constant\n1.24 / (273 + 20) = (1.24 + 0.520) / T\nT = 416 K\nc = Q / mΔT\n= 960 / (0.016 × (416 − 293))\n= 490 J kg⁻¹ K⁻¹\nno change in volume so no work is done (by the gas)\n(same temperature change so) same change in internal energy\nless thermal energy needs to be supplied so c is less",
       "answerRef": {
@@ -153719,16 +154479,80 @@
         ],
         "sha256": "530e51be21ac2164a8ff7cec4e0a09f82d605da25125a4a8054daf6ac3b6fa30"
       },
-      "answerParts": []
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q2:part-a",
+          "label": "a",
+          "marks": 2,
+          "markSchemePoints": [
+            "M1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "total kinetic energy associated with random motion of molecules\nplus total potential energy (of molecules) but potential energy is zero",
+          "sourcePage": 7,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q2:part-b(i)",
+          "label": "b(i)",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "W = pΔV\n= 1.01 × 10⁵ × 5.20 × 10⁻⁵\n= (+)5.25 J",
+          "sourcePage": 7,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q2:part-b(ii)",
+          "label": "b(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "V ∝ T or V / T = constant\n1.24 / (273 + 20) = (1.24 + 0.520) / T\nT = 416 K",
+          "sourcePage": 7,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q2:part-b(iii)",
+          "label": "b(iii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "c = Q / mΔT\n= 960 / (0.016 × (416 − 293))\n= 490 J kg⁻¹ K⁻¹",
+          "sourcePage": 7,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q2:part-c",
+          "label": "c",
+          "marks": 3,
+          "markSchemePoints": [
+            "B1"
+          ],
+          "answerKey": null,
+          "answerText": "no change in volume so no work is done (by the gas)\n(same temperature change so) same change in internal energy\nless thermal energy needs to be supplied so c is less",
+          "sourcePage": 7,
+          "markSchemeEvidence": []
+        }
+      ]
     },
     {
       "answerId": "cie-9702-9702_m24_qp_42:q3:answer",
       "answer": null,
       "answerKey": null,
       "markPoints": [
-        "E = ½ mω²x₀²",
-        "2.2 × 10⁻⁴ = ½ × 24 × 10⁻³ × (14 × 10⁻³ / 4)² × ω²",
-        "ω = 39 rad s⁻¹",
+        "C1",
+        "A1",
         "C1: use of acceleration = 9.81 m s⁻²",
         "A1: x₀ = 9.81 / 39² = 6.4 × 10⁻³ m",
         "B1: at top of oscillation",
@@ -153747,7 +154571,47 @@
         ],
         "sha256": "530e51be21ac2164a8ff7cec4e0a09f82d605da25125a4a8054daf6ac3b6fa30"
       },
-      "answerParts": []
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q3:part-a",
+          "label": "a",
+          "marks": 3,
+          "markSchemePoints": [
+            "C1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "E = ½ mω²x₀²\n2.2 × 10⁻⁴ = ½ × 24 × 10⁻³ × (14 × 10⁻³ / 4)² × ω²\nω = 39 rad s⁻¹",
+          "sourcePage": 7,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q3:part-b(i)",
+          "label": "b(i)",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1: use of acceleration = 9.81 m s⁻²",
+            "A1: x₀ = 9.81 / 39² = 6.4 × 10⁻³ m"
+          ],
+          "answerKey": null,
+          "answerText": "use of acceleration = 9.81 m s⁻²\nx₀ = 9.81 / 39²\n= 6.4 × 10⁻³ m",
+          "sourcePage": 8,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q3:part-b(ii)",
+          "label": "b(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "B1: at top of oscillation",
+            "B1: any one point from:\nwhere the downward acceleration first exceeds free-fall acceleration\nwhere the greatest downwards acceleration occurs\nwhere the resultant force is the maximum downwards\nwhere the contact force is a minimum"
+          ],
+          "answerKey": null,
+          "answerText": "at top of oscillation\nany one point from:\nwhere the downward acceleration first exceeds free-fall acceleration\nwhere the greatest downwards acceleration occurs\nwhere the resultant force is the maximum downwards\nwhere the contact force is a minimum",
+          "sourcePage": 8,
+          "markSchemeEvidence": []
+        }
+      ]
     },
     {
       "answerId": "cie-9702-9702_m24_qp_42:q4:answer",
@@ -153761,7 +154625,9 @@
         "B1: gaps in circuit closed and correct symbol for capacitor shown in parallel with load resistor",
         "C1: two correct pairs of values of t and V read off from within same discharge cycle, e.g. (5.0, 4.0) and (13.0, 3.2)",
         "C1: correct substitution of values of V, V₀ and Δt into V = V₀ exp (−Δt / τ)\ne.g. 3.2 = 4.0 exp (−8.0 / τ)",
-        "A1: τ = 36 ms"
+        "A1: τ = 36 ms",
+        "8.0 W",
+        "4.0 W"
       ],
       "exactAnswer": "combined capacitance of parallel capacitors = 30 (μF)\ntotal capacitance = (1 / 45 + 1 / 30)⁻¹ = 18 μF\nE = ½CV²\nΔE = ½ × 45 × 10⁻⁶ (9.6² − 8.0²)\n= 6.3 × 10⁻⁴ J\ngaps in circuit closed and correct symbol for capacitor shown in parallel with load resistor\ntwo correct pairs of values of t and V read off from within same discharge cycle, e.g. (5.0, 4.0) and (13.0, 3.2)\ncorrect substitution of values of V, V₀ and Δt into V = V₀ exp (−Δt / τ)\ne.g. 3.2 = 4.0 exp (−8.0 / τ)\nτ = 36 ms\n8.0 W\n4.0 W",
       "answerRef": {
@@ -153776,7 +154642,84 @@
         ],
         "sha256": "530e51be21ac2164a8ff7cec4e0a09f82d605da25125a4a8054daf6ac3b6fa30"
       },
-      "answerParts": []
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q4:part-a",
+          "label": "a",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1: combined capacitance of parallel capacitors = 30 (μF)",
+            "A1: total capacitance = (1 / 45 + 1 / 30)⁻¹ = 18 μF"
+          ],
+          "answerKey": null,
+          "answerText": "combined capacitance of parallel capacitors = 30 (μF)\ntotal capacitance = (1 / 45 + 1 / 30)⁻¹ = 18 μF",
+          "sourcePage": 8,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q4:part-b",
+          "label": "b",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1: E = ½CV²",
+            "A1: ΔE = ½ × 45 × 10⁻⁶ (9.6² − 8.0²) = 6.3 × 10⁻⁴ J"
+          ],
+          "answerKey": null,
+          "answerText": "E = ½CV²\nΔE = ½ × 45 × 10⁻⁶ (9.6² − 8.0²)\n= 6.3 × 10⁻⁴ J",
+          "sourcePage": 8,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q4:part-c(i)",
+          "label": "c(i)",
+          "marks": 1,
+          "markSchemePoints": [
+            "B1: gaps in circuit closed and correct symbol for capacitor shown in parallel with load resistor"
+          ],
+          "answerKey": null,
+          "answerText": "gaps in circuit closed and correct symbol for capacitor shown in parallel with load resistor",
+          "sourcePage": 8,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q4:part-c(ii)",
+          "label": "c(ii)",
+          "marks": 3,
+          "markSchemePoints": [
+            "C1: two correct pairs of values of t and V read off from within same discharge cycle, e.g. (5.0, 4.0) and (13.0, 3.2)",
+            "C1: correct substitution of values of V, V₀ and Δt into V = V₀ exp (−Δt / τ)\ne.g. 3.2 = 4.0 exp (−8.0 / τ)",
+            "A1: τ = 36 ms"
+          ],
+          "answerKey": null,
+          "answerText": "two correct pairs of values of t and V read off from within same discharge cycle, e.g. (5.0, 4.0) and (13.0, 3.2)\ncorrect substitution of values of V, V₀ and Δt into V = V₀ exp (−Δt / τ)\ne.g. 3.2 = 4.0 exp (−8.0 / τ)\nτ = 36 ms",
+          "sourcePage": 8,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q4:part-d(i)",
+          "label": "d(i)",
+          "marks": 1,
+          "markSchemePoints": [
+            "8.0 W"
+          ],
+          "answerKey": null,
+          "answerText": "8.0 W",
+          "sourcePage": 9,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q4:part-d(ii)",
+          "label": "d(ii)",
+          "marks": 1,
+          "markSchemePoints": [
+            "4.0 W"
+          ],
+          "answerKey": null,
+          "answerText": "4.0 W",
+          "sourcePage": 9,
+          "markSchemeEvidence": []
+        }
+      ]
     },
     {
       "answerId": "cie-9702-9702_m24_qp_42:q5:answer",
@@ -153794,13 +154737,13 @@
         "B = (2π × 4 × 1.66 × 10⁻²⁷) / (2 × 1.60 × 10⁻¹⁹ × 2.5 × 10⁻⁶)",
         "= 0.052 T",
         "either the same because T is independent of r",
-        "or   the same because B, q and m are unchanged",
-        "or   the same because both radius and speed have doubled",
+        "or the same because B, q and m are unchanged",
+        "or the same because both radius and speed have doubled",
         "qE = Bqv",
         "E = Bv = 0.052 × 1.1 × 10⁶",
         "= 5.7 × 10⁴ N C⁻¹"
       ],
-      "exactAnswer": "any 2 points from:\n• (angular) displacement\n• velocity\n• momentum\n• (centripetal) acceleration\n• (resultant) force\nBqv = mv² / r\nv = 2πr / T\ncompletion of algebra leading to B = 2πm / qT\nB = (2π × 4 × 1.66 × 10⁻²⁷) / (2 × 1.60 × 10⁻¹⁹ × 2.5 × 10⁻⁶)\n= 0.052 T\neither the same because T is independent of r\nor   the same because B, q and m are unchanged\nor   the same because both radius and speed have doubled\nqE = Bqv\nE = Bv = 0.052 × 1.1 × 10⁶\n= 5.7 × 10⁴ N C⁻¹",
+      "exactAnswer": "any 2 points from:\n• (angular) displacement\n• velocity\n• momentum\n• (centripetal) acceleration\n• (resultant) force\nBqv = mv² / r\nv = 2πr / T\ncompletion of algebra leading to B = 2πm / qT\nB = (2π × 4 × 1.66 × 10⁻²⁷) / (2 × 1.60 × 10⁻¹⁹ × 2.5 × 10⁻⁶)\n= 0.052 T\neither the same because T is independent of r\nor the same because B, q and m are unchanged\nor the same because both radius and speed have doubled\nqE = Bqv\nE = Bv = 0.052 × 1.1 × 10⁶\n= 5.7 × 10⁴ N C⁻¹",
       "answerRef": {
         "documentId": "cie-9702-9702_m24_ms_42",
         "file": "9702_m24_ms_42.pdf",
@@ -153812,14 +154755,94 @@
         ],
         "sha256": "530e51be21ac2164a8ff7cec4e0a09f82d605da25125a4a8054daf6ac3b6fa30"
       },
-      "answerParts": []
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q5:part-a",
+          "label": "a",
+          "marks": 2,
+          "markSchemePoints": [
+            "(angular) displacement",
+            "velocity",
+            "momentum",
+            "(centripetal) acceleration",
+            "(resultant) force"
+          ],
+          "answerKey": null,
+          "answerText": "any 2 points from:\n• (angular) displacement\n• velocity\n• momentum\n• (centripetal) acceleration\n• (resultant) force",
+          "sourcePage": 9,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q5:part-b(i)",
+          "label": "b(i)",
+          "marks": 3,
+          "markSchemePoints": [
+            "Bqv = mv² / r",
+            "v = 2πr / T",
+            "completion of algebra leading to B = 2πm / qT"
+          ],
+          "answerKey": null,
+          "answerText": "Bqv = mv² / r\nv = 2πr / T\ncompletion of algebra leading to B = 2πm / qT",
+          "sourcePage": 9,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q5:part-b(ii)",
+          "label": "b(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "B = (2π × 4 × 1.66 × 10⁻²⁷) / (2 × 1.60 × 10⁻¹⁹ × 2.5 × 10⁻⁶)",
+            "= 0.052 T"
+          ],
+          "answerKey": null,
+          "answerText": "B = (2π × 4 × 1.66 × 10⁻²⁷) / (2 × 1.60 × 10⁻¹⁹ × 2.5 × 10⁻⁶)\n= 0.052 T",
+          "sourcePage": 9,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q5:part-b(iii)",
+          "label": "b(iii)",
+          "marks": 1,
+          "markSchemePoints": [
+            "either the same because T is independent of r",
+            "or the same because B, q and m are unchanged",
+            "or the same because both radius and speed have doubled"
+          ],
+          "answerKey": null,
+          "answerText": "either the same because T is independent of r\nor the same because B, q and m are unchanged\nor the same because both radius and speed have doubled",
+          "sourcePage": 9,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q5:part-b(iv)",
+          "label": "b(iv)",
+          "marks": 2,
+          "markSchemePoints": [
+            "qE = Bqv",
+            "E = Bv = 0.052 × 1.1 × 10⁶",
+            "= 5.7 × 10⁴ N C⁻¹"
+          ],
+          "answerKey": null,
+          "answerText": "qE = Bqv\nE = Bv = 0.052 × 1.1 × 10⁶\n= 5.7 × 10⁴ N C⁻¹",
+          "sourcePage": 9,
+          "markSchemeEvidence": []
+        }
+      ]
     },
     {
       "answerId": "cie-9702-9702_m24_qp_42:q6:answer",
       "answer": null,
       "answerKey": null,
-      "markPoints": [],
-      "exactAnswer": "non-zero horizontal straight line from X to Y\nconstant flux density (inside coil)\neither (magnetic) flux linkage proportional to flux density or φ = BAN and B, A and N are all constant\nφ = BAN\n= 0.080 × 0.71 × 10⁻⁴ × 64\n= 3.6 × 10⁻⁴ Wb\nsketch showing:\nE is zero from time 0 to time t and non-zero after time t\nE has constant non-zero magnitude between time t and time 4t\nE has non-zero value of one sign between time t and time 2t, and non-zero value of the opposite sign between time 2t and time 4t\ncurrent in spring creates a magnetic field around the spring\neither (magnetic) fields around adjacent turns interact to cause a force to be exerted (between the turns) or current in one turn interacts with (magnetic) field due to adjacent turns to cause force to be exerted (between the turns)\n(magnetic force) is attractive so distance (between turns) decreases",
+      "markPoints": [
+        "B1",
+        "B1",
+        "B1",
+        "C1",
+        "A1",
+        "B1",
+        "B1"
+      ],
+      "exactAnswer": "non-zero horizontal straight line from X to Y\nconstant flux density (inside coil)\neither (magnetic) flux linkage proportional to flux density\nor      φ = BAN and B, A and N are all constant\nφ = BAN\n= 0.080 × 0.71 × 10⁻⁴ × 64\n= 3.6 × 10⁻⁴ Wb\nsketch showing:\nE is zero from time 0 to time t and non-zero after time t\nE has constant non-zero magnitude between time t and time 4t\nE has non-zero value of one sign between time t and time 2t, and non-zero value of the opposite sign between time 2t and time 4t\ncurrent in spring creates a magnetic field around the spring\neither (magnetic) fields around adjacent turns interact to cause a force to be exerted (between the turns)\nor     current in one turn interacts with (magnetic) field due to adjacent turns to cause force to be exerted (between the turns)\n(magnetic force) is attractive so distance (between turns) decreases",
       "answerRef": {
         "documentId": "cie-9702-9702_m24_ms_42",
         "file": "9702_m24_ms_42.pdf",
@@ -153831,24 +154854,87 @@
         ],
         "sha256": "530e51be21ac2164a8ff7cec4e0a09f82d605da25125a4a8054daf6ac3b6fa30"
       },
-      "answerParts": []
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q6:part-a(i)",
+          "label": "a(i)",
+          "marks": 1,
+          "markSchemePoints": [
+            "B1"
+          ],
+          "answerKey": null,
+          "answerText": "non-zero horizontal straight line from X to Y",
+          "sourcePage": 10,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q6:part-a(ii)",
+          "label": "a(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "B1"
+          ],
+          "answerKey": null,
+          "answerText": "constant flux density (inside coil)",
+          "sourcePage": 10,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q6:part-a(iii)",
+          "label": "a(iii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "B1",
+            "C1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "either (magnetic) flux linkage proportional to flux density\nor      φ = BAN and B, A and N are all constant\nφ = BAN\n= 0.080 × 0.71 × 10⁻⁴ × 64\n= 3.6 × 10⁻⁴ Wb",
+          "sourcePage": 10,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q6:part-a(iv)",
+          "label": "a(iv)",
+          "marks": 3,
+          "markSchemePoints": [
+            "B1"
+          ],
+          "answerKey": null,
+          "answerText": "sketch showing:\nE is zero from time 0 to time t and non-zero after time t\nE has constant non-zero magnitude between time t and time 4t\nE has non-zero value of one sign between time t and time 2t, and non-zero value of the opposite sign between time 2t and time 4t",
+          "sourcePage": 10,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q6:part-b",
+          "label": "b",
+          "marks": 3,
+          "markSchemePoints": [
+            "B1"
+          ],
+          "answerKey": null,
+          "answerText": "current in spring creates a magnetic field around the spring\neither (magnetic) fields around adjacent turns interact to cause a force to be exerted (between the turns)\nor     current in one turn interacts with (magnetic) field due to adjacent turns to cause force to be exerted (between the turns)\n(magnetic force) is attractive so distance (between turns) decreases",
+          "sourcePage": 10,
+          "markSchemeEvidence": []
+        }
+      ]
     },
     {
       "answerId": "cie-9702-9702_m24_qp_42:q7:answer",
       "answer": null,
       "answerKey": null,
       "markPoints": [
-        "C1: p = E / c",
-        "A1: 1.04 × 10⁻²⁷ N s",
-        "C1: E = hf and c = fλ so energy of one photon = hc / λ",
-        "A1: N = 1.1 × 10¹⁸",
-        "M1: F = (change in) momentum / time",
-        "A1: Clear use of p = E / c and t = E / P to complete the algebra and arrive at the final equation: e.g. F = [E / c] / [E / P] = P / c",
-        "B1: maximum wavelength (of electromagnetic radiation) that causes electrons to be emitted (from surface of metal)",
-        "C1: work function = 2.26 × 1.60 × 10⁻¹⁹ (J)",
-        "A1: λ₀ = 5.50 × 10⁻⁷ m"
+        "C1",
+        "A1",
+        "C1",
+        "A1",
+        "M1",
+        "A1",
+        "B1",
+        "C1",
+        "A1"
       ],
-      "exactAnswer": "p = E / c\n= (3.11 × 10⁻¹⁹) / (3.00 × 10⁸)\n= 1.04 × 10⁻²⁷ N s\nE = hf and c = fλ so\nenergy of one photon = hc / λ\n350 × 10⁻³ = N × (6.63 × 10⁻³⁴ × 3.00 × 10⁸) / (640 × 10⁻⁹)\nN = 1.1 × 10¹⁸\nF = (change in) momentum / time\nClear use of p = E / c and t = E / P to complete the algebra and arrive at the final equation:\ne.g. F = [E / c] / [E / P] = P / c\nmaximum wavelength (of electromagnetic radiation) that causes electrons to be emitted (from surface of metal)\nwork function = 2.26 × 1.60 × 10⁻¹⁹ (J)\nE = hc / λ so\n(2.26 × 1.60 × 10⁻¹⁹) = (6.63 × 10⁻³⁴ × 3.00 × 10⁸) / λ₀\nλ₀ = 5.50 × 10⁻⁷ m",
+      "exactAnswer": "p = E / c\n= (3.11 × 10⁻¹⁹) / (3.00 × 10⁸)\n= 1.04 × 10⁻²⁷ N s\nE = hf and c = fλ so\nenergy of one photon = hc / λ\n350 × 10⁻³ = N × (6.63 × 10⁻³⁴ × 3.00 × 10⁸) / (640 × 10⁻⁹)\nN = 1.1 × 10¹⁸\nF = (change in) momentum / time\nClear use of p = E/c and t = E/P to complete the algebra and arrive at the final equation:\ne.g. F = [E/c] / [E/P] = P / c\nmaximum wavelength (of electromagnetic radiation) that causes electrons to be emitted (from surface of metal)\nwork function = 2.26 × 1.60 × 10⁻¹⁹ (J)\nE = hc / λ so\n(2.26 × 1.60 × 10⁻¹⁹) = (6.63 × 10⁻³⁴ × 3.00 × 10⁸) / λ₀\nλ₀ = 5.50 × 10⁻⁷ m",
       "answerRef": {
         "documentId": "cie-9702-9702_m24_ms_42",
         "file": "9702_m24_ms_42.pdf",
@@ -153860,24 +154946,89 @@
         ],
         "sha256": "530e51be21ac2164a8ff7cec4e0a09f82d605da25125a4a8054daf6ac3b6fa30"
       },
-      "answerParts": []
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q7:part-a",
+          "label": "a",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "p = E / c\n= (3.11 × 10⁻¹⁹) / (3.00 × 10⁸)\n= 1.04 × 10⁻²⁷ N s",
+          "sourcePage": 11,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q7:part-b(i)",
+          "label": "b(i)",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "E = hf and c = fλ so\nenergy of one photon = hc / λ\n350 × 10⁻³ = N × (6.63 × 10⁻³⁴ × 3.00 × 10⁸) / (640 × 10⁻⁹)\nN = 1.1 × 10¹⁸",
+          "sourcePage": 11,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q7:part-b(ii)",
+          "label": "b(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "M1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "F = (change in) momentum / time\nClear use of p = E/c and t = E/P to complete the algebra and arrive at the final equation:\ne.g. F = [E/c] / [E/P] = P / c",
+          "sourcePage": 11,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q7:part-c(i)",
+          "label": "c(i)",
+          "marks": 1,
+          "markSchemePoints": [
+            "B1"
+          ],
+          "answerKey": null,
+          "answerText": "maximum wavelength (of electromagnetic radiation) that causes electrons to be emitted (from surface of metal)",
+          "sourcePage": 11,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q7:part-c(ii)",
+          "label": "c(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "work function = 2.26 × 1.60 × 10⁻¹⁹ (J)\nE = hc / λ so\n(2.26 × 1.60 × 10⁻¹⁹) = (6.63 × 10⁻³⁴ × 3.00 × 10⁸) / λ₀\nλ₀ = 5.50 × 10⁻⁷ m",
+          "sourcePage": 11,
+          "markSchemeEvidence": []
+        }
+      ]
     },
     {
       "answerId": "cie-9702-9702_m24_qp_42:q8:answer",
       "answer": null,
       "answerKey": null,
       "markPoints": [
-        "M1: (minimum) energy required to separate the nucleons (of a nucleus)",
-        "A1: to infinity",
-        "A1: 4",
-        "C1: correct substitution into binding energy formula",
-        "A1: 190 MeV",
-        "B1: correct reason for instability (either phrasing)",
-        "C1: N/N₀ = 1/32 stated or implied",
-        "C1: correct exponential equation OR correct use of 32 = 2⁵",
-        "A1: t½ = 1.2 s",
-        "(C1): alternative method using 32/2ⁿ = 1 → n = 5",
-        "(A1): t½ = 6.0/5 = 1.2 s from alternative method"
+        "M1",
+        "A1",
+        "A1",
+        "C1",
+        "A1",
+        "B1",
+        "C1",
+        "C1",
+        "(C1)",
+        "A1",
+        "(A1)"
       ],
       "exactAnswer": "(minimum) energy required to separate the nucleons (of a nucleus)\nto infinity\n4\nenergy = (142 × 8.37) + (90 × 8.72) − (235 × 7.59)\n= 190 MeV\neither it has too many neutrons (for the number of protons)\nor its neutron to proton ratio is too high\n(when t = 6.0 s), N / N₀ = 1 / 32\neither\n(1 / 32) = exp (− ln 2 × 6.0 / t½)\nt½ = 1.2 s\nor\n32 / 2ⁿ = 1 so n = 5 (half-lives)\nt½ = 6.0 / 5\n= 1.2 s",
       "answerRef": {
@@ -153892,26 +155043,91 @@
         ],
         "sha256": "530e51be21ac2164a8ff7cec4e0a09f82d605da25125a4a8054daf6ac3b6fa30"
       },
-      "answerParts": []
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q8:part-a",
+          "label": "a",
+          "marks": 2,
+          "markSchemePoints": [
+            "M1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "(minimum) energy required to separate the nucleons (of a nucleus)\nto infinity",
+          "sourcePage": 11,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q8:part-b(i)",
+          "label": "b(i)",
+          "marks": 1,
+          "markSchemePoints": [
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "4",
+          "sourcePage": 11,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q8:part-b(ii)",
+          "label": "b(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "energy = (142 × 8.37) + (90 × 8.72) − (235 × 7.59)\n= 190 MeV",
+          "sourcePage": 12,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q8:part-b(iii)",
+          "label": "b(iii)",
+          "marks": 1,
+          "markSchemePoints": [
+            "B1"
+          ],
+          "answerKey": null,
+          "answerText": "either it has too many neutrons (for the number of protons)\nor its neutron to proton ratio is too high",
+          "sourcePage": 12,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q8:part-b(iv)",
+          "label": "b(iv)",
+          "marks": 3,
+          "markSchemePoints": [
+            "C1",
+            "C1",
+            "(C1)",
+            "A1",
+            "(A1)"
+          ],
+          "answerKey": null,
+          "answerText": "(when t = 6.0 s), N / N₀ = 1 / 32\neither\n(1 / 32) = exp (− ln 2 × 6.0 / t½)\nt½ = 1.2 s\nor\n32 / 2ⁿ = 1 so n = 5 (half-lives)\nt½ = 6.0 / 5\n= 1.2 s",
+          "sourcePage": 12,
+          "markSchemeEvidence": []
+        }
+      ]
     },
     {
       "answerId": "cie-9702-9702_m24_qp_42:q9:answer",
       "answer": null,
       "answerKey": null,
       "markPoints": [
-        "C1: eV = hc/λ or correct substitution with units",
-        "A1: 1.5 × 10⁻¹¹ m",
-        "B1: correct explanation of why target heats up (either phrasing)",
-        "B1: correct reason tungsten is suitable (higher melting point, does not melt quickly/easily)",
-        "C1: I = I₀ exp (−μx)",
-        "C1: 0.13 = [exp (−3.0x)] × [exp (−0.22x)] = exp (−3.22x)",
-        "A1: x = 0.63 cm",
-        "M1: product of density and speed",
-        "A1: speed of ultrasound in medium",
-        "C1: I_R / I₀ = (7.8 − 1.7)² / (7.8 + 1.7)² = 0.41",
-        "A1: fraction transmitted = 1.00 − 0.41 = 0.59; percentage transmitted = 59%",
-        "B1: more than one boundary so more reflections",
-        "B1: some ultrasound is attenuated in matter"
+        "C1",
+        "A1",
+        "B1",
+        "B1",
+        "C1",
+        "A1",
+        "M1",
+        "A1",
+        "C1",
+        "A1",
+        "B1"
       ],
       "exactAnswer": "eV = hc / λ\nλ = (6.63 × 10⁻³⁴ × 3.00 × 10⁸) / (84 × 10³ × 1.60 × 10⁻¹⁹)\n= 1.5 × 10⁻¹¹ m\neither (some) kinetic energy (of electrons) is converted to thermal energy at target\nor some X-rays are absorbed by the target so its temperature increases\n(tungsten) has higher melting point so does not melt quickly / easily\nI = I₀ exp (−μx)\n0.13 = [exp (−3.0x)] × [exp (−0.22x)]\n= exp (−3.22x)\nx = 0.63 cm\nproduct of density and speed\nspeed of ultrasound in medium\nI_R / I₀ = (7.8 − 1.7)² / (7.8 + 1.7)²\n= 0.41\nfraction transmitted = 1.00 − 0.41 = 0.59\npercentage transmitted = 59%\nmore than one boundary so more reflections\nsome ultrasound is attenuated in matter",
       "answerRef": {
@@ -153926,22 +155142,100 @@
         ],
         "sha256": "530e51be21ac2164a8ff7cec4e0a09f82d605da25125a4a8054daf6ac3b6fa30"
       },
-      "answerParts": []
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q9:part-a(i)",
+          "label": "a(i)",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "eV = hc / λ\nλ = (6.63 × 10⁻³⁴ × 3.00 × 10⁸) / (84 × 10³ × 1.60 × 10⁻¹⁹)\n= 1.5 × 10⁻¹¹ m",
+          "sourcePage": 12,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q9:part-a(ii)",
+          "label": "a(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "B1",
+            "B1"
+          ],
+          "answerKey": null,
+          "answerText": "either (some) kinetic energy (of electrons) is converted to thermal energy at target\nor some X-rays are absorbed by the target so its temperature increases\n(tungsten) has higher melting point so does not melt quickly / easily",
+          "sourcePage": 12,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q9:part-b",
+          "label": "b",
+          "marks": 3,
+          "markSchemePoints": [
+            "C1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "I = I₀ exp (−μx)\n0.13 = [exp (−3.0x)] × [exp (−0.22x)]\n= exp (−3.22x)\nx = 0.63 cm",
+          "sourcePage": 13,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q9:part-c(i)",
+          "label": "c(i)",
+          "marks": 2,
+          "markSchemePoints": [
+            "M1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "product of density and speed\nspeed of ultrasound in medium",
+          "sourcePage": 13,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q9:part-c(ii)",
+          "label": "c(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "I_R / I₀ = (7.8 − 1.7)² / (7.8 + 1.7)²\n= 0.41\nfraction transmitted = 1.00 − 0.41 = 0.59\npercentage transmitted = 59%",
+          "sourcePage": 13,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q9:part-c(iii)",
+          "label": "c(iii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "B1"
+          ],
+          "answerKey": null,
+          "answerText": "more than one boundary so more reflections\nsome ultrasound is attenuated in matter",
+          "sourcePage": 13,
+          "markSchemeEvidence": []
+        }
+      ]
     },
     {
       "answerId": "cie-9702-9702_m24_qp_42:q10:answer",
       "answer": null,
       "answerKey": null,
       "markPoints": [
-        "C1: L = 4πσr²T⁴",
-        "A1: r = 6.96 × 10⁸ m",
-        "C1: correct substitution into F = L / 4πd²",
-        "A1: correct final answer 1.36 × 10³ W m⁻²",
+        "C1",
+        "A1",
+        "C1: correct formula or substitution",
+        "A1: correct final answer",
         "B1: line of same shape showing peak intensity at greater wavelength",
         "B1: line of same shape showing lower peak intensity",
         "B1: 5 lines in same pattern shifted to longer wavelengths",
-        "C1: correct use of Δλ / λ = v / c",
-        "A1: correct final answer 703 nm",
+        "C1: correct formula or substitution for Δλ",
+        "A1: correct final wavelength value",
         "B1: (peak) wavelength too high so temperature too low"
       ],
       "exactAnswer": "L = 4πσr²T⁴\n3.85 × 10²⁶ = 4π × 5.67 × 10⁻⁸ × r² × 5780⁴\nr = 6.96 × 10⁸ m\nF = L / 4πd²\n= (3.85 × 10²⁶) / (4π × (1.50 × 10¹¹)²)\n= 1.36 × 10³ W m⁻²\nline of same shape showing peak intensity at greater wavelength\nline of same shape showing lower peak intensity\n5 lines in same pattern shifted to longer wavelengths\nΔλ / λ = v / c\nΔλ = (21400 / 300000) × 656\n= 46.8 nm\nwavelength = 656 + 46.8\n= 703 nm\n(peak) wavelength too high so temperature too low",
@@ -153957,7 +155251,84 @@
         ],
         "sha256": "530e51be21ac2164a8ff7cec4e0a09f82d605da25125a4a8054daf6ac3b6fa30"
       },
-      "answerParts": []
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q10:part-a(i)",
+          "label": "a(i)",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "L = 4πσr²T⁴\n3.85 × 10²⁶ = 4π × 5.67 × 10⁻⁸ × r² × 5780⁴\nr = 6.96 × 10⁸ m",
+          "sourcePage": 13,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q10:part-a(ii)",
+          "label": "a(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1: correct formula or substitution",
+            "A1: correct final answer"
+          ],
+          "answerKey": null,
+          "answerText": "F = L / 4πd²\n= (3.85 × 10²⁶) / (4π × (1.50 × 10¹¹)²)\n= 1.36 × 10³ W m⁻²",
+          "sourcePage": 14,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q10:part-a(iii)",
+          "label": "a(iii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "B1: line of same shape showing peak intensity at greater wavelength",
+            "B1: line of same shape showing lower peak intensity"
+          ],
+          "answerKey": null,
+          "answerText": "line of same shape showing peak intensity at greater wavelength\nline of same shape showing lower peak intensity",
+          "sourcePage": 14,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q10:part-b(i)",
+          "label": "b(i)",
+          "marks": 1,
+          "markSchemePoints": [
+            "B1: 5 lines in same pattern shifted to longer wavelengths"
+          ],
+          "answerKey": null,
+          "answerText": "5 lines in same pattern shifted to longer wavelengths",
+          "sourcePage": 14,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q10:part-b(ii)",
+          "label": "b(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1: correct formula or substitution for Δλ",
+            "A1: correct final wavelength value"
+          ],
+          "answerKey": null,
+          "answerText": "Δλ / λ = v / c\nΔλ = (21400 / 300000) × 656\n= 46.8 nm\nwavelength = 656 + 46.8\n= 703 nm",
+          "sourcePage": 14,
+          "markSchemeEvidence": []
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_42:q10:part-b(iii)",
+          "label": "b(iii)",
+          "marks": 1,
+          "markSchemePoints": [
+            "B1: (peak) wavelength too high so temperature too low"
+          ],
+          "answerKey": null,
+          "answerText": "(peak) wavelength too high so temperature too low",
+          "sourcePage": 14,
+          "markSchemeEvidence": []
+        }
+      ]
     },
     {
       "answerId": "cie-9702-9702_m25_qp_12:q1:answer",
@@ -196708,70 +198079,70 @@
     {
       "questionId": "cie-9702-9702_m24_qp_42:q1",
       "answerId": "cie-9702-9702_m24_qp_42:q1:answer",
-      "verificationStatus": "quarantined",
+      "verificationStatus": "machine-indexed",
       "questionDocumentSha256": "7d2b72aa9cb187a4847640e7a284542c4cdd806566eae15e65f7afde3ab56422",
       "answerDocumentSha256": "530e51be21ac2164a8ff7cec4e0a09f82d605da25125a4a8054daf6ac3b6fa30"
     },
     {
       "questionId": "cie-9702-9702_m24_qp_42:q2",
       "answerId": "cie-9702-9702_m24_qp_42:q2:answer",
-      "verificationStatus": "quarantined",
+      "verificationStatus": "machine-indexed",
       "questionDocumentSha256": "7d2b72aa9cb187a4847640e7a284542c4cdd806566eae15e65f7afde3ab56422",
       "answerDocumentSha256": "530e51be21ac2164a8ff7cec4e0a09f82d605da25125a4a8054daf6ac3b6fa30"
     },
     {
       "questionId": "cie-9702-9702_m24_qp_42:q3",
       "answerId": "cie-9702-9702_m24_qp_42:q3:answer",
-      "verificationStatus": "quarantined",
+      "verificationStatus": "machine-indexed",
       "questionDocumentSha256": "7d2b72aa9cb187a4847640e7a284542c4cdd806566eae15e65f7afde3ab56422",
       "answerDocumentSha256": "530e51be21ac2164a8ff7cec4e0a09f82d605da25125a4a8054daf6ac3b6fa30"
     },
     {
       "questionId": "cie-9702-9702_m24_qp_42:q4",
       "answerId": "cie-9702-9702_m24_qp_42:q4:answer",
-      "verificationStatus": "quarantined",
+      "verificationStatus": "machine-indexed",
       "questionDocumentSha256": "7d2b72aa9cb187a4847640e7a284542c4cdd806566eae15e65f7afde3ab56422",
       "answerDocumentSha256": "530e51be21ac2164a8ff7cec4e0a09f82d605da25125a4a8054daf6ac3b6fa30"
     },
     {
       "questionId": "cie-9702-9702_m24_qp_42:q5",
       "answerId": "cie-9702-9702_m24_qp_42:q5:answer",
-      "verificationStatus": "quarantined",
+      "verificationStatus": "machine-indexed",
       "questionDocumentSha256": "7d2b72aa9cb187a4847640e7a284542c4cdd806566eae15e65f7afde3ab56422",
       "answerDocumentSha256": "530e51be21ac2164a8ff7cec4e0a09f82d605da25125a4a8054daf6ac3b6fa30"
     },
     {
       "questionId": "cie-9702-9702_m24_qp_42:q6",
       "answerId": "cie-9702-9702_m24_qp_42:q6:answer",
-      "verificationStatus": "quarantined",
+      "verificationStatus": "machine-indexed",
       "questionDocumentSha256": "7d2b72aa9cb187a4847640e7a284542c4cdd806566eae15e65f7afde3ab56422",
       "answerDocumentSha256": "530e51be21ac2164a8ff7cec4e0a09f82d605da25125a4a8054daf6ac3b6fa30"
     },
     {
       "questionId": "cie-9702-9702_m24_qp_42:q7",
       "answerId": "cie-9702-9702_m24_qp_42:q7:answer",
-      "verificationStatus": "quarantined",
+      "verificationStatus": "machine-indexed",
       "questionDocumentSha256": "7d2b72aa9cb187a4847640e7a284542c4cdd806566eae15e65f7afde3ab56422",
       "answerDocumentSha256": "530e51be21ac2164a8ff7cec4e0a09f82d605da25125a4a8054daf6ac3b6fa30"
     },
     {
       "questionId": "cie-9702-9702_m24_qp_42:q8",
       "answerId": "cie-9702-9702_m24_qp_42:q8:answer",
-      "verificationStatus": "quarantined",
+      "verificationStatus": "machine-indexed",
       "questionDocumentSha256": "7d2b72aa9cb187a4847640e7a284542c4cdd806566eae15e65f7afde3ab56422",
       "answerDocumentSha256": "530e51be21ac2164a8ff7cec4e0a09f82d605da25125a4a8054daf6ac3b6fa30"
     },
     {
       "questionId": "cie-9702-9702_m24_qp_42:q9",
       "answerId": "cie-9702-9702_m24_qp_42:q9:answer",
-      "verificationStatus": "quarantined",
+      "verificationStatus": "machine-indexed",
       "questionDocumentSha256": "7d2b72aa9cb187a4847640e7a284542c4cdd806566eae15e65f7afde3ab56422",
       "answerDocumentSha256": "530e51be21ac2164a8ff7cec4e0a09f82d605da25125a4a8054daf6ac3b6fa30"
     },
     {
       "questionId": "cie-9702-9702_m24_qp_42:q10",
       "answerId": "cie-9702-9702_m24_qp_42:q10:answer",
-      "verificationStatus": "quarantined",
+      "verificationStatus": "machine-indexed",
       "questionDocumentSha256": "7d2b72aa9cb187a4847640e7a284542c4cdd806566eae15e65f7afde3ab56422",
       "answerDocumentSha256": "530e51be21ac2164a8ff7cec4e0a09f82d605da25125a4a8054daf6ac3b6fa30"
     },

@@ -74,8 +74,16 @@ const a2Physics = syllabusTopicsInventory({
   questionBank: studyQuestionBank,
 })
 assert.equal(a2Physics.verifiedQuestionGroupCount, 0)
-assert.equal(a2Physics.studyQuestionGroupCount, 11, 'A2 Physics source-backed questions must not disappear behind the AS-only route')
-assert.equal(a2Physics.availableQuestionGroupCount, 11)
+assert.equal(a2Physics.studyQuestionGroupCount, a2Physics.availableQuestionGroupCount, 'A2 Physics source-backed study records must remain available for self-mark practice')
+assert.ok(a2Physics.studyQuestionGroupCount >= 10, 'A2 Physics must expose a complete Paper 4 question set')
+assert.deepEqual(
+  studyQuestionBank
+    .filter((question) => question.routeId === 'cie-9702-a2-physics' && question.sourceRef?.paperId === 'cie-9702-9702_m24_qp_42')
+    .map((question) => question.sourceQuestionId)
+    .sort((left, right) => Number(left.split(':q')[1]) - Number(right.split(':q')[1])),
+  Array.from({ length: 10 }, (_, index) => `cie-9702-9702_m24_qp_42:q${index + 1}`),
+  'A2 Physics M24 Paper 4 must expose one complete source-backed group for every printed question Q1-Q10',
+)
 assert.ok(a2Physics.topics.some((topic) => topic.availableQuestionCount > 0))
 
 assert.equal(canonicalSyllabusTopicIdForRoute('cie-0580-igcse-mathematics', 'math-0580-number'), '0580-igcse-topic-01')
@@ -96,7 +104,11 @@ const a2PhysicsSet = buildSyllabusPracticeSet({
   includeStudyOnly: true,
   seed: 9702,
 })
-assert.equal(a2PhysicsSet.questionCount, 2)
+assert.equal(
+  a2PhysicsSet.questionCount,
+  Math.min(10, a2Physics.topics.find((topic) => topic.id === '9702-a2-topic-02')?.availableQuestionCount || 0),
+  'A2 topic practice must expose every currently available source-backed group up to the requested set size',
+)
 assert.equal(a2PhysicsSet.practiceMode, 'study-only')
 assert.ok(a2PhysicsSet.questionGroups.every((group) => group.routeId === 'cie-9702-a2-physics' && group.paperComponent === 4))
 

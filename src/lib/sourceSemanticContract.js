@@ -89,6 +89,11 @@ export const HIGH_PRIORITY_SOURCE_RANGE_REVIEW_IDS = Object.freeze([
 // were visually checked: the omitted page is blank or carries only additional
 // answer lines. They remain unreviewed, but are not semantic-range failures.
 export const RESOLVED_NON_CONTENT_PAGE_GAPS = Object.freeze({
+  'cie-9702-9702_m24_qp_42:q6': Object.freeze({
+    sourceContentPages: Object.freeze([14, 15, 16]),
+    ignoredPage: 17,
+    reason: 'official-blank-page-after-complete-q6',
+  }),
   'cie-9702-9702_m25_qp_42:q2': Object.freeze({
     sourceContentPages: Object.freeze([6, 7]),
     ignoredPage: 8,
@@ -99,9 +104,21 @@ export const RESOLVED_NON_CONTENT_PAGE_GAPS = Object.freeze({
     ignoredPage: 25,
     reason: 'blank-page-after-complete-q9',
   }),
-  'cie-9231-9231_s25_qp_21:q3': Object.freeze({ reason: 'working-space-only-after-complete-q3' }),
-  'cie-9231-9231_s25_qp_21:q5': Object.freeze({ reason: 'working-space-only-after-complete-q5' }),
-  'cie-9231-9231_s25_qp_21:q7': Object.freeze({ reason: 'working-space-only-after-complete-q7' }),
+  'cie-9231-9231_s25_qp_21:q3': Object.freeze({
+    sourceContentPages: Object.freeze([4]),
+    ignoredPage: 5,
+    reason: 'working-space-only-after-complete-q3',
+  }),
+  'cie-9231-9231_s25_qp_21:q5': Object.freeze({
+    sourceContentPages: Object.freeze([8]),
+    ignoredPage: 9,
+    reason: 'working-space-only-after-complete-q5',
+  }),
+  'cie-9231-9231_s25_qp_21:q7': Object.freeze({
+    sourceContentPages: Object.freeze([12]),
+    ignoredPage: 13,
+    reason: 'working-space-only-after-complete-q7',
+  }),
 })
 
 function asInteger(value) {
@@ -200,6 +217,37 @@ export function sourceRangeReviewCandidates(questions = []) {
     }
   }
   return Object.freeze(observations)
+}
+
+function samePageSequence(actual, expected) {
+  return Array.isArray(actual)
+    && actual.length === expected.length
+    && actual.every((value, index) => Number(value) === expected[index])
+}
+
+/**
+ * A resolved page gap is an explicit evidence claim, not an unconditional
+ * question-ID allowlist. Keep the exception closed unless its page metadata
+ * exactly describes the declared content range and one ignored page.
+ */
+export function resolvedNonContentPageGapIssues(question = {}, candidate = null, resolution = null) {
+  if (!candidate || !resolution) return ['resolved-page-gap-candidate-missing']
+  const pageStart = Number(question?.sourceRef?.pageStart)
+  const pageEnd = Number(candidate.pageEnd)
+  const nextQuestionPageStart = Number(candidate.nextQuestionPageStart)
+  if (![pageStart, pageEnd, nextQuestionPageStart].every((value) => Number.isInteger(value) && value > 0)) {
+    return ['resolved-page-gap-source-range-missing']
+  }
+  const expectedContentPages = Array.from({ length: pageEnd - pageStart + 1 }, (_, index) => pageStart + index)
+  const expectedIgnoredPages = Array.from({ length: nextQuestionPageStart - pageEnd - 1 }, (_, index) => pageEnd + index + 1)
+  const reasons = []
+  if (!samePageSequence(resolution.sourceContentPages, expectedContentPages)) {
+    reasons.push('resolved-page-gap-content-pages-mismatch')
+  }
+  if (expectedIgnoredPages.length !== 1 || Number(resolution.ignoredPage) !== expectedIgnoredPages[0]) {
+    reasons.push('resolved-page-gap-ignored-page-mismatch')
+  }
+  return [...new Set(reasons)]
 }
 
 /**

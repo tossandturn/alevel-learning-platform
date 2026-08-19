@@ -11,7 +11,7 @@ import {
   sourcePageFromAssetUrl,
   sourceQuestionId,
 } from '../src/lib/sourceContentContract.js'
-import { HIGH_PRIORITY_SOURCE_RANGE_REVIEW_IDS, RESOLVED_NON_CONTENT_PAGE_GAPS, sourceRangeReviewCandidates, sourceSemanticVerificationStatus, sourceStructuralConsistencyIssues } from '../src/lib/sourceSemanticContract.js'
+import { HIGH_PRIORITY_SOURCE_RANGE_REVIEW_IDS, RESOLVED_NON_CONTENT_PAGE_GAPS, resolvedNonContentPageGapIssues, sourceRangeReviewCandidates, sourceSemanticVerificationStatus, sourceStructuralConsistencyIssues } from '../src/lib/sourceSemanticContract.js'
 import { canonicalTextSha256, canonicalTextFileSha256, canonicalUtf8LfText } from './canonical-text.mjs'
 
 const root = path.resolve(process.env.SOURCE_AUDIT_ROOT || path.join(import.meta.dirname, '..'))
@@ -37,6 +37,7 @@ const errors = []
 const sourceContentItems = {}
 
 const rangeGapObservations = sourceRangeReviewCandidates(index.questions)
+const rangeGapByQuestionId = new Map(rangeGapObservations.map((candidate) => [candidate.questionId, candidate]))
 const highPriorityRangeCandidateIds = new Set(HIGH_PRIORITY_SOURCE_RANGE_REVIEW_IDS)
 const highPriorityRangeCandidates = rangeGapObservations.filter((candidate) => highPriorityRangeCandidateIds.has(candidate.questionId))
 const resolvedNonContentRangeCandidates = rangeGapObservations
@@ -330,6 +331,11 @@ function auditSourceContent(question, binding, answer) {
     required: reviewed,
   }))
   const semantic = sourceSemanticVerificationStatus(sourceQuestion, { binding, answer })
+  const resolvedRange = RESOLVED_NON_CONTENT_PAGE_GAPS[question.questionId]
+  const resolvedRangeIssues = resolvedRange
+    ? resolvedNonContentPageGapIssues(question, rangeGapByQuestionId.get(question.questionId), resolvedRange)
+    : []
+  fileReasons.push(...resolvedRangeIssues)
   // A candidate is fail-closed for machine-indexed/study records. A binding
   // that already carries the strict paired QP/MS reviewed evidence has an
   // explicit semantic decision and is allowed to use that decision.
