@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import * as coachHistory from '../src/lib/coachHistory.js'
 import {
   buildCoachConversationId,
   buildCoachStorageKey,
@@ -112,5 +113,95 @@ assert.equal(serialized.messages[0].attachments.length, 1)
 assert.equal(serialized.messages[1].id, 'assistant-stream-1')
 assert.equal(serialized.messages[1].updatedAt, '2026-08-19T01:00:07.000Z')
 assert.doesNotMatch(JSON.stringify(serialized), /data:image|base64|secret/)
+
+assert.equal(typeof coachHistory.serializeCoachContext, 'function', 'Coach history must expose a sanitized context snapshot serializer')
+assert.equal(typeof coachHistory.mergeCoachContext, 'function', 'Coach history must restore a persisted context snapshot without replacing live state')
+assert.equal(typeof coachHistory.buildCoachRetryRequest, 'function', 'Coach history must reconstruct an interrupted request after refresh')
+
+const interruptedConversation = serializeCoachConversation({
+  conversationId: stableId,
+  context: {
+    ...baseContext,
+    question: {
+      ...baseContext.question,
+      prompt: 'A triangular prism question with the official OCR context.',
+    },
+    sourceQuestionExtract: 'Official OCR excerpt: resolve the forces and state the unit.',
+    response: 'My typed working is 12 N to the right.',
+  },
+  messages: [
+    {
+      id: 'user-retry-1',
+      role: 'user',
+      content: 'Check my photographed working.',
+      imageDataUrls: ['data:image/png;base64,private-image'],
+      createdAt: '2026-08-19T01:00:08.000Z',
+    },
+    {
+      id: 'assistant-retry-1',
+      role: 'assistant',
+      content: 'The connection stopped after the first step.',
+      mode: 'interrupted',
+      status: 'interrupted',
+      warning: 'stream ended',
+      hintLevel: 3,
+      createdAt: '2026-08-19T01:00:09.000Z',
+      updatedAt: '2026-08-19T01:00:10.000Z',
+    },
+  ],
+})
+const restoredRetry = coachHistory.buildCoachRetryRequest(interruptedConversation.messages)
+assert.deepEqual(
+  {
+    assistantId: restoredRetry?.assistantId,
+    message: restoredRetry?.message,
+    level: restoredRetry?.level,
+    previous: restoredRetry?.previous,
+    attachments: restoredRetry?.attachments,
+    unavailableAttachmentCount: restoredRetry?.unavailableAttachmentCount,
+  },
+  {
+    assistantId: 'assistant-retry-1',
+    message: 'Check my photographed working.',
+    level: 3,
+    previous: [],
+    attachments: [],
+    unavailableAttachmentCount: 1,
+  },
+  'refresh recovery must reuse the original user turn and assistant slot without reviving image bytes',
+)
+assert.equal(interruptedConversation.contextText, 'Official OCR excerpt: resolve the forces and state the unit.')
+assert.doesNotMatch(JSON.stringify(interruptedConversation), /private-image|data:image|base64/)
+const restoredContext = coachHistory.mergeCoachContext(
+  { routeId: baseContext.routeId, question: { id: 'group-q4' } },
+  { contextText: interruptedConversation.contextText },
+)
+assert.equal(restoredContext.sourceQuestionExtract, 'Official OCR excerpt: resolve the forces and state the unit.')
+
+const unsafeContext = coachHistory.serializeCoachContext({
+  contextText: 'Official OCR text. data:image/png;base64,private-context-image',
+})
+assert.doesNotMatch(JSON.stringify(unsafeContext), /data:image|base64|private-context-image/)
+
+for (const status of ['failed', 'retrying', 'streaming']) {
+  const statusRetry = coachHistory.buildCoachRetryRequest([
+    {
+      id: `user-${status}`,
+      role: 'user',
+      content: `Recover ${status}`,
+      createdAt: '2026-08-19T01:00:11.000Z',
+    },
+    {
+      id: `assistant-${status}`,
+      role: 'assistant',
+      content: `Partial ${status}`,
+      status,
+      hintLevel: 2,
+      createdAt: '2026-08-19T01:00:12.000Z',
+      updatedAt: '2026-08-19T01:00:13.000Z',
+    },
+  ])
+  assert.equal(statusRetry?.assistantId, `assistant-${status}`, `status=${status} must remain retryable after refresh`)
+}
 
 console.log('Client Coach history contract checks passed.')

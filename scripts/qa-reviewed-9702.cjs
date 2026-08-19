@@ -170,6 +170,26 @@ function qaAuthStatus() {
   return { authenticated: true, identity, accessToken: `${header}.${payload}.${signature}`, expiresAt: new Date((now + 600) * 1000).toISOString(), classrooms: [], assignments: [] }
 }
 
+async function mockCoachHistory(page) {
+  const conversations = new Map()
+  await page.route('**/api/stem/coach/conversations**', async (route) => {
+    const method = route.request().method()
+    if (method === 'GET') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ conversations: [...conversations.values()] }) })
+    }
+    if (!['PUT', 'POST'].includes(method)) return route.continue()
+    let payload = {}
+    try {
+      payload = JSON.parse(route.request().postData() || '{}')
+    } catch {
+      return route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ error: 'Invalid Coach history fixture payload.' }) })
+    }
+    const incoming = Array.isArray(payload.conversations) ? payload.conversations : payload.conversation ? [payload.conversation] : []
+    incoming.filter((conversation) => conversation?.conversationId).forEach((conversation) => conversations.set(conversation.conversationId, conversation))
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ conversations: incoming }) })
+  })
+}
+
 async function openTopic(page, testCase) {
   const hasReadyInventory = (text) => /official question|verified question|checked question/i.test(text)
   const topic = testCase.topic
@@ -470,6 +490,7 @@ async function run() {
         if (route.request().method() !== 'GET') return route.continue()
         return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(qaAuthStatus()) })
       })
+      await mockCoachHistory(page)
       const responses = []
       const errors = []
       page.on('response', (response) => {

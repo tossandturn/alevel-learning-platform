@@ -101,6 +101,13 @@ function authenticatedStemUser(request, env) {
   return claims && /^ielts:\d+$/.test(String(claims.sub)) ? String(claims.sub) : null
 }
 
+function compactCoachContextText(value, maxLength = 4000) {
+  return compactText(value, maxLength)
+    .replace(/data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/_=-]+/gi, '[image omitted]')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
 function verifiedCoachSubmission(payload, request, env) {
   const userId = authenticatedStemUser(request, env)
   const grant = validHmacJwt(payload.submissionGrant, env.COACH_SUBMISSION_SIGNING_KEY, { issuer: 'stem.ieltsist.com', audience: 'stem-ai', maxLifetimeSeconds: 15 * 60 })
@@ -115,11 +122,13 @@ function safeCoachContext(value) {
   const source = value && typeof value === 'object' ? value : {}
   const question = source.question && typeof source.question === 'object' ? source.question : {}
   const paper = source.paper && typeof source.paper === 'object' ? source.paper : {}
+  const contextText = compactCoachContextText(source.contextText || source.sourceQuestionExtract, 4000)
   return {
     subject: typeof source.subject === 'object' ? { code: compactText(source.subject.code, 20), name: compactText(source.subject.name, 100) } : compactText(source.subject, 80),
     syllabus: compactText(source.syllabus, 200), stage: compactText(source.stage, 30), topic: compactText(source.topic, 200), attemptId: compactText(source.attemptId, 100),
     question: { id: compactText(question.id || question.questionId, 160), number: Number(question.number) || null, title: compactText(question.title, 300), prompt: compactText(question.prompt, 4000), hint: compactText(question.hint, 1000) },
     paper: { id: compactText(paper.id || paper.paperId, 160), questionFile: compactText(paper.questionFile, 180), markSchemeFile: compactText(paper.markSchemeFile, 180) },
+    ...(contextText ? { contextText, sourceQuestionExtract: contextText } : {}),
     agentIntent: source.agentIntent && typeof source.agentIntent === 'object' ? { type: compactText(source.agentIntent.type, 80) } : null,
   }
 }

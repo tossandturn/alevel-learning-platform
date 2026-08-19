@@ -117,6 +117,21 @@ function qaAuthStatus() {
   return { authenticated: true, identity, accessToken: `${header}.${payload}.${signature}`, expiresAt: new Date((now + 600) * 1000).toISOString(), classrooms: [], assignments: [] }
 }
 
+async function mockCoachHistory(page) {
+  const conversations = new Map()
+  await page.route('**/api/stem/coach/conversations**', async (route) => {
+    const method = route.request().method()
+    if (method === 'GET') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ conversations: [...conversations.values()] }) })
+    }
+    if (!['PUT', 'POST'].includes(method)) return route.continue()
+    const payload = JSON.parse(route.request().postData() || '{}')
+    const incoming = Array.isArray(payload.conversations) ? payload.conversations : payload.conversation ? [payload.conversation] : []
+    incoming.filter((conversation) => conversation?.conversationId).forEach((conversation) => conversations.set(conversation.conversationId, conversation))
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ conversations: incoming }) })
+  })
+}
+
 async function openCleanRoute(page, url) {
   await page.goto(url, { waitUntil: 'domcontentloaded' })
   await page.evaluate(() => localStorage.clear())
@@ -269,6 +284,7 @@ async function run() {
       await page.route('**/api/auth/status', (route) => route.request().method() === 'GET'
         ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(qaAuthStatus()) })
         : route.continue())
+      await mockCoachHistory(page)
       await runViewport(page, server, viewport)
       assert.deepEqual(errors, [], `${viewport.name} produced browser errors: ${failedResponses.join(' | ')}`)
       await context.close()

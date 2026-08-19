@@ -2,7 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { BrainCircuit, FileText, ImagePlus, MonitorUp, RefreshCcw, Send, Sparkles, Wrench, X } from 'lucide-react'
 import { resolveCoachIntent } from '../lib/coachIntent'
-import { buildCoachConversationId, buildCoachStorageKey, buildLegacyCoachStorageKey, mergeCoachMessages, serializeCoachConversation } from '../lib/coachHistory'
+import {
+  buildCoachConversationId,
+  buildCoachRetryRequest,
+  buildCoachStorageKey,
+  buildLegacyCoachStorageKey,
+  mergeCoachContext,
+  mergeCoachMessages,
+  serializeCoachContext,
+  serializeCoachConversation,
+} from '../lib/coachHistory'
 import { parseCoachMessage } from '../lib/coachMessage'
 import { MIN_VERIFIED_GROUPS_FOR_PRACTICE } from '../lib/practiceConstants'
 import { sharedAccountRequest } from '../lib/sharedAccount'
@@ -30,12 +39,17 @@ function CoachMessage({ content }) {
   )
 }
 
-function loadMessages(key) {
+function loadStoredConversation(key) {
   try {
     const value = JSON.parse(window.localStorage.getItem(key) || '[]')
-    return Array.isArray(value) ? mergeCoachMessages(value) : []
+    if (Array.isArray(value)) return { messages: mergeCoachMessages(value), context: {} }
+    if (!value || typeof value !== 'object') return { messages: [], context: {} }
+    return {
+      messages: mergeCoachMessages(value.messages),
+      context: mergeCoachContext({}, value.context || { contextText: value.contextText }),
+    }
   } catch {
-    return []
+    return { messages: [], context: {} }
   }
 }
 
@@ -54,9 +68,11 @@ function loadLocalMessages(context, storageKey, ownerId) {
     ...legacyStorageKeys(context, owner),
     ...(owner === 'guest' || guestV4Key === storageKey ? [] : [guestV4Key]),
   ])]
-  const legacy = migrationKeys.map((key) => ({ key, messages: loadMessages(key) }))
+  const current = loadStoredConversation(storageKey)
+  const legacy = migrationKeys.map((key) => ({ key, ...loadStoredConversation(key) }))
   return {
-    messages: mergeCoachMessages(loadMessages(storageKey), ...legacy.map((item) => item.messages)),
+    messages: mergeCoachMessages(current.messages, ...legacy.map((item) => item.messages)),
+    context: legacy.reduce((persisted, item) => mergeCoachContext(persisted, item.context), current.context),
     legacyKeys: legacy.filter((item) => item.messages.length).map((item) => item.key),
   }
 }
@@ -79,8 +95,11 @@ export function AiCoach({
   const conversationId = buildCoachConversationId(context)
   const storageKey = buildCoachStorageKey(conversationId, storageOwnerId)
   const historyScope = sharedIdentityToken && sharedOwnerId ? `${storageKey}:${sharedIdentityToken}` : ''
+  const initialHistoryRef = useRef(null)
+  if (!initialHistoryRef.current) initialHistoryRef.current = loadLocalMessages(context, storageKey, storageOwnerId)
+  const initialHistory = initialHistoryRef.current
   const [open, setOpen] = useState(false)
-  const [messages, setMessages] = useState(() => loadLocalMessages(context, storageKey, storageOwnerId).messages)
+  const [messages, setMessages] = useState(() => initialHistory.messages)
   const [draft, setDraft] = useState('')
   const [hintLevel, setHintLevel] = useState(1)
   const [imageDataUrls, setImageDataUrls] = useState([])
@@ -100,7 +119,7 @@ export function AiCoach({
   const [preparingImages, setPreparingImages] = useState(false)
   const [error, setError] = useState('')
   const [historySyncState, setHistorySyncState] = useState('local')
-  const [retryRequest, setRetryRequest] = useState(null)
+  const [retryRequest, setRetryRequest] = useState(() => buildCoachRetryRequest(initialHistory.messages))
   const endRef = useRef(null)
   const triggerRef = useRef(null)
   const dialogRef = useRef(null)
@@ -122,6 +141,7 @@ export function AiCoach({
   const messagesRef = useRef(messages)
   const messageStorageKeyRef = useRef(storageKey)
   const contextRef = useRef(context)
+  const persistedCoachContextRef = useRef(initialHistory.context)
   contextRef.current = context
   activeHistoryScopeRef.current = historyScope
   const canOpenBphoSpc = Boolean(onAgentAction && (context.stage === 'Competition' || context.routeId === 'bpho-admissions-physics'))
@@ -179,7 +199,7 @@ export function AiCoach({
     if (!token || !scope || !Array.isArray(messageSnapshot) || !messageSnapshot.length) return
     const payload = serializeCoachConversation({
       conversationId,
-      context: contextRef.current,
+      context: mergeCoachContext(contextRef.current, persistedCoachContextRef.current),
       messages: messageSnapshot,
     })
     if (!payload.messages.length) return
@@ -221,7 +241,10 @@ export function AiCoach({
       ...message,
       attachmentCount: Number(message.attachmentCount) || messageImages?.length || 0,
     }))
-    window.localStorage.setItem(storageKey, JSON.stringify(storedMessages))
+    window.localStorage.setItem(storageKey, JSON.stringify({
+      messages: storedMessages,
+      context: serializeCoachContext(mergeCoachContext(contextRef.current, persistedCoachContextRef.current)),
+    }))
     endRef.current?.scrollIntoView({ block: 'nearest' })
     if (historyScope && historyReadyScopeRef.current === historyScope) queueHistorySync(messages)
   }, [historyScope, messages, queueHistorySync, storageKey])
@@ -235,6 +258,7 @@ export function AiCoach({
     historyReadyScopeRef.current = ''
     const local = loadLocalMessages(context, storageKey, storageOwnerId)
     pendingLegacyStorageKeysRef.current = new Set(local.legacyKeys)
+    persistedCoachContextRef.current = local.context
     messageStorageKeyRef.current = storageKey
     messagesRef.current = local.messages
     setMessages(local.messages)
@@ -254,7 +278,7 @@ export function AiCoach({
     setPreparingImages(false)
     setBuilderOpen(false)
     setHistorySyncState(historyScope ? 'loading' : 'local')
-    setRetryRequest(null)
+    setRetryRequest(buildCoachRetryRequest(local.messages))
     lastRequestRef.current = null
     setOpen(false)
   }, [context, historyScope, storageKey, storageOwnerId])
@@ -275,11 +299,16 @@ export function AiCoach({
         if (historyRequestVersionRef.current !== requestVersion || activeHistoryScopeRef.current !== historyScope || messageStorageKeyRef.current !== storageKey) return
         const remoteConversation = (payload?.conversations || []).find((item) => item?.conversationId === conversationId)
         historyReadyScopeRef.current = historyScope
-        setMessages((current) => {
-          const merged = mergeCoachMessages(current, local.messages, remoteConversation?.messages || [])
-          messagesRef.current = merged
-          return merged
-        })
+        persistedCoachContextRef.current = mergeCoachContext(
+          { contextText: remoteConversation?.contextText || '' },
+          persistedCoachContextRef.current,
+        )
+        const merged = mergeCoachMessages(messagesRef.current, local.messages, remoteConversation?.messages || [])
+        messagesRef.current = merged
+        setMessages(merged)
+        setRetryRequest((current) => current?.assistantId === buildCoachRetryRequest(merged)?.assistantId
+          ? current
+          : buildCoachRetryRequest(merged))
         setHistorySyncState('saved')
       })
       .catch(() => {
@@ -393,6 +422,7 @@ export function AiCoach({
       ? options.attachments.slice(0, MAX_COACH_IMAGE_ATTACHMENTS)
       : imageDataUrls.slice(0, MAX_COACH_IMAGE_ATTACHMENTS)
     const retryAssistantId = String(options.retryAssistantId || '')
+    const retryWarning = String(options.retryWarning || '')
     if ((!clean && !attachments.length) || loading) return
     const studentMessage = {
       id: `coach-user-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
@@ -429,7 +459,7 @@ export function AiCoach({
       })
     }
     if (retryAssistantId) {
-      updateAssistant({ content: '', mode: 'streaming', status: 'retrying', warning: '' })
+      updateAssistant({ content: 'Retrying Coach response...', mode: 'streaming', status: 'retrying', hintLevel: level, warning: retryWarning })
     } else {
       setMessages((current) => {
         const next = [...current, studentMessage]
@@ -458,11 +488,18 @@ export function AiCoach({
         }
       }
 
-      updateAssistant({ content: '', mode: 'streaming', status: 'streaming', warning: '' })
+      const coachContext = mergeCoachContext(contextRef.current, persistedCoachContextRef.current)
+      updateAssistant({ content: 'Preparing Coach response...', mode: 'streaming', status: 'streaming', hintLevel: level, warning: retryWarning })
       const response = await fetch('/api/ai/coach/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: studentMessage.content, history: previous, context: intent?.type === 'clarify-practice' ? { ...contextRef.current, agentIntent: intent } : contextRef.current, hintLevel: level, imageDataUrls: attachments }),
+        body: JSON.stringify({
+          message: studentMessage.content,
+          history: previous,
+          context: intent?.type === 'clarify-practice' ? { ...coachContext, agentIntent: intent } : coachContext,
+          hintLevel: level,
+          imageDataUrls: attachments,
+        }),
         signal: controller.signal,
       })
       const contentType = response.headers.get('content-type') || ''
@@ -499,11 +536,11 @@ export function AiCoach({
           }
           if (eventName === 'delta') {
             streamedAnswer += String(payload.text || '')
-            updateAssistant({ content: streamedAnswer, mode: 'ai', status: 'streaming', warning: '' })
+            updateAssistant({ content: streamedAnswer, mode: 'ai', status: 'streaming', hintLevel: level, warning: retryWarning })
           }
           if (eventName === 'reset') {
             streamedAnswer = ''
-            updateAssistant({ content: '', mode: 'streaming', status: 'streaming', warning: '' })
+            updateAssistant({ content: 'Preparing Coach response...', mode: 'streaming', status: 'streaming', hintLevel: level, warning: retryWarning })
           }
           if (eventName === 'done') {
             streamCompleted = true
@@ -511,7 +548,8 @@ export function AiCoach({
               content: String(payload.answer || streamedAnswer || '').trim() || 'AI Coach returned an empty response.',
               mode: payload.mode || 'ai',
               status: payload.mode === 'offline' ? 'fallback' : 'completed',
-              warning: payload.warning || '',
+              hintLevel: level,
+              warning: payload.warning || retryWarning,
             })
             if (payload.mode === 'offline') setError(payload.warning || 'AI Coach is offline. This response is only a controlled offline hint.')
           }
@@ -540,10 +578,11 @@ export function AiCoach({
         content: failureMessage,
         mode: partialAnswer ? 'interrupted' : 'offline',
         status: partialAnswer ? 'interrupted' : 'failed',
-        warning: requestError.message || '',
+        hintLevel: level,
+        warning: requestError.message || retryWarning,
       })
       if (requestError?.name !== 'AbortError') {
-        setRetryRequest({ assistantId, message: studentMessage.content, level, attachments, previous, intent })
+        setRetryRequest({ assistantId, message: studentMessage.content, level, attachments, previous, intent, unavailableAttachmentCount: 0 })
         setError(partialAnswer
           ? 'The connection was interrupted. The partial response was kept; retry to continue.'
           : requestError.message || 'AI Coach is temporarily unavailable.')
@@ -560,11 +599,15 @@ export function AiCoach({
     const retry = retryRequest || lastRequestRef.current
     if (!retry || loading) return
     setImageDataUrls(retry.attachments || [])
+    const retryWarning = retry.unavailableAttachmentCount
+      ? `The original ${retry.unavailableAttachmentCount === 1 ? 'photo was' : 'photos were'} not saved in account history. Retry uses the saved question and OCR text; attach the photo again if it is needed.`
+      : ''
     void ask(retry.message, retry.level, {
       attachments: retry.attachments,
       history: retry.previous,
       intent: retry.intent,
       retryAssistantId: retry.assistantId,
+      retryWarning,
     })
   }
 
@@ -777,7 +820,10 @@ export function AiCoach({
               {message.warning && <small>{message.warning}</small>}
               {message.role === 'assistant' && message.mode === 'local' && <small>Local hint first. Ask for a detailed explanation to use AI Coach.</small>}
               {message.role === 'assistant' && message.mode === 'offline' && <small>Offline hint only; retry when AI Coach is available.</small>}
-              {message.role === 'assistant' && retryRequest?.assistantId === message.id && <button type="button" className="ai-message__retry" disabled={loading} onClick={retryLastRequest}><RefreshCcw size={13} />Retry</button>}
+              {message.role === 'assistant' && retryRequest?.assistantId === message.id && <>
+                {retryRequest.unavailableAttachmentCount > 0 && <small>Original photos are not kept in account history. Retry can continue with the saved question and text context.</small>}
+                <button type="button" className="ai-message__retry" disabled={loading} onClick={retryLastRequest}><RefreshCcw size={13} />Retry</button>
+              </>}
             </article>
           ))}
           {loading && <div className="ai-coach__thinking"><span />Reviewing the current question...</div>}

@@ -112,6 +112,7 @@ try {
     conversationId: 'stem-conv-1',
     sourceProduct: 'stem',
     binding: { routeId: 'cie-9702-as-physics', questionId: 'q4' },
+    contextText: 'Official OCR: resolve the resultant force and state the unit.',
     messages: [{ role: 'assistant', content: 'A reply from another device.', createdAt: '2026-08-18T00:00:00.000Z' }],
   })
   const saved = await call(api, {
@@ -122,7 +123,14 @@ try {
         conversationId: 'stem-conv-1',
         sourceProduct: 'stem',
         binding: { routeId: 'cie-9702-as-physics', questionId: 'q4' },
-        messages: [{ role: 'user', content: 'Explain the force balance.', attachmentCount: 2, createdAt: '2026-08-18T00:00:01.000Z' }],
+        contextText: 'Official OCR: resolve the resultant force and state the unit.\nStudent response: 12 N to the right.\ndata:image/png;base64,private-context-image',
+        messages: [{
+          role: 'user',
+          content: 'Explain the force balance.',
+          attachmentCount: 2,
+          attachments: [{ type: 'image', mimeType: 'image/png', source: 'student-upload' }],
+          createdAt: '2026-08-18T00:00:01.000Z',
+        }],
       },
     },
   })
@@ -133,6 +141,12 @@ try {
     ['A reply from another device.', 'Explain the force balance.'],
     'a stale local save must merge the current central conversation before it is written',
   )
+  assert.equal(
+    remoteStore.get('stem-conv-1').contextText,
+    'Official OCR: resolve the resultant force and state the unit. Student response: 12 N to the right. [image omitted]',
+    'retry-safe OCR/question context must survive the STEM proxy write without image bytes',
+  )
+  assert.doesNotMatch(JSON.stringify(remoteStore.get('stem-conv-1')), /data:image|base64|private-image/)
   assert.deepEqual(remoteCalls.map((item) => item.options.method), ['GET', 'PUT'])
   assert.equal(new URL(remoteCalls[0].url).pathname, '/api/internal/stem/coach/conversations')
   assert.equal(JSON.parse(remoteCalls[1].options.body).userId, 'ielts:42')
@@ -140,6 +154,11 @@ try {
   const restored = await call(api, { method: 'GET', url: '/api/stem/coach/conversations?limit=80' })
   assert.equal(restored.statusCode, 200)
   assert.deepEqual(restored.body.conversations.map((item) => item.conversationId), ['stem-conv-1'])
+  assert.equal(
+    restored.body.conversations[0].contextText,
+    'Official OCR: resolve the resultant force and state the unit. Student response: 12 N to the right. [image omitted]',
+    'remote hydration must return the persisted contextText used to rebuild Coach retry',
+  )
   assert.equal(remoteCalls.length, 3)
   assert.equal(new URL(remoteCalls[2].url).searchParams.get('userId'), 'ielts:42')
 

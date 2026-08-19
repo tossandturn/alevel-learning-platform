@@ -17,6 +17,22 @@ function isoDate(value, fallback = '') {
   return Number.isFinite(parsed) ? new Date(parsed).toISOString() : fallback
 }
 
+function contextText(value, maxLength = 6_000) {
+  return text(value, maxLength)
+    .replace(/data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/_=-]+/gi, '[image omitted]')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
+function numberInRange(value, minimum, maximum) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= minimum && parsed <= maximum ? parsed : null
+}
+
+function hasOwn(object, key) {
+  return Boolean(object && Object.hasOwn(object, key))
+}
+
 function attachmentMetadata(message) {
   const existing = Array.isArray(message?.attachments) ? message.attachments : []
   const count = Math.max(
@@ -50,6 +66,7 @@ function normalizeMessage(message, position) {
     ...(text(message?.mode, 40) ? { mode: text(message.mode, 40) } : {}),
     ...(text(message?.warning, 500) ? { warning: text(message.warning, 500) } : {}),
     ...(text(message?.provider, 80) ? { provider: text(message.provider, 80) } : {}),
+    ...(numberInRange(message?.hintLevel, 1, 5) ? { hintLevel: numberInRange(message.hintLevel, 1, 5) } : {}),
     ...(attachments.length ? { attachments, attachmentCount: attachments.length } : {}),
     _position: position,
   }
@@ -161,6 +178,132 @@ function conversationTitle(context) {
   return text(question.label || question.title || subject.title || subject.code || 'AI Coach conversation', 180) || 'AI Coach conversation'
 }
 
+function serializedSubject(subject) {
+  const source = subject && typeof subject === 'object' ? subject : {}
+  const code = text(source.code || source.id, 80)
+  const title = text(source.title || source.name, 180)
+  return {
+    ...(code ? { code } : {}),
+    ...(title ? { title } : {}),
+  }
+}
+
+function serializedPaper(paper) {
+  const source = paper && typeof paper === 'object' ? paper : {}
+  const id = text(source.id || source.paperId, 500)
+  const questionFile = text(source.questionFile, 500)
+  const markSchemeFile = text(source.markSchemeFile, 500)
+  return {
+    ...(id ? { id } : {}),
+    ...(questionFile ? { questionFile } : {}),
+    ...(markSchemeFile ? { markSchemeFile } : {}),
+  }
+}
+
+function serializedQuestion(question) {
+  const source = question && typeof question === 'object' ? question : {}
+  const id = text(source.id || source.questionId, 500)
+  const number = numberInRange(source.number, 0, 100_000)
+  const label = text(source.label, 300)
+  const title = text(source.title, 300)
+  const prompt = text(source.prompt, 6_000)
+  const hint = text(source.hint, 1_500)
+  const marks = numberInRange(source.marks, 0, 10_000)
+  return {
+    ...(id ? { id } : {}),
+    ...(number != null ? { number } : {}),
+    ...(label ? { label } : {}),
+    ...(title ? { title } : {}),
+    ...(prompt ? { prompt } : {}),
+    ...(hint ? { hint } : {}),
+    ...(marks != null ? { marks } : {}),
+  }
+}
+
+/**
+ * Retains only retry-safe text context. Student image bytes intentionally never
+ * enter account history, so a restored retry can request a fresh attachment.
+ */
+export function serializeCoachContext(context = {}) {
+  const source = context && typeof context === 'object' ? context : {}
+  const question = serializedQuestion(source.question)
+  const subject = serializedSubject(source.subject)
+  const paper = serializedPaper(source.paper)
+  const sourceContextText = contextText(source.contextText || source.sourceQuestionExtract, 6_000)
+  const topic = text(source.topic?.label || source.topic?.name || source.topic?.id || source.topic || source.topicId, 500)
+  return {
+    ...(text(source.routeId, 500) ? { routeId: text(source.routeId, 500) } : {}),
+    ...(text(source.view, 120) ? { view: text(source.view, 120) } : {}),
+    ...(text(source.stage, 120) ? { stage: text(source.stage, 120) } : {}),
+    ...(text(source.component, 180) ? { component: text(source.component, 180) } : {}),
+    ...(text(source.syllabus, 500) ? { syllabus: text(source.syllabus, 500) } : {}),
+    ...(topic ? { topic } : {}),
+    ...(Object.keys(subject).length ? { subject } : {}),
+    ...(Object.keys(paper).length ? { paper } : {}),
+    ...(Object.keys(question).length ? { question } : {}),
+    ...(sourceContextText ? { contextText: sourceContextText, sourceQuestionExtract: sourceContextText } : {}),
+    ...(hasOwn(source, 'response') ? { response: text(source.response, 6_000) } : {}),
+    ...(hasOwn(source, 'handwritingAttached') ? { handwritingAttached: Boolean(source.handwritingAttached) } : {}),
+    ...(hasOwn(source, 'submitted') ? { submitted: Boolean(source.submitted) } : {}),
+    ...(text(source.markingStatus, 120) ? { markingStatus: text(source.markingStatus, 120) } : {}),
+  }
+}
+
+/** Gives current page state priority while filling missing question/OCR detail from account history. */
+export function mergeCoachContext(currentContext = {}, persistedContext = {}) {
+  const current = serializeCoachContext(currentContext)
+  const persisted = serializeCoachContext(persistedContext)
+  const question = { ...(persisted.question || {}), ...(current.question || {}) }
+  const subject = { ...(persisted.subject || {}), ...(current.subject || {}) }
+  const paper = { ...(persisted.paper || {}), ...(current.paper || {}) }
+  const merged = {
+    ...persisted,
+    ...current,
+    ...(Object.keys(question).length ? { question } : {}),
+    ...(Object.keys(subject).length ? { subject } : {}),
+    ...(Object.keys(paper).length ? { paper } : {}),
+  }
+  const mergedContextText = contextText(current.contextText || persisted.contextText, 6_000)
+  if (mergedContextText) {
+    merged.contextText = mergedContextText
+    merged.sourceQuestionExtract = mergedContextText
+  }
+  return merged
+}
+
+/**
+ * Rebuilds a retry from the persisted pair of original user and interrupted
+ * assistant messages. It deliberately returns no image data URLs.
+ */
+export function buildCoachRetryRequest(messages = []) {
+  const history = mergeCoachMessages(messages)
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const assistant = history[index]
+    if (assistant?.role !== 'assistant' || !['interrupted', 'failed', 'retrying', 'streaming'].includes(assistant.status) || !assistant.id) continue
+    let userIndex = index - 1
+    while (userIndex >= 0 && history[userIndex]?.role !== 'user') userIndex -= 1
+    const user = history[userIndex]
+    if (!user?.content) continue
+    const unavailableAttachmentCount = Math.max(
+      Number(user.attachmentCount) || 0,
+      Array.isArray(user.attachments) ? user.attachments.length : 0,
+    )
+    return {
+      assistantId: assistant.id,
+      message: user.content,
+      level: numberInRange(assistant.hintLevel, 1, 5) || 1,
+      previous: history
+        .slice(0, userIndex)
+        .filter((message) => ['user', 'assistant'].includes(message.role) && message.content)
+        .slice(-10)
+        .map(({ role, content }) => ({ role, content })),
+      attachments: [],
+      unavailableAttachmentCount,
+    }
+  }
+  return null
+}
+
 /** Removes image data URLs while retaining only attachment metadata for the account history. */
 export function serializeCoachConversation({ conversationId, context = {}, messages = [], sourceProduct = 'stem' } = {}) {
   const mergedMessages = mergeCoachMessages(messages)
@@ -174,12 +317,16 @@ export function serializeCoachConversation({ conversationId, context = {}, messa
       createdAt: isoDate(message.createdAt, now),
       updatedAt: isoDate(message.updatedAt, isoDate(message.createdAt, now)),
       ...(attachments.length ? { attachments } : {}),
+      ...(text(message.mode, 40) ? { mode: text(message.mode, 40) } : {}),
       ...(text(message.status, 40) ? { status: text(message.status, 40) } : {}),
+      ...(text(message.warning, 500) ? { warning: text(message.warning, 500) } : {}),
+      ...(numberInRange(message.hintLevel, 1, 5) ? { hintLevel: numberInRange(message.hintLevel, 1, 5) } : {}),
     }
   })
   const question = context.question || {}
   const subject = context.subject || {}
   const paper = context.paper || {}
+  const coachContext = serializeCoachContext(context)
   const firstMessageAt = persistedMessages[0]?.createdAt || now
   const updatedAt = now
   return {
@@ -195,6 +342,7 @@ export function serializeCoachConversation({ conversationId, context = {}, messa
       ...(text(question.id || question.questionId || question.number, 500) ? { questionId: text(question.id || question.questionId || question.number, 500) } : {}),
       ...(text(subject.code || subject.id, 500) ? { module: text(subject.code || subject.id, 500) } : {}),
     },
+    ...(coachContext.contextText ? { contextText: coachContext.contextText } : {}),
     messages: persistedMessages,
     metadata: {
       status: persistedMessages.at(-1)?.status || 'saved',

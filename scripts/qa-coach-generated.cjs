@@ -327,15 +327,184 @@ async function assertCoachInterruptedStreamRecovery(page) {
     if (await coachDrawer.locator('.ai-message--user').count() !== userMessagesBefore + 1) {
       throw new Error('An interrupted Coach stream must add exactly one student message before retry.')
     }
-    await retry.click()
-    await coachDrawer.getByText('Recovered guidance after retry.').waitFor()
-    if (await coachDrawer.locator('.ai-message--user').count() !== userMessagesBefore + 1) {
-      throw new Error('Retrying a partial Coach stream must reuse the original student message rather than duplicate it.')
+    await page.evaluate(() => {
+      const entry = Object.keys(localStorage)
+        .filter((key) => key.includes('alevel-ai-coach-v4'))
+        .map((key) => ({ key, stored: JSON.parse(localStorage.getItem(key) || '{}') }))
+        .map((item) => ({ ...item, messages: Array.isArray(item.stored) ? item.stored : item.stored.messages || [] }))
+        .find((item) => item.messages.some((message) => message.role === 'assistant' && message.content === 'Partial guidance kept after the stream ended.'))
+      if (!entry) throw new Error('Coach history was not persisted before the refresh fixture.')
+      const assistant = [...entry.messages].reverse().find((message) => message.role === 'assistant' && message.content === 'Partial guidance kept after the stream ended.')
+      if (!assistant) throw new Error('Coach history did not preserve the interrupted assistant slot before the refresh fixture.')
+      assistant.content = 'Preparing Coach response...'
+      assistant.status = 'streaming'
+      assistant.updatedAt = new Date().toISOString()
+      localStorage.setItem(entry.key, JSON.stringify(Array.isArray(entry.stored) ? entry.messages : { ...entry.stored, messages: entry.messages }))
+    })
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await page.getByRole('button', { name: 'Open AI Coach' }).click()
+    const restoredDrawer = page.locator('.ai-coach.open')
+    await restoredDrawer.getByText('Preparing Coach response...').waitFor()
+    const restoredRetry = restoredDrawer.getByRole('button', { name: 'Retry' })
+    await restoredRetry.waitFor()
+    if (await restoredDrawer.locator('.ai-message--user').count() !== userMessagesBefore + 1) {
+      throw new Error('Refreshing an interrupted Coach stream must restore exactly one original student message.')
+    }
+    await restoredRetry.click()
+    await restoredDrawer.getByText('Recovered guidance after retry.').waitFor()
+    if (await restoredDrawer.locator('.ai-message--user').count() !== userMessagesBefore + 1) {
+      throw new Error('Retrying a restored partial Coach stream must reuse the original student message rather than duplicate it.')
     }
     if (requestCount !== 2) throw new Error(`Coach interrupted-stream recovery expected two requests, received ${requestCount}`)
-    await coachDrawer.getByRole('button', { name: 'Close AI Coach' }).click()
+    await restoredDrawer.getByRole('button', { name: 'Close AI Coach' }).click()
   } finally {
     await page.unroute('**/api/ai/coach/stream')
+  }
+}
+
+async function assertRemoteCoachHistoryRecovery(page, recoveryStatus) {
+  const remoteContextText = 'Official OCR context from the previous device: use the force diagram before resolving components.'
+  const assistantId = `remote-assistant-${recoveryStatus}`
+  const partialReply = recoveryStatus === 'streaming'
+    ? 'Preparing Coach response...'
+    : recoveryStatus === 'retrying'
+      ? 'Retrying Coach response...'
+      : 'The stream stopped after identifying the force diagram.'
+  const remoteConversation = (conversationId) => ({
+    conversationId,
+    sourceProduct: 'stem',
+    contextText: remoteContextText,
+    messages: [
+      {
+        id: 'remote-user-1',
+        role: 'user',
+        content: 'Check the method from my photographed working.',
+        attachments: [{ type: 'image', mimeType: 'image/jpeg', source: 'student-upload' }],
+        createdAt: '2026-08-19T01:10:00.000Z',
+        updatedAt: '2026-08-19T01:10:00.000Z',
+      },
+      {
+        id: assistantId,
+        role: 'assistant',
+        content: partialReply,
+        status: recoveryStatus,
+        hintLevel: 3,
+        createdAt: '2026-08-19T01:10:01.000Z',
+        updatedAt: '2026-08-19T01:10:02.000Z',
+      },
+    ],
+  })
+  const authenticatedStatus = {
+    authenticated: true,
+    identity: { id: 'ielts:qa-coach', username: 'qa_coach_student', avatarDataUrl: '', roles: ['student'] },
+    accessToken: 'qa-authenticated-stem-coach-token-that-is-long-enough-for-client-validation',
+    expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+    classrooms: [],
+    assignments: [],
+  }
+  const streamPayloads = []
+  let requestedHistory = 0
+  await page.route('**/api/auth/status', async (route) => {
+    if (route.request().method() !== 'GET') return route.continue()
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(authenticatedStatus) })
+  })
+  await page.route('**/api/stem/workspace', async (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ classrooms: [], assignments: [] }),
+  }))
+  await page.route('**/api/stem/notebook/notes**', async (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ body: '', updatedAt: null }),
+  }))
+  await page.route('**/api/stem/coach/conversations**', async (route) => {
+    if (route.request().method() === 'GET') {
+      requestedHistory += 1
+      const conversationIds = await page.evaluate(() => Object.keys(localStorage)
+        .filter((key) => key.includes('alevel-ai-coach-v4:'))
+        .map((key) => decodeURIComponent(key.split(':').at(-1) || ''))
+        .filter(Boolean))
+      const ids = conversationIds.length
+        ? conversationIds
+        : [
+            'coach:stem:v1:cie-9702-as-physics:as:9702:general:overview',
+            'coach:stem:v1:cie-9702-as-physics:as:physics:general:overview',
+          ]
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ conversations: ids.map(remoteConversation) }) })
+    }
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ conversations: [] }) })
+  })
+  await page.route('**/api/ai/coach/stream', async (route) => {
+    streamPayloads.push(JSON.parse(route.request().postData() || '{}'))
+    return route.fulfill({
+      status: 200,
+      contentType: 'text/event-stream',
+      body: [
+        'event: meta',
+        'data: {"mode":"ai"}',
+        '',
+        'event: done',
+        'data: {"answer":"Remote history retry completed.","mode":"ai"}',
+        '',
+      ].join('\n'),
+    })
+  })
+  try {
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' })
+    await page.evaluate((key) => {
+      localStorage.clear()
+      localStorage.removeItem(key)
+    }, STORAGE_KEY)
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await page.getByRole('button', { name: 'Open AI Coach' }).click()
+    const drawer = page.locator('.ai-coach.open')
+    if (!requestedHistory) throw new Error('Remote Coach history fixture did not receive a GET request after authentication.')
+    await drawer.getByText(partialReply).waitFor()
+    await drawer.getByText('Original photos are not kept in account history. Retry can continue with the saved question and text context.').waitFor()
+    const beforeUserCount = await drawer.locator('.ai-message--user').count()
+    const beforeAssistantCount = await drawer.locator('.ai-message--assistant').count()
+    await drawer.getByRole('button', { name: 'Retry' }).click()
+    await drawer.getByText('Remote history retry completed.').waitFor()
+    if (await drawer.locator('.ai-message--user').count() !== beforeUserCount) {
+      throw new Error('Retrying remote Coach history must not append a duplicate user message.')
+    }
+    if (await drawer.locator('.ai-message--assistant').count() !== beforeAssistantCount) {
+      throw new Error('Retrying remote Coach history must replace the same assistant slot.')
+    }
+    if (streamPayloads.length !== 1) throw new Error(`Remote Coach retry expected one stream request, received ${streamPayloads.length}`)
+    if (streamPayloads[0]?.context?.sourceQuestionExtract !== remoteContextText) {
+      throw new Error(`Remote Coach retry lost the persisted OCR context: ${JSON.stringify(streamPayloads[0]?.context || {})}`)
+    }
+    if ((streamPayloads[0]?.imageDataUrls || []).length !== 0) {
+      throw new Error('Remote Coach retry must not resurrect image bytes from account history.')
+    }
+    await page.waitForFunction(({ id }) => Object.keys(localStorage)
+      .filter((key) => key.includes('alevel-ai-coach-v4:'))
+      .flatMap((key) => {
+        const stored = JSON.parse(localStorage.getItem(key) || '{}')
+        return Array.isArray(stored) ? stored : stored.messages || []
+      })
+      .filter((message) => message.id === id)
+      .some((message) => message.status === 'completed' && message.content === 'Remote history retry completed.'), { id: assistantId })
+    const persistedAssistantSlots = await page.evaluate((id) => Object.keys(localStorage)
+      .filter((key) => key.includes('alevel-ai-coach-v4:'))
+      .flatMap((key) => {
+        const stored = JSON.parse(localStorage.getItem(key) || '{}')
+        return Array.isArray(stored) ? stored : stored.messages || []
+      })
+      .filter((message) => message.id === id)
+      .map(({ content, status }) => ({ content, status })), assistantId)
+    if (persistedAssistantSlots.length !== 1 || persistedAssistantSlots[0].status !== 'completed') {
+      throw new Error(`Remote ${recoveryStatus} retry did not replace the same assistant slot: ${JSON.stringify(persistedAssistantSlots)}`)
+    }
+    await drawer.getByRole('button', { name: 'Close AI Coach' }).click()
+  } finally {
+    await page.unroute('**/api/ai/coach/stream')
+    await page.unroute('**/api/stem/coach/conversations**')
+    await page.unroute('**/api/stem/notebook/notes**')
+    await page.unroute('**/api/stem/workspace')
+    await page.unroute('**/api/auth/status')
   }
 }
 
@@ -478,6 +647,9 @@ async function run() {
       await waitForDashboard(page)
       await assertCoachScreenshotFlow(page)
       await assertCoachInterruptedStreamRecovery(page)
+      for (const recoveryStatus of ['interrupted', 'retrying', 'streaming']) {
+        await assertRemoteCoachHistoryRecovery(page, recoveryStatus)
+      }
 
       if (errors.length) throw new Error(`Browser errors: ${errors.join(' | ')}`)
       console.log(JSON.stringify({

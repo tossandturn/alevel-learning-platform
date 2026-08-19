@@ -706,6 +706,13 @@ function coachMessageUpdatedAt(message) {
   return Date.parse(String(message?.updatedAt || message?.createdAt || '')) || 0
 }
 
+function sanitizeCoachContextText(value) {
+  return asText(value, 6_000)
+    .replace(/data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/_=-]+/gi, '[image omitted]')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
 function mergeCoachMessage(existing, candidate) {
   const candidateIsNewer = coachMessageUpdatedAt(candidate) > coachMessageUpdatedAt(existing)
     || (coachMessageUpdatedAt(candidate) === coachMessageUpdatedAt(existing) && candidate._position >= existing._position)
@@ -764,6 +771,7 @@ function mergeCoachConversation(remote, incoming) {
   const current = incoming && typeof incoming === 'object' ? incoming : {}
   const previous = remote && typeof remote === 'object' ? remote : {}
   const now = new Date().toISOString()
+  const contextText = sanitizeCoachContextText(current.contextText || previous.contextText)
   return {
     ...previous,
     ...current,
@@ -780,6 +788,7 @@ function mergeCoachConversation(remote, incoming) {
     },
     createdAt: current.createdAt || previous.createdAt || now,
     updatedAt: now,
+    ...(contextText ? { contextText } : {}),
   }
 }
 
