@@ -8,6 +8,7 @@ import { createHash } from 'node:crypto'
 import { createAiApi } from './server/aiApi.js'
 import { createStemApi } from './server/stemApi.js'
 import { isPaperAvailableToStudents } from './src/lib/paperGovernance.js'
+import { mergeRuntimeEnv } from './src/lib/runtimeEnv.js'
 
 const DEFAULT_LIBRARY_ROOT = 'D:/CodexWork/cie-fraft-fetcher/output/pdf'
 const ALLOWED_SUBJECTS = new Set(['0580', '0606', '0610', '0625', '9231', '9700', '9701', '9702', '9708', '9709', 'bpho', 'amc12', 'esat', 'tmua'])
@@ -216,7 +217,10 @@ function localCieLibrary(env) {
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
-  const env = { ...process.env, ...loadEnv(mode, process.cwd(), '') }
+  const env = mergeRuntimeEnv({
+    cwd: process.cwd(),
+    env: { ...process.env, ...loadEnv(mode, process.cwd(), '') },
+  })
   return {
     preview: {
       allowedHosts: ['stem.ieltsist.com'],

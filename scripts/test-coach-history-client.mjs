@@ -112,6 +112,7 @@ assert.equal(serialized.sourceProduct, 'stem')
 assert.equal(serialized.messages[0].attachments.length, 1)
 assert.equal(serialized.messages[1].id, 'assistant-stream-1')
 assert.equal(serialized.messages[1].updatedAt, '2026-08-19T01:00:07.000Z')
+assert.equal(serialized.context.routeId, baseContext.routeId, 'account history must retain safe route context for cross-version restoration')
 assert.doesNotMatch(JSON.stringify(serialized), /data:image|base64|secret/)
 
 assert.equal(typeof coachHistory.serializeCoachContext, 'function', 'Coach history must expose a sanitized context snapshot serializer')

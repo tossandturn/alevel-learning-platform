@@ -918,6 +918,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
       providerStatus: 'not_configured',
       answer: localAnswer,
       warning: 'AI Coach provider is not configured on this server. This is an offline hint, not an AI review.',
+      retryable: true,
     })
     response.end()
     return
@@ -925,60 +926,73 @@ async function handleCoachStream(request, response, provider, visionProvider, li
 
   const userText = coachRequestContext(context, message)
   let streamedAnswer = ''
+  let lastPartialAnswer = ''
   let lastError = null
   let lastAttemptedProvider = activeProviders[0]
-  for (const activeProvider of activeProviders) {
-    lastAttemptedProvider = activeProvider
-    let providerImages = []
-    let attemptAnswer = ''
-    try {
-      providerImages = await temporaryProviderImages(imageDataUrls, imagePublicBase(activeProvider, request))
-      const content = providerMessageContent(userText, providerImages)
-      sendCoachEvent(response, 'meta', {
-        mode: 'ai',
-        provider: activeProvider.name,
-        providerStatus: 'connecting',
-        model: activeProvider.model,
-      })
-      const result = await callCompatibleAiStream(activeProvider, {
-        messages: [{ role: 'system', content: buildCoachSystemPrompt({ verifiedSubmitted, hintLevel }) }, ...history, { role: 'user', content }],
-        temperature: 0.2,
-        onDelta: async (delta) => {
-          attemptAnswer += delta
-          sendCoachEvent(response, 'delta', { text: delta })
-        },
-      })
-      streamedAnswer = result.answer || attemptAnswer
-      const answer = streamedAnswer || localAnswer
-      sendCoachEvent(response, 'done', {
-        mode: 'ai',
-        provider: activeProvider.name,
-        providerStatus: 'connected',
-        answer,
-        model: activeProvider.model,
-      })
-      response.end()
-      return
-    } catch (error) {
-      lastError = error
-      if (attemptAnswer) {
-        streamedAnswer = ''
-        sendCoachEvent(response, 'reset', { provider: activeProvider.name })
+  const heartbeat = setInterval(() => {
+    if (!response.writableEnded && !response.destroyed) response.write(': keep-alive\n\n')
+  }, 15_000)
+  try {
+    for (const [providerIndex, activeProvider] of activeProviders.entries()) {
+      lastAttemptedProvider = activeProvider
+      let providerImages = []
+      let attemptAnswer = ''
+      try {
+        providerImages = await temporaryProviderImages(imageDataUrls, imagePublicBase(activeProvider, request))
+        const content = providerMessageContent(userText, providerImages)
+        sendCoachEvent(response, 'meta', {
+          mode: 'ai',
+          provider: activeProvider.name,
+          providerStatus: 'connecting',
+          model: activeProvider.model,
+        })
+        const result = await callCompatibleAiStream(activeProvider, {
+          messages: [{ role: 'system', content: buildCoachSystemPrompt({ verifiedSubmitted, hintLevel }) }, ...history, { role: 'user', content }],
+          temperature: 0.2,
+          onDelta: async (delta) => {
+            attemptAnswer += delta
+            sendCoachEvent(response, 'delta', { text: delta })
+          },
+        })
+        streamedAnswer = result.answer || attemptAnswer
+        const answer = streamedAnswer || localAnswer
+        sendCoachEvent(response, 'done', {
+          mode: 'ai',
+          provider: activeProvider.name,
+          providerStatus: 'connected',
+          answer,
+          model: activeProvider.model,
+        })
+        response.end()
+        return
+      } catch (error) {
+        lastError = error
+        if (attemptAnswer) {
+          lastPartialAnswer = attemptAnswer
+          if (providerIndex < activeProviders.length - 1) {
+            sendCoachEvent(response, 'reset', { provider: activeProvider.name })
+          }
+        }
+      } finally {
+        providerImages.forEach((image) => image.cleanup())
       }
-    } finally {
-      providerImages.forEach((image) => image.cleanup())
     }
+    const failedProvider = lastAttemptedProvider
+    const preservedAnswer = lastPartialAnswer || streamedAnswer || localAnswer
+    const partial = Boolean(lastPartialAnswer)
+    sendCoachEvent(response, 'done', {
+      mode: partial ? 'interrupted' : 'offline',
+      provider: failedProvider.name,
+      providerStatus: 'error',
+      answer: preservedAnswer,
+      warning: providerMessage(lastError, failedProvider),
+      retryable: true,
+      ...(partial ? { partial: true } : {}),
+    })
+    response.end()
+  } finally {
+    clearInterval(heartbeat)
   }
-  const failedProvider = lastAttemptedProvider
-  sendCoachEvent(response, 'done', {
-    mode: 'offline',
-    provider: failedProvider.name,
-    providerStatus: 'error',
-    answer: streamedAnswer || localAnswer,
-    warning: providerMessage(lastError, failedProvider),
-    retryable: true,
-  })
-  response.end()
 }
 
 async function handleHandwritingMark(request, response, provider, libraryRoot, allowedSubjects, sourceAssetRoot, env) {

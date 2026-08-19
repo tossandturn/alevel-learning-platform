@@ -48,7 +48,7 @@ import {
 } from './lib/markingLifecycle'
 import { latestBphoSpcPaper } from './lib/coachIntent'
 import { buildCompletionByUnit, buildLearningProgress, latestSubmittedActivity, recommendForRoute } from './lib/learningProgress'
-import { professionalTermsUrl, requestNativeAccountReadiness, requestSharedAccount, requestSharedWorkspace, requestSyllabusPracticeRebind, requestSyllabusPracticeSet, sharedAccountRequest, signInSharedAccount, signOutSharedAccount } from './lib/sharedAccount'
+import { accountRefreshFailureState, accountRefreshRetryDelay, professionalTermsUrl, requestNativeAccountReadiness, requestSharedAccount, requestSharedWorkspace, requestSyllabusPracticeRebind, requestSyllabusPracticeSet, sharedAccountRequest, signInSharedAccount, signOutSharedAccount } from './lib/sharedAccount'
 import { requestMarkingCapabilities } from './lib/markingCapabilityClient'
 import { parseProductContext, termIdsForStemContext } from './lib/productContext'
 import { studentNavigationFromLocation, studentNavigationHref } from './lib/studentNavigation'
@@ -402,6 +402,10 @@ function App() {
   const [coachOpenRequest, setCoachOpenRequest] = useState(0)
   const coachBuilderOpenRequest = 0
   const [sharedAccount, setSharedAccount] = useState({ status: 'loading', token: '', workspace: null, error: '' })
+  const sharedAccountRef = useRef(sharedAccount)
+  const sharedAccountRefreshRef = useRef(0)
+  const sharedAccountRetryTimerRef = useRef(null)
+  sharedAccountRef.current = sharedAccount
   const [accountPopoverOpen, setAccountPopoverOpen] = useState(false)
   const [accountDialogMode, setAccountDialogMode] = useState(null)
   const [stateOwnerId, setStateOwnerId] = useState('')
@@ -618,8 +622,15 @@ function App() {
   }
 
   const refreshSharedAccount = useCallback(async () => {
+    if (sharedAccountRetryTimerRef.current) {
+      window.clearTimeout(sharedAccountRetryTimerRef.current)
+      sharedAccountRetryTimerRef.current = null
+    }
+    const refreshId = sharedAccountRefreshRef.current + 1
+    sharedAccountRefreshRef.current = refreshId
     try {
       const account = await requestSharedAccount()
+      if (sharedAccountRefreshRef.current !== refreshId) return sharedAccountRef.current
       let workspace = account.workspace
       let workspaceError = ''
       try {
@@ -629,18 +640,34 @@ function App() {
         // Keep the student signed in when the optional workspace is unavailable.
         workspaceError = error.message || 'Teacher and school workspace is temporarily unavailable.'
       }
-      setSharedAccount({ status: 'ready', ...account, workspace, error: '', workspaceError })
-      return { ...account, workspace, workspaceError }
+      const next = { status: 'ready', ...account, workspace, error: '', refreshState: 'ready', workspaceError }
+      if (sharedAccountRefreshRef.current !== refreshId) return sharedAccountRef.current
+      setSharedAccount(next)
+      return next
     } catch (error) {
-      setSharedAccount({ status: 'guest', token: '', workspace: null, error: error.message || 'Shared account is unavailable.' })
-      return null
+      if (sharedAccountRefreshRef.current !== refreshId) return sharedAccountRef.current
+      const next = accountRefreshFailureState(sharedAccountRef.current, error)
+      setSharedAccount(next)
+      const retryDelay = accountRefreshRetryDelay(error)
+      if (retryDelay && !sharedAccountRetryTimerRef.current) {
+        sharedAccountRetryTimerRef.current = window.setTimeout(() => {
+          sharedAccountRetryTimerRef.current = null
+          void refreshSharedAccount()
+        }, retryDelay)
+      }
+      return next.status === 'ready' ? next : null
     }
   }, [])
 
   useEffect(() => {
     refreshSharedAccount()
     const timer = window.setInterval(refreshSharedAccount, 4 * 60 * 1000)
-    return () => window.clearInterval(timer)
+    return () => {
+      window.clearInterval(timer)
+      if (sharedAccountRetryTimerRef.current) window.clearTimeout(sharedAccountRetryTimerRef.current)
+      sharedAccountRetryTimerRef.current = null
+      sharedAccountRefreshRef.current += 1
+    }
   }, [refreshSharedAccount])
 
   useEffect(() => {

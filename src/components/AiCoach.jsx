@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { BrainCircuit, FileText, ImagePlus, MonitorUp, RefreshCcw, Send, Sparkles, Wrench, X } from 'lucide-react'
+import { BrainCircuit, FileText, History, ImagePlus, MonitorUp, RefreshCcw, Send, Sparkles, Wrench, X } from 'lucide-react'
 import { resolveCoachIntent } from '../lib/coachIntent'
 import {
   buildCoachConversationId,
@@ -77,6 +77,23 @@ function loadLocalMessages(context, storageKey, ownerId) {
   }
 }
 
+function historyConversationTitle(conversation) {
+  const title = String(conversation?.title || '').trim()
+  if (title && title !== 'AI Coach conversation') return title
+  const binding = conversation?.binding || {}
+  return [binding.module, binding.routeId, binding.questionId ? `Question ${binding.questionId}` : ''].filter(Boolean).join(' · ') || 'AI Coach conversation'
+}
+
+function historyConversationDate(value) {
+  const parsed = Date.parse(String(value || ''))
+  return Number.isFinite(parsed) ? new Date(parsed).toLocaleDateString() : 'Saved'
+}
+
+function historyConversationPreview(conversation) {
+  const message = [...(conversation?.messages || [])].reverse().find((item) => item?.role === 'user' && item.content)
+  return String(message?.content || conversation?.contextText || 'No message preview').replace(/\s+/g, ' ').trim().slice(0, 96)
+}
+
 export function AiCoach({
   context = {},
   stateOwnerId = '',
@@ -92,11 +109,30 @@ export function AiCoach({
 }) {
   const sharedOwnerId = String(sharedIdentityUserId || '').trim()
   const storageOwnerId = sharedOwnerId || String(context.stateOwnerId || stateOwnerId || '').trim() || 'guest'
-  const conversationId = buildCoachConversationId(context)
+  const baseConversationId = buildCoachConversationId(context)
+  const [selectedConversationId, setSelectedConversationId] = useState('')
+  const [historyConversations, setHistoryConversations] = useState([])
+  const [historyListOpen, setHistoryListOpen] = useState(false)
+  const [historyListState, setHistoryListState] = useState('idle')
+  const [historyListError, setHistoryListError] = useState('')
+  const selectedConversation = useMemo(
+    () => historyConversations.find((item) => item?.conversationId === selectedConversationId) || null,
+    [historyConversations, selectedConversationId],
+  )
+  const activeContext = useMemo(() => {
+    if (!selectedConversation) return context
+    const persisted = selectedConversation.context || {
+      routeId: selectedConversation.binding?.routeId,
+      topicId: selectedConversation.binding?.topicId,
+      contextText: selectedConversation.contextText,
+    }
+    return mergeCoachContext({}, persisted)
+  }, [context, selectedConversation])
+  const conversationId = selectedConversation?.conversationId || baseConversationId
   const storageKey = buildCoachStorageKey(conversationId, storageOwnerId)
-  const historyScope = sharedIdentityToken && sharedOwnerId ? `${storageKey}:${sharedIdentityToken}` : ''
+  const historyScope = sharedIdentityToken && sharedOwnerId ? `${storageKey}:${sharedOwnerId}` : ''
   const initialHistoryRef = useRef(null)
-  if (!initialHistoryRef.current) initialHistoryRef.current = loadLocalMessages(context, storageKey, storageOwnerId)
+  if (!initialHistoryRef.current) initialHistoryRef.current = loadLocalMessages(activeContext, storageKey, storageOwnerId)
   const initialHistory = initialHistoryRef.current
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState(() => initialHistory.messages)
@@ -136,15 +172,20 @@ export function AiCoach({
   const lastOpenRequestRef = useRef(openRequest)
   const lastOpenBuilderRequestRef = useRef(openBuilderRequest)
   const hydratedStorageKeyRef = useRef(storageKey)
+  const hydratedStorageOwnerRef = useRef(storageOwnerId)
   const captureFrameRef = useRef(null)
   const captureStartRef = useRef(null)
   const messagesRef = useRef(messages)
   const messageStorageKeyRef = useRef(storageKey)
-  const contextRef = useRef(context)
+  const contextRef = useRef(activeContext)
   const persistedCoachContextRef = useRef(initialHistory.context)
-  contextRef.current = context
+  contextRef.current = activeContext
   activeHistoryScopeRef.current = historyScope
-  const canOpenBphoSpc = Boolean(onAgentAction && (context.stage === 'Competition' || context.routeId === 'bpho-admissions-physics'))
+  const canOpenBphoSpc = Boolean(onAgentAction && (activeContext.stage === 'Competition' || activeContext.routeId === 'bpho-admissions-physics'))
+
+  useEffect(() => {
+    setSelectedConversationId('')
+  }, [baseConversationId])
 
   const builderSubject = useMemo(
     () => practiceOptions.find((item) => item.id === builderSubjectId) || practiceOptions[0],
@@ -207,11 +248,13 @@ export function AiCoach({
     const save = async () => {
       if (activeHistoryScopeRef.current === scope) setHistorySyncState('syncing')
       try {
-        await sharedAccountRequest(token, '/api/stem/coach/conversations', {
+        const saved = await sharedAccountRequest(token, '/api/stem/coach/conversations', {
           method: 'PUT',
           headers: { 'Idempotency-Key': conversationId },
           body: JSON.stringify({ conversation: payload }),
         })
+        const savedConversation = saved?.conversations?.find((item) => item?.conversationId === conversationId) || payload
+        setHistoryConversations((current) => [savedConversation, ...current.filter((item) => item?.conversationId !== conversationId)].slice(0, 80))
         legacyKeys.forEach((key) => window.localStorage.removeItem(key))
         if (activeHistoryScopeRef.current !== scope) return
         pendingLegacyStorageKeysRef.current.clear()
@@ -251,12 +294,14 @@ export function AiCoach({
 
   useEffect(() => {
     if (hydratedStorageKeyRef.current === storageKey) return
+    const ownerChanged = hydratedStorageOwnerRef.current !== storageOwnerId
     requestAbortRef.current?.abort()
     requestAbortRef.current = null
     if (historySyncTimerRef.current) window.clearTimeout(historySyncTimerRef.current)
     hydratedStorageKeyRef.current = storageKey
+    hydratedStorageOwnerRef.current = storageOwnerId
     historyReadyScopeRef.current = ''
-    const local = loadLocalMessages(context, storageKey, storageOwnerId)
+    const local = loadLocalMessages(activeContext, storageKey, storageOwnerId)
     pendingLegacyStorageKeysRef.current = new Set(local.legacyKeys)
     persistedCoachContextRef.current = local.context
     messageStorageKeyRef.current = storageKey
@@ -280,27 +325,38 @@ export function AiCoach({
     setHistorySyncState(historyScope ? 'loading' : 'local')
     setRetryRequest(buildCoachRetryRequest(local.messages))
     lastRequestRef.current = null
-    setOpen(false)
-  }, [context, historyScope, storageKey, storageOwnerId])
+    if (ownerChanged) setOpen(false)
+  }, [activeContext, historyScope, storageKey, storageOwnerId])
 
   useEffect(() => {
     const requestVersion = historyRequestVersionRef.current + 1
     historyRequestVersionRef.current = requestVersion
     if (!historyScope) {
       historyReadyScopeRef.current = ''
+      setHistoryConversations([])
+      setSelectedConversationId('')
+      setHistoryListState('idle')
+      setHistoryListError('')
       setHistorySyncState('local')
       return undefined
     }
     const local = loadLocalMessages(contextRef.current, storageKey, storageOwnerId)
     pendingLegacyStorageKeysRef.current = new Set(local.legacyKeys)
     setHistorySyncState('loading')
+    setHistoryListState('loading')
+    setHistoryListError('')
     sharedAccountRequest(sharedIdentityToken, '/api/stem/coach/conversations?limit=80')
       .then((payload) => {
         if (historyRequestVersionRef.current !== requestVersion || activeHistoryScopeRef.current !== historyScope || messageStorageKeyRef.current !== storageKey) return
-        const remoteConversation = (payload?.conversations || []).find((item) => item?.conversationId === conversationId)
+        const conversations = Array.isArray(payload?.conversations)
+          ? payload.conversations.filter((item) => item?.conversationId && Array.isArray(item.messages) && item.messages.length)
+          : []
+        setHistoryConversations(conversations)
+        setHistoryListState('saved')
+        const remoteConversation = conversations.find((item) => item?.conversationId === conversationId)
         historyReadyScopeRef.current = historyScope
         persistedCoachContextRef.current = mergeCoachContext(
-          { contextText: remoteConversation?.contextText || '' },
+          remoteConversation?.context || { contextText: remoteConversation?.contextText || '' },
           persistedCoachContextRef.current,
         )
         const merged = mergeCoachMessages(messagesRef.current, local.messages, remoteConversation?.messages || [])
@@ -313,6 +369,8 @@ export function AiCoach({
       })
       .catch(() => {
         if (historyRequestVersionRef.current !== requestVersion || activeHistoryScopeRef.current !== historyScope) return
+        setHistoryListState('error')
+        setHistoryListError('Saved Coach history is temporarily unavailable. This device copy remains available.')
         historyReadyScopeRef.current = historyScope
         setHistorySyncState('pending')
         queueHistorySync(messagesRef.current, { immediate: true })
@@ -510,12 +568,20 @@ export function AiCoach({
       if (!contentType.includes('text/event-stream')) {
         const payload = await response.json().catch(() => ({}))
         const answer = String(payload.answer || '').trim() || 'AI Coach returned an empty response.'
+        const retryable = Boolean(payload.retryable)
+        const partial = Boolean(payload.partial) || payload.mode === 'interrupted'
         updateAssistant({
           content: answer,
-          mode: payload.mode || 'ai',
-          status: payload.mode === 'offline' ? 'fallback' : 'completed',
+          mode: partial ? 'interrupted' : payload.mode || 'ai',
+          status: retryable ? (partial ? 'interrupted' : 'failed') : payload.mode === 'offline' ? 'fallback' : 'completed',
           warning: payload.warning || '',
         })
+        if (retryable) {
+          setRetryRequest({ assistantId, message: studentMessage.content, level, attachments, previous, intent, unavailableAttachmentCount: 0 })
+          setError(payload.warning || (partial
+            ? 'The connection was interrupted. The partial response was kept; retry to continue.'
+            : 'AI Coach is temporarily unavailable. Retry to continue.'))
+        }
         streamCompleted = true
         if (payload.mode === 'offline') setError(payload.warning || 'AI Coach is offline. This response is only a controlled offline hint.')
       } else {
@@ -544,13 +610,21 @@ export function AiCoach({
           }
           if (eventName === 'done') {
             streamCompleted = true
+            const retryable = Boolean(payload.retryable)
+            const partial = Boolean(payload.partial) || payload.mode === 'interrupted'
             updateAssistant({
               content: String(payload.answer || streamedAnswer || '').trim() || 'AI Coach returned an empty response.',
-              mode: payload.mode || 'ai',
-              status: payload.mode === 'offline' ? 'fallback' : 'completed',
+              mode: partial ? 'interrupted' : payload.mode || 'ai',
+              status: retryable ? (partial ? 'interrupted' : 'failed') : payload.mode === 'offline' ? 'fallback' : 'completed',
               hintLevel: level,
               warning: payload.warning || retryWarning,
             })
+            if (retryable) {
+              setRetryRequest({ assistantId, message: studentMessage.content, level, attachments, previous, intent, unavailableAttachmentCount: 0 })
+              setError(payload.warning || (partial
+                ? 'The connection was interrupted. The partial response was kept; retry to continue.'
+                : 'AI Coach is temporarily unavailable. Retry to continue.'))
+            }
             if (payload.mode === 'offline') setError(payload.warning || 'AI Coach is offline. This response is only a controlled offline hint.')
           }
           if (eventName === 'meta' && payload.mode) updateAssistant({ mode: payload.mode, provider: payload.provider || '' })
@@ -776,14 +850,36 @@ export function AiCoach({
       {open && <button type="button" className="ai-coach-backdrop" onPointerDown={closeCoach} onClick={closeCoach} aria-label="Close AI Coach" />}
       <aside ref={dialogRef} className={`ai-coach ${open ? 'open' : ''} ${builderOpen ? 'builder-open' : ''}`} inert={!open ? true : undefined} aria-hidden={!open} aria-modal="true" role="dialog" aria-label="AI Coach">
         <header>
-          <div className="ai-coach__identity"><span><BrainCircuit size={19} /></span><div><strong>AI Coach</strong><small>{context.question?.label || context.question?.title || context.subject?.code || 'Study support'}</small></div></div>
-          <button ref={closeButtonRef} type="button" className="icon-button" onClick={closeCoach} aria-label="Close AI Coach"><X size={18} /></button>
+          <div className="ai-coach__identity"><span><BrainCircuit size={19} /></span><div><strong>AI Coach</strong><small>{activeContext.question?.label || activeContext.question?.title || activeContext.subject?.code || 'Study support'}</small></div></div>
+          <div className="ai-coach__header-actions">
+            <button type="button" className="icon-button" onClick={() => setHistoryListOpen((current) => !current)} aria-label="Open Coach chat history" title="Chat history"><History size={17} /></button>
+            <button ref={closeButtonRef} type="button" className="icon-button" onClick={closeCoach} aria-label="Close AI Coach"><X size={18} /></button>
+          </div>
         </header>
 
+        {historyListOpen && <section className="ai-coach__history-panel" aria-label="Coach chat history">
+          <div className="ai-coach__history-heading"><div><strong>Coach chat history</strong><small>{sharedIdentityToken && sharedOwnerId ? 'Saved to this STEM account' : 'Local copy on this device'}</small></div><button type="button" className="icon-button" onClick={() => setHistoryListOpen(false)} aria-label="Close Coach chat history"><X size={15} /></button></div>
+          {sharedIdentityToken && sharedOwnerId && historyListState === 'loading' && <p className="ai-coach__history-empty">Loading saved chats...</p>}
+          {sharedIdentityToken && sharedOwnerId && historyListError && <p className="ai-coach__history-error" role="status">{historyListError}</p>}
+          {sharedIdentityToken && sharedOwnerId && historyListState !== 'loading' && !historyConversations.length && <p className="ai-coach__history-empty">No saved Coach chats yet.</p>}
+          {!sharedIdentityToken && <p className="ai-coach__history-empty">Sign in to STEM to browse and restore Coach chats across devices and releases.</p>}
+          {selectedConversationId && <button type="button" className="ai-coach__history-current" onClick={() => { setSelectedConversationId(''); setHistoryListOpen(false) }}><History size={13} />Return to this question</button>}
+          {historyConversations.map((conversation) => <button
+            type="button"
+            className={`ai-coach__history-row ${conversation.conversationId === conversationId ? 'active' : ''}`}
+            key={conversation.conversationId}
+            onClick={() => { setSelectedConversationId(conversation.conversationId); setHistoryListOpen(false); setOpen(true) }}
+          >
+            <strong>{historyConversationTitle(conversation)}</strong>
+            <span>{historyConversationPreview(conversation)}</span>
+            <small>{historyConversationDate(conversation.updatedAt)} · {conversation.messages.length} messages</small>
+          </button>)}
+        </section>}
+
         <div className="ai-coach__context">
-          <span>{context.stage || 'Cambridge practice'}</span>
-          <strong>{context.question?.prompt || 'Choose a question and ask about the next step.'}</strong>
-          {!context.submitted && <small>Before submission, Coach gives progressive hints without revealing the final answer.</small>}
+          <span>{activeContext.stage || 'Cambridge practice'}</span>
+          <strong>{activeContext.question?.prompt || selectedConversation?.title || 'Choose a question and ask about the next step.'}</strong>
+          {!activeContext.submitted && <small>Before submission, Coach gives progressive hints without revealing the final answer.</small>}
         </div>
 
         <details className="ai-coach__tools">

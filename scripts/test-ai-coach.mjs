@@ -371,7 +371,47 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
     await Promise.all([close(partialFallbackAppServer), close(partialOpenAiServer), close(partialQwenServer)])
   }
 
+  const partialOnlyServer = http.createServer(async (request, response) => {
+    for await (const _chunk of request) {}
+    response.statusCode = 200
+    response.setHeader('Content-Type', 'text/event-stream')
+    response.write('data: {"choices":[{"delta":{"content":"Keep this partial explanation."}}]}\n\n')
+    setTimeout(() => response.destroy(), 5)
+  })
+  const partialOnlyBase = await listen(partialOnlyServer)
+  const partialOnlyApi = createAiApi({
+    env: {
+      OPENAI_API_KEY: 'test-openai-partial-only-key',
+      OPENAI_BASE_URL: partialOnlyBase,
+      OPENAI_MODEL: 'gpt-5.6-test',
+    },
+    libraryRoot: path.join(tempRoot, 'library'),
+    allowedSubjects: new Set(['0580']),
+  })
+  const partialOnlyAppServer = requestHandler(partialOnlyApi)
+  const partialOnlyAppBase = await listen(partialOnlyAppServer)
+  try {
+    const partialOnly = await fetch(`${partialOnlyAppBase}/api/ai/coach/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: 'Explain this method fully and check the units.',
+        hintLevel: 3,
+        context: { stage: 'AS', topic: 'Mechanics', question: { prompt: 'Partial-only failure fixture.', number: 7 } },
+      }),
+    })
+    const partialOnlyText = await partialOnly.text()
+    assert.equal(partialOnly.status, 200)
+    assert.doesNotMatch(partialOnlyText, /event: reset/, 'a final provider failure must retain already-streamed Coach text')
+    assert.match(partialOnlyText, /"answer":"Keep this partial explanation\."/)
+    assert.match(partialOnlyText, /"mode":"interrupted"/)
+    assert.match(partialOnlyText, /"retryable":true/)
+  } finally {
+    await Promise.all([close(partialOnlyAppServer), close(partialOnlyServer)])
+  }
+
   const coachSource = fs.readFileSync(path.join(root, 'src', 'components', 'AiCoach.jsx'), 'utf8')
+  const aiSource = fs.readFileSync(path.join(root, 'server', 'aiApi.js'), 'utf8')
   const appSource = fs.readFileSync(path.join(root, 'src', 'App.jsx'), 'utf8')
   const appStyles = fs.readFileSync(path.join(root, 'src', 'App.css'), 'utf8')
   const paperLibrarySource = fs.readFileSync(path.join(root, 'src', 'components', 'PaperLibrary.jsx'), 'utf8')
@@ -381,6 +421,13 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   const practiceWorkspaceSource = fs.readFileSync(path.join(root, 'src', 'components', 'PracticeWorkspace.jsx'), 'utf8')
   assert.match(coachSource, /\/api\/ai\/coach\/stream/)
   assert.match(coachSource, /text\/event-stream/)
+  assert.match(coachSource, /payload\.retryable/, 'a retryable streamed terminal result must restore the Coach Retry action')
+  assert.match(
+    coachSource,
+    /const ownerChanged = hydratedStorageOwnerRef\.current !== storageOwnerId[\s\S]{0,2500}if \(ownerChanged\) setOpen\(false\)/,
+    'opening a saved Coach conversation must retain the drawer; only an account switch may close it',
+  )
+  assert.match(aiSource, /providerStatus: 'not_configured'[\s\S]{0,300}retryable: true/, 'an unavailable streamed provider must expose a retry action')
   assert.match(appSource, /disabled=\{Boolean\(accountDialogMode \|\| accountPopoverOpen\)\}/, 'account overlays must disable the floating Coach layer')
   assert.match(coachSource, /if \(disabled\) return null/, 'account overlays must remove the Coach DOM entirely instead of merely moving it behind a modal')
   assert.doesNotMatch(appStyles, /dashboard-studio\s*~\s*\.ai-coach-trigger\s*\{\s*display:\s*none/i, 'dashboard must keep the floating AI Coach entry available')

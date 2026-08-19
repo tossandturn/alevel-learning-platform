@@ -5,6 +5,16 @@ import { syllabusPracticeRebindPayload } from './syllabusPracticeRebind.js'
 
 const IDENTITY_ORIGIN = SHARED_IDENTITY_ORIGIN
 const IDENTITY_TIMEOUT_MS = 12_000
+export const ACCOUNT_REFRESH_RETRY_DELAY_MS = 15_000
+
+function isTransient(error) {
+  return error instanceof TypeError || error?.name === 'AbortError' || error?.retryable
+}
+
+/** Gives a live account a prompt recovery path after a temporary status failure. */
+export function accountRefreshRetryDelay(error) {
+  return isTransient(error) ? ACCOUNT_REFRESH_RETRY_DELAY_MS : 0
+}
 
 export class SharedAccountError extends Error {
   constructor(code, message, { retryable = false, loginRequired = false, cause } = {}) {
@@ -17,6 +27,28 @@ export class SharedAccountError extends Error {
   }
 }
 
+/** Keeps a valid browser session alive through a retriable status refresh. */
+export function accountRefreshFailureState(current, error) {
+  const existing = current && typeof current === 'object' ? current : {}
+  const hasActiveSession = existing.status === 'ready'
+    && String(existing.token || '').length >= 32
+    && String(existing.identity?.id || '').trim()
+  if (hasActiveSession && isTransient(error)) {
+    return {
+      ...existing,
+      status: 'ready',
+      refreshState: 'degraded',
+      error: error?.message || 'The STEM account service is temporarily unavailable. Your session is still active.',
+    }
+  }
+  return {
+    status: 'guest',
+    token: '',
+    workspace: null,
+    error: error?.message || 'Shared account is unavailable.',
+  }
+}
+
 function responseError(response, payload, fallback) {
   if (response.status === 401 || response.status === 403) return new SharedAccountError('session_expired', 'Your STEM session has expired. Sign in here to continue.', { loginRequired: true })
   if (response.status === 429 || response.status >= 500) {
@@ -26,10 +58,6 @@ function responseError(response, payload, fallback) {
     return new SharedAccountError(code, payload?.error || fallback, { retryable: true })
   }
   return new SharedAccountError('request_rejected', payload?.error || fallback)
-}
-
-function isTransient(error) {
-  return error instanceof TypeError || error?.name === 'AbortError' || error?.retryable
 }
 
 function parseIdentity(payload) {

@@ -343,6 +343,7 @@ export function serializeCoachConversation({ conversationId, context = {}, messa
       ...(text(subject.code || subject.id, 500) ? { module: text(subject.code || subject.id, 500) } : {}),
     },
     ...(coachContext.contextText ? { contextText: coachContext.contextText } : {}),
+    context: coachContext,
     messages: persistedMessages,
     metadata: {
       status: persistedMessages.at(-1)?.status || 'saved',
