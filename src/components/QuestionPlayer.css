@@ -351,6 +351,81 @@
   min-height: 0;
 }
 
+.source-region-renderer {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.source-region-renderer__status {
+  display: grid;
+  gap: 4px;
+  min-height: 110px;
+  place-items: center;
+  padding: 18px;
+  border: 1px solid var(--qp-border);
+  border-radius: 8px;
+  color: var(--qp-muted);
+  background: #fbfcfe;
+  font-size: 12px;
+  text-align: center;
+}
+
+.source-region-renderer__status small {
+  max-width: 560px;
+  overflow-wrap: anywhere;
+  color: var(--qp-muted);
+  font-size: 10px;
+}
+
+.source-region-renderer__status--error {
+  color: #8d3b3b;
+  background: #fff8f8;
+}
+
+.source-region-renderer__status--fallback {
+  min-height: 0;
+  padding: 9px 12px;
+  color: #735c18;
+  background: #fffaf0;
+  text-align: left;
+}
+
+.source-region-renderer__page {
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--qp-border);
+  border-radius: 7px;
+  background: #fff;
+}
+
+.source-region-renderer__page img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.source-region-renderer__page figcaption {
+  padding: 7px 10px;
+  color: var(--qp-muted);
+  background: #fbfcfe;
+  font-size: 10px;
+}
+
+.source-region-renderer__crop {
+  position: relative;
+  overflow: hidden;
+}
+
+.source-region-renderer__crop img {
+  position: absolute;
+  top: var(--source-crop-top);
+  left: var(--source-crop-left);
+  width: var(--source-crop-width);
+  max-width: none;
+  transform: translate(-0%, -0%);
+}
+
 .qp-answer-panel__heading {
   display: grid;
   gap: 3px;
@@ -374,11 +449,23 @@
   min-width: 0;
 }
 
+.qp-answer-list--multi {
+  gap: 14px 16px;
+}
+
 .qp-answer-part {
   min-width: 0;
   padding: 0 0 18px;
   border-bottom: 1px solid var(--qp-border);
   scroll-margin-top: 118px;
+}
+
+.qp-answer-list--multi .qp-answer-part {
+  padding: 14px 14px 16px;
+  border: 1px solid var(--qp-border);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 1px 0 rgb(15 23 42 / 0.02);
 }
 
 .qp-answer-part:last-child {
@@ -471,6 +558,11 @@
 
   .qp-question__answer-panel--multi {
     position: static;
+  }
+
+  .qp-answer-list--multi {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    align-items: start;
   }
 
   .qp-question__source-panel .qp-question-asset__image--page {

@@ -184,6 +184,7 @@ const workspaceSource = await import('node:fs').then(({ readFileSync }) => readF
 const paperLibrarySource = await import('node:fs').then(({ readFileSync }) => readFileSync(new URL('../src/components/PaperLibrary.jsx', import.meta.url), 'utf8'))
 const paperAnswerSheetSource = await import('node:fs').then(({ readFileSync }) => readFileSync(new URL('../src/components/PaperAnswerSheet.jsx', import.meta.url), 'utf8'))
 const paperWorkspaceSource = await import('node:fs').then(({ readFileSync }) => readFileSync(new URL('../src/components/PaperWorkspace.jsx', import.meta.url), 'utf8'))
+const questionPlayerCss = await import('node:fs').then(({ readFileSync }) => readFileSync(new URL('../src/components/QuestionPlayer.css', import.meta.url), 'utf8'))
 const historySource = await import('node:fs').then(({ readFileSync }) => readFileSync(new URL('../src/components/HistoryView.jsx', import.meta.url), 'utf8'))
 const handwritingSource = await import('node:fs').then(({ readFileSync }) => readFileSync(new URL('../src/components/HandwritingPad.jsx', import.meta.url), 'utf8'))
 
@@ -211,6 +212,8 @@ assert.match(workspaceSource, /answer part is|answer parts are/, 'submit confirm
 assert.match(workspaceSource, /sourceQuestionDisplayLabel/, 'question navigation must identify the source paper and question')
 assert.match(workspaceSource, /paperCount/, 'practice workspace must display the canonical paper count')
 assert.match(workspaceSource, /totalMarks/, 'practice workspace must display the canonical total marks')
+assert.match(workspaceSource, /qp-answer-list--multi/, 'multi-part answers must be rendered with a dedicated horizontal layout class')
+assert.match(questionPlayerCss, /qp-answer-list--multi[\s\S]*grid-template-columns: repeat\(auto-fit, minmax\(300px, 1fr\)\)/, 'multi-part answers must lay out horizontally on desktop')
 assert.match(workspaceSource, /Semantic-reviewed/, 'reviewed written parts must use the student-facing semantic-reviewed status')
 assert.match(workspaceSource, /official question/, 'student practice metrics must call question groups official questions')
 assert.doesNotMatch(workspaceSource, /metrics\.markTotal|source question\{/, 'student practice metrics must use the canonical totalMarks and official-question terminology')

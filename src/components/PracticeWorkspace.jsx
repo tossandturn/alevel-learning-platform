@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, CheckCircle2, ChevronLeft, ChevronRight, Clock3, FileText, Lightbulb, ListChecks, Maximize2, Minimize2, RotateCcw, Save, Search, Sparkles, X, ZoomIn, ZoomOut } from 'lucide-react'
 import { AiCoach } from './AiCoach'
 import { HandwritingPad } from './HandwritingPad'
-import { stripSourceVisualPlaceholders, trustedSourceAssetUrls } from '../lib/questionContent.js'
+import { SourceRegionRenderer } from './SourceRegionRenderer'
+import { buildSourceRenderManifest } from '../lib/sourceRenderManifest.js'
+import { stripSourceVisualPlaceholders } from '../lib/questionContent.js'
 import { evidencePresent, practiceAttemptMetrics, sourceQuestionDisplayLabel } from '../lib/practicePresentation.js'
 import './QuestionPlayer.css'
 
@@ -261,18 +263,9 @@ function AnswerPartWorkspace({ part, partIndex, totalParts, attempt, active, sou
 export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, updateEvidence, submitAttempt, deferredMarking = false, stateOwnerId = '', sharedIdentityToken = '', sharedIdentityUserId = '', goBack, immersive = false, onToggleImmersive = () => {}, onGeneratePractice, onAgentAction }) {
   const [showSubmitCheck, setShowSubmitCheck] = useState(false)
   const [coachRequest, setCoachRequest] = useState(0)
-  const [sourceAssetIndex, setSourceAssetIndex] = useState(0)
-  const [sourceViewMode, setSourceViewMode] = useState('focus')
-  const [sourceZoomOpen, setSourceZoomOpen] = useState(false)
-  const [sourceZoomScale, setSourceZoomScale] = useState(1)
-  const [sourceAssetLoad, setSourceAssetLoad] = useState({ scope: '', statuses: {} })
+  const [sourceRenderState, setSourceRenderState] = useState({ scope: '', status: 'idle' })
   const [flushing, setFlushing] = useState(false)
   const flushHandlersRef = useRef(new Set())
-  const sourceZoomTriggerRef = useRef(null)
-  const sourceZoomToolbarTriggerRef = useRef(null)
-  const sourceZoomCloseRef = useRef(null)
-  const sourceZoomRestoreTargetRef = useRef(null)
-  const sourceZoomRestorePendingRef = useRef(false)
   const parts = unit.parts || EMPTY_PARTS
   const questionGroups = useMemo(() => groupQuestionParts(parts), [parts])
   const attemptMetrics = useMemo(() => practiceAttemptMetrics(attempt, unit), [attempt, unit])
@@ -294,107 +287,22 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
   const progress = Math.round((answeredQuestions / Math.max(1, sourceQuestionCount)) * 100)
   const modeLabel = settings.mode === 'exam' ? 'Exam mode' : settings.mode === 'guided' ? 'Guided practice' : 'Practice mode'
   const sourceParts = useMemo(() => parts.filter(requiresBoundSource), [parts])
-  const allSourceAssetUrls = useMemo(() => [...new Set(sourceParts.flatMap(sourceUrlsForPart))], [sourceParts])
-  const sourceAssetScope = `${attempt.id || unit.id || 'practice'}:${allSourceAssetUrls.join('|')}`
-  const sourceAssetStatuses = sourceAssetLoad.scope === sourceAssetScope ? sourceAssetLoad.statuses : {}
-  const visualSourceUrls = useMemo(() => sourceUrlsForPart(activePart), [activePart])
-  const sourceAssetPosition = Math.min(sourceAssetIndex, Math.max(0, visualSourceUrls.length - 1))
-  const activeSourceAssetUrl = visualSourceUrls[sourceAssetPosition] || ''
-  const sourceAssetPage = activeSourceAssetUrl.match(/\/qp-(\d+)\.(?:png|jpe?g|webp)$/i)?.[1] || activePart.sourceRef?.pageStart || '?'
-  const sourceFocusPages = activePart.sourceFocus?.pages || []
-  const activeSourceFocus = sourceFocusPages.find((entry) => entry.assetUrl === activeSourceAssetUrl) || null
-  const showSourceFocus = sourceViewMode === 'focus' && Boolean(activeSourceFocus)
-  const neighboringSourceLabels = sourceLabelsOnPage(parts, activePart, activeSourceAssetUrl)
   const activeRequiresBoundSource = requiresBoundSource(activePart)
-  const activeSourceDeclaredComplete = !activeRequiresBoundSource || ((activePart.sourceContentAvailable === true || activePart.sourceContentComplete === true) && visualSourceUrls.length > 0)
-  const activeSourceFailed = visualSourceUrls.some((url) => sourceAssetStatuses[url] === 'error')
-  const activeSourceLoading = activeRequiresBoundSource && activeSourceDeclaredComplete && visualSourceUrls.some((url) => sourceAssetStatuses[url] !== 'loaded') && !activeSourceFailed
-  const activeSourceComplete = !activeRequiresBoundSource || (activeSourceDeclaredComplete && !activeSourceFailed && visualSourceUrls.every((url) => sourceAssetStatuses[url] === 'loaded'))
-  const unitSourceDeclaredComplete = sourceParts.every((part) => (part.sourceContentAvailable === true || part.sourceContentComplete === true) && sourceUrlsForPart(part).length > 0)
-  const unitSourceFailed = allSourceAssetUrls.some((url) => sourceAssetStatuses[url] === 'error')
-  const unitSourceComplete = unitSourceDeclaredComplete && !unitSourceFailed && allSourceAssetUrls.every((url) => sourceAssetStatuses[url] === 'loaded')
-
-  useEffect(() => {
-    let cancelled = false
-    const initialStatuses = Object.fromEntries(allSourceAssetUrls.map((url) => [url, 'loading']))
-    setSourceAssetLoad({ scope: sourceAssetScope, statuses: initialStatuses })
-    const images = allSourceAssetUrls.map((url) => {
-      const image = new Image()
-      image.onload = () => {
-        if (cancelled) return
-        setSourceAssetLoad((current) => current.scope !== sourceAssetScope || current.statuses[url] === 'loaded'
-          ? current
-          : { ...current, statuses: { ...current.statuses, [url]: 'loaded' } })
-      }
-      image.onerror = () => {
-        if (cancelled) return
-        setSourceAssetLoad((current) => current.scope !== sourceAssetScope || current.statuses[url] === 'error'
-          ? current
-          : { ...current, statuses: { ...current.statuses, [url]: 'error' } })
-      }
-      image.src = url
-      return image
-    })
-    return () => {
-      cancelled = true
-      for (const image of images) {
-        image.onload = null
-        image.onerror = null
-      }
-    }
-  }, [sourceAssetScope, allSourceAssetUrls])
-
-  useEffect(() => {
-    const focusPage = Number(activePart?.sourceFocus?.focusPage)
-    const focusIndex = Number.isFinite(focusPage)
-      ? visualSourceUrls.findIndex((url) => Number(sourcePageFromUrl(url)) === focusPage)
-      : -1
-    setSourceAssetIndex(focusIndex >= 0 ? focusIndex : 0)
-    setSourceViewMode(activePart?.sourceFocus?.defaultView === 'original' ? 'original' : 'focus')
-    setSourceZoomOpen(false)
-    setSourceZoomScale(1)
-  }, [activePart?.id, activePart?.sourceFocus?.defaultView, activePart?.sourceFocus?.focusPage, activeQuestion.parts.length, visualSourceUrls])
-
-  useLayoutEffect(() => {
-    if (sourceZoomOpen) {
-      sourceZoomCloseRef.current?.focus({ preventScroll: true })
-      return
-    }
-    if (!sourceZoomRestorePendingRef.current) return
-
-    const candidates = [
-      sourceZoomRestoreTargetRef.current,
-      sourceZoomTriggerRef.current,
-      sourceZoomToolbarTriggerRef.current,
-    ]
-    const target = candidates.find((candidate) => candidate instanceof HTMLElement && candidate.isConnected && !candidate.disabled)
-    sourceZoomRestorePendingRef.current = false
-    if (target) target.focus({ preventScroll: true })
-  }, [sourceZoomOpen])
-
-  const markSourceAsset = useCallback((url, status) => {
-    setSourceAssetLoad((current) => current.scope !== sourceAssetScope || current.statuses[url] === status
+  const activeSourceManifest = useMemo(() => buildSourceRenderManifest({ sourceRef: activePart?.sourceRef, parts: activeQuestion.parts }), [activePart?.sourceRef, activeQuestion.parts])
+  const activeSourceScope = `${attempt.id || unit.id || 'practice'}:${activeQuestion.id}:${activeSourceManifest?.sourcePdfUrl || ''}:${JSON.stringify(activeSourceManifest?.pages || [])}`
+  const activeSourceStatus = sourceRenderState.scope === activeSourceScope ? sourceRenderState.status : 'idle'
+  const activeSourceDeclaredComplete = !activeRequiresBoundSource || ((activePart.sourceContentAvailable === true || activePart.sourceContentComplete === true) && Boolean(activeSourceManifest))
+  const activeSourceLoading = activeRequiresBoundSource && activeSourceDeclaredComplete && (activeSourceStatus === 'idle' || activeSourceStatus === 'loading')
+  const activeSourceFailed = activeSourceStatus === 'error'
+  const activeSourceComplete = !activeRequiresBoundSource || (activeSourceDeclaredComplete && (activeSourceStatus === 'ready' || activeSourceStatus === 'fallback'))
+  const unitSourceDeclaredComplete = sourceParts.every((part) => (part.sourceContentAvailable === true || part.sourceContentComplete === true) && Boolean(buildSourceRenderManifest({ sourceRef: part.sourceRef, parts: [part] })))
+  const unitSourceComplete = unitSourceDeclaredComplete
+  const handleSourceRenderStatus = useCallback((status) => {
+    setSourceRenderState((current) => current.scope === activeSourceScope && current.status === status
       ? current
-      : { ...current, statuses: { ...current.statuses, [url]: status } })
-  }, [sourceAssetScope])
+      : { scope: activeSourceScope, status })
+  }, [activeSourceScope])
 
-  const changeSourceAsset = useCallback((nextIndex) => {
-    setSourceAssetIndex(Math.max(0, Math.min(visualSourceUrls.length - 1, nextIndex)))
-    setSourceZoomScale(1)
-  }, [visualSourceUrls.length])
-
-  function openSourceZoom(event) {
-    sourceZoomTriggerRef.current = event.currentTarget
-    sourceZoomRestoreTargetRef.current = event.currentTarget
-    sourceZoomRestorePendingRef.current = false
-    setSourceZoomScale(1)
-    setSourceZoomOpen(true)
-  }
-
-  function closeSourceZoom() {
-    sourceZoomRestorePendingRef.current = true
-    setSourceZoomOpen(false)
-  }
 
   function goToPart(partId) {
     setActivePart(partId)
@@ -537,20 +445,11 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
 
               <div className="qp-question__workbench">
                 <section className="qp-question__source-panel qp-question__body" id={`qp-source-panel-${activePart.id}`} aria-label="Question source and prompt">
-                  {neighboringSourceLabels.length > 0 && <p className="qp-source-context" data-testid="source-page-context"><strong>Current {sourceQuestionLabel(activePart, `Question ${activeQuestionIndex + 1}`)}.</strong> This original page also contains {neighboringSourceLabels.length === 1 ? neighboringSourceLabels[0] : `${neighboringSourceLabels.slice(0, -1).join(', ')} and ${neighboringSourceLabels.at(-1)}`}. They are shown for source fidelity; only the current question is being answered and marked.</p>}
-                  {activeSourceComplete && activeSourceAssetUrl ? <figure className={`qp-question-asset ${showSourceFocus ? 'qp-question-asset--focused' : 'qp-question-asset--original'}`} data-source-view={showSourceFocus ? 'focused' : 'original'} data-focus-safety={showSourceFocus ? activeSourceFocus.safetyStatus || 'unverified' : 'full-page'} data-focus-region={showSourceFocus ? activeSourceFocus.region.join(',') : ''} data-focus-raw-region={showSourceFocus ? activeSourceFocus.rawRegion?.join(',') || '' : ''} data-focus-margin={showSourceFocus ? activeSourceFocus.safetyMargin?.join(',') || '' : ''} aria-label={`${showSourceFocus ? 'Focused' : 'Complete'} official source material for ${sourceQuestionLabel(activePart, `Question ${activeQuestionIndex + 1}`)}`}>
-                    <div className="qp-question-asset__toolbar">
-                      <strong>{showSourceFocus ? 'Focused question view' : 'Complete original page'} · {sourceAssetPosition + 1} of {visualSourceUrls.length}</strong>
-                      <span>QP p.{sourceAssetPage}</span>
-                      {activeSourceFocus && <button type="button" className="qp-source-view-toggle" aria-pressed={!showSourceFocus} onClick={() => setSourceViewMode((value) => value === 'focus' ? 'original' : 'focus')}>{showSourceFocus ? 'Show full original page' : 'Focus current question'}</button>}
-                      {visualSourceUrls.length > 1 && <span className="qp-question-asset__pager"><button type="button" className="icon-button" aria-label="Previous source page" disabled={sourceAssetPosition === 0} onClick={() => changeSourceAsset(sourceAssetPosition - 1)}><ChevronLeft size={16} /></button><button type="button" className="icon-button" aria-label="Next source page" disabled={sourceAssetPosition === visualSourceUrls.length - 1} onClick={() => changeSourceAsset(sourceAssetPosition + 1)}><ChevronRight size={16} /></button></span>}
-                      <button ref={sourceZoomToolbarTriggerRef} type="button" className="icon-button" aria-label="Expand source image" title="Expand source image" onClick={openSourceZoom}><Search size={16} /></button>
-                    </div>
-                    <button type="button" className={`qp-question-asset__image ${showSourceFocus ? 'qp-question-asset__image--focus' : 'qp-question-asset__image--page'}`} style={showSourceFocus && activeSourceFocus ? { aspectRatio: sourceFocusAspectRatio(activeSourceFocus) } : undefined} onClick={openSourceZoom} aria-label={showSourceFocus ? 'Expand full official question page' : 'Expand complete official question image'}>
-                      <img src={activeSourceAssetUrl} style={showSourceFocus && activeSourceFocus ? sourceFocusImageStyle(activeSourceFocus) : undefined} alt={`${showSourceFocus ? 'Focused' : 'Complete'} official source page ${sourceAssetPosition + 1} for ${sourceQuestionLabel(activePart, `Question ${activeQuestionIndex + 1}`)}`} loading="eager" onLoad={() => markSourceAsset(activeSourceAssetUrl, 'loaded')} onError={() => markSourceAsset(activeSourceAssetUrl, 'error')} />
-                    </button>
-                    <figcaption>{showSourceFocus ? `Verified crop for ${sourceQuestionLabel(activePart, `Question ${activeQuestionIndex + 1}`)}. Use the expand control to inspect the complete original page.` : 'Complete source-bound question material. The paired mark scheme stays hidden until submission.'}</figcaption>
-                  </figure> : activeSourceLoading ? <div className="qp-source-loading" role="status" aria-live="polite"><FileText size={18} /><strong>Loading the complete question</strong><span>Checking {visualSourceUrls.length} required question page{visualSourceUrls.length === 1 ? '' : 's'} before this answer area opens.</span></div> : activeRequiresBoundSource ? <div className="qp-source-incomplete" role="alert"><AlertTriangle size={18} /><strong>This question is temporarily unavailable.</strong><span>{activeSourceFailed ? 'A required official question page could not be loaded. Answering and submission are blocked for this attempt.' : 'The complete official question and marking guidance could not be confirmed, so answering and submission are blocked.'}</span></div> : null}
+                  {activeSourceComplete && activeSourceManifest ? <figure className="qp-question-asset qp-question-asset--rendered" data-source-view="pdf-regions" data-source-document={activeSourceManifest.sourceDocumentId} data-source-pages={activeSourceManifest.pages.map((entry) => entry.page).join(',')} aria-label={`Rendered official source material for ${sourceQuestionLabel(activePart, `Question ${activeQuestionIndex + 1}`}`}>
+                    <div className="qp-question-asset__toolbar"><strong>Complete question · {activeSourceManifest.pages.length} source page{activeSourceManifest.pages.length === 1 ? '' : 's'}</strong><span>Rendered from source PDF</span></div>
+                    <SourceRegionRenderer manifest={activeSourceManifest} onStatus={handleSourceRenderStatus} />
+                    <figcaption>Question regions are rendered from the checksum-bound original PDF and joined here as one question. The complete paper remains available below.</figcaption>
+                  </figure> : activeSourceLoading ? <div className="qp-source-loading" role="status" aria-live="polite"><FileText size={18} /><strong>Loading the complete question</strong><span>Rendering the checksum-bound source PDF before this answer area opens.</span></div> : activeRequiresBoundSource ? <div className="qp-source-incomplete" role="alert"><AlertTriangle size={18} /><strong>This question is temporarily unavailable.</strong><span>{activeSourceFailed ? 'The official source PDF could not be rendered. Answering and submission are blocked for this attempt.' : 'The complete official question and marking guidance could not be confirmed, so answering and submission are blocked.'}</span></div> : null}
                   {!activePart.sourceRef?.paperId && <h2>{displayPrompt(activePart)}</h2>}
                   {activePart.sourceRef && <div className="question-source-label qp-source-label"><strong>Official Cambridge question · {sourceQuestionLabel(activePart, `Question ${activeQuestionIndex + 1}`)}</strong><span>Source-bound question from the original paper. Marking feedback appears after submission.</span></div>}
                   {activePart.studyOnly && <div className="qp-source-study-note" role="status"><strong>Study mode</strong><span>This official source is ready for practice while formal review is pending. You can submit and self-mark; it is excluded from AI marking and formal mastery.</span></div>}
@@ -561,7 +460,7 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
                     <strong>{activeQuestion.parts.length === 1 ? 'Answer workspace' : 'Answer every part of this question'}</strong>
                     <span>{activeQuestion.parts.length} answer part{activeQuestion.parts.length === 1 ? '' : 's'} · {activeQuestion.parts.reduce((sum, part) => sum + Number(part.marks || 0), 0)} marks</span>
                   </div>
-                  <div className="qp-answer-list">
+                  <div className={`qp-answer-list ${activeQuestion.parts.length > 1 ? 'qp-answer-list--multi' : ''}`}>
                     {activeQuestion.parts.map((part, partIndex) => (
                       <AnswerPartWorkspace
                         key={part.id}
