@@ -15,6 +15,7 @@ assert.ok(entryName, 'built client entry chunk is missing')
 const entry = fs.readFileSync(path.join(assetRoot, entryName))
 const entryGzip = gzipSync(entry, { level: 9 })
 const html = fs.readFileSync(path.join(root, 'dist', 'index.html'), 'utf8')
+assert.match(html, /rel="modulepreload"[^>]+App-[^>]+\.js/, 'the first screen must preload the App chunk to avoid an entry-to-App waterfall')
 const paperWorkspaceName = jsAssets.find((name) => /^PaperWorkspace-/.test(name))
 const paperLibraryName = jsAssets.find((name) => /^PaperLibrary-/.test(name))
 const pdfViewerName = jsAssets.find((name) => /^PdfViewer-/.test(name))
@@ -37,11 +38,15 @@ assert.ok(paperLibraryName, 'the past-paper catalog must remain an on-demand cli
 assert.ok(paperWorkspaceName, 'paper workspace must remain an on-demand client chunk')
 assert.ok(pdfViewerName, 'PDF viewer must remain an on-demand client chunk')
 assert.ok(!entry.includes('pdfjs-dist'), 'the initial client entry must not include PDF parsing code')
+assert.ok(!entry.includes('curriculumPracticeUnits'), 'legacy seed practice units must not be embedded in the initial client entry')
 
 const paperWorkspace = fs.readFileSync(path.join(assetRoot, paperWorkspaceName))
 const verifiedRuntime = fs.readFileSync(path.join(assetRoot, practiceRuntimeName))
+const studyQuestionRuntime = fs.readFileSync(path.join(assetRoot, studyQuestionRuntimeName))
 assert.ok(verifiedRuntime.length < 100_000, `verified runtime is too large: ${verifiedRuntime.length} bytes`)
 assert.ok(!verifiedRuntime.includes('importedQuestionIndex'), 'the verified runtime must not embed the full study question index')
+assert.ok(studyQuestionRuntime.length < 120_000, `study question runtime is too large: ${studyQuestionRuntime.length} bytes`)
+assert.ok(!studyQuestionRuntime.includes('importedQuestionIndex'), 'the study question runtime must not embed the full study question index')
 assert.ok(!paperWorkspace.includes('pdfjs-dist'), 'the paper workspace must defer PDF parsing until the document pane renders')
 
 const pdfViewer = fs.readFileSync(path.join(root, 'src', 'components', 'PdfViewer.jsx'), 'utf8')
@@ -66,6 +71,7 @@ assert.ok(runtimePerformance.includes("observe('event'"), 'runtime monitoring mu
 assert.ok(runtimePerformance.includes('performance.memory'), 'runtime monitoring must sample supported memory metrics')
 assert.ok(appSource.includes("view === 'library' && ['papers', 'exams'].includes(activeTab)"), 'the paper catalog must load only when the student opens a paper workflow')
 assert.ok(paperCatalogHook.includes('if (enabled) void load()'), 'the paper catalog request must remain gated behind the enabled state')
+assert.ok(fs.existsSync(path.join(root, 'public', 'data', 'study-question-index', 'manifest.json')), 'route-scoped study question fragments must be generated before build')
 
 console.log(JSON.stringify({
   entry: entryName,

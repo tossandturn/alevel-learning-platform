@@ -1,6 +1,7 @@
 import { Component, StrictMode, lazy, Suspense, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import { freshReloadUrl, isBootFailure } from './lib/bootRecovery'
 import { startRuntimePerformanceMonitoring } from './lib/runtimePerformance'
 
 startRuntimePerformanceMonitoring()
@@ -20,14 +21,47 @@ function setBootFallback({ hidden = true, title = '', message = '' } = {}) {
     const copy = fallback.querySelector('p')
     if (copy) copy.textContent = message
   }
+  const reloadLink = fallback.querySelector('a')
+  if (reloadLink && typeof window !== 'undefined') {
+    reloadLink.href = freshReloadUrl(window.location.href)
+  }
 }
+
+function clearBootRecoveryParam() {
+  if (typeof window === 'undefined' || !window.history?.replaceState) return
+  const url = new URL(window.location.href)
+  if (!url.searchParams.has('_stem_reload')) return
+  url.searchParams.delete('_stem_reload')
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+}
+
+let appReady = false
+
+function markAppReady() {
+  appReady = true
+  setBootFallback({ hidden: true })
+  clearBootRecoveryParam()
+  try {
+    window.sessionStorage.removeItem('stem:chunk-reload-at')
+  } catch {
+    // Storage can be unavailable in privacy mode; the app remains usable.
+  }
+}
+
+if (typeof window !== 'undefined') window.__stemAppReady = markAppReady
 
 export function AppLoadingFallback() {
   const [timedOut, setTimedOut] = useState(false)
 
   useEffect(() => {
-    setBootFallback()
-    const timer = window.setTimeout(() => setTimedOut(true), 8000)
+    const timer = window.setTimeout(() => {
+      setTimedOut(true)
+      setBootFallback({
+        hidden: false,
+        title: 'STEM is taking too long to open',
+        message: 'The app module did not arrive in time. Reload STEM to retry the current release.',
+      })
+    }, 8000)
     return () => window.clearTimeout(timer)
   }, [])
 
@@ -58,7 +92,11 @@ export class AppErrorBoundary extends Component {
 
   componentDidCatch(error) {
     if (typeof window !== 'undefined') window.__stemLastAppError = String(error?.message || error || 'unknown error')
-    setBootFallback()
+    setBootFallback({
+      hidden: false,
+      title: 'STEM could not open this page',
+      message: 'The page failed before it finished loading. Use Reload STEM to try the current release again.',
+    })
   }
 
   retry = () => {
@@ -85,9 +123,10 @@ export class AppErrorBoundary extends Component {
   }
 }
 
-window.addEventListener('vite:preloadError', (event) => {
-  event.preventDefault()
-  window.__stemChunkLoadError = true
+let bootRecoveryStarted = false
+
+function handleBootFailure(reason = '') {
+  if (appReady || !isBootFailure(reason, { appReady })) return
   let shouldReload = false
   try {
     const key = 'stem:chunk-reload-at'
@@ -95,15 +134,17 @@ window.addEventListener('vite:preloadError', (event) => {
     shouldReload = !previous || Date.now() - previous > 30_000
     if (shouldReload) window.sessionStorage.setItem(key, String(Date.now()))
   } catch {
-    shouldReload = false
+    shouldReload = !bootRecoveryStarted
   }
+  if (bootRecoveryStarted) return
+  bootRecoveryStarted = true
   if (shouldReload) {
     setBootFallback({
       hidden: false,
       title: 'Refreshing STEM Studio...',
       message: 'The current page bundle changed. Reloading the latest version.',
     })
-    window.location.reload()
+    window.location.replace(freshReloadUrl())
     return
   }
   setBootFallback({
@@ -111,14 +152,42 @@ window.addEventListener('vite:preloadError', (event) => {
     title: 'STEM could not load this page',
     message: 'The latest page bundle is unavailable. Use Reload STEM to try again.',
   })
+}
+
+window.addEventListener('vite:preloadError', (event) => {
+  event.preventDefault()
+  window.__stemChunkLoadError = true
+  handleBootFailure(event)
 })
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <AppErrorBoundary>
-      <Suspense fallback={<AppLoadingFallback />}>
-        <App />
-      </Suspense>
-    </AppErrorBoundary>
-  </StrictMode>,
-)
+window.addEventListener('unhandledrejection', (event) => {
+  handleBootFailure(event.reason)
+})
+
+window.addEventListener('error', (event) => {
+  if (event.target instanceof HTMLScriptElement || isBootFailure(event.error || event.message, { appReady })) {
+    handleBootFailure(event.error || event.message)
+  }
+})
+
+const rootElement = document.getElementById('root')
+if (!rootElement) {
+  setBootFallback({
+    hidden: false,
+    title: 'STEM could not open this page',
+    message: 'The page shell is incomplete. Reload STEM to restore the current release.',
+  })
+} else {
+  const reactRoot = rootElement.__stemReactRoot || createRoot(rootElement)
+  rootElement.__stemReactRoot = reactRoot
+
+  reactRoot.render(
+    <StrictMode>
+      <AppErrorBoundary>
+        <Suspense fallback={<AppLoadingFallback />}>
+          <App />
+        </Suspense>
+      </AppErrorBoundary>
+    </StrictMode>,
+  )
+}

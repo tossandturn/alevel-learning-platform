@@ -188,6 +188,35 @@ function securityHeaders(request, response, next) {
   return next()
 }
 
+function stemAppModulePreload() {
+  return {
+    name: 'stem-app-modulepreload',
+    transformIndexHtml: {
+      order: 'post',
+      handler(html, context) {
+        if (!context.bundle) return html
+        const appChunk = Object.values(context.bundle).find((asset) => (
+          asset.type === 'chunk'
+          && /[/\\]src[/\\]App\.jsx$/.test(String(asset.facadeModuleId || ''))
+        ))
+        if (!appChunk || html.includes(appChunk.fileName)) return html
+        return {
+          html,
+          tags: [{
+            tag: 'link',
+            attrs: {
+              rel: 'modulepreload',
+              crossorigin: '',
+              href: `/${appChunk.fileName}`,
+            },
+            injectTo: 'head',
+          }],
+        }
+      },
+    },
+  }
+}
+
 function localCieLibrary(env) {
   const libraryRoot = path.resolve(env.CIE_LIBRARY_ROOT || DEFAULT_LIBRARY_ROOT)
   const aiApi = createAiApi({ env, libraryRoot, allowedSubjects: ALLOWED_SUBJECTS })
@@ -239,6 +268,7 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       react(),
+      stemAppModulePreload(),
       viteStaticCopy({
         targets: [
           { src: 'node_modules/pdfjs-dist/cmaps/*', dest: 'pdfjs/cmaps', rename: { stripBase: true } },

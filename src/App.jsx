@@ -26,7 +26,7 @@ import {
   Trophy,
   Users,
 } from 'lucide-react'
-import { fullPaperUnits, importedPdfLibrary, subjects, topicUnits } from './data/catalog'
+import { subjects } from './data/subjectCatalog'
 import { learningPlan, stagesForComponentTags } from './data/learningPlan'
 import { courseRoutes, formatRouteComponents, routeById, routeForStagePreservingSubject, routesForSubject } from './data/routeRegistry'
 import { COURSE_STAGE_ORDER } from './data/stages'
@@ -56,6 +56,7 @@ import { studentNavigationFromLocation, studentNavigationHref } from './lib/stud
 import { normalizePaperStudyMode, paperDraftKey } from './lib/paperStudyMode'
 import { buildStemVocabularyContext, vocabularyCoverageForRoute } from './data/stemVocabularyTaxonomy'
 import { topicLearningContent } from './data/topicLearningContent'
+import { SOURCE_LIBRARY_SUMMARY } from './data/sourceLibrarySummary'
 import { aggregateTopicPracticeInventory, evidencePresent, practiceAttemptMetrics, practiceMetricsSummary, practiceUnitMetrics, topicDisplayNames, topicPracticeInventory, withPracticePresentation } from './lib/practicePresentation'
 import { MIN_VERIFIED_GROUPS_FOR_PRACTICE } from './lib/practiceConstants'
 import './App.css'
@@ -381,6 +382,9 @@ function getIncomingProductContext() {
 }
 
 function App() {
+  useLayoutEffect(() => {
+    if (typeof window !== 'undefined') window.__stemAppReady?.()
+  }, [])
   const [initialNavigation] = useState(() => studentNavigationFromLocation())
   const [appState, setAppState] = useState(() => loadState())
   const incomingContext = getIncomingProductContext()
@@ -424,7 +428,7 @@ function App() {
   const [exportState, setExportState] = useState({ status: 'idle', error: '', exportedAt: '', filename: '' })
   const [syllabusRebindState, setSyllabusRebindState] = useState(() => ({ fingerprint: '', status: 'idle', units: new Map() }))
   const [practiceRuntimeState, setPracticeRuntimeState] = useState({ status: 'idle', module: null, error: '' })
-  const [studyQuestionRuntimeState, setStudyQuestionRuntimeState] = useState({ status: 'idle', module: null, error: '' })
+  const [studyQuestionRuntimeState, setStudyQuestionRuntimeState] = useState({ status: 'idle', module: null, groups: [], routeId: '', error: '' })
   const migrationAttemptedRef = useRef(false)
   const notebookSyncTimerRef = useRef(null)
   const stateOwnerIdRef = useRef('')
@@ -443,23 +447,25 @@ function App() {
         throw error
       })
   }, [])
-  const ensureStudyQuestionRuntime = useCallback(() => {
-    setStudyQuestionRuntimeState((current) => current.module ? current : { ...current, status: 'loading', error: '' })
+  const ensureStudyQuestionRuntime = useCallback((requestedRouteId = activeRouteId) => {
+    const routeId = String(requestedRouteId || activeRouteId || '').trim()
+    const verifiedGroups = practiceRuntimeState.module?.verifiedPracticeQuestionGroups || []
+    setStudyQuestionRuntimeState((current) => ({ ...current, status: 'loading', routeId, error: '' }))
     return loadStudyQuestionRuntime()
-      .then((module) => {
-        setStudyQuestionRuntimeState({ status: 'ready', module, error: '' })
-        return module
+      .then((module) => module.loadStudyQuestionGroupsForRoute(routeId, verifiedGroups).then((groups) => ({ module, groups })))
+      .then(({ module, groups }) => {
+        setStudyQuestionRuntimeState({ status: 'ready', module: { loadStudyQuestionGroupsForRoute: module.loadStudyQuestionGroupsForRoute }, groups, routeId, error: '' })
+        return groups
       })
       .catch((error) => {
-        setStudyQuestionRuntimeState({ status: 'error', module: null, error: error.message || 'Source question search could not be loaded.' })
+        setStudyQuestionRuntimeState({ status: 'error', module: null, groups: [], routeId, error: error.message || 'Source question search could not be loaded.' })
         throw error
       })
-  }, [])
+  }, [activeRouteId, practiceRuntimeState.module])
   const openPastPaperQuestions = useCallback(() => {
-    void ensureStudyQuestionRuntime().catch(() => {})
-  }, [ensureStudyQuestionRuntime])
+    void ensureStudyQuestionRuntime(activeRouteId).catch(() => {})
+  }, [activeRouteId, ensureStudyQuestionRuntime])
   const practiceRuntime = practiceRuntimeState.module
-  const studyQuestionRuntime = studyQuestionRuntimeState.module
   const verifiedCatalogUnits = useMemo(() => practiceRuntime?.buildVerifiedPracticeCatalog() || [], [practiceRuntime])
   const persistedSyllabusUnits = useMemo(() => (
     (appState.generatedUnits || []).filter((unit) => unit?.sourceAuthority === 'server-syllabus')
@@ -507,7 +513,6 @@ function App() {
     })
   }, [appState.generatedUnits, practiceRuntime, syllabusRebindState.units, verifiedCatalogUnits])
   const allPracticeUnits = visibleVerifiedUnits
-  const migrationUnits = useMemo(() => [...new Map([...allPracticeUnits, ...topicUnits, ...fullPaperUnits].map((unit) => [unit.id, unit])).values()], [allPracticeUnits])
   const routePracticeUnits = useMemo(() => allPracticeUnits.filter((unit) => unit.routeId === activeRouteId), [activeRouteId, allPracticeUnits])
   const routeAttempts = useMemo(() => appState.attempts.filter((attempt) => attempt.routeId === activeRouteId), [activeRouteId, appState.attempts])
   const safePaperSessions = useMemo(() => (Array.isArray(appState.paperSessions) ? appState.paperSessions : [])
@@ -659,13 +664,25 @@ function App() {
 
   useEffect(() => {
     if (practiceRuntimeState.status !== 'ready' || migrationAttemptedRef.current) return
-    migrationAttemptedRef.current = true
-    setAppState((state) => {
-      const needsContextMigration = [...(state.attempts || []), ...Object.values(state.drafts || {})]
-        .some((record) => record?.routeMigration?.status === 'deferred')
-      return needsContextMigration ? normalizeState(state, { units: migrationUnits }) : state
-    })
-  }, [migrationUnits, practiceRuntimeState.status])
+    const needsContextMigration = [...(appState.attempts || []), ...Object.values(appState.drafts || {})]
+      .some((record) => record?.routeMigration?.status === 'deferred')
+    if (!needsContextMigration) {
+      migrationAttemptedRef.current = true
+      return
+    }
+    let active = true
+    import('./data/catalog')
+      .then(({ topicUnits, fullPaperUnits }) => {
+        if (!active) return
+        migrationAttemptedRef.current = true
+        const migrationUnits = [...new Map([...allPracticeUnits, ...topicUnits, ...fullPaperUnits].map((unit) => [unit.id, unit])).values()]
+        setAppState((state) => normalizeState(state, { units: migrationUnits }))
+      })
+      .catch(() => {
+        // A legacy migration is best-effort; the current route-bound state remains usable.
+      })
+    return () => { active = false }
+  }, [allPracticeUnits, appState.attempts, appState.drafts, practiceRuntimeState.status])
 
   function selectRoute(routeId) {
     const route = routeById(routeId)
@@ -1946,7 +1963,7 @@ function App() {
           practiceOptions={activePracticeOptions}
           syllabusInventory={syllabusInventory}
           practiceUnits={routePracticeUnits}
-          practiceQuestionGroups={studyQuestionRuntime?.studyQuestionGroupsForRoute?.(activeRouteId, practiceRuntime?.verifiedPracticeQuestionGroups || []) || []}
+          practiceQuestionGroups={studyQuestionRuntimeState.routeId === activeRouteId ? studyQuestionRuntimeState.groups : []}
           studyQuestionRuntimeStatus={studyQuestionRuntimeState.status}
           studyQuestionRuntimeError={studyQuestionRuntimeState.error}
           onOpenPastPaperQuestions={openPastPaperQuestions}
@@ -2337,7 +2354,7 @@ function Dashboard({
   const average = verifiedAttempts.length
     ? Math.round(verifiedAttempts.reduce((sum, attempt) => sum + attempt.scoreResult.percentage, 0) / verifiedAttempts.length)
     : null
-  const totalImportedFiles = importedPdfLibrary.reduce((sum, subject) => sum + subject.files, 0)
+  const totalImportedFiles = SOURCE_LIBRARY_SUMMARY.files
   const nextUnit = recommendation.unit
 
   function openCourse(subject) {
