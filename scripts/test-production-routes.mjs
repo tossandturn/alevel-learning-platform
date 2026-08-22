@@ -60,6 +60,18 @@ async function main() {
     assert.match(sitemap.headers.get('content-type') || '', /xml/i)
     assert.match(await sitemap.text(), /<urlset/)
 
+    const studyManifest = await fetch(`${baseUrl}/data/study-question-index/manifest.json`)
+    assert.equal(studyManifest.status, 200)
+    assert.match(studyManifest.headers.get('content-type') || '', /application\/json/i)
+    const manifest = await studyManifest.json()
+    assert.ok(Array.isArray(manifest.routes) && manifest.routes.length > 0, 'study-question-index manifest must be served from the public data route')
+
+    const questionAsset = await fetch(`${baseUrl}/question-assets/cie-0580-0580_m25_qp_12/qp-03.jpg`)
+    assert.equal(questionAsset.status, 200)
+    assert.match(questionAsset.headers.get('content-type') || '', /image\/jpeg/i)
+    assert.equal(questionAsset.headers.get('cache-control'), 'public, max-age=31536000, immutable')
+    assert.ok((await questionAsset.arrayBuffer()).byteLength > 0)
+
     const index = await fetch(`${baseUrl}/`)
     assert.equal(index.status, 200)
     assert.equal(index.headers.get('cache-control'), 'no-cache')
@@ -78,7 +90,7 @@ async function main() {
 
     console.log(JSON.stringify({
       ok: true,
-      routes: ['/healthz', '/api/health', '/robots.txt', '/sitemap.xml'],
+      routes: ['/healthz', '/api/health', '/robots.txt', '/sitemap.xml', '/data/study-question-index/manifest.json', '/question-assets/cie-0580-0580_m25_qp_12/qp-03.jpg'],
       hashedAsset: assetPath,
       cacheControl: asset.headers.get('cache-control'),
       securityHeaders: true,

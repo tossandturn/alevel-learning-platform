@@ -12,6 +12,8 @@ import { mergeRuntimeEnv } from './src/lib/runtimeEnv.js'
 
 const DEFAULT_LIBRARY_ROOT = 'D:/CodexWork/cie-fraft-fetcher/output/pdf'
 const ALLOWED_SUBJECTS = new Set(['0580', '0606', '0610', '0625', '9231', '9700', '9701', '9702', '9708', '9709', 'bpho', 'amc12', 'esat', 'tmua'])
+const PUBLIC_ROOT = path.resolve(process.cwd(), 'public')
+const PUBLIC_METADATA_FILES = ['favicon.svg', 'icons.svg', 'robots.txt', 'sitemap.xml']
 let paperCatalogCache = { path: '', modifiedAtMs: -1, byFile: new Map() }
 const pdfIntegrityCache = new Map()
 
@@ -159,6 +161,78 @@ async function sendLocalPdf(request, response, next, env) {
   fs.createReadStream(filePath, { start, end }).pipe(response)
 }
 
+function contentTypeForPublicPath(filePath) {
+  switch (path.extname(filePath).toLowerCase()) {
+    case '.css':
+      return 'text/css; charset=utf-8'
+    case '.gif':
+      return 'image/gif'
+    case '.htm':
+    case '.html':
+      return 'text/html; charset=utf-8'
+    case '.jpeg':
+    case '.jpg':
+      return 'image/jpeg'
+    case '.js':
+    case '.mjs':
+      return 'application/javascript; charset=utf-8'
+    case '.json':
+      return 'application/json; charset=utf-8'
+    case '.png':
+      return 'image/png'
+    case '.svg':
+      return 'image/svg+xml'
+    case '.txt':
+      return 'text/plain; charset=utf-8'
+    case '.webp':
+      return 'image/webp'
+    case '.xml':
+      return 'application/xml; charset=utf-8'
+    default:
+      return 'application/octet-stream'
+  }
+}
+
+function sendPublicAsset(request, response, next) {
+  const requestUrl = new URL(request.url, 'http://127.0.0.1')
+  let pathname
+  try {
+    pathname = decodeURIComponent(requestUrl.pathname)
+  } catch {
+    response.statusCode = 400
+    response.setHeader('Cache-Control', 'no-store')
+    response.end('Invalid public asset path')
+    return
+  }
+
+  const isPublicMetadata = PUBLIC_METADATA_FILES.includes(pathname.slice(1))
+  if (!isPublicMetadata && !pathname.startsWith('/data/') && !pathname.startsWith('/question-assets/')) return next()
+
+  const filePath = path.resolve(PUBLIC_ROOT, `.${pathname}`)
+  const relative = path.relative(PUBLIC_ROOT, filePath)
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    response.statusCode = 400
+    response.setHeader('Cache-Control', 'no-store')
+    response.end('Invalid public asset path')
+    return
+  }
+
+  if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+    response.statusCode = 404
+    response.setHeader('Cache-Control', 'no-store')
+    response.end('Public asset not found')
+    return
+  }
+
+  response.setHeader('Content-Type', contentTypeForPublicPath(filePath))
+  if (pathname.startsWith('/question-assets/')) {
+    response.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+  } else {
+    response.setHeader('Cache-Control', 'no-cache')
+  }
+  fs.createReadStream(filePath).pipe(response)
+}
+
 function sendHealth(request, response, next) {
   const requestUrl = new URL(request.url, 'http://127.0.0.1')
   if (!['/healthz', '/api/health'].includes(requestUrl.pathname)) return next()
@@ -217,6 +291,36 @@ function stemAppModulePreload() {
   }
 }
 
+function stemPublicAssetOutput() {
+  let resolvedRoot = process.cwd()
+  let resolvedOutDir = path.resolve(process.cwd(), 'dist')
+  return {
+    name: 'stem-public-asset-output',
+    apply: 'build',
+    config() {
+      return {
+        build: {
+          copyPublicDir: false,
+        },
+      }
+    },
+    configResolved(config) {
+      resolvedRoot = config.root
+      resolvedOutDir = path.resolve(config.root, config.build.outDir || 'dist')
+    },
+    closeBundle() {
+      fs.mkdirSync(resolvedOutDir, { recursive: true })
+      for (const fileName of PUBLIC_METADATA_FILES) {
+        const source = path.resolve(resolvedRoot, 'public', fileName)
+        const target = path.resolve(resolvedOutDir, fileName)
+        if (fs.existsSync(source)) {
+          fs.copyFileSync(source, target)
+        }
+      }
+    },
+  }
+}
+
 function localCieLibrary(env) {
   const libraryRoot = path.resolve(env.CIE_LIBRARY_ROOT || DEFAULT_LIBRARY_ROOT)
   const aiApi = createAiApi({ env, libraryRoot, allowedSubjects: ALLOWED_SUBJECTS })
@@ -226,6 +330,7 @@ function localCieLibrary(env) {
     configureServer(server) {
       server.middlewares.use(securityHeaders)
       server.middlewares.use(sendHealth)
+      server.middlewares.use(sendPublicAsset)
       server.middlewares.use(stemApi)
       server.middlewares.use(aiApi)
       server.middlewares.use((request, response, next) => {
@@ -235,6 +340,7 @@ function localCieLibrary(env) {
     configurePreviewServer(server) {
       server.middlewares.use(securityHeaders)
       server.middlewares.use(sendHealth)
+      server.middlewares.use(sendPublicAsset)
       server.middlewares.use(stemApi)
       server.middlewares.use(aiApi)
       server.middlewares.use((request, response, next) => {
@@ -269,6 +375,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       stemAppModulePreload(),
+      stemPublicAssetOutput(),
       viteStaticCopy({
         targets: [
           { src: 'node_modules/pdfjs-dist/cmaps/*', dest: 'pdfjs/cmaps', rename: { stripBase: true } },
