@@ -3280,14 +3280,16 @@ textarea:focus-visible {
 .ai-coach {
   position: fixed;
   z-index: 80;
-  top: 0;
-  right: 0;
+  top: 76px;
+  right: 18px;
   width: min(420px, 100vw);
-  height: 100dvh;
+  height: calc(100dvh - 94px);
+  max-height: 760px;
   display: grid;
   grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   transform: translateX(102%);
-  border-left: 1px solid #c9d3df;
+  border: 1px solid #c9d3df;
+  border-radius: 10px;
   background: #fff;
   box-shadow: -18px 0 52px rgba(19, 31, 47, 0.2);
   transition: transform 180ms ease;
@@ -3499,7 +3501,7 @@ textarea:focus-visible {
 
 @media (max-width: 430px) {
   .ai-coach-backdrop { pointer-events: auto; }
-  .ai-coach { right: 0; left: 0; width: 100%; max-width: none; border-left: 0; }
+  .ai-coach { top: 0; right: 0; left: 0; width: 100%; height: 100dvh; max-height: none; border: 0; border-radius: 0; }
   .ai-coach-trigger span { display: none; }
   .ai-coach-trigger { width: 46px; padding: 0; justify-content: center; }
   .handwriting-pad__toolbar { max-width: calc(100% - 18px); overflow-x: auto; }

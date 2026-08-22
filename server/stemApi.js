@@ -1374,9 +1374,12 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, fetchIm
         const staticInventory = syllabusTopicsInventory({ routeId, questionBank: topicPracticeQuestionBank })
         const databaseRows = syllabusDatabaseInventory(db, routeId)
         const databaseById = new Map(databaseRows.map((topic) => [topic.id, topic]))
+        // The database is the authority for live inventory counts. Static
+        // data supplies only the official syllabus shape and labels; merging
+        // it last used to erase production's larger indexed inventory.
         const topics = staticInventory.topics.map((topic) => ({
-          ...(databaseById.get(topic.id) || {}),
           ...topic,
+          ...(databaseById.get(topic.id) || {}),
           points: topic.points || [],
         }))
         sendJson(response, 200, {
