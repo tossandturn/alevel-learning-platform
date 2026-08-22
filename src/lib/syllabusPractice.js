@@ -604,6 +604,32 @@ function selectBalancedQuestions(records, topicIds, requestedCount, attemptedIds
   return selected
 }
 
+function selectExplicitQuestions(records, sourceQuestionIds, topicIds, components, includeStudyOnly = false) {
+  const byId = new Map(records.filter((record) => (
+    (record.eligible || (includeStudyOnly && record.studyEligible))
+    && components.includes(record.paperComponent)
+    && topicIds.some((topicId) => record.mapping.topicIds?.includes(topicId))
+  )).map((record) => [record.sourceQuestionId, record]))
+  const selected = []
+  const missing = []
+  for (const sourceQuestionId of sourceQuestionIds) {
+    const record = byId.get(sourceQuestionId)
+    if (!record) {
+      missing.push(sourceQuestionId)
+      continue
+    }
+    if (!selected.some((item) => item.sourceQuestionId === record.sourceQuestionId)) selected.push(record)
+  }
+  if (missing.length) {
+    const error = new Error('Some selected source questions are no longer available in the current source catalog.')
+    error.code = 'invalid_source_question_selection'
+    error.statusCode = 409
+    error.missingSourceQuestionIds = missing
+    throw error
+  }
+  return selected
+}
+
 function sourceQuestionDisplayLabel(question, part) {
   const source = question.sourceRef || {}
   const paperMatch = String(source.paper || '').match(/(?:^|[_-])([msw]\d{2})[_-]qp[_-]?(\d{1,2})(?:$|[_.-])/i)
@@ -837,6 +863,7 @@ export function buildSyllabusPracticeSet({
   components,
   excludeAttempted = true,
   attemptedQuestionIds = [],
+  sourceQuestionIds = [],
   seed = Date.now(),
   questionBank = unifiedQuestionBank,
   includeStudyOnly = false,
@@ -872,19 +899,29 @@ export function buildSyllabusPracticeSet({
   const selectedComponents = requestedComponents
   const records = effectiveQuestionRecords(questionBank, config).filter((record) => selectedComponents.includes(record.paperComponent))
   const attemptedIds = new Set(attemptedQuestionIds.map((value) => String(value || '').trim()).filter(Boolean))
+  const explicitSourceQuestionIds = [...new Set(sourceQuestionIds.map((value) => String(value || '').trim()).filter(Boolean))]
+  if (explicitSourceQuestionIds.length && explicitSourceQuestionIds.length !== sourceQuestionIds.length) {
+    const error = new Error('Selected source questions must be unique.')
+    error.code = 'invalid_source_question_selection'
+    error.statusCode = 400
+    throw error
+  }
   const availableRecords = records.filter((record) => (
     (record.eligible || (includeStudyOnly && record.studyEligible))
     && topicIds.some((topicId) => record.mapping.topicIds?.includes(topicId))
   ))
-  const selected = selectBalancedQuestions(
-    records,
-    topicIds,
-    requestedCount,
-    excludeAttempted ? attemptedIds : new Set(),
-    seed,
-    selectedComponents,
-    includeStudyOnly,
-  )
+  const effectiveRequestedCount = explicitSourceQuestionIds.length || requestedCount
+  const selected = explicitSourceQuestionIds.length
+    ? selectExplicitQuestions(records, explicitSourceQuestionIds, topicIds, selectedComponents, includeStudyOnly)
+    : selectBalancedQuestions(
+        records,
+        topicIds,
+        requestedCount,
+        excludeAttempted ? attemptedIds : new Set(),
+        seed,
+        selectedComponents,
+        includeStudyOnly,
+      )
   if (!selected.length) {
     const error = new Error(`No source-backed study questions are available for the selected syllabus topic${topicIds.length === 1 ? '' : 's'}.`)
     error.code = 'insufficient_verified_questions'
@@ -905,7 +942,7 @@ export function buildSyllabusPracticeSet({
       .filter((topic) => topicIds.includes(topic.id))
       .map(({ id, code, name, order }) => ({ id, code, name, order })),
     components: selectedComponents,
-    requestedCount,
+    requestedCount: effectiveRequestedCount,
     availableCount: availableRecords.length,
     sourceQuestionCount: metrics.sourceQuestionCount,
     answerPartCount: metrics.answerPartCount,
@@ -916,8 +953,9 @@ export function buildSyllabusPracticeSet({
     semanticReviewedPartCount: metrics.semanticReviewedPartCount,
     questionCount: metrics.sourceQuestionCount,
     practiceMode: selected.some((record) => record.studyOnly) ? 'study-only' : 'verified',
-    partial: selected.length < requestedCount,
+    partial: selected.length < effectiveRequestedCount,
     seed: Number(seed) >>> 0,
+    sourceQuestionIds: selected.map((record) => record.sourceQuestionId),
     questionGroups: selected.map(publicQuestionGroup),
   }
 }

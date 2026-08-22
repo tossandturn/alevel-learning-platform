@@ -1432,6 +1432,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, fetchIm
           components: payload.components,
           excludeAttempted: payload.excludeAttempted !== false,
           attemptedQuestionIds: payload.attemptedQuestionIds,
+          sourceQuestionIds: payload.sourceQuestionIds,
           seed: payload.seed,
           questionBank: topicPracticeQuestionBank,
           includeStudyOnly: topicPracticeQuestionBank === studyQuestionBank,

@@ -4749,7 +4749,7 @@ button:disabled {
 
 .paper-desk {
   display: grid;
-  grid-template-columns: minmax(480px, 1fr) 16px minmax(360px, var(--answer-pane-width, 450px));
+  grid-template-columns: minmax(0, 1fr) 16px minmax(300px, min(var(--answer-pane-width, 450px), 38vw));
   gap: 0;
   padding: 12px;
 }
@@ -6261,7 +6261,7 @@ button:disabled {
   font-weight: 800;
 }
 
-@media (max-width: 1040px) {
+@media (max-width: 760px) {
   .paper-filters {
     grid-template-columns: repeat(4, 1fr);
   }

@@ -51,6 +51,7 @@ import { buildCompletionByUnit, buildLearningProgress, latestSubmittedActivity, 
 import { accountRefreshFailureState, accountRefreshRetryDelay, professionalTermsUrl, requestNativeAccountReadiness, requestSharedAccount, requestSharedWorkspace, requestSyllabusPracticeRebind, requestSyllabusPracticeSet, sharedAccountRequest, signInSharedAccount, signOutSharedAccount } from './lib/sharedAccount'
 import { requestMarkingCapabilities } from './lib/markingCapabilityClient'
 import { parseProductContext, termIdsForStemContext } from './lib/productContext'
+import { questionMatchesSearch } from './lib/questionSearch'
 import { studentNavigationFromLocation, studentNavigationHref } from './lib/studentNavigation'
 import { normalizePaperStudyMode, paperDraftKey } from './lib/paperStudyMode'
 import { buildStemVocabularyContext, vocabularyCoverageForRoute } from './data/stemVocabularyTaxonomy'
@@ -1164,6 +1165,7 @@ function App() {
       syllabusTopicIds,
       questionCount: selection.questionCount || MIN_VERIFIED_GROUPS_FOR_PRACTICE,
       components,
+      sourceQuestionIds: selection.sourceQuestionIds,
       excludeAttempted: true,
       attemptedQuestionIds: attemptedSourceQuestionIds(appState.attempts, selection.routeId),
       seed: Date.now(),
@@ -1879,6 +1881,7 @@ function App() {
           practiceOptions={activePracticeOptions}
           syllabusInventory={syllabusInventory}
           practiceUnits={routePracticeUnits}
+          practiceQuestionGroups={practiceRuntime?.practiceQuestionGroupsForRoute?.(activeRouteId) || []}
           verifiedQuestionGroups={practiceRuntime?.verifiedPracticeQuestionGroups || []}
           completionByUnit={completionByUnit}
           learningProgress={learningProgress}
@@ -2769,15 +2772,34 @@ function PracticeOverview({ recommendation, selectedTopic, visibleUnits, complet
 function PracticeTopicDirectory({ activeRoute, activeRouteId, practiceOptions, visibleUnits, completionByUnit, query, onOpenTopic, onOpenPapers, onClearTopicFilter, syllabusInventory }) {
   const routeOption = practiceOptions.find((option) => option.routeId === activeRouteId)
   const routeTopics = routeOption?.topics || []
+  const serverTopics = syllabusInventory?.data?.topics || []
+  const serverTopicById = new Map(serverTopics.map((topic) => [topic.id, topic]))
+  const displayTopics = routeTopics.map((topic) => {
+    const serverTopic = serverTopicById.get(topic.id)
+    const availableQuestionCount = Number(serverTopic?.availableQuestionCount ?? topic.inventory ?? 0)
+    const verifiedQuestionCount = Number(serverTopic?.verifiedQuestionCount ?? 0)
+    const studyQuestionCount = Number(serverTopic?.studyQuestionCount ?? 0)
+    const pendingReviewCount = Number(serverTopic?.pendingReviewCount ?? 0)
+    return {
+      ...topic,
+      inventory: availableQuestionCount,
+      verifiedQuestionCount,
+      studyQuestionCount,
+      pendingReviewCount,
+      availableQuestionCount,
+    }
+  })
   const normalizedQuery = query.trim().toLowerCase()
-  const topics = routeTopics.filter((topic) => {
+  const topics = displayTopics.filter((topic) => {
     const metadata = topicMetadata(topic.id)
     return !normalizedQuery || [topic.label, metadata?.description, ...(metadata?.themes || [])].join(' ').toLowerCase().includes(normalizedQuery)
   })
-  const sourceQuestionCount = routeTopics.reduce((sum, topic) => sum + Number(topic.inventory || 0), 0)
-  const multiTopicTarget = routeTopics.find((topic) => Number(topic.inventory || 0) > 0) || routeTopics[0]
+  const sourceQuestionCount = displayTopics.reduce((sum, topic) => sum + Number(topic.inventory || 0), 0)
+  const reviewedQuestionCount = displayTopics.reduce((sum, topic) => sum + Number(topic.verifiedQuestionCount || 0), 0)
+  const studyOnlyQuestionCount = displayTopics.reduce((sum, topic) => sum + Number(topic.studyQuestionCount || 0), 0)
+  const multiTopicTarget = displayTopics.find((topic) => Number(topic.inventory || 0) > 0) || displayTopics[0]
   const topicDirectoryIntro = sourceQuestionCount > 0
-    ? 'Choose one topic. Every set stays inside this course and remains linked to its original paper and mark scheme.'
+    ? 'Choose one topic. Source-backed questions open first; study-only records stay marked so you can practise them without pretending they are reviewed.'
     : 'Topic drills will appear here when complete official questions and marking guidance are ready for this course.'
   const topicContent = syllabusInventory?.status === 'loading'
     ? <div className="empty-state" role="status"><Dumbbell size={28} /><h2>Loading your topic practice</h2><p>Checking the latest official questions for this course.</p></div>
@@ -2785,22 +2807,39 @@ function PracticeTopicDirectory({ activeRoute, activeRouteId, practiceOptions, v
       ? <div className="empty-state" role="alert"><AlertTriangle size={28} /><h2>Topic practice is temporarily unavailable</h2><p>{syllabusInventory.error}</p><button type="button" className="card-action" onClick={() => window.location.reload()}>Retry <RefreshCcw size={15} /></button></div>
       : sourceQuestionCount === 0
         ? <div className="topic-directory__empty topic-directory__empty--inventory"><FileText size={28} /><div><p className="section-label">Topic Drill</p><h2>Topic Drill is being prepared for this course</h2><p>There are not enough checked question groups for {activeRoute.stage} {activeRoute.subject} yet. Use a complete official paper now; a topic set will appear only when its question pages and marking guidance are ready together.</p></div><div className="topic-directory__empty-actions"><span>Available now</span><button type="button" className="primary-action" onClick={onOpenPapers}><FileText size={16} />Browse {activeRoute.stage} {activeRoute.subject} papers</button><a href={activeRoute.syllabus.url} target="_blank" rel="noreferrer">View syllabus <ChevronRight size={15} /></a></div></div>
-        : topics.length
-          ? <><div className="topic-directory__route-status" role="status"><div><strong>{routeTopics.length} syllabus topic{routeTopics.length === 1 ? '' : 's'}</strong><span>{sourceQuestionCount} official question{sourceQuestionCount === 1 ? '' : 's'} ready to open</span></div><small>Choose a topic to set the paper style and question count.</small></div><div className="topic-directory__list">{topics.map((topic) => {
-            const metadata = topicMetadata(topic.id)
-            const mastery = topicMasteryFromUnits(topic.id, visibleUnits, completionByUnit)
-            const available = Number(topic.inventory || 0)
-            const topicNumber = metadata?.officialTopicNumber || String(routeTopics.indexOf(topic) + 1).padStart(2, '0')
-            return <button type="button" className="topic-directory__row" key={topic.id} onClick={() => onOpenTopic(topic.id)}>
-              <span className="topic-directory__number">{topicNumber}</span>
-              <span className="topic-directory__copy"><strong>{topic.label.replace(/^\d+\s+/, '')}</strong><small>{topic.points?.length ? `${topic.points.length} syllabus outcome${topic.points.length === 1 ? '' : 's'}` : 'Open outcomes and past-paper practice'}</small></span>
-              <span className={`topic-directory__mastery mastery-${masteryLabel(mastery).toLowerCase().replace(' ', '-')}`}><strong>{mastery == null ? '--' : `${mastery}%`}</strong><small>{masteryLabel(mastery)}</small></span>
-              <span className="topic-directory__available">{available} official question{available === 1 ? '' : 's'}</span>
-              <span className="topic-directory__open">{available ? 'Open topic' : 'View topic'}</span>
-              <ChevronRight size={18} />
-            </button>
-          })}</div></>
-          : <div className="topic-directory__empty empty-state"><Search size={28} /><h2>No topic matches this filter</h2><p>Clear the topic filter to see every available syllabus topic in this course.</p><button type="button" className="card-action" onClick={onClearTopicFilter}>Clear topic filter <RefreshCcw size={15} /></button></div>
+        : topics.length ? (
+          <>
+            <div className="topic-directory__route-status" role="status">
+              <div>
+                <strong>{routeTopics.length} syllabus topic{routeTopics.length === 1 ? '' : 's'}</strong>
+                <span>
+                  {reviewedQuestionCount > 0 ? `${reviewedQuestionCount} reviewed question${reviewedQuestionCount === 1 ? '' : 's'}` : 'No reviewed questions yet'}
+                  {studyOnlyQuestionCount > 0 ? ` · ${studyOnlyQuestionCount} study-only question${studyOnlyQuestionCount === 1 ? '' : 's'} ready to open` : ''}
+                </span>
+              </div>
+              <small>Choose a topic to set the paper style and question count.</small>
+            </div>
+            <div className="topic-directory__list">
+              {topics.map((topic) => {
+                const metadata = topicMetadata(topic.id)
+                const mastery = topicMasteryFromUnits(topic.id, visibleUnits, completionByUnit)
+                const available = Number(topic.inventory || 0)
+                const reviewed = Number(topic.verifiedQuestionCount || 0)
+                const studyOnly = Number(topic.studyQuestionCount || 0)
+                const pending = Number(topic.pendingReviewCount || 0)
+                const topicNumber = metadata?.officialTopicNumber || String(displayTopics.indexOf(topic) + 1).padStart(2, '0')
+                return <button type="button" className="topic-directory__row" key={topic.id} onClick={() => onOpenTopic(topic.id)}>
+                  <span className="topic-directory__number">{topicNumber}</span>
+                  <span className="topic-directory__copy"><strong>{topic.label.replace(/^\d+\s+/, '')}</strong><small>{topic.points?.length ? `${topic.points.length} syllabus outcome${topic.points.length === 1 ? '' : 's'}` : 'Open outcomes and past-paper practice'}</small></span>
+                  <span className={`topic-directory__mastery mastery-${masteryLabel(mastery).toLowerCase().replace(' ', '-')}`}><strong>{mastery == null ? '--' : `${mastery}%`}</strong><small>{masteryLabel(mastery)}</small></span>
+                  <span className="topic-directory__available">{available} source-backed question{available === 1 ? '' : 's'}{reviewed > 0 ? ` · ${reviewed} reviewed` : ''}{studyOnly > 0 ? ` · ${studyOnly} study-only` : ''}{pending > 0 ? ` · ${pending} pending` : ''}</span>
+                  <span className="topic-directory__open">{available ? 'Open topic' : 'View topic'}</span>
+                  <ChevronRight size={18} />
+                </button>
+              })}
+            </div>
+          </>
+        ) : <div className="topic-directory__empty empty-state"><Search size={28} /><h2>No topic matches this filter</h2><p>Clear the topic filter to see every available syllabus topic in this course.</p><button type="button" className="card-action" onClick={onClearTopicFilter}>Clear topic filter <RefreshCcw size={15} /></button></div>
 
   return (
     <section className="topic-directory">
@@ -2810,13 +2849,15 @@ function PracticeTopicDirectory({ activeRoute, activeRouteId, practiceOptions, v
   )
 }
 
-function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen = false, practiceOptions, syllabusInventory, learningProgress, mistakes, practiceUnits, verifiedQuestionGroups = [], completionByUnit, startPractice, startKnowledgeDrill, onBack, onOpenCoach, favoriteUnitIds, onToggleFavorite }) {
+function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen = false, practiceOptions, syllabusInventory, learningProgress, mistakes, practiceUnits, practiceQuestionGroups = [], verifiedQuestionGroups = [], completionByUnit, startPractice, startKnowledgeDrill, onBack, onOpenCoach, favoriteUnitIds, onToggleFavorite }) {
   const [startError, setStartError] = useState('')
   const [detailTab, setDetailTab] = useState('overview')
   const [builderOpen, setBuilderOpen] = useState(initialBuilderOpen)
   const [selectedTopicIds, setSelectedTopicIds] = useState([topicId])
   const [selectedQuestionCount, setSelectedQuestionCount] = useState(10)
   const [componentMode, setComponentMode] = useState('mixed')
+  const [questionSearch, setQuestionSearch] = useState('')
+  const [selectedQuestionIds, setSelectedQuestionIds] = useState([])
   const routeOption = practiceOptions.find((option) => option.routeId === activeRouteId)
   const topic = routeOption?.topics.find((item) => item.id === topicId)
   const selectedTopics = (routeOption?.topics || []).filter((item) => selectedTopicIds.includes(item.id))
@@ -2872,14 +2913,25 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen =
   }, { practice: 0, deterministic: 0, aiAssisted: 0, selfMark: 0 })
   const nextPracticeUnit = topicPracticeUnits.find((unit) => !completionByUnit[unit.id]?.completed) || topicPracticeUnits[0]
   const topicMistakes = mistakes.filter((mistake) => mistake.unit.knowledgeGroupId === topicId).length
-  const topicQuestions = verifiedQuestionGroups
-    .filter((question) => topicQuestionMatches(question, activeRouteId, topicId))
-    .toSorted((left, right) => (
+  const questionSourceGroups = useMemo(() => {
+    const merged = new Map()
+    for (const question of [...practiceQuestionGroups, ...verifiedQuestionGroups]) {
+      if (!question?.sourceQuestionId) continue
+      if (!topicQuestionMatches(question, activeRouteId, topicId)) continue
+      merged.set(question.sourceQuestionId, question)
+    }
+    return [...merged.values()].toSorted((left, right) => (
       (Number(right.sourceRef?.year) || 0) - (Number(left.sourceRef?.year) || 0)
-      || String(left.sourceRef?.season || '').localeCompare(String(right.sourceRef?.season || ''))
       || String(left.sourceRef?.paper || '').localeCompare(String(right.sourceRef?.paper || ''))
       || String(left.sourceRef?.question || '').localeCompare(String(right.sourceRef?.question || ''), undefined, { numeric: true })
     ))
+  }, [activeRouteId, practiceQuestionGroups, topicId, verifiedQuestionGroups])
+  const topicQuestions = questionSourceGroups
+  const chapterItems = (metadata?.themes?.length ? metadata.themes : topic ? [`${topic.label.replace(/^\d+(?:\.\d+)?\s+/, '')}`] : ['Core method selection', 'Complete working', 'Accuracy and checking']).map((theme, index) => {
+    const normalizedTheme = theme.toLowerCase()
+    const count = topicQuestions.filter((question) => (question.topicTags || []).some((tag) => String(tag).toLowerCase().includes(normalizedTheme) || normalizedTheme.includes(String(tag).toLowerCase()))).length
+    return { theme, index, count }
+  })
   const topicPaperGroups = [...topicQuestions.reduce((groups, question) => {
     const key = question.sourceRef?.paperId || question.sourceRef?.paper || question.bankId
     const current = groups.get(key) || []
@@ -2887,11 +2939,6 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen =
     groups.set(key, current)
     return groups
   }, new Map()).values()]
-  const chapterItems = (metadata?.themes?.length ? metadata.themes : topic ? [`${topic.label.replace(/^\d+(?:\.\d+)?\s+/, '')}`] : ['Core method selection', 'Complete working', 'Accuracy and checking']).map((theme, index) => {
-    const normalizedTheme = theme.toLowerCase()
-    const count = topicQuestions.filter((question) => (question.topicTags || []).some((tag) => String(tag).toLowerCase().includes(normalizedTheme) || normalizedTheme.includes(String(tag).toLowerCase()))).length
-    return { theme, index, count }
-  })
   const checkpoints = metadata?.mastery?.stageIds?.map((stageId) => ({
     id: stageId,
     label: stageId === 'exam-ready' ? 'Exam ready' : stageId.charAt(0).toUpperCase() + stageId.slice(1),
@@ -2915,6 +2962,58 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen =
         : sampleReady
           ? `Checked sample only · more questions coming (${available}/${MIN_VERIFIED_GROUPS_FOR_PRACTICE})`
           : topic?.sourceGap || 'More questions are being checked'
+  const filteredTopicQuestions = useMemo(
+    () => questionSourceGroups.filter((question) => questionMatchesSearch(question, questionSearch)),
+    [questionSearch, questionSourceGroups],
+  )
+  const selectedQuestionIdsSet = useMemo(() => new Set(selectedQuestionIds), [selectedQuestionIds])
+  const selectedTopicQuestions = useMemo(
+    () => questionSourceGroups.filter((question) => selectedQuestionIdsSet.has(question.sourceQuestionId)),
+    [questionSourceGroups, selectedQuestionIdsSet],
+  )
+  const selectedQuestionIdsForBuild = selectedTopicQuestions.map((question) => question.sourceQuestionId)
+  const canBuildSelectedQuestions = selectedQuestionIdsForBuild.length > 0 && selectedQuestionIdsForBuild.length <= 15
+
+  function toggleSelectedQuestion(questionId) {
+    setSelectedQuestionIds((current) => {
+      if (current.includes(questionId)) return current.filter((id) => id !== questionId)
+      if (current.length >= 15) return current
+      return [...current, questionId]
+    })
+  }
+
+  function selectVisibleQuestions() {
+    setSelectedQuestionIds((current) => {
+      const next = new Set(current)
+      for (const question of filteredTopicQuestions) {
+        if (next.size >= 15) break
+        next.add(question.sourceQuestionId)
+      }
+      return [...next]
+    })
+  }
+
+  async function startSelectedQuestionPractice() {
+    if (!canBuildSelectedQuestions) return
+    try {
+      setStartError('')
+      await startKnowledgeDrill({
+        routeId: activeRouteId,
+        knowledgeGroupId: topicId,
+        syllabusTopicIds: [topicId],
+        questionCount: selectedQuestionIdsForBuild.length,
+        components: selectedComponents,
+        sourceQuestionIds: selectedQuestionIdsForBuild,
+      })
+    } catch (error) {
+      setStartError(error.message || 'This topic is still being indexed.')
+    }
+  }
+
+  useEffect(() => {
+    setQuestionSearch('')
+    setSelectedQuestionIds([])
+  }, [activeRouteId, topicId])
 
   async function startTopicPractice() {
     try {
@@ -3005,7 +3104,53 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen =
           </details>
           <details className="topic-detail__disclosure topic-detail__disclosure--papers" open={detailTab === 'papers'} hidden={detailTab !== 'papers'}>
             <summary><span>Past-paper question list</span><strong>{topicQuestions.length} questions · {topicPaperGroups.length} paper{topicPaperGroups.length === 1 ? '' : 's'}</strong></summary>
-          <section className="topic-detail__past-papers"><header><div><p className="section-label">Real exam collection</p><h2>Past-paper questions by chapter</h2><p>These are question-level records, grouped by their original paper. Open the source page or mark scheme without losing the topic mapping.</p></div><strong>{topicQuestions.length} questions · {topicPaperGroups.length} paper{topicPaperGroups.length === 1 ? '' : 's'}</strong></header>{topicPaperGroups.length ? <div className="topic-detail__paper-groups">{topicPaperGroups.map((paperQuestions) => { const first = paperQuestions[0]; const source = first.sourceRef || {}; return <article className="topic-detail__paper-group" key={source.paperId || source.paper}><header><div><strong>{sourcePaperLabel(first)}</strong><span>{source.component ? `Component ${source.component}` : 'Official source'} · {paperQuestions.length} linked question{paperQuestions.length === 1 ? '' : 's'}</span></div><div><a href={`${source.localUrl}#page=${source.pageStart || 1}`} target="_blank" rel="noreferrer">Open QP</a><a href={`${first.answerRef?.localUrl || '#'}#page=${first.answerRef?.pageStart || 1}`} target="_blank" rel="noreferrer">Open MS</a></div></header><div>{paperQuestions.map((question) => <div className="topic-detail__question-row" key={question.questionGroupId || question.bankId}><span>{question.sourceRef?.question || 'Question'}</span><p>{sourceQuestionPreview(question) || 'Indexed question text is available in the source paper.'}</p><small>{question.totalMarks || question.marks || 1} mark{(question.totalMarks || question.marks || 1) === 1 ? '' : 's'} · QP p.{question.sourceRef?.pageStart || '?'} · MS p.{question.answerRef?.pageStart || '?'}</small></div>)}</div></article> })}</div> : <div className="topic-detail__empty-source"><FileText size={20} /><strong>No question-level source records yet</strong><p>This topic is in the syllabus map, but its verified paper index has not been attached to this route.</p></div>}</section>
+          <section className="topic-detail__past-papers">
+            <header><div><p className="section-label">Real exam collection</p><h2>Past-paper questions by chapter</h2><p>These are question-level records, grouped by their original paper. Open the source page or mark scheme without losing the topic mapping.</p></div><strong>{topicQuestions.length} questions · {topicPaperGroups.length} paper{topicPaperGroups.length === 1 ? '' : 's'}</strong></header>
+            <div className="topic-detail__question-picker">
+              <div className="topic-detail__question-picker-head">
+                <div>
+                  <p className="section-label">Search and select</p>
+                  <h3>Find questions by their prompt, source page, mark points, or tags</h3>
+                  <p>Pick the exact source questions you want, then build a set from those selection results.</p>
+                </div>
+                <div className="topic-detail__question-picker-actions">
+                  <button type="button" className="secondary-action" onClick={selectVisibleQuestions} disabled={!filteredTopicQuestions.length}>Select visible</button>
+                  <button type="button" className="primary-action" onClick={startSelectedQuestionPractice} disabled={!canBuildSelectedQuestions}>Build selected set</button>
+                </div>
+              </div>
+              <label className="topic-detail__question-search">
+                <span>Search question text, source, mark points, or tags</span>
+                <input
+                  type="search"
+                  value={questionSearch}
+                  onChange={(event) => setQuestionSearch(event.target.value)}
+                  placeholder="Try gravitational potential, free-body, transformer, or wave"
+                />
+              </label>
+              <div className="topic-detail__question-picker-summary" role="status">
+                <span><strong>{selectedQuestionIdsForBuild.length}</strong> selected</span>
+                <span><strong>{filteredTopicQuestions.length}</strong> matching</span>
+                <span><strong>{topicQuestions.length}</strong> source questions</span>
+              </div>
+              {filteredTopicQuestions.length ? <div className="topic-detail__question-list">{filteredTopicQuestions.map((question) => {
+                const firstPage = question.sourceRef?.pageStart || '?'
+                const markSchemePage = question.answerRef?.pageStart || '?'
+                const selected = selectedQuestionIdsSet.has(question.sourceQuestionId)
+                return <label className={`topic-detail__question-item ${selected ? 'is-selected' : ''}`} key={question.sourceQuestionId}>
+                  <input type="checkbox" checked={selected} onChange={() => toggleSelectedQuestion(question.sourceQuestionId)} />
+                  <span className="topic-detail__question-item-main">
+                    <strong>{sourcePaperLabel(question)} · {question.sourceRef?.question || 'Question'}</strong>
+                    <small>{sourceQuestionPreview(question)}</small>
+                  </span>
+                  <span className="topic-detail__question-item-meta">
+                    <strong>{question.totalMarks || question.marks || 1} marks</strong>
+                    <small>QP p.{firstPage} · MS p.{markSchemePage}{question.studyOnly ? ' · study-only' : ''}</small>
+                  </span>
+                </label>
+              })}</div> : <div className="topic-detail__empty-source"><FileText size={20} /><strong>No question-level source records yet</strong><p>This topic is in the syllabus map, but its verified paper index has not been attached to this route.</p></div>}
+            </div>
+            {topicPaperGroups.length ? <div className="topic-detail__paper-groups">{topicPaperGroups.map((paperQuestions) => { const first = paperQuestions[0]; const source = first.sourceRef || {}; return <article className="topic-detail__paper-group" key={source.paperId || source.paper}><header><div><strong>{sourcePaperLabel(first)}</strong><span>{source.component ? `Component ${source.component}` : 'Official source'} · {paperQuestions.length} linked question{paperQuestions.length === 1 ? '' : 's'}</span></div><div><a href={`${source.localUrl}#page=${source.pageStart || 1}`} target="_blank" rel="noreferrer">Open QP</a><a href={`${first.answerRef?.localUrl || '#'}#page=${first.answerRef?.pageStart || 1}`} target="_blank" rel="noreferrer">Open MS</a></div></header><div>{paperQuestions.map((question) => <div className="topic-detail__question-row" key={question.questionGroupId || question.bankId}><span>{question.sourceRef?.question || 'Question'}</span><p>{sourceQuestionPreview(question) || 'Indexed question text is available in the source paper.'}</p><small>{question.totalMarks || question.marks || 1} mark{(question.totalMarks || question.marks || 1) === 1 ? '' : 's'} · QP p.{question.sourceRef?.pageStart || '?'} · MS p.{question.answerRef?.pageStart || '?'}</small></div>)}</div></article> })}</div> : <div className="topic-detail__empty-source"><FileText size={20} /><strong>No question-level source records yet</strong><p>This topic is in the syllabus map, but its verified paper index has not been attached to this route.</p></div>}
+          </section>
           </details>
           <section className="topic-detail__source" hidden={detailTab !== 'overview'}><FileText size={20} /><div><strong>Official question evidence</strong><p>Every question opens with its complete source page and linked marking guidance. You will see how each answer part is checked before starting.</p></div><span>{available} available</span></section>
         </main>

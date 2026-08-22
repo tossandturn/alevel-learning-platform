@@ -106,8 +106,28 @@ function compressImage(file) {
 
 const ANSWER_PANE_STORAGE_KEY = 'alevel-paper-answer-pane-width'
 const DEFAULT_ANSWER_PANE_WIDTH = 500
-const MIN_ANSWER_PANE_WIDTH = 400
+const MIN_ANSWER_PANE_WIDTH = 300
 const MIN_PDF_PANE_WIDTH = 480
+const ANSWER_PANE_MAX_VIEWPORT_RATIO = 0.38
+
+function viewportWidth() {
+  return typeof window !== 'undefined' ? window.innerWidth : 1440
+}
+
+function answerPaneBoundsForWidth(deskWidth = viewportWidth()) {
+  const width = Number(deskWidth) || 0
+  const maxByDesk = width - MIN_PDF_PANE_WIDTH - 16
+  const maxByViewport = Math.round(width * ANSWER_PANE_MAX_VIEWPORT_RATIO)
+  return {
+    min: MIN_ANSWER_PANE_WIDTH,
+    max: Math.max(MIN_ANSWER_PANE_WIDTH, Math.min(maxByDesk, maxByViewport)),
+  }
+}
+
+function clampAnswerPaneWidth(nextWidth, deskWidth = viewportWidth()) {
+  const bounds = answerPaneBoundsForWidth(deskWidth)
+  return Math.round(Math.min(bounds.max, Math.max(bounds.min, Number(nextWidth) || DEFAULT_ANSWER_PANE_WIDTH)))
+}
 
 function storedAnswerPaneWidth() {
   const value = Number(window.localStorage.getItem(ANSWER_PANE_STORAGE_KEY))
@@ -185,7 +205,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
   const [pdfInkQuestionMap, setPdfInkQuestionMap] = useState(() => paperDraft?.pdfInkMapVersion === 2 ? (paperDraft?.pdfInkQuestionMap || {}) : {})
   const [lastPdfInkPage, setLastPdfInkPage] = useState(null)
   const [mobilePane, setMobilePane] = useState('paper')
-  const [answerPaneWidth, setAnswerPaneWidth] = useState(storedAnswerPaneWidth)
+  const [answerPaneWidth, setAnswerPaneWidth] = useState(() => clampAnswerPaneWidth(storedAnswerPaneWidth()))
   const [saveStatus, setSaveStatus] = useState(paperDraft ? 'Restored' : 'Ready')
   const [showSubmitCheck, setShowSubmitCheck] = useState(false)
   const [evidenceStatus, setEvidenceStatus] = useState('')
@@ -226,6 +246,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
   const studyMode = normalizePaperStudyMode(paper.paperStudyMode || paperDraft?.paperStudyMode)
   const studyModeLabel = paperStudyModeLabel(studyMode)
   const isTimedSimulation = isAttempt && studyMode === 'exam-simulation'
+  const coachAvailable = studyMode === 'past-paper-practice' || submitted
   const timeLimitSec = isTimedSimulation && Number(profile.durationMinutes) > 0 ? Number(profile.durationMinutes) * 60 : 0
   const remainingSec = timeLimitSec > 0 ? Math.max(0, timeLimitSec - elapsedSec) : 0
 
@@ -373,11 +394,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
   }, [onSaveDraft])
 
   function answerPaneBounds() {
-    const deskWidth = paperDeskRef.current?.clientWidth || window.innerWidth
-    return {
-      min: MIN_ANSWER_PANE_WIDTH,
-      max: Math.max(MIN_ANSWER_PANE_WIDTH, deskWidth - MIN_PDF_PANE_WIDTH - 16),
-    }
+    return answerPaneBoundsForWidth(paperDeskRef.current?.clientWidth || viewportWidth())
   }
 
   function resizeAnswerPane(nextWidth, persist = false) {
@@ -387,6 +404,15 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
     if (persist) window.localStorage.setItem(ANSWER_PANE_STORAGE_KEY, String(width))
     return width
   }
+
+  useEffect(() => {
+    function syncAnswerPaneWidth() {
+      setAnswerPaneWidth((current) => clampAnswerPaneWidth(current, paperDeskRef.current?.clientWidth || viewportWidth()))
+    }
+    syncAnswerPaneWidth()
+    window.addEventListener('resize', syncAnswerPaneWidth)
+    return () => window.removeEventListener('resize', syncAnswerPaneWidth)
+  }, [])
 
   function startPaneResize(event) {
     if (window.matchMedia('(max-width: 1040px)').matches) return
@@ -929,7 +955,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
             onAnswerChange={updateAnswer}
             onQuestionFocus={setFocusedQuestion}
             onLinkPdfInkQuestion={linkPdfInkToQuestion}
-            onAskCoach={submitted ? (questionNumber) => {
+            onAskCoach={coachAvailable ? (questionNumber) => {
               setFocusedQuestion(questionNumber)
               setCoachRequest((value) => value + 1)
             } : undefined}

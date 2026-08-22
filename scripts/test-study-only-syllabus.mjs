@@ -8,6 +8,7 @@ import { isScoredAttempt, sourceBindingSnapshotForUnit } from '../src/lib/attemp
 import { buildLearningProgress } from '../src/lib/learningProgress.js'
 import { courseRoutes } from '../src/data/routeRegistry.js'
 import { normalizeState } from '../src/lib/storage.js'
+import { filterQuestionsBySearch } from '../src/lib/questionSearch.js'
 import {
   canonicalSyllabusTopicIdForRoute,
   syllabusPracticeComponentsForRoute,
@@ -111,6 +112,35 @@ assert.equal(
 )
 assert.equal(a2PhysicsSet.practiceMode, 'study-only')
 assert.ok(a2PhysicsSet.questionGroups.every((group) => group.routeId === 'cie-9702-a2-physics' && group.paperComponent === 4))
+
+const a2GravityQuestions = studyQuestionBank.filter((question) => question.routeId === 'cie-9702-a2-physics' && question.knowledgeGroupId === 'physics-9702-topic-13')
+assert.ok(
+  filterQuestionsBySearch(a2GravityQuestions, 'gravitational potential').some((question) => question.sourceQuestionId === 'cie-9702-9702_m24_qp_42:q1'),
+  'Topic search must find A2 questions by hidden prompt/marking content while the UI still renders the source page image',
+)
+const explicitA2Set = buildSyllabusPracticeSet({
+  routeId: 'cie-9702-a2-physics',
+  syllabusTopicIds: ['9702-a2-topic-02'],
+  components: [4],
+  questionCount: 10,
+  sourceQuestionIds: [
+    'cie-9702-9702_m24_qp_42:q10',
+    'cie-9702-9702_m24_qp_42:q1',
+  ],
+  questionBank: studyQuestionBank,
+  includeStudyOnly: true,
+  seed: 9702,
+})
+assert.deepEqual(
+  explicitA2Set.sourceQuestionIds,
+  [
+    'cie-9702-9702_m24_qp_42:q10',
+    'cie-9702-9702_m24_qp_42:q1',
+  ],
+  'Selected search results must build a deterministic set from exact sourceQuestionIds, not random replacements',
+)
+assert.equal(explicitA2Set.questionCount, 2)
+assert.equal(explicitA2Set.requestedCount, 2)
 
 const asMath = syllabusTopicsInventory({
   routeId: 'cie-9709-as-p1-p2',

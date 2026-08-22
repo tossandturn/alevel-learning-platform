@@ -60,6 +60,22 @@ async function openPaper(page, baseUrl, mode) {
   }
 }
 
+async function assertTwoPaneWorkspace(page, label) {
+  await page.locator('.paper-desk').waitFor()
+  const paperBox = await page.locator('.pdf-stage').boundingBox()
+  const answerBox = await page.locator('.paper-response-panel').boundingBox()
+  if (!paperBox || !answerBox) throw new Error(`${label}: paper workspace panels were not measurable`)
+  if (Math.abs(paperBox.y - answerBox.y) > 24) {
+    throw new Error(`${label}: paper and answer panes must stay side-by-side, received ${JSON.stringify({ paperBox, answerBox })}`)
+  }
+  if (answerBox.x <= paperBox.x + 200) {
+    throw new Error(`${label}: answer pane must sit beside the question pane, received ${JSON.stringify({ paperBox, answerBox })}`)
+  }
+  if (await page.locator('.paper-pane-switch').isVisible()) {
+    throw new Error(`${label}: mobile paper switcher must stay hidden in the split workspace`)
+  }
+}
+
 async function run() {
   const port = await findFreePort()
   const vite = path.join(REPO_ROOT, 'node_modules', 'vite', 'bin', 'vite.js')
@@ -155,6 +171,51 @@ async function run() {
     await page.reload({ waitUntil: 'domcontentloaded' })
     await page.locator('.paper-workspace').waitFor()
     if (!(await page.locator('.workspace-title').innerText()).includes('Exam Simulation')) throw new Error('Simulation mode was not restored after refresh')
+
+    const tabletContext = await browser.newContext({ viewport: { width: 820, height: 1180 } })
+    tabletContext.on('requestfailed', (request) => {
+      if (request.url().includes('/api/')) unauthorizedUrls.push(`tablet-failed:${request.url()}`)
+    })
+    tabletContext.on('response', (response) => {
+      if (response.status() === 401) unauthorizedUrls.push(`tablet-401:${response.url()}`)
+    })
+    await tabletContext.route('**/api/**', async (route) => {
+      const requestUrl = new URL(route.request().url())
+      if (!['/api/stem/identity', '/api/auth/status'].includes(requestUrl.pathname)) {
+        await route.continue()
+        return
+      }
+      await route.fulfill({
+        status: requestUrl.pathname === '/api/auth/status' ? 200 : 401,
+        contentType: 'application/json',
+        headers: {
+          'Access-Control-Allow-Origin': baseUrl,
+          'Access-Control-Allow-Credentials': 'true',
+        },
+        body: JSON.stringify({ authenticated: false, identity: null, token: '', workspace: null }),
+      })
+    })
+    const tabletPage = await tabletContext.newPage()
+    tabletPage.on('pageerror', (error) => runtimeErrors.push(`tablet-pageerror: ${error.message}`))
+    tabletPage.on('console', (message) => {
+      if (message.type() === 'error') runtimeErrors.push(`tablet-console: ${message.text()}`)
+    })
+    await tabletPage.goto(`${baseUrl}/?routeId=cie-0580-igcse-mathematics&stage=IGCSE&course=0580`, { waitUntil: 'domcontentloaded' })
+    await tabletPage.evaluate((key) => {
+      const state = JSON.parse(localStorage.getItem(key) || '{}')
+      state.profile = {
+        ...(state.profile || {}),
+        role: 'student',
+        activeRouteId: 'cie-0580-igcse-mathematics',
+        learningTrack: 'IGCSE',
+        recentRouteIds: ['cie-0580-igcse-mathematics'],
+      }
+      localStorage.setItem(key, JSON.stringify(state))
+    }, STORAGE_KEY)
+    await tabletPage.reload({ waitUntil: 'domcontentloaded' })
+    await openPaper(tabletPage, baseUrl, 'past-paper-practice')
+    await assertTwoPaneWorkspace(tabletPage, 'tablet')
+    await tabletContext.close()
 
     const errors = await page.evaluate(() => window.__qaErrors || [])
     if (errors.length) throw new Error(`Browser runtime errors: ${JSON.stringify(errors)}`)

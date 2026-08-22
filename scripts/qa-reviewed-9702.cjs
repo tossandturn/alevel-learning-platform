@@ -191,7 +191,7 @@ async function mockCoachHistory(page) {
 }
 
 async function openTopic(page, testCase) {
-  const hasReadyInventory = (text) => /official question|verified question|checked question/i.test(text)
+  const hasReadyInventory = (text) => /source-backed question|official question|verified question|checked question/i.test(text)
   const topic = testCase.topic
   const picker = page.locator('.student-home-guided .student-route-picker')
   await picker.getByRole('tab', { name: 'AS', exact: true }).click()
@@ -202,7 +202,7 @@ async function openTopic(page, testCase) {
   await page.waitForFunction((topicName) => [...document.querySelectorAll('.topic-directory__row')]
     .some((element) => {
       const title = element.querySelector('.topic-directory__copy strong')?.textContent?.trim().replace(/^\d+\s+/, '')
-      return title === topicName && /official question|verified question|checked question/i.test(element.textContent)
+      return title === topicName && /source-backed question|official question|verified question|checked question/i.test(element.textContent)
     }), topic, { timeout: 12_000 })
   const candidates = page.locator('.topic-directory__row').filter({ hasText: topic })
   let row = null
