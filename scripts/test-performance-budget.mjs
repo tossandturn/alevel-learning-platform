@@ -21,6 +21,7 @@ const pdfViewerName = jsAssets.find((name) => /^PdfViewer-/.test(name))
 const practiceWorkspaceName = jsAssets.find((name) => /^PracticeWorkspace-/.test(name))
 const aiCoachName = jsAssets.find((name) => /^AiCoach-/.test(name))
 const practiceRuntimeName = jsAssets.find((name) => /^verifiedPracticeCatalog-/.test(name))
+const studyQuestionRuntimeName = jsAssets.find((name) => /^studyQuestionRuntime-/.test(name))
 
 assert.ok(entry.length < 625_000, `client entry is too large: ${entry.length} bytes`)
 assert.ok(entryGzip.length < 180_000, `gzipped client entry is too large: ${entryGzip.length} bytes`)
@@ -29,6 +30,7 @@ assert.ok(!entry.includes('sourceContentManifest'), 'the source evidence manifes
 assert.ok(!html.includes('practice-catalog-'), 'the initial HTML must not preload the full verified practice catalog')
 assert.ok(!html.includes('source-content-manifest-'), 'the initial HTML must not preload the source evidence manifest')
 assert.ok(practiceRuntimeName, 'the verified practice runtime must remain an on-demand client chunk')
+assert.ok(studyQuestionRuntimeName, 'the full study question runtime must remain a separate on-demand client chunk')
 assert.ok(practiceWorkspaceName, 'the question workspace must remain an on-demand client chunk')
 assert.ok(aiCoachName, 'AI Coach must remain an on-demand client chunk')
 assert.ok(paperLibraryName, 'the past-paper catalog must remain an on-demand client chunk')
@@ -37,6 +39,9 @@ assert.ok(pdfViewerName, 'PDF viewer must remain an on-demand client chunk')
 assert.ok(!entry.includes('pdfjs-dist'), 'the initial client entry must not include PDF parsing code')
 
 const paperWorkspace = fs.readFileSync(path.join(assetRoot, paperWorkspaceName))
+const verifiedRuntime = fs.readFileSync(path.join(assetRoot, practiceRuntimeName))
+assert.ok(verifiedRuntime.length < 100_000, `verified runtime is too large: ${verifiedRuntime.length} bytes`)
+assert.ok(!verifiedRuntime.includes('importedQuestionIndex'), 'the verified runtime must not embed the full study question index')
 assert.ok(!paperWorkspace.includes('pdfjs-dist'), 'the paper workspace must defer PDF parsing until the document pane renders')
 
 const pdfViewer = fs.readFileSync(path.join(root, 'src', 'components', 'PdfViewer.jsx'), 'utf8')
@@ -67,6 +72,7 @@ console.log(JSON.stringify({
   entryBytes: entry.length,
   entryGzipBytes: entryGzip.length,
   practiceRuntime: practiceRuntimeName,
+  studyQuestionRuntime: studyQuestionRuntimeName,
   practiceWorkspace: practiceWorkspaceName,
   aiCoach: aiCoachName,
   paperLibrary: paperLibraryName,

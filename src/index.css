@@ -26,6 +26,52 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+#boot-fallback {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  color: #6f7892;
+  background: #f5f6fb;
+  font-family: Inter, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+}
+
+#boot-fallback[hidden] {
+  display: none;
+}
+
+#boot-fallback > div:last-child {
+  display: grid;
+  gap: 5px;
+}
+
+#boot-fallback strong {
+  color: #18213d;
+  font-size: 15px;
+}
+
+#boot-fallback p {
+  margin: 0;
+  font-size: 13px;
+}
+
+#boot-fallback a {
+  color: #5638c3;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.boot-fallback__spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #c9d6e8;
+  border-top-color: #7357e8;
+  border-radius: 50%;
+  animation: app-loading-spin .8s linear infinite;
+}
+
 * {
   box-sizing: border-box;
 }

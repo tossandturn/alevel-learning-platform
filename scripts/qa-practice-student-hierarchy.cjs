@@ -168,6 +168,7 @@ async function runViewport(page, server, viewport) {
   assert.equal(await a2TopicRows.count(), 15, 'A2 Physics must show every official syllabus topic, including topics still awaiting source-backed practice')
   await a2TopicRows.filter({ hasText: 'Gravitational fields' }).click()
   await page.getByRole('tab', { name: 'Past-paper questions', exact: true }).click()
+  await page.locator('.topic-detail__question-item').first().waitFor({ state: 'visible' })
   const a2QuestionSearch = page.getByPlaceholder(/gravitational potential/i)
   await a2QuestionSearch.fill('gravitational potential')
   assert.ok(await page.locator('.topic-detail__question-item').count() > 0, 'A2 topic search must expose study-only source questions through the canonical syllabus mapping')

@@ -6,8 +6,43 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Verified Cambridge STEM practice for IGCSE, AS, A2 and admissions tests." />
     <title>STEM Studio | Cambridge Practice</title>
+    <style>
+      #boot-fallback {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        padding: 24px;
+        color: #6f7892;
+        background: #f5f6fb;
+        font: 14px/1.5 Inter, "Segoe UI", Arial, sans-serif;
+      }
+      #boot-fallback > div:last-child { display: grid; gap: 5px; }
+      #boot-fallback strong { color: #18213d; font-size: 15px; }
+      #boot-fallback p { margin: 0; font-size: 13px; }
+      #boot-fallback a { color: #5638c3; font-weight: 700; }
+      #boot-fallback[hidden] { display: none; }
+      .boot-fallback__spinner {
+        width: 20px;
+        height: 20px;
+        border: 2px solid #c9d6e8;
+        border-top-color: #7357e8;
+        border-radius: 50%;
+        animation: boot-fallback-spin .8s linear infinite;
+      }
+      @keyframes boot-fallback-spin { to { transform: rotate(360deg); } }
+    </style>
   </head>
   <body>
+    <div id="boot-fallback" role="status" aria-live="polite">
+      <div class="boot-fallback__spinner" aria-hidden="true"></div>
+      <div>
+        <strong>Opening STEM Studio...</strong>
+        <p>Preparing your study workspace.</p>
+        <a href="">Reload STEM</a>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

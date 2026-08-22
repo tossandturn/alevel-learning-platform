@@ -83,6 +83,7 @@ const RoleWorkspace = lazy(() =>
 
 const EMPTY_SELF_MARKS = Object.freeze({})
 let practiceRuntimePromise
+let studyQuestionRuntimePromise
 
 function loadPracticeRuntime() {
   practiceRuntimePromise ||= import('./lib/verifiedPracticeCatalog').catch((error) => {
@@ -90,6 +91,14 @@ function loadPracticeRuntime() {
     throw error
   })
   return practiceRuntimePromise
+}
+
+function loadStudyQuestionRuntime() {
+  studyQuestionRuntimePromise ||= import('./lib/studyQuestionRuntime').catch((error) => {
+    studyQuestionRuntimePromise = undefined
+    throw error
+  })
+  return studyQuestionRuntimePromise
 }
 
 function formatTime(totalSec) {
@@ -415,6 +424,7 @@ function App() {
   const [exportState, setExportState] = useState({ status: 'idle', error: '', exportedAt: '', filename: '' })
   const [syllabusRebindState, setSyllabusRebindState] = useState(() => ({ fingerprint: '', status: 'idle', units: new Map() }))
   const [practiceRuntimeState, setPracticeRuntimeState] = useState({ status: 'idle', module: null, error: '' })
+  const [studyQuestionRuntimeState, setStudyQuestionRuntimeState] = useState({ status: 'idle', module: null, error: '' })
   const migrationAttemptedRef = useRef(false)
   const notebookSyncTimerRef = useRef(null)
   const stateOwnerIdRef = useRef('')
@@ -433,7 +443,23 @@ function App() {
         throw error
       })
   }, [])
+  const ensureStudyQuestionRuntime = useCallback(() => {
+    setStudyQuestionRuntimeState((current) => current.module ? current : { ...current, status: 'loading', error: '' })
+    return loadStudyQuestionRuntime()
+      .then((module) => {
+        setStudyQuestionRuntimeState({ status: 'ready', module, error: '' })
+        return module
+      })
+      .catch((error) => {
+        setStudyQuestionRuntimeState({ status: 'error', module: null, error: error.message || 'Source question search could not be loaded.' })
+        throw error
+      })
+  }, [])
+  const openPastPaperQuestions = useCallback(() => {
+    void ensureStudyQuestionRuntime().catch(() => {})
+  }, [ensureStudyQuestionRuntime])
   const practiceRuntime = practiceRuntimeState.module
+  const studyQuestionRuntime = studyQuestionRuntimeState.module
   const verifiedCatalogUnits = useMemo(() => practiceRuntime?.buildVerifiedPracticeCatalog() || [], [practiceRuntime])
   const persistedSyllabusUnits = useMemo(() => (
     (appState.generatedUnits || []).filter((unit) => unit?.sourceAuthority === 'server-syllabus')
@@ -497,8 +523,45 @@ function App() {
   const syllabusInventory = useSyllabusInventory(activeRouteId, {
     enabled: supportsSyllabusPracticeRoute(activeRouteId),
   })
+  const syllabusPracticeFallbackOptions = useMemo(() => {
+    if (!supportsSyllabusPracticeRoute(activeRouteId) || aiPracticeOptions.length) return []
+    const topics = syllabusInventory.data?.topics?.length
+      ? syllabusInventory.data.topics
+      : (activeRoute.syllabus?.topics || [])
+    return [{
+      routeId: activeRouteId,
+      subjectId: activeRoute.subjectId,
+      subject: activeRoute.subject,
+      qualification: activeRoute.qualification,
+      qualificationId: activeRoute.qualificationId,
+      code: activeRoute.subjectCode,
+      label: `${activeRoute.stage} ${activeRoute.subjectCode} ${activeRoute.subject}`,
+      planSubjectId: activeRoute.subjectId,
+      stage: activeRoute.stage,
+      stages: [activeRoute.stage],
+      topics: topics.map((topic, index) => ({
+        id: topic.id,
+        routeId: activeRouteId,
+        label: `${topic.code || index + 1} ${topic.name || topic.title || ''}`.trim(),
+        stageTags: [activeRoute.stage],
+        inventory: Number(topic.availableQuestionCount ?? topic.verifiedQuestionCount ?? 0),
+        verifiedQuestionCount: Number(topic.verifiedQuestionCount || 0),
+        studyQuestionCount: Number(topic.studyQuestionCount || 0),
+        availableQuestionCount: Number(topic.availableQuestionCount ?? topic.verifiedQuestionCount ?? 0),
+        componentCounts: topic.componentCounts || {},
+        questionIdsByComponent: topic.questionIdsByComponent || {},
+        indexedQuestionCount: topic.indexedQuestionCount,
+        pendingReviewCount: Number(topic.pendingReviewCount || 0),
+        availableSetSizes: topic.availableSetSizes,
+        ctaPolicy: topic.ctaPolicy,
+        sourceGap: topic.sourceGap,
+        points: topic.points || [],
+      })),
+    }]
+  }, [activeRoute, activeRouteId, aiPracticeOptions.length, syllabusInventory.data])
   const activePracticeOptions = useMemo(() => {
-    const routeOptions = aiPracticeOptions.filter((option) => option.routeId === activeRouteId)
+    const routeOptions = [...aiPracticeOptions, ...syllabusPracticeFallbackOptions]
+      .filter((option) => option.routeId === activeRouteId)
     if (!supportsSyllabusPracticeRoute(activeRouteId) || syllabusInventory.status !== 'ready') return routeOptions
     const serverTopics = new Map((syllabusInventory.data?.topics || []).map((topic) => [topic.id, topic]))
     return routeOptions.map((option) => ({
@@ -525,7 +588,7 @@ function App() {
         }))
         : option.topics,
     }))
-  }, [activeRouteId, aiPracticeOptions, syllabusInventory.data, syllabusInventory.status])
+  }, [activeRouteId, aiPracticeOptions, syllabusInventory.data, syllabusInventory.status, syllabusPracticeFallbackOptions])
   const learningProgress = useMemo(() => buildLearningProgress({
     attempts: appState.attempts,
     drafts: appState.drafts,
@@ -561,9 +624,10 @@ function App() {
   useEffect(() => {
     if (practiceRuntimeState.status !== 'idle') return undefined
     if (view === 'dashboard') return undefined
+    if (supportsSyllabusPracticeRoute(activeRouteId) && (view === 'library' || view === 'topic')) return undefined
     void ensurePracticeRuntime().catch(() => {})
     return undefined
-  }, [ensurePracticeRuntime, practiceRuntimeState.status, view])
+  }, [activeRouteId, ensurePracticeRuntime, practiceRuntimeState.status, view])
 
   useEffect(() => {
     if (sharedAccount.status === 'loading') return
@@ -1882,7 +1946,10 @@ function App() {
           practiceOptions={activePracticeOptions}
           syllabusInventory={syllabusInventory}
           practiceUnits={routePracticeUnits}
-          practiceQuestionGroups={practiceRuntime?.practiceQuestionGroupsForRoute?.(activeRouteId) || []}
+          practiceQuestionGroups={studyQuestionRuntime?.studyQuestionGroupsForRoute?.(activeRouteId, practiceRuntime?.verifiedPracticeQuestionGroups || []) || []}
+          studyQuestionRuntimeStatus={studyQuestionRuntimeState.status}
+          studyQuestionRuntimeError={studyQuestionRuntimeState.error}
+          onOpenPastPaperQuestions={openPastPaperQuestions}
           verifiedQuestionGroups={practiceRuntime?.verifiedPracticeQuestionGroups || []}
           completionByUnit={completionByUnit}
           learningProgress={learningProgress}
@@ -2862,7 +2929,7 @@ function PracticeTopicDirectory({ activeRoute, activeRouteId, practiceOptions, v
   )
 }
 
-function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen = false, practiceOptions, syllabusInventory, learningProgress, mistakes, practiceUnits, practiceQuestionGroups = [], verifiedQuestionGroups = [], completionByUnit, startPractice, startKnowledgeDrill, onBack, onOpenCoach, favoriteUnitIds, onToggleFavorite }) {
+function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen = false, practiceOptions, syllabusInventory, learningProgress, mistakes, practiceUnits, practiceQuestionGroups = [], studyQuestionRuntimeStatus = 'idle', studyQuestionRuntimeError = '', onOpenPastPaperQuestions = () => {}, verifiedQuestionGroups = [], completionByUnit, startPractice, startKnowledgeDrill, onBack, onOpenCoach, favoriteUnitIds, onToggleFavorite }) {
   const [startError, setStartError] = useState('')
   const [detailTab, setDetailTab] = useState('overview')
   const [builderOpen, setBuilderOpen] = useState(initialBuilderOpen)
@@ -3028,6 +3095,10 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen =
     setSelectedQuestionIds([])
   }, [activeRouteId, topicId])
 
+  useEffect(() => {
+    if (detailTab === 'papers') onOpenPastPaperQuestions()
+  }, [detailTab, onOpenPastPaperQuestions])
+
   async function startTopicPractice() {
     try {
       setStartError('')
@@ -3145,7 +3216,9 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen =
                 <span><strong>{filteredTopicQuestions.length}</strong> matching</span>
                 <span><strong>{topicQuestions.length}</strong> source questions</span>
               </div>
-              {filteredTopicQuestions.length ? <div className="topic-detail__question-list">{filteredTopicQuestions.map((question) => {
+              {studyQuestionRuntimeStatus === 'loading' || studyQuestionRuntimeStatus === 'idle'
+                ? <div className="topic-detail__empty-source" role="status"><FileText size={20} /><strong>{studyQuestionRuntimeStatus === 'loading' ? 'Loading linked questions...' : 'Open this tab to load linked questions'}</strong><p>The searchable source index loads only when you ask to browse past-paper questions.</p></div>
+                : filteredTopicQuestions.length ? <div className="topic-detail__question-list">{filteredTopicQuestions.map((question) => {
                 const firstPage = question.sourceRef?.pageStart || '?'
                 const markSchemePage = question.answerRef?.pageStart || '?'
                 const selected = selectedQuestionIdsSet.has(question.sourceQuestionId)
@@ -3160,7 +3233,7 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen =
                     <small>QP p.{firstPage} · MS p.{markSchemePage}{question.studyOnly ? ' · study-only' : ''}</small>
                   </span>
                 </label>
-              })}</div> : <div className="topic-detail__empty-source"><FileText size={20} /><strong>No question-level source records yet</strong><p>This topic is in the syllabus map, but its verified paper index has not been attached to this route.</p></div>}
+              })}</div> : <div className="topic-detail__empty-source" role="alert"><FileText size={20} /><strong>{studyQuestionRuntimeError ? 'Linked questions could not be loaded' : 'No question-level source records yet'}</strong><p>{studyQuestionRuntimeError || 'This topic is in the syllabus map, but its verified paper index has not been attached to this route.'}</p></div>}
             </div>
             {topicPaperGroups.length ? <div className="topic-detail__paper-groups">{topicPaperGroups.map((paperQuestions) => { const first = paperQuestions[0]; const source = first.sourceRef || {}; return <article className="topic-detail__paper-group" key={source.paperId || source.paper}><header><div><strong>{sourcePaperLabel(first)}</strong><span>{source.component ? `Component ${source.component}` : 'Official source'} · {paperQuestions.length} linked question{paperQuestions.length === 1 ? '' : 's'}</span></div><div><a href={`${source.localUrl}#page=${source.pageStart || 1}`} target="_blank" rel="noreferrer">Open QP</a><a href={`${first.answerRef?.localUrl || '#'}#page=${first.answerRef?.pageStart || 1}`} target="_blank" rel="noreferrer">Open MS</a></div></header><div>{paperQuestions.map((question) => <div className="topic-detail__question-row" key={question.questionGroupId || question.bankId}><span>{question.sourceRef?.question || 'Question'}</span><p>{sourceQuestionPreview(question) || 'Indexed question text is available in the source paper.'}</p><small>{question.totalMarks || question.marks || 1} mark{(question.totalMarks || question.marks || 1) === 1 ? '' : 's'} · QP p.{question.sourceRef?.pageStart || '?'} · MS p.{question.answerRef?.pageStart || '?'}</small></div>)}</div></article> })}</div> : <div className="topic-detail__empty-source"><FileText size={20} /><strong>No question-level source records yet</strong><p>This topic is in the syllabus map, but its verified paper index has not been attached to this route.</p></div>}
           </section>

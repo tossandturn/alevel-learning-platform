@@ -7,10 +7,26 @@ startRuntimePerformanceMonitoring()
 
 const App = lazy(() => import('./App.jsx'))
 
+function setBootFallback({ hidden = true, title = '', message = '' } = {}) {
+  if (typeof document === 'undefined') return
+  const fallback = document.getElementById('boot-fallback')
+  if (!fallback) return
+  fallback.hidden = hidden
+  if (title) {
+    const heading = fallback.querySelector('strong')
+    if (heading) heading.textContent = title
+  }
+  if (message) {
+    const copy = fallback.querySelector('p')
+    if (copy) copy.textContent = message
+  }
+}
+
 export function AppLoadingFallback() {
   const [timedOut, setTimedOut] = useState(false)
 
   useEffect(() => {
+    setBootFallback()
     const timer = window.setTimeout(() => setTimedOut(true), 8000)
     return () => window.clearTimeout(timer)
   }, [])
@@ -42,6 +58,7 @@ export class AppErrorBoundary extends Component {
 
   componentDidCatch(error) {
     if (typeof window !== 'undefined') window.__stemLastAppError = String(error?.message || error || 'unknown error')
+    setBootFallback()
   }
 
   retry = () => {
@@ -71,6 +88,29 @@ export class AppErrorBoundary extends Component {
 window.addEventListener('vite:preloadError', (event) => {
   event.preventDefault()
   window.__stemChunkLoadError = true
+  let shouldReload = false
+  try {
+    const key = 'stem:chunk-reload-at'
+    const previous = Number(window.sessionStorage.getItem(key) || 0)
+    shouldReload = !previous || Date.now() - previous > 30_000
+    if (shouldReload) window.sessionStorage.setItem(key, String(Date.now()))
+  } catch {
+    shouldReload = false
+  }
+  if (shouldReload) {
+    setBootFallback({
+      hidden: false,
+      title: 'Refreshing STEM Studio...',
+      message: 'The current page bundle changed. Reloading the latest version.',
+    })
+    window.location.reload()
+    return
+  }
+  setBootFallback({
+    hidden: false,
+    title: 'STEM could not load this page',
+    message: 'The latest page bundle is unavailable. Use Reload STEM to try again.',
+  })
 })
 
 createRoot(document.getElementById('root')).render(

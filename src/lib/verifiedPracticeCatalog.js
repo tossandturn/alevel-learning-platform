@@ -2,7 +2,6 @@ import catalog from '../data/verifiedPracticeCatalog.json' with { type: 'json' }
 import { subjects } from '../data/catalog.js'
 import { learningPlan } from '../data/learningPlan.js'
 import { courseRoutes, routeById, routesForSubject } from '../data/routeRegistry.js'
-import { studyQuestionBank, isStudyOnlyPastPaperItem } from '../data/questionBank.js'
 import { canonicalSourceMarkingProvenance, canonicalSourceQuestionId } from './sourceContentContract.js'
 import { reviewedSourceFocusBinding, sourceContentStatus, stripSourceVisualPlaceholders } from './questionContent.js'
 import { SOURCE_CONTENT_MANIFEST_CHECKSUM, SOURCE_INDEX_SHA256 } from '../data/sourceContentIdentity.js'
@@ -152,21 +151,6 @@ export function coachPracticeOptions() {
       ])),
     })),
   }))
-}
-
-export function practiceQuestionGroupsForRoute(routeId, { includeStudyOnly = true } = {}) {
-  const bank = includeStudyOnly ? studyQuestionBank : verifiedPracticeQuestionGroups
-  return bank
-    .filter((question) => question.routeId === routeId)
-    .toSorted((left, right) => (
-      (Number(right.sourceRef?.year) || 0) - (Number(left.sourceRef?.year) || 0)
-      || String(left.sourceRef?.paper).localeCompare(String(right.sourceRef?.paper))
-      || String(left.sourceRef?.question).localeCompare(String(right.sourceRef?.question), undefined, { numeric: true })
-    ))
-    .map((question) => ({
-      ...question,
-      studyOnly: includeStudyOnly && isStudyOnlyPastPaperItem(question) && !verifiedPracticeQuestionGroups.some((item) => item.sourceQuestionId === question.sourceQuestionId),
-    }))
 }
 
 export function topicQueryForRoute(routeId, topicId) {
