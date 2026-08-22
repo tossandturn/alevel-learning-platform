@@ -11,6 +11,7 @@ import { normalizeState } from '../src/lib/storage.js'
 import { filterQuestionsBySearch } from '../src/lib/questionSearch.js'
 import {
   canonicalSyllabusTopicIdForRoute,
+  questionMatchesSyllabusTopic,
   syllabusPracticeComponentsForRoute,
 } from '../src/lib/syllabusPracticeRoutes.js'
 
@@ -114,6 +115,16 @@ assert.equal(a2PhysicsSet.practiceMode, 'study-only')
 assert.ok(a2PhysicsSet.questionGroups.every((group) => group.routeId === 'cie-9702-a2-physics' && group.paperComponent === 4))
 
 const a2GravityQuestions = studyQuestionBank.filter((question) => question.routeId === 'cie-9702-a2-physics' && question.knowledgeGroupId === 'physics-9702-topic-13')
+assert.equal(
+  canonicalSyllabusTopicIdForRoute('cie-9702-a2-physics', 'physics-9702-topic-13'),
+  '9702-a2-topic-02',
+  'A2 source topic IDs must resolve to the official A2 syllabus topic ID',
+)
+assert.equal(
+  questionMatchesSyllabusTopic('cie-9702-a2-physics', 'physics-9702-topic-13', '9702-a2-topic-02'),
+  true,
+  'A2 topic detail search must match source questions through the canonical syllabus resolver',
+)
 assert.ok(
   filterQuestionsBySearch(a2GravityQuestions, 'gravitational potential').some((question) => question.sourceQuestionId === 'cie-9702-9702_m24_qp_42:q1'),
   'Topic search must find A2 questions by hidden prompt/marking content while the UI still renders the source page image',

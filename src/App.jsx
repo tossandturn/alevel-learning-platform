@@ -33,7 +33,7 @@ import { COURSE_STAGE_ORDER } from './data/stages'
 import { usePaperCatalog } from './hooks/usePaperCatalog'
 import { useSyllabusInventory } from './hooks/useSyllabusInventory'
 import { loadState, makeAttemptId, normalizeState, saveState } from './lib/storage'
-import { canonicalSyllabusTopicIdForRoute, supportsSyllabusPracticeRoute, syllabusPracticeComponentsForRoute } from './lib/syllabusPracticeRoutes'
+import { canonicalSyllabusTopicIdForRoute, questionMatchesSyllabusTopic, supportsSyllabusPracticeRoute, syllabusPracticeComponentsForRoute } from './lib/syllabusPracticeRoutes'
 import { attemptedSourceQuestionIds, buildAttemptReviewQueue, buildProvisionalAttemptEvidence, hasAttemptResponse, hasCurrentSourceBindingForAttempt, isPendingSelfMarkAttempt, isProvisionalAttempt, isScoredAttempt, isStudyOnlyAttempt, isStudyOnlyPracticeUnit, prepareLearningExport, sourceBindingSnapshotForUnit } from './lib/attemptAudit'
 import { mergeNotebookNote, notebookNoteRequest } from './lib/privateNotes'
 import { stripSourceVisualPlaceholders } from './lib/questionText'
@@ -2690,9 +2690,8 @@ function baseTopicId(topicId) {
 }
 
 function topicQuestionMatches(question, routeId, topicId) {
-  const requestedTopic = baseTopicId(topicId)
   const questionTopic = baseTopicId(question.knowledgeGroupId || question.topicId)
-  return question.routeId === routeId && questionTopic === requestedTopic
+  return question.routeId === routeId && questionMatchesSyllabusTopic(routeId, questionTopic, topicId)
 }
 
 function sourceQuestionPreview(question) {

@@ -124,4 +124,8 @@ export function canonicalSyllabusTopicIdForRoute(routeId, topicId) {
   return LEGACY_TOPIC_BY_ROUTE[route]?.[rawTopicId] || rawTopicId
 }
 
+export function questionMatchesSyllabusTopic(routeId, questionTopicId, syllabusTopicId) {
+  return canonicalSyllabusTopicIdForRoute(routeId, questionTopicId) === canonicalSyllabusTopicIdForRoute(routeId, syllabusTopicId)
+}
+
 export { SYLLABUS_PRACTICE_ROUTE_IDS }
