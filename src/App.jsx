@@ -400,6 +400,8 @@ function App() {
   const [resultAttempt, setResultAttempt] = useState(null)
   const [activePaper, setActivePaper] = useState(null)
   const [pendingSession, setPendingSession] = useState(null)
+  const [coachMounted, setCoachMounted] = useState(false)
+  const [coachOpenPending, setCoachOpenPending] = useState(false)
   const [coachOpenRequest, setCoachOpenRequest] = useState(0)
   const coachBuilderOpenRequest = 0
   const [sharedAccount, setSharedAccount] = useState({ status: 'loading', token: '', workspace: null, error: '' })
@@ -558,12 +560,9 @@ function App() {
 
   useEffect(() => {
     if (practiceRuntimeState.status !== 'idle') return undefined
-    if (view !== 'dashboard') {
-      void ensurePracticeRuntime().catch(() => {})
-      return undefined
-    }
-    const timerId = window.setTimeout(() => void ensurePracticeRuntime().catch(() => {}), 2500)
-    return () => window.clearTimeout(timerId)
+    if (view === 'dashboard') return undefined
+    void ensurePracticeRuntime().catch(() => {})
+    return undefined
   }, [ensurePracticeRuntime, practiceRuntimeState.status, view])
 
   useEffect(() => {
@@ -1774,6 +1773,8 @@ function App() {
   }
 
   function openCoach() {
+    setCoachMounted(true)
+    setCoachOpenPending(true)
     setCoachOpenRequest((value) => value + 1)
   }
 
@@ -1995,7 +1996,18 @@ function App() {
           })}
         />
       )}
-      {view !== 'paper' && view !== 'practice' && !(view === 'library' && activeTab === 'papers') && (
+      {view === 'dashboard' && !coachMounted && !accountDialogMode && !accountPopoverOpen && (
+        <button
+          type="button"
+          className="ai-coach-trigger"
+          onClick={openCoach}
+          aria-label="Open AI Coach"
+          title="Open AI Coach"
+        >
+          <Sparkles size={18} /><span>AI Coach</span>
+        </button>
+      )}
+      {view !== 'paper' && view !== 'practice' && !(view === 'library' && activeTab === 'papers') && (view !== 'dashboard' || coachMounted) && (
         <Suspense fallback={null}><AiCoach
           key={`${activeRouteId}:${view}:${coachAttempt?.id || 'general'}`}
           stateOwnerId={stateOwnerId}
@@ -2018,6 +2030,8 @@ function App() {
             markingStatus: view === 'practice' ? 'in-progress' : resultIsPendingSelfMark ? 'self-mark-pending' : resultAttempt?.scoreResult?.partial ? 'provisional' : resultAttempt?.scoreResult ? 'scored' : 'not-scored',
           }}
           openRequest={coachOpenRequest}
+          initialOpen={coachOpenPending}
+          onInitialOpenHandled={() => setCoachOpenPending(false)}
           openBuilderRequest={coachBuilderOpenRequest}
           practiceOptions={activePracticeOptions}
           onGeneratePractice={generateCoachPractice}

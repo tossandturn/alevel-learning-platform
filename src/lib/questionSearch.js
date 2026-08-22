@@ -1,4 +1,4 @@
-import { stripSourceVisualPlaceholders } from './questionContent.js'
+import { stripSourceVisualPlaceholders } from './questionText.js'
 
 function normalizeSearchText(value) {
   return String(value || '')

@@ -100,6 +100,8 @@ export function AiCoach({
   sharedIdentityToken = '',
   sharedIdentityUserId = '',
   openRequest = 0,
+  initialOpen = false,
+  onInitialOpenHandled,
   openBuilderRequest = 0,
   showTrigger = true,
   practiceOptions = EMPTY_PRACTICE_OPTIONS,
@@ -134,7 +136,7 @@ export function AiCoach({
   const initialHistoryRef = useRef(null)
   if (!initialHistoryRef.current) initialHistoryRef.current = loadLocalMessages(activeContext, storageKey, storageOwnerId)
   const initialHistory = initialHistoryRef.current
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(initialOpen)
   const [messages, setMessages] = useState(() => initialHistory.messages)
   const [draft, setDraft] = useState('')
   const [hintLevel, setHintLevel] = useState(1)
@@ -379,6 +381,12 @@ export function AiCoach({
       if (historyRequestVersionRef.current === requestVersion) historyRequestVersionRef.current += 1
     }
   }, [conversationId, historyScope, queueHistorySync, sharedIdentityToken, storageKey, storageOwnerId])
+
+  useEffect(() => {
+    if (!initialOpen || disabled) return
+    setOpen(true)
+    onInitialOpenHandled?.()
+  }, [disabled, initialOpen, onInitialOpenHandled])
 
   useEffect(() => {
     if (openRequest === lastOpenRequestRef.current) return

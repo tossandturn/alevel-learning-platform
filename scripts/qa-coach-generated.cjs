@@ -457,8 +457,16 @@ async function assertRemoteCoachHistoryRecovery(page, recoveryStatus) {
       localStorage.removeItem(key)
     }, STORAGE_KEY)
     await page.reload({ waitUntil: 'domcontentloaded' })
+    const historyResponse = page.waitForResponse((response) => {
+      const url = new URL(response.url())
+      return response.request().method() === 'GET'
+        && url.pathname === '/api/stem/coach/conversations'
+        && url.searchParams.get('limit') === '80'
+    })
     await page.getByRole('button', { name: 'Open AI Coach' }).click()
     const drawer = page.locator('.ai-coach.open')
+    await drawer.waitFor({ state: 'visible' })
+    await historyResponse
     if (!requestedHistory) throw new Error('Remote Coach history fixture did not receive a GET request after authentication.')
     await drawer.getByText(partialReply).waitFor()
     await drawer.getByText('Original photos are not kept in account history. Retry can continue with the saved question and text context.').waitFor()
