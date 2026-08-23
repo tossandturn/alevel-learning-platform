@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, CheckCircle2, ChevronLeft, ChevronRight, Clock3, FileText, Lightbulb, ListChecks, Maximize2, Minimize2, RotateCcw, Save, Search, Sparkles, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, CheckCircle2, ChevronLeft, ChevronRight, Clock3, FileText, Lightbulb, ListChecks, Maximize2, Minimize2, Save, Sparkles } from 'lucide-react'
 import { AiCoach } from './AiCoach'
 import { HandwritingPad } from './HandwritingPad'
 import { SourceRegionRenderer } from './SourceRegionRenderer'
@@ -36,62 +36,6 @@ function displayPrompt(part) {
   return optionStart > 0 ? prompt.slice(0, optionStart).trim() : prompt
 }
 
-function sourceUrlsForPart(part) {
-  return trustedSourceAssetUrls({ ...part?.sourceRef, assetUrls: part?.sourceAssetUrls || part?.sourceRef?.assetUrls || [] })
-}
-
-function sourcePageFromUrl(url) {
-  const match = String(url || '').match(/\/qp-(\d+)\.(?:png|jpe?g|webp)$/i)
-  return match ? Number(match[1]) : null
-}
-
-function sourceFocusNormalizedRegion(focus) {
-  const normalized = Array.isArray(focus?.normalizedRegion) ? focus.normalizedRegion.map(Number) : []
-  if (normalized.length === 4 && normalized.every(Number.isFinite)) return normalized
-  const size = Array.isArray(focus?.imageSize) ? focus.imageSize.map(Number) : []
-  const region = Array.isArray(focus?.region) ? focus.region.map(Number) : []
-  if (size.length !== 2 || region.length !== 4 || !size.every(Number.isFinite) || !region.every(Number.isFinite) || size.some((value) => value <= 0)) return null
-  return [region[0] / size[0], region[1] / size[1], region[2] / size[0], region[3] / size[1]]
-}
-
-function sourceFocusImageStyle(focus) {
-  const region = sourceFocusNormalizedRegion(focus)
-  if (!region) return undefined
-  const [left, top, right] = region
-  const width = right - left
-  if (!(width > 0)) return undefined
-  return {
-    width: `${100 / width}%`,
-    transform: `translate(-${left * 100}%, -${top * 100}%)`,
-  }
-}
-
-function sourceFocusAspectRatio(focus) {
-  const size = Array.isArray(focus?.imageSize) ? focus.imageSize.map(Number) : []
-  const region = Array.isArray(focus?.region) ? focus.region.map(Number) : []
-  if (
-    size.length === 2
-    && region.length === 4
-    && size.every(Number.isFinite)
-    && region.every(Number.isFinite)
-    && region[2] > region[0]
-    && region[3] > region[1]
-  ) {
-    return `${region[2] - region[0]} / ${region[3] - region[1]}`
-  }
-  const normalized = sourceFocusNormalizedRegion(focus)
-  if (!normalized) return undefined
-  const [left, top, right, bottom] = normalized
-  if (!(right > left) || !(bottom > top)) return undefined
-  // A normalized crop without its source image dimensions cannot supply a
-  // reliable display ratio. Show the full source page instead of distorting it.
-  return undefined
-}
-
-function sourceGroupKey(part) {
-  return String(part?.sourceQuestionId || part?.questionGroupId || part?.sourceRef?.question || part?.id || '')
-}
-
 function questionGroupKey(part) {
   return String(part?.sourceQuestionId || part?.questionGroupId || part?.bankId || part?.id || '')
 }
@@ -115,17 +59,6 @@ function groupQuestionParts(parts) {
 
 function sourceQuestionLabel(part, fallback = 'this question') {
   return sourceQuestionDisplayLabel(part, fallback)
-}
-
-function sourceLabelsOnPage(parts, activePart, assetUrl) {
-  const activeKey = sourceGroupKey(activePart)
-  const labels = new Set()
-  for (const part of parts) {
-    if (sourceGroupKey(part) === activeKey || !sourceUrlsForPart(part).includes(assetUrl)) continue
-    const label = sourceQuestionLabel(part, '')
-    if (label) labels.add(label)
-  }
-  return [...labels]
 }
 
 function requiresBoundSource(part) {
@@ -291,9 +224,9 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
   const activeSourceManifest = useMemo(() => buildSourceRenderManifest({ sourceRef: activePart?.sourceRef, parts: activeQuestion.parts }), [activePart?.sourceRef, activeQuestion.parts])
   const activeSourceScope = `${attempt.id || unit.id || 'practice'}:${activeQuestion.id}:${activeSourceManifest?.sourcePdfUrl || ''}:${JSON.stringify(activeSourceManifest?.pages || [])}`
   const activeSourceStatus = sourceRenderState.scope === activeSourceScope ? sourceRenderState.status : 'idle'
+  const activeSourceView = activePart?.sourceFocus?.defaultView === 'original' ? 'original' : activePart?.sourceFocus ? 'focused' : 'pdf-regions'
+  const activeSourceFocusPage = activePart?.sourceFocus?.pages?.find((entry) => entry.page === activeSourceManifest?.pages?.[0]?.page) || null
   const activeSourceDeclaredComplete = !activeRequiresBoundSource || ((activePart.sourceContentAvailable === true || activePart.sourceContentComplete === true) && Boolean(activeSourceManifest))
-  const activeSourceLoading = activeRequiresBoundSource && activeSourceDeclaredComplete && (activeSourceStatus === 'idle' || activeSourceStatus === 'loading')
-  const activeSourceFailed = activeSourceStatus === 'error'
   const activeSourceComplete = !activeRequiresBoundSource || (activeSourceDeclaredComplete && (activeSourceStatus === 'ready' || activeSourceStatus === 'fallback'))
   const unitSourceDeclaredComplete = sourceParts.every((part) => (part.sourceContentAvailable === true || part.sourceContentComplete === true) && Boolean(buildSourceRenderManifest({ sourceRef: part.sourceRef, parts: [part] })))
   const unitSourceComplete = unitSourceDeclaredComplete
@@ -350,7 +283,7 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
   }
 
   function requestSubmit() {
-    if (!unitSourceComplete) return
+    if (!unitSourceComplete || !activeSourceComplete) return
     if (unansweredAnswerPartCount > 0) setShowSubmitCheck(true)
     else void performSubmit()
   }
@@ -377,7 +310,7 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
           <button type="button" className="qp-focus-button" onClick={() => onToggleImmersive(!immersive)} aria-label={immersive ? 'Exit focus mode' : 'Enter focus mode'} aria-pressed={immersive} title={immersive ? 'Exit focus mode' : 'Enter focus mode'}>
             {immersive ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
           </button>
-          <button type="button" className="qp-submit-button" onClick={requestSubmit} disabled={attempt.submitting || flushing || !unitSourceComplete}>
+          <button type="button" className="qp-submit-button" onClick={requestSubmit} disabled={attempt.submitting || flushing || !unitSourceComplete || !activeSourceComplete}>
             {attempt.submitting || flushing ? (deferredMarking ? 'Saving and checking...' : 'Marking...') : 'Submit'}
           </button>
         </div>
@@ -445,11 +378,11 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
 
               <div className="qp-question__workbench">
                 <section className="qp-question__source-panel qp-question__body" id={`qp-source-panel-${activePart.id}`} aria-label="Question source and prompt">
-                  {activeSourceComplete && activeSourceManifest ? <figure className="qp-question-asset qp-question-asset--rendered" data-source-view="pdf-regions" data-source-document={activeSourceManifest.sourceDocumentId} data-source-pages={activeSourceManifest.pages.map((entry) => entry.page).join(',')} aria-label={`Rendered official source material for ${sourceQuestionLabel(activePart, `Question ${activeQuestionIndex + 1}`}`}>
+                  {activeSourceManifest && activeSourceDeclaredComplete ? <figure className="qp-question-asset qp-question-asset--rendered" data-source-view={activeSourceView} data-source-document={activeSourceManifest.sourceDocumentId} data-source-pages={activeSourceManifest.pages.map((entry) => entry.page).join(',')} data-source-state={activeSourceStatus} data-focus-safety={activeSourceFocusPage?.safetyStatus || 'runtime-pdf'} data-focus-region={activeSourceFocusPage?.region?.join(',') || activeSourceManifest.pages[0]?.normalizedRegion.join(',') || ''} data-focus-margin={activeSourceFocusPage?.safetyMargin?.join(',') || ''} aria-label={`Rendered official source material for ${sourceQuestionLabel(activePart, `Question ${activeQuestionIndex + 1}`)}`}>
                     <div className="qp-question-asset__toolbar"><strong>Complete question · {activeSourceManifest.pages.length} source page{activeSourceManifest.pages.length === 1 ? '' : 's'}</strong><span>Rendered from source PDF</span></div>
-                    <SourceRegionRenderer manifest={activeSourceManifest} onStatus={handleSourceRenderStatus} />
+                    <SourceRegionRenderer manifest={activeSourceManifest} mode={activeSourceView === 'original' ? 'original' : 'regions'} onStatus={handleSourceRenderStatus} />
                     <figcaption>Question regions are rendered from the checksum-bound original PDF and joined here as one question. The complete paper remains available below.</figcaption>
-                  </figure> : activeSourceLoading ? <div className="qp-source-loading" role="status" aria-live="polite"><FileText size={18} /><strong>Loading the complete question</strong><span>Rendering the checksum-bound source PDF before this answer area opens.</span></div> : activeRequiresBoundSource ? <div className="qp-source-incomplete" role="alert"><AlertTriangle size={18} /><strong>This question is temporarily unavailable.</strong><span>{activeSourceFailed ? 'The official source PDF could not be rendered. Answering and submission are blocked for this attempt.' : 'The complete official question and marking guidance could not be confirmed, so answering and submission are blocked.'}</span></div> : null}
+                  </figure> : activeRequiresBoundSource ? <div className="qp-source-incomplete" role="alert"><AlertTriangle size={18} /><strong>This question is temporarily unavailable.</strong><span>The complete official question and marking guidance could not be confirmed, so answering and submission are blocked.</span></div> : null}
                   {!activePart.sourceRef?.paperId && <h2>{displayPrompt(activePart)}</h2>}
                   {activePart.sourceRef && <div className="question-source-label qp-source-label"><strong>Official Cambridge question · {sourceQuestionLabel(activePart, `Question ${activeQuestionIndex + 1}`)}</strong><span>Source-bound question from the original paper. Marking feedback appears after submission.</span></div>}
                   {activePart.studyOnly && <div className="qp-source-study-note" role="status"><strong>Study mode</strong><span>This official source is ready for practice while formal review is pending. You can submit and self-mark; it is excluded from AI marking and formal mastery.</span></div>}
@@ -531,7 +464,6 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
           submitted: false,
         }}
       />}
-      {sourceZoomOpen && activeSourceAssetUrl && <div className="qp-source-zoom-backdrop" role="presentation" onMouseDown={closeSourceZoom}><section className="qp-source-zoom" role="dialog" aria-modal="true" aria-label="Expanded official question image" onMouseDown={(event) => event.stopPropagation()} onKeyDown={(event) => { if (event.key === 'Escape') closeSourceZoom() }}><header><strong>Official question page {sourceAssetPosition + 1} of {visualSourceUrls.length}</strong><span className="qp-source-zoom__tools">{visualSourceUrls.length > 1 && <><button type="button" className="icon-button" aria-label="Previous source page" disabled={sourceAssetPosition === 0} onClick={() => changeSourceAsset(sourceAssetPosition - 1)}><ChevronLeft size={17} /></button><button type="button" className="icon-button" aria-label="Next source page" disabled={sourceAssetPosition === visualSourceUrls.length - 1} onClick={() => changeSourceAsset(sourceAssetPosition + 1)}><ChevronRight size={17} /></button></>}<button type="button" className="icon-button" aria-label="Zoom out source image" disabled={sourceZoomScale <= 1} onClick={() => setSourceZoomScale((scale) => Math.max(1, Number((scale - 0.25).toFixed(2))))}><ZoomOut size={17} /></button><button type="button" className="icon-button" aria-label="Reset source image zoom" disabled={sourceZoomScale === 1} onClick={() => setSourceZoomScale(1)}><RotateCcw size={17} /></button><button type="button" className="icon-button" aria-label="Zoom in source image" disabled={sourceZoomScale >= 3} onClick={() => setSourceZoomScale((scale) => Math.min(3, Number((scale + 0.25).toFixed(2))))}><ZoomIn size={17} /></button><button ref={sourceZoomCloseRef} type="button" className="icon-button" aria-label="Close expanded source image" onClick={closeSourceZoom}><X size={18} /></button></span></header><div className="qp-source-zoom__canvas" aria-label={`Official question page ${sourceAssetPosition + 1}, zoom ${sourceZoomScale}x`} tabIndex="0"><img src={activeSourceAssetUrl} style={{ width: `${sourceZoomScale * 100}%` }} alt={`Expanded complete official source page ${sourceAssetPosition + 1}`} onLoad={() => markSourceAsset(activeSourceAssetUrl, 'loaded')} onError={() => markSourceAsset(activeSourceAssetUrl, 'error')} /></div></section></div>}
     </section>
   )
 }

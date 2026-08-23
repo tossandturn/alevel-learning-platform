@@ -69,7 +69,8 @@ async function stopServer(server) {
 
 async function openSpaceTopic(page, viewportName) {
   const errors = []
-  const assetFailures = []
+  const pdfResponses = []
+  const fallbackAssetResponses = []
   const rebindResponses = []
   page.on('pageerror', (error) => errors.push(error.message))
   page.on('console', (message) => {
@@ -77,9 +78,9 @@ async function openSpaceTopic(page, viewportName) {
   })
   page.on('response', (response) => {
     if (response.url().includes('/api/stem/practice-sets/rebind')) rebindResponses.push(response.status())
-    if (response.url().includes('/question-assets/')) {
-      if (response.status() !== 200) assetFailures.push({ url: response.url(), status: response.status() })
-    }
+    const pathname = new URL(response.url()).pathname
+    if (pathname.startsWith('/local-pdf/0625/') && pathname.endsWith('.pdf')) pdfResponses.push({ url: pathname, status: response.status() })
+    if (pathname.startsWith('/question-assets/cie-0625-')) fallbackAssetResponses.push({ url: pathname, status: response.status() })
   })
   await page.goto(page.url(), { waitUntil: 'domcontentloaded' })
   await page.evaluate(() => localStorage.clear())
@@ -116,42 +117,39 @@ async function openSpaceTopic(page, viewportName) {
   if (await page.locator('.session-setup').count()) await page.getByRole('button', { name: /Start session/i }).click()
   await page.locator('.question-block').waitFor()
   const buttons = page.locator('.qp-index__list button')
-  const expectedParts = payload.questionGroups.flatMap((group) => group.parts.map((part) => ({ group, part })))
-  const expectedPartCount = expectedParts.length
-  assert.equal(await buttons.count(), expectedPartCount, `${viewportName}: Space Physics set must expose every source-backed answer part`)
+  const expectedGroups = payload.questionGroups
+  assert.equal(await buttons.count(), expectedGroups.length, `${viewportName}: navigation must expose one entry per complete source question`)
   const evidence = []
   for (let index = 0; index < await buttons.count(); index += 1) {
     await buttons.nth(index).click()
     const figure = page.locator('.qp-question-asset').first()
     await figure.waitFor({ state: 'visible' })
-    const metrics = await figure.locator('img').evaluate((image) => ({
+    await page.waitForFunction(() => document.querySelector('.qp-question-asset')?.getAttribute('data-source-state') === 'ready')
+    const metrics = await figure.locator('.source-region-renderer__page img').evaluateAll((images) => images.map((image) => ({
       src: image.getAttribute('src') || '',
       naturalWidth: image.naturalWidth,
       naturalHeight: image.naturalHeight,
       complete: image.complete,
-      toolbar: image.closest('.qp-question-asset')?.querySelector('.qp-question-asset__toolbar')?.textContent || '',
-      sourceLabel: document.querySelector('.qp-source-label strong')?.textContent || '',
-    }))
-    assert.equal(metrics.complete, true, `${viewportName}: source image must finish loading`)
-    assert.ok(metrics.naturalWidth > 0 && metrics.naturalHeight > 0, `${viewportName}: source image must decode`)
-    assert.match(metrics.src, /\/question-assets\/cie-0625-0625_[^/]+\//)
-    const { group: sourceGroup, part: sourcePart } = expectedParts[index]
-    const requiredAssets = new Set([
-      ...(sourceGroup.sourceContent?.assetUrls || []),
-      ...(sourcePart.sourceEvidence || []).map((item) => item.assetUrl),
-    ].filter(Boolean))
-    assert.ok(requiredAssets.has(metrics.src), `${viewportName}: visible asset for ${sourcePart.partId} must match its canonical source binding`)
+      page: Number(image.closest('.source-region-renderer__page')?.getAttribute('data-source-page')),
+    })))
+    assert.ok(metrics.length > 0, `${viewportName}: source PDF must render at least one page region`)
+    assert.ok(metrics.every((item) => item.complete && item.naturalWidth > 0 && item.naturalHeight > 0 && item.src.startsWith('blob:')), `${viewportName}: every source PDF crop must decode from a Blob URL`)
+    const sourceGroup = expectedGroups[index]
+    const expectedPdf = sourceGroup.sourceRef?.localUrl
+    assert.match(expectedPdf || '', /^\/local-pdf\/0625\/[^/]+\.pdf$/)
+    assert.ok(pdfResponses.some((item) => item.url === expectedPdf && [200, 206].includes(item.status)), `${viewportName}: visible question must load its checksum-gated source PDF`)
     const sourceQuestionId = sourceGroup.id
     if (sourceGroup.studyOnly !== true) assert.ok(questionById.has(sourceQuestionId), `${viewportName}: reviewed source item is missing from the reviewed fixture`)
-    assert.match(metrics.toolbar.replace(/\s+/g, ' '), /QP p\.\s*\d+/i)
-    evidence.push({ sourceQuestionId, studyOnly: sourceGroup.studyOnly === true, asset: metrics.src, decoded: `${metrics.naturalWidth}x${metrics.naturalHeight}`, toolbar: metrics.toolbar.replace(/\s+/g, ' ').trim() })
+    const toolbar = (await figure.locator('.qp-question-asset__toolbar').innerText()).replace(/\s+/g, ' ').trim()
+    assert.match(toolbar, /Complete question.*source page/i)
+    evidence.push({ sourceQuestionId, studyOnly: sourceGroup.studyOnly === true, sourcePdf: expectedPdf, pages: metrics.map((item) => item.page), decoded: metrics.map((item) => `${item.naturalWidth}x${item.naturalHeight}`), toolbar })
   }
-  assert.equal(assetFailures.length, 0, `${viewportName}: source asset requests failed: ${JSON.stringify(assetFailures)}`)
+  assert.equal(fallbackAssetResponses.length, 0, `${viewportName}: healthy PDF rendering must not request legacy JPG fallbacks: ${JSON.stringify(fallbackAssetResponses)}`)
   assert.equal(errors.length, 0, `${viewportName}: browser console/runtime errors: ${JSON.stringify(errors)}`)
   const activeSourceIdentity = await page.locator('.qp-source-label strong').textContent()
   await page.reload({ waitUntil: 'domcontentloaded' })
   await page.locator('.question-block').waitFor({ state: 'visible' })
-  assert.equal(await page.locator('.qp-index__list button').count(), expectedPartCount, `${viewportName}: refresh must restore the same source-backed set`)
+  assert.equal(await page.locator('.qp-index__list button').count(), expectedGroups.length, `${viewportName}: refresh must restore the same complete-question set`)
   assert.equal(await page.locator('.qp-source-label strong').textContent(), activeSourceIdentity, `${viewportName}: refresh must restore the active canonical question identity`)
   assert.ok(rebindResponses.includes(200), `${viewportName}: refresh must rebind the persisted unit through the canonical server endpoint: ${JSON.stringify(rebindResponses)}`)
   assert.equal(errors.length, 0, `${viewportName}: refresh produced browser console/runtime errors: ${JSON.stringify(errors)}`)

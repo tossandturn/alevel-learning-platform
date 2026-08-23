@@ -35,7 +35,7 @@ const REVIEWED_SOURCE_CASES = [
     number: 10,
     topic: 'Mensuration',
     sourcePages: [6],
-    sourceView: 'original',
+    sourceView: 'pdf-regions',
     parts: [{ label: 'a', marks: 1 }, { label: 'b', marks: 1 }],
   },
   {
@@ -239,12 +239,12 @@ function overlap(first, second) {
     && first.bottom > second.top
 }
 
-function sourceAssetForPage(page) {
-  return `/question-assets/cie-0580-0580_m25_qp_12/qp-${String(page).padStart(2, '0')}.jpg`
+function sourcePdfFor0580() {
+  return '/local-pdf/0580/0580_m25_qp_12.pdf'
 }
 
-function sourceAssetFor0606Page(page) {
-  return `/question-assets/cie-0606-0606_m25_qp_12/qp-${String(page).padStart(2, '0')}.jpg`
+function sourcePdfFor0606() {
+  return '/local-pdf/0606/0606_m25_qp_12.pdf'
 }
 
 async function mockAnonymousIdentityExchange(context) {
@@ -338,8 +338,8 @@ async function activateQuestionPart(page, number, label, paper = 'M25/12') {
   throw new Error(`Could not focus Q${number}(${label}) answer part in the reviewed source set: ${JSON.stringify(identities)}`)
 }
 
-async function sourceMetrics(figure) {
-  const image = figure.locator('img')
+async function sourceMetrics(figure, sourcePage) {
+  const image = figure.locator(`.source-region-renderer__page[data-source-page="${sourcePage}"] img`)
   return image.evaluate((element) => ({
     src: element.getAttribute('src') || '',
     complete: element.complete,
@@ -347,28 +347,28 @@ async function sourceMetrics(figure) {
     naturalHeight: element.naturalHeight,
     renderedWidth: Math.round(element.getBoundingClientRect().width),
     renderedHeight: Math.round(element.getBoundingClientRect().height),
-    inlineWidth: element.style.width,
-    inlineTransform: element.style.transform,
+    sourceState: element.closest('.qp-question-asset')?.getAttribute('data-source-state') || '',
+    sourcePage: Number(element.closest('.source-region-renderer__page')?.getAttribute('data-source-page')),
+    exactRegion: element.closest('.source-region-renderer__page')?.getAttribute('data-exact-region') || '',
+    renderRegion: element.closest('.source-region-renderer__page')?.getAttribute('data-source-region') || '',
     focusSafety: element.closest('.qp-question-asset')?.getAttribute('data-focus-safety') || '',
     focusRegion: element.closest('.qp-question-asset')?.getAttribute('data-focus-region') || '',
     focusMargin: element.closest('.qp-question-asset')?.getAttribute('data-focus-margin') || '',
-    frameWidth: Math.round(element.closest('.qp-question-asset__image')?.getBoundingClientRect().width || 0),
-    frameHeight: Math.round(element.closest('.qp-question-asset__image')?.getBoundingClientRect().height || 0),
+    frameWidth: Math.round(element.closest('.source-region-renderer__page')?.getBoundingClientRect().width || 0),
+    frameHeight: Math.round(element.closest('.source-region-renderer__page')?.getBoundingClientRect().height || 0),
   }))
 }
 
-async function sourceBoundaryMetrics(figure) {
-  return figure.locator('img').evaluate((image) => {
-    const asset = image.closest('.qp-question-asset')
-    const region = String(asset?.getAttribute('data-focus-region') || '').split(',').map(Number)
-    if (region.length !== 4 || region.some((value) => !Number.isFinite(value))) return null
+async function sourceBoundaryMetrics(figure, sourcePage) {
+  return figure.locator(`.source-region-renderer__page[data-source-page="${sourcePage}"] img`).evaluate((image) => {
     const canvas = document.createElement('canvas')
     canvas.width = image.naturalWidth
     canvas.height = image.naturalHeight
     const context = canvas.getContext('2d', { willReadFrequently: true })
     context.drawImage(image, 0, 0, canvas.width, canvas.height)
-    const [left, top, right, bottom] = region
-    const strip = 4
+    const width = canvas.width
+    const height = canvas.height
+    const strip = 1
     const edgeInkRatio = (x, y, width, height) => {
       const data = context.getImageData(x, y, width, height).data
       let ink = 0
@@ -378,10 +378,10 @@ async function sourceBoundaryMetrics(figure) {
       return ink / Math.max(1, data.length / 4)
     }
     return {
-      top: edgeInkRatio(left, top, right - left, strip),
-      right: edgeInkRatio(right - strip, top, strip, bottom - top),
-      bottom: edgeInkRatio(left, bottom - strip, right - left, strip),
-      left: edgeInkRatio(left, top, strip, bottom - top),
+      top: edgeInkRatio(0, 0, width, strip),
+      right: edgeInkRatio(width - strip, 0, strip, height),
+      bottom: edgeInkRatio(0, height - strip, width, strip),
+      left: edgeInkRatio(0, 0, strip, height),
     }
   })
 }
@@ -390,38 +390,34 @@ async function assertFocusedSource(page, sourceCase, sourcePage, viewport, evide
   const figure = page.locator('.qp-question-asset')
   await figure.waitFor({ state: 'visible' })
   await figure.scrollIntoViewIfNeeded()
+  await page.waitForFunction(() => document.querySelector('.qp-question-asset')?.getAttribute('data-source-state') === 'ready')
   const expectedView = sourceCase.sourceView || 'focused'
   const actualView = await figure.getAttribute('data-source-view')
   if (actualView !== expectedView) {
-    throw new Error(`Q${sourceCase.number} must default to its ${expectedView === 'focused' ? 'reviewed focused crop' : 'complete original page'}: ${JSON.stringify({ actualView, ariaLabel: await figure.getAttribute('aria-label'), sourceLabel: await page.locator('.qp-source-label strong').innerText(), controls: await figure.getByRole('button').allTextContents() })}`)
+    throw new Error(`Q${sourceCase.number} must default to its ${expectedView === 'focused' ? 'reviewed focused crop' : 'PDF region view'}: ${JSON.stringify({ actualView, ariaLabel: await figure.getAttribute('aria-label'), sourceLabel: await page.locator('.qp-source-label strong').innerText() })}`)
   }
   const toolbar = (await figure.locator('.qp-question-asset__toolbar').innerText()).replace(/\s+/g, ' ').trim()
-  if (!toolbar.includes(`QP p.${String(sourcePage).padStart(2, '0')}`)) throw new Error(`Q${sourceCase.number} did not expose QP page ${sourcePage}: ${toolbar}`)
-  const metrics = await sourceMetrics(figure)
-  if (!metrics.complete || metrics.naturalWidth <= 0 || metrics.naturalHeight <= 0 || metrics.src !== sourceAssetForPage(sourcePage)) {
-    throw new Error(`Q${sourceCase.number} QP p.${sourcePage} source asset did not decode: ${JSON.stringify(metrics)}`)
+  if (!/Complete question.*source page/i.test(toolbar)) throw new Error(`Q${sourceCase.number} did not expose its complete PDF question: ${toolbar}`)
+  const metrics = await sourceMetrics(figure, sourcePage)
+  if (!metrics.complete || metrics.naturalWidth <= 0 || metrics.naturalHeight <= 0 || !metrics.src.startsWith('blob:') || metrics.sourceState !== 'ready' || metrics.sourcePage !== sourcePage) {
+    throw new Error(`Q${sourceCase.number} QP p.${sourcePage} PDF crop did not decode: ${JSON.stringify(metrics)}`)
   }
-  if (expectedView === 'focused' && (!metrics.inlineWidth || !metrics.inlineTransform || metrics.renderedWidth < 10 || metrics.renderedHeight < 10)) {
+  await page.waitForFunction((sourcePdf) => performance.getEntriesByType('resource').some((entry) => new URL(entry.name).pathname === sourcePdf), sourcePdfFor0580())
+  if (expectedView === 'focused' && (metrics.exactRegion !== 'true' || metrics.renderedWidth < 10 || metrics.renderedHeight < 10)) {
     throw new Error(`Q${sourceCase.number} QP p.${sourcePage} is not rendered as an actual focused crop: ${JSON.stringify(metrics)}`)
   }
   let boundary = null
   if (expectedView === 'focused') {
-    const expectedBounds = sourceCase.focusBounds[sourcePage].join(',')
-    if (metrics.focusSafety !== 'reviewed-display-bounds-v1' || metrics.focusRegion !== expectedBounds) {
+    const renderRegion = metrics.renderRegion.split(',').map(Number)
+    if (metrics.focusSafety !== 'reviewed-display-bounds-v1' || renderRegion.length !== 4 || renderRegion.some((value) => !Number.isFinite(value))) {
       throw new Error(`Q${sourceCase.number} QP p.${sourcePage} did not use the reviewed safe display bounds: ${JSON.stringify(metrics)}`)
     }
-    const [left, top, right, bottom] = sourceCase.focusBounds[sourcePage]
-    const expectedAspectRatio = (right - left) / (bottom - top)
-    const renderedAspectRatio = metrics.frameWidth / Math.max(1, metrics.frameHeight)
-    if (Math.abs(renderedAspectRatio - expectedAspectRatio) > 0.025) {
-      throw new Error(`Q${sourceCase.number} QP p.${sourcePage} focused crop is visually clipped instead of preserving its reviewed aspect ratio: ${JSON.stringify({ expectedAspectRatio, renderedAspectRatio, metrics })}`)
-    }
-    boundary = await sourceBoundaryMetrics(figure)
+    boundary = await sourceBoundaryMetrics(figure, sourcePage)
     if (!boundary || Object.values(boundary).some((ratio) => ratio > 0.02)) {
       throw new Error(`Q${sourceCase.number} QP p.${sourcePage} focused crop touches printed source content at an edge: ${JSON.stringify(boundary)}`)
     }
-  } else if (metrics.focusSafety !== 'full-page' || metrics.focusRegion) {
-    throw new Error(`Q${sourceCase.number} must fail closed to the complete original page instead of exposing an unreviewed focus crop: ${JSON.stringify(metrics)}`)
+  } else if (metrics.exactRegion !== 'false') {
+    throw new Error(`Q${sourceCase.number} must fail closed to the complete PDF page instead of exposing an unreviewed crop: ${JSON.stringify(metrics)}`)
   }
   if (await page.getByText(/\[(?:graph|diagram|figure|image|table)\s*:/i).count()) throw new Error(`Q${sourceCase.number} exposes a raw visual placeholder instead of the official visual`)
 
@@ -429,7 +425,7 @@ async function assertFocusedSource(page, sourceCase, sourcePage, viewport, evide
   await figure.screenshot({ path: screenshot })
   evidence.pages.push({
     page: sourcePage,
-    asset: metrics.src,
+    sourcePdf: sourcePdfFor0580(),
     decoded: `${metrics.naturalWidth}x${metrics.naturalHeight}`,
     focused: expectedView === 'focused',
     safeBounds: metrics.focusRegion || null,
@@ -440,29 +436,9 @@ async function assertFocusedSource(page, sourceCase, sourcePage, viewport, evide
 
 async function verifySourceControls(page, sourceCase) {
   const figure = page.locator('.qp-question-asset')
-  if ((sourceCase.sourceView || 'focused') === 'focused') {
-    const toggle = figure.getByRole('button', { name: 'Show full original page' })
-    await toggle.waitFor()
-    await toggle.click()
-    if (await figure.getAttribute('data-source-view') !== 'original') throw new Error(`Q${sourceCase.number} did not show the complete original page`)
-    await figure.getByRole('button', { name: 'Focus current question' }).click()
-    if (await figure.getAttribute('data-source-view') !== 'focused') throw new Error(`Q${sourceCase.number} could not return from its original page to the focused crop`)
-  } else if (await figure.getByRole('button', { name: /Focus current question|Show full original page/i }).count()) {
-    throw new Error(`Q${sourceCase.number} exposes an unreviewed source crop control instead of the complete original page`)
-  }
-
-  const trigger = figure.getByRole('button', { name: 'Expand source image' })
-  await trigger.focus()
-  await trigger.click()
-  const dialog = page.getByRole('dialog', { name: 'Expanded official question image' })
-  await dialog.waitFor()
-  await dialog.getByRole('button', { name: 'Zoom in source image' }).click()
-  const zoomWidth = await dialog.locator('.qp-source-zoom__canvas img').evaluate((image) => image.style.width)
-  if (zoomWidth !== '125%') throw new Error(`Q${sourceCase.number} source zoom did not apply: ${zoomWidth}`)
-  await page.keyboard.press('Escape')
-  await dialog.waitFor({ state: 'detached' })
-  await page.waitForFunction(() => document.activeElement?.matches('button[aria-label="Expand source image"]'), undefined, { timeout: 3_000 })
-  if (!await trigger.evaluate((button) => document.activeElement === button)) throw new Error(`Q${sourceCase.number} source zoom did not restore trigger focus after Escape`)
+  if (await figure.getByRole('button', { name: /Focus current question|Show full original page|Expand source image/i }).count()) throw new Error(`Q${sourceCase.number} still exposes obsolete JPG source controls`)
+  const originalLink = page.locator('.qp-original-paper-link').first()
+  if (await originalLink.getAttribute('href') !== sourcePdfFor0580()) throw new Error(`Q${sourceCase.number} original-paper link is not bound to its source PDF`)
 }
 
 async function verifyReviewedQuestion(page, sourceCase, viewport) {
@@ -493,23 +469,11 @@ async function verifyReviewedQuestion(page, sourceCase, viewport) {
   if (totalMarks !== expectedMarks) throw new Error(`Q${sourceCase.number} marks did not close: ${totalMarks}/${expectedMarks}`)
 
   await activateQuestionPart(page, sourceCase.number, sourceCase.parts[0].label)
-  for (let index = 0; index < sourceCase.sourcePages.length; index += 1) {
-    const expectedPage = sourceCase.sourcePages[index]
+  const renderedPages = page.locator('.qp-question-asset .source-region-renderer__page')
+  await page.waitForFunction(() => document.querySelector('.qp-question-asset')?.getAttribute('data-source-state') === 'ready')
+  if (await renderedPages.count() !== sourceCase.sourcePages.length) throw new Error(`Q${sourceCase.number} did not join all source pages into one question`)
+  for (const expectedPage of sourceCase.sourcePages) {
     await assertFocusedSource(page, sourceCase, expectedPage, viewport, evidence)
-    if (index < sourceCase.sourcePages.length - 1) {
-      const figure = page.locator('.qp-question-asset')
-      const next = figure.getByRole('button', { name: 'Next source page' })
-      if (await next.isDisabled()) throw new Error(`Q${sourceCase.number} source viewer cannot advance from QP p.${expectedPage}`)
-      await next.click()
-    }
-  }
-  if (sourceCase.sourcePages.length > 1) {
-    const figure = page.locator('.qp-question-asset')
-    const previous = figure.getByRole('button', { name: 'Previous source page' })
-    if (await previous.isDisabled()) throw new Error(`Q${sourceCase.number} source viewer cannot return to the first QP page`)
-    await previous.click()
-    const toolbar = (await figure.locator('.qp-question-asset__toolbar').innerText()).replace(/\s+/g, ' ').trim()
-    if (!toolbar.includes(`QP p.${String(sourceCase.sourcePages[0]).padStart(2, '0')}`)) throw new Error(`Q${sourceCase.number} source pager did not return to QP p.${sourceCase.sourcePages[0]}`)
   }
   await verifySourceControls(page, sourceCase)
 
@@ -626,10 +590,13 @@ async function verifyReviewed0606Source(browser) {
         await mockAnonymousIdentityExchange(context)
         const page = await context.newPage()
         page.setDefaultTimeout(20_000)
-        const assetResponses = []
+        const pdfResponses = []
+        const fallbackAssetResponses = []
         const errors = []
         page.on('response', (response) => {
-          if (response.url().includes('/question-assets/cie-0606-0606_m25_qp_12/')) assetResponses.push({ url: response.url(), status: response.status() })
+          const pathname = new URL(response.url()).pathname
+          if (pathname === sourcePdfFor0606()) pdfResponses.push({ url: pathname, status: response.status() })
+          if (pathname.startsWith('/question-assets/cie-0606-')) fallbackAssetResponses.push({ url: pathname, status: response.status() })
           if (response.status() >= 400 && !/\/api\/auth\/status$/.test(new URL(response.url()).pathname)) {
             let requestContext = ''
             if (response.url().includes('/api/stem/practice-sets/rebind')) {
@@ -649,36 +616,32 @@ async function verifyReviewed0606Source(browser) {
             viewport: `${viewport.width}x${viewport.height}`,
             pages: [],
           }
-          for (let index = 0; index < sourceCase.pages.length; index += 1) {
-            const pageNumber = sourceCase.pages[index]
-            const figure = page.locator('.qp-question-asset')
-            await figure.waitFor({ state: 'visible' })
-            const image = figure.locator('img')
+          const figure = page.locator('.qp-question-asset')
+          await figure.waitFor({ state: 'visible' })
+          await page.waitForFunction(() => document.querySelector('.qp-question-asset')?.getAttribute('data-source-state') === 'ready')
+          if (await figure.getAttribute('data-source-view') !== 'pdf-regions') throw new Error(`0606 Q${sourceCase.number} must render from source PDF regions`)
+          if (await figure.locator('.source-region-renderer__page').count() !== sourceCase.pages.length) throw new Error(`0606 Q${sourceCase.number} did not join every source page`)
+          for (const pageNumber of sourceCase.pages) {
+            const image = figure.locator(`.source-region-renderer__page[data-source-page="${pageNumber}"] img`)
             await image.waitFor({ state: 'visible' })
             const metrics = await image.evaluate((element) => ({
               src: element.getAttribute('src') || '',
               complete: element.complete,
               naturalWidth: element.naturalWidth,
               naturalHeight: element.naturalHeight,
-              sourceView: element.closest('.qp-question-asset')?.getAttribute('data-source-view') || '',
+              exactRegion: element.closest('.source-region-renderer__page')?.getAttribute('data-exact-region') || '',
             }))
-            const expectedAsset = sourceAssetFor0606Page(pageNumber)
-            if (!metrics.complete || metrics.naturalWidth <= 0 || metrics.naturalHeight <= 0 || metrics.src !== expectedAsset) {
-              throw new Error(`0606 Q${sourceCase.number} p.${pageNumber} did not decode the canonical QP asset: ${JSON.stringify(metrics)}`)
+            if (!metrics.complete || metrics.naturalWidth <= 0 || metrics.naturalHeight <= 0 || !metrics.src.startsWith('blob:') || metrics.exactRegion !== 'false') {
+              throw new Error(`0606 Q${sourceCase.number} p.${pageNumber} did not decode its complete PDF page fallback: ${JSON.stringify(metrics)}`)
             }
             const toolbar = (await figure.locator('.qp-question-asset__toolbar').innerText()).replace(/\s+/g, ' ').trim()
-            if (!toolbar.includes(`QP p.${String(pageNumber).padStart(2, '0')}`)) throw new Error(`0606 Q${sourceCase.number} page toolbar mismatch: ${toolbar}`)
-            if (metrics.sourceView !== 'original') throw new Error(`0606 Q${sourceCase.number} must use the full official page fallback until a reviewed crop exists`)
-            evidence.pages.push({ page: pageNumber, asset: metrics.src, decoded: `${metrics.naturalWidth}x${metrics.naturalHeight}` })
+            if (!/Complete question.*source pages?/i.test(toolbar)) throw new Error(`0606 Q${sourceCase.number} page toolbar mismatch: ${toolbar}`)
+            evidence.pages.push({ page: pageNumber, sourcePdf: sourcePdfFor0606(), decoded: `${metrics.naturalWidth}x${metrics.naturalHeight}` })
             const screenshot = path.join(ARTIFACT_DIR, `source-gate-0606-q${sourceCase.number}-${viewport.name}-qp-${String(pageNumber).padStart(2, '0')}.png`)
-            await figure.screenshot({ path: screenshot })
+            await image.screenshot({ path: screenshot })
             evidence.pages.at(-1).screenshot = screenshot
-            if (index < sourceCase.pages.length - 1) {
-              const next = figure.getByRole('button', { name: 'Next source page' })
-              if (await next.isDisabled()) throw new Error(`0606 Q${sourceCase.number} cannot advance from p.${pageNumber}`)
-              await next.click()
-            }
           }
+          if (!pdfResponses.some((response) => response.url === sourcePdfFor0606() && [200, 206].includes(response.status))) throw new Error(`0606 Q${sourceCase.number} did not request its checksum-gated source PDF`)
           const geometry = await page.evaluate(() => ({
             scrollWidth: document.documentElement.scrollWidth,
             clientWidth: document.documentElement.clientWidth,
@@ -687,13 +650,9 @@ async function verifyReviewed0606Source(browser) {
           }))
           if (geometry.scrollWidth > geometry.clientWidth + 1) throw new Error(`0606 Q${sourceCase.number} overflows horizontally: ${JSON.stringify(geometry)}`)
           if (!viewport.mobile && overlap(geometry.source, geometry.answer)) throw new Error(`0606 Q${sourceCase.number} source and answer surfaces overlap: ${JSON.stringify(geometry)}`)
-          if (sourceCase.pages.length > 1) {
-            const previous = page.locator('.qp-question-asset').getByRole('button', { name: 'Previous source page' })
-            if (await previous.isDisabled()) throw new Error(`0606 Q${sourceCase.number} cannot return from its second QP page`)
-            await previous.click()
-          }
-          results.push({ ...evidence, assetResponses: assetResponses.slice(), errors: errors.slice() })
+          results.push({ ...evidence, pdfResponses: pdfResponses.slice(), errors: errors.slice() })
         }
+        if (fallbackAssetResponses.length) throw new Error(`0606 healthy PDF rendering requested legacy JPG fallbacks: ${JSON.stringify(fallbackAssetResponses)}`)
         if (errors.length) throw new Error(errors.join(' | '))
         await closeWithDeadline(context, `0606 ${viewport.name}`)
         context = null
@@ -714,8 +673,12 @@ async function verifyRequiredAssetFailure(browser) {
     const result = await withDeadline(phaseLabel, async () => {
       context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
       await mockAnonymousIdentityExchange(context)
-      const blockedAsset = sourceAssetForPage(4)
+      const blockedPdf = sourcePdfFor0580()
+      const blockedAsset = '/question-assets/cie-0580-0580_m25_qp_12/qp-04.jpg'
       const markingRequests = []
+      await context.route(`**${blockedPdf}`, async (route) => {
+        await route.fulfill({ status: 503, contentType: 'text/plain', body: 'QA-only unavailable source PDF' })
+      })
       await context.route(`**${blockedAsset}`, async (route) => {
         await route.fulfill({ status: 404, contentType: 'text/plain', body: 'QA-only missing official source asset' })
       })
@@ -726,10 +689,10 @@ async function verifyRequiredAssetFailure(browser) {
       await clearBrowserState(page)
       await startReviewedTopic(page, 'Geometry')
       await activateQuestionPart(page, 5, 'a')
-      const incomplete = page.locator('.qp-source-incomplete')
+      const incomplete = page.locator('.source-region-renderer__status--error')
       await incomplete.waitFor()
       const text = (await incomplete.innerText()).replace(/\s+/g, ' ').trim()
-      if (!/could not be loaded|blocked/i.test(text)) throw new Error(`Required source failure does not explain the blocked state: ${text}`)
+      if (!/could not be rendered|could not be loaded|blocked/i.test(text)) throw new Error(`Required source failure does not explain the blocked state: ${text}`)
       if (await page.locator('.handwriting-pad, .qp-numeric-entry, .qp-mcq-answer').count()) throw new Error('A source-incomplete question still exposes an answer surface')
       const submit = page.getByRole('button', { name: /^Submit$/ })
       if (!await submit.isDisabled()) throw new Error('A source-incomplete practice unit still enables submission')
@@ -752,7 +715,7 @@ async function verifyRequiredAssetFailure(browser) {
       if (markingRequests.length) throw new Error(`A source-incomplete question requested marking: ${JSON.stringify(markingRequests)}`)
       const screenshot = path.join(ARTIFACT_DIR, 'source-gate-required-asset-404.png')
       await page.screenshot({ path: screenshot, fullPage: false })
-      return { blockedAsset, screenshot, attemptCount: persisted.attempts.length, learningEvents: persisted.events.length, markingRequests: markingRequests.length }
+      return { blockedPdf, blockedAsset, screenshot, attemptCount: persisted.attempts.length, learningEvents: persisted.events.length, markingRequests: markingRequests.length }
     }, ASSET_FAILURE_DEADLINE_MS, () => closeWithDeadline(context, phaseLabel))
     console.log(`[qa:phase] pass ${phaseLabel}`)
     return result

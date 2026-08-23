@@ -309,16 +309,14 @@ async function activateQuestion(page, question, paper) {
 
 async function sourceEdgeInk(figure) {
   return figure.locator('img').evaluate((image) => {
-    const asset = image.closest('.qp-question-asset')
-    const region = String(asset?.getAttribute('data-focus-region') || '').split(',').map(Number)
-    if (region.length !== 4 || region.some((value) => !Number.isFinite(value))) return null
     const canvas = document.createElement('canvas')
     canvas.width = image.naturalWidth
     canvas.height = image.naturalHeight
     const context = canvas.getContext('2d', { willReadFrequently: true })
     context.drawImage(image, 0, 0)
-    const [left, top, right, bottom] = region
-    const strip = 4
+    const width = canvas.width
+    const height = canvas.height
+    const strip = 1
     const ink = (x, y, width, height) => {
       const data = context.getImageData(x, y, width, height).data
       let count = 0
@@ -328,10 +326,10 @@ async function sourceEdgeInk(figure) {
       return count / Math.max(1, data.length / 4)
     }
     return {
-      top: ink(left, top, right - left, strip),
-      right: ink(right - strip, top, strip, bottom - top),
-      bottom: ink(left, bottom - strip, right - left, strip),
-      left: ink(left, top, strip, bottom - top),
+      top: ink(0, 0, width, strip),
+      right: ink(width - strip, 0, strip, height),
+      bottom: ink(0, height - strip, width, strip),
+      left: ink(0, 0, strip, height),
     }
   })
 }
@@ -339,6 +337,11 @@ async function sourceEdgeInk(figure) {
 function paperAssetFolder(testCase) {
   const [season, number] = String(testCase.paper).split('/')
   return `cie-9702-9702_${String(season || '').toLowerCase()}_qp_${number}`
+}
+
+function paperPdfUrl(testCase) {
+  const [season, number] = String(testCase.paper).split('/')
+  return `/local-pdf/9702/9702_${String(season || '').toLowerCase()}_qp_${number}.pdf`
 }
 
 async function verifyQuestion(page, testCase, viewport, responses) {
@@ -349,7 +352,8 @@ async function verifyQuestion(page, testCase, viewport, responses) {
   await figure.waitFor({ state: 'visible' })
   await figure.scrollIntoViewIfNeeded()
   if (await figure.getAttribute('data-source-view') !== 'focused') throw new Error(`${testCase.question} did not default to the reviewed crop`)
-  const image = figure.locator('img')
+  await page.waitForFunction(() => document.querySelector('.qp-question-asset')?.getAttribute('data-source-state') === 'ready')
+  const image = figure.locator(`.source-region-renderer__page[data-source-page="${testCase.page}"] img`)
   await image.waitFor({ state: 'visible' })
   await image.evaluate((element) => { if (!element.complete || element.naturalWidth <= 0) throw new Error('source image is not decoded') })
   const metrics = await image.evaluate((element) => ({
@@ -362,39 +366,28 @@ async function verifyQuestion(page, testCase, viewport, responses) {
     safety: element.closest('.qp-question-asset')?.getAttribute('data-focus-safety'),
     region: element.closest('.qp-question-asset')?.getAttribute('data-focus-region'),
     margin: element.closest('.qp-question-asset')?.getAttribute('data-focus-margin'),
+    state: element.closest('.qp-question-asset')?.getAttribute('data-source-state'),
+    sourcePage: element.closest('.source-region-renderer__page')?.getAttribute('data-source-page'),
+    exactRegion: element.closest('.source-region-renderer__page')?.getAttribute('data-exact-region'),
   }))
-  const expectedAsset = `/question-assets/${paperAssetFolder(testCase)}/qp-${String(testCase.page).padStart(2, '0')}.jpg`
-  if (metrics.src !== expectedAsset || metrics.width <= 0 || metrics.height <= 0) throw new Error(`${testCase.question} source asset mismatch: ${JSON.stringify({ metrics, expectedAsset })}`)
+  const expectedPdf = paperPdfUrl(testCase)
+  if (!metrics.src?.startsWith('blob:') || metrics.width <= 0 || metrics.height <= 0 || metrics.state !== 'ready' || Number(metrics.sourcePage) !== testCase.page || metrics.exactRegion !== 'true') {
+    throw new Error(`${testCase.question} PDF crop mismatch: ${JSON.stringify({ metrics, expectedPdf })}`)
+  }
+  if (!responses.some((response) => response.url === expectedPdf && [200, 206].includes(response.status))) throw new Error(`${testCase.question} did not load ${expectedPdf}`)
   if (metrics.safety !== 'reviewed-display-bounds-v1' || !metrics.region || !metrics.margin) throw new Error(`${testCase.question} missing reviewed crop bounds: ${JSON.stringify(metrics)}`)
   const focusRegion = String(metrics.region).split(',').map(Number)
   if (Number.isFinite(testCase.focusTopAtMost) && (!Number.isFinite(focusRegion[1]) || focusRegion[1] > testCase.focusTopAtMost)) {
     throw new Error(`${testCase.question} focused crop starts below the reviewed question stem: ${JSON.stringify({ focusRegion, focusTopAtMost: testCase.focusTopAtMost })}`)
   }
-  const edgeInk = await sourceEdgeInk(figure)
-  if (!edgeInk || Object.values(edgeInk).some((ratio) => ratio > 0.02)) throw new Error(`${testCase.question} crop touches printed content at an edge: ${JSON.stringify(edgeInk)}`)
-  if (await page.getByText(/\[(?:graph|diagram|figure|image|table|chart)\s*:/i).count()) throw new Error(`${testCase.question} exposed a raw visual placeholder`)
-  if (page.url().includes('cie-9702-a2') || page.url().includes('component=3')) throw new Error('9702 AS practice leaked into A2 or practical mode')
   const screenshot = path.join(ARTIFACT_DIR, `qa-9702-${testCase.question.toLowerCase()}-${viewport.name}-focused.png`)
   await figure.screenshot({ path: screenshot })
-
-  const toggle = figure.getByRole('button', { name: 'Show full original page' })
-  await toggle.click()
-  if (await figure.getAttribute('data-source-view') !== 'original') throw new Error(`${testCase.question} full-page fallback control failed`)
-  const fullScreenshot = path.join(ARTIFACT_DIR, `qa-9702-${testCase.question.toLowerCase()}-${viewport.name}-original.png`)
-  await figure.screenshot({ path: fullScreenshot })
-  await figure.getByRole('button', { name: 'Focus current question' }).click()
-
-  const trigger = figure.getByRole('button', { name: 'Expand source image' })
-  await trigger.focus()
-  await trigger.click()
-  const dialog = page.getByRole('dialog', { name: 'Expanded official question image' })
-  await dialog.waitFor({ state: 'visible' })
-  await dialog.getByRole('button', { name: 'Zoom in source image' }).click()
-  if (await dialog.locator('img').evaluate((element) => element.style.width) !== '125%') throw new Error(`${testCase.question} zoom control did not apply`)
-  await page.keyboard.press('Escape')
-  await dialog.waitFor({ state: 'detached' })
-  await page.waitForFunction(() => document.activeElement?.matches('button[aria-label="Expand source image"]'))
-  if (!await trigger.evaluate((element) => document.activeElement === element)) throw new Error(`${testCase.question} Escape did not restore source trigger focus`)
+  const edgeInk = await sourceEdgeInk(figure)
+  if (!edgeInk || Object.values(edgeInk).some((ratio) => ratio > 0.02)) throw new Error(`${testCase.question} crop touches printed content at an edge: ${JSON.stringify({ edgeInk, metrics })}`)
+  if (await page.getByText(/\[(?:graph|diagram|figure|image|table|chart)\s*:/i).count()) throw new Error(`${testCase.question} exposed a raw visual placeholder`)
+  if (page.url().includes('cie-9702-a2') || page.url().includes('component=3')) throw new Error('9702 AS practice leaked into A2 or practical mode')
+  const originalLink = figure.locator('xpath=following::a[contains(@class,"qp-original-paper-link")][1]')
+  if (await originalLink.getAttribute('href') !== expectedPdf) throw new Error(`${testCase.question} original-paper link is not source-bound`)
 
   const geometry = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,
@@ -404,7 +397,7 @@ async function verifyQuestion(page, testCase, viewport, responses) {
   }))
   if (geometry.scrollWidth > geometry.clientWidth + 1) throw new Error(`${testCase.question} has horizontal overflow: ${JSON.stringify(geometry)}`)
   if (viewport.width >= 1180 && (!geometry.source || !geometry.answer || geometry.source.width < 10 || geometry.answer.width < 10)) throw new Error(`${testCase.question} desktop source/answer work areas are not simultaneously usable`)
-  return { id: `${paperAssetFolder(testCase)}:${testCase.question.toLowerCase()}`, topic: testCase.topic, visual: testCase.visual, viewport: `${viewport.width}x${viewport.height}`, asset: metrics.src, decoded: `${metrics.width}x${metrics.height}`, edgeInk, screenshots: [screenshot, fullScreenshot], responses: responses.filter((item) => item.url.endsWith(metrics.src)).map((item) => item.status) }
+  return { id: `${paperAssetFolder(testCase)}:${testCase.question.toLowerCase()}`, topic: testCase.topic, visual: testCase.visual, viewport: `${viewport.width}x${viewport.height}`, sourcePdf: expectedPdf, decoded: `${metrics.width}x${metrics.height}`, edgeInk, screenshots: [screenshot], responses: responses.filter((item) => item.url === expectedPdf).map((item) => item.status) }
 }
 
 async function verifyFullPageQuestion(page, testCase, viewport, responses) {
@@ -427,42 +420,26 @@ async function verifyFullPageQuestion(page, testCase, viewport, responses) {
   const figure = page.locator('.qp-question-asset')
   await figure.waitFor({ state: 'visible' })
   await figure.scrollIntoViewIfNeeded()
-  if (await figure.getAttribute('data-source-view') !== 'original') throw new Error(`${testCase.question} must use the complete original pages when no display crop was reviewed`)
+  await page.waitForFunction(() => document.querySelector('.qp-question-asset')?.getAttribute('data-source-state') === 'ready')
+  if (await figure.getAttribute('data-source-view') !== 'pdf-regions') throw new Error(`${testCase.question} must use PDF regions when no reviewed display crop exists`)
+  const renderedPages = figure.locator('.source-region-renderer__page')
+  if (await renderedPages.count() !== testCase.pages.length) throw new Error(`${testCase.question} did not join every source page`)
   const screenshots = []
   const assets = []
   for (let index = 0; index < testCase.pages.length; index += 1) {
-    const expectedAsset = `/question-assets/${paperAssetFolder(testCase)}/qp-${String(testCase.pages[index]).padStart(2, '0')}.jpg`
-    if (index > 0) await figure.getByRole('button', { name: 'Next source page' }).click()
-    await page.waitForFunction((asset) => document.querySelector('.qp-question-asset img')?.getAttribute('src') === asset, expectedAsset)
-    const image = figure.locator('img')
-    const metrics = await image.evaluate((element) => ({ src: element.getAttribute('src'), width: element.naturalWidth, height: element.naturalHeight }))
-    if (metrics.src !== expectedAsset || metrics.width <= 0 || metrics.height <= 0) throw new Error(`${testCase.question} source asset mismatch: ${JSON.stringify({ metrics, expectedAsset })}`)
+    const sourcePage = testCase.pages[index]
+    const image = figure.locator(`.source-region-renderer__page[data-source-page="${sourcePage}"] img`)
+    const metrics = await image.evaluate((element) => ({ src: element.getAttribute('src'), width: element.naturalWidth, height: element.naturalHeight, exactRegion: element.closest('.source-region-renderer__page')?.getAttribute('data-exact-region') }))
+    if (!metrics.src?.startsWith('blob:') || metrics.width <= 0 || metrics.height <= 0 || metrics.exactRegion !== 'false') throw new Error(`${testCase.question} complete-page fallback mismatch: ${JSON.stringify({ sourcePage, metrics })}`)
     const screenshot = path.join(ARTIFACT_DIR, `qa-9702-${paperAssetFolder(testCase)}-${testCase.question.toLowerCase()}-${viewport.name}-qp-${String(testCase.pages[index]).padStart(2, '0')}.png`)
-    await figure.screenshot({ path: screenshot })
+    await image.screenshot({ path: screenshot })
     screenshots.push(screenshot)
-    assets.push({ page: testCase.pages[index], src: metrics.src, decoded: `${metrics.width}x${metrics.height}` })
+    assets.push({ page: sourcePage, decoded: `${metrics.width}x${metrics.height}` })
   }
-  for (const asset of assets) {
-    if (!responses.some((response) => response.url === asset.src && response.status === 200)) throw new Error(`${testCase.question} did not receive HTTP 200 for ${asset.src}`)
-  }
+  const expectedPdf = paperPdfUrl(testCase)
+  if (!responses.some((response) => response.url === expectedPdf && [200, 206].includes(response.status))) throw new Error(`${testCase.question} did not load ${expectedPdf}`)
   if (await page.getByText(/\[(?:graph|diagram|figure|image|table|chart)\s*:/i).count()) throw new Error(`${testCase.question} exposed a raw visual placeholder`)
   if (page.url().includes('cie-9702-a2') || page.url().includes('component=3')) throw new Error('9702 P2 practice leaked into A2 or practical mode')
-
-  const trigger = figure.getByRole('button', { name: 'Expand source image' })
-  await trigger.focus()
-  await trigger.click()
-  const dialog = page.getByRole('dialog', { name: 'Expanded official question image' })
-  await dialog.waitFor({ state: 'visible' })
-  if (!await dialog.getByText(`Official question page ${testCase.pages.length} of ${testCase.pages.length}`, { exact: true }).count()) throw new Error(`${testCase.question} zoom did not open on the current source page`)
-  await dialog.getByRole('button', { name: 'Previous source page' }).click()
-  if (!await dialog.getByText(`Official question page ${testCase.pages.length - 1} of ${testCase.pages.length}`, { exact: true }).count()) throw new Error(`${testCase.question} zoom previous-page control failed`)
-  await dialog.getByRole('button', { name: 'Next source page' }).click()
-  await dialog.getByRole('button', { name: 'Zoom in source image' }).click()
-  if (await dialog.locator('img').evaluate((element) => element.style.width) !== '125%') throw new Error(`${testCase.question} zoom control did not apply`)
-  await page.keyboard.press('Escape')
-  await dialog.waitFor({ state: 'detached' })
-  await page.waitForFunction(() => document.activeElement?.matches('button[aria-label="Expand source image"]'))
-  if (!await trigger.evaluate((element) => document.activeElement === element)) throw new Error(`${testCase.question} Escape did not restore source trigger focus`)
 
   const geometry = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,
@@ -472,7 +449,7 @@ async function verifyFullPageQuestion(page, testCase, viewport, responses) {
   }))
   if (geometry.scrollWidth > geometry.clientWidth + 1) throw new Error(`${testCase.question} has horizontal overflow: ${JSON.stringify(geometry)}`)
   if (viewport.width >= 1180 && (!geometry.source || !geometry.answer || geometry.source.width < 10 || geometry.answer.width < 10)) throw new Error(`${testCase.question} desktop source/answer work areas are not simultaneously usable`)
-  return { id: `${paperAssetFolder(testCase)}:${testCase.question.toLowerCase()}`, topic: testCase.topic, visual: testCase.visual, component: 2, viewport: `${viewport.width}x${viewport.height}`, parts: groupParts.length, marks: groupMarks, assets, screenshots }
+  return { id: `${paperAssetFolder(testCase)}:${testCase.question.toLowerCase()}`, topic: testCase.topic, visual: testCase.visual, component: 2, viewport: `${viewport.width}x${viewport.height}`, parts: groupParts.length, marks: groupMarks, sourcePdf: expectedPdf, assets, screenshots }
 }
 
 async function run() {
@@ -496,7 +473,7 @@ async function run() {
       page.on('response', (response) => {
         const url = response.url()
         const status = response.status()
-        if (url.includes('/question-assets/cie-9702-') && /\/qp-\d+\.jpg$/.test(url)) responses.push({ url: new URL(url).pathname, status })
+        if (url.includes('/local-pdf/9702/') && /\.pdf$/.test(new URL(url).pathname)) responses.push({ url: new URL(url).pathname, status })
         if (status >= 400 && !(status === 401 && url.endsWith('/api/auth/status'))) errors.push(`http:${status} ${url}`)
       })
       page.on('pageerror', (error) => errors.push(`pageerror:${error.message}`))

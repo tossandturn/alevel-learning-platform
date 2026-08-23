@@ -419,11 +419,11 @@
 
 .source-region-renderer__crop img {
   position: absolute;
-  top: var(--source-crop-top);
-  left: var(--source-crop-left);
+  top: 0;
+  left: 0;
   width: var(--source-crop-width);
   max-width: none;
-  transform: translate(-0%, -0%);
+  transform: translate(var(--source-crop-offset-left), var(--source-crop-offset-top));
 }
 
 .qp-answer-panel__heading {
