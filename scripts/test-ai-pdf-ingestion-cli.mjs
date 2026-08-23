@@ -5,6 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { buildDryRunPlan, parseArgs, runCli } from './ingest-ai-pdf-questions.mjs'
+import { listAiPdfIngestionCandidates } from '../server/aiPdfIngestionCandidates.js'
 
 const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), 'ai-pdf-ingestion-cli-'))
 const fakeApiKey = 'fake-openai-key-must-never-appear'
@@ -132,6 +133,16 @@ try {
   ], { cwd: temporaryRoot, env: { OPENAI_API_KEY: fakeApiKey } })
   assert.equal(retryOptions.retry, true)
 
+  const coordinateOnlyOptions = parseArgs([
+    '--paper-id', 'cie-9702-9702_m25_qp_22',
+    '--question-pdf', questionPdf,
+    '--mark-scheme-pdf', markSchemePdf,
+    '--subject', '9702',
+    '--output-root', outputRoot,
+    '--coordinate-only',
+  ], { cwd: temporaryRoot, env: { OPENAI_API_KEY: fakeApiKey } })
+  assert.equal(coordinateOnlyOptions.coordinateOnly, true)
+
   const plan = buildDryRunPlan(options)
   assert.equal(plan.mode, 'dry-run')
   assert.match(plan.artifactId, /^sha256:[a-f0-9]{64}$/)
@@ -205,6 +216,45 @@ try {
   const verifierUserText = structuredInputs[1].input[1].content[0].text
   assert.doesNotMatch(verifierUserText, /extraction|Part a|primaryTopicId|x0/)
   assert.doesNotMatch(JSON.stringify(structuredInputs[1].schema), /skillTagIds|questionFormatIds/)
+
+  const coordinateOutputRoot = path.join(temporaryRoot, 'coordinate-artifacts')
+  const coordinateOptions = { ...liveOptions, outputRoot: coordinateOutputRoot, coordinateOnly: true }
+  const coordinatePlan = buildDryRunPlan(coordinateOptions)
+  structuredCalls = 0
+  const coordinateResult = await runCli(coordinateOptions, {
+    env: { OPENAI_API_KEY: fakeApiKey },
+    renderPdf: fakeRenderer({ questionPdf, pageHashes, markSchemePageHashes }),
+    callStructured: async () => structuredCalls++ === 0 ? extraction : verification,
+    runCropCommand: async () => { throw new Error('coordinate-only ingestion must not crop question PDFs') },
+    validateCropOutput: async () => { throw new Error('coordinate-only ingestion must not validate cropped PDFs') },
+  })
+  assert.equal(coordinatePlan.coordinateOnly, true)
+  assert.equal(coordinateResult.status, 'ai-verified', JSON.stringify(coordinateResult.reasonCodes))
+  assert.equal(coordinateResult.storageMode, 'coordinate-only')
+  assert.deepEqual(coordinateResult.assets, [])
+  assert.equal(existsSync(path.join(path.dirname(coordinatePlan.outputArtifactPath), `${coordinatePlan.artifactId.slice('sha256:'.length)}.assets`)), false)
+
+  const fallbackOutputRoot = path.join(temporaryRoot, 'fallback-artifacts')
+  const fallbackOptions = { ...liveOptions, outputRoot: fallbackOutputRoot, coordinateOnly: true }
+  const fallbackProvider = { name: 'qwen', apiKey: 'qwen-test-key', model: 'qwen3-vl-plus', baseUrl: 'https://dashscope.example.test/v1' }
+  const fallbackStages = []
+  let fallbackStructuredCalls = 0
+  const fallbackResult = await runCli(fallbackOptions, {
+    env: { QWEN_VISION_API_KEY: fallbackProvider.apiKey },
+    renderPdf: fakeRenderer({ questionPdf, pageHashes, markSchemePageHashes }),
+    providerChain: () => [fallbackProvider],
+    callWithFallback: async ({ providers, request }) => {
+      fallbackStages.push(request.schemaName)
+      assert.equal(providers[0], fallbackProvider)
+      return { provider: fallbackProvider, value: fallbackStructuredCalls++ === 0 ? extraction : verification }
+    },
+    runCropCommand: async () => { throw new Error('fallback coordinate-only ingestion must not crop question PDFs') },
+    validateCropOutput: async () => { throw new Error('fallback coordinate-only ingestion must not validate cropped PDFs') },
+  })
+  assert.equal(fallbackResult.status, 'ai-verified', JSON.stringify(fallbackResult.reasonCodes))
+  assert.equal(fallbackResult.extractor.provider, 'qwen')
+  assert.equal(fallbackResult.verifier.provider, 'qwen')
+  assert.deepEqual(fallbackStages, ['ai_pdf_question_extraction_v1', 'ai_pdf_question_verification_v1'])
 
   const mcqOutputRoot = path.join(temporaryRoot, 'mcq-artifacts')
   const mcqOptions = { ...liveOptions, outputRoot: mcqOutputRoot }
@@ -287,7 +337,18 @@ try {
   assert.equal(JSON.parse(readFileSync(failurePlan.outputArtifactPath, 'utf8')).status, 'auto-quarantined')
   assert.equal(JSON.stringify(quarantinedResult).includes('sensitive crop failure'), false)
 
-  console.log(JSON.stringify({ status: 'passed', checks: 54 }))
+  const coordinateListing = listAiPdfIngestionCandidates({ root: coordinateOutputRoot })
+  assert.equal(coordinateListing.candidates.length, 1)
+  assert.equal(coordinateListing.candidates[0].status, 'ai-verified', 'coordinate-only artifacts must not require cropped PDF assets')
+  assert.equal(coordinateListing.candidates[0].assetCount, 0)
+  assert.deepEqual(coordinateListing.candidates[0].reasonCodes, [])
+
+  writeFileSync(markSchemePdf, Buffer.from('%PDF-coordinate-source-tampered', 'utf8'))
+  const staleCoordinateListing = listAiPdfIngestionCandidates({ root: coordinateOutputRoot })
+  assert.equal(staleCoordinateListing.candidates[0].status, 'auto-quarantined')
+  assert.ok(staleCoordinateListing.candidates[0].reasonCodes.includes('COORDINATE_SOURCE_SHA256_MISMATCH'))
+
+  console.log(JSON.stringify({ status: 'passed', checks: 60 }))
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true })
 }

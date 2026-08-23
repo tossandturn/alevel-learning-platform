@@ -55,6 +55,7 @@ const REGISTERED_ROUTES = new Map(Object.entries({
   'uatuk-tmua-admissions': ['Admissions', 'tmua'],
 }))
 let database = null
+let databaseQuestionBankSignature = ''
 const coachHistoryWriteQueues = new Map()
 
 function sendJson(response, statusCode, body) {
@@ -145,6 +146,17 @@ export function assignableQuestionIdsForBank(questionBank = unifiedQuestionBank)
   return new Set((Array.isArray(questionBank) ? questionBank : [])
     .map((question) => String(question?.bankId || '').trim())
     .filter(Boolean))
+}
+
+function mergeTopicPracticeQuestionBanks(baseQuestionBank, additionalQuestionBank) {
+  const questions = new Map()
+  for (const question of [...(Array.isArray(baseQuestionBank) ? baseQuestionBank : []), ...(Array.isArray(additionalQuestionBank) ? additionalQuestionBank : [])]) {
+    const sourceQuestionId = String(question?.sourceQuestionId || question?.questionGroupId || '').trim()
+    const routeId = String(question?.routeId || '').trim()
+    if (!sourceQuestionId || !routeId) continue
+    questions.set(`${routeId}\u0000${sourceQuestionId}`, question)
+  }
+  return Object.freeze([...questions.values()])
 }
 
 function routeScopedQuestionIds(values, routeId, assignableQuestionIds) {
@@ -283,8 +295,33 @@ function migrateSubmissionIdempotency(database) {
   `)
 }
 
+function questionBankSeedSignature(questionBank = []) {
+  const records = (Array.isArray(questionBank) ? questionBank : []).map((question) => [
+    String(question?.routeId || ''),
+    String(question?.sourceQuestionId || question?.questionGroupId || ''),
+    String(question?.sourceRef?.sha256 || ''),
+    String(question?.answerRef?.sha256 || ''),
+    String(question?.answerBinding?.verificationStatus || ''),
+    String(question?.sourceContent?.bindingSignature || ''),
+    String(question?.knowledgeGroupId || question?.topicId || ''),
+    [...(question?.topicTags || [])].map(String).sort().join(','),
+    (question?.parts || []).map((part) => [part?.partId, part?.marks, part?.sourcePage, part?.answerSourcePage].join(':')).join(','),
+  ].join('\u0000')).sort()
+  return crypto.createHash('sha256').update(records.join('\n')).digest('hex')
+}
+
+function seedCurrentQuestionBank(databaseHandle, questionBank) {
+  const signature = questionBankSeedSignature(questionBank)
+  if (signature === databaseQuestionBankSignature) return
+  seedSyllabusTables(databaseHandle, questionBank)
+  databaseQuestionBankSignature = signature
+}
+
 function appDatabase(env, questionBank = unifiedQuestionBank) {
-  if (database) return database
+  if (database) {
+    seedCurrentQuestionBank(database, questionBank)
+    return database
+  }
   if (!globalThis.process?.versions?.node) throw new Error('STEM storage requires Node.js.')
   // node:sqlite is available in the Node 22 runtime used by the deployment.
   const { DatabaseSync } = requireNodeSqlite()
@@ -382,7 +419,8 @@ function appDatabase(env, questionBank = unifiedQuestionBank) {
   migrateRouteScope(database)
   migrateRegisteredRouteStages(database)
   migrateSubmissionIdempotency(database)
-  seedSyllabusTables(database, questionBank)
+  databaseQuestionBankSignature = ''
+  seedCurrentQuestionBank(database, questionBank)
   return database
 }
 
@@ -1283,7 +1321,7 @@ function eventPayload(value) {
   }
 }
 
-export function createStemApi({ env, questionBank = unifiedQuestionBank, fetchImpl = fetch }) {
+export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQuestionBankProvider = null, fetchImpl = fetch }) {
   // A single shared server key is sufficient for both the internal account
   // request and the short-lived STEM API token. Keep the legacy identity key
   // as the preferred value when both are configured.
@@ -1295,8 +1333,19 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, fetchIm
   // Production uses unifiedQuestionBank, which fails closed on file and
   // semantic source completeness. Supplying a fixture is test-only.
   const assignableQuestionIds = assignableQuestionIdsForBank(questionBank)
-  const topicPracticeQuestionBank = questionBank === unifiedQuestionBank ? studyQuestionBank : questionBank
+  const baseTopicPracticeQuestionBank = questionBank === unifiedQuestionBank ? studyQuestionBank : questionBank
+  const includeStudyOnly = questionBank === unifiedQuestionBank
   let nativeBridgeProbe = null
+
+  function currentTopicPracticeQuestionBank() {
+    if (typeof topicQuestionBankProvider !== 'function') return baseTopicPracticeQuestionBank
+    try {
+      return mergeTopicPracticeQuestionBanks(baseTopicPracticeQuestionBank, topicQuestionBankProvider())
+    } catch {
+      // An invalid runtime artifact must fail closed to the established static study bank.
+      return baseTopicPracticeQuestionBank
+    }
+  }
 
   async function nativeAccountReadiness() {
     const sessionSigningConfigured = Boolean(signingKey)
@@ -1367,7 +1416,8 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, fetchIm
         })
         return
       }
-      const db = appDatabase(env, questionBank)
+      const topicPracticeQuestionBank = currentTopicPracticeQuestionBank()
+      const db = appDatabase(env, topicPracticeQuestionBank)
       const syllabusRouteMatch = url.pathname.match(/^\/api\/stem\/routes\/([^/]+)\/syllabus-topics$/)
       if (request.method === 'GET' && syllabusRouteMatch) {
         const routeId = decodeURIComponent(syllabusRouteMatch[1])
@@ -1438,7 +1488,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, fetchIm
           sourceQuestionIds: payload.sourceQuestionIds,
           seed: payload.seed,
           questionBank: topicPracticeQuestionBank,
-          includeStudyOnly: topicPracticeQuestionBank === studyQuestionBank,
+          includeStudyOnly,
         })
         sendJson(response, 201, { ...result, ownerId: user?.id || null })
         return
@@ -1811,4 +1861,5 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, fetchIm
 export function closeStemDatabaseForTests() {
   database?.close()
   database = null
+  databaseQuestionBankSignature = ''
 }

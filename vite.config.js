@@ -6,6 +6,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
 import { createAiApi } from './server/aiApi.js'
+import { createAiVerifiedQuestionBankLoader } from './server/aiVerifiedQuestionBank.js'
+import { resolveAiPdfIngestionRoot } from './server/aiPdfIngestionCandidates.js'
 import { createStemApi } from './server/stemApi.js'
 import { isPaperAvailableToStudents } from './src/lib/paperGovernance.js'
 import { mergeRuntimeEnv } from './src/lib/runtimeEnv.js'
@@ -74,7 +76,7 @@ function recordPdfAccess(env, item, { outcome, statusCode, ranged }) {
     })
 }
 
-async function sendLocalPdf(request, response, next, env) {
+async function sendLocalPdf(request, response, next, env, runtimePdfDocuments = () => []) {
   const requestUrl = new URL(request.url, 'http://127.0.0.1')
   const segments = requestUrl.pathname.split('/').filter(Boolean).map(decodeURIComponent)
   if (segments[0] !== 'local-pdf') return next()
@@ -86,7 +88,14 @@ async function sendLocalPdf(request, response, next, env) {
     return
   }
 
-  const catalogItem = paperCatalogIndex().get(`${subject}/${fileName}`)
+  const staticCatalogItem = paperCatalogIndex().get(`${subject}/${fileName}`)
+  let runtimeCatalogItem = null
+  try {
+    runtimeCatalogItem = (runtimePdfDocuments() || []).find((item) => item?.subject === subject && item?.file === fileName) || null
+  } catch {
+    runtimeCatalogItem = null
+  }
+  const catalogItem = staticCatalogItem || runtimeCatalogItem
   if (!catalogItem) {
     recordPdfAccess(env, null, { outcome: 'catalog-denied', statusCode: 404, ranged: Boolean(request.headers.range) })
     response.statusCode = 404
@@ -323,8 +332,14 @@ function stemPublicAssetOutput() {
 
 function localCieLibrary(env) {
   const libraryRoot = path.resolve(env.CIE_LIBRARY_ROOT || DEFAULT_LIBRARY_ROOT)
-  const aiApi = createAiApi({ env, libraryRoot, allowedSubjects: ALLOWED_SUBJECTS })
-  const stemApi = createStemApi({ env })
+  const runtimeAiQuestionBank = createAiVerifiedQuestionBankLoader({
+    artifactRoot: resolveAiPdfIngestionRoot(env),
+    libraryRoot: path.join(libraryRoot, '9702'),
+  })
+  const runtimeAiGroups = () => runtimeAiQuestionBank().groups
+  const runtimePdfDocuments = () => runtimeAiQuestionBank().documents
+  const aiApi = createAiApi({ env, libraryRoot, allowedSubjects: ALLOWED_SUBJECTS, questionBankProvider: runtimeAiGroups })
+  const stemApi = createStemApi({ env, topicQuestionBankProvider: runtimeAiGroups })
   return {
     name: 'local-cie-library',
     configureServer(server) {
@@ -334,7 +349,7 @@ function localCieLibrary(env) {
       server.middlewares.use(stemApi)
       server.middlewares.use(aiApi)
       server.middlewares.use((request, response, next) => {
-        void sendLocalPdf(request, response, next, env).catch(next)
+        void sendLocalPdf(request, response, next, env, runtimePdfDocuments).catch(next)
       })
     },
     configurePreviewServer(server) {
@@ -344,7 +359,7 @@ function localCieLibrary(env) {
       server.middlewares.use(stemApi)
       server.middlewares.use(aiApi)
       server.middlewares.use((request, response, next) => {
-        void sendLocalPdf(request, response, next, env).catch(next)
+        void sendLocalPdf(request, response, next, env, runtimePdfDocuments).catch(next)
       })
     },
   }

@@ -2,6 +2,14 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
+import {
+  assertWithinLimit,
+  findForbiddenFiles,
+  MAX_DIST_BYTES,
+  MAX_RELEASE_BYTES,
+  pathsOverlap,
+  physicalTreeBytes,
+} from './release-content-policy.mjs'
 
 function option(name) {
   const index = process.argv.indexOf(name)
@@ -46,6 +54,17 @@ assert.ok(fs.existsSync(path.join(distRoot, 'assets')) && fs.statSync(path.join(
 JSON.parse(fs.readFileSync(catalogPath, 'utf8'))
 assert.ok(paperLibraryRoot, 'Pass --pdf-library-root <path> for the governed local PDF library')
 assert.ok(fs.existsSync(paperLibraryRoot) && fs.statSync(paperLibraryRoot).isDirectory(), `Governed PDF library is missing: ${paperLibraryRoot}`)
+const resolvedRelease = fs.realpathSync(releaseRoot)
+const resolvedPdfLibrary = fs.realpathSync(paperLibraryRoot)
+assert.ok(!pathsOverlap(resolvedRelease, resolvedPdfLibrary), `Release root must be separate from the PDF library: ${resolvedRelease}`)
+const forbiddenReleaseFiles = findForbiddenFiles(releaseRoot, ['.pdf', '.tgz', '.tar.gz', '.zip'])
+assert.equal(forbiddenReleaseFiles.length, 0, `Release contains physical PDF/archive files; true-paper PDFs must stay outside release: ${forbiddenReleaseFiles.slice(0, 10).join(', ')}`)
+assertWithinLimit(physicalTreeBytes(releaseRoot), MAX_RELEASE_BYTES, 'Release')
+assertWithinLimit(physicalTreeBytes(distRoot), MAX_DIST_BYTES, 'Release dist')
+const distQuestionAssets = path.join(distRoot, 'question-assets')
+if (fs.existsSync(distQuestionAssets)) {
+  assert.ok(fs.lstatSync(distQuestionAssets).isSymbolicLink(), 'Release dist/question-assets must be a symlink to shared rendered assets, never a copied directory')
+}
 
 const env = { ...process.env }
 delete env.SOURCE_AUDIT_ROOT

@@ -2,6 +2,14 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
+import {
+  assertWithinLimit,
+  findForbiddenFiles,
+  findNestedSymlinks,
+  MAX_RELEASE_BYTES,
+  pathsOverlap,
+  physicalTreeBytes,
+} from './release-content-policy.mjs'
 
 function option(name) {
   const index = process.argv.indexOf(name)
@@ -31,6 +39,13 @@ assert.ok(fs.existsSync(releaseRoot) && fs.statSync(releaseRoot).isDirectory(), 
 assert.ok(fs.existsSync(sourceAssets) && fs.statSync(sourceAssets).isDirectory(), `Source assets are missing: ${sourceAssets}`)
 assert.ok(fs.existsSync(sourceCatalog) && fs.statSync(sourceCatalog).isFile(), `Source catalog is missing: ${sourceCatalog}`)
 assert.ok(fs.existsSync(sourcePdfLibrary) && fs.statSync(sourcePdfLibrary).isDirectory(), `Governed PDF library is missing: ${sourcePdfLibrary}`)
+const resolvedAssets = fs.realpathSync(sourceAssets)
+const resolvedPdfLibrary = fs.realpathSync(sourcePdfLibrary)
+assert.ok(!pathsOverlap(resolvedAssets, resolvedPdfLibrary), `Assets directory must be separate from the PDF library: ${resolvedAssets}`)
+const nestedSymlinks = findNestedSymlinks(sourceAssets)
+assert.equal(nestedSymlinks.length, 0, `Assets directory contains nested symlinks; materialise a self-contained rendered asset tree first: ${nestedSymlinks.slice(0, 5).join(', ')}`)
+const forbiddenSourceFiles = findForbiddenFiles(sourceAssets, ['.pdf', '.tgz', '.tar.gz', '.zip'])
+assert.equal(forbiddenSourceFiles.length, 0, `Assets directory contains non-rendered archive/PDF files: ${forbiddenSourceFiles.slice(0, 5).join(', ')}`)
 assert.ok(targetInsideRelease(releaseRoot, targetAssets) && targetInsideRelease(releaseRoot, targetCatalog), 'Release content target escapes release root')
 assert.ok(!fs.existsSync(targetAssets), `Release already has question-assets: ${targetAssets}`)
 assert.ok(!fs.existsSync(targetCatalog), `Release already has papers.json: ${targetCatalog}`)
@@ -40,6 +55,9 @@ fs.mkdirSync(path.dirname(targetAssets), { recursive: true })
 fs.mkdirSync(path.dirname(targetCatalog), { recursive: true })
 fs.cpSync(sourceAssets, targetAssets, { recursive: true, dereference: true, force: false, errorOnExist: true })
 fs.copyFileSync(sourceCatalog, targetCatalog, fs.constants.COPYFILE_EXCL)
+
+const releaseBytes = physicalTreeBytes(releaseRoot)
+assertWithinLimit(releaseBytes, MAX_RELEASE_BYTES, 'Prepared release')
 
 const result = spawnSync(process.execPath, [verifier, '--release-root', releaseRoot, '--pdf-library-root', sourcePdfLibrary], {
   cwd: releaseRoot,

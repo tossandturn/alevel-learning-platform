@@ -95,9 +95,11 @@ function toSafeCandidate(artifactPath, paperDirectoryName) {
     : 0
   let assetCount = Array.isArray(artifact?.assets) ? artifact.assets.length : 0
   if (effectiveStatus === 'ai-verified') {
-    const assetCheck = validateAssets(artifactPath, artifact, declaredArtifactId)
-    for (const reason of assetCheck.reasonCodes) reasonCodes.add(reason)
-    assetCount = assetCheck.assetCount
+    const integrityCheck = artifact?.storageMode === 'coordinate-only'
+      ? validateCoordinateSources(artifact)
+      : validateAssets(artifactPath, artifact, declaredArtifactId)
+    for (const reason of integrityCheck.reasonCodes) reasonCodes.add(reason)
+    assetCount = integrityCheck.assetCount
     if (!questionCount) reasonCodes.add('QUESTIONS_MISSING')
     if (reasonCodes.size) effectiveStatus = 'auto-quarantined'
   } else {
@@ -158,6 +160,41 @@ function validateAssets(artifactPath, artifact, declaredArtifactId) {
   if (!assets.length) reasonCodes.add('ASSETS_MISSING')
   if (validCount !== assets.length) reasonCodes.add('ASSET_SET_INCOMPLETE')
   return { reasonCodes, assetCount: validCount }
+}
+
+function validateCoordinateSources(artifact) {
+  const reasonCodes = new Set()
+  const source = artifact?.source || {}
+  const sourceFiles = [
+    { path: source.questionPdfPath, sha256: normalizeHash(source.questionPdfSha256) },
+    { path: source.markSchemePdfPath, sha256: normalizeHash(source.markSchemePdfSha256) },
+  ]
+
+  for (const sourceFile of sourceFiles) {
+    const sourcePath = typeof sourceFile.path === 'string' && sourceFile.path.trim()
+      ? path.resolve(sourceFile.path)
+      : ''
+    if (!sourcePath) {
+      reasonCodes.add('COORDINATE_SOURCE_PATH_INVALID')
+      continue
+    }
+    const stat = fs.statSync(sourcePath, { throwIfNoEntry: false })
+    if (!stat?.isFile() || stat.size <= 0) {
+      reasonCodes.add('COORDINATE_SOURCE_MISSING')
+      continue
+    }
+    const bytes = fs.readFileSync(sourcePath)
+    if (!bytes.subarray(0, 5).equals(Buffer.from('%PDF-'))) {
+      reasonCodes.add('COORDINATE_SOURCE_NOT_PDF')
+      continue
+    }
+    const actualHash = crypto.createHash('sha256').update(bytes).digest('hex')
+    if (!sourceFile.sha256 || sourceFile.sha256 !== actualHash) {
+      reasonCodes.add('COORDINATE_SOURCE_SHA256_MISMATCH')
+    }
+  }
+
+  return { reasonCodes, assetCount: 0 }
 }
 
 function invalidCandidate(paperId, reason) {

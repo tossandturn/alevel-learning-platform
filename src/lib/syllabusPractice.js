@@ -322,21 +322,30 @@ function currentReviewedQuestionById(questionBank, routeId) {
 
 function effectiveQuestionRecords(questionBank, config = SYLLABUS_CONFIGS[CAMBRIDGE_9702_AS_SYLLABUS.routeId]) {
   const reviewedById = currentReviewedQuestionById(questionBank, config.syllabus.routeId)
-  return rawSyllabusQuestionGroups(config).map((rawQuestion) => {
-    const sourceQuestionId = rawQuestion.sourceQuestionId || rawQuestion.questionGroupId
-    const reviewedQuestion = reviewedById.get(sourceQuestionId)
-    const question = reviewedQuestion || rawQuestion
+  const rawQuestions = rawSyllabusQuestionGroups(config)
+  const rawQuestionIds = new Set(rawQuestions.map((question) => question.sourceQuestionId || question.questionGroupId).filter(Boolean))
+  const currentQuestions = [
+    ...rawQuestions.map((rawQuestion) => ({
+      sourceQuestionId: rawQuestion.sourceQuestionId || rawQuestion.questionGroupId,
+      question: reviewedById.get(rawQuestion.sourceQuestionId || rawQuestion.questionGroupId) || rawQuestion,
+      suppliedByCurrentBank: reviewedById.has(rawQuestion.sourceQuestionId || rawQuestion.questionGroupId),
+    })),
+    ...[...reviewedById.entries()]
+      .filter(([sourceQuestionId]) => !rawQuestionIds.has(sourceQuestionId))
+      .map(([sourceQuestionId, question]) => ({ sourceQuestionId, question, suppliedByCurrentBank: true })),
+  ]
+  return currentQuestions.map(({ sourceQuestionId, question, suppliedByCurrentBank }) => {
     const mapping = candidateMappingFor(question, config.syllabus, config)
     const reviewed = Boolean(
-      reviewedQuestion
-      && isHumanReviewedPastPaperItem(reviewedQuestion)
+      suppliedByCurrentBank
+      && isHumanReviewedPastPaperItem(question)
       && mapping?.reviewStatus === 'reviewed',
     )
     const sourceBackedStudy = Boolean(
-      reviewedQuestion
+      suppliedByCurrentBank
       && !reviewed
       && mapping?.topicIds?.length
-      && (isHumanReviewedPastPaperItem(reviewedQuestion) || isStudyOnlyPastPaperItem(reviewedQuestion)),
+      && (isHumanReviewedPastPaperItem(question) || isStudyOnlyPastPaperItem(question)),
     )
     return Object.freeze({
       question,
@@ -990,6 +999,7 @@ export function ensureSyllabusTables(database) {
       mark_scheme_pages_json TEXT NOT NULL,
       total_marks INTEGER NOT NULL,
       source_content_complete INTEGER NOT NULL,
+      study_eligible INTEGER NOT NULL DEFAULT 0,
       verification_status TEXT NOT NULL,
       source_json TEXT NOT NULL,
       answer_json TEXT NOT NULL,
@@ -1014,6 +1024,10 @@ export function ensureSyllabusTables(database) {
     CREATE INDEX IF NOT EXISTS idx_question_syllabus_mapping_gate
       ON question_syllabus_mapping(primary_topic_id, review_status);
   `)
+  const groupColumns = database.prepare('PRAGMA table_info(question_groups)').all().map((column) => column.name)
+  if (!groupColumns.includes('study_eligible')) {
+    database.exec('ALTER TABLE question_groups ADD COLUMN study_eligible INTEGER NOT NULL DEFAULT 0')
+  }
 }
 
 export function seedSyllabusTables(database, questionBank = []) {
@@ -1052,9 +1066,9 @@ export function seedSyllabusTables(database, questionBank = []) {
   const insertQuestion = database.prepare(`
     INSERT INTO question_groups (
       id, route_id, stage, subject_code, paper_component, question_paper_id, mark_scheme_id,
-      question_pages_json, mark_scheme_pages_json, total_marks, source_content_complete,
+      question_pages_json, mark_scheme_pages_json, total_marks, source_content_complete, study_eligible,
       verification_status, source_json, answer_json, parts_json, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       route_id = excluded.route_id,
       stage = excluded.stage,
@@ -1066,6 +1080,7 @@ export function seedSyllabusTables(database, questionBank = []) {
       mark_scheme_pages_json = excluded.mark_scheme_pages_json,
       total_marks = excluded.total_marks,
       source_content_complete = excluded.source_content_complete,
+      study_eligible = excluded.study_eligible,
       verification_status = excluded.verification_status,
       source_json = excluded.source_json,
       answer_json = excluded.answer_json,
@@ -1089,12 +1104,14 @@ export function seedSyllabusTables(database, questionBank = []) {
       evidence_json = excluded.evidence_json,
       updated_at = excluded.updated_at
   `)
+  const activeAiVerifiedQuestionGroupIds = new Set()
   for (const config of Object.values(SYLLABUS_CONFIGS)) {
     const records = effectiveQuestionRecords(questionBank, config)
     for (const record of records) {
     const question = record.question
     const answerRef = question.answerRef || {}
     const mapping = record.mapping
+    if (record.verificationStatus === 'ai-verified') activeAiVerifiedQuestionGroupIds.add(record.questionGroupId)
     insertQuestion.run(
       record.questionGroupId,
       record.routeId,
@@ -1107,6 +1124,7 @@ export function seedSyllabusTables(database, questionBank = []) {
       JSON.stringify(answerRef.pageStart ? [answerRef.pageStart] : []),
       Number(question.totalMarks || question.marks || 0),
       record.sourceContentComplete ? 1 : 0,
+      record.studyEligible ? 1 : 0,
       record.verificationStatus,
       JSON.stringify(question.sourceRef || {}),
       JSON.stringify(answerRef),
@@ -1127,6 +1145,15 @@ export function seedSyllabusTables(database, questionBank = []) {
       now,
     )
     }
+  }
+
+  // Coordinate-only records are loaded only when their artifact and both
+  // local PDFs still validate. Remove an earlier runtime copy when that guard
+  // stops returning it, while leaving reviewed and machine-indexed rows intact.
+  const existingAiVerified = database.prepare("SELECT id FROM question_groups WHERE verification_status = 'ai-verified'").all()
+  const deleteStaleAiVerified = database.prepare("DELETE FROM question_groups WHERE id = ? AND verification_status = 'ai-verified'")
+  for (const row of existingAiVerified) {
+    if (!activeAiVerifiedQuestionGroupIds.has(row.id)) deleteStaleAiVerified.run(row.id)
   }
 }
 
@@ -1149,6 +1176,10 @@ export function syllabusDatabaseInventory(database, routeId) {
           AND mapping.review_status = 'reviewed'
         THEN groups.id END
       ) AS verifiedQuestionCount,
+      COUNT(DISTINCT CASE
+        WHEN groups.study_eligible = 1
+        THEN groups.id END
+      ) AS studyQuestionCount,
       COUNT(DISTINCT groups.id) AS indexedQuestionCount,
       COUNT(DISTINCT CASE
         WHEN NOT (
@@ -1176,20 +1207,27 @@ export function syllabusDatabaseInventory(database, routeId) {
   `).all(...components, routeId)
   return topics.map((topic) => {
     const verifiedQuestionCount = Number(topic.verifiedQuestionCount) || 0
+    const studyQuestionCount = Number(topic.studyQuestionCount) || 0
+    const availableQuestionCount = verifiedQuestionCount + studyQuestionCount
     const indexedQuestionCount = Number(topic.indexedQuestionCount) || 0
     const pendingReviewCount = Number(topic.pendingReviewCount) || 0
     const ready = verifiedQuestionCount >= 10
     return {
       ...topic,
       verifiedQuestionCount,
+      studyQuestionCount,
+      availableQuestionCount,
       indexedQuestionCount,
       pendingReviewCount,
-      availableSetSizes: SET_SIZES.filter((size) => size <= verifiedQuestionCount),
+      availableSetSizes: SET_SIZES.filter((size) => size <= availableQuestionCount),
       ready,
-      ctaPolicy: ready ? 'start' : verifiedQuestionCount > 0 ? 'limited-indexing' : 'hidden',
+      studyReady: availableQuestionCount > 0,
+      ctaPolicy: ready ? 'start' : availableQuestionCount > 0 ? 'start-study' : 'hidden',
       sourceGap: ready
         ? null
-        : `Official QP/MS candidates indexed: ${indexedQuestionCount}; semantic-reviewed and mapped: ${verifiedQuestionCount}. ${pendingReviewCount} item(s) remain in review.`,
+        : availableQuestionCount > 0
+          ? `Available for study: ${availableQuestionCount} complete source question${availableQuestionCount === 1 ? '' : 's'}; ${studyQuestionCount} stay outside formal mastery while source review is pending.`
+          : `Official QP/MS candidates indexed: ${indexedQuestionCount}; semantic-reviewed and mapped: ${verifiedQuestionCount}. ${pendingReviewCount} item(s) remain in review.`,
     }
   })
 }

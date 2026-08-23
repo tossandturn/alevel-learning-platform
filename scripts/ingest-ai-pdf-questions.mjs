@@ -10,7 +10,7 @@ import { CAMBRIDGE_0580_IGCSE_SYLLABUS } from '../src/data/syllabus/cambridge-05
 import { CAMBRIDGE_0625_IGCSE_SYLLABUS } from '../src/data/syllabus/cambridge-0625-igcse-2026-2028.js'
 import { CAMBRIDGE_9709_AS_P1_S1_SYLLABUS } from '../src/data/syllabus/cambridge-9709-as-p1-s1-2026-2027.js'
 import { AI_PDF_INGESTION_SCHEMA_VERSION, artifactId } from './ai-pdf-ingestion/contract.mjs'
-import { callOpenAiStructured } from './ai-pdf-ingestion/openai-structured.mjs'
+import { callStructuredWithFallback, providersFromEnvironment } from './ai-pdf-ingestion/provider-fallback.mjs'
 import {
   buildCropCommand,
   buildCropManifest,
@@ -90,7 +90,7 @@ const verifierSchema = {
 
 export function parseArgs(argv, { cwd = process.cwd(), env = process.env } = {}) {
   const values = {}
-  const flags = new Set(['--dry-run', '--retry'])
+  const flags = new Set(['--dry-run', '--retry', '--coordinate-only'])
   const options = new Set([
     '--paper-id', '--question-pdf', '--mark-scheme-pdf', '--subject', '--output-root', '--model', '--base-url', '--render-dpi', '--max-attempts', '--timeout-ms',
   ])
@@ -98,7 +98,11 @@ export function parseArgs(argv, { cwd = process.cwd(), env = process.env } = {})
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index]
     if (flags.has(argument)) {
-      const flagName = argument === '--dry-run' ? 'dryRun' : 'retry'
+      const flagName = argument === '--dry-run'
+        ? 'dryRun'
+        : argument === '--retry'
+          ? 'retry'
+          : 'coordinateOnly'
       if (values[flagName]) throw new RangeError(`${argument} may only be provided once.`)
       values[flagName] = true
       continue
@@ -133,6 +137,7 @@ export function parseArgs(argv, { cwd = process.cwd(), env = process.env } = {})
     baseUrl: nonemptyString(values['--base-url'] ?? env.OPENAI_BASE_URL),
     dryRun: values.dryRun === true,
     retry: values.retry === true,
+    coordinateOnly: values.coordinateOnly === true,
     renderDpi,
     maxAttempts,
     timeoutMs,
@@ -154,6 +159,7 @@ export function buildDryRunPlan(options) {
     maxAttempts: options.maxAttempts,
     timeoutMs: options.timeoutMs,
     retry: options.retry,
+    coordinateOnly: options.coordinateOnly === true,
     artifactId: id,
     immutableInputs: {
       questionPdf: { path: options.questionPdf, sha256: questionPdfSha256 },
@@ -165,7 +171,9 @@ export function buildDryRunPlan(options) {
 
 export async function runCli(options, {
   env = process.env,
-  callStructured = callOpenAiStructured,
+  callStructured = null,
+  callWithFallback = callStructuredWithFallback,
+  providerChain = providersFromEnvironment,
   renderPdf = renderPdfPages,
   runCropCommand = runCropCommandWithBundledPython,
   validateCropOutput = validateCropOutputWithBundledPython,
@@ -177,7 +185,10 @@ export async function runCli(options, {
   const priorArtifact = readExistingArtifact(plan.outputArtifactPath)
   if (priorArtifact?.status === 'auto-quarantined' && !options.retry) return priorArtifact
   if (priorArtifact?.status === 'ai-verified') {
-    if (verifiedArtifactAssetsFresh(priorArtifact, plan.outputArtifactPath)) return priorArtifact
+    const fresh = priorArtifact.storageMode === 'coordinate-only'
+      ? coordinateOnlyArtifactSourcesFresh(priorArtifact)
+      : verifiedArtifactAssetsFresh(priorArtifact, plan.outputArtifactPath)
+    if (fresh) return priorArtifact
     if (!options.retry) {
       return writeArtifact(plan.outputArtifactPath, {
         schemaVersion: AI_PDF_INGESTION_SCHEMA_VERSION,
@@ -187,7 +198,7 @@ export async function runCli(options, {
         status: 'auto-quarantined',
         source: priorArtifact.source || sourceMetadata(plan, options),
         model: plan.model,
-        reasonCodes: ['EXISTING_ARTIFACT_ASSET_MISSING'],
+        reasonCodes: [priorArtifact.storageMode === 'coordinate-only' ? 'EXISTING_ARTIFACT_SOURCE_MISSING' : 'EXISTING_ARTIFACT_ASSET_MISSING'],
       })
     }
   }
@@ -211,36 +222,42 @@ export async function runCli(options, {
     source.markSchemePageHashes = markSchemeRender.pageImageHashes
     source.markSchemePageSizes = markSchemeRender.pageSizes
 
-    const apiKey = env.OPENAI_API_KEY
-    if (typeof apiKey !== 'string' || !apiKey.trim()) {
+    const providers = callStructured ? [] : providerChain(env, { model: options.model, baseUrl: options.baseUrl })
+    if (!callStructured && providers.length === 0) {
       return await writeQuarantine({ plan, source, writeArtifact, reasonCodes: ['OPENAI_CONFIGURATION_INVALID'] })
     }
 
-    const extraction = await callStructured({
-      apiKey,
-      model: options.model,
-      baseUrl: options.baseUrl,
+    const requestStructured = async ({ schemaName, schema, input }) => {
+      const request = {
+        apiKey: env.OPENAI_API_KEY,
+        model: options.model,
+        baseUrl: options.baseUrl,
+        schemaName,
+        schema,
+        input,
+        maxAttempts: options.maxAttempts,
+        timeoutMs: options.timeoutMs,
+      }
+      if (callStructured) return { provider: { name: 'injected' }, value: await callStructured(request) }
+      return callWithFallback({ providers, request })
+    }
+    const extractionResult = await requestStructured({
       schemaName: 'ai_pdf_question_extraction_v1',
       schema: extractionSchemaFor(source.controlledTags),
       input: buildExtractionInput(source, questionRenderDirectory, markSchemeRenderDirectory),
-      maxAttempts: options.maxAttempts,
-      timeoutMs: options.timeoutMs,
     })
-    const verification = await callStructured({
-      apiKey,
-      model: options.model,
-      baseUrl: options.baseUrl,
+    const extraction = extractionResult.value
+    const verificationResult = await requestStructured({
       schemaName: 'ai_pdf_question_verification_v1',
       schema: verifierSchema,
       input: buildVerificationInput(source, extraction, questionRenderDirectory, markSchemeRenderDirectory),
-      maxAttempts: options.maxAttempts,
-      timeoutMs: options.timeoutMs,
     })
+    const verification = verificationResult.value
     const normalizedVerification = normalizeVerificationForValidation(verification)
     const validationCandidate = normalizeExtractionForValidation(extraction, normalizedVerification)
     const validation = validateCandidate({ candidate: validationCandidate, verification: normalizedVerification, source })
     let assets = []
-    if (validation.status === 'ai-verified') {
+    if (validation.status === 'ai-verified' && !options.coordinateOnly) {
       createdAssetsRoot = assetsRootFor(plan.outputArtifactPath, plan.artifactId)
       fs.mkdirSync(path.dirname(createdAssetsRoot), { recursive: true })
       fs.mkdirSync(createdAssetsRoot)
@@ -258,7 +275,10 @@ export async function runCli(options, {
         throw codedError('CROP_FAILED')
       }
     }
-    return writeArtifact(plan.outputArtifactPath, artifactForResult(plan, source, options, validation, validationCandidate, normalizedVerification, assets))
+    return writeArtifact(plan.outputArtifactPath, artifactForResult(plan, source, options, validation, validationCandidate, normalizedVerification, assets, {
+      extractorProvider: extractionResult.provider?.name || null,
+      verifierProvider: verificationResult.provider?.name || null,
+    }))
   } catch (error) {
     if (createdAssetsRoot) fs.rmSync(createdAssetsRoot, { recursive: true, force: true })
     return writeQuarantine({
@@ -369,6 +389,7 @@ function sourceMetadata(plan, options) {
     markSchemePdfSha256: plan.immutableInputs.markSchemePdf.sha256,
     questionPdfPath: options.questionPdf,
     markSchemePdfPath: options.markSchemePdf,
+    renderDpi: options.renderDpi,
     pageImageHashes: {},
     pageSizes: {},
     markSchemePageHashes: {},
@@ -464,7 +485,7 @@ async function writeQuarantine({ plan, source, writeArtifact, reasonCodes }) {
   })
 }
 
-function artifactForResult(plan, source, options, validation, extraction, verification, assets) {
+function artifactForResult(plan, source, options, validation, extraction, verification, assets, { extractorProvider = null, verifierProvider = null } = {}) {
   return {
     schemaVersion: AI_PDF_INGESTION_SCHEMA_VERSION,
     artifactId: plan.artifactId,
@@ -472,9 +493,10 @@ function artifactForResult(plan, source, options, validation, extraction, verifi
     subject: options.subject,
     generatedAt: new Date().toISOString(),
     status: validation.status,
+    storageMode: options.coordinateOnly ? 'coordinate-only' : 'cropped-question-pdfs',
     source: serializableSource(source),
-    extractor: { provider: 'openai', model: options.model, schemaName: 'ai_pdf_question_extraction_v1' },
-    verifier: { provider: 'openai', model: options.model, schemaName: 'ai_pdf_question_verification_v1' },
+    extractor: { provider: extractorProvider || 'openai', model: options.model, schemaName: 'ai_pdf_question_extraction_v1' },
+    verifier: { provider: verifierProvider || 'openai', model: options.model, schemaName: 'ai_pdf_question_verification_v1' },
     reasonCodes: validation.reasonCodes.sort(),
     assets,
     candidate: extraction,
@@ -562,6 +584,24 @@ function verifiedArtifactAssetsFresh(artifact, artifactPath) {
     const expectedHash = normalizeSha256(asset.questionPdfSha256)
     return expectedHash && createHash('sha256').update(bytes).digest('hex') === expectedHash
   })
+}
+
+function coordinateOnlyArtifactSourcesFresh(artifact) {
+  const source = artifact?.source || {}
+  const questionPath = typeof source.questionPdfPath === 'string' ? source.questionPdfPath : ''
+  const markSchemePath = typeof source.markSchemePdfPath === 'string' ? source.markSchemePdfPath : ''
+  const questionHash = normalizeSha256(source.questionPdfSha256)
+  const markSchemeHash = normalizeSha256(source.markSchemePdfSha256)
+  return Boolean(
+    questionPath
+    && markSchemePath
+    && questionHash
+    && markSchemeHash
+    && fs.statSync(questionPath, { throwIfNoEntry: false })?.isFile()
+    && fs.statSync(markSchemePath, { throwIfNoEntry: false })?.isFile()
+    && fileSha256(questionPath) === questionHash
+    && fileSha256(markSchemePath) === markSchemeHash,
+  )
 }
 
 function serializableSource(source) {

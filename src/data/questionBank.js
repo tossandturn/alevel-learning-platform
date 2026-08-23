@@ -22,6 +22,51 @@ function hasRequiredFields(value, fields) {
   return value && fields.every((field) => value[field] !== undefined && value[field] !== null && value[field] !== '')
 }
 
+function isAiVerifiedCoordinateQuestionGroup(question) {
+  if (
+    question?.answerBinding?.verificationStatus !== 'ai-verified'
+    || question?.sourceContent?.schemaVersion !== 'ai-verified-coordinate-source-v1'
+    || question?.sourceContent?.semanticStatus !== 'ai-verified'
+    || question?.answerBinding?.questionDocumentSha256 !== question?.sourceRef?.sha256
+    || question?.answerBinding?.answerDocumentSha256 !== question?.answerRef?.sha256
+  ) return false
+
+  const parts = Array.isArray(question?.parts) ? question.parts : []
+  const totalMarks = Number(question?.totalMarks ?? question?.marks)
+  return Boolean(
+    parts.length
+    && Number.isInteger(totalMarks)
+    && totalMarks > 0
+    && parts.reduce((sum, part) => sum + Number(part?.marks || 0), 0) === totalMarks
+    && parts.every((part) => (
+      typeof part?.partId === 'string'
+      && part.partId
+      && typeof part?.promptFragment === 'string'
+      && part.promptFragment.trim()
+      && Number.isInteger(Number(part.marks))
+      && Number(part.marks) > 0
+      && Number(part.questionDeclaredMarks) === Number(part.marks)
+      && Number.isInteger(Number(part.sourcePage))
+      && Number(part.sourcePage) > 0
+      && Number.isInteger(Number(part.answerSourcePage))
+      && Number(part.answerSourcePage) > 0
+      && Array.isArray(part.sourceEvidence)
+      && part.sourceEvidence.some((evidence) => (
+        Number(evidence?.page) === Number(part.sourcePage)
+        && evidence?.coordinateSpace === 'normalized-xyxy'
+        && evidence?.documentSha256 === question.sourceRef?.sha256
+        && Array.isArray(evidence?.region)
+        && evidence.region.length === 4
+      ))
+      && Array.isArray(part.markSchemeEvidence)
+      && part.markSchemeEvidence.some((evidence) => (
+        Number(evidence?.page) === Number(part.answerSourcePage)
+        && /^[a-f0-9]{64}$/i.test(String(evidence?.pageImageSha256 || ''))
+      ))
+    )),
+  )
+}
+
 export function isVerifiedPastPaperItem(question) {
   const route = routeById(question?.routeId)
   const groupValidation = normaliseQuestionGroup(question, question)
@@ -70,6 +115,7 @@ export function isStudyOnlyPastPaperItem(question) {
   const route = routeById(question?.routeId)
   const sourceContent = question?.sourceContent || sourceContentStatus(question)
   const groupValidation = normaliseQuestionGroup(question, question)
+  const coordinateVerified = isAiVerifiedCoordinateQuestionGroup(question)
   return Boolean(
     question
     && question.sourceKind === 'past-paper'
@@ -78,12 +124,12 @@ export function isStudyOnlyPastPaperItem(question) {
     && question.knowledgeGroupId
     && Array.isArray(question.topicTags)
     && question.topicTags.length
-    && question.answerBinding?.verificationStatus === 'machine-indexed'
+    && ['machine-indexed', 'ai-verified'].includes(question.answerBinding?.verificationStatus)
     && question.questionGroupId
     && question.questionGroupStatus !== 'quarantined'
-    && groupValidation.status === 'verified'
+    && (groupValidation.status === 'verified' || coordinateVerified)
     && sourceContent.fileComplete === true
-    && sourceContent.semanticStatus === 'unreviewed'
+    && ['unreviewed', 'ai-verified'].includes(sourceContent.semanticStatus)
     && route
     && route.stage === question.stage
     && route.qualification === question.qualification
