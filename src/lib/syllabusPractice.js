@@ -5,9 +5,9 @@ import { CAMBRIDGE_0580_IGCSE_SYLLABUS } from '../data/syllabus/cambridge-0580-i
 import { CAMBRIDGE_0625_IGCSE_SYLLABUS } from '../data/syllabus/cambridge-0625-igcse-2026-2028.js'
 import { CAMBRIDGE_0606_IGCSE_SYLLABUS } from '../data/syllabus/cambridge-0606-igcse-2025-2027.js'
 import { CAMBRIDGE_9709_AS_P1_S1_SYLLABUS } from '../data/syllabus/cambridge-9709-as-p1-s1-2026-2027.js'
-import { isHumanReviewedPastPaperItem, isStudyOnlyPastPaperItem, normalizeImportedQuestion, studyQuestionBank, unifiedQuestionBank } from '../data/questionBank.js'
+import { isAiMarkablePastPaperItem, isHumanReviewedPastPaperItem, isStudyOnlyPastPaperItem, normalizeImportedQuestion, studyQuestionBank, unifiedQuestionBank } from '../data/questionBank.js'
 import { routeById } from '../data/routeRegistry.js'
-import { canonicalSourceMarkingProvenance, canonicalSourcePracticeProvenance } from './sourceContentContract.js'
+import { canonicalAiMarkingProvenance, canonicalSourcePracticeProvenance } from './sourceContentContract.js'
 import { canonicalSyllabusTopicIdForRoute } from './syllabusPracticeRoutes.js'
 import { practiceUnitMetrics, withPracticePresentation } from './practicePresentation.js'
 
@@ -440,7 +440,7 @@ function topicRowsForRoute(routeId, questionBank) {
       sourceGap: ready
         ? null
         : availableQuestionCount > 0
-          ? `Available for study: ${availableQuestionCount} complete source question${availableQuestionCount === 1 ? '' : 's'}; ${studyQuestionCount} remain self-mark only while source review is pending.`
+          ? `Available for study: ${availableQuestionCount} complete source question${availableQuestionCount === 1 ? '' : 's'}; ${studyQuestionCount} stay outside formal mastery while source review is pending. Source-complete QP/MS items are AI-marked automatically.`
           : `Official QP/MS candidates indexed: ${indexedQuestionCount}; no complete source-backed question is available for this topic yet.`,
     }
   })
@@ -655,7 +655,7 @@ function publicQuestionGroup(record) {
     totalMarks: Number(question.totalMarks || question.marks || 0),
     prompt: question.prompt || '',
     parts: (question.parts || []).map((part) => {
-      const markingProvenance = canonicalSourceMarkingProvenance(question, part)
+      const markingProvenance = canonicalAiMarkingProvenance(question, part)
       const sourceBindingProvenance = canonicalSourcePracticeProvenance(question, part)
       return {
         partId: part.partId,
@@ -675,8 +675,7 @@ function publicQuestionGroup(record) {
         markingProvenance,
         sourceBindingProvenance,
         aiAssistedMarkingAvailable: Boolean(
-          question.answerBinding?.verificationStatus === 'reviewed'
-          && !record.studyOnly
+          isAiMarkablePastPaperItem(question)
           && markingProvenance
           && sourceBindingProvenance,
         ),
@@ -793,9 +792,7 @@ export function rebindSyllabusPracticeUnit(unit, { questionBank = studyQuestionB
       practiceAvailable: true,
       deterministicScoringAvailable: Boolean(currentPart.answerKey),
       aiAssistedMarkingAvailable: Boolean(
-        group.reviewStatus === 'reviewed'
-        && !group.studyOnly
-        && currentPart.aiAssistedMarkingAvailable
+        currentPart.aiAssistedMarkingAvailable
         && currentPart.markingProvenance
         && currentPart.sourceBindingProvenance,
       ),

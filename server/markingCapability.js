@@ -1,6 +1,6 @@
 import crypto from 'node:crypto'
-import { isHumanReviewedPastPaperItem } from '../src/data/questionBank.js'
-import { canonicalSourceMarkingProvenance } from '../src/lib/sourceContentContract.js'
+import { isAiMarkablePastPaperItem } from '../src/data/questionBank.js'
+import { canonicalAiMarkingProvenance } from '../src/lib/sourceContentContract.js'
 
 export const MARKING_CAPABILITY_ISSUER = 'stem.ieltsist.com'
 export const MARKING_CAPABILITY_AUDIENCE = 'stem-ai'
@@ -112,7 +112,7 @@ export function canonicalMarkingCapabilityRequest(payload = {}, questionBank = [
   if (!attemptId || !/^[A-Za-z0-9._:-]{8,120}$/.test(attemptId)) return rejected('attempt_invalid', 'A valid submitted attempt is required.')
   if (mode === 'full-paper' && !paperId) return rejected('paper_context_missing', 'A full-paper marking capability needs its paper ID.')
   const requestedParts = Array.isArray(payload.parts) ? payload.parts : []
-  if (!requestedParts.length || requestedParts.length > 60) return rejected('marking_parts_invalid', 'At least one reviewed answer part is required.')
+  if (!requestedParts.length || requestedParts.length > 60) return rejected('marking_parts_invalid', 'At least one source-bound answer part is required.')
 
   const resolved = []
   const seen = new Set()
@@ -121,16 +121,16 @@ export function canonicalMarkingCapabilityRequest(payload = {}, questionBank = [
     const sourceQuestionId = strictSourceQuestionId(provenance?.sourceQuestionId)
     const questionPartId = asText(provenance?.questionPartId, 360)
     const routeId = asText(provenance?.routeId, 160)
-    if (!sourceQuestionId || !questionPartId || !routeId) return rejected('source_provenance_missing', 'The reviewed source provenance is incomplete.')
+    if (!sourceQuestionId || !questionPartId || !routeId) return rejected('source_provenance_missing', 'The source marking provenance is incomplete.')
     const uniqueKey = `${sourceQuestionId}\u0000${questionPartId}`
     if (seen.has(uniqueKey)) return rejected('marking_parts_duplicate', 'Every requested answer part must be unique.')
     seen.add(uniqueKey)
     const question = questionBank.find((candidate) => (
       candidate?.routeId === routeId
       && candidate?.sourceQuestionId === sourceQuestionId
-      && isHumanReviewedPastPaperItem(candidate)
+      && isAiMarkablePastPaperItem(candidate)
     ))
-    if (!question) return rejected('source_question_unreviewed', 'The reviewed source record is unavailable.')
+    if (!question) return rejected('source_question_unreviewed', 'The source record is not eligible for AI marking.')
     if (mode === 'full-paper' && String(question.sourceRef?.paperId || '') !== paperId) {
       return rejected('paper_context_mismatch', 'The requested part is not in this submitted paper.')
     }
@@ -138,9 +138,9 @@ export function canonicalMarkingCapabilityRequest(payload = {}, questionBank = [
       return rejected('paper_context_mismatch', 'The requested part is not in this submitted paper.')
     }
     const part = (question.parts || []).find((candidate) => String(candidate?.questionPartId || candidate?.partId || candidate?.id || '') === questionPartId)
-    if (!part) return rejected('source_question_unknown', 'The reviewed answer part is unavailable.')
-    const canonical = canonicalSourceMarkingProvenance(question, part)
-    if (!matchingCanonicalProvenance(provenance, canonical)) return rejected('source_provenance_mismatch', 'The reviewed source binding no longer matches the current catalog.')
+    if (!part) return rejected('source_question_unknown', 'The source-bound answer part is unavailable.')
+    const canonical = canonicalAiMarkingProvenance(question, part)
+    if (!matchingCanonicalProvenance(provenance, canonical)) return rejected('source_provenance_mismatch', 'The source marking binding no longer matches the current catalog.')
     resolved.push(Object.freeze({ question, part, canonical }))
   }
   return Object.freeze({ ok: true, mode, attemptId, paperId: mode === 'full-paper' ? paperId : '', parts: Object.freeze(resolved) })
@@ -165,6 +165,8 @@ export function issueMarkingCapabilities({ userId, payload, questionBank, signin
       sourceQuestionId: canonical.sourceQuestionId,
       questionPartId: canonical.questionPartId,
       bindingSignature: canonical.bindingSignature,
+      manifestSchemaVersion: canonical.manifestSchemaVersion,
+      reviewSchemaVersion: canonical.reviewSchemaVersion,
       reviewVersion: canonical.reviewVersion,
       sourceDocumentSha256: canonical.sourceDocumentSha256,
       answerDocumentSha256: canonical.answerDocumentSha256,

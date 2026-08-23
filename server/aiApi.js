@@ -2,12 +2,15 @@ import fs from 'node:fs'
 import crypto from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
-import { isHumanReviewedPastPaperItem, unifiedQuestionBank } from '../src/data/questionBank.js'
+import { isAiMarkablePastPaperItem, studyQuestionBank } from '../src/data/questionBank.js'
 import {
-  canonicalSourceMarkingProvenance,
+  auditedMarkSchemeAssetEvidence,
+  auditedQuestionAssetEvidence,
+  canonicalAiMarkingProvenance,
   documentPageFromAssetUrl,
   requiredMarkSchemeAssetEvidence,
   requiredSourceAssetEvidence,
+  STEM_AI_SOURCE_BINDING_SCHEMA_VERSION,
   STEM_MARKING_MANIFEST_SCHEMA_VERSION,
   STEM_SOURCE_REVIEW_SCHEMA_VERSION,
 } from '../src/lib/sourceContentContract.js'
@@ -345,7 +348,7 @@ function imageMimeType(assetUrl) {
 }
 
 function sourceContextFailure(code) {
-  return Object.assign(new Error('The paired official source images are unavailable for this reviewed response.'), {
+  return Object.assign(new Error('The paired official source images are unavailable for this response.'), {
     statusCode: 422,
     code,
   })
@@ -399,6 +402,28 @@ export function canonicalHandwritingMarkingImages(canonical, { assetRoot = DEFAU
   const question = canonical.question
   const sourceRef = question.sourceRef || {}
   const answerRef = question.answerRef || {}
+  if (canonical.provenance?.reviewSchemaVersion === STEM_AI_SOURCE_BINDING_SCHEMA_VERSION) {
+    const questionImages = auditedQuestionAssetEvidence(question).map((evidence) => localOfficialImage({
+      assetRoot,
+      assetUrl: evidence.assetUrl,
+      page: evidence.page,
+      expectedSha256: evidence.assetSha256,
+      role: 'question-paper',
+    }))
+    const markSchemeImages = auditedMarkSchemeAssetEvidence(question).map((evidence) => localOfficialImage({
+      assetRoot,
+      assetUrl: evidence.assetUrl,
+      page: evidence.page,
+      expectedSha256: evidence.assetSha256,
+      role: 'mark-scheme',
+    }))
+    if (!questionImages.length) throw sourceContextFailure('source_asset_evidence_missing')
+    if (!markSchemeImages.length) throw sourceContextFailure('mark_scheme_asset_evidence_missing')
+    return Object.freeze({
+      questionImages: Object.freeze(questionImages),
+      markSchemeImages: Object.freeze(markSchemeImages),
+    })
+  }
   const sourceEvidence = evidenceByPage([canonical.part], requiredSourceAssetEvidence, String(sourceRef.sha256 || ''))
   const questionImages = [...sourceEvidence.entries()].map(([page, evidence]) => {
     const assetUrl = assetUrlByPage(sourceRef.assetUrls, page)
@@ -453,24 +478,21 @@ export function canonicalHandwritingMarkingContext(payload = {}) {
   if (!sourceQuestionId || sourceQuestionId.includes('@') || !questionPartId || !routeId || !bindingSignature || !reviewSchemaVersion || !reviewVersion || !sourceDocumentSha256 || !answerDocumentSha256 || !sourceIndexSha256 || !sourceManifestChecksum || !provenance.sourceEvidence) {
     return Object.freeze({ ok: false, code: 'source_provenance_missing' })
   }
-  if (provenance.manifestSchemaVersion !== STEM_MARKING_MANIFEST_SCHEMA_VERSION || reviewSchemaVersion !== STEM_SOURCE_REVIEW_SCHEMA_VERSION) {
+  if (provenance.manifestSchemaVersion !== STEM_MARKING_MANIFEST_SCHEMA_VERSION || ![STEM_SOURCE_REVIEW_SCHEMA_VERSION, STEM_AI_SOURCE_BINDING_SCHEMA_VERSION].includes(reviewSchemaVersion)) {
     return Object.freeze({ ok: false, code: 'source_provenance_mismatch' })
   }
 
-  const question = unifiedQuestionBank.find((item) => (
+  const question = studyQuestionBank.find((item) => (
     item.routeId === routeId
     && item.sourceQuestionId === sourceQuestionId
-    && isHumanReviewedPastPaperItem(item)
+    && isAiMarkablePastPaperItem(item)
   ))
   if (!question) return Object.freeze({ ok: false, code: 'source_question_unreviewed' })
   const part = (question.parts || []).find((item) => item.partId === questionPartId)
   if (!part || !Number.isFinite(Number(part.marks)) || Number(part.marks) <= 0) {
     return Object.freeze({ ok: false, code: 'source_question_unknown' })
   }
-  if (!Number.isInteger(Number(part.answerSourcePage)) || Number(part.answerSourcePage) <= 0) {
-    return Object.freeze({ ok: false, code: 'source_question_unreviewed' })
-  }
-  const canonicalProvenance = canonicalSourceMarkingProvenance(question, part)
+  const canonicalProvenance = canonicalAiMarkingProvenance(question, part)
   if (!canonicalProvenance) return Object.freeze({ ok: false, code: 'source_question_unreviewed' })
   const sourceEvidence = provenance.sourceEvidence || {}
   const sourceMatches = sourceEvidence.assetId === canonicalProvenance.sourceEvidence.assetId
@@ -497,6 +519,8 @@ export function canonicalHandwritingMarkingContext(payload = {}) {
     questionPartId,
     question,
     part,
+    provenance: canonicalProvenance,
+    autoFinal: canonicalProvenance.reviewSchemaVersion === STEM_AI_SOURCE_BINDING_SCHEMA_VERSION,
     subject,
     questionNumber,
   })
@@ -670,15 +694,22 @@ export function parseStructuredJson(value) {
 }
 
 export function normalizeMarkResult(value, requestedMaxMarks) {
-  const maxMarks = Math.max(1, Math.round(Number(value.maxMarks) || Number(requestedMaxMarks) || 1))
+  const maxMarks = Math.max(1, Math.round(Number(requestedMaxMarks) || 1))
   const rawMarks = Math.min(maxMarks, Math.max(0, Math.round(Number(value.rawMarks) || 0)))
-  const markPoints = Array.isArray(value.markPoints) ? value.markPoints.slice(0, maxMarks + 4).map((point, index) => ({
+  const suppliedMarkPoints = Array.isArray(value.markPoints) ? value.markPoints.slice(0, maxMarks + 4).map((point, index) => ({
     id: String(point.id || `M${index + 1}`).slice(0, 30),
     awarded: Boolean(point.awarded),
     marks: Math.min(maxMarks, Math.max(0, Number(point.marks) || (point.awarded ? 1 : 0))),
     reason: compactText(point.reason, 500),
     studentEvidence: compactText(point.studentEvidence, 500),
   })) : []
+  const markPoints = suppliedMarkPoints.length ? suppliedMarkPoints : [{
+    id: 'AI-overall',
+    awarded: rawMarks > 0,
+    marks: rawMarks,
+    reason: compactText(value.summary, 500) || `AI examiner awarded ${rawMarks}/${maxMarks}.`,
+    studentEvidence: compactText(value.recognizedWork, 500),
+  }]
   return {
     rawMarks,
     maxMarks,
@@ -1015,7 +1046,7 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
   if (!canonical.ok) {
     return sendJson(response, 422, {
       code: canonical.code,
-      error: 'This response is no longer backed by a current reviewed source record. It remains saved for student self-review.',
+      error: 'This response is no longer backed by a current AI-markable source record. It remains saved for a later retry.',
       reviewRequired: true,
     })
   }
@@ -1097,7 +1128,7 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
       // response_format. The prompt still requires JSON and the parser validates it.
       const raw = await callCompatibleAi(activeProvider, { messages: [{ role: 'system', content: system }, { role: 'user', content }], temperature: 0.05 })
       const result = normalizeMarkResult(parseStructuredJson(raw), requestedMaxMarks)
-      return sendJson(response, 200, { mode: 'vision', provider: activeProvider.name, providerStatus: 'connected', model: activeProvider.model, ...result })
+      return sendJson(response, 200, { mode: 'vision', provider: activeProvider.name, providerStatus: 'connected', model: activeProvider.model, autoFinal: canonical.autoFinal, ...result })
     } catch (error) {
       lastError = error
     } finally {

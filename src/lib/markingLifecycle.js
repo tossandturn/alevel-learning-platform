@@ -15,7 +15,7 @@ function boundedMark(value, maxMarks) {
 }
 
 export function canUseAiAssistedMarking(part) {
-  return Boolean(part?.aiAssistedMarkingAvailable && part?.reviewStatus === 'reviewed')
+  return Boolean(part?.aiAssistedMarkingAvailable && ['reviewed', 'machine-indexed'].includes(part?.reviewStatus))
 }
 
 export function partMarkingCapability(part) {
@@ -79,7 +79,13 @@ function reviewedAiCriterion(part, review) {
   const confidence = Number(review?.confidence)
   const markPoints = Array.isArray(review?.markPoints) ? review.markPoints : []
   const evidenceComplete = markPoints.length > 0 && markPoints.every((point) => typeof point?.awarded === 'boolean')
-  if (review?.status !== 'success' || awarded == null || !Number.isFinite(confidence) || confidence < MIN_AI_CONFIDENCE || review.reviewRequired || !evidenceComplete) return null
+  if (
+    review?.status !== 'success'
+    || awarded == null
+    || !Number.isFinite(confidence)
+    || (!review.autoFinal && (confidence < MIN_AI_CONFIDENCE || review.reviewRequired))
+    || !evidenceComplete
+  ) return null
 
   return {
     partId: part.id,
@@ -93,7 +99,7 @@ function reviewedAiCriterion(part, review) {
       awarded: point.awarded,
       point: point.reason || point.point || '',
     })),
-    evidenceStatus: 'reviewed-ai',
+    evidenceStatus: review.autoFinal ? 'ai-study-estimate' : 'reviewed-ai',
     scoringSource: 'vision-assisted',
   }
 }

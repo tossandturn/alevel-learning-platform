@@ -1495,7 +1495,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, fetchIm
         const issued = issueMarkingCapabilities({
           userId: user.id,
           payload,
-          questionBank,
+          questionBank: topicPracticeQuestionBank,
           signingKey: markingCapabilitySigningKey,
         })
         if (!issued.ok) throw Object.assign(new Error(issued.message), { statusCode: issued.statusCode || 422, code: issued.code })

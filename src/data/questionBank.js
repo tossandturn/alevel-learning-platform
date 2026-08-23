@@ -2,7 +2,7 @@ import importedQuestionIndex from './importedQuestionIndex.json' with { type: 'j
 import { LEGACY_UNSCOPED_ROUTE_ID, resolveRouteId, routeById, routesForSubject } from './routeRegistry.js'
 import { normaliseQuestionGroup } from './questionParts.js'
 import { hasCompleteSourceContent, hasRequiredSourceVisual, reviewedSourceFocusBinding, sourceContentStatus } from '../lib/questionContent.js'
-import { canonicalSourceMarkingProvenance } from '../lib/sourceContentContract.js'
+import { canonicalAiMarkingProvenance, canonicalSourceMarkingProvenance } from '../lib/sourceContentContract.js'
 
 const REQUIRED_SOURCE_FIELDS = ['paperId', 'paper', 'question', 'localUrl', 'pageStart', 'sha256']
 const REQUIRED_ANSWER_FIELDS = ['documentId', 'file', 'localUrl', 'pageStart', 'sha256']
@@ -51,8 +51,9 @@ export function isVerifiedPastPaperItem(question) {
 }
 
 // A machine-indexed QP/MS binding is sufficient to show a source-backed
-// question for practice. It is not sufficient evidence to send a student's
-// work to an AI marker or present OCR-derived marks as official.
+// question for practice. AI study marking additionally requires the generated
+// checksum manifest to cover every declared QP/MS page; it never makes the
+// result an official or mastery-eligible mark.
 export function isHumanReviewedPastPaperItem(question) {
   return isVerifiedPastPaperItem(question) && question.answerBinding?.verificationStatus === 'reviewed'
 }
@@ -62,8 +63,8 @@ export function isHumanReviewedPastPaperItem(question) {
  * than the formal reviewed bank. It is for source-backed practice while a
  * reviewer is still reconciling syllabus mapping or semantic evidence.
  *
- * These records can be shown and self-marked only. They must never be used by
- * the verified catalog, teacher assignments, AI marking, or mastery signals.
+ * These records remain outside the verified catalog, teacher assignments and
+ * mastery signals. A separate checksum-bound gate may allow AI study marking.
  */
 export function isStudyOnlyPastPaperItem(question) {
   const route = routeById(question?.routeId)
@@ -88,6 +89,16 @@ export function isStudyOnlyPastPaperItem(question) {
     && route.qualification === question.qualification
     && hasRequiredFields(question.sourceRef, REQUIRED_SOURCE_FIELDS)
     && hasRequiredFields(question.answerRef, REQUIRED_ANSWER_FIELDS),
+  )
+}
+
+export function isAiMarkablePastPaperItem(question) {
+  const sourceEligible = isHumanReviewedPastPaperItem(question) || isStudyOnlyPastPaperItem(question)
+  return Boolean(
+    sourceEligible
+    && Array.isArray(question?.parts)
+    && question.parts.length
+    && question.parts.every((part) => canonicalAiMarkingProvenance(question, part)),
   )
 }
 

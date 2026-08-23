@@ -164,6 +164,7 @@ export function withPracticePresentation(unit = {}) {
 
 export function markingStatusForPart(part = {}) {
   const reviewed = part.reviewStatus === 'reviewed' && part.studyOnly !== true
+  const aiStudy = part.reviewStatus === 'machine-indexed' && part.studyOnly === true && part.aiAssistedMarkingAvailable
   if (part.deterministicScoringAvailable || part.answerKey) {
     return {
       mode: 'auto-scored',
@@ -174,12 +175,14 @@ export function markingStatusForPart(part = {}) {
       formalMasteryEligible: reviewed,
     }
   }
-  if (part.aiAssistedMarkingAvailable && reviewed) {
+  if (part.aiAssistedMarkingAvailable && (reviewed || aiStudy)) {
     return {
-      mode: 'semantic-reviewed',
-      label: 'Semantic-reviewed',
-      detail: 'AI reviews the submitted evidence first. You can then compare it with the reviewed mark scheme before the result enters mastery.',
-      formalMasteryEligible: true,
+      mode: aiStudy ? 'ai-study-marked' : 'semantic-reviewed',
+      label: aiStudy ? 'AI auto-marked' : 'Semantic-reviewed',
+      detail: aiStudy
+        ? 'AI marks the submitted response against the checksum-bound question paper and mark scheme. The result is saved as study evidence outside formal mastery.'
+        : 'AI reviews the submitted evidence first. You can then compare it with the reviewed mark scheme before the result enters mastery.',
+      formalMasteryEligible: reviewed,
     }
   }
   return {

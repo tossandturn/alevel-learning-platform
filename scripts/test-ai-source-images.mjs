@@ -6,8 +6,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { createAiApi } from '../server/aiApi.js'
 import { closeStemDatabaseForTests, createStemApi } from '../server/stemApi.js'
-import { unifiedQuestionBank } from '../src/data/questionBank.js'
-import { canonicalSourceMarkingProvenance } from '../src/lib/sourceContentContract.js'
+import { studyQuestionBank, unifiedQuestionBank } from '../src/data/questionBank.js'
+import { canonicalAiMarkingProvenance, canonicalSourceMarkingProvenance } from '../src/lib/sourceContentContract.js'
 
 const root = path.resolve(import.meta.dirname, '..')
 const blankPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+1P6Q6QAAAABJRU5ErkJggg=='
@@ -73,6 +73,24 @@ function canonicalRequest(questionNumber, partLabel, { mode = 'topic', paperId =
     provenance: {
       routeId: question.routeId,
       ...canonicalSourceMarkingProvenance(question, part),
+    },
+  }
+}
+
+function canonicalA2Request(sourceQuestionId, partLabel) {
+  const question = studyQuestionBank.find((item) => item.sourceQuestionId === sourceQuestionId)
+  const part = question?.parts.find((item) => item.label === partLabel)
+  assert.ok(question && part, `${sourceQuestionId}(${partLabel}) A2 fixture must exist`)
+  return {
+    attemptId: 'a2-source-image-attempt',
+    mode: 'topic',
+    paperId: question.sourceRef.paperId,
+    submitted: true,
+    imageDataUrl: '',
+    typedResponse: 'Uses the gravitational field equation and substitutes the stated values.',
+    provenance: {
+      routeId: question.routeId,
+      ...canonicalAiMarkingProvenance(question, part),
     },
   }
 }
@@ -337,6 +355,46 @@ try {
   assert.equal(tamperedQ14.response.status, 422, 'a one-byte mutation of the Q14(c) page-9 URL must fail closed')
   assert.equal(tamperedQ14.payload.code, 'source_asset_checksum_mismatch')
   assert.equal(providerCalls.length, callsBeforeTamperedQ14, 'a tampered Q14(c) page-9 image must make zero provider calls')
+
+  const a2Request = canonicalA2Request('cie-9702-9702_m24_qp_42:q1', 'b(ii)')
+  assert.ok(a2Request.provenance.sourceEvidence?.assetSha256, 'machine-indexed A2 provenance must be bound to the audited source image checksum')
+  const a2Capability = await issueCapability(appBase, a2Request, signedIdentity)
+  assert.equal(a2Capability.response.status, 201, 'a submitted source-complete A2 answer must receive an AI marking capability')
+  const a2MarkingGrant = a2Capability.payload.capabilities?.[0]?.markingGrant
+  assert.ok(a2MarkingGrant)
+  const callsBeforeA2 = providerCalls.length
+  const a2Result = await post(appBase, { ...a2Request, markingGrant: a2MarkingGrant }, signedIdentity)
+  assert.equal(a2Result.response.status, 200, 'A2 typed work must be marked automatically from the bound QP/MS images')
+  assert.equal(a2Result.payload.mode, 'vision')
+  assert.equal(a2Result.payload.maxMarks, 3, 'the official A2 part allocation must override any provider-supplied maximum')
+  assert.equal(a2Result.payload.autoFinal, true, 'machine-indexed study marking must return an automatic AI study result without human review')
+  assert.equal(providerCalls.length, callsBeforeA2 + 1)
+  const a2Images = officialImagesFromCall(providerCalls.at(-1))
+  assert.deepEqual(a2Images.context.imageOrder, { questionPaperPages: 2, markSchemePages: 1, studentResponsePages: 0 })
+  assert.deepEqual(a2Images.context.officialSourceImages.map((item) => [item.role, item.page]), [
+    ['question-paper', 4],
+    ['question-paper', 5],
+    ['mark-scheme', 6],
+  ], 'A2 marking must include the complete multi-page question and paired mark-scheme page')
+
+  const a2UnmappedRequest = canonicalA2Request('cie-9702-9702_m25_qp_42:q2', 'a')
+  const a2UnmappedCapability = await issueCapability(appBase, a2UnmappedRequest, signedIdentity)
+  assert.equal(a2UnmappedCapability.response.status, 201, 'a complete MS document remains AI-markable when OCR did not isolate one MS page')
+  const callsBeforeA2Unmapped = providerCalls.length
+  const a2UnmappedResult = await post(appBase, {
+    ...a2UnmappedRequest,
+    markingGrant: a2UnmappedCapability.payload.capabilities?.[0]?.markingGrant,
+  }, signedIdentity)
+  assert.equal(a2UnmappedResult.response.status, 200)
+  assert.equal(providerCalls.length, callsBeforeA2Unmapped + 1)
+  const a2UnmappedImages = officialImagesFromCall(providerCalls.at(-1))
+  assert.deepEqual(a2UnmappedImages.context.imageOrder, { questionPaperPages: 2, markSchemePages: 2, studentResponsePages: 0 })
+  assert.deepEqual(a2UnmappedImages.context.officialSourceImages.map((item) => [item.role, item.page]), [
+    ['question-paper', 6],
+    ['question-paper', 7],
+    ['mark-scheme', 7],
+    ['mark-scheme', 8],
+  ], 'AI must review the complete bound MS range when a part-level MS page is unavailable')
 } finally {
   await Promise.all([close(appServer), close(missingServer), close(tamperedServer), close(providerServer)])
   closeStemDatabaseForTests()

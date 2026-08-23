@@ -358,6 +358,7 @@ function auditSourceContent(question, binding, answer) {
     assetPages: declared.assetPages,
     bindingSignature: declared.bindingSignature,
     assets,
+    markSchemeAssets,
   }
 }
 
@@ -433,12 +434,21 @@ for (const answer of index.answers) {
   if (!index.bindings.some((binding) => binding.answerId === answer.answerId)) errors.push(`${answer.answerId}: unbound answer`)
 }
 
+function runtimeAssetEvidence(assets = []) {
+  return assets
+    .filter((asset) => asset.valid && Number.isInteger(asset.page) && asset.page > 0 && /^[a-f0-9]{64}$/.test(String(asset.sha256 || '')))
+    .map((asset) => ({ page: asset.page, assetUrl: asset.url, assetSha256: asset.sha256 }))
+    .toSorted((left, right) => left.page - right.page || left.assetUrl.localeCompare(right.assetUrl))
+}
+
 const runtimeItems = Object.fromEntries(Object.entries(sourceContentItems).map(([questionId, item]) => [questionId, {
   complete: item.complete,
   fileComplete: item.fileComplete,
   semanticStatus: item.semanticStatus,
   reasons: item.reasons,
   bindingSignature: item.bindingSignature,
+  questionAssets: runtimeAssetEvidence(item.assets),
+  markSchemeAssets: runtimeAssetEvidence(item.markSchemeAssets),
 }]))
 const manifestPayload = {
   schemaVersion: SOURCE_CONTENT_AUDIT_SCHEMA_VERSION,

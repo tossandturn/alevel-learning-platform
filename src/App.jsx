@@ -50,6 +50,7 @@ import { latestBphoSpcPaper } from './lib/coachIntent'
 import { buildCompletionByUnit, buildLearningProgress, latestSubmittedActivity, recommendForRoute } from './lib/learningProgress'
 import { accountRefreshFailureState, accountRefreshRetryDelay, professionalTermsUrl, requestNativeAccountReadiness, requestSharedAccount, requestSharedWorkspace, requestSyllabusPracticeRebind, requestSyllabusPracticeSet, sharedAccountRequest, signInSharedAccount, signOutSharedAccount } from './lib/sharedAccount'
 import { requestMarkingCapabilities } from './lib/markingCapabilityClient'
+import { mapWithConcurrency } from './lib/asyncPool'
 import { parseProductContext, termIdsForStemContext } from './lib/productContext'
 import { questionMatchesSearch } from './lib/questionSearch'
 import { studentNavigationFromLocation, studentNavigationHref } from './lib/studentNavigation'
@@ -207,7 +208,7 @@ async function requestVisionReviews(unit, attempt, identityToken = '') {
     return { ...reviews, ...Object.fromEntries(eligibleEntries.map(([partId]) => [partId, { status: 'error', error: 'AI service status could not be checked.' }])) }
   }
 
-  const results = await Promise.all(eligibleEntries.map(async ([partId, responseEntry]) => {
+  const results = await mapWithConcurrency(eligibleEntries, 3, async ([partId, responseEntry]) => {
     const part = unit.parts.find((item) => item.id === partId)
     if (!part) return [partId, { status: 'error', error: 'Question context is unavailable.' }]
     try {
@@ -238,7 +239,7 @@ async function requestVisionReviews(unit, attempt, identityToken = '') {
     } catch {
       return [partId, { status: 'error', error: 'AI review could not be reached. Your response remains saved.' }]
     }
-  }))
+  })
   return { ...reviews, ...Object.fromEntries(results) }
 }
 
@@ -296,9 +297,7 @@ function unitFromSyllabusPracticeSet(payload) {
     // the rebind path, which would make new and restored attempts score under
     // different contracts.
     aiAssistedMarkingAvailable: Boolean(
-      group.reviewStatus === 'reviewed'
-      && group.studyOnly !== true
-      && payload.practiceMode !== 'study-only'
+      questionPart.aiAssistedMarkingAvailable
       && questionPart.markingProvenance
       && questionPart.sourceBindingProvenance,
     ),
@@ -1652,9 +1651,46 @@ function App() {
     setResultAttempt(recorded)
   }
 
+  async function retryAiMarking(attemptId) {
+    const pending = appState.attempts.find((attempt) => attempt.id === attemptId)
+    const unit = pending && allPracticeUnits.find((item) => item.id === pending.unitId)
+    if (!pending || !unit || !isPendingSelfMarkAttempt(pending) || !hasCurrentSourceBindingForAttempt(pending, unit)) return false
+    const retryAttempt = {
+      ...pending,
+      id: makeAttemptId(),
+      retriedMarkingFromAttemptId: pending.id,
+      submittedAt: new Date().toISOString(),
+      attemptStatus: 'marking-pending',
+      selfMarkPending: true,
+    }
+    const visionReviews = await requestVisionReviews(unit, retryAttempt, sharedAccount.token)
+    const markingLifecycle = buildPartMarkingLifecycle(unit, retryAttempt.answers, retryAttempt.elapsedSec, visionReviews, retryAttempt.evidence)
+    const scoreResult = markingLifecycle.complete && markingLifecycle.provisionalCriteria.length > 0
+      ? finalizePartMarking(unit, markingLifecycle, {}, retryAttempt.elapsedSec)
+      : null
+    const studyOnly = isStudyOnlyPracticeUnit(unit)
+    const recorded = {
+      ...retryAttempt,
+      attemptStatus: scoreResult ? (scoreResult.partial ? 'provisional-result' : studyOnly ? 'study-result' : 'result') : 'marking-pending',
+      visionReviews,
+      markingLifecycle,
+      ...(scoreResult ? { scoreResult } : {}),
+      selfMarkPending: !scoreResult,
+      formalResult: isFormalScoreResult(scoreResult, studyOnly),
+    }
+    setAppState((state) => ({ ...state, attempts: [...state.attempts, recorded] }))
+    setResultAttempt(recorded)
+    return Boolean(scoreResult)
+  }
+
   const currentUnit = currentAttempt ? allPracticeUnits.find((unit) => unit.id === currentAttempt.unitId) : null
   const resultUnit = resultAttempt ? allPracticeUnits.find((unit) => unit.id === resultAttempt.unitId) : null
   const resultIsPendingSelfMark = Boolean(resultAttempt && resultUnit && isPendingSelfMarkAttempt(resultAttempt))
+  const resultPendingPartIds = resultAttempt?.markingLifecycle?.pendingPartIds || []
+  const resultPendingAutomaticAi = Boolean(resultIsPendingSelfMark && resultUnit && resultPendingPartIds.length && resultPendingPartIds
+    .map((partId) => resultUnit.parts.find((part) => part.id === partId))
+    .filter(Boolean)
+    .every((part) => part.studyOnly === true && canUseAiAssistedMarking(part)))
   const resultCoachPart = resultAttempt && resultUnit
     ? resultUnit.parts.find((part) => !resultIsPendingSelfMark && part.id === resultAttempt.scoreResult?.weakestPartId)
       || resultUnit.parts.find((part) => hasAttemptResponse(resultAttempt, part.id))
@@ -2059,6 +2095,7 @@ function App() {
             startPractice={startPractice}
             goLibrary={() => returnToLibrary('recommended')}
             recordSelfMark={recordSelfMark}
+            retryAiMarking={retryAiMarking}
             initialSelfMarks={appState.selfMarkDrafts?.[resultAttempt.id] || resultAttempt.studentSelfMarks}
             onSelfMarksChange={(marks) => saveSelfMarkDraft(resultAttempt.id, marks)}
         />
@@ -2106,12 +2143,12 @@ function App() {
             stage: coachUnit?.stage || activeRoute.stage,
             question: coachAttempt && coachUnit ? {
               id: coachPart?.id || '',
-              label: view === 'practice' ? 'Current practice question' : resultIsPendingSelfMark ? 'Submitted response pending self-mark' : resultAttempt.scoreResult?.partial ? 'Provisional result' : 'Latest scored result',
+              label: view === 'practice' ? 'Current practice question' : resultIsPendingSelfMark ? (resultPendingAutomaticAi ? 'Submitted response pending AI retry' : 'Submitted response pending self-mark') : resultAttempt.scoreResult?.partial ? 'Provisional result' : 'Latest scored result',
               prompt: coachPart?.prompt || coachUnit.title,
             } : null,
             response: coachAttempt && coachPart ? coachAttempt.answers?.[coachPart.id] || coachAttempt.working?.[coachPart.id] || '' : '',
             submitted: view === 'result',
-            markingStatus: view === 'practice' ? 'in-progress' : resultIsPendingSelfMark ? 'self-mark-pending' : resultAttempt?.scoreResult?.partial ? 'provisional' : resultAttempt?.scoreResult ? 'scored' : 'not-scored',
+            markingStatus: view === 'practice' ? 'in-progress' : resultIsPendingSelfMark ? (resultPendingAutomaticAi ? 'ai-retry-pending' : 'self-mark-pending') : resultAttempt?.scoreResult?.partial ? 'provisional' : resultAttempt?.scoreResult ? 'scored' : 'not-scored',
           }}
           openRequest={coachOpenRequest}
           initialOpen={coachOpenPending}
@@ -2756,7 +2793,7 @@ function AiPracticeLanding({ activeRoute, selectedTopicId, practiceOptions, star
           <label><span>Paper component</span><select value={componentKey} onChange={(event) => setComponentKey(event.target.value)}>{defaultComponents.length > 1 && <option value={defaultComponents.join(',')}>{formatRouteComponents(defaultComponents, activeRoute)} mixed</option>}{defaultComponents.map((component) => <option value={String(component)} key={component}>{formatRouteComponents([component], activeRoute)}{activeRoute.subjectCode === '9702' && Number(component) === 3 ? ' practical' : ''}</option>)}</select></label>
         </div>
         <div className="ai-practice-builder__footer" role="status" data-available-source-questions={available} data-requested-source-questions={questionCount}><span><strong>{selectedTopics.map((topic) => topic.label.replace(/^\d+\s+/, '')).join(' + ') || 'Choose a topic'}</strong><small>{available} matching source questions · {questionCount} requested{available < questionCount ? ` · set will contain up to ${available}` : ''}</small>{selectedInventory.verifiedQuestionCount < available && <small>{selectedInventory.verifiedQuestionCount} ready for formal progress · {selectedInventory.studyQuestionCount} available for study only</small>}{selectedInventory.pendingReviewCount > 0 && <small>{selectedInventory.pendingReviewCount} more indexed questions are still being checked</small>}</span><button type="button" className="primary-action" disabled={!selectedTopicIds.length || !selectedComponents.length || available === 0} onClick={buildPractice}><PlayIcon />Build practice</button></div>
-        {selectedInventory.studyQuestionCount > 0 && <p className="ai-practice-builder__notice" role="status">This selection may include source questions that are still being checked. You can practise and self-mark them, but AI marking and formal progress remain unavailable until review is complete.</p>}
+        {selectedInventory.studyQuestionCount > 0 && <p className="ai-practice-builder__notice" role="status">This selection may include source questions still outside formal review. Complete checksum-bound QP/MS items are AI-marked automatically, while their study scores remain outside mastery and formal progress.</p>}
         {startError && <p className="topic-detail__error" role="alert">{startError}</p>}
       </div>
     </section>
@@ -3619,9 +3656,10 @@ function MistakeList({ mistakes, paperMistakes, startPractice, retestPaper, onRe
   )
 }
 
-function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibrary, recordSelfMark, initialSelfMarks, onSelfMarksChange }) {
+function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibrary, recordSelfMark, retryAiMarking, initialSelfMarks, onSelfMarksChange }) {
   const safeInitialSelfMarks = initialSelfMarks || EMPTY_SELF_MARKS
   const [selfMarks, setSelfMarks] = useState(() => safeInitialSelfMarks)
+  const [retryingAi, setRetryingAi] = useState(false)
   const result = attempt.scoreResult || null
   const attemptMetrics = practiceAttemptMetrics(attempt, unit)
   const answeredParts = attemptMetrics.answeredPartCount
@@ -3655,6 +3693,33 @@ function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibr
     const unansweredCount = Object.values(markingLifecycle.partStates || {}).filter((state) => state?.status === 'unanswered').length
     const aiReviewStates = Object.values(attempt.visionReviews || {})
     const aiReviewAttempted = aiReviewStates.length > 0
+    const automaticAiPending = pendingParts.length > 0 && pendingParts.every((part) => (
+      markingLifecycle.partStates?.[part.id]?.capability === 'ai-assisted'
+      && part.studyOnly === true
+      && part.aiAssistedMarkingAvailable === true
+    ))
+    if (automaticAiPending) {
+      const retry = async () => {
+        if (retryingAi) return
+        setRetryingAi(true)
+        try {
+          await retryAiMarking?.(attempt.id)
+        } finally {
+          setRetryingAi(false)
+        }
+      }
+      return (
+        <section className="result-view page-band self-mark-result">
+          <div className="result-hero">
+            <div><p className="section-label">Submission saved</p><h1>AI marking needs another attempt</h1><p><span className="result-status result-status--in-progress">Pending</span>Your answers are saved. GPT and the Qwen fallback did not return a complete mark, so no score or automatic zero was created.</p></div>
+            <div className="result-actions"><button type="button" className="primary-action" disabled={retryingAi} onClick={() => void retry()}><RefreshCcw size={18} />{retryingAi ? 'AI marking...' : 'Retry AI marking'}</button><button type="button" className="secondary-action" onClick={goLibrary}><ArrowLeft size={18} />Back to library</button></div>
+          </div>
+          <section className="self-mark-result__guide" aria-label="AI marking pending">
+            <header className="self-mark-result__heading"><div><p className="section-label">Automatic marking</p><h2>{pendingParts.length} answer part{pendingParts.length === 1 ? '' : 's'} waiting</h2><p>Retrying requests a new server capability and checks the current checksum-bound QP/MS before either AI provider receives the answer.</p></div>{resolvedCount > 0 && <div className="self-mark-result__subtotal"><span>Checked so far</span><strong>{markingLifecycle.provisionalRawMarks}/{markingLifecycle.provisionalMaxMarks}</strong><small>Saved until retry completes</small></div>}</header>
+          </section>
+        </section>
+      )
+    }
     const pendingHeading = pendingParts.length
       ? aiReviewAttempted ? 'AI review first, then self-mark' : 'AI check unavailable, self-mark next'
       : 'No answered parts to score'
@@ -3707,9 +3772,12 @@ function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibr
   const isStudyOnly = isStudyOnlyPracticeUnit(unit)
   const isProvisional = result.partial === true
   const weakest = result.weakestPartId ? unit.parts.find((part) => part.id === result.weakestPartId) : null
+  const hasAiReview = Object.values(attempt.visionReviews || {}).some((review) => ['success', 'unconfigured', 'error'].includes(review?.status))
+  const hasSavedHandwriting = attempt.imageEvidence?.length > 0
+  const hasCanonicalAiMarks = result.criteria.some((criterion) => criterion.scoringSource === 'vision-assisted')
   const assessmentState = isStudyOnly ? 'Study result' : isProvisional ? 'Provisional' : answeredParts ? (result.percentage >= 80 ? 'Secure' : result.percentage >= 50 ? 'In progress' : 'Needs review') : 'Not assessed'
   const assessmentCopy = isStudyOnly
-    ? `${answeredParts}/${unit.parts.length} responses self-marked against the paired scheme`
+    ? `${answeredParts}/${unit.parts.length} responses ${hasCanonicalAiMarks ? 'automatically AI-marked against the bound QP/MS' : 'self-marked against the paired scheme'}`
     : isProvisional
     ? `${answeredParts}/${unit.parts.length} responses submitted · ${result.unansweredPartCount} unanswered`
     : answeredParts ? `${answeredParts}/${unit.parts.length} responses submitted` : 'No answer evidence was submitted'
@@ -3725,9 +3793,6 @@ function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibr
     attemptId: attempt.id,
     returnTo: stemReturnUrl,
   })
-  const hasAiReview = Object.values(attempt.visionReviews || {}).some((review) => ['success', 'unconfigured', 'error'].includes(review?.status))
-  const hasSavedHandwriting = attempt.imageEvidence?.length > 0
-  const hasCanonicalAiMarks = result.criteria.some((criterion) => criterion.scoringSource === 'vision-assisted')
   const markingLabel = result.selfMarked
     ? (hasCanonicalAiMarks ? 'AI-reviewed + student self-mark' : 'Student self-mark from official scheme')
     : hasCanonicalAiMarks ? 'AI-reviewed handwriting' : 'Objective answer check'
@@ -3760,7 +3825,7 @@ function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibr
 
        {isProvisional && <section className="result-learning-signal" aria-label="Provisional result notice"><div><p className="section-label">Saved evidence</p><h2>Finish the remaining answer parts before mastery updates</h2><p>This score covers only the answered parts. It does not update mastery, grade estimates, mistakes, streaks, weekly goals or class analytics.</p></div><div className="mastery-delta"><span>Answered</span><strong>{answeredParts}/{unit.parts.length}</strong><small>{unansweredAnswerPartCount} unanswered part{unansweredAnswerPartCount === 1 ? '' : 's'} remain unmarked</small></div><a className="terms-recommendation" href={termsUrl} target="_blank" rel="noreferrer"><Brain size={18} /><span><strong>Professional terms for this question</strong><small>{(weakest?.topicTags || [unit.topic]).slice(0, 3).join(' · ')}</small></span><ChevronRight size={16} /></a></section>}
 
-      {isStudyOnly && <section className="result-learning-signal" aria-label="Study result notice"><div><p className="section-label">Practice record</p><h2>Use this self-mark to guide the next attempt</h2><p>This practice result stays linked to its question paper and mark scheme, but it does not update mastery, grade estimates, mistakes, streaks, weekly goals, class analytics or AI marking.</p></div><div className="mastery-delta"><span>Self-marked</span><strong>{answeredParts}/{unit.parts.length}</strong><small>Formal review is still pending</small></div></section>}
+      {isStudyOnly && <section className="result-learning-signal" aria-label="Study result notice"><div><p className="section-label">Practice record</p><h2>Use this {hasCanonicalAiMarks ? 'AI feedback' : 'self-mark'} to guide the next attempt</h2><p>This source-bound practice result is saved privately, but it does not update mastery, grade estimates, mistakes, streaks, weekly goals or class analytics.</p></div><div className="mastery-delta"><span>{hasCanonicalAiMarks ? 'AI-marked' : 'Self-marked'}</span><strong>{answeredParts}/{unit.parts.length}</strong><small>Study evidence, not an official Cambridge result</small></div></section>}
 
       {hasAiReview && assisted && (
         <section className="ai-review-summary">
@@ -3769,7 +3834,7 @@ function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibr
           {attempt.imageEvidence?.length > 0 && <div className="image-evidence-review"><div><strong>Handwritten responses</strong><span>{attempt.imageEvidence.length} response image{attempt.imageEvidence.length === 1 ? '' : 's'} saved with this attempt. Configured vision results are shown beside each question below.</span></div>{attempt.imageEvidence.map((evidence) => <figure key={evidence.partId}><img src={evidence.dataUrl} alt={`Handwritten response for part ${evidence.partId}`} /><figcaption>Part {unit.parts.find((part) => part.id === evidence.partId)?.label || evidence.partId}</figcaption></figure>)}</div>}
         </section>
       )}
-      {hasSavedHandwriting && !hasAiReview && <section className="handwriting-self-mark-note"><strong>Handwritten responses saved</strong><span>Your handwriting is attached to this attempt. Compare it with the paired official mark scheme and record your self-mark.</span></section>}
+      {hasSavedHandwriting && !hasAiReview && <section className="handwriting-self-mark-note"><strong>Handwritten responses saved</strong><span>{unit.parts.some((part) => part.aiAssistedMarkingAvailable) ? 'Your handwriting is attached to this attempt. Retry automatic AI marking when the service is available.' : 'Your handwriting is attached to this attempt. Compare it with the paired official mark scheme and record your self-mark.'}</span></section>}
 
       <section className="result-next-step" aria-label="Next study step"><div><p className="section-label">Next step</p><h2>Turn this feedback into another attempt</h2><p>{weakest ? `Revisit ${weakest.topic || unit.topic}, then retest the specific mark point you missed.` : 'Keep the method active with a short retest and the related professional terms.'}</p></div><div className="result-next-actions"><button type="button" className="primary-action" onClick={() => startPractice(unit, { clearDraft: true, retestOf: attempt.id })}><RefreshCcw size={17} />Retest this idea</button><a className="secondary-action" href={termsUrl} target="_blank" rel="noreferrer"><Brain size={17} />Review professional terms</a></div></section>
 

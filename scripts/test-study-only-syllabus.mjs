@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
 import importedQuestionIndex from '../src/data/importedQuestionIndex.json' with { type: 'json' }
 import * as syllabusPractice from '../src/lib/syllabusPractice.js'
-import { studyQuestionBank, unifiedQuestionBank } from '../src/data/questionBank.js'
+import { isAiMarkablePastPaperItem, studyQuestionBank, unifiedQuestionBank } from '../src/data/questionBank.js'
 import { sourceContentStatus } from '../src/lib/questionContent.js'
 import { normaliseQuestionGroup } from '../src/data/questionParts.js'
 import { isScoredAttempt, sourceBindingSnapshotForUnit } from '../src/lib/attemptAudit.js'
 import { buildLearningProgress } from '../src/lib/learningProgress.js'
+import { buildPartMarkingLifecycle, canUseAiAssistedMarking, finalizePartMarking } from '../src/lib/markingLifecycle.js'
 import { courseRoutes } from '../src/data/routeRegistry.js'
 import { normalizeState } from '../src/lib/storage.js'
 import { filterQuestionsBySearch } from '../src/lib/questionSearch.js'
@@ -76,7 +77,7 @@ const a2Physics = syllabusTopicsInventory({
   questionBank: studyQuestionBank,
 })
 assert.equal(a2Physics.verifiedQuestionGroupCount, 0)
-assert.equal(a2Physics.studyQuestionGroupCount, a2Physics.availableQuestionGroupCount, 'A2 Physics source-backed study records must remain available for self-mark practice')
+assert.equal(a2Physics.studyQuestionGroupCount, a2Physics.availableQuestionGroupCount, 'A2 Physics source-backed study records must remain available for AI-marked study practice')
 assert.ok(a2Physics.studyQuestionGroupCount >= 10, 'A2 Physics must expose a complete Paper 4 question set')
 assert.deepEqual(
   studyQuestionBank
@@ -113,6 +114,38 @@ assert.equal(
 )
 assert.equal(a2PhysicsSet.practiceMode, 'study-only')
 assert.ok(a2PhysicsSet.questionGroups.every((group) => group.routeId === 'cie-9702-a2-physics' && group.paperComponent === 4))
+assert.ok(
+  a2PhysicsSet.questionGroups.every((group) => group.parts.every((part) => part.aiAssistedMarkingAvailable === true)),
+  'A2 source-complete QP/MS groups must be queued for automatic AI marking while remaining outside formal mastery',
+)
+
+const a2MachineIndexedQuestion = studyQuestionBank.find((question) => question.sourceQuestionId === 'cie-9702-9702_m24_qp_42:q1')
+assert.ok(isAiMarkablePastPaperItem(a2MachineIndexedQuestion), 'checksum-bound A2 Q1 with complete audited QP/MS images must be AI-markable without human review')
+const a2MissingMarkSchemeAssets = structuredClone(a2MachineIndexedQuestion)
+a2MissingMarkSchemeAssets.sourceContent.audit.markSchemeAssets = []
+assert.equal(isAiMarkablePastPaperItem(a2MissingMarkSchemeAssets), false, 'a machine-indexed item without audited MS images must remain excluded from AI marking')
+const a2AiStudyGroup = a2PhysicsSet.questionGroups[0]
+const a2AiStudyPart = a2AiStudyGroup.parts[0]
+const a2AiStudyUnit = { routeId: 'cie-9702-a2-physics', stage: 'A2', parts: [{ ...a2AiStudyPart, id: 'a2-ai-study-part', reviewStatus: a2AiStudyGroup.reviewStatus, studyOnly: true }] }
+assert.equal(canUseAiAssistedMarking(a2AiStudyUnit.parts[0]), true, 'machine-indexed study parts must enter the automatic AI lifecycle')
+const a2AiStudyLifecycle = buildPartMarkingLifecycle(
+  a2AiStudyUnit,
+  { 'a2-ai-study-part': 'A source-bound typed answer.' },
+  120,
+  {
+    'a2-ai-study-part': {
+      status: 'success',
+      autoFinal: true,
+      rawMarks: 1,
+      confidence: 0.4,
+      reviewRequired: true,
+      summary: 'Conservative automatic study mark.',
+      markPoints: [{ id: 'AI-overall', awarded: true, marks: 1, reason: 'One valid mark point.', studentEvidence: 'typed answer' }],
+    },
+  },
+)
+assert.equal(a2AiStudyLifecycle.complete, true, 'AI uncertainty must remain visible without sending an AI-markable study answer to human self-marking')
+assert.equal(finalizePartMarking(a2AiStudyUnit, a2AiStudyLifecycle, {}, 120).selfMarked, false, 'an automatic A2 study result must be recorded as AI-marked, not student self-marked')
 
 const a2GravityQuestions = studyQuestionBank.filter((question) => question.routeId === 'cie-9702-a2-physics' && question.knowledgeGroupId === 'physics-9702-topic-13')
 assert.equal(
@@ -244,7 +277,7 @@ assert.equal(typeof syllabusPractice.rebindSyllabusPracticeUnit, 'function', 'so
 const reboundStudyUnit = syllabusPractice.rebindSyllabusPracticeUnit(persistedStudyUnit)
 assert.ok(reboundStudyUnit, 'a current source-backed study unit must survive reload by rebuilding from the current study pool')
 assert.equal(reboundStudyUnit.practiceMode, 'study-only')
-assert.ok(reboundStudyUnit.parts.every((part) => part.studyOnly === true && part.aiAssistedMarkingAvailable === false))
+assert.ok(reboundStudyUnit.parts.every((part) => part.studyOnly === true && part.aiAssistedMarkingAvailable === true), 'rebound machine-indexed units must retain automatic AI marking without becoming formal mastery evidence')
 assert.ok(sourceBindingSnapshotForUnit(reboundStudyUnit), 'a study unit needs a source binding snapshot for safe submit/history checks')
 
 const selfMarkedStudyAttempt = {

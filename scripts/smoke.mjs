@@ -31,6 +31,7 @@ import importedQuestionIndex from '../src/data/importedQuestionIndex.json' with 
 import { canonicalSourceMarkingProvenance, canonicalSourceQuestionId, sourceBindingSignature, sourceBindingStatus, sourceQuestionId } from '../src/lib/sourceContentContract.js'
 import { HIGH_PRIORITY_SOURCE_RANGE_REVIEW_IDS, RESOLVED_NON_CONTENT_PAGE_GAPS, SEMANTIC_REVIEW_FIXTURES } from '../src/lib/sourceSemanticContract.js'
 import { reviewedSourceFocusBinding, sourceContentStatus } from '../src/lib/questionContent.js'
+import { mapWithConcurrency } from '../src/lib/asyncPool.js'
 
 const unitIds = new Set(practiceUnits.map((unit) => unit.id))
 assert.equal(unitIds.size, practiceUnits.length, 'practice unit IDs must be unique')
@@ -67,7 +68,7 @@ const partOutsideSourcePage = sourceBindingStatus({
   parts: [{ partId: 'fixture-source-part-range:a', sourcePage: 11 }],
 })
 assert.ok(partOutsideSourcePage.reasons.includes('part-source-page-outside-range:fixture-source-part-range:a:11'), 'every part page must remain inside the declared source page range')
-assert.equal(sourceContentManifest.schemaVersion, 'source-content-audit-v2', 'client source manifest must use the audited schema')
+assert.equal(sourceContentManifest.schemaVersion, 'source-content-audit-v3', 'client source manifest must use the checksum-bound QP/MS asset schema')
 assert.equal(Object.keys(sourceContentManifest.items).length, importedQuestionIndex.questions.length, 'every imported source question must receive an explicit runtime audit state')
 const sourceManifestItems = Object.values(sourceContentManifest.items)
 const indexQuarantinedCount = sourceManifestItems.filter((item) => item.fileComplete === false && (item.reasons || []).includes('index-quarantined')).length
@@ -163,7 +164,7 @@ assert.deepEqual(parseStructuredJson('```json\n{"rawMarks":2}\n```'), { rawMarks
 assert.match(buildCoachSystemPrompt({ verifiedSubmitted: false, hintLevel: 4 }), /Do not reveal the final answer or a complete worked solution/, 'unverified Coach prompt must forbid answer leakage')
 assert.doesNotMatch(buildCoachSystemPrompt({ submitted: true, hintLevel: 5 }), /complete worked correction is allowed/, 'client-supplied submission state must not unlock a worked answer')
 assert.match(buildCoachSystemPrompt({ verifiedSubmitted: true, hintLevel: 5 }), /complete worked correction is allowed/, 'a future server-verified submission may unlock correction')
-assert.deepEqual(normalizeMarkResult({ rawMarks: 9, maxMarks: 3, confidence: 0.4, markPoints: [] }, 3), {
+assert.deepEqual(normalizeMarkResult({ rawMarks: 9, maxMarks: 99, confidence: 0.4, markPoints: [] }, 3), {
   rawMarks: 3,
   maxMarks: 3,
   confidence: 0.4,
@@ -172,8 +173,14 @@ assert.deepEqual(normalizeMarkResult({ rawMarks: 9, maxMarks: 3, confidence: 0.4
   recognizedWork: '',
   correctedSolution: '',
   nextAction: '',
-  markPoints: [],
-}, 'vision marks must be bounded and low-confidence results must require review')
+  markPoints: [{
+    id: 'AI-overall',
+    awarded: true,
+    marks: 3,
+    reason: 'AI examiner awarded 3/3.',
+    studentEvidence: '',
+  }],
+}, 'vision marks must use the official maximum, remain bounded and retain an auditable fallback criterion')
 
 const qwenProviders = providerConfig({ DASHSCOPE_API_KEY: 'test-only', COACH_AI_MODEL: 'qwen-coach-test', VISION_AI_MODEL: 'qwen-vision-test' })
 assert.equal(qwenProviders.provider, 'qwen', 'AI routing must use Qwen')
@@ -199,6 +206,17 @@ const forcedQwenProviders = providerConfig({
 })
 assert.equal(forcedQwenProviders.provider, 'qwen', 'An explicit Qwen provider selection must remain supported')
 assert.equal(forcedQwenProviders.coach.apiKey, 'qwen-test-only', 'Explicit Qwen routing must not consume the OpenAI key')
+let activeAiMarkingTasks = 0
+let peakAiMarkingTasks = 0
+const boundedAiResults = await mapWithConcurrency([1, 2, 3, 4, 5, 6, 7], 3, async (value) => {
+  activeAiMarkingTasks += 1
+  peakAiMarkingTasks = Math.max(peakAiMarkingTasks, activeAiMarkingTasks)
+  await new Promise((resolve) => setTimeout(resolve, 5))
+  activeAiMarkingTasks -= 1
+  return value * 2
+})
+assert.deepEqual(boundedAiResults, [2, 4, 6, 8, 10, 12, 14], 'bounded AI marking must retain source-part result order')
+assert.equal(peakAiMarkingTasks, 3, 'A2 AI marking must never upload more than three source-bound parts concurrently')
 const localIdentityOrigin = configuredIdentityOrigin('http://127.0.0.1:4999/auth/path')
 let markingAvailabilityRequestUrl = ''
 await readSharedMarkingAvailability({

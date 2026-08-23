@@ -1,10 +1,11 @@
 import { SOURCE_CONTENT_MANIFEST_CHECKSUM, SOURCE_INDEX_SHA256 } from '../data/sourceContentIdentity.js'
 
-export const SOURCE_CONTENT_AUDIT_SCHEMA_VERSION = 'source-content-audit-v2'
+export const SOURCE_CONTENT_AUDIT_SCHEMA_VERSION = 'source-content-audit-v3'
 
 export const TRUSTED_SOURCE_ASSET = /^\/question-assets\/[A-Za-z0-9._~!$&'()*+,;=:@%/-]+\.(?:png|jpe?g|webp)$/i
 export const STEM_MARKING_MANIFEST_SCHEMA_VERSION = 'stem-marking-manifest.v2'
 export const STEM_SOURCE_REVIEW_SCHEMA_VERSION = 'stem-source-review.v1'
+export const STEM_AI_SOURCE_BINDING_SCHEMA_VERSION = 'stem-ai-source-binding.v1'
 const SOURCE_PAGE_ASSET = /\/qp-(\d+)\.(?:png|jpe?g|webp)$/i
 const DOCUMENT_PAGE_ASSET = /\/(?:qp|ms)-(\d+)\.(?:png|jpe?g|webp)$/i
 
@@ -35,6 +36,13 @@ export function trustedSourceAssetUrls(sourceRef = {}) {
     .map((url) => String(url || '').trim())
     .filter((url) => TRUSTED_SOURCE_ASSET.test(url)))]
     .toSorted((left, right) => (sourcePageFromAssetUrl(left) || 0) - (sourcePageFromAssetUrl(right) || 0) || left.localeCompare(right))
+}
+
+export function trustedDocumentAssetUrls(documentRef = {}) {
+  return [...new Set((documentRef.assetUrls || [])
+    .map((url) => String(url || '').trim())
+    .filter((url) => TRUSTED_SOURCE_ASSET.test(url)))]
+    .toSorted((left, right) => (documentPageFromAssetUrl(left) || 0) - (documentPageFromAssetUrl(right) || 0) || left.localeCompare(right))
 }
 
 function validPage(value) {
@@ -235,10 +243,96 @@ export function canonicalSourceMarkingProvenance(question = {}, part = {}) {
   })
 }
 
+function canonicalAuditedAssetEvidence(question = {}, key, documentRef = {}) {
+  const audit = question.sourceContent?.audit
+  const signature = sourceBindingSignature(question)
+  const range = sourcePageRange(documentRef)
+  const declaredUrls = trustedDocumentAssetUrls(documentRef)
+  if (!audit || audit.bindingSignature !== signature || question.sourceContent?.fileComplete !== true || !range.valid || !declaredUrls.length) return Object.freeze([])
+
+  const declaredByPage = new Map(declaredUrls.map((assetUrl) => [documentPageFromAssetUrl(assetUrl), assetUrl]))
+  if (declaredByPage.size !== declaredUrls.length || range.pages.some((page) => !declaredByPage.has(page))) return Object.freeze([])
+  const audited = Array.isArray(audit[key]) ? audit[key] : []
+  const byPage = new Map()
+  for (const item of audited) {
+    const page = validPage(item?.page)
+    const assetUrl = String(item?.assetUrl || '')
+    const assetSha256 = validSha256(item?.assetSha256)
+    if (!page || !assetSha256 || declaredByPage.get(page) !== assetUrl || byPage.has(page)) return Object.freeze([])
+    byPage.set(page, Object.freeze({ page, assetUrl, assetSha256 }))
+  }
+  if (byPage.size !== range.pages.length || range.pages.some((page) => !byPage.has(page))) return Object.freeze([])
+  return Object.freeze(range.pages.map((page) => byPage.get(page)))
+}
+
+export function auditedQuestionAssetEvidence(question = {}) {
+  return canonicalAuditedAssetEvidence(question, 'questionAssets', question.sourceRef || {})
+}
+
+export function auditedMarkSchemeAssetEvidence(question = {}) {
+  return canonicalAuditedAssetEvidence(question, 'markSchemeAssets', question.answerRef || {})
+}
+
+export function canonicalMachineIndexedMarkingProvenance(question = {}, part = {}) {
+  const sourceRef = part.sourceRef || question.sourceRef || {}
+  const answerRef = part.answerRef || question.answerRef || {}
+  const binding = question.answerBinding || {}
+  const sourceQuestion = sourceQuestionId(question)
+  const questionPartId = String(part.questionPartId || part.partId || part.id || '')
+  const questionPage = validPage(part.sourcePage ?? sourceRef.page ?? sourceRef.pageStart)
+  const answerPage = validPage(part.answerSourcePage)
+  const questionAssets = auditedQuestionAssetEvidence(question)
+  const markSchemeAssets = auditedMarkSchemeAssetEvidence(question)
+  const sourceAsset = questionAssets.find((entry) => entry.page === questionPage)
+  const signature = sourceBindingSignature(question)
+  if (
+    binding.verificationStatus !== 'machine-indexed'
+    || question.sourceContent?.semanticStatus !== 'unreviewed'
+    || question.questionGroupStatus === 'quarantined'
+    || binding.questionDocumentSha256 !== sourceRef.sha256
+    || binding.answerDocumentSha256 !== answerRef.sha256
+    || !sourceQuestion
+    || !questionPartId
+    || !sourceRef.paperId
+    || !validSha256(sourceRef.sha256)
+    || !validSha256(answerRef.sha256)
+    || !questionPage
+    || !Number.isFinite(Number(part.marks))
+    || Number(part.marks) <= 0
+    || !sourceAsset
+    || !markSchemeAssets.length
+    || (answerPage && !markSchemeAssets.some((entry) => entry.page === answerPage))
+  ) return null
+
+  return Object.freeze({
+    manifestSchemaVersion: STEM_MARKING_MANIFEST_SCHEMA_VERSION,
+    sourceQuestionId: sourceQuestion,
+    questionPartId,
+    bindingSignature: signature,
+    reviewSchemaVersion: STEM_AI_SOURCE_BINDING_SCHEMA_VERSION,
+    reviewVersion: signature,
+    sourceDocumentSha256: String(sourceRef.sha256),
+    answerDocumentSha256: String(answerRef.sha256),
+    sourceIndexSha256: SOURCE_INDEX_SHA256,
+    sourceManifestChecksum: SOURCE_CONTENT_MANIFEST_CHECKSUM,
+    sourceEvidence: Object.freeze({
+      assetId: `${sourceRef.paperId}:page-${questionPage}`,
+      page: questionPage,
+      assetUrl: sourceAsset.assetUrl,
+      assetSha256: sourceAsset.assetSha256,
+      quote: `${String(sourceRef.question || 'Question').trim()}${part.label ? `(${part.label})` : ''}`,
+    }),
+  })
+}
+
+export function canonicalAiMarkingProvenance(question = {}, part = {}) {
+  return canonicalSourceMarkingProvenance(question, part) || canonicalMachineIndexedMarkingProvenance(question, part)
+}
+
 /**
- * A source-practice binding freezes the QP/MS document identities for a
- * self-mark-only question. It does not assert enough reviewed evidence for
- * AI marking.
+ * A source-practice binding freezes the QP/MS document identities used to
+ * restore a practice attempt. AI authority is issued separately from the
+ * current reviewed or audited marking provenance.
  */
 export function canonicalSourcePracticeProvenance(question = {}, part = {}) {
   const sourceRef = part.sourceRef || question.sourceRef || {}
