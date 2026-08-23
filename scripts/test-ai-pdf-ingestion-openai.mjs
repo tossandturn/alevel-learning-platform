@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { callOpenAiStructured, resolveOpenAiResponsesUrl } from './ai-pdf-ingestion/openai-structured.mjs'
+import { callStructuredWithFallback, providersFromEnvironment } from './ai-pdf-ingestion/provider-fallback.mjs'
 
 const schema = {
   type: 'object',
@@ -94,6 +95,58 @@ await callOpenAiStructured({
   },
 })
 assert.equal(customBaseRequests[0].url, 'https://ai.ieltsist.com/v1/responses')
+
+const chatCompletionRequests = []
+const chatCompletionParsed = await callOpenAiStructured({
+  ...request,
+  baseUrl: 'https://ai.ieltsist.com/',
+  transport: 'chat-completions',
+  input: [
+    { role: 'system', content: [{ type: 'input_text', text: 'Return JSON only.' }] },
+    { role: 'user', content: [
+      { type: 'input_text', text: 'Extract question 19.' },
+      { type: 'input_image', image_url: 'data:image/jpeg;base64,AA==' },
+    ] },
+  ],
+  fetchImpl: async (url, init) => {
+    chatCompletionRequests.push({ url, init })
+    return jsonResponse(200, { choices: [{ message: { content: '{"questionNumber":"19"}' } }] })
+  },
+})
+assert.deepEqual(chatCompletionParsed, { questionNumber: '19' })
+assert.equal(chatCompletionRequests[0].url, 'https://ai.ieltsist.com/v1/chat/completions')
+const chatCompletionBody = JSON.parse(chatCompletionRequests[0].init.body)
+assert.deepEqual(chatCompletionBody.messages, [
+  { role: 'system', content: [{ type: 'text', text: 'Return JSON only.' }] },
+  { role: 'user', content: [
+    { type: 'text', text: 'Extract question 19.' },
+    { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,AA==' } },
+  ] },
+])
+assert.deepEqual(chatCompletionBody.response_format, {
+  type: 'json_schema',
+  json_schema: { name: 'question_extraction', strict: true, schema },
+})
+
+const proxiedProviders = providersFromEnvironment({
+  OPENAI_API_KEY: 'test-openai-key',
+  OPENAI_BASE_URL: 'https://ai.ieltsist.com/',
+}, { model: 'gpt-5.6' })
+assert.equal(proxiedProviders.length, 1)
+assert.equal(proxiedProviders[0].transport, 'chat-completions')
+const providerRequests = []
+const providerResult = await callStructuredWithFallback({
+  providers: proxiedProviders,
+  request: { schemaName: 'question_extraction', schema, input: request.input },
+  callOpenAi: async (providerRequest) => {
+    providerRequests.push(providerRequest)
+    return { questionNumber: '20' }
+  },
+})
+assert.equal(providerResult.provider.name, 'openai')
+assert.deepEqual(providerResult.value, { questionNumber: '20' })
+assert.equal(providerRequests[0].transport, 'chat-completions')
+assert.equal(providersFromEnvironment({ OPENAI_API_KEY: 'test-openai-key' }, { model: 'gpt-5.6' })[0].transport, 'responses')
 assert.equal(JSON.parse(customBaseRequests[0].init.body).store, false)
 assert.doesNotMatch(customBaseRequests[0].url, /fake-secret-do-not-log/)
 assert.doesNotMatch(customBaseRequests[0].init.body, /fake-secret-do-not-log/)
@@ -324,4 +377,4 @@ await assert.rejects(
 )
 assert.equal(expiredDeadlineAttempts, 0)
 
-console.log(JSON.stringify({ status: 'passed', checks: 73 }))
+console.log(JSON.stringify({ status: 'passed', checks: 75 }))

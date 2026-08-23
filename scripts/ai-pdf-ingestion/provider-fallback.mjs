@@ -24,15 +24,30 @@ function workspaceBaseUrl(env) {
   return `https://${workspaceId}.${region}.maas.aliyuncs.com/compatible-mode/v1`
 }
 
+function openAiStructuredTransport(baseUrl, env) {
+  const configured = nonempty(env.OPENAI_STRUCTURED_TRANSPORT || env.AI_PDF_OPENAI_TRANSPORT).toLowerCase()
+  if (configured === 'responses') return configured
+  if (configured === 'chat' || configured === 'chat-completions') return 'chat-completions'
+  if (configured && configured !== 'auto') throw codedError('OPENAI_CONFIGURATION_INVALID', 'OPENAI_STRUCTURED_TRANSPORT must be responses or chat-completions.')
+  if (!baseUrl) return 'responses'
+  try {
+    return new URL(baseUrl).hostname.toLowerCase() === 'api.openai.com' ? 'responses' : 'chat-completions'
+  } catch {
+    return 'responses'
+  }
+}
+
 export function providersFromEnvironment(env = {}, { model = 'gpt-5.6', baseUrl = '' } = {}) {
   const providers = []
   const openAiKey = nonempty(env.OPENAI_API_KEY || env.OPENAI_VISION_API_KEY)
   if (openAiKey) {
+    const openAiBaseUrl = nonempty(baseUrl || env.OPENAI_VISION_BASE_URL || env.OPENAI_BASE_URL)
     providers.push(Object.freeze({
       name: 'openai',
       apiKey: openAiKey,
       model: nonempty(model) || nonempty(env.OPENAI_VISION_MODEL || env.OPENAI_MODEL) || 'gpt-5.6',
-      baseUrl: nonempty(baseUrl || env.OPENAI_VISION_BASE_URL || env.OPENAI_BASE_URL),
+      baseUrl: openAiBaseUrl,
+      transport: openAiStructuredTransport(openAiBaseUrl, env),
     }))
   }
 
@@ -65,7 +80,7 @@ export async function callStructuredWithFallback({
     if (Number.isFinite(request?.deadlineAt) && Date.now() >= request.deadlineAt) throw codedError('AI_PAPER_TIMEOUT', 'AI paper deadline exceeded.')
     try {
       const value = provider.name === 'openai'
-        ? await callOpenAi({ ...request, apiKey: provider.apiKey, model: provider.model, baseUrl: provider.baseUrl || undefined })
+        ? await callOpenAi({ ...request, apiKey: provider.apiKey, model: provider.model, baseUrl: provider.baseUrl || undefined, transport: provider.transport || request?.transport })
         : await callCompatible({ ...request, apiKey: provider.apiKey, model: provider.model, baseUrl: provider.baseUrl })
       return Object.freeze({ provider, value })
     } catch (error) {

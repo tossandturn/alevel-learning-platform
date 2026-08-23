@@ -1,4 +1,5 @@
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses'
+const OPENAI_CHAT_COMPLETIONS_URL = 'https://api.openai.com/v1/chat/completions'
 const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504])
 const BASE_RETRY_DELAY_MS = 250
 const MAX_RETRY_DELAY_MS = 4000
@@ -21,6 +22,13 @@ function outputText(responseBody) {
     return responseBody.output_text
   }
 
+  const chatContent = responseBody?.choices?.[0]?.message?.content
+  if (typeof chatContent === 'string') return chatContent
+  if (Array.isArray(chatContent)) {
+    const text = chatContent.map((item) => typeof item?.text === 'string' ? item.text : '').join('')
+    if (text) return text
+  }
+
   for (const output of responseBody?.output ?? []) {
     for (const content of output?.content ?? []) {
       if (typeof content?.text === 'string') {
@@ -33,6 +41,7 @@ function outputText(responseBody) {
 }
 
 function hasRefusal(responseBody) {
+  if (typeof responseBody?.choices?.[0]?.message?.refusal === 'string') return true
   for (const output of responseBody?.output ?? []) {
     for (const content of output?.content ?? []) {
       if (content?.type === 'refusal' || typeof content?.refusal === 'string') {
@@ -66,8 +75,16 @@ function effectiveTimeoutMs(timeoutMs, deadlineAt) {
 }
 
 export function resolveOpenAiResponsesUrl(baseUrl) {
+  return resolveOpenAiApiUrl(baseUrl, 'responses', OPENAI_RESPONSES_URL)
+}
+
+export function resolveOpenAiChatCompletionsUrl(baseUrl) {
+  return resolveOpenAiApiUrl(baseUrl, 'chat/completions', OPENAI_CHAT_COMPLETIONS_URL)
+}
+
+function resolveOpenAiApiUrl(baseUrl, endpoint, defaultUrl) {
   if (typeof baseUrl !== 'string' || !baseUrl.trim()) {
-    return OPENAI_RESPONSES_URL
+    return defaultUrl
   }
 
   let url
@@ -81,18 +98,45 @@ export function resolveOpenAiResponsesUrl(baseUrl) {
   }
 
   const pathname = url.pathname.replace(/\/+$/, '')
-  if (!pathname) {
-    url.pathname = '/v1/responses'
-  } else if (pathname.endsWith('/v1/responses')) {
-    url.pathname = pathname
-  } else if (pathname.endsWith('/v1')) {
-    url.pathname = `${pathname}/responses`
-  } else {
-    url.pathname = `${pathname}/v1/responses`
-  }
+  const apiBase = !pathname
+    ? '/v1'
+    : pathname.endsWith('/v1/responses')
+      ? pathname.slice(0, -'/responses'.length)
+      : pathname.endsWith('/v1/chat/completions')
+        ? pathname.slice(0, -'/chat/completions'.length)
+        : pathname.endsWith('/v1')
+          ? pathname
+          : `${pathname}/v1`
+  url.pathname = `${apiBase}/${endpoint}`
   url.search = ''
   url.hash = ''
   return url.toString()
+}
+
+function normalizedTransport(value) {
+  const transport = typeof value === 'string' && value.trim() ? value.trim().toLowerCase() : 'responses'
+  if (transport === 'responses') return transport
+  if (transport === 'chat' || transport === 'chat-completions') return 'chat-completions'
+  throw sanitizedError('OPENAI_CONFIGURATION_INVALID', 'transport must be responses or chat-completions.')
+}
+
+function chatMessages(input) {
+  if (!Array.isArray(input)) return []
+  return input.map((message) => {
+    const content = Array.isArray(message?.content)
+      ? message.content.flatMap((entry) => {
+        if (entry?.type === 'input_text') return [{ type: 'text', text: String(entry.text || '') }]
+        if (entry?.type === 'input_image' && typeof entry.image_url === 'string' && entry.image_url.trim()) {
+          return [{ type: 'image_url', image_url: { url: entry.image_url } }]
+        }
+        return []
+      })
+      : String(message?.content || '')
+    return {
+      role: message?.role === 'system' ? 'system' : message?.role === 'assistant' ? 'assistant' : 'user',
+      content,
+    }
+  })
 }
 
 export async function callOpenAiStructured({
@@ -106,26 +150,43 @@ export async function callOpenAiStructured({
   maxAttempts = 3,
   timeoutMs = 30000,
   deadlineAt = null,
+  transport = 'responses',
   sleep = (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)),
   randomImpl = Math.random,
 }) {
   assertPositiveInteger(maxAttempts, 'maxAttempts')
   assertPositiveInteger(timeoutMs, 'timeoutMs')
-  const responsesUrl = resolveOpenAiResponsesUrl(baseUrl)
-
-  const body = JSON.stringify({
-    model,
-    store: false,
-    input,
-    text: {
-      format: {
+  const selectedTransport = normalizedTransport(transport)
+  const endpoint = selectedTransport === 'chat-completions'
+    ? resolveOpenAiChatCompletionsUrl(baseUrl)
+    : resolveOpenAiResponsesUrl(baseUrl)
+  const body = JSON.stringify(selectedTransport === 'chat-completions'
+    ? {
+      model,
+      messages: chatMessages(input),
+      stream: false,
+      response_format: {
         type: 'json_schema',
-        name: schemaName,
-        strict: true,
-        schema,
+        json_schema: {
+          name: schemaName,
+          strict: true,
+          schema,
+        },
       },
-    },
-  })
+    }
+    : {
+      model,
+      store: false,
+      input,
+      text: {
+        format: {
+          type: 'json_schema',
+          name: schemaName,
+          strict: true,
+          schema,
+        },
+      },
+    })
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const requestTimeoutMs = effectiveTimeoutMs(timeoutMs, deadlineAt)
@@ -137,7 +198,7 @@ export async function callOpenAiStructured({
     try {
       let response
       try {
-        response = await fetchImpl(responsesUrl, {
+        response = await fetchImpl(endpoint, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${apiKey}`,
@@ -175,7 +236,7 @@ export async function callOpenAiStructured({
         }
       }
 
-      if (!failure && responseBody?.status !== 'completed') {
+      if (!failure && selectedTransport === 'responses' && responseBody?.status !== 'completed') {
         failure = sanitizedError('OPENAI_RESPONSE_INCOMPLETE', 'OpenAI response was not completed.')
       }
 
