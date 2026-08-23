@@ -65,6 +65,22 @@ try {
   const cliSummary = JSON.parse(cli.stdout)
   assert.equal(cliSummary.total, 3, 'direct worker execution must process the same constrained P4 queue')
   assert.ok(cliSummary.outcomes.every((outcome) => outcome.status === 'dry-run'))
+
+  const currentRelease = path.join(root, 'current')
+  fs.symlinkSync(path.resolve(import.meta.dirname, '..'), currentRelease, process.platform === 'win32' ? 'junction' : 'dir')
+  const linkedCli = spawnSync(process.execPath, [
+    path.join(currentRelease, 'scripts', 'a2-p4-five-year-ingestion.mjs'),
+    '--library-root', libraryRoot,
+    '--output-root', outputRoot,
+    '--dry-run',
+  ], {
+    cwd: currentRelease,
+    encoding: 'utf8',
+  })
+  assert.equal(linkedCli.status, 0, linkedCli.stderr)
+  const linkedSummary = JSON.parse(linkedCli.stdout)
+  assert.equal(linkedSummary.total, 3, 'worker must execute through a current release symlink')
+  assert.ok(linkedSummary.outcomes.every((outcome) => outcome.status === 'dry-run'))
 } finally {
   fs.rmSync(root, { recursive: true, force: true })
 }

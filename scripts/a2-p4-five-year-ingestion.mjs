@@ -146,7 +146,17 @@ export async function runA2P4FiveYearIngestion(options = {}, {
   })
 }
 
-if (process.argv[1] && path.resolve(fileURLToPath(import.meta.url)) === path.resolve(process.argv[1])) {
+function isDirectExecution() {
+  if (!process.argv[1]) return false
+  const modulePath = fileURLToPath(import.meta.url)
+  try {
+    return fs.realpathSync(modulePath) === fs.realpathSync(path.resolve(process.argv[1]))
+  } catch {
+    return path.resolve(modulePath) === path.resolve(process.argv[1])
+  }
+}
+
+if (isDirectExecution()) {
   const options = parseA2P4FiveYearArgs()
   const summary = await runA2P4FiveYearIngestion(options)
   process.stdout.write(`${JSON.stringify(summary)}\n`)

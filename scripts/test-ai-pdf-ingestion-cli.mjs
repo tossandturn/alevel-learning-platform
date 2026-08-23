@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -176,6 +177,18 @@ try {
     '--page-windowed',
   ], { cwd: temporaryRoot, env: { OPENAI_API_KEY: fakeApiKey } })
   assert.equal(pageWindowedOptions.pageWindowed, true)
+
+  const currentRelease = path.join(temporaryRoot, 'current')
+  symlinkSync(path.resolve(import.meta.dirname, '..'), currentRelease, process.platform === 'win32' ? 'junction' : 'dir')
+  const linkedCli = spawnSync(process.execPath, [
+    path.join(currentRelease, 'scripts', 'ingest-ai-pdf-questions.mjs'),
+    '--unknown', 'value',
+  ], {
+    cwd: currentRelease,
+    encoding: 'utf8',
+  })
+  assert.equal(linkedCli.status, 1)
+  assert.match(linkedCli.stderr, /^INGESTION_FAILED\s*$/)
 
   const plan = buildDryRunPlan(options)
   assert.equal(plan.mode, 'dry-run')

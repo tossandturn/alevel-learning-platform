@@ -1021,6 +1021,16 @@ async function main() {
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+function isDirectExecution() {
+  if (!process.argv[1]) return false
+  const modulePath = fileURLToPath(import.meta.url)
+  try {
+    return fs.realpathSync(modulePath) === fs.realpathSync(path.resolve(process.argv[1]))
+  } catch {
+    return path.resolve(process.argv[1]) === modulePath
+  }
+}
+
+if (isDirectExecution()) {
   await main()
 }
