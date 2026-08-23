@@ -305,4 +305,23 @@ await assert.rejects(
 )
 assert.ok(timeoutSignal.aborted)
 
-console.log(JSON.stringify({ status: 'passed', checks: 72 }))
+let expiredDeadlineAttempts = 0
+await assert.rejects(
+  () => callOpenAiStructured({
+    ...request,
+    maxAttempts: 3,
+    timeoutMs: 1000,
+    deadlineAt: Date.now() - 1,
+    fetchImpl: async () => {
+      expiredDeadlineAttempts += 1
+      return jsonResponse(200, { status: 'completed', output_text: '{"questionNumber":"14"}' })
+    },
+  }),
+  (error) => {
+    assert.equal(error.code, 'AI_PAPER_TIMEOUT')
+    return true
+  },
+)
+assert.equal(expiredDeadlineAttempts, 0)
+
+console.log(JSON.stringify({ status: 'passed', checks: 73 }))

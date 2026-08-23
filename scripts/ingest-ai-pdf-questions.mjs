@@ -25,8 +25,9 @@ const DEFAULT_OUTPUT_ROOT = 'data/ai-pdf-ingestion'
 const DEFAULT_RENDER_DPI = 180
 const DEFAULT_MAX_ATTEMPTS = 3
 const DEFAULT_OPENAI_TIMEOUT_MS = 120000
+const DEFAULT_PAPER_TIMEOUT_MS = 900000
 const PAGE_WINDOW_OWNED_PAGE_COUNT = 4
-const PAGE_WINDOW_TRAILING_CONTEXT_PAGE_COUNT = 8
+const PAGE_WINDOW_TRAILING_CONTEXT_PAGE_COUNT = 4
 const MAX_PDF_TEXT_BYTES = 2 * 1024 * 1024
 const NO_EXTRACTABLE_TEXT_PAGE_MARKER = '[No extractable text on this page.]'
 const SAFE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/
@@ -48,8 +49,8 @@ const extractorSchema = {
     questions: {
       type: 'array', items: {
         type: 'object', additionalProperties: false,
-        required: ['questionNumber', 'regions', 'diagramRegions', 'parts', 'tags', 'markSchemeEvidence'], properties: {
-          questionNumber: { type: 'string' },
+        required: ['questionNumber', 'questionStartPage', 'regions', 'diagramRegions', 'parts', 'tags', 'markSchemeEvidence'], properties: {
+          questionNumber: { type: 'string' }, questionStartPage: { type: 'integer', minimum: 1 },
           regions: { type: 'array', items: regionSchema() },
           diagramRegions: { type: 'array', items: regionSchema() },
           parts: {
@@ -71,12 +72,15 @@ const extractorSchema = {
 }
 
 const verifierSchema = {
-  type: 'object', additionalProperties: false, required: ['questions'], properties: {
+  type: 'object', additionalProperties: false, required: ['questionStarts', 'questions'], properties: {
+    questionStarts: {
+      type: 'array', items: questionStartSchema(),
+    },
     questions: {
       type: 'array', items: {
         type: 'object', additionalProperties: false,
-        required: ['questionNumber', 'pages', 'parts', 'diagramRegionCount', 'markSchemeEvidence'], properties: {
-          questionNumber: { type: 'string' },
+        required: ['questionNumber', 'questionStartPage', 'pages', 'parts', 'diagramRegionCount', 'markSchemeEvidence'], properties: {
+          questionNumber: { type: 'string' }, questionStartPage: { type: 'integer', minimum: 1 },
           pages: { type: 'array', items: { type: 'integer', minimum: 1 } },
           parts: {
             type: 'array', items: {
@@ -98,7 +102,7 @@ export function parseArgs(argv, { cwd = process.cwd(), env = process.env } = {})
   const values = {}
   const flags = new Set(['--dry-run', '--retry', '--coordinate-only', '--page-windowed'])
   const options = new Set([
-    '--paper-id', '--question-pdf', '--mark-scheme-pdf', '--subject', '--output-root', '--model', '--base-url', '--render-dpi', '--max-attempts', '--timeout-ms',
+    '--paper-id', '--question-pdf', '--mark-scheme-pdf', '--subject', '--output-root', '--model', '--base-url', '--render-dpi', '--max-attempts', '--timeout-ms', '--paper-timeout-ms',
   ])
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -133,6 +137,7 @@ export function parseArgs(argv, { cwd = process.cwd(), env = process.env } = {})
   const renderDpi = positiveInteger(values['--render-dpi'] ?? DEFAULT_RENDER_DPI, '--render-dpi')
   const maxAttempts = positiveInteger(values['--max-attempts'] ?? DEFAULT_MAX_ATTEMPTS, '--max-attempts')
   const timeoutMs = positiveInteger(values['--timeout-ms'] ?? runtimeEnv.AI_PDF_INGESTION_TIMEOUT_MS ?? DEFAULT_OPENAI_TIMEOUT_MS, '--timeout-ms')
+  const paperTimeoutMs = positiveInteger(values['--paper-timeout-ms'] ?? runtimeEnv.AI_PDF_INGESTION_PAPER_TIMEOUT_MS ?? DEFAULT_PAPER_TIMEOUT_MS, '--paper-timeout-ms')
   const outputRoot = path.resolve(cwd, values['--output-root'] ?? runtimeEnv.AI_PDF_INGESTION_ROOT ?? DEFAULT_OUTPUT_ROOT)
 
   return Object.freeze({
@@ -150,6 +155,7 @@ export function parseArgs(argv, { cwd = process.cwd(), env = process.env } = {})
     renderDpi,
     maxAttempts,
     timeoutMs,
+    paperTimeoutMs,
   })
 }
 
@@ -167,6 +173,7 @@ export function buildDryRunPlan(options) {
     renderDpi: options.renderDpi,
     maxAttempts: options.maxAttempts,
     timeoutMs: options.timeoutMs,
+    paperTimeoutMs: options.paperTimeoutMs,
     retry: options.retry,
     coordinateOnly: options.coordinateOnly === true,
     pageWindowed: options.pageWindowed === true,
@@ -220,6 +227,7 @@ export async function runCli(options, {
   }
 
   const source = sourceMetadata(plan, options)
+  const paperDeadlineAt = Date.now() + (options.paperTimeoutMs || DEFAULT_PAPER_TIMEOUT_MS)
   let temporaryDirectory
   let createdAssetsRoot = null
   try {
@@ -241,6 +249,8 @@ export async function runCli(options, {
     }
 
     const requestStructured = async ({ schemaName, schema, input }) => {
+      const remainingMs = Math.floor(paperDeadlineAt - Date.now())
+      if (remainingMs < 1) throw codedError('AI_PAPER_TIMEOUT')
       const request = {
         apiKey: runtimeEnv.OPENAI_API_KEY,
         model: options.model,
@@ -249,9 +259,12 @@ export async function runCli(options, {
         schema,
         input,
         maxAttempts: options.maxAttempts,
-        timeoutMs: options.timeoutMs,
+        timeoutMs: Math.min(options.timeoutMs, remainingMs),
+        deadlineAt: paperDeadlineAt,
       }
-      if (callStructured) return { provider: { name: 'injected' }, value: await callStructured(request) }
+      if (callStructured) {
+        return { provider: { name: 'injected' }, value: await withDeadline(callStructured(request), paperDeadlineAt) }
+      }
       return callWithFallback({ providers, request })
     }
     const ingestion = options.pageWindowed
@@ -270,6 +283,7 @@ export async function runCli(options, {
         markSchemeRenderDirectory,
         requestStructured,
       })
+    if (options.pageWindowed) assertPageWindowAgreement(ingestion.extraction, ingestion.verification)
     const extraction = ingestion.extraction
     const verification = ingestion.verification
     const normalizedVerification = normalizeVerificationForValidation(verification)
@@ -349,26 +363,85 @@ async function extractAndVerifyPageWindows({
     ),
   }
   const chunks = []
+  const observations = new Map()
   for (const pageWindow of questionPaperPageWindows(source.pageImageHashes)) {
-    const extractionResult = await requestStructured({
-      schemaName: 'ai_pdf_question_extraction_v1',
-      schema: extractionSchemaFor(source.controlledTags),
-      input: buildPageWindowedExtractionInput(source, questionRenderDirectory, pageWindow, pageText),
+    const chunk = await extractAndVerifyPageWindow({
+      source,
+      questionRenderDirectory,
+      pageText,
+      pageWindow,
+      requestStructured,
     })
-    assertPageWindowQuestionOwnership(extractionResult.value?.questions, pageWindow, 'PAGE_WINDOW_EXTRACTION')
-    const verificationResult = await requestStructured({
-      schemaName: 'ai_pdf_question_verification_v1',
-      schema: verifierSchema,
-      input: buildPageWindowedVerificationInput(source, questionRenderDirectory, pageWindow, pageText),
+    chunks.push(chunk)
+    for (const observation of [...chunk.extractionObservations, ...chunk.verificationObservations]) {
+      observations.set(observation.questionNumber, observation)
+    }
+  }
+
+  const ownedQuestionNumbers = ownedQuestionNumbersFromChunks(chunks)
+  const unresolved = [...observations.values()].filter(({ questionNumber }) => !ownedQuestionNumbers.has(questionNumber))
+  if (unresolved.length) {
+    const recoveryWindow = recoveryPageWindow(source.pageImageHashes, unresolved)
+    const recoveryChunk = await extractAndVerifyPageWindow({
+      source,
+      questionRenderDirectory,
+      pageText,
+      pageWindow: recoveryWindow,
+      requestStructured,
     })
-    assertPageWindowQuestionOwnership(verificationResult.value?.questions, pageWindow, 'PAGE_WINDOW_VERIFICATION', { verification: true })
-    chunks.push({ pageWindow, extraction: extractionResult.value, verification: verificationResult.value, extractionProvider: extractionResult.provider?.name || null, verificationProvider: verificationResult.provider?.name || null })
+    chunks.push(recoveryChunk)
+    const recoveredQuestionNumbers = ownedQuestionNumbersFromChunks(chunks)
+    const stillUnresolved = unresolved.filter(({ questionNumber }) => !recoveredQuestionNumbers.has(questionNumber))
+    if (stillUnresolved.length) throw codedError('PAGE_WINDOW_QUESTION_OWNERSHIP_UNRESOLVED')
   }
   return {
     extraction: mergePageWindowExtractions(chunks),
     verification: mergePageWindowVerifications(chunks),
     extractorProvider: providerLabel(chunks.map(chunk => chunk.extractionProvider)),
     verifierProvider: providerLabel(chunks.map(chunk => chunk.verificationProvider)),
+  }
+}
+
+async function extractAndVerifyPageWindow({ source, questionRenderDirectory, pageText, pageWindow, requestStructured }) {
+  const extractionResult = await requestStructured({
+    schemaName: 'ai_pdf_question_extraction_v1',
+    schema: extractionSchemaFor(source.controlledTags),
+    input: buildPageWindowedExtractionInput(source, questionRenderDirectory, pageWindow, pageText),
+  })
+  const extractionFilter = filterPageWindowQuestions(
+    extractionResult.value?.questions,
+    pageWindow,
+    'PAGE_WINDOW_EXTRACTION',
+    { sourcePages: source.pageImageHashes },
+  )
+  const extraction = { ...(extractionResult.value || {}), questions: extractionFilter.questions }
+
+  const verificationResult = await requestStructured({
+    schemaName: 'ai_pdf_question_verification_v1',
+    schema: verifierSchema,
+    input: buildPageWindowedVerificationInput(source, questionRenderDirectory, pageWindow, pageText),
+  })
+  const verificationFilter = filterPageWindowQuestions(
+    verificationResult.value?.questions,
+    pageWindow,
+    'PAGE_WINDOW_VERIFICATION',
+    { verification: true, sourcePages: source.pageImageHashes },
+  )
+  const startFilter = filterPageWindowStarts(
+    verificationResult.value?.questionStarts,
+    pageWindow,
+    'PAGE_WINDOW_VERIFICATION',
+    { sourcePages: source.pageImageHashes },
+  )
+  const verification = { ...(verificationResult.value || {}), questions: verificationFilter.questions }
+  return {
+    pageWindow,
+    extraction,
+    verification,
+    extractionObservations: extractionFilter.observations,
+    verificationObservations: [...verificationFilter.observations, ...startFilter.observations],
+    extractionProvider: extractionResult.provider?.name || null,
+    verificationProvider: verificationResult.provider?.name || null,
   }
 }
 
@@ -384,6 +457,20 @@ function questionPaperPageWindows(pageHashes) {
   return windows
 }
 
+function recoveryPageWindow(pageHashes, observations) {
+  const pages = sortedPageNumbers(pageHashes)
+  const startPages = [...new Set(observations.map(observation => observation.questionStartPage))]
+    .filter(page => pages.includes(page))
+    .sort((left, right) => left - right)
+  if (!startPages.length) throw codedError('PAGE_WINDOW_QUESTION_START_PAGE_INVALID')
+  const firstStartIndex = pages.indexOf(startPages[0])
+  return Object.freeze({
+    ownedQuestionPaperPages: startPages,
+    visibleQuestionPaperPages: pages.slice(firstStartIndex),
+    recovery: true,
+  })
+}
+
 function normalizePdfTextPages(value, pageHashes) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw codedError('PDF_TEXT_EXTRACTION_FAILED')
   const normalized = {}
@@ -397,10 +484,13 @@ function normalizePdfTextPages(value, pageHashes) {
   return Object.freeze(normalized)
 }
 
-function assertPageWindowQuestionOwnership(questions, pageWindow, prefix, { verification = false } = {}) {
+function filterPageWindowQuestions(questions, pageWindow, prefix, { verification = false, sourcePages = {} } = {}) {
   if (!Array.isArray(questions)) throw codedError(`${prefix}_QUESTIONS_INVALID`)
   const ownedPages = new Set(pageWindow.ownedQuestionPaperPages)
   const visiblePages = new Set(pageWindow.visibleQuestionPaperPages)
+  const allPages = new Set(sortedPageNumbers(sourcePages))
+  const ownedQuestions = []
+  const observations = []
   for (const question of questions) {
     const pages = verification
       ? Array.isArray(question?.pages) ? question.pages : []
@@ -408,10 +498,45 @@ function assertPageWindowQuestionOwnership(questions, pageWindow, prefix, { veri
         ...(Array.isArray(question?.regions) ? question.regions : []),
         ...(Array.isArray(question?.diagramRegions) ? question.diagramRegions : []),
       ].map(region => region?.page)
+    const questionNumber = nonemptyString(question?.questionNumber)
+    const questionStartPage = question?.questionStartPage
+    if (!questionNumber) throw codedError(`${prefix}_QUESTION_NUMBER_INVALID`)
     if (!pages.length || pages.some(page => !Number.isInteger(page))) throw codedError(`${prefix}_PAGES_INVALID`)
-    if (pages.some(page => !visiblePages.has(page))) throw codedError(`${prefix}_PAGE_OUTSIDE_CONTEXT`)
-    if (!pages.some(page => ownedPages.has(page))) throw codedError(`${prefix}_PAGE_OUTSIDE_OWNERSHIP`)
+    if (!Number.isInteger(questionStartPage) || !allPages.has(questionStartPage) || !pages.includes(questionStartPage)) {
+      throw codedError(`${prefix}_START_PAGE_INVALID`)
+    }
+    if (pages.some(page => !allPages.has(page))) throw codedError(`${prefix}_PAGE_OUTSIDE_SOURCE`)
+    if (!visiblePages.has(questionStartPage) || pages.some(page => !visiblePages.has(page)) || !ownedPages.has(questionStartPage)) {
+      observations.push({ questionNumber, questionStartPage, pages: [...new Set(pages)].sort((left, right) => left - right) })
+      continue
+    }
+    ownedQuestions.push(question)
   }
+  return { questions: ownedQuestions, observations }
+}
+
+function filterPageWindowStarts(questionStarts, pageWindow, prefix, { sourcePages = {} } = {}) {
+  if (!Array.isArray(questionStarts)) throw codedError(`${prefix}_QUESTION_STARTS_INVALID`)
+  const visiblePages = new Set(pageWindow.visibleQuestionPaperPages)
+  const allPages = new Set(sortedPageNumbers(sourcePages))
+  const observations = []
+  for (const questionStart of questionStarts) {
+    const questionNumber = nonemptyString(questionStart?.questionNumber)
+    const questionStartPage = questionStart?.questionStartPage
+    if (!questionNumber || !Number.isInteger(questionStartPage) || !allPages.has(questionStartPage)) {
+      throw codedError(`${prefix}_START_PAGE_INVALID`)
+    }
+    if (!visiblePages.has(questionStartPage)) throw codedError(`${prefix}_START_PAGE_OUTSIDE_CONTEXT`)
+    observations.push({ questionNumber, questionStartPage, pages: [questionStartPage] })
+  }
+  return { observations }
+}
+
+function ownedQuestionNumbersFromChunks(chunks) {
+  return new Set(chunks.flatMap(chunk => [
+    ...(chunk.extraction?.questions || []),
+    ...(chunk.verification?.questions || []),
+  ]).map(question => question?.questionNumber).filter(Boolean))
 }
 
 function mergePageWindowExtractions(chunks) {
@@ -436,9 +561,22 @@ function mergePageWindowExtractions(chunks) {
 function mergePageWindowVerifications(chunks) {
   const questions = []
   const seen = new Set()
+  const questionStarts = []
+  const startsByQuestion = new Map()
   for (const chunk of chunks) {
     const verification = chunk.verification
     if (!Array.isArray(verification?.questions)) throw codedError('PAGE_WINDOW_VERIFICATION_QUESTIONS_INVALID')
+    if (!Array.isArray(verification?.questionStarts)) throw codedError('PAGE_WINDOW_QUESTION_STARTS_INVALID')
+    for (const questionStart of verification.questionStarts) {
+      const questionNumber = nonemptyString(questionStart?.questionNumber)
+      if (!questionNumber || !Number.isInteger(questionStart?.questionStartPage)) throw codedError('PAGE_WINDOW_QUESTION_START_INVALID')
+      const existingStart = startsByQuestion.get(questionNumber)
+      if (existingStart && existingStart !== questionStart.questionStartPage) throw codedError('PAGE_WINDOW_QUESTION_START_DISAGREEMENT')
+      if (!existingStart) {
+        startsByQuestion.set(questionNumber, questionStart.questionStartPage)
+        questionStarts.push(questionStart)
+      }
+    }
     for (const question of verification.questions) {
       const questionNumber = nonemptyString(question?.questionNumber)
       if (!questionNumber) throw codedError('PAGE_WINDOW_QUESTION_NUMBER_INVALID')
@@ -447,7 +585,11 @@ function mergePageWindowVerifications(chunks) {
       questions.push(question)
     }
   }
-  return { questions: sortQuestions(questions) }
+  return { questionStarts: sortQuestionStarts(questionStarts), questions: sortQuestions(questions) }
+}
+
+function sortQuestionStarts(questionStarts) {
+  return [...questionStarts].sort((left, right) => String(left.questionNumber).localeCompare(String(right.questionNumber), undefined, { numeric: true }))
 }
 
 function sameCandidateSource(left, right) {
@@ -641,7 +783,7 @@ function controlledTopicCatalogForSubject(subject) {
 
 function buildExtractionInput(source, questionDirectory, markSchemeDirectory) {
   return [
-    { role: 'system', content: [{ type: 'input_text', text: 'Extract every printed question from the question paper. Use only the supplied tag IDs. Preserve question regions, part OCR, mathematical expressions, diagrams, and mark-scheme page evidence. Do not invent page hashes.' }] },
+    { role: 'system', content: [{ type: 'input_text', text: 'Extract every printed question from the question paper. Include questionStartPage, the page where each printed question heading begins. Use only the supplied tag IDs. Preserve question regions, part OCR, mathematical expressions, diagrams, and mark-scheme page evidence. Do not invent page hashes.' }] },
     { role: 'user', content: [
       { type: 'input_text', text: JSON.stringify({ source: serializableSource(source), instruction: 'Question-paper pages come first; mark-scheme pages follow.' }) },
       ...imageInputs(questionDirectory, 'question-paper', source.pageImageHashes),
@@ -653,7 +795,7 @@ function buildExtractionInput(source, questionDirectory, markSchemeDirectory) {
 function buildVerificationInput(source, extraction, questionDirectory, markSchemeDirectory) {
   const { controlledTags: _controlledTags, ...verificationSource } = serializableSource(source)
   return [
-    { role: 'system', content: [{ type: 'input_text', text: 'Independently verify the extraction against the supplied pages. Return only question identity, page span, parts, diagram count, and mark-scheme evidence. Do not repeat OCR or tags.' }] },
+    { role: 'system', content: [{ type: 'input_text', text: 'Independently verify the extraction against the supplied pages. Return questionStarts for every printed question heading you can see, plus detailed question identity, questionStartPage (the page where each printed question heading begins), page span, parts, diagram count, and mark-scheme evidence. Do not repeat OCR or tags.' }] },
     { role: 'user', content: [
       { type: 'input_text', text: JSON.stringify({ source: verificationSource, instruction: 'Independently locate and verify each question directly from these pages.' }) },
       ...imageInputs(questionDirectory, 'question-paper', source.pageImageHashes),
@@ -664,14 +806,14 @@ function buildVerificationInput(source, extraction, questionDirectory, markSchem
 
 function buildPageWindowedExtractionInput(source, questionDirectory, pageWindow, pageText) {
   return [
-    { role: 'system', content: [{ type: 'input_text', text: 'Extract only questions whose printed question heading begins on an owned question-paper page. Use the supplied question-paper images for regions, diagrams, OCR and mathematics. Use the page-addressed mark-scheme text for marks and evidence. The explicit no-extractable-text marker means that PDF page has no text layer; it is not a missing page. Do not emit a question that begins outside the owned pages, invent a page hash, or emit an incomplete question.' }] },
+    { role: 'system', content: [{ type: 'input_text', text: 'Extract only questions whose printed question heading begins on an owned question-paper page. Always return questionStartPage as the page where that printed heading begins. Use the supplied question-paper images for regions, diagrams, OCR and mathematics. Use the page-addressed mark-scheme text for marks and evidence. The explicit no-extractable-text marker means that PDF page has no text layer; it is not a missing page. Do not emit a question that begins outside the owned pages, invent a page hash, or emit an incomplete question.' }] },
     { role: 'user', content: [
       { type: 'input_text', text: JSON.stringify({
         source: serializableSource(source),
         pageWindow,
-        instruction: 'The owned pages are the only question starts to emit. Visible pages include trailing context for questions that continue. The page-addressed text covers the full question paper and mark scheme for navigation and matching.',
+        instruction: 'The owned pages are the only question starts to emit. Visible pages include trailing context for questions that continue. The page-addressed text covers the visible question-paper context and complete mark scheme for navigation and matching.',
       }) },
-      { type: 'input_text', text: pageTextByPage('Question-paper', pageText.questionPaper, source.pageImageHashes) },
+      { type: 'input_text', text: pageTextByPage('Question-paper', pageText.questionPaper, source.pageImageHashes, pageWindow.visibleQuestionPaperPages) },
       { type: 'input_text', text: pageTextByPage('Mark-scheme', pageText.markScheme, source.markSchemePageHashes) },
       ...imageInputs(questionDirectory, 'question-paper', source.pageImageHashes, pageWindow.visibleQuestionPaperPages),
     ] },
@@ -681,22 +823,26 @@ function buildPageWindowedExtractionInput(source, questionDirectory, pageWindow,
 function buildPageWindowedVerificationInput(source, questionDirectory, pageWindow, pageText) {
   const { controlledTags: _controlledTags, ...verificationSource } = serializableSource(source)
   return [
-    { role: 'system', content: [{ type: 'input_text', text: 'Independently verify only questions whose printed heading begins on an owned question-paper page. Use the supplied question-paper images and page-addressed mark-scheme text. The explicit no-extractable-text marker means that PDF page has no text layer; it is not a missing page. Return only question identity, complete visible page span, parts, diagram count and mark-scheme evidence. Do not emit a question outside the owned pages.' }] },
+    { role: 'system', content: [{ type: 'input_text', text: 'Independently verify the window. Return questionStarts for every printed question heading visible in the supplied pages, including trailing context, with questionStartPage. For detailed questions, only return questions whose printed heading begins on an owned page; always include questionStartPage. Use the supplied question-paper images and page-addressed mark-scheme text. The explicit no-extractable-text marker means that PDF page has no text layer; it is not a missing page. Return complete visible page spans, parts, diagram counts and mark-scheme evidence for detailed questions. Do not invent a heading or emit a detailed question outside the owned pages.' }] },
     { role: 'user', content: [
       { type: 'input_text', text: JSON.stringify({
         source: verificationSource,
         pageWindow,
-        instruction: 'The owned pages are the only question starts to return. Visible pages include trailing context. Page-addressed text covers the full question paper and mark scheme for navigation and matching.',
+        instruction: 'The owned pages are the only question starts to return. Visible pages include trailing context. Page-addressed text covers the visible question-paper context and complete mark scheme for navigation and matching.',
       }) },
-      { type: 'input_text', text: pageTextByPage('Question-paper', pageText.questionPaper, source.pageImageHashes) },
+      { type: 'input_text', text: pageTextByPage('Question-paper', pageText.questionPaper, source.pageImageHashes, pageWindow.visibleQuestionPaperPages) },
       { type: 'input_text', text: pageTextByPage('Mark-scheme', pageText.markScheme, source.markSchemePageHashes) },
       ...imageInputs(questionDirectory, 'question-paper', source.pageImageHashes, pageWindow.visibleQuestionPaperPages),
     ] },
   ]
 }
 
-function pageTextByPage(label, textByPage, pageHashes) {
-  const pages = sortedPageNumbers(pageHashes)
+function pageTextByPage(label, textByPage, pageHashes, selectedPages = null) {
+  const availablePages = sortedPageNumbers(pageHashes)
+  const pages = selectedPages === null
+    ? availablePages
+    : selectedPages.filter((page) => availablePages.includes(page))
+  if (selectedPages !== null && pages.length !== selectedPages.length) throw codedError('PAGE_WINDOW_SOURCE_PAGES_INVALID')
   const entries = pages.map((page) => {
     const text = typeof textByPage?.[page] === 'string' ? textByPage[page].trim() : ''
     if (!text) throw codedError('PDF_TEXT_EXTRACTION_FAILED')
@@ -762,6 +908,7 @@ function artifactForResult(plan, source, options, validation, extraction, verifi
         ownedQuestionPaperPageCount: PAGE_WINDOW_OWNED_PAGE_COUNT,
         trailingQuestionPaperContextPageCount: PAGE_WINDOW_TRAILING_CONTEXT_PAGE_COUNT,
         markSchemeEvidenceMode: 'page-addressed-pdf-text',
+        ownershipReconciliation: 'boundary-recovery-v1',
       }
       : { id: 'whole-paper-v1' },
     source: serializableSource(source),
@@ -915,6 +1062,18 @@ function normalizeExtractionForValidation(extraction, verification) {
   }
 }
 
+function assertPageWindowAgreement(extraction, verification) {
+  const extractionQuestions = Array.isArray(extraction?.questions) ? extraction.questions : []
+  const verificationByQuestion = new Map((Array.isArray(verification?.questions) ? verification.questions : [])
+    .map(question => [question?.questionNumber, question]))
+  for (const question of extractionQuestions) {
+    const verified = verificationByQuestion.get(question?.questionNumber)
+    if (!verified || verified.questionStartPage !== question.questionStartPage) {
+      throw codedError('PAGE_WINDOW_START_PAGE_DISAGREEMENT')
+    }
+  }
+}
+
 function normalizeVerificationForValidation(verification) {
   if (!verification || typeof verification !== 'object' || !Array.isArray(verification.questions)) return verification
   return {
@@ -965,6 +1124,17 @@ function nonemptyString(value) {
   return typeof value === 'string' && value.trim() ? value.trim() : null
 }
 
+function withDeadline(promise, deadlineAt) {
+  if (!Number.isFinite(deadlineAt)) return promise
+  const remainingMs = Math.floor(deadlineAt - Date.now())
+  if (remainingMs < 1) return Promise.reject(codedError('AI_PAPER_TIMEOUT'))
+  let timer
+  const deadlinePromise = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(codedError('AI_PAPER_TIMEOUT')), remainingMs)
+  })
+  return Promise.race([promise, deadlinePromise]).finally(() => clearTimeout(timer))
+}
+
 function safeFailureCode(error) {
   return typeof error?.code === 'string' && /^([A-Z][A-Z0-9_]{2,})$/.test(error.code) ? error.code : 'INGESTION_FAILED'
 }
@@ -982,6 +1152,17 @@ function regionSchema() {
       page: { type: 'integer', minimum: 1 }, pageImageSha256: { type: 'string' },
       x0: { type: 'number', minimum: 0, maximum: 1 }, y0: { type: 'number', minimum: 0, maximum: 1 },
       x1: { type: 'number', minimum: 0, maximum: 1 }, y1: { type: 'number', minimum: 0, maximum: 1 },
+    },
+  }
+}
+
+function questionStartSchema() {
+  return {
+    type: 'object', additionalProperties: false,
+    required: ['questionNumber', 'questionStartPage'],
+    properties: {
+      questionNumber: { type: 'string' },
+      questionStartPage: { type: 'integer', minimum: 1 },
     },
   }
 }

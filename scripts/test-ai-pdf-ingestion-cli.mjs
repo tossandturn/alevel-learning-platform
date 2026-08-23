@@ -70,6 +70,7 @@ try {
   assert.equal(options.renderDpi, 180)
   assert.equal(options.maxAttempts, 3)
   assert.equal(options.timeoutMs, 120000)
+  assert.equal(options.paperTimeoutMs, 900000)
   assert.equal(options.dryRun, true)
   const mathOptions = parseArgs([
     '--paper-id', 'cie-9709-9709_m25_qp_52',
@@ -260,6 +261,8 @@ try {
   assert.ok(existsSync(plan.outputArtifactPath))
   assert.deepEqual(JSON.parse(readFileSync(plan.outputArtifactPath, 'utf8')).assets, verifiedResult.assets)
   assert.equal(structuredInputs.length, 2)
+  assert.ok(structuredInputs.every((input) => Number.isInteger(input.timeoutMs) && input.timeoutMs > 0 && input.timeoutMs <= options.timeoutMs))
+  assert.ok(structuredInputs.every((input) => Number.isFinite(input.deadlineAt)))
   const verifierUserText = structuredInputs[1].input[1].content[0].text
   assert.doesNotMatch(verifierUserText, /extraction|Part a|primaryTopicId|x0/)
   assert.doesNotMatch(JSON.stringify(structuredInputs[1].schema), /skillTagIds|questionFormatIds/)
@@ -328,9 +331,19 @@ try {
     callStructured: async request => {
       windowedRequests.push(request)
       if (request.schemaName === 'ai_pdf_question_extraction_v1') {
-        return windowedExtraction({ plan: windowedPlan, pageHashes: windowedPageHashes, markSchemePageHashes: windowedMarkSchemePageHashes, ...windowedQuestions[windowedExtractionIndex++] })
+        const question = windowedQuestions[windowedExtractionIndex++]
+        const response = windowedExtraction({ plan: windowedPlan, pageHashes: windowedPageHashes, markSchemePageHashes: windowedMarkSchemePageHashes, ...question })
+        if (question.questionNumber === '1') {
+          response.questions.push(windowedExtraction({ plan: windowedPlan, pageHashes: windowedPageHashes, markSchemePageHashes: windowedMarkSchemePageHashes, ...windowedQuestions[1] }).questions[0])
+        }
+        return response
       }
-      return windowedVerification({ markSchemePageHashes: windowedMarkSchemePageHashes, ...windowedQuestions[windowedVerificationIndex++] })
+      const question = windowedQuestions[windowedVerificationIndex++]
+      const response = windowedVerification({ markSchemePageHashes: windowedMarkSchemePageHashes, ...question })
+      if (question.questionNumber === '1') {
+        response.questions.push(windowedVerification({ markSchemePageHashes: windowedMarkSchemePageHashes, ...windowedQuestions[1] }).questions[0])
+      }
+      return response
     },
     runCropCommand: async () => { throw new Error('page-windowed coordinate-only ingestion must not crop question PDFs') },
     validateCropOutput: async () => { throw new Error('page-windowed coordinate-only ingestion must not validate cropped PDFs') },
@@ -340,10 +353,87 @@ try {
   assert.deepEqual(windowedResult.candidate.questions.map(question => question.questionNumber), ['1', '2', '3'])
   assert.equal(windowedExtractionIndex, 3)
   assert.equal(windowedVerificationIndex, 3)
-  assert.ok(windowedRequests.every((request) => request.input[1].content.filter(item => item.type === 'input_image').length <= 12))
+  assert.ok(windowedRequests.every((request) => request.input[1].content.filter(item => item.type === 'input_image').length <= 8))
   assert.ok(windowedRequests.every((request) => request.input[1].content.some(item => item.type === 'input_text' && item.text.startsWith('Mark-scheme text by page:'))))
-  assert.ok(windowedRequests.every((request) => request.input[1].content.some(item => item.type === 'input_text' && item.text.includes('Question-paper page 4;') && item.text.includes('[No extractable text on this page.]'))))
+  assert.ok(windowedRequests.every((request) => request.input[1].content.filter(item => item.type === 'input_text' && item.text.startsWith('Question-paper text by page:')).every(item => (item.text.match(/Question-paper page \d+;/g) || []).length <= 8)))
+  assert.ok(windowedRequests.some((request) => request.input[1].content.some(item => item.type === 'input_text' && item.text.includes('Question-paper page 4;') && item.text.includes('[No extractable text on this page.]'))))
   assert.ok(windowedRequests.every((request) => request.input[1].content.some(item => item.type === 'input_text' && item.text.includes('Mark-scheme page 2;') && item.text.includes('[No extractable text on this page.]'))))
+
+  const boundaryPageHashes = Object.fromEntries(Array.from({ length: 9 }, (_, index) => [index + 1, `${index + 1}`.repeat(64)]))
+  const boundaryMarkSchemePageHashes = { 1: 'a'.repeat(64), 2: 'b'.repeat(64) }
+  const boundaryOutputRoot = path.join(temporaryRoot, 'boundary-recovery-artifacts')
+  const boundaryOptions = { ...liveOptions, outputRoot: boundaryOutputRoot, coordinateOnly: true, pageWindowed: true }
+  const boundaryQuestion = windowedExtraction({
+    plan: windowedPlan,
+    pageHashes: boundaryPageHashes,
+    markSchemePageHashes: boundaryMarkSchemePageHashes,
+    questionNumber: '1',
+    page: 4,
+    markSchemePage: 1,
+  })
+  boundaryQuestion.questions[0].regions.push({ page: 9, pageImageSha256: boundaryPageHashes[9], x0: 0.1, y0: 0.1, x1: 0.9, y1: 0.9 })
+  const boundaryVerification = windowedVerification({
+    markSchemePageHashes: boundaryMarkSchemePageHashes,
+    questionNumber: '1',
+    page: 4,
+    markSchemePage: 1,
+  })
+  boundaryVerification.questions[0].pages.push(9)
+  const boundaryRequests = []
+  const boundaryResult = await runCli(boundaryOptions, {
+    env: { OPENAI_API_KEY: fakeApiKey },
+    renderPdf: fakeRenderer({ questionPdf, pageHashes: boundaryPageHashes, markSchemePageHashes: boundaryMarkSchemePageHashes }),
+    extractPdfText: async (_pdfPath, pageHashes) => Object.fromEntries(Object.keys(pageHashes).map(page => [page, `text for page ${page}`])),
+    callStructured: async request => {
+      boundaryRequests.push(request)
+      const pageWindow = JSON.parse(request.input[1].content[0].text).pageWindow
+      const isRecovery = pageWindow.recovery === true
+      const ownsFirstBasePage = pageWindow.ownedQuestionPaperPages.includes(1)
+      if (request.schemaName === 'ai_pdf_question_extraction_v1') {
+        return isRecovery || ownsFirstBasePage ? boundaryQuestion : { ...boundaryQuestion, questions: [] }
+      }
+      return isRecovery || ownsFirstBasePage ? boundaryVerification : { ...boundaryVerification, questionStarts: [], questions: [] }
+    },
+  })
+  assert.equal(boundaryResult.status, 'ai-verified', JSON.stringify(boundaryResult.reasonCodes))
+  assert.deepEqual(boundaryResult.candidate.questions.map(question => question.questionNumber), ['1'])
+  assert.equal(boundaryResult.candidate.questions[0].regions.at(-1).page, 9)
+  assert.ok(boundaryRequests.some(request => JSON.parse(request.input[1].content[0].text).pageWindow.recovery === true))
+
+  const unresolvedOutputRoot = path.join(temporaryRoot, 'unresolved-ownership-artifacts')
+  const unresolvedOptions = { ...windowedOptions, outputRoot: unresolvedOutputRoot }
+  let unresolvedExtractionCalls = 0
+  let unresolvedVerificationCalls = 0
+  const unresolvedResult = await runCli(unresolvedOptions, {
+    env: { OPENAI_API_KEY: fakeApiKey },
+    renderPdf: fakeRenderer({ questionPdf, pageHashes: windowedPageHashes, markSchemePageHashes: windowedMarkSchemePageHashes }),
+    extractPdfText: async (_pdfPath, pageHashes) => Object.fromEntries(Object.keys(pageHashes).map(page => [page, `text for page ${page}`])),
+    callStructured: async request => {
+      const pageWindow = JSON.parse(request.input[1].content[0].text).pageWindow
+      const owned = new Set(pageWindow.ownedQuestionPaperPages)
+      if (request.schemaName === 'ai_pdf_question_extraction_v1') {
+        unresolvedExtractionCalls += 1
+        if (owned.has(1)) {
+          const response = windowedExtraction({ plan: windowedPlan, pageHashes: windowedPageHashes, markSchemePageHashes: windowedMarkSchemePageHashes, ...windowedQuestions[0] })
+          return response
+        }
+        if (owned.has(9)) return windowedExtraction({ plan: windowedPlan, pageHashes: windowedPageHashes, markSchemePageHashes: windowedMarkSchemePageHashes, ...windowedQuestions[2] })
+        return { source: { questionPdfSha256: windowedPlan.immutableInputs.questionPdf.sha256, markSchemePdfSha256: windowedPlan.immutableInputs.markSchemePdf.sha256 }, questions: [] }
+      }
+      unresolvedVerificationCalls += 1
+      if (owned.has(1)) {
+        const response = windowedVerification({ markSchemePageHashes: windowedMarkSchemePageHashes, ...windowedQuestions[0] })
+        response.questionStarts.push({ questionNumber: '2', questionStartPage: 5 })
+        return response
+      }
+      if (owned.has(9)) return windowedVerification({ markSchemePageHashes: windowedMarkSchemePageHashes, ...windowedQuestions[2] })
+      return { questionStarts: [], questions: [] }
+    },
+  })
+  assert.equal(unresolvedResult.status, 'auto-quarantined')
+  assert.deepEqual(unresolvedResult.reasonCodes, ['PAGE_WINDOW_QUESTION_OWNERSHIP_UNRESOLVED'])
+  assert.equal(unresolvedExtractionCalls, 4)
+  assert.equal(unresolvedVerificationCalls, 4)
 
   const noTextOutputRoot = path.join(temporaryRoot, 'no-text-artifacts')
   const noTextResult = await runCli({ ...liveOptions, outputRoot: noTextOutputRoot, coordinateOnly: true, pageWindowed: true }, {
@@ -472,7 +562,7 @@ try {
   assert.equal(staleCoordinateListing.candidates[0].status, 'auto-quarantined')
   assert.ok(staleCoordinateListing.candidates[0].reasonCodes.includes('COORDINATE_SOURCE_SHA256_MISMATCH'))
 
-  console.log(JSON.stringify({ status: 'passed', checks: 80 }))
+  console.log(JSON.stringify({ status: 'passed', checks: 81 }))
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true })
 }
@@ -508,6 +598,7 @@ function validExtraction({ plan, pageHashes, markSchemePageHashes }) {
     questions: [
       {
         questionNumber: '1',
+        questionStartPage: 1,
         regions: [
           { page: 2, pageImageSha256: pageHashes[2], x0: 0.1, y0: 0.05, x1: 0.9, y1: 0.4 },
           { page: 1, pageImageSha256: pageHashes[1], x0: 0.1, y0: 0.2, x1: 0.9, y1: 0.95 },
@@ -520,6 +611,7 @@ function validExtraction({ plan, pageHashes, markSchemePageHashes }) {
       },
       {
         questionNumber: '2',
+        questionStartPage: 2,
         regions: [{ page: 2, pageImageSha256: pageHashes[2], x0: 0.1, y0: 0.45, x1: 0.9, y1: 0.9 }],
         diagramRegions: [], parts: [part('a')], tags,
         markSchemeEvidence: [{ page: 1, pageImageSha256: markSchemePageHashes[1] }],
@@ -530,9 +622,13 @@ function validExtraction({ plan, pageHashes, markSchemePageHashes }) {
 
 function validVerification(markSchemePageHashes) {
   return {
+    questionStarts: [
+      { questionNumber: '1', questionStartPage: 1 },
+      { questionNumber: '2', questionStartPage: 2 },
+    ],
     questions: [
-       { questionNumber: '1', pages: [1, 2], parts: [{ label: 'a', marks: 2 }], diagramRegionCount: 2, markSchemeEvidence: [{ page: 1, pageImageSha256: markSchemePageHashes[1] }] },
-      { questionNumber: '2', pages: [2], parts: [{ label: 'a', marks: 2 }], diagramRegionCount: 0, markSchemeEvidence: [{ page: 1, pageImageSha256: markSchemePageHashes[1] }] },
+       { questionNumber: '1', questionStartPage: 1, pages: [1, 2], parts: [{ label: 'a', marks: 2 }], diagramRegionCount: 2, markSchemeEvidence: [{ page: 1, pageImageSha256: markSchemePageHashes[1] }] },
+      { questionNumber: '2', questionStartPage: 2, pages: [2], parts: [{ label: 'a', marks: 2 }], diagramRegionCount: 0, markSchemeEvidence: [{ page: 1, pageImageSha256: markSchemePageHashes[1] }] },
     ],
   }
 }
@@ -545,6 +641,7 @@ function windowedExtraction({ plan, pageHashes, markSchemePageHashes, questionNu
     },
     questions: [{
       questionNumber,
+      questionStartPage: page,
       regions: [{ page, pageImageSha256: pageHashes[page], x0: 0.1, y0: 0.1, x1: 0.9, y1: 0.9 }],
       diagramRegions: [],
       parts: [{ label: 'a', marks: 2, ocrText: `Question ${questionNumber}`, math: [], diagramAssociations: [] }],
@@ -560,8 +657,10 @@ function windowedExtraction({ plan, pageHashes, markSchemePageHashes, questionNu
 
 function windowedVerification({ markSchemePageHashes, questionNumber, page, markSchemePage }) {
   return {
+    questionStarts: [{ questionNumber, questionStartPage: page }],
     questions: [{
       questionNumber,
+      questionStartPage: page,
       pages: [page],
       parts: [{ label: 'a', marks: 2 }],
       diagramRegionCount: 0,

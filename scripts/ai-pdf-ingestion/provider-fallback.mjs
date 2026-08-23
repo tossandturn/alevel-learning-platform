@@ -62,12 +62,14 @@ export async function callStructuredWithFallback({
 } = {}) {
   let lastError = null
   for (const provider of providers) {
+    if (Number.isFinite(request?.deadlineAt) && Date.now() >= request.deadlineAt) throw codedError('AI_PAPER_TIMEOUT', 'AI paper deadline exceeded.')
     try {
       const value = provider.name === 'openai'
         ? await callOpenAi({ ...request, apiKey: provider.apiKey, model: provider.model, baseUrl: provider.baseUrl || undefined })
         : await callCompatible({ ...request, apiKey: provider.apiKey, model: provider.model, baseUrl: provider.baseUrl })
       return Object.freeze({ provider, value })
     } catch (error) {
+      if (error?.code === 'AI_PAPER_TIMEOUT') throw error
       lastError = error
     }
   }
@@ -84,6 +86,7 @@ export async function callCompatibleStructured({
   fetchImpl = fetch,
   maxAttempts = 3,
   timeoutMs = 30000,
+  deadlineAt = null,
   sleep = (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)),
 } = {}) {
   if (!nonempty(apiKey)) throw codedError('QWEN_CONFIGURATION_INVALID', 'Qwen API key is not configured.')
@@ -93,8 +96,9 @@ export async function callCompatibleStructured({
   const messages = compatibleMessages(input, schema)
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const requestTimeoutMs = effectiveTimeoutMs(timeoutMs, deadlineAt)
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), timeoutMs)
+    const timeout = setTimeout(() => controller.abort(), requestTimeoutMs)
     try {
       const response = await fetchImpl(endpoint, {
         method: 'POST',
@@ -123,9 +127,12 @@ export async function callCompatibleStructured({
     } catch (error) {
       const retryable = controller.signal.aborted || error?.retryable === true
       if (retryable && attempt < maxAttempts) {
-        await sleep(Math.min(4000, 250 * (2 ** (attempt - 1))))
+        const delayMs = Math.min(4000, 250 * (2 ** (attempt - 1)))
+        if (Number.isFinite(deadlineAt) && Date.now() + delayMs >= deadlineAt) throw codedError('AI_PAPER_TIMEOUT', 'AI paper deadline exceeded.')
+        await sleep(delayMs)
         continue
       }
+      if (Number.isFinite(deadlineAt) && Date.now() >= deadlineAt) throw codedError('AI_PAPER_TIMEOUT', 'AI paper deadline exceeded.')
       if (controller.signal.aborted) throw codedError('QWEN_TIMEOUT', 'Qwen request timed out.')
       throw error?.code ? error : codedError('QWEN_NETWORK_ERROR', 'Qwen request failed before a response was received.')
     } finally {
@@ -133,6 +140,13 @@ export async function callCompatibleStructured({
     }
   }
   throw codedError('QWEN_NETWORK_ERROR', 'Qwen request failed before a response was received.')
+}
+
+function effectiveTimeoutMs(timeoutMs, deadlineAt) {
+  if (!Number.isFinite(deadlineAt)) return timeoutMs
+  const remainingMs = Math.floor(deadlineAt - Date.now())
+  if (remainingMs < 1) throw codedError('AI_PAPER_TIMEOUT', 'AI paper deadline exceeded.')
+  return Math.min(timeoutMs, remainingMs)
 }
 
 function compatibleMessages(input, schema) {

@@ -54,6 +54,17 @@ function timeoutError() {
   return sanitizedError('OPENAI_TIMEOUT', 'OpenAI request timed out.', { retryable: true })
 }
 
+function paperTimeoutError() {
+  return sanitizedError('AI_PAPER_TIMEOUT', 'AI paper deadline exceeded.')
+}
+
+function effectiveTimeoutMs(timeoutMs, deadlineAt) {
+  if (!Number.isFinite(deadlineAt)) return timeoutMs
+  const remainingMs = Math.floor(deadlineAt - Date.now())
+  if (remainingMs < 1) throw paperTimeoutError()
+  return Math.min(timeoutMs, remainingMs)
+}
+
 export function resolveOpenAiResponsesUrl(baseUrl) {
   if (typeof baseUrl !== 'string' || !baseUrl.trim()) {
     return OPENAI_RESPONSES_URL
@@ -94,6 +105,7 @@ export async function callOpenAiStructured({
   fetchImpl = fetch,
   maxAttempts = 3,
   timeoutMs = 30000,
+  deadlineAt = null,
   sleep = (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)),
   randomImpl = Math.random,
 }) {
@@ -116,8 +128,9 @@ export async function callOpenAiStructured({
   })
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const requestTimeoutMs = effectiveTimeoutMs(timeoutMs, deadlineAt)
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), timeoutMs)
+    const timeout = setTimeout(() => controller.abort(), requestTimeoutMs)
     let failure
     let result
 
@@ -185,9 +198,12 @@ export async function callOpenAiStructured({
 
     if (failure) {
       if (failure.retryable && attempt < maxAttempts) {
-        await sleep(retryDelayMs(attempt, randomImpl))
+        const delayMs = retryDelayMs(attempt, randomImpl)
+        if (Number.isFinite(deadlineAt) && Date.now() + delayMs >= deadlineAt) throw paperTimeoutError()
+        await sleep(delayMs)
         continue
       }
+      if (Number.isFinite(deadlineAt) && Date.now() >= deadlineAt) throw paperTimeoutError()
       throw failure
     }
 

@@ -9,6 +9,9 @@ const SUBJECT = '9702'
 const FIRST_YEAR = 2021
 const LAST_YEAR = 2025
 const DEFAULT_RENDER_DPI = 180
+const PAGE_WINDOW_MAX_ATTEMPTS = 1
+const PAGE_WINDOW_TIMEOUT_MS = 60000
+const PAGE_WINDOW_PAPER_TIMEOUT_MS = 900000
 
 function requiredDirectory(value, label) {
   const directory = path.resolve(String(value || ''))
@@ -70,6 +73,9 @@ export function buildA2P4FiveYearJobs({ libraryRoot, outputRoot, renderDpi = DEF
     component: 4,
     coordinateOnly: true,
     pageWindowed: true,
+    maxAttempts: PAGE_WINDOW_MAX_ATTEMPTS,
+    timeoutMs: PAGE_WINDOW_TIMEOUT_MS,
+    paperTimeoutMs: PAGE_WINDOW_PAPER_TIMEOUT_MS,
     questionPdf: path.join(subjectRoot, pair.questionFile),
     markSchemePdf: path.join(subjectRoot, pair.markSchemeFile),
     outputRoot: resolvedOutputRoot,
@@ -87,6 +93,9 @@ async function runOneIngestion(job, { cwd, env }) {
     '--subject', SUBJECT,
     '--output-root', job.outputRoot,
     '--render-dpi', String(job.renderDpi),
+    '--max-attempts', String(job.maxAttempts),
+    '--timeout-ms', String(job.timeoutMs),
+    '--paper-timeout-ms', String(job.paperTimeoutMs),
     '--coordinate-only',
     '--page-windowed',
   ]
