@@ -103,6 +103,29 @@ try {
   })
   assert.equal(envTimeoutOptions.baseUrl, 'https://ai.ieltsist.com/')
   assert.equal(envTimeoutOptions.timeoutMs, 90000)
+
+  const workerReleaseCwd = path.join(temporaryRoot, 'releases', '20260823-worker')
+  const sharedWorkerEnvPath = path.join(temporaryRoot, 'shared', '.env')
+  mkdirSync(path.dirname(sharedWorkerEnvPath), { recursive: true })
+  writeFileSync(sharedWorkerEnvPath, [
+    'OPENAI_API_KEY=worker-shared-openai-provider-value',
+    'DASHSCOPE_API_KEY=worker-shared-qwen-provider-value',
+    'AI_PDF_INGESTION_MODEL=gpt-5.6-shared-worker',
+    'OPENAI_BASE_URL=https://ai.example.test/v1',
+    'AI_PDF_INGESTION_TIMEOUT_MS=65000',
+    '',
+  ].join('\n'), 'utf8')
+  const sharedWorkerOptions = parseArgs([
+    '--paper-id', 'cie-9702-9702_m25_qp_22',
+    '--question-pdf', questionPdf,
+    '--mark-scheme-pdf', markSchemePdf,
+    '--subject', '9702',
+    '--output-root', path.join(temporaryRoot, 'shared-worker-artifacts'),
+    '--coordinate-only',
+  ], { cwd: workerReleaseCwd, env: {} })
+  assert.equal(sharedWorkerOptions.model, 'gpt-5.6-shared-worker')
+  assert.equal(sharedWorkerOptions.baseUrl, 'https://ai.example.test/v1')
+  assert.equal(sharedWorkerOptions.timeoutMs, 65000)
   assert.equal(parseArgs([
     '--paper-id', 'cie-9702-9702_m25_qp_22',
     '--question-pdf', questionPdf,
@@ -256,6 +279,31 @@ try {
   assert.equal(fallbackResult.verifier.provider, 'qwen')
   assert.deepEqual(fallbackStages, ['ai_pdf_question_extraction_v1', 'ai_pdf_question_verification_v1'])
 
+  const sharedWorkerPlan = buildDryRunPlan({ ...sharedWorkerOptions, dryRun: false })
+  let sharedWorkerCalls = 0
+  const sharedWorkerProviderNames = []
+  const sharedWorkerResult = await runCli({ ...sharedWorkerOptions, dryRun: false }, {
+    cwd: workerReleaseCwd,
+    env: {},
+    renderPdf: fakeRenderer({ questionPdf, pageHashes, markSchemePageHashes }),
+    callWithFallback: async ({ providers, request }) => {
+      sharedWorkerProviderNames.push(providers.map(provider => provider.name))
+      assert.equal(request.model, 'gpt-5.6-shared-worker')
+      return {
+        provider: providers[0],
+        value: sharedWorkerCalls++ === 0
+          ? validExtraction({ plan: sharedWorkerPlan, pageHashes, markSchemePageHashes })
+          : validVerification(markSchemePageHashes),
+      }
+    },
+    runCropCommand: async () => { throw new Error('shared-worker coordinate-only ingestion must not crop question PDFs') },
+    validateCropOutput: async () => { throw new Error('shared-worker coordinate-only ingestion must not validate cropped PDFs') },
+  })
+  assert.equal(sharedWorkerResult.status, 'ai-verified', JSON.stringify(sharedWorkerResult.reasonCodes))
+  assert.deepEqual(sharedWorkerProviderNames, [['openai', 'qwen'], ['openai', 'qwen']])
+  assert.equal(sharedWorkerResult.extractor.provider, 'openai')
+  assert.doesNotMatch(JSON.stringify(sharedWorkerResult), /worker-shared-(?:openai|qwen)-provider-value/)
+
   const mcqOutputRoot = path.join(temporaryRoot, 'mcq-artifacts')
   const mcqOptions = { ...liveOptions, outputRoot: mcqOutputRoot }
   const mcqPlan = buildDryRunPlan(mcqOptions)
@@ -348,7 +396,7 @@ try {
   assert.equal(staleCoordinateListing.candidates[0].status, 'auto-quarantined')
   assert.ok(staleCoordinateListing.candidates[0].reasonCodes.includes('COORDINATE_SOURCE_SHA256_MISMATCH'))
 
-  console.log(JSON.stringify({ status: 'passed', checks: 60 }))
+  console.log(JSON.stringify({ status: 'passed', checks: 67 }))
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true })
 }

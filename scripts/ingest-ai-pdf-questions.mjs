@@ -9,6 +9,7 @@ import { CAMBRIDGE_9702_AS_SYLLABUS } from '../src/data/syllabus/cambridge-9702-
 import { CAMBRIDGE_0580_IGCSE_SYLLABUS } from '../src/data/syllabus/cambridge-0580-igcse-2025-2027.js'
 import { CAMBRIDGE_0625_IGCSE_SYLLABUS } from '../src/data/syllabus/cambridge-0625-igcse-2026-2028.js'
 import { CAMBRIDGE_9709_AS_P1_S1_SYLLABUS } from '../src/data/syllabus/cambridge-9709-as-p1-s1-2026-2027.js'
+import { mergeRuntimeEnv } from '../src/lib/runtimeEnv.js'
 import { AI_PDF_INGESTION_SCHEMA_VERSION, artifactId } from './ai-pdf-ingestion/contract.mjs'
 import { callStructuredWithFallback, providersFromEnvironment } from './ai-pdf-ingestion/provider-fallback.mjs'
 import {
@@ -89,6 +90,7 @@ const verifierSchema = {
 }
 
 export function parseArgs(argv, { cwd = process.cwd(), env = process.env } = {}) {
+  const runtimeEnv = mergeRuntimeEnv({ cwd, env })
   const values = {}
   const flags = new Set(['--dry-run', '--retry', '--coordinate-only'])
   const options = new Set([
@@ -124,8 +126,8 @@ export function parseArgs(argv, { cwd = process.cwd(), env = process.env } = {})
 
   const renderDpi = positiveInteger(values['--render-dpi'] ?? DEFAULT_RENDER_DPI, '--render-dpi')
   const maxAttempts = positiveInteger(values['--max-attempts'] ?? DEFAULT_MAX_ATTEMPTS, '--max-attempts')
-  const timeoutMs = positiveInteger(values['--timeout-ms'] ?? env.AI_PDF_INGESTION_TIMEOUT_MS ?? DEFAULT_OPENAI_TIMEOUT_MS, '--timeout-ms')
-  const outputRoot = path.resolve(cwd, values['--output-root'] ?? env.AI_PDF_INGESTION_ROOT ?? DEFAULT_OUTPUT_ROOT)
+  const timeoutMs = positiveInteger(values['--timeout-ms'] ?? runtimeEnv.AI_PDF_INGESTION_TIMEOUT_MS ?? DEFAULT_OPENAI_TIMEOUT_MS, '--timeout-ms')
+  const outputRoot = path.resolve(cwd, values['--output-root'] ?? runtimeEnv.AI_PDF_INGESTION_ROOT ?? DEFAULT_OUTPUT_ROOT)
 
   return Object.freeze({
     paperId: values['--paper-id'],
@@ -133,8 +135,8 @@ export function parseArgs(argv, { cwd = process.cwd(), env = process.env } = {})
     markSchemePdf: resolveExistingFile(values['--mark-scheme-pdf'], '--mark-scheme-pdf', cwd),
     subject: values['--subject'],
     outputRoot,
-    model: nonemptyString(values['--model'] ?? env.AI_PDF_INGESTION_MODEL) ?? 'gpt-5.6',
-    baseUrl: nonemptyString(values['--base-url'] ?? env.OPENAI_BASE_URL),
+    model: nonemptyString(values['--model'] ?? runtimeEnv.AI_PDF_INGESTION_MODEL) ?? 'gpt-5.6',
+    baseUrl: nonemptyString(values['--base-url'] ?? runtimeEnv.OPENAI_BASE_URL),
     dryRun: values.dryRun === true,
     retry: values.retry === true,
     coordinateOnly: values.coordinateOnly === true,
@@ -170,6 +172,7 @@ export function buildDryRunPlan(options) {
 }
 
 export async function runCli(options, {
+  cwd = process.cwd(),
   env = process.env,
   callStructured = null,
   callWithFallback = callStructuredWithFallback,
@@ -179,6 +182,7 @@ export async function runCli(options, {
   validateCropOutput = validateCropOutputWithBundledPython,
   writeArtifact = writeArtifactSafely,
 } = {}) {
+  const runtimeEnv = mergeRuntimeEnv({ cwd, env })
   const plan = buildDryRunPlan(options)
   if (options.dryRun) return plan
 
@@ -215,21 +219,21 @@ export async function runCli(options, {
     const markSchemeRenderDirectory = path.join(temporaryDirectory, 'mark-scheme')
     fs.mkdirSync(questionRenderDirectory)
     fs.mkdirSync(markSchemeRenderDirectory)
-    const questionRender = normalizeRenderResult(await renderPdf(options.questionPdf, questionRenderDirectory, options.renderDpi, env))
-    const markSchemeRender = normalizeRenderResult(await renderPdf(options.markSchemePdf, markSchemeRenderDirectory, options.renderDpi, env))
+    const questionRender = normalizeRenderResult(await renderPdf(options.questionPdf, questionRenderDirectory, options.renderDpi, runtimeEnv))
+    const markSchemeRender = normalizeRenderResult(await renderPdf(options.markSchemePdf, markSchemeRenderDirectory, options.renderDpi, runtimeEnv))
     source.pageImageHashes = questionRender.pageImageHashes
     source.pageSizes = questionRender.pageSizes
     source.markSchemePageHashes = markSchemeRender.pageImageHashes
     source.markSchemePageSizes = markSchemeRender.pageSizes
 
-    const providers = callStructured ? [] : providerChain(env, { model: options.model, baseUrl: options.baseUrl })
+    const providers = callStructured ? [] : providerChain(runtimeEnv, { model: options.model, baseUrl: options.baseUrl })
     if (!callStructured && providers.length === 0) {
       return await writeQuarantine({ plan, source, writeArtifact, reasonCodes: ['OPENAI_CONFIGURATION_INVALID'] })
     }
 
     const requestStructured = async ({ schemaName, schema, input }) => {
       const request = {
-        apiKey: env.OPENAI_API_KEY,
+        apiKey: runtimeEnv.OPENAI_API_KEY,
         model: options.model,
         baseUrl: options.baseUrl,
         schemaName,
@@ -742,8 +746,10 @@ function tagSchema(controlledTags = null) {
 
 async function main() {
   try {
-    const options = parseArgs(process.argv.slice(2))
-    const result = await runCli(options)
+    const cwd = process.cwd()
+    const env = mergeRuntimeEnv({ cwd, env: process.env })
+    const options = parseArgs(process.argv.slice(2), { cwd, env })
+    const result = await runCli(options, { cwd, env })
     process.stdout.write(`${JSON.stringify(result)}\n`)
     process.exitCode = result.status === 'auto-quarantined' ? 2 : 0
   } catch (error) {
