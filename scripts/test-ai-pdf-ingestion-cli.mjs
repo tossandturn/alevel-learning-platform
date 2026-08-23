@@ -166,6 +166,17 @@ try {
   ], { cwd: temporaryRoot, env: { OPENAI_API_KEY: fakeApiKey } })
   assert.equal(coordinateOnlyOptions.coordinateOnly, true)
 
+  const pageWindowedOptions = parseArgs([
+    '--paper-id', 'cie-9702-9702_m25_qp_22',
+    '--question-pdf', questionPdf,
+    '--mark-scheme-pdf', markSchemePdf,
+    '--subject', '9702',
+    '--output-root', outputRoot,
+    '--coordinate-only',
+    '--page-windowed',
+  ], { cwd: temporaryRoot, env: { OPENAI_API_KEY: fakeApiKey } })
+  assert.equal(pageWindowedOptions.pageWindowed, true)
+
   const plan = buildDryRunPlan(options)
   assert.equal(plan.mode, 'dry-run')
   assert.match(plan.artifactId, /^sha256:[a-f0-9]{64}$/)
@@ -278,6 +289,41 @@ try {
   assert.equal(fallbackResult.extractor.provider, 'qwen')
   assert.equal(fallbackResult.verifier.provider, 'qwen')
   assert.deepEqual(fallbackStages, ['ai_pdf_question_extraction_v1', 'ai_pdf_question_verification_v1'])
+
+  const windowedPageHashes = Object.fromEntries(Array.from({ length: 9 }, (_, index) => [index + 1, `${index + 1}`.repeat(64)]))
+  const windowedMarkSchemePageHashes = { 1: 'a'.repeat(64), 2: 'b'.repeat(64) }
+  const windowedOutputRoot = path.join(temporaryRoot, 'windowed-artifacts')
+  const windowedOptions = { ...liveOptions, outputRoot: windowedOutputRoot, coordinateOnly: true, pageWindowed: true }
+  const windowedPlan = buildDryRunPlan(windowedOptions)
+  const windowedQuestions = [
+    { questionNumber: '1', page: 1, markSchemePage: 1 },
+    { questionNumber: '2', page: 5, markSchemePage: 1 },
+    { questionNumber: '3', page: 9, markSchemePage: 2 },
+  ]
+  const windowedRequests = []
+  let windowedExtractionIndex = 0
+  let windowedVerificationIndex = 0
+  const windowedResult = await runCli(windowedOptions, {
+    env: { OPENAI_API_KEY: fakeApiKey },
+    renderPdf: fakeRenderer({ questionPdf, pageHashes: windowedPageHashes, markSchemePageHashes: windowedMarkSchemePageHashes }),
+    extractPdfText: async (_pdfPath, pageHashes) => Object.fromEntries(Object.keys(pageHashes).map(page => [page, `text for page ${page}`])),
+    callStructured: async request => {
+      windowedRequests.push(request)
+      if (request.schemaName === 'ai_pdf_question_extraction_v1') {
+        return windowedExtraction({ plan: windowedPlan, pageHashes: windowedPageHashes, markSchemePageHashes: windowedMarkSchemePageHashes, ...windowedQuestions[windowedExtractionIndex++] })
+      }
+      return windowedVerification({ markSchemePageHashes: windowedMarkSchemePageHashes, ...windowedQuestions[windowedVerificationIndex++] })
+    },
+    runCropCommand: async () => { throw new Error('page-windowed coordinate-only ingestion must not crop question PDFs') },
+    validateCropOutput: async () => { throw new Error('page-windowed coordinate-only ingestion must not validate cropped PDFs') },
+  })
+  assert.equal(windowedResult.status, 'ai-verified', JSON.stringify(windowedResult.reasonCodes))
+  assert.equal(windowedResult.ingestionStrategy.id, 'page-windowed-v1')
+  assert.deepEqual(windowedResult.candidate.questions.map(question => question.questionNumber), ['1', '2', '3'])
+  assert.equal(windowedExtractionIndex, 3)
+  assert.equal(windowedVerificationIndex, 3)
+  assert.ok(windowedRequests.every((request) => request.input[1].content.filter(item => item.type === 'input_image').length <= 12))
+  assert.ok(windowedRequests.every((request) => request.input[1].content.some(item => item.type === 'input_text' && item.text.startsWith('Mark-scheme text by page:'))))
 
   const sharedWorkerPlan = buildDryRunPlan({ ...sharedWorkerOptions, dryRun: false })
   let sharedWorkerCalls = 0
@@ -396,7 +442,7 @@ try {
   assert.equal(staleCoordinateListing.candidates[0].status, 'auto-quarantined')
   assert.ok(staleCoordinateListing.candidates[0].reasonCodes.includes('COORDINATE_SOURCE_SHA256_MISMATCH'))
 
-  console.log(JSON.stringify({ status: 'passed', checks: 67 }))
+  console.log(JSON.stringify({ status: 'passed', checks: 76 }))
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true })
 }
@@ -458,6 +504,39 @@ function validVerification(markSchemePageHashes) {
        { questionNumber: '1', pages: [1, 2], parts: [{ label: 'a', marks: 2 }], diagramRegionCount: 2, markSchemeEvidence: [{ page: 1, pageImageSha256: markSchemePageHashes[1] }] },
       { questionNumber: '2', pages: [2], parts: [{ label: 'a', marks: 2 }], diagramRegionCount: 0, markSchemeEvidence: [{ page: 1, pageImageSha256: markSchemePageHashes[1] }] },
     ],
+  }
+}
+
+function windowedExtraction({ plan, pageHashes, markSchemePageHashes, questionNumber, page, markSchemePage }) {
+  return {
+    source: {
+      questionPdfSha256: plan.immutableInputs.questionPdf.sha256,
+      markSchemePdfSha256: plan.immutableInputs.markSchemePdf.sha256,
+    },
+    questions: [{
+      questionNumber,
+      regions: [{ page, pageImageSha256: pageHashes[page], x0: 0.1, y0: 0.1, x1: 0.9, y1: 0.9 }],
+      diagramRegions: [],
+      parts: [{ label: 'a', marks: 2, ocrText: `Question ${questionNumber}`, math: [], diagramAssociations: [] }],
+      tags: {
+        primaryTopicId: 'physics-9702-topic-01',
+        secondaryTopicIds: [],
+        syllabusPointIds: ['physics-9702-point-1-1-01'],
+      },
+      markSchemeEvidence: [{ page: markSchemePage, pageImageSha256: markSchemePageHashes[markSchemePage] }],
+    }],
+  }
+}
+
+function windowedVerification({ markSchemePageHashes, questionNumber, page, markSchemePage }) {
+  return {
+    questions: [{
+      questionNumber,
+      pages: [page],
+      parts: [{ label: 'a', marks: 2 }],
+      diagramRegionCount: 0,
+      markSchemeEvidence: [{ page: markSchemePage, pageImageSha256: markSchemePageHashes[markSchemePage] }],
+    }],
   }
 }
 

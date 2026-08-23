@@ -69,6 +69,7 @@ export function buildA2P4FiveYearJobs({ libraryRoot, outputRoot, renderDpi = DEF
     subject: SUBJECT,
     component: 4,
     coordinateOnly: true,
+    pageWindowed: true,
     questionPdf: path.join(subjectRoot, pair.questionFile),
     markSchemePdf: path.join(subjectRoot, pair.markSchemeFile),
     outputRoot: resolvedOutputRoot,
@@ -87,6 +88,7 @@ async function runOneIngestion(job, { cwd, env }) {
     '--output-root', job.outputRoot,
     '--render-dpi', String(job.renderDpi),
     '--coordinate-only',
+    '--page-windowed',
   ]
   if (job.retry) argv.push('--retry')
   if (job.dryRun) argv.push('--dry-run')

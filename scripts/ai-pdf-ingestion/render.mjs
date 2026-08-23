@@ -9,6 +9,7 @@ import { normalizeRegion } from './contract.mjs'
 const popplerTools = Object.freeze({
   pdftoppm: { envName: 'PDFTOPPM_BIN', executable: 'pdftoppm' },
   pdftocairo: { envName: 'PDFTOCAIRO_BIN', executable: 'pdftocairo' },
+  pdftotext: { envName: 'PDFTOTEXT_BIN', executable: 'pdftotext' },
 })
 const sourceHashPattern = /^(?:sha256:)?([a-fA-F0-9]{64})$/
 const safePathSegmentPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/
