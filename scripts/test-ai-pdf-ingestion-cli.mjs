@@ -319,7 +319,12 @@ try {
   const windowedResult = await runCli(windowedOptions, {
     env: { OPENAI_API_KEY: fakeApiKey },
     renderPdf: fakeRenderer({ questionPdf, pageHashes: windowedPageHashes, markSchemePageHashes: windowedMarkSchemePageHashes }),
-    extractPdfText: async (_pdfPath, pageHashes) => Object.fromEntries(Object.keys(pageHashes).map(page => [page, `text for page ${page}`])),
+    extractPdfText: async (pdfPath, pageHashes) => Object.fromEntries(Object.keys(pageHashes).map((page) => [
+      page,
+      (pdfPath === questionPdf && page === '4') || (pdfPath === markSchemePdf && page === '2')
+        ? ''
+        : `text for page ${page}`,
+    ])),
     callStructured: async request => {
       windowedRequests.push(request)
       if (request.schemaName === 'ai_pdf_question_extraction_v1') {
@@ -337,6 +342,18 @@ try {
   assert.equal(windowedVerificationIndex, 3)
   assert.ok(windowedRequests.every((request) => request.input[1].content.filter(item => item.type === 'input_image').length <= 12))
   assert.ok(windowedRequests.every((request) => request.input[1].content.some(item => item.type === 'input_text' && item.text.startsWith('Mark-scheme text by page:'))))
+  assert.ok(windowedRequests.every((request) => request.input[1].content.some(item => item.type === 'input_text' && item.text.includes('Question-paper page 4;') && item.text.includes('[No extractable text on this page.]'))))
+  assert.ok(windowedRequests.every((request) => request.input[1].content.some(item => item.type === 'input_text' && item.text.includes('Mark-scheme page 2;') && item.text.includes('[No extractable text on this page.]'))))
+
+  const noTextOutputRoot = path.join(temporaryRoot, 'no-text-artifacts')
+  const noTextResult = await runCli({ ...liveOptions, outputRoot: noTextOutputRoot, coordinateOnly: true, pageWindowed: true }, {
+    env: { OPENAI_API_KEY: fakeApiKey },
+    renderPdf: fakeRenderer({ questionPdf, pageHashes: windowedPageHashes, markSchemePageHashes: windowedMarkSchemePageHashes }),
+    extractPdfText: async (_pdfPath, pageHashes) => Object.fromEntries(Object.keys(pageHashes).map(page => [page, ''])),
+    callStructured: async () => { throw new Error('all-empty PDF text must stop before an AI request') },
+  })
+  assert.equal(noTextResult.status, 'auto-quarantined')
+  assert.deepEqual(noTextResult.reasonCodes, ['PDF_TEXT_EXTRACTION_FAILED'])
 
   const sharedWorkerPlan = buildDryRunPlan({ ...sharedWorkerOptions, dryRun: false })
   let sharedWorkerCalls = 0
@@ -455,7 +472,7 @@ try {
   assert.equal(staleCoordinateListing.candidates[0].status, 'auto-quarantined')
   assert.ok(staleCoordinateListing.candidates[0].reasonCodes.includes('COORDINATE_SOURCE_SHA256_MISMATCH'))
 
-  console.log(JSON.stringify({ status: 'passed', checks: 76 }))
+  console.log(JSON.stringify({ status: 'passed', checks: 80 }))
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true })
 }

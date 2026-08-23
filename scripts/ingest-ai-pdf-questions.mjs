@@ -28,6 +28,7 @@ const DEFAULT_OPENAI_TIMEOUT_MS = 120000
 const PAGE_WINDOW_OWNED_PAGE_COUNT = 4
 const PAGE_WINDOW_TRAILING_CONTEXT_PAGE_COUNT = 8
 const MAX_PDF_TEXT_BYTES = 2 * 1024 * 1024
+const NO_EXTRACTABLE_TEXT_PAGE_MARKER = '[No extractable text on this page.]'
 const SAFE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/
 const PDF_VALIDATION_PROGRAM = 'from pypdf import PdfReader; import sys; reader = PdfReader(sys.argv[1]); expected = int(sys.argv[2]); assert expected > 0 and len(reader.pages) == expected'
 const SUPPORTED_SYLLABUSES = Object.freeze({
@@ -386,11 +387,13 @@ function questionPaperPageWindows(pageHashes) {
 function normalizePdfTextPages(value, pageHashes) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw codedError('PDF_TEXT_EXTRACTION_FAILED')
   const normalized = {}
+  let pagesWithText = 0
   for (const page of sortedPageNumbers(pageHashes)) {
     const text = typeof value[page] === 'string' ? value[page].trim() : ''
-    if (!text) throw codedError('PDF_TEXT_EXTRACTION_FAILED')
-    normalized[page] = text
+    if (text) pagesWithText += 1
+    normalized[page] = text || NO_EXTRACTABLE_TEXT_PAGE_MARKER
   }
+  if (!pagesWithText) throw codedError('PDF_TEXT_EXTRACTION_FAILED')
   return Object.freeze(normalized)
 }
 
@@ -661,7 +664,7 @@ function buildVerificationInput(source, extraction, questionDirectory, markSchem
 
 function buildPageWindowedExtractionInput(source, questionDirectory, pageWindow, pageText) {
   return [
-    { role: 'system', content: [{ type: 'input_text', text: 'Extract only questions whose printed question heading begins on an owned question-paper page. Use the supplied question-paper images for regions, diagrams, OCR and mathematics. Use the page-addressed mark-scheme text for marks and evidence. Do not emit a question that begins outside the owned pages, invent a page hash, or emit an incomplete question.' }] },
+    { role: 'system', content: [{ type: 'input_text', text: 'Extract only questions whose printed question heading begins on an owned question-paper page. Use the supplied question-paper images for regions, diagrams, OCR and mathematics. Use the page-addressed mark-scheme text for marks and evidence. The explicit no-extractable-text marker means that PDF page has no text layer; it is not a missing page. Do not emit a question that begins outside the owned pages, invent a page hash, or emit an incomplete question.' }] },
     { role: 'user', content: [
       { type: 'input_text', text: JSON.stringify({
         source: serializableSource(source),
@@ -678,7 +681,7 @@ function buildPageWindowedExtractionInput(source, questionDirectory, pageWindow,
 function buildPageWindowedVerificationInput(source, questionDirectory, pageWindow, pageText) {
   const { controlledTags: _controlledTags, ...verificationSource } = serializableSource(source)
   return [
-    { role: 'system', content: [{ type: 'input_text', text: 'Independently verify only questions whose printed heading begins on an owned question-paper page. Use the supplied question-paper images and page-addressed mark-scheme text. Return only question identity, complete visible page span, parts, diagram count and mark-scheme evidence. Do not emit a question outside the owned pages.' }] },
+    { role: 'system', content: [{ type: 'input_text', text: 'Independently verify only questions whose printed heading begins on an owned question-paper page. Use the supplied question-paper images and page-addressed mark-scheme text. The explicit no-extractable-text marker means that PDF page has no text layer; it is not a missing page. Return only question identity, complete visible page span, parts, diagram count and mark-scheme evidence. Do not emit a question outside the owned pages.' }] },
     { role: 'user', content: [
       { type: 'input_text', text: JSON.stringify({
         source: verificationSource,
