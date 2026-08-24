@@ -186,7 +186,7 @@ function compatibleMessages(input, _schema) {
   // The task prompt already names the required fields. Repeating the complete
   // controlled-tag schema makes compatible vision gateways spend excessive
   // time reading the request and can cause their response stream to stall.
-  const schemaInstruction = 'Return only one valid JSON object. Follow the requested field names, types, and constraints from the task prompt. Do not use Markdown fences or add commentary.'
+  const schemaInstruction = `Return only one valid JSON object matching this compact schema: ${JSON.stringify(compactSchema(_schema))}. Follow the page and coordinate constraints from the task prompt. Do not use Markdown fences or add commentary.`
   return (Array.isArray(input) ? input : []).map((message, index) => ({
     role: message?.role === 'system' ? 'system' : 'user',
     content: [
@@ -198,6 +198,19 @@ function compatibleMessages(input, _schema) {
       ...(index === 0 ? [{ type: 'text', text: schemaInstruction }] : []),
     ],
   }))
+}
+
+function compactSchema(schema) {
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return {}
+  const result = {}
+  for (const key of ['type', 'required', 'additionalProperties']) {
+    if (schema[key] !== undefined) result[key] = schema[key]
+  }
+  if (schema.properties && typeof schema.properties === 'object') {
+    result.properties = Object.fromEntries(Object.entries(schema.properties).map(([key, value]) => [key, compactSchema(value)]))
+  }
+  if (schema.items) result.items = compactSchema(schema.items)
+  return result
 }
 
 function codedError(code, message) {
