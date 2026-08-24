@@ -541,7 +541,10 @@ function filterPageWindowStarts(questionStarts, pageWindow, prefix, { sourcePage
     if (!questionNumber || !Number.isInteger(questionStartPage) || !allPages.has(questionStartPage)) {
       throw codedError(`${prefix}_START_PAGE_INVALID`)
     }
-    if (!visiblePages.has(questionStartPage)) throw codedError(`${prefix}_START_PAGE_OUTSIDE_CONTEXT`)
+    if (!visiblePages.has(questionStartPage)) {
+      observations.push({ questionNumber, questionStartPage, pages: [questionStartPage] })
+      continue
+    }
     observations.push({ questionNumber, questionStartPage, pages: [questionStartPage] })
   }
   return { observations }
