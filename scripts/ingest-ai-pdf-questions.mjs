@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { spawn } from 'node:child_process'
 
 import { CAMBRIDGE_9702_AS_SYLLABUS } from '../src/data/syllabus/cambridge-9702-as-2025-2027.js'
+import { CAMBRIDGE_9702_A2_SYLLABUS } from '../src/data/syllabus/cambridge-9702-a2-2025-2027.js'
 import { CAMBRIDGE_0580_IGCSE_SYLLABUS } from '../src/data/syllabus/cambridge-0580-igcse-2025-2027.js'
 import { CAMBRIDGE_0625_IGCSE_SYLLABUS } from '../src/data/syllabus/cambridge-0625-igcse-2026-2028.js'
 import { CAMBRIDGE_9709_AS_P1_S1_SYLLABUS } from '../src/data/syllabus/cambridge-9709-as-p1-s1-2026-2027.js'
@@ -33,10 +34,10 @@ const NO_EXTRACTABLE_TEXT_PAGE_MARKER = '[No extractable text on this page.]'
 const SAFE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/
 const PDF_VALIDATION_PROGRAM = 'from pypdf import PdfReader; import sys; reader = PdfReader(sys.argv[1]); expected = int(sys.argv[2]); assert expected > 0 and len(reader.pages) == expected'
 const SUPPORTED_SYLLABUSES = Object.freeze({
-  '0580': CAMBRIDGE_0580_IGCSE_SYLLABUS,
-  '0625': CAMBRIDGE_0625_IGCSE_SYLLABUS,
-  '9702': CAMBRIDGE_9702_AS_SYLLABUS,
-  '9709': CAMBRIDGE_9709_AS_P1_S1_SYLLABUS,
+  '0580': Object.freeze({ IGCSE: CAMBRIDGE_0580_IGCSE_SYLLABUS }),
+  '0625': Object.freeze({ IGCSE: CAMBRIDGE_0625_IGCSE_SYLLABUS }),
+  '9702': Object.freeze({ AS: CAMBRIDGE_9702_AS_SYLLABUS, A2: CAMBRIDGE_9702_A2_SYLLABUS }),
+  '9709': Object.freeze({ AS: CAMBRIDGE_9709_AS_P1_S1_SYLLABUS }),
 })
 
 const extractorSchema = {
@@ -102,7 +103,7 @@ export function parseArgs(argv, { cwd = process.cwd(), env = process.env } = {})
   const values = {}
   const flags = new Set(['--dry-run', '--retry', '--coordinate-only', '--page-windowed'])
   const options = new Set([
-    '--paper-id', '--question-pdf', '--mark-scheme-pdf', '--subject', '--output-root', '--model', '--base-url', '--render-dpi', '--max-attempts', '--timeout-ms', '--paper-timeout-ms',
+    '--paper-id', '--question-pdf', '--mark-scheme-pdf', '--subject', '--stage', '--output-root', '--model', '--base-url', '--render-dpi', '--max-attempts', '--timeout-ms', '--paper-timeout-ms',
   ])
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -133,6 +134,7 @@ export function parseArgs(argv, { cwd = process.cwd(), env = process.env } = {})
   if (!SAFE_SEGMENT.test(values['--paper-id'])) throw new RangeError('--paper-id must be a single safe path segment.')
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(values['--subject'])) throw new RangeError('--subject must be a safe identifier.')
   if (!supportedSubject(values['--subject'])) throw codedError('UNSUPPORTED_SUBJECT')
+  const stage = normalizeStage(values['--subject'], values['--stage'])
 
   const renderDpi = positiveInteger(values['--render-dpi'] ?? DEFAULT_RENDER_DPI, '--render-dpi')
   const maxAttempts = positiveInteger(values['--max-attempts'] ?? DEFAULT_MAX_ATTEMPTS, '--max-attempts')
@@ -145,6 +147,7 @@ export function parseArgs(argv, { cwd = process.cwd(), env = process.env } = {})
     questionPdf: resolveExistingFile(values['--question-pdf'], '--question-pdf', cwd),
     markSchemePdf: resolveExistingFile(values['--mark-scheme-pdf'], '--mark-scheme-pdf', cwd),
     subject: values['--subject'],
+    stage,
     outputRoot,
     model: nonemptyString(values['--model'] ?? runtimeEnv.AI_PDF_INGESTION_MODEL) ?? 'gpt-5.6',
     baseUrl: nonemptyString(values['--base-url'] ?? runtimeEnv.OPENAI_BASE_URL),
@@ -169,6 +172,8 @@ export function buildDryRunPlan(options) {
     mode: 'dry-run',
     paperId: options.paperId,
     subject: options.subject,
+    stage: options.stage,
+    syllabusRouteId: syllabusForOptions(options).routeId,
     model: options.model,
     renderDpi: options.renderDpi,
     maxAttempts: options.maxAttempts,
@@ -735,10 +740,12 @@ function sortedPageNumbers(pageHashes) {
 }
 
 function sourceMetadata(plan, options) {
+  const syllabus = syllabusForOptions(options)
   return {
     board: 'CIE',
     paperId: options.paperId,
-    specificationId: `cambridge-${options.subject}-current`,
+    specificationId: syllabus.routeId,
+    stage: options.stage,
     rightsStatus: 'unverified-restricted',
     accessPolicyId: 'personal-study-restricted-v1',
     questionPdfSha256: plan.immutableInputs.questionPdf.sha256,
@@ -750,14 +757,21 @@ function sourceMetadata(plan, options) {
     pageSizes: {},
     markSchemePageHashes: {},
     markSchemePageSizes: {},
-    controlledTags: controlledTagsForSubject(options.subject),
-    controlledTopicCatalog: controlledTopicCatalogForSubject(options.subject),
+    controlledTags: controlledTagsForSubject(options.subject, options.stage),
+    controlledTopicCatalog: controlledTopicCatalogForSubject(options.subject, options.stage),
   }
 }
 
-function controlledTagsForSubject(subject) {
-  const syllabus = SUPPORTED_SYLLABUSES[subject]
-  if (!syllabus) throw codedError('UNSUPPORTED_SUBJECT')
+function syllabusForOptions(options = {}) {
+  const subject = nonemptyString(options.subject)
+  const stage = normalizeStage(subject, options.stage)
+  const syllabus = SUPPORTED_SYLLABUSES[subject]?.[stage]
+  if (!syllabus) throw codedError('UNSUPPORTED_SYLLABUS_STAGE')
+  return syllabus
+}
+
+function controlledTagsForSubject(subject, stage) {
+  const syllabus = syllabusForOptions({ subject, stage })
   const topics = syllabus.topics
   const topicIds = new Set(topics.map(topic => topic.id))
   return {
@@ -770,15 +784,18 @@ function controlledTagsForSubject(subject) {
   }
 }
 
-function controlledTopicCatalogForSubject(subject) {
-  const syllabus = SUPPORTED_SYLLABUSES[subject]
-  if (!syllabus) throw codedError('UNSUPPORTED_SUBJECT')
+function controlledTopicCatalogForSubject(subject, stage) {
+  const syllabus = syllabusForOptions({ subject, stage })
   return syllabus.topics.map((topic) => ({
     id: topic.id,
     code: topic.code,
     name: topic.name,
     component: topic.component || null,
   }))
+}
+
+export function controlledTopicCatalogForOptions(options) {
+  return controlledTopicCatalogForSubject(options?.subject, options?.stage)
 }
 
 function buildExtractionInput(source, questionDirectory, markSchemeDirectory) {
@@ -886,6 +903,8 @@ async function writeQuarantine({ plan, source, writeArtifact, reasonCodes }) {
     artifactId: plan.artifactId,
     paperId: plan.paperId,
     subject: plan.subject,
+    stage: plan.stage,
+    syllabusRouteId: plan.syllabusRouteId,
     status: 'auto-quarantined',
     source: serializableSource(source),
     model: plan.model,
@@ -899,6 +918,8 @@ function artifactForResult(plan, source, options, validation, extraction, verifi
     artifactId: plan.artifactId,
     paperId: plan.paperId,
     subject: options.subject,
+    stage: options.stage,
+    syllabusRouteId: source.specificationId,
     generatedAt: new Date().toISOString(),
     status: validation.status,
     storageMode: options.coordinateOnly ? 'coordinate-only' : 'cropped-question-pdfs',
@@ -1038,6 +1059,13 @@ function safeArtifactFilename(id) {
 
 function supportedSubject(subject) {
   return Boolean(SUPPORTED_SYLLABUSES[subject])
+}
+
+function normalizeStage(subject, value) {
+  const configured = nonemptyString(value)
+  const stage = configured ? configured.toUpperCase() : subject === '9702' || subject === '9709' ? 'AS' : 'IGCSE'
+  if (!SUPPORTED_SYLLABUSES[subject]?.[stage]) throw codedError('UNSUPPORTED_SYLLABUS_STAGE')
+  return stage
 }
 
 function normalizeExtractionForValidation(extraction, verification) {
