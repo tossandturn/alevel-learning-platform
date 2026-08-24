@@ -228,7 +228,7 @@ export async function callOpenAiStructured({
       let responseBody
       if (!failure) {
         try {
-          responseBody = await response.json()
+          responseBody = await readJsonWithDeadline(response, controller, requestTimeoutMs)
         } catch {
           failure = controller.signal.aborted
             ? timeoutError()
@@ -272,4 +272,19 @@ export async function callOpenAiStructured({
   }
 
   throw sanitizedError('OPENAI_NETWORK_ERROR', 'OpenAI request failed before a response was received.')
+}
+
+async function readJsonWithDeadline(response, controller, timeoutMs) {
+  let timer
+  const deadline = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort()
+      reject(timeoutError())
+    }, timeoutMs)
+  })
+  try {
+    return await Promise.race([response.json(), deadline])
+  } finally {
+    clearTimeout(timer)
+  }
 }
