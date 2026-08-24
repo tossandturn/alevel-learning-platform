@@ -182,8 +182,11 @@ async function readJsonWithDeadline(response, controller, timeoutMs) {
   }
 }
 
-function compatibleMessages(input, schema) {
-  const schemaInstruction = `Return only valid JSON matching this schema: ${JSON.stringify(schema)}`
+function compatibleMessages(input, _schema) {
+  // The task prompt already names the required fields. Repeating the complete
+  // controlled-tag schema makes compatible vision gateways spend excessive
+  // time reading the request and can cause their response stream to stall.
+  const schemaInstruction = 'Return only one valid JSON object. Follow the requested field names, types, and constraints from the task prompt. Do not use Markdown fences or add commentary.'
   return (Array.isArray(input) ? input : []).map((message, index) => ({
     role: message?.role === 'system' ? 'system' : 'user',
     content: [
