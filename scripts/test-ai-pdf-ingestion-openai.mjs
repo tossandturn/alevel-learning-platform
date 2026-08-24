@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { callOpenAiStructured, resolveOpenAiResponsesUrl } from './ai-pdf-ingestion/openai-structured.mjs'
-import { callStructuredWithFallback, providersFromEnvironment } from './ai-pdf-ingestion/provider-fallback.mjs'
+import { callCompatibleStructured, callStructuredWithFallback, providersFromEnvironment } from './ai-pdf-ingestion/provider-fallback.mjs'
 
 const schema = {
   type: 'object',
@@ -357,6 +357,31 @@ await assert.rejects(
   },
 )
 assert.ok(timeoutSignal.aborted)
+
+let compatibleTimeoutSignal
+await assert.rejects(
+  () => callCompatibleStructured({
+    apiKey: 'fake-secret-do-not-log',
+    model: 'qwen3-vl-plus',
+    schema,
+    input: request.input,
+    maxAttempts: 1,
+    timeoutMs: 1,
+    fetchImpl: async (_url, init) => {
+      compatibleTimeoutSignal = init.signal
+      return {
+        ok: true,
+        status: 200,
+        json: () => new Promise(() => {}),
+      }
+    },
+  }),
+  (error) => {
+    assert.equal(error.code, 'QWEN_TIMEOUT')
+    return true
+  },
+)
+assert.ok(compatibleTimeoutSignal.aborted)
 
 let expiredDeadlineAttempts = 0
 await assert.rejects(

@@ -353,9 +353,9 @@ try {
   assert.deepEqual(windowedResult.candidate.questions.map(question => question.questionNumber), ['1', '2', '3'])
   assert.equal(windowedExtractionIndex, 3)
   assert.equal(windowedVerificationIndex, 3)
-  assert.ok(windowedRequests.every((request) => request.input[1].content.filter(item => item.type === 'input_image').length <= 8))
+  assert.ok(windowedRequests.every((request) => request.input[1].content.filter(item => item.type === 'input_image').length <= 5))
   assert.ok(windowedRequests.every((request) => request.input[1].content.some(item => item.type === 'input_text' && item.text.startsWith('Mark-scheme text by page:'))))
-  assert.ok(windowedRequests.every((request) => request.input[1].content.filter(item => item.type === 'input_text' && item.text.startsWith('Question-paper text by page:')).every(item => (item.text.match(/Question-paper page \d+;/g) || []).length <= 8)))
+  assert.ok(windowedRequests.every((request) => request.input[1].content.filter(item => item.type === 'input_text' && item.text.startsWith('Question-paper text by page:')).every(item => (item.text.match(/Question-paper page \d+;/g) || []).length <= 5)))
   assert.ok(windowedRequests.some((request) => request.input[1].content.some(item => item.type === 'input_text' && item.text.includes('Question-paper page 4;') && item.text.includes('[No extractable text on this page.]'))))
   assert.ok(windowedRequests.every((request) => request.input[1].content.some(item => item.type === 'input_text' && item.text.includes('Mark-scheme page 2;') && item.text.includes('[No extractable text on this page.]'))))
 

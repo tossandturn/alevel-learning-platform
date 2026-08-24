@@ -126,9 +126,7 @@ export async function callCompatibleStructured({
         error.retryable = RETRYABLE_STATUS_CODES.has(response?.status)
         throw error
       }
-      const payload = await response.json().catch(() => {
-        throw codedError('QWEN_RESPONSE_INVALID', 'Qwen returned an unreadable response.')
-      })
+      const payload = await readJsonWithDeadline(response, controller, requestTimeoutMs)
       const content = payload?.choices?.[0]?.message?.content
       const text = Array.isArray(content)
         ? content.map((entry) => entry?.text || '').join('')
@@ -162,6 +160,26 @@ function effectiveTimeoutMs(timeoutMs, deadlineAt) {
   const remainingMs = Math.floor(deadlineAt - Date.now())
   if (remainingMs < 1) throw codedError('AI_PAPER_TIMEOUT', 'AI paper deadline exceeded.')
   return Math.min(timeoutMs, remainingMs)
+}
+
+async function readJsonWithDeadline(response, controller, timeoutMs) {
+  let timer
+  const deadline = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort()
+      reject(codedError('QWEN_TIMEOUT', 'Qwen request timed out.'))
+    }, timeoutMs)
+  })
+  try {
+    return await Promise.race([
+      response.json().catch(() => {
+        throw codedError('QWEN_RESPONSE_INVALID', 'Qwen returned an unreadable response.')
+      }),
+      deadline,
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 function compatibleMessages(input, schema) {
