@@ -27,8 +27,8 @@ const DEFAULT_RENDER_DPI = 180
 const DEFAULT_MAX_ATTEMPTS = 3
 const DEFAULT_OPENAI_TIMEOUT_MS = 120000
 const DEFAULT_PAPER_TIMEOUT_MS = 900000
-const PAGE_WINDOW_OWNED_PAGE_COUNT = 4
-const PAGE_WINDOW_TRAILING_CONTEXT_PAGE_COUNT = 1
+const PAGE_WINDOW_OWNED_PAGE_COUNT = pageWindowSize('AI_PDF_PAGE_WINDOW_OWNED_PAGE_COUNT', 4)
+const PAGE_WINDOW_TRAILING_CONTEXT_PAGE_COUNT = pageWindowSize('AI_PDF_PAGE_WINDOW_TRAILING_CONTEXT_PAGE_COUNT', 1)
 const MAX_PDF_TEXT_BYTES = 2 * 1024 * 1024
 const NO_EXTRACTABLE_TEXT_PAGE_MARKER = '[No extractable text on this page.]'
 const SAFE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/
@@ -39,6 +39,16 @@ const SUPPORTED_SYLLABUSES = Object.freeze({
   '9702': Object.freeze({ AS: CAMBRIDGE_9702_AS_SYLLABUS, A2: CAMBRIDGE_9702_A2_SYLLABUS }),
   '9709': Object.freeze({ AS: CAMBRIDGE_9709_AS_P1_S1_SYLLABUS }),
 })
+
+function pageWindowSize(name, fallback) {
+  const value = process.env[name]
+  if (value === undefined || value === '') return fallback
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 8) {
+    throw new RangeError(`${name} must be an integer between 1 and 8.`)
+  }
+  return parsed
+}
 
 const extractorSchema = {
   type: 'object', additionalProperties: false, required: ['source', 'questions'], properties: {
