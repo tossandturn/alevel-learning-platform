@@ -1,6 +1,7 @@
 import importedQuestionIndex from '../data/importedQuestionIndex.json' with { type: 'json' }
 import paperCatalog from '../../public/data/papers.json' with { type: 'json' }
 import { CAMBRIDGE_9702_AS_SYLLABUS } from '../data/syllabus/cambridge-9702-as-2025-2027.js'
+import { CAMBRIDGE_9702_A2_SYLLABUS } from '../data/syllabus/cambridge-9702-a2-2025-2027.js'
 import { CAMBRIDGE_0580_IGCSE_SYLLABUS } from '../data/syllabus/cambridge-0580-igcse-2025-2027.js'
 import { CAMBRIDGE_0625_IGCSE_SYLLABUS } from '../data/syllabus/cambridge-0625-igcse-2026-2028.js'
 import { CAMBRIDGE_0606_IGCSE_SYLLABUS } from '../data/syllabus/cambridge-0606-igcse-2025-2027.js'
@@ -25,9 +26,10 @@ function routeSyllabus(routeId, supportedComponents) {
   const route = routeById(routeId)
   const topics = route?.syllabus?.topics || []
   const components = supportedComponents || route?.paperComponents || []
+  const syllabusVersion = route?.syllabus?.version || '2026-2027'
   return Object.freeze({
     routeId,
-    syllabusVersion: route?.syllabus?.version || '2026-2027',
+    syllabusVersion,
     officialUrl: route?.syllabus?.url || '',
     assessmentComponents: Object.freeze(components.map((component) => Object.freeze({
       component,
@@ -37,13 +39,14 @@ function routeSyllabus(routeId, supportedComponents) {
     }))),
     topics: Object.freeze(topics.map((topic, index) => Object.freeze({
       id: topic.id,
-      routeId,
-      syllabusVersion: route?.syllabus?.version || '2026-2027',
-      code: String(index + 1),
-      name: String(topic.title || '').replace(/^\d+\s+/, ''),
-      order: index + 1,
-      officialPage: null,
-      points: Object.freeze([]),
+      routeId: topic.routeId || routeId,
+      syllabusVersion: topic.syllabusVersion || syllabusVersion,
+      code: String(topic.code || index + 1),
+      name: String(topic.name || topic.title || '').replace(/^\d+(?:\.\d+)?\s+/, ''),
+      order: Number(topic.order) || index + 1,
+      officialPage: topic.officialPage ?? null,
+      points: Object.freeze(Array.isArray(topic.points) ? topic.points : []),
+      component: topic.component || null,
     }))),
   })
 }
@@ -85,8 +88,8 @@ const SYLLABUS_CONFIGS = Object.freeze({
     stage: 'AS',
     components: SUPPORTED_9702_COMPONENTS,
   }),
-  'cie-9702-a2-physics': Object.freeze({
-    syllabus: routeSyllabus('cie-9702-a2-physics', SUPPORTED_9702_A2_COMPONENTS),
+  [CAMBRIDGE_9702_A2_SYLLABUS.routeId]: Object.freeze({
+    syllabus: CAMBRIDGE_9702_A2_SYLLABUS,
     subjectCode: '9702',
     stage: 'A2',
     components: SUPPORTED_9702_A2_COMPONENTS,
@@ -738,7 +741,7 @@ function syllabusTopicsForPersistedUnit(unit, config) {
     .map((value) => value.trim())
     .filter(Boolean)
   const validTopicIds = new Set(config.syllabus.topics.map((topic) => topic.id))
-  const topicIds = [...new Set(candidates)]
+  const topicIds = [...new Set(candidates.map((topicId) => canonicalSyllabusTopicIdForRoute(config.syllabus.routeId, topicId)))]
   return topicIds.length && topicIds.every((topicId) => validTopicIds.has(topicId)) ? topicIds : []
 }
 
@@ -881,7 +884,9 @@ export function buildSyllabusPracticeSet({
     error.statusCode = 409
     throw error
   }
-  const topicIds = [...new Set(syllabusTopicIds.map((value) => String(value || '').trim()).filter(Boolean))]
+  const topicIds = [...new Set(syllabusTopicIds
+    .map((value) => canonicalSyllabusTopicIdForRoute(routeId, String(value || '').trim()))
+    .filter(Boolean))]
   const validTopicIds = new Set(config.syllabus.topics.map((topic) => topic.id))
   if (!topicIds.length || topicIds.some((topicId) => !validTopicIds.has(topicId))) {
     const error = new Error('Select one or more official syllabus topic IDs.')

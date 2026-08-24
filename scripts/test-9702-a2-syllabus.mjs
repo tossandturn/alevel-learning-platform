@@ -4,6 +4,8 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { CAMBRIDGE_9702_A2_SYLLABUS } from '../src/data/syllabus/cambridge-9702-a2-2025-2027.js'
+import { routeById } from '../src/data/routeRegistry.js'
+import { canonicalSyllabusTopicIdForRoute } from '../src/lib/syllabusPracticeRoutes.js'
 import { buildDryRunPlan, controlledTopicCatalogForOptions, parseArgs } from './ingest-ai-pdf-questions.mjs'
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), '9702-a2-syllabus-'))
@@ -22,6 +24,17 @@ try {
   assert.ok(CAMBRIDGE_9702_A2_SYLLABUS.points.length >= 60)
   assert.ok(CAMBRIDGE_9702_A2_SYLLABUS.points.every((point) => /^physics-9702-topic-(1[2-9]|2[0-5])$/.test(point.topicId)))
   assert.ok(CAMBRIDGE_9702_A2_SYLLABUS.topics.every((topic) => topic.points.every((point) => point.topicId === topic.id)))
+
+  const route = routeById('cie-9702-a2-physics')
+  assert.deepEqual(route.syllabus.topics.map((topic) => topic.id), CAMBRIDGE_9702_A2_SYLLABUS.topics.map((topic) => topic.id))
+  assert.deepEqual(route.syllabus.topics.map((topic) => topic.title), CAMBRIDGE_9702_A2_SYLLABUS.topics.map((topic) => `${topic.code} ${topic.name}`))
+  assert.equal(route.syllabus.topics.length, 14)
+  assert.equal(route.syllabus.topics[0].officialPage, 26)
+  assert.ok(route.syllabus.topics.every((topic) => topic.component === 'A2 P4' && topic.points.length > 0))
+  assert.equal(route.syllabus.topics.some((topic) => /planning|analysis|evaluation/i.test(topic.title)), false)
+  assert.equal(canonicalSyllabusTopicIdForRoute('cie-9702-a2-physics', 'physics-9702-topic-13'), 'physics-9702-topic-13')
+  assert.equal(canonicalSyllabusTopicIdForRoute('cie-9702-a2-physics', '9702-a2-topic-02'), 'physics-9702-topic-13')
+  assert.equal(canonicalSyllabusTopicIdForRoute('cie-9702-a2-physics', 'physics-9702-practical-data'), 'physics-9702-practical-data')
 
   const options = parseArgs([
     '--paper-id', 'cie-9702-9702_m25_qp_42',

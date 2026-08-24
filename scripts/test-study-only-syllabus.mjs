@@ -91,7 +91,8 @@ assert.ok(a2Physics.topics.some((topic) => topic.availableQuestionCount > 0))
 
 assert.equal(canonicalSyllabusTopicIdForRoute('cie-0580-igcse-mathematics', 'math-0580-number'), '0580-igcse-topic-01')
 assert.equal(canonicalSyllabusTopicIdForRoute('cie-0625-igcse-physics', 'physics-0625-waves'), '0625-igcse-topic-03')
-assert.equal(canonicalSyllabusTopicIdForRoute('cie-9702-a2-physics', 'physics-9702-topic-20'), '9702-a2-topic-09')
+assert.equal(canonicalSyllabusTopicIdForRoute('cie-9702-a2-physics', 'physics-9702-topic-20'), 'physics-9702-topic-20')
+assert.equal(canonicalSyllabusTopicIdForRoute('cie-9702-a2-physics', '9702-a2-topic-09'), 'physics-9702-topic-20')
 assert.equal(canonicalSyllabusTopicIdForRoute('cie-9709-as-p1-p4', 'math-9709-mechanics'), '9709-as-topic-03')
 assert.equal(canonicalSyllabusTopicIdForRoute('cie-9709-a2-after-p1-p5-p3-p6', 'math-9709-statistics'), '9709-a2-topic-04')
 assert.deepEqual(syllabusPracticeComponentsForRoute('cie-0580-igcse-mathematics'), [1, 2, 3, 4])
@@ -109,7 +110,7 @@ const a2PhysicsSet = buildSyllabusPracticeSet({
 })
 assert.equal(
   a2PhysicsSet.questionCount,
-  Math.min(10, a2Physics.topics.find((topic) => topic.id === '9702-a2-topic-02')?.availableQuestionCount || 0),
+  Math.min(10, a2Physics.topics.find((topic) => topic.id === 'physics-9702-topic-13')?.availableQuestionCount || 0),
   'A2 topic practice must expose every currently available source-backed group up to the requested set size',
 )
 assert.equal(a2PhysicsSet.practiceMode, 'study-only')
@@ -150,8 +151,8 @@ assert.equal(finalizePartMarking(a2AiStudyUnit, a2AiStudyLifecycle, {}, 120).sel
 const a2GravityQuestions = studyQuestionBank.filter((question) => question.routeId === 'cie-9702-a2-physics' && question.knowledgeGroupId === 'physics-9702-topic-13')
 assert.equal(
   canonicalSyllabusTopicIdForRoute('cie-9702-a2-physics', 'physics-9702-topic-13'),
-  '9702-a2-topic-02',
-  'A2 source topic IDs must resolve to the official A2 syllabus topic ID',
+  'physics-9702-topic-13',
+  'A2 source topic IDs must remain the official A2 syllabus topic ID',
 )
 assert.equal(
   questionMatchesSyllabusTopic('cie-9702-a2-physics', 'physics-9702-topic-13', '9702-a2-topic-02'),
@@ -185,6 +186,7 @@ assert.deepEqual(
 )
 assert.equal(explicitA2Set.questionCount, 2)
 assert.equal(explicitA2Set.requestedCount, 2)
+assert.deepEqual(explicitA2Set.syllabusTopicIds, ['physics-9702-topic-13'])
 
 const asMath = syllabusTopicsInventory({
   routeId: 'cie-9709-as-p1-p2',

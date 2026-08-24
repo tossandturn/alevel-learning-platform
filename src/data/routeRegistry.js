@@ -1,6 +1,7 @@
 import { CAMBRIDGE_0580_IGCSE_TOPICS } from './syllabus/cambridge-0580-igcse-2025-2027.js'
 import { CAMBRIDGE_0625_IGCSE_TOPICS } from './syllabus/cambridge-0625-igcse-2026-2028.js'
 import { CAMBRIDGE_9702_AS_TOPICS } from './syllabus/cambridge-9702-as-2025-2027.js'
+import { CAMBRIDGE_9702_A2_TOPICS } from './syllabus/cambridge-9702-a2-2025-2027.js'
 import { CAMBRIDGE_9709_AS_P1_S1_TOPICS } from './syllabus/cambridge-9709-as-p1-s1-2026-2027.js'
 
 export const LEGACY_UNSCOPED_ROUTE_ID = 'legacy-unscoped'
@@ -70,7 +71,10 @@ function cieRoute({ routeId, qualification, stage, subject, subjectId, code, pap
   const [version, url] = SYLLABUS[code]
   const officialTopics = officialTopicsForRoute({ routeId, code, stage })
   const syllabusTopics = officialTopics
-    ? officialTopics.map((topic) => Object.freeze({ id: topic.id, title: `${topic.code} ${topic.name}` }))
+    ? officialTopics.map((topic) => Object.freeze({
+      ...topic,
+      title: `${topic.code} ${topic.name}`,
+    }))
     : freezeTopics(topicKey)
   return Object.freeze({
     routeId,
@@ -90,6 +94,7 @@ function officialTopicsForRoute({ routeId, code, stage }) {
   if (code === '0580') return CAMBRIDGE_0580_IGCSE_TOPICS
   if (code === '0625') return CAMBRIDGE_0625_IGCSE_TOPICS
   if (code === '9702' && stage === 'AS') return CAMBRIDGE_9702_AS_TOPICS
+  if (code === '9702' && stage === 'A2') return CAMBRIDGE_9702_A2_TOPICS
   if (routeId === 'cie-9709-as-p1-p5') return CAMBRIDGE_9709_AS_P1_S1_TOPICS
   return null
 }

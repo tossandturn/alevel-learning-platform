@@ -102,14 +102,14 @@ try {
     const initialInventoryResponse = await fetch(`${origin}/api/stem/routes/cie-9702-a2-physics/syllabus-topics`)
     assert.equal(initialInventoryResponse.status, 200)
     const initialInventory = await initialInventoryResponse.json()
-    const initialTopic = initialInventory.topics.find((topic) => topic.id === '9702-a2-topic-02')
+    const initialTopic = initialInventory.topics.find((topic) => topic.id === 'physics-9702-topic-13')
     assert.ok(initialTopic)
 
     runtimeGroups = load().groups
     const inventoryResponse = await fetch(`${origin}/api/stem/routes/cie-9702-a2-physics/syllabus-topics`)
     assert.equal(inventoryResponse.status, 200)
     const inventory = await inventoryResponse.json()
-    const runtimeTopic = inventory.topics.find((topic) => topic.id === '9702-a2-topic-02')
+    const runtimeTopic = inventory.topics.find((topic) => topic.id === 'physics-9702-topic-13')
     assert.ok(
       runtimeTopic?.questionIdsByComponent?.[4]?.studyQuestionIds?.includes(`${paperId}:q2`),
       'runtime inventory must include the loaded coordinate record',
@@ -133,6 +133,7 @@ try {
     assert.equal(practiceResponse.status, 201, 'runtime API must compose a P4 set from the loaded coordinate record')
     const practice = await practiceResponse.json()
     assert.equal(practice.questionCount, 1)
+    assert.deepEqual(practice.syllabusTopicIds, ['physics-9702-topic-13'], 'legacy topic input must be canonicalized in the response')
     assert.equal(practice.practiceMode, 'study-only')
     assert.equal(practice.questionGroups[0].reviewStatus, 'ai-verified')
     assert.equal(practice.questionGroups[0].parts[0].aiAssistedMarkingAvailable, true)
@@ -141,7 +142,7 @@ try {
     const removedInventoryResponse = await fetch(`${origin}/api/stem/routes/cie-9702-a2-physics/syllabus-topics`)
     assert.equal(removedInventoryResponse.status, 200)
     const removedInventory = await removedInventoryResponse.json()
-    const removedTopic = removedInventory.topics.find((topic) => topic.id === '9702-a2-topic-02')
+    const removedTopic = removedInventory.topics.find((topic) => topic.id === 'physics-9702-topic-13')
     assert.equal(
       Number(removedTopic?.indexedQuestionCount),
       Number(initialTopic.indexedQuestionCount),

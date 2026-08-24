@@ -114,7 +114,7 @@ const practiceSet = buildSyllabusPracticeSet({
   includeStudyOnly: true,
 })
 assert.equal(practiceSet.questionCount, 1)
-assert.deepEqual(practiceSet.syllabusTopicIds, ['9702-a2-topic-02'])
+assert.deepEqual(practiceSet.syllabusTopicIds, ['physics-9702-topic-13'])
 assert.equal(practiceSet.questionGroups[0].reviewStatus, 'ai-verified')
 assert.equal(practiceSet.questionGroups[0].studyOnly, true)
 
