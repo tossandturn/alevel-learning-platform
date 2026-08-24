@@ -10,8 +10,11 @@ const FIRST_YEAR = 2021
 const LAST_YEAR = 2025
 const DEFAULT_RENDER_DPI = 180
 const PAGE_WINDOW_MAX_ATTEMPTS = 1
-const PAGE_WINDOW_TIMEOUT_MS = 60000
-const PAGE_WINDOW_PAPER_TIMEOUT_MS = 900000
+// Vision requests containing full rendered pages can take longer than text-only
+// probes. Keep GPT first, but give the Qwen fallback enough time to process a
+// page before quarantining an otherwise valid paper.
+const PAGE_WINDOW_TIMEOUT_MS = 180000
+const PAGE_WINDOW_PAPER_TIMEOUT_MS = 1800000
 
 function requiredDirectory(value, label) {
   const directory = path.resolve(String(value || ''))
