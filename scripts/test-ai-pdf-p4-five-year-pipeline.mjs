@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 
-import { callStructuredWithFallback, providersFromEnvironment } from './ai-pdf-ingestion/provider-fallback.mjs'
+import { callCompatibleStructured, callStructuredWithFallback, providersFromEnvironment } from './ai-pdf-ingestion/provider-fallback.mjs'
 import { selectA2P4FiveYearPairs } from './ai-pdf-ingestion/a2-p4-five-year.mjs'
 import { questionGroupsFromAiArtifacts } from '../server/aiVerifiedQuestionBank.js'
 import { isAiMarkablePastPaperItem, isStudyOnlyPastPaperItem } from '../src/data/questionBank.js'
@@ -36,6 +36,52 @@ const fallbackResult = await callStructuredWithFallback({
 assert.deepEqual(attemptedProviders, ['openai', 'qwen'])
 assert.equal(fallbackResult.provider.name, 'qwen')
 assert.deepEqual(fallbackResult.value, { questions: [] })
+
+const providerTimeoutRequests = []
+const providerTimeoutProviders = providersFromEnvironment({
+  OPENAI_API_KEY: 'openai-test-key',
+  QWEN_VISION_API_KEY: 'qwen-test-key',
+  AI_PDF_OPENAI_PROVIDER_TIMEOUT_MS: '15000',
+  AI_PDF_QWEN_PROVIDER_TIMEOUT_MS: '180000',
+}, { model: 'gpt-5.6' })
+await callStructuredWithFallback({
+  providers: providerTimeoutProviders,
+  request: { schemaName: 'fixture', schema: { type: 'object' }, input: [] },
+  callOpenAi: async (request) => {
+    providerTimeoutRequests.push({ provider: 'openai', timeoutMs: request.timeoutMs })
+    const error = new Error('unavailable')
+    error.code = 'OPENAI_HTTP_503'
+    throw error
+  },
+  callCompatible: async (request) => {
+    providerTimeoutRequests.push({ provider: 'qwen', timeoutMs: request.timeoutMs })
+    return { questions: [] }
+  },
+})
+assert.deepEqual(providerTimeoutRequests, [
+  { provider: 'openai', timeoutMs: 15000 },
+  { provider: 'qwen', timeoutMs: 180000 },
+])
+
+const qwenRequests = []
+const qwenStructuredResult = await callCompatibleStructured({
+  apiKey: 'qwen-test-key',
+  model: 'qwen3-vl-plus',
+  schema: { type: 'object', properties: { questions: { type: 'array' } } },
+  input: [{ role: 'system', content: [{ type: 'input_text', text: 'Return JSON.' }] }],
+  maxAttempts: 1,
+  fetchImpl: async (_url, request) => {
+    qwenRequests.push(JSON.parse(request.body))
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ choices: [{ message: { content: 'Result:\n```json\n{"questions":[]}\n```' } }] }),
+    }
+  },
+})
+assert.deepEqual(qwenStructuredResult, { questions: [] })
+assert.equal(qwenRequests[0].enable_thinking, false)
+assert.equal(qwenRequests[0].max_tokens, 8192)
 
 const pairs = selectA2P4FiveYearPairs([
   '9702_m20_qp_42.pdf',

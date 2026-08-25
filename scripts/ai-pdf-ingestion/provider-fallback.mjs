@@ -2,6 +2,7 @@ import { callOpenAiStructured } from './openai-structured.mjs'
 
 const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504])
 const DEFAULT_QWEN_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+const DEFAULT_QWEN_MAX_OUTPUT_TOKENS = 8192
 
 function nonempty(value) {
   return typeof value === 'string' && value.trim() ? value.trim() : ''
@@ -48,6 +49,7 @@ export function providersFromEnvironment(env = {}, { model = 'gpt-5.6', baseUrl 
       model: nonempty(model) || nonempty(env.OPENAI_VISION_MODEL || env.OPENAI_MODEL) || 'gpt-5.6',
       baseUrl: openAiBaseUrl,
       transport: openAiStructuredTransport(openAiBaseUrl, env),
+      ...configuredProviderTimeout(env.AI_PDF_OPENAI_PROVIDER_TIMEOUT_MS),
     }))
   }
 
@@ -64,6 +66,7 @@ export function providersFromEnvironment(env = {}, { model = 'gpt-5.6', baseUrl 
       apiKey: qwenKey,
       model: nonempty(env.QWEN_VISION_MODEL || env.VISION_AI_MODEL || env.PHYSICS_VISION_MODEL) || 'qwen3-vl-plus',
       baseUrl: normalizeCompatibleBaseUrl(env.QWEN_VISION_BASE_URL || env.VISION_AI_BASE_URL || env.DASHSCOPE_COMPAT_BASE_URL || workspaceBaseUrl(env)),
+      ...configuredProviderTimeout(env.AI_PDF_QWEN_PROVIDER_TIMEOUT_MS),
     }))
   }
   return Object.freeze(providers)
@@ -79,9 +82,12 @@ export async function callStructuredWithFallback({
   for (const provider of providers) {
     if (Number.isFinite(request?.deadlineAt) && Date.now() >= request.deadlineAt) throw codedError('AI_PAPER_TIMEOUT', 'AI paper deadline exceeded.')
     try {
-      const value = await callProviderWithDeadline(provider, request, (signal) => provider.name === 'openai'
-        ? callOpenAi({ ...request, signal, apiKey: provider.apiKey, model: provider.model, baseUrl: provider.baseUrl || undefined, transport: provider.transport || request?.transport })
-        : callCompatible({ ...request, signal, apiKey: provider.apiKey, model: provider.model, baseUrl: provider.baseUrl }))
+      const providerRequest = provider.timeoutMs
+        ? { ...request, timeoutMs: provider.timeoutMs }
+        : request
+      const value = await callProviderWithDeadline(provider, providerRequest, (signal) => provider.name === 'openai'
+        ? callOpenAi({ ...providerRequest, signal, apiKey: provider.apiKey, model: provider.model, baseUrl: provider.baseUrl || undefined, transport: provider.transport || providerRequest?.transport })
+        : callCompatible({ ...providerRequest, signal, apiKey: provider.apiKey, model: provider.model, baseUrl: provider.baseUrl }))
       return Object.freeze({ provider, value })
     } catch (error) {
       if (error?.code === 'AI_PAPER_TIMEOUT') throw error
@@ -90,6 +96,11 @@ export async function callStructuredWithFallback({
   }
   if (lastError) throw lastError
   throw codedError('AI_PROVIDER_NOT_CONFIGURED', 'No AI vision provider is configured.')
+}
+
+function configuredProviderTimeout(value) {
+  const timeoutMs = Number(value)
+  return Number.isInteger(timeoutMs) && timeoutMs > 0 ? { timeoutMs } : {}
 }
 
 async function callProviderWithDeadline(provider, request, invoke) {
@@ -149,7 +160,15 @@ export async function callCompatibleStructured({
       const response = await fetchImpl(endpoint, {
         method: 'POST',
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, messages, stream: false, response_format: { type: 'json_object' } }),
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: 0,
+          max_tokens: DEFAULT_QWEN_MAX_OUTPUT_TOKENS,
+          enable_thinking: false,
+          stream: false,
+          response_format: { type: 'json_object' },
+        }),
         signal: controller.signal,
       })
       if (!response?.ok) {
@@ -164,7 +183,7 @@ export async function callCompatibleStructured({
         : String(content || '')
       if (!text.trim()) throw codedError('QWEN_RESPONSE_TEXT_MISSING', 'Qwen returned an empty response.')
       try {
-        return JSON.parse(text.replace(/^```json\s*/i, '').replace(/\s*```$/, ''))
+        return parseCompatibleJson(text)
       } catch {
         throw codedError('QWEN_RESPONSE_JSON_INVALID', 'Qwen did not return valid JSON.')
       }
@@ -252,6 +271,16 @@ function compactSchema(schema) {
   }
   if (schema.items) result.items = compactSchema(schema.items)
   return result
+}
+
+function parseCompatibleJson(text) {
+  const source = String(text || '').trim().replace(/^\uFEFF/, '')
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/, '')
+  const start = source.indexOf('{')
+  const end = source.lastIndexOf('}')
+  if (start < 0 || end <= start) throw new SyntaxError('Qwen response did not contain a complete JSON object.')
+  return JSON.parse(source.slice(start, end + 1))
 }
 
 function codedError(code, message) {

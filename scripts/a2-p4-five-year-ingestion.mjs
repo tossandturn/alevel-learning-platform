@@ -8,15 +8,16 @@ import { selectA2P4FiveYearPairs } from './ai-pdf-ingestion/a2-p4-five-year.mjs'
 const SUBJECT = '9702'
 const FIRST_YEAR = 2021
 const LAST_YEAR = 2025
-const DEFAULT_RENDER_DPI = 180
+const DEFAULT_RENDER_DPI = 120
 const PAGE_WINDOW_MAX_ATTEMPTS = 1
 const PAGE_WINDOW_OWNED_PAGES = 1
 const PAGE_WINDOW_TRAILING_PAGES = 1
 // Vision requests containing full rendered pages can take longer than text-only
 // probes. Keep GPT first, but give the Qwen fallback enough time to process a
 // page before quarantining an otherwise valid paper.
-const PAGE_WINDOW_TIMEOUT_MS = 60000
-const PAGE_WINDOW_PAPER_TIMEOUT_MS = 3600000
+const PAGE_WINDOW_TIMEOUT_MS = 180000
+const PAGE_WINDOW_OPENAI_TIMEOUT_MS = 15000
+const PAGE_WINDOW_PAPER_TIMEOUT_MS = 7200000
 
 function requiredDirectory(value, label) {
   const directory = path.resolve(String(value || ''))
@@ -94,6 +95,11 @@ export function buildA2P4FiveYearJobs({ libraryRoot, outputRoot, renderDpi = DEF
 }
 
 async function runOneIngestion(job, { cwd, env }) {
+  const workerEnv = {
+    ...env,
+    AI_PDF_OPENAI_PROVIDER_TIMEOUT_MS: String(PAGE_WINDOW_OPENAI_TIMEOUT_MS),
+    AI_PDF_QWEN_PROVIDER_TIMEOUT_MS: String(job.timeoutMs),
+  }
   const argv = [
     '--paper-id', job.paperId,
     '--question-pdf', job.questionPdf,
@@ -112,8 +118,8 @@ async function runOneIngestion(job, { cwd, env }) {
   ]
   if (job.retry) argv.push('--retry')
   if (job.dryRun) argv.push('--dry-run')
-  const options = parseIngestionArgs(argv, { cwd, env })
-  return runIngestionCli(options, { env })
+  const options = parseIngestionArgs(argv, { cwd, env: workerEnv })
+  return runIngestionCli(options, { env: workerEnv })
 }
 
 function outcomeFor(job, result) {
