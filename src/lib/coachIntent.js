@@ -1,3 +1,5 @@
+import { stableSorted } from './arrayOrder.js'
+
 const PRACTICE_PATTERN = /真题|练习|刷题|习题|组卷|题目|题集|专题|practice|drill|questions?|set|paper/i
 const LATEST_PATTERN = /最新|最近|latest|newest/i
 
@@ -173,10 +175,14 @@ function stageFor(source, qualification) {
 
 function parseSource(source) {
   const qualification = QUALIFICATIONS.find((item) => item.pattern.test(source))
-  const matchingTopics = TOPICS.filter((item) => item.pattern.test(source) && (!qualification || item.subjectId === qualification.subjectId))
-    .toSorted((left, right) => left.priority - right.priority)
-  const fallbackTopics = qualification ? [] : TOPICS.filter((item) => item.pattern.test(source))
-    .toSorted((left, right) => left.priority - right.priority)
+  const matchingTopics = stableSorted(
+    TOPICS.filter((item) => item.pattern.test(source) && (!qualification || item.subjectId === qualification.subjectId)),
+    (left, right) => left.priority - right.priority,
+  )
+  const fallbackTopics = qualification ? [] : stableSorted(
+    TOPICS.filter((item) => item.pattern.test(source)),
+    (left, right) => left.priority - right.priority,
+  )
   const rawSelectedTopic = matchingTopics[0] || fallbackTopics[0]
   const resolvedQualification = qualification || QUALIFICATIONS.find((item) => item.subjectId === rawSelectedTopic?.subjectId)
   const selectedTopic = resolvedQualification?.subjectId === 'physics'
@@ -228,7 +234,8 @@ export function resolveCoachIntent(message, history = []) {
 
 export function latestBphoSpcPaper(items = []) {
   const markSchemeIds = new Set(items.filter((item) => item.subject === 'bpho' && item.kind === 'ms').map((item) => item.id))
-  return items
-    .filter((item) => item.subject === 'bpho' && item.kind === 'qp' && /^BPhO_SPC_\d{4}_QP\.pdf$/i.test(item.file) && item.markSchemeId && markSchemeIds.has(item.markSchemeId))
-    .toSorted((left, right) => (Number(right.year) || 0) - (Number(left.year) || 0) || left.file.localeCompare(right.file))[0] || null
+  return stableSorted(
+    items.filter((item) => item.subject === 'bpho' && item.kind === 'qp' && /^BPhO_SPC_\d{4}_QP\.pdf$/i.test(item.file) && item.markSchemeId && markSchemeIds.has(item.markSchemeId)),
+    (left, right) => (Number(right.year) || 0) - (Number(left.year) || 0) || left.file.localeCompare(right.file),
+  )[0] || null
 }

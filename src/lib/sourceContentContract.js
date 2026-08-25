@@ -1,4 +1,5 @@
 import { SOURCE_CONTENT_MANIFEST_CHECKSUM, SOURCE_INDEX_SHA256 } from '../data/sourceContentIdentity.js'
+import { stableSorted } from './arrayOrder.js'
 
 export const SOURCE_CONTENT_AUDIT_SCHEMA_VERSION = 'source-content-audit-v3'
 
@@ -33,17 +34,21 @@ export function documentPageFromAssetUrl(url) {
 }
 
 export function trustedSourceAssetUrls(sourceRef = {}) {
-  return [...new Set((sourceRef.assetUrls || [])
-    .map((url) => String(url || '').trim())
-    .filter((url) => TRUSTED_SOURCE_ASSET.test(url)))]
-    .toSorted((left, right) => (sourcePageFromAssetUrl(left) || 0) - (sourcePageFromAssetUrl(right) || 0) || left.localeCompare(right))
+  return stableSorted(
+    [...new Set((sourceRef.assetUrls || [])
+      .map((url) => String(url || '').trim())
+      .filter((url) => TRUSTED_SOURCE_ASSET.test(url)))],
+    (left, right) => (sourcePageFromAssetUrl(left) || 0) - (sourcePageFromAssetUrl(right) || 0) || left.localeCompare(right),
+  )
 }
 
 export function trustedDocumentAssetUrls(documentRef = {}) {
-  return [...new Set((documentRef.assetUrls || [])
-    .map((url) => String(url || '').trim())
-    .filter((url) => TRUSTED_SOURCE_ASSET.test(url)))]
-    .toSorted((left, right) => (documentPageFromAssetUrl(left) || 0) - (documentPageFromAssetUrl(right) || 0) || left.localeCompare(right))
+  return stableSorted(
+    [...new Set((documentRef.assetUrls || [])
+      .map((url) => String(url || '').trim())
+      .filter((url) => TRUSTED_SOURCE_ASSET.test(url)))],
+    (left, right) => (documentPageFromAssetUrl(left) || 0) - (documentPageFromAssetUrl(right) || 0) || left.localeCompare(right),
+  )
 }
 
 function validPage(value) {
@@ -113,10 +118,9 @@ export function requiredSourceAssetEvidence(part = {}) {
       documentSha256: '',
     })
   }
-  return Object.freeze([...new Map(entries
+  return Object.freeze(stableSorted([...new Map(entries
     .map((entry) => [`${entry.page}\u0000${entry.assetSha256}\u0000${entry.assetUrl}`, Object.freeze(entry)]))
-    .values()]
-    .toSorted((left, right) => left.page - right.page || left.assetSha256.localeCompare(right.assetSha256)))
+    .values()], (left, right) => left.page - right.page || left.assetSha256.localeCompare(right.assetSha256)))
 }
 
 /**
@@ -137,10 +141,9 @@ export function requiredMarkSchemeAssetEvidence(part = {}) {
       documentSha256: validSha256(evidence?.documentSha256),
     })
   }
-  return Object.freeze([...new Map(entries
+  return Object.freeze(stableSorted([...new Map(entries
     .map((entry) => [`${entry.page}\u0000${entry.assetSha256}\u0000${entry.assetUrl}`, Object.freeze(entry)]))
-    .values()]
-    .toSorted((left, right) => left.page - right.page || left.assetSha256.localeCompare(right.assetSha256)))
+    .values()], (left, right) => left.page - right.page || left.assetSha256.localeCompare(right.assetSha256)))
 }
 
 function answerPartById(question = {}) {
@@ -149,7 +152,7 @@ function answerPartById(question = {}) {
 
 function evidenceSignatureEntries(question = {}) {
   const answers = answerPartById(question)
-  return (question.parts || []).map((part, index) => {
+  return stableSorted((question.parts || []).map((part, index) => {
     const partId = partIdForEvidence(part, `part-${index + 1}`)
     const answerPart = answers.get(partId) || part
     return [
@@ -157,11 +160,11 @@ function evidenceSignatureEntries(question = {}) {
       requiredSourceAssetEvidence(part).map((entry) => [entry.page, entry.assetUrl, entry.assetSha256, entry.documentSha256]),
       requiredMarkSchemeAssetEvidence(answerPart).map((entry) => [entry.page, entry.assetUrl, entry.assetSha256, entry.documentSha256]),
     ]
-  }).toSorted((left, right) => left[0].localeCompare(right[0]))
+  }), (left, right) => left[0].localeCompare(right[0]))
 }
 
 function coordinateEvidenceSignatureEntries(question = {}) {
-  return (question.parts || []).map((part, index) => {
+  return stableSorted((question.parts || []).map((part, index) => {
     const partId = partIdForEvidence(part, `part-${index + 1}`)
     const sourceEvidence = (Array.isArray(part.sourceEvidence) ? part.sourceEvidence : [])
       .filter((entry) => entry?.coordinateSpace === 'normalized-xyxy')
@@ -177,7 +180,7 @@ function coordinateEvidenceSignatureEntries(question = {}) {
         .map((entry) => [validPage(entry?.page), validSha256(entry?.pageImageSha256)])
       : []
     return [partId, sourceEvidence, markSchemeEvidence]
-  }).toSorted((left, right) => left[0].localeCompare(right[0]))
+  }), (left, right) => left[0].localeCompare(right[0]))
 }
 
 export function sourceBindingSignature(question = {}) {
@@ -540,7 +543,7 @@ export function sourceBindingStatus(question = {}) {
     sourcePageEnd: pageRange.end,
     partPages: Object.freeze(partPages),
     assetUrls: Object.freeze(trustedAssets),
-    assetPages: Object.freeze([...assetPages].toSorted((left, right) => left - right)),
+    assetPages: Object.freeze(stableSorted([...assetPages], (left, right) => left - right)),
     bindingSignature: sourceBindingSignature(question),
   })
 }

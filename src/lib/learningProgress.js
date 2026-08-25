@@ -1,6 +1,7 @@
 import { courseRoutes } from '../data/routeRegistry.js'
 import { LEGACY_UNSCOPED_ROUTE_ID, resolveRouteBinding } from './routeMigration.js'
 import { answeredQuestionCount, isScoredAttempt } from './attemptAudit.js'
+import { stableSorted } from './arrayOrder.js'
 
 function dayKey(value) {
   if (!value) return ''
@@ -98,9 +99,11 @@ export function latestSubmittedActivity({ attempts = [], units = [], paperSessio
         questionCount: Number(session.questionCount) || 0,
       }
     })
-  return [...topicActivities, ...paperActivities]
-    .filter((activity) => Number.isFinite(Date.parse(activity.date || '')))
-    .toSorted((left, right) => Date.parse(right.date) - Date.parse(left.date))[0] || null
+  return stableSorted(
+    [...topicActivities, ...paperActivities]
+      .filter((activity) => Number.isFinite(Date.parse(activity.date || ''))),
+    (left, right) => Date.parse(right.date) - Date.parse(left.date),
+  )[0] || null
 }
 
 function readTermsReviewed(routeId) {

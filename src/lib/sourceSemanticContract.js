@@ -1,4 +1,5 @@
 import { sourcePartPages, sourceQuestionId } from './sourceContentContract.js'
+import { stableSorted } from './arrayOrder.js'
 
 export const SOURCE_SEMANTIC_REVIEW_SCHEMA_VERSION = 'source-semantic-review-v1'
 
@@ -195,11 +196,12 @@ export function sourceRangeReviewCandidates(questions = []) {
     return Number.isInteger(number) && number > 0 ? number : null
   }
   for (const [paperId, paperQuestions] of byPaper) {
-    const ordered = paperQuestions
-      .filter((question) => page(question.sourceRef?.pageStart) && page(question.sourceRef?.pageEnd ?? question.sourceRef?.pageStart))
-      .toSorted((left, right) => page(left.sourceRef.pageStart) - page(right.sourceRef.pageStart)
+    const ordered = stableSorted(
+      paperQuestions.filter((question) => page(question.sourceRef?.pageStart) && page(question.sourceRef?.pageEnd ?? question.sourceRef?.pageStart)),
+      (left, right) => page(left.sourceRef.pageStart) - page(right.sourceRef.pageStart)
         || (Number(String(left.sourceRef.question || '').match(/\d+/)?.[0]) || 0)
-        - (Number(String(right.sourceRef.question || '').match(/\d+/)?.[0]) || 0))
+        - (Number(String(right.sourceRef.question || '').match(/\d+/)?.[0]) || 0),
+    )
     for (let index = 0; index < ordered.length - 1; index += 1) {
       const current = ordered[index]
       const next = ordered[index + 1]

@@ -179,6 +179,32 @@ try {
   ], { cwd: temporaryRoot, env: { OPENAI_API_KEY: fakeApiKey } })
   assert.equal(pageWindowedOptions.pageWindowed, true)
 
+  const compactPageWindowedOptions = parseArgs([
+    '--paper-id', 'cie-9702-9702_m25_qp_22',
+    '--question-pdf', questionPdf,
+    '--mark-scheme-pdf', markSchemePdf,
+    '--subject', '9702',
+    '--output-root', outputRoot,
+    '--coordinate-only',
+    '--page-windowed',
+    '--page-window-owned-pages', '1',
+    '--page-window-trailing-pages', '1',
+  ], { cwd: temporaryRoot, env: { OPENAI_API_KEY: fakeApiKey } })
+  assert.equal(compactPageWindowedOptions.pageWindowOwnedPages, 1)
+  assert.equal(compactPageWindowedOptions.pageWindowTrailingPages, 1)
+  assert.equal(buildDryRunPlan(compactPageWindowedOptions).pageWindowOwnedPages, 1)
+  assert.equal(buildDryRunPlan(compactPageWindowedOptions).pageWindowTrailingPages, 1)
+  assert.throws(
+    () => parseArgs([
+      '--paper-id', 'cie-9702-9702_m25_qp_22',
+      '--question-pdf', questionPdf,
+      '--mark-scheme-pdf', markSchemePdf,
+      '--subject', '9702',
+      '--page-window-owned-pages', '0',
+    ], { cwd: temporaryRoot, env: { OPENAI_API_KEY: fakeApiKey } }),
+    /--page-window-owned-pages must be between 1 and 8/,
+  )
+
   const currentRelease = path.join(temporaryRoot, 'current')
   symlinkSync(path.resolve(import.meta.dirname, '..'), currentRelease, process.platform === 'win32' ? 'junction' : 'dir')
   const linkedCli = spawnSync(process.execPath, [

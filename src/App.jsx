@@ -48,6 +48,7 @@ import {
 } from './lib/markingLifecycle'
 import { latestBphoSpcPaper } from './lib/coachIntent'
 import { buildCompletionByUnit, buildLearningProgress, latestSubmittedActivity, recommendForRoute } from './lib/learningProgress'
+import { stableSorted } from './lib/arrayOrder'
 import { accountRefreshFailureState, accountRefreshRetryDelay, professionalTermsUrl, requestNativeAccountReadiness, requestSharedAccount, requestSharedWorkspace, requestSyllabusPracticeRebind, requestSyllabusPracticeSet, sharedAccountRequest, signInSharedAccount, signOutSharedAccount } from './lib/sharedAccount'
 import { requestMarkingCapabilities } from './lib/markingCapabilityClient'
 import { mapWithConcurrency } from './lib/asyncPool'
@@ -3032,9 +3033,10 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen =
   const practiceReady = dynamicSyllabusRoute
     ? selectedTopicsMeetReviewFloor && available > 0
     : available >= MIN_VERIFIED_GROUPS_FOR_PRACTICE
-  const topicPracticeUnits = (dynamicSyllabusRoute ? [] : practiceUnits)
-    .filter((unit) => unit.knowledgeGroupId === topicId)
-    .toSorted((left, right) => (left.sourceSetIndex || 0) - (right.sourceSetIndex || 0))
+  const topicPracticeUnits = stableSorted(
+    (dynamicSyllabusRoute ? [] : practiceUnits).filter((unit) => unit.knowledgeGroupId === topicId),
+    (left, right) => (left.sourceSetIndex || 0) - (right.sourceSetIndex || 0),
+  )
   const sampleReady = !practiceReady && available > 0 && topicPracticeUnits.length > 0
   const markingCapabilityCounts = topicPracticeUnits.reduce((counts, unit) => {
     for (const part of unit.parts || []) {
@@ -3054,7 +3056,7 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen =
       if (!topicQuestionMatches(question, activeRouteId, topicId)) continue
       merged.set(question.sourceQuestionId, question)
     }
-    return [...merged.values()].toSorted((left, right) => (
+    return stableSorted([...merged.values()], (left, right) => (
       (Number(right.sourceRef?.year) || 0) - (Number(left.sourceRef?.year) || 0)
       || String(left.sourceRef?.paper || '').localeCompare(String(right.sourceRef?.paper || ''))
       || String(left.sourceRef?.question || '').localeCompare(String(right.sourceRef?.question || ''), undefined, { numeric: true })
@@ -3513,13 +3515,13 @@ function StudentNotebook({ activeRoute, routeOptions, selectRoute, attempts, uni
   const filteredMistakes = mistakes.filter((mistake) => (!search || mistake.searchText?.includes(search)) && (severity === 'all' || mistake.severity.toLowerCase() === severity))
   const filteredProvisionalMistakes = provisionalMistakes.filter((mistake) => !search || mistake.searchText?.includes(search))
   const filteredPaperMistakes = paperMistakes.filter((mistake) => !search || `${mistake.session?.file || ''} ${mistake.paper?.id || ''} ${mistake.questionNumber} ${mistake.status}`.toLowerCase().includes(search))
-  const recentAttempts = attempts
-    .filter((attempt) => {
+  const recentAttempts = stableSorted(
+    attempts.filter((attempt) => {
       const unit = unitById.get(attempt.unitId)
       return Boolean(unit && isScoredAttempt(attempt, unit))
-    })
-    .toSorted((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt))
-    .slice(0, 4)
+    }),
+    (a, b) => new Date(b.submittedAt) - new Date(a.submittedAt),
+  ).slice(0, 4)
   const savedNote = note?.body || ''
   const masteredTopics = new Set(units.filter((unit) => {
     const best = getUnitAttempts(attempts, unit).map((attempt) => attempt.scoreResult?.percentage).filter(Number.isFinite).sort((a, b) => b - a)[0]
@@ -3528,10 +3530,10 @@ function StudentNotebook({ activeRoute, routeOptions, selectRoute, attempts, uni
   const noteStatus = note?.deleted
     ? note.syncStatus === 'error' ? 'Delete failed · local copy hidden' : note.syncStatus === 'pending' ? 'Deleting…' : isSyncedAccount ? 'Synced' : 'Local only'
     : note?.syncStatus === 'error' ? 'Sync failed · local copy safe' : note?.syncStatus === 'pending' ? 'Syncing…' : isSyncedAccount ? 'Synced' : 'Local only'
-  const recentReviewActions = [...reviewQueueAudit]
-    .filter((event) => event?.at)
-    .toSorted((left, right) => Date.parse(right.at) - Date.parse(left.at))
-    .slice(0, 5)
+  const recentReviewActions = stableSorted(
+    [...reviewQueueAudit].filter((event) => event?.at),
+    (left, right) => Date.parse(right.at) - Date.parse(left.at),
+  ).slice(0, 5)
   const hasReviewItems = mistakes.length > 0 || provisionalMistakes.length > 0 || paperMistakes.length > 0
 
   if (!hasReviewItems) {

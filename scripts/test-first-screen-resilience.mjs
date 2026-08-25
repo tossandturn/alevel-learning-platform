@@ -13,6 +13,17 @@ const indexHtmlSource = fs.readFileSync(path.join(root, 'index.html'), 'utf8')
 const indexCssSource = fs.readFileSync(path.join(root, 'src', 'index.css'), 'utf8')
 const verifiedRuntimeSource = fs.readFileSync(path.join(root, 'src', 'lib', 'verifiedPracticeCatalog.js'), 'utf8')
 const packageSource = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
+const { validateSyllabusInventoryPayload } = await import('../src/hooks/useSyllabusInventory.js')
+const { stableSorted } = await import('../src/lib/arrayOrder.js')
+const { sourceBindingSnapshotForUnit } = await import('../src/lib/attemptAudit.js')
+
+function sourceFilesUnder(directory) {
+  return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const entryPath = path.join(directory, entry.name)
+    if (entry.isDirectory()) return sourceFilesUnder(entryPath)
+    return /\.(?:js|jsx)$/.test(entry.name) ? [entryPath] : []
+  })
+}
 
 assert.match(indexHtmlSource, /id="boot-fallback"/, 'the HTML shell must contain a visible fallback before JavaScript runs')
 assert.match(indexHtmlSource, /STEM Studio/, 'the no-JavaScript fallback must identify the product')
@@ -57,6 +68,13 @@ assert.match(appSource, /if \(detailTab === 'papers'\) onOpenPastPaperQuestions\
 assert.match(appSource, /studyQuestionRuntimeStatus === 'loading' \|\| studyQuestionRuntimeStatus === 'idle'/, 'source-question loading must have an explicit non-blank state')
 assert.match(appSource, /supportsSyllabusPracticeRoute\(activeRouteId\) && \(view === 'library' \|\| view === 'topic'\)/, 'syllabus topic pages must use lightweight inventory data before loading the full catalog')
 assert.match(appSource, /syllabusPracticeFallbackOptions/, 'syllabus topic pages must have a lightweight route option fallback')
+assert.doesNotMatch(appSource, /\.toSorted\(/, 'the App must not depend on Array.prototype.toSorted at render time')
+assert.doesNotMatch(bootRecoverySource, /\.toSorted\(/, 'boot recovery must not depend on Array.prototype.toSorted at startup')
+for (const sourcePath of sourceFilesUnder(path.join(root, 'src'))) {
+  assert.doesNotMatch(fs.readFileSync(sourcePath, 'utf8'), /\.toSorted\(/, `${path.relative(root, sourcePath)} must use the sorting compatibility helper`)
+}
+assert.match(appSource, /stableSorted/, 'the App must use a compatibility helper for ordered lists')
+assert.match(bootRecoverySource, /freshReloadUrl/, 'boot recovery should preserve the current release when reloading')
 assert.doesNotMatch(verifiedRuntimeSource, /from ['"]\.\.\/data\/questionBank\.js['"]/, 'the verified practice runtime must not import the full study question index')
 assert.doesNotMatch(studyRuntimeSource, /from ['"]\.\.\/data\/questionBank\.js['"]/, 'the study question runtime must not embed the full study question index')
 assert.match(studyRuntimeSource, /fetch/, 'the study question runtime must fetch an on-demand route fragment')
@@ -67,5 +85,60 @@ assert.match(questionSearchSource, /from ['"]\.\/questionText\.js['"]/, 'search 
 assert.match(indexCssSource, /\.app-recovery__actions \.primary-action/, 'the recovery action styles must work before App.css loads')
 assert.match(indexCssSource, /background: #f4f7fb/, 'the recovery surface must have standalone fallback colors')
 assert.equal(packageSource.scripts['test:first-screen'], 'node scripts/test-first-screen-resilience.mjs')
+
+const sortedInput = [{ value: 3 }, { value: 1 }, { value: 2 }]
+const sortedOutput = stableSorted(sortedInput, (left, right) => left.value - right.value)
+assert.deepEqual(sortedOutput.map((item) => item.value), [1, 2, 3], 'stableSorted must keep comparator order')
+assert.deepEqual(sortedInput.map((item) => item.value), [3, 1, 2], 'stableSorted must not mutate the input array')
+
+const sourceBoundUnit = {
+  id: 'first-screen-source-unit',
+  parts: [
+    {
+      sourceKind: 'past-paper',
+      sourceQuestionId: 'cie-9702-q2',
+      questionPartId: 'b',
+      sourceBindingProvenance: {
+        bindingSignature: 'binding-q2',
+        reviewVersion: 'v1',
+        sourceDocumentSha256: 'a'.repeat(64),
+        answerDocumentSha256: 'b'.repeat(64),
+        sourceIndexSha256: 'c'.repeat(64),
+        sourceManifestChecksum: 'd'.repeat(64),
+      },
+    },
+    {
+      sourceKind: 'past-paper',
+      sourceQuestionId: 'cie-9702-q1',
+      questionPartId: 'a',
+      sourceBindingProvenance: {
+        bindingSignature: 'binding-q1',
+        reviewVersion: 'v1',
+        sourceDocumentSha256: 'e'.repeat(64),
+        answerDocumentSha256: 'f'.repeat(64),
+        sourceIndexSha256: '1'.repeat(64),
+        sourceManifestChecksum: '2'.repeat(64),
+      },
+    },
+  ],
+}
+const originalToSorted = Array.prototype.toSorted
+try {
+  Object.defineProperty(Array.prototype, 'toSorted', { configurable: true, value: undefined, writable: true })
+  const snapshot = sourceBindingSnapshotForUnit(sourceBoundUnit)
+  assert.deepEqual(snapshot.parts.map((part) => part.sourceQuestionId), ['cie-9702-q1', 'cie-9702-q2'], 'saved source bindings must remain readable without toSorted')
+} finally {
+  Object.defineProperty(Array.prototype, 'toSorted', { configurable: true, value: originalToSorted, writable: true })
+}
+
+const validated = validateSyllabusInventoryPayload({
+  routeId: 'cie-9702-a2-physics',
+  assessmentComponents: [{ component: '4', stage: 'A2', track: 'theory', label: 'Paper 4' }],
+  topics: [{ id: 'physics-9702-topic-01', code: '1', name: 'Motion in a circle', availableQuestionCount: '7' }],
+})
+assert.equal(validated.topics[0].availableQuestionCount, 7)
+assert.equal(validated.assessmentComponents[0].component, 4)
+assert.throws(() => validateSyllabusInventoryPayload({ assessmentComponents: [], topics: [{}] }), /missing id, code, or name/i)
+assert.throws(() => validateSyllabusInventoryPayload({ assessmentComponents: [{}], topics: [] }), /missing component or label/i)
 
 console.log('first-screen resilience checks passed')

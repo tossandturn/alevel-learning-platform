@@ -2,6 +2,7 @@ import { AlertTriangle, CheckCircle2, Download, FileText, History, LoaderCircle,
 import { attemptResponseProjection, hasCurrentSourceBindingForAttempt, isPendingSelfMarkAttempt, isProvisionalAttempt, isScoredAttempt, isStudyOnlyAttempt } from '../lib/attemptAudit'
 import { paperStudyModeLabel } from '../lib/paperStudyMode'
 import { practiceUnitMetrics } from '../lib/practicePresentation'
+import { stableSorted } from '../lib/arrayOrder'
 
 function formatDate(value) {
   const date = new Date(value)
@@ -39,7 +40,7 @@ export function HistoryView({ attempts, paperSessions, paperReviews = [], onRete
   }), { raw: 0, max: 0 })
   const weeklyAccuracy = weeklyMarks.max ? Math.round(weeklyMarks.raw / weeklyMarks.max * 100) : null
   const weeklyMinutes = Math.round(weeklyAttempts.reduce((sum, attempt) => sum + Number(attempt.elapsedSec || 0), 0) / 60)
-  const topicProgress = [...formalAttempts.reduce((topics, attempt) => {
+  const topicProgress = stableSorted([...formalAttempts.reduce((topics, attempt) => {
     const unit = unitById.get(attempt.unitId)
     const key = unit?.knowledgeGroupId || unit?.topic || unit?.id
     if (!key) return topics
@@ -49,7 +50,7 @@ export function HistoryView({ attempts, paperSessions, paperReviews = [], onRete
     const label = /-topic-\d+/i.test(topic) ? String(unit.title || 'Practice topic') : topic.replace(/^\d+(?:\.\d+)?\s+/, '')
     if (!current || score > current.score) topics.set(key, { key, label, score })
     return topics
-  }, new Map()).values()].toSorted((left, right) => right.score - left.score)
+  }, new Map()).values()], (left, right) => right.score - left.score)
   const trendAttempts = formalAttempts.slice(-6)
 
   return (

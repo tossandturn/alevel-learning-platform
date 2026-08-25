@@ -2,6 +2,7 @@ const EXPORT_SCHEMA_VERSION = 'alevel-learning-export-v2'
 export const ATTEMPT_SOURCE_BINDING_SCHEMA_VERSION = 'attempt-source-binding.v1'
 import { canonicalSourceQuestionId } from './sourceContentContract.js'
 import { evidencePresent, responsePresent } from './practicePresentation.js'
+import { stableSorted } from './arrayOrder.js'
 
 export { EXPORT_SCHEMA_VERSION }
 
@@ -55,7 +56,7 @@ export function sourceBindingSnapshotForUnit(unit = {}) {
   return Object.freeze({
     schemaVersion: ATTEMPT_SOURCE_BINDING_SCHEMA_VERSION,
     unitId: String(unit?.id || ''),
-    parts: Object.freeze([...snapshots].toSorted((left, right) => (
+    parts: Object.freeze(stableSorted(snapshots, (left, right) => (
       left.sourceQuestionId.localeCompare(right.sourceQuestionId)
       || left.questionPartId.localeCompare(right.questionPartId)
     ))),
@@ -209,10 +210,11 @@ function reviewEventTime(value) {
 }
 
 export function reviewQueueState(reviewItemId, reviewQueueAudit = [], now = Date.now()) {
-  const latest = [...(Array.isArray(reviewQueueAudit) ? reviewQueueAudit : [])]
-    .filter((event) => String(event?.reviewItemId || '') === String(reviewItemId || '') && REVIEW_ACTIONS.has(String(event?.action || '')))
-    .toSorted((left, right) => reviewEventTime(left.at) - reviewEventTime(right.at))
-    .at(-1) || null
+  const latest = stableSorted(
+    [...(Array.isArray(reviewQueueAudit) ? reviewQueueAudit : [])]
+      .filter((event) => String(event?.reviewItemId || '') === String(reviewItemId || '') && REVIEW_ACTIONS.has(String(event?.action || ''))),
+    (left, right) => reviewEventTime(left.at) - reviewEventTime(right.at),
+  ).at(-1) || null
   if (!latest) return { status: 'open', event: null }
   if (latest.action === 'snoozed' && Date.parse(latest.snoozeUntil || '') > now) return { status: 'snoozed', event: latest }
   if (latest.action === 'snoozed') return { status: 'open', event: latest }
@@ -286,7 +288,7 @@ export function buildAttemptReviewQueue({ attempts = [], units = [], routeId = '
 
 export function buildProvisionalAttemptEvidence({ attempts = [], units = [], routeId = '' } = {}) {
   const unitsById = new Map(units.map((unit) => [unit.id, unit]))
-  return attempts.flatMap((attempt) => {
+  return stableSorted(attempts.flatMap((attempt) => {
     const unit = unitsById.get(attempt?.unitId)
     if (!unit || (routeId && unit.routeId !== routeId) || !isProvisionalAttempt(attempt, unit)) return []
     const responseProjection = attemptResponseProjection(attempt, unit)
@@ -300,7 +302,7 @@ export function buildProvisionalAttemptEvidence({ attempts = [], units = [], rou
         unansweredQuestionCount: responseProjection.unansweredQuestionCount,
       },
     }]
-  }).toSorted((left, right) => Date.parse(left.attempt.submittedAt || '') - Date.parse(right.attempt.submittedAt || ''))
+  }), (left, right) => Date.parse(left.attempt.submittedAt || '') - Date.parse(right.attempt.submittedAt || ''))
 }
 
 export function buildAttemptAudit(attempt, unit) {

@@ -1,4 +1,5 @@
 export const SOURCE_RENDER_MANIFEST_SCHEMA_VERSION = 'source-render-manifest-v1'
+import { stableSorted } from './arrayOrder.js'
 
 const SHA256 = /^[a-f0-9]{64}$/i
 const REVIEWED_DISPLAY_BOUNDS = 'reviewed-display-bounds-v1'
@@ -183,12 +184,12 @@ export function buildSourceRenderManifest(question = {}) {
       exactRegion: entry.exactRegion,
       source: entry.source,
     }))),
-    pages: Object.freeze([...pageMap.values()].toSorted((left, right) => left.page - right.page).map((entry) => Object.freeze({
+    pages: Object.freeze(stableSorted([...pageMap.values()], (left, right) => left.page - right.page).map((entry) => Object.freeze({
       page: entry.page,
       normalizedRegion: Object.freeze([...entry.normalizedRegion]),
       exactRegion: entry.exactRegion,
-      sources: Object.freeze([...entry.sources].toSorted()),
-      partIds: Object.freeze([...entry.partIds].toSorted()),
+      sources: Object.freeze(stableSorted([...entry.sources])),
+      partIds: Object.freeze(stableSorted([...entry.partIds])),
     }))),
   })
 }

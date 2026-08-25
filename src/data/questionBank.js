@@ -3,6 +3,7 @@ import { LEGACY_UNSCOPED_ROUTE_ID, resolveRouteId, routeById, routesForSubject }
 import { normaliseQuestionGroup } from './questionParts.js'
 import { hasCompleteSourceContent, hasRequiredSourceVisual, reviewedSourceFocusBinding, sourceContentStatus } from '../lib/questionContent.js'
 import { canonicalAiMarkingProvenance, canonicalSourceMarkingProvenance } from '../lib/sourceContentContract.js'
+import { stableSorted } from '../lib/arrayOrder.js'
 
 const REQUIRED_SOURCE_FIELDS = ['paperId', 'paper', 'question', 'localUrl', 'pageStart', 'sha256']
 const REQUIRED_ANSWER_FIELDS = ['documentId', 'file', 'localUrl', 'pageStart', 'sha256']
@@ -263,7 +264,7 @@ export function selectTaggedQuestions({
     && isVerifiedPastPaperItem(question)
   ))
 
-  const sorted = candidates.toSorted((left, right) => (
+  const sorted = stableSorted(candidates, (left, right) => (
       (Number(right.sourceRef?.year) || 0) - (Number(left.sourceRef?.year) || 0)
       || String(left.sourceRef?.paper).localeCompare(String(right.sourceRef?.paper))
       || String(left.sourceRef?.question).localeCompare(String(right.sourceRef?.question), undefined, { numeric: true })
@@ -293,7 +294,7 @@ export function selectTaggedQuestions({
   const byType = Map.groupBy(sorted, (question) => question.answerType || 'handwritten')
   for (const [type, items] of byType) byType.set(type, interleaveByPaper(items))
   const typeOrder = ['handwritten', 'numeric', 'graph', 'multiple-choice']
-  const types = [...byType.keys()].toSorted((left, right) => {
+  const types = stableSorted([...byType.keys()], (left, right) => {
     const leftRank = typeOrder.indexOf(left)
     const rightRank = typeOrder.indexOf(right)
     return (leftRank < 0 ? typeOrder.length : leftRank) - (rightRank < 0 ? typeOrder.length : rightRank) || left.localeCompare(right)

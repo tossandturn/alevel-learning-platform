@@ -7,6 +7,7 @@ import { reviewedSourceFocusBinding, sourceContentStatus, stripSourceVisualPlace
 import { SOURCE_CONTENT_MANIFEST_CHECKSUM, SOURCE_INDEX_SHA256 } from '../data/sourceContentIdentity.js'
 import { withPracticePresentation } from './practicePresentation.js'
 import { MIN_VERIFIED_GROUPS_FOR_PRACTICE } from './practiceConstants.js'
+import { stableSorted } from './arrayOrder.js'
 
 export { MIN_VERIFIED_GROUPS_FOR_PRACTICE }
 
@@ -183,7 +184,7 @@ export function resolveVerifiedPracticeSelection({ routeId, subjectId, stage, kn
 }
 
 function stableSelection(questions) {
-  return [...questions].toSorted((left, right) => (
+  return stableSorted([...questions], (left, right) => (
     (Number(right.sourceRef?.year) || 0) - (Number(left.sourceRef?.year) || 0)
     || String(left.sourceRef?.paper).localeCompare(String(right.sourceRef?.paper))
     || String(left.sourceRef?.question).localeCompare(String(right.sourceRef?.question), undefined, { numeric: true })

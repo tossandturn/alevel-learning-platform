@@ -8,6 +8,7 @@ import {
   trustedSourceAssetUrls,
 } from './sourceContentContract.js'
 import { requiresSourceVisual, stripSourceVisualPlaceholders } from './questionText.js'
+import { stableSorted } from './arrayOrder.js'
 
 const REVIEWED_SOURCE_FOCUS_SAFETY_VERSION = 'reviewed-display-bounds-v1'
 
@@ -281,8 +282,8 @@ export function reviewedSourceFocusBinding(question = {}) {
   if (allocations.size !== parts.length) reasons.push('source-focus-allocation-count-mismatch')
   if (reasons.length) return Object.freeze({ complete: false, reasons: Object.freeze([...new Set(reasons)]), parts: Object.freeze({}) })
 
-  const pages = [...pageEntries.values()]
-    .map((entry) => {
+  const pages = stableSorted(
+    [...pageEntries.values()].map((entry) => {
       const rawRegion = Object.freeze([
         Math.min(...entry.regions.map((candidate) => candidate[0])),
         Math.min(...entry.regions.map((candidate) => candidate[1])),
@@ -318,9 +319,9 @@ export function reviewedSourceFocusBinding(question = {}) {
         safetyStatus: REVIEWED_SOURCE_FOCUS_SAFETY_VERSION,
         partIds: Object.freeze([...entry.partIds]),
       })
-    })
-    .filter(Boolean)
-    .toSorted((left, right) => left.page - right.page)
+    }).filter(Boolean),
+    (left, right) => left.page - right.page,
+  )
   if (reasons.length || pages.length !== pageEntries.size) return Object.freeze({ complete: false, reasons: Object.freeze([...new Set(reasons)]), parts: Object.freeze({}) })
   const pageByNumber = new Map(pages.map((entry) => [entry.page, entry]))
   const focusParts = Object.fromEntries(partPages.map(({ partId, page }) => [partId, Object.freeze({

@@ -1,5 +1,6 @@
 import { SHARED_IDENTITY_ORIGIN } from './identityOrigin.js'
 import { documentPageFromAssetUrl, requiredSourceAssetEvidence, sourcePageFromAssetUrl, STEM_MARKING_MANIFEST_SCHEMA_VERSION, STEM_SOURCE_REVIEW_SCHEMA_VERSION, trustedSourceAssetUrls } from './sourceContentContract.js'
+import { stableSorted } from './arrayOrder.js'
 
 export const PAPER_MARKING_SCHEMA_VERSION = 'stem-marking.v1'
 export const TRUSTED_MARKING_MANIFEST_SCHEMA_VERSION = STEM_MARKING_MANIFEST_SCHEMA_VERSION
@@ -74,9 +75,10 @@ function sourceAssetEvidenceForPart(sourceRef = {}, part = {}) {
     const existing = byPageAndHash.get(key)
     if (!existing || (!existing.assetUrl && assetUrl)) byPageAndHash.set(key, { page, assetUrl, sha256 })
   }
-  return [...byPageAndHash.values()]
-    .filter((entry) => Number.isInteger(entry.page) && /^[a-f0-9]{64}$/.test(entry.sha256) && entry.assetUrl)
-    .toSorted((left, right) => left.page - right.page || left.assetUrl.localeCompare(right.assetUrl))
+  return stableSorted(
+    [...byPageAndHash.values()].filter((entry) => Number.isInteger(entry.page) && /^[a-f0-9]{64}$/.test(entry.sha256) && entry.assetUrl),
+    (left, right) => left.page - right.page || left.assetUrl.localeCompare(right.assetUrl),
+  )
 }
 
 export async function loadQuestionAsset({ sourceRef, part, page, assetUrl: requestedAssetUrl = '', expectedSha256, fetchImpl = fetch, origin = typeof window === 'undefined' ? '' : window.location.origin } = {}) {

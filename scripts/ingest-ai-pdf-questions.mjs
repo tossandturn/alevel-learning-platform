@@ -27,8 +27,8 @@ const DEFAULT_RENDER_DPI = 180
 const DEFAULT_MAX_ATTEMPTS = 3
 const DEFAULT_OPENAI_TIMEOUT_MS = 120000
 const DEFAULT_PAPER_TIMEOUT_MS = 900000
-const PAGE_WINDOW_OWNED_PAGE_COUNT = pageWindowSize('AI_PDF_PAGE_WINDOW_OWNED_PAGE_COUNT', 4)
-const PAGE_WINDOW_TRAILING_CONTEXT_PAGE_COUNT = pageWindowSize('AI_PDF_PAGE_WINDOW_TRAILING_CONTEXT_PAGE_COUNT', 1)
+const DEFAULT_PAGE_WINDOW_OWNED_PAGE_COUNT = 4
+const DEFAULT_PAGE_WINDOW_TRAILING_CONTEXT_PAGE_COUNT = 1
 const MAX_PDF_TEXT_BYTES = 2 * 1024 * 1024
 const NO_EXTRACTABLE_TEXT_PAGE_MARKER = '[No extractable text on this page.]'
 const SAFE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/
@@ -40,12 +40,10 @@ const SUPPORTED_SYLLABUSES = Object.freeze({
   '9709': Object.freeze({ AS: CAMBRIDGE_9709_AS_P1_S1_SYLLABUS }),
 })
 
-function pageWindowSize(name, fallback) {
-  const value = process.env[name]
-  if (value === undefined || value === '') return fallback
-  const parsed = Number(value)
+function pageWindowSize(value, label, fallback) {
+  const parsed = Number(value ?? fallback)
   if (!Number.isInteger(parsed) || parsed < 1 || parsed > 8) {
-    throw new RangeError(`${name} must be an integer between 1 and 8.`)
+    throw new RangeError(`${label} must be between 1 and 8.`)
   }
   return parsed
 }
@@ -113,7 +111,7 @@ export function parseArgs(argv, { cwd = process.cwd(), env = process.env } = {})
   const values = {}
   const flags = new Set(['--dry-run', '--retry', '--coordinate-only', '--page-windowed'])
   const options = new Set([
-    '--paper-id', '--question-pdf', '--mark-scheme-pdf', '--subject', '--stage', '--output-root', '--model', '--base-url', '--render-dpi', '--max-attempts', '--timeout-ms', '--paper-timeout-ms',
+    '--paper-id', '--question-pdf', '--mark-scheme-pdf', '--subject', '--stage', '--output-root', '--model', '--base-url', '--render-dpi', '--max-attempts', '--timeout-ms', '--paper-timeout-ms', '--page-window-owned-pages', '--page-window-trailing-pages',
   ])
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -150,6 +148,16 @@ export function parseArgs(argv, { cwd = process.cwd(), env = process.env } = {})
   const maxAttempts = positiveInteger(values['--max-attempts'] ?? DEFAULT_MAX_ATTEMPTS, '--max-attempts')
   const timeoutMs = positiveInteger(values['--timeout-ms'] ?? runtimeEnv.AI_PDF_INGESTION_TIMEOUT_MS ?? DEFAULT_OPENAI_TIMEOUT_MS, '--timeout-ms')
   const paperTimeoutMs = positiveInteger(values['--paper-timeout-ms'] ?? runtimeEnv.AI_PDF_INGESTION_PAPER_TIMEOUT_MS ?? DEFAULT_PAPER_TIMEOUT_MS, '--paper-timeout-ms')
+  const pageWindowOwnedPages = pageWindowSize(
+    values['--page-window-owned-pages'] ?? runtimeEnv.AI_PDF_PAGE_WINDOW_OWNED_PAGE_COUNT,
+    '--page-window-owned-pages',
+    DEFAULT_PAGE_WINDOW_OWNED_PAGE_COUNT,
+  )
+  const pageWindowTrailingPages = pageWindowSize(
+    values['--page-window-trailing-pages'] ?? runtimeEnv.AI_PDF_PAGE_WINDOW_TRAILING_CONTEXT_PAGE_COUNT,
+    '--page-window-trailing-pages',
+    DEFAULT_PAGE_WINDOW_TRAILING_CONTEXT_PAGE_COUNT,
+  )
   const outputRoot = path.resolve(cwd, values['--output-root'] ?? runtimeEnv.AI_PDF_INGESTION_ROOT ?? DEFAULT_OUTPUT_ROOT)
 
   return Object.freeze({
@@ -169,6 +177,8 @@ export function parseArgs(argv, { cwd = process.cwd(), env = process.env } = {})
     maxAttempts,
     timeoutMs,
     paperTimeoutMs,
+    pageWindowOwnedPages,
+    pageWindowTrailingPages,
   })
 }
 
@@ -189,6 +199,8 @@ export function buildDryRunPlan(options) {
     maxAttempts: options.maxAttempts,
     timeoutMs: options.timeoutMs,
     paperTimeoutMs: options.paperTimeoutMs,
+    pageWindowOwnedPages: options.pageWindowOwnedPages,
+    pageWindowTrailingPages: options.pageWindowTrailingPages,
     retry: options.retry,
     coordinateOnly: options.coordinateOnly === true,
     pageWindowed: options.pageWindowed === true,
@@ -379,7 +391,10 @@ async function extractAndVerifyPageWindows({
   }
   const chunks = []
   const observations = new Map()
-  for (const pageWindow of questionPaperPageWindows(source.pageImageHashes)) {
+  for (const pageWindow of questionPaperPageWindows(source.pageImageHashes, {
+    ownedPageCount: options.pageWindowOwnedPages,
+    trailingPageCount: options.pageWindowTrailingPages,
+  })) {
     const chunk = await extractAndVerifyPageWindow({
       source,
       questionRenderDirectory,
@@ -460,13 +475,15 @@ async function extractAndVerifyPageWindow({ source, questionRenderDirectory, pag
   }
 }
 
-function questionPaperPageWindows(pageHashes) {
+function questionPaperPageWindows(pageHashes, { ownedPageCount = DEFAULT_PAGE_WINDOW_OWNED_PAGE_COUNT, trailingPageCount = DEFAULT_PAGE_WINDOW_TRAILING_CONTEXT_PAGE_COUNT } = {}) {
   const pages = sortedPageNumbers(pageHashes)
   if (!pages.length) throw codedError('PAGE_WINDOW_SOURCE_PAGES_INVALID')
+  const ownedPages = pageWindowSize(ownedPageCount, '--page-window-owned-pages', DEFAULT_PAGE_WINDOW_OWNED_PAGE_COUNT)
+  const trailingPages = pageWindowSize(trailingPageCount, '--page-window-trailing-pages', DEFAULT_PAGE_WINDOW_TRAILING_CONTEXT_PAGE_COUNT)
   const windows = []
-  for (let index = 0; index < pages.length; index += PAGE_WINDOW_OWNED_PAGE_COUNT) {
-    const ownedQuestionPaperPages = pages.slice(index, index + PAGE_WINDOW_OWNED_PAGE_COUNT)
-    const visibleQuestionPaperPages = pages.slice(index, index + PAGE_WINDOW_OWNED_PAGE_COUNT + PAGE_WINDOW_TRAILING_CONTEXT_PAGE_COUNT)
+  for (let index = 0; index < pages.length; index += ownedPages) {
+    const ownedQuestionPaperPages = pages.slice(index, index + ownedPages)
+    const visibleQuestionPaperPages = pages.slice(index, index + ownedPages + trailingPages)
     windows.push(Object.freeze({ ownedQuestionPaperPages, visibleQuestionPaperPages }))
   }
   return windows
@@ -939,8 +956,8 @@ function artifactForResult(plan, source, options, validation, extraction, verifi
     ingestionStrategy: options.pageWindowed
       ? {
         id: 'page-windowed-v1',
-        ownedQuestionPaperPageCount: PAGE_WINDOW_OWNED_PAGE_COUNT,
-        trailingQuestionPaperContextPageCount: PAGE_WINDOW_TRAILING_CONTEXT_PAGE_COUNT,
+        ownedQuestionPaperPageCount: options.pageWindowOwnedPages,
+        trailingQuestionPaperContextPageCount: options.pageWindowTrailingPages,
         markSchemeEvidenceMode: 'page-addressed-pdf-text',
         ownershipReconciliation: 'boundary-recovery-v1',
       }

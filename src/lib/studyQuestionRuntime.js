@@ -1,4 +1,5 @@
 import { SOURCE_INDEX_SHA256 } from '../data/sourceContentIdentity.js'
+import { stableSorted } from './arrayOrder.js'
 
 const fragmentPromises = new Map()
 
@@ -23,8 +24,7 @@ function isStudyOnlyCandidate(question) {
 
 export function studyQuestionGroupsForRoute(questions = [], verifiedGroups = []) {
   const verifiedIds = new Set(verifiedGroups.map((question) => question.sourceQuestionId).filter(Boolean))
-  return (Array.isArray(questions) ? questions : [])
-    .toSorted(sortQuestions)
+  return stableSorted(Array.isArray(questions) ? questions : [], sortQuestions)
     .map((question) => ({
       ...question,
       studyOnly: isStudyOnlyCandidate(question) && !verifiedIds.has(question.sourceQuestionId),

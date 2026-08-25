@@ -10,11 +10,13 @@ const FIRST_YEAR = 2021
 const LAST_YEAR = 2025
 const DEFAULT_RENDER_DPI = 180
 const PAGE_WINDOW_MAX_ATTEMPTS = 1
+const PAGE_WINDOW_OWNED_PAGES = 1
+const PAGE_WINDOW_TRAILING_PAGES = 1
 // Vision requests containing full rendered pages can take longer than text-only
 // probes. Keep GPT first, but give the Qwen fallback enough time to process a
 // page before quarantining an otherwise valid paper.
-const PAGE_WINDOW_TIMEOUT_MS = 180000
-const PAGE_WINDOW_PAPER_TIMEOUT_MS = 1800000
+const PAGE_WINDOW_TIMEOUT_MS = 60000
+const PAGE_WINDOW_PAPER_TIMEOUT_MS = 3600000
 
 function requiredDirectory(value, label) {
   const directory = path.resolve(String(value || ''))
@@ -76,6 +78,8 @@ export function buildA2P4FiveYearJobs({ libraryRoot, outputRoot, renderDpi = DEF
     component: 4,
     coordinateOnly: true,
     pageWindowed: true,
+    pageWindowOwnedPages: PAGE_WINDOW_OWNED_PAGES,
+    pageWindowTrailingPages: PAGE_WINDOW_TRAILING_PAGES,
     maxAttempts: PAGE_WINDOW_MAX_ATTEMPTS,
     timeoutMs: PAGE_WINDOW_TIMEOUT_MS,
     paperTimeoutMs: PAGE_WINDOW_PAPER_TIMEOUT_MS,
@@ -103,6 +107,8 @@ async function runOneIngestion(job, { cwd, env }) {
     '--paper-timeout-ms', String(job.paperTimeoutMs),
     '--coordinate-only',
     '--page-windowed',
+    '--page-window-owned-pages', String(job.pageWindowOwnedPages),
+    '--page-window-trailing-pages', String(job.pageWindowTrailingPages),
   ]
   if (job.retry) argv.push('--retry')
   if (job.dryRun) argv.push('--dry-run')
