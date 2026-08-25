@@ -67,6 +67,7 @@ const qwenRequests = []
 const qwenStructuredResult = await callCompatibleStructured({
   apiKey: 'qwen-test-key',
   model: 'qwen3-vl-plus',
+  schemaName: 'fixture',
   schema: { type: 'object', properties: { questions: { type: 'array' } } },
   input: [{ role: 'system', content: [{ type: 'input_text', text: 'Return JSON.' }] }],
   maxAttempts: 1,
@@ -82,6 +83,13 @@ const qwenStructuredResult = await callCompatibleStructured({
 assert.deepEqual(qwenStructuredResult, { questions: [] })
 assert.equal(qwenRequests[0].enable_thinking, false)
 assert.equal(qwenRequests[0].max_tokens, 32768)
+assert.equal(qwenRequests[0].response_format.type, 'json_schema')
+assert.equal(qwenRequests[0].response_format.json_schema.name, 'fixture')
+assert.equal(qwenRequests[0].response_format.json_schema.strict, true)
+assert.deepEqual(qwenRequests[0].response_format.json_schema.schema, {
+  type: 'object',
+  properties: { questions: { type: 'array' } },
+})
 
 const qwenMalformedJsonRequests = []
 const qwenMalformedJsonSleeps = []
@@ -93,6 +101,7 @@ try {
   qwenRecoveredResult = await callCompatibleStructured({
     apiKey: 'qwen-test-key',
     model: 'qwen3-vl-plus',
+    schemaName: 'fixture',
     schema: { type: 'object', properties: { questions: { type: 'array' } } },
     input: [{ role: 'system', content: [{ type: 'input_text', text: 'Return JSON.' }] }],
     maxAttempts: 2,

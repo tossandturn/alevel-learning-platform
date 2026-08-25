@@ -135,6 +135,7 @@ async function callProviderWithDeadline(provider, request, invoke) {
 export async function callCompatibleStructured({
   apiKey,
   model,
+  schemaName = 'structured_output',
   schema,
   input,
   baseUrl,
@@ -167,7 +168,14 @@ export async function callCompatibleStructured({
           max_tokens: DEFAULT_QWEN_MAX_OUTPUT_TOKENS,
           enable_thinking: false,
           stream: false,
-          response_format: { type: 'json_object' },
+          response_format: {
+            type: 'json_schema',
+            json_schema: {
+              name: qwenSchemaName(schemaName),
+              strict: true,
+              schema: compactSchema(schema),
+            },
+          },
         }),
         signal: controller.signal,
       })
@@ -281,6 +289,11 @@ function compactSchema(schema) {
   }
   if (schema.items) result.items = compactSchema(schema.items)
   return result
+}
+
+function qwenSchemaName(value) {
+  const normalized = String(value || 'structured_output').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 64)
+  return normalized || 'structured_output'
 }
 
 function parseCompatibleJson(text) {
