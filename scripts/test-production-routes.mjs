@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
+import fs from 'node:fs'
 import net from 'node:net'
 import path from 'node:path'
+
+import { resolveLibraryRoot } from '../server/pdfLibrary.js'
 
 const root = path.resolve(import.meta.dirname, '..')
 const viteCli = path.join(root, 'node_modules', 'vite', 'bin', 'vite.js')
@@ -34,9 +37,12 @@ async function waitFor(url, child) {
 
 async function main() {
   const port = await freePort()
+  const libraryRoot = resolveLibraryRoot({ cwd: root, env: process.env })
+  const sourcePdf = path.join(libraryRoot, '9702', '9702_m25_qp_42.pdf')
+  assert.ok(fs.existsSync(sourcePdf), `the governed local PDF fixture is missing: ${sourcePdf}`)
   const child = spawn(process.execPath, [viteCli, 'preview', '--host', '127.0.0.1', '--port', String(port), '--strictPort'], {
     cwd: root,
-    env: { ...process.env, BROWSER: 'none' },
+    env: { ...process.env, BROWSER: 'none', CIE_LIBRARY_ROOT: libraryRoot },
     stdio: ['ignore', 'ignore', 'pipe'],
     windowsHide: true,
   })
@@ -72,6 +78,12 @@ async function main() {
     assert.equal(questionAsset.headers.get('cache-control'), 'public, max-age=31536000, immutable')
     assert.ok((await questionAsset.arrayBuffer()).byteLength > 0)
 
+    const sourcePdfResponse = await fetch(`${baseUrl}/local-pdf/9702/9702_m25_qp_42.pdf`)
+    assert.equal(sourcePdfResponse.status, 200)
+    assert.match(sourcePdfResponse.headers.get('content-type') || '', /application\/pdf/i)
+    assert.equal(sourcePdfResponse.headers.get('content-disposition'), 'inline; filename="9702_m25_qp_42.pdf"')
+    assert.ok((await sourcePdfResponse.arrayBuffer()).byteLength > 0)
+
     const index = await fetch(`${baseUrl}/`)
     assert.equal(index.status, 200)
     assert.equal(index.headers.get('cache-control'), 'no-cache')
@@ -90,7 +102,7 @@ async function main() {
 
     console.log(JSON.stringify({
       ok: true,
-      routes: ['/healthz', '/api/health', '/robots.txt', '/sitemap.xml', '/data/study-question-index/manifest.json', '/question-assets/cie-0580-0580_m25_qp_12/qp-03.jpg'],
+      routes: ['/healthz', '/api/health', '/robots.txt', '/sitemap.xml', '/data/study-question-index/manifest.json', '/question-assets/cie-0580-0580_m25_qp_12/qp-03.jpg', '/local-pdf/9702/9702_m25_qp_42.pdf'],
       hashedAsset: assetPath,
       cacheControl: asset.headers.get('cache-control'),
       securityHeaders: true,

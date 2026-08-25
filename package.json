@@ -49,6 +49,7 @@
     "test:release-content-policy": "node scripts/test-release-content-policy.mjs",
     "test:source-identity": "node scripts/test-source-identity.mjs",
     "test:production-routes": "node scripts/test-production-routes.mjs",
+    "test:pdf-library-root": "node scripts/test-pdf-library-root.mjs",
     "test:performance": "node scripts/test-performance-budget.mjs",
     "test:first-screen": "node scripts/test-first-screen-resilience.mjs",
     "test:boot-recovery": "node scripts/test-boot-recovery.mjs",

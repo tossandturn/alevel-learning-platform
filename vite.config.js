@@ -11,8 +11,8 @@ import { resolveAiPdfIngestionRoot } from './server/aiPdfIngestionCandidates.js'
 import { createStemApi } from './server/stemApi.js'
 import { isPaperAvailableToStudents } from './src/lib/paperGovernance.js'
 import { mergeRuntimeEnv } from './src/lib/runtimeEnv.js'
+import { resolveLibraryRoot } from './server/pdfLibrary.js'
 
-const DEFAULT_LIBRARY_ROOT = 'D:/CodexWork/cie-fraft-fetcher/output/pdf'
 const ALLOWED_SUBJECTS = new Set(['0580', '0606', '0610', '0625', '9231', '9700', '9701', '9702', '9708', '9709', 'bpho', 'amc12', 'esat', 'tmua'])
 const PUBLIC_ROOT = path.resolve(process.cwd(), 'public')
 const PUBLIC_METADATA_FILES = ['favicon.svg', 'icons.svg', 'robots.txt', 'sitemap.xml']
@@ -104,7 +104,7 @@ async function sendLocalPdf(request, response, next, env, runtimePdfDocuments = 
     return
   }
 
-  const libraryRoot = path.resolve(env.CIE_LIBRARY_ROOT || DEFAULT_LIBRARY_ROOT)
+  const libraryRoot = resolveLibraryRoot({ env, cwd: process.cwd() })
   const filePath = path.resolve(libraryRoot, subject, fileName)
   const subjectRoot = path.resolve(libraryRoot, subject)
   if (!filePath.startsWith(`${subjectRoot}${path.sep}`) || !fs.existsSync(filePath)) {
@@ -331,7 +331,7 @@ function stemPublicAssetOutput() {
 }
 
 function localCieLibrary(env) {
-  const libraryRoot = path.resolve(env.CIE_LIBRARY_ROOT || DEFAULT_LIBRARY_ROOT)
+  const libraryRoot = resolveLibraryRoot({ env, cwd: process.cwd() })
   const runtimeAiQuestionBank = createAiVerifiedQuestionBankLoader({
     artifactRoot: resolveAiPdfIngestionRoot(env),
     libraryRoot: path.join(libraryRoot, '9702'),
