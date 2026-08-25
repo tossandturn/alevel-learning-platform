@@ -2,7 +2,6 @@ import { callOpenAiStructured } from './openai-structured.mjs'
 
 const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504])
 const DEFAULT_QWEN_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1'
-const DEFAULT_QWEN_MAX_OUTPUT_TOKENS = 32768
 
 function nonempty(value) {
   return typeof value === 'string' && value.trim() ? value.trim() : ''
@@ -165,17 +164,9 @@ export async function callCompatibleStructured({
           model,
           messages,
           temperature: 0,
-          max_tokens: DEFAULT_QWEN_MAX_OUTPUT_TOKENS,
           enable_thinking: false,
-          stream: false,
-          response_format: {
-            type: 'json_schema',
-            json_schema: {
-              name: qwenSchemaName(schemaName),
-              strict: true,
-              schema: compactSchema(schema),
-            },
-          },
+          stream: true,
+          response_format: compatibleResponseFormat(model, schemaName, schema),
         }),
         signal: controller.signal,
       })
@@ -184,18 +175,15 @@ export async function callCompatibleStructured({
         error.retryable = RETRYABLE_STATUS_CODES.has(response?.status)
         throw error
       }
-      const payload = await readJsonWithDeadline(response, controller, requestTimeoutMs)
-      const content = payload?.choices?.[0]?.message?.content
-      const text = Array.isArray(content)
-        ? content.map((entry) => entry?.text || '').join('')
-        : String(content || '')
+      const responseContent = await readCompatibleResponse(response, controller, requestTimeoutMs)
+      const text = responseContent.text
       if (!text.trim()) throw codedError('QWEN_RESPONSE_TEXT_MISSING', 'Qwen returned an empty response.')
       try {
         return parseCompatibleJson(text)
       } catch {
         console.error(JSON.stringify({
           event: 'qwen_response_json_invalid',
-          finishReason: payload?.choices?.[0]?.finish_reason || null,
+          finishReason: responseContent.finishReason,
           contentLength: text.length,
           startsWithObject: text.trimStart().startsWith('{'),
           endsWithObject: text.trimEnd().endsWith('}'),
@@ -260,6 +248,96 @@ async function readJsonWithDeadline(response, controller, timeoutMs) {
   }
 }
 
+async function readCompatibleResponse(response, controller, timeoutMs) {
+  const contentType = compatibleResponseContentType(response)
+  if (!response?.body || typeof response.body.getReader !== 'function' || /json/i.test(contentType)) {
+    const payload = await readJsonWithDeadline(response, controller, timeoutMs)
+    return {
+      text: compatibleContentText(payload),
+      finishReason: payload?.choices?.[0]?.finish_reason || null,
+    }
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let text = ''
+  let finishReason = null
+  let streamCompleted = false
+  let timer
+  const stream = (async () => {
+    while (true) {
+      const chunk = await reader.read()
+      if (chunk.done) break
+      buffer += decoder.decode(chunk.value || new Uint8Array(), { stream: true })
+      const lines = buffer.split(/\r?\n/)
+      buffer = lines.pop() || ''
+      for (const line of lines) {
+        const event = parseCompatibleSseLine(line)
+        if (!event) continue
+        text += event.text
+        if (event.finishReason) finishReason = event.finishReason
+      }
+    }
+    buffer += decoder.decode()
+    const finalEvent = parseCompatibleSseLine(buffer)
+    if (finalEvent) {
+      text += finalEvent.text
+      if (finalEvent.finishReason) finishReason = finalEvent.finishReason
+    }
+    streamCompleted = true
+    return { text, finishReason }
+  })()
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort()
+      reject(codedError('QWEN_TIMEOUT', 'Qwen request timed out.'))
+    }, timeoutMs)
+  })
+  try {
+    return await Promise.race([stream, timeout])
+  } finally {
+    clearTimeout(timer)
+    if (!streamCompleted || controller.signal.aborted) {
+      try { await reader.cancel() } catch { /* the connection is already aborted */ }
+    }
+  }
+}
+
+function compatibleResponseContentType(response) {
+  const headers = response?.headers
+  if (!headers) return ''
+  if (typeof headers.get === 'function') return String(headers.get('content-type') || '')
+  if (typeof headers === 'object') return String(headers['content-type'] || headers['Content-Type'] || '')
+  return ''
+}
+
+function parseCompatibleSseLine(line) {
+  const raw = String(line || '').trim()
+  if (!raw.startsWith('data:')) return null
+  const payloadText = raw.slice(5).trim()
+  if (!payloadText || payloadText === '[DONE]') return null
+  let payload
+  try {
+    payload = JSON.parse(payloadText)
+  } catch {
+    throw codedError('QWEN_RESPONSE_INVALID', 'Qwen returned an unreadable stream response.')
+  }
+  const choice = payload?.choices?.[0]
+  const delta = choice?.delta?.content ?? choice?.message?.content
+  const text = Array.isArray(delta)
+    ? delta.map((entry) => entry?.text || '').join('')
+    : String(delta || '')
+  return { text, finishReason: choice?.finish_reason || null }
+}
+
+function compatibleContentText(payload) {
+  const content = payload?.choices?.[0]?.message?.content
+  return Array.isArray(content)
+    ? content.map((entry) => entry?.text || '').join('')
+    : String(content || '')
+}
+
 function compatibleMessages(input, _schema) {
   // The task prompt already names the required fields. Repeating the complete
   // controlled-tag schema makes compatible vision gateways spend excessive
@@ -294,6 +372,18 @@ function compactSchema(schema) {
 function qwenSchemaName(value) {
   const normalized = String(value || 'structured_output').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 64)
   return normalized || 'structured_output'
+}
+
+function compatibleResponseFormat(model, schemaName, schema) {
+  if (/qwen(?:3)?-vl(?:-|$)/i.test(String(model || ''))) return { type: 'json_object' }
+  return {
+    type: 'json_schema',
+    json_schema: {
+      name: qwenSchemaName(schemaName),
+      strict: true,
+      schema: compactSchema(schema),
+    },
+  }
 }
 
 function parseCompatibleJson(text) {

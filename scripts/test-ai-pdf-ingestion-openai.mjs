@@ -148,6 +148,22 @@ assert.deepEqual(providerResult.value, { questionNumber: '20' })
 assert.equal(providerRequests[0].transport, 'chat-completions')
 assert.equal(providersFromEnvironment({ OPENAI_API_KEY: 'test-openai-key' }, { model: 'gpt-5.6' })[0].transport, 'responses')
 assert.equal(JSON.parse(customBaseRequests[0].init.body).store, false)
+
+const compatibleRealJsonResponse = await callCompatibleStructured({
+  apiKey: 'qwen-test-key',
+  model: 'qwen3-vl-plus',
+  schemaName: 'question_extraction',
+  schema,
+  input: request.input,
+  maxAttempts: 1,
+  fetchImpl: async () => new Response(JSON.stringify({
+    choices: [{ message: { content: '{"questionNumber":"21"}' } }],
+  }), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  }),
+})
+assert.deepEqual(compatibleRealJsonResponse, { questionNumber: '21' })
 assert.doesNotMatch(customBaseRequests[0].url, /fake-secret-do-not-log/)
 assert.doesNotMatch(customBaseRequests[0].init.body, /fake-secret-do-not-log/)
 
@@ -383,6 +399,39 @@ await assert.rejects(
 )
 assert.ok(compatibleTimeoutSignal.aborted)
 
+let compatibleStreamTimeoutSignal
+let compatibleStreamReaderCancelled = false
+await assert.rejects(
+  () => callCompatibleStructured({
+    apiKey: 'fake-secret-do-not-log',
+    model: 'qwen3-vl-plus',
+    schemaName: 'fixture',
+    schema,
+    input: request.input,
+    maxAttempts: 1,
+    timeoutMs: 1,
+    fetchImpl: async (_url, init) => {
+      compatibleStreamTimeoutSignal = init.signal
+      return {
+        ok: true,
+        status: 200,
+        body: {
+          getReader: () => ({
+            read: () => new Promise(() => {}),
+            cancel: async () => { compatibleStreamReaderCancelled = true },
+          }),
+        },
+      }
+    },
+  }),
+  (error) => {
+    assert.equal(error.code, 'QWEN_TIMEOUT')
+    return true
+  },
+)
+assert.ok(compatibleStreamTimeoutSignal.aborted)
+assert.equal(compatibleStreamReaderCancelled, true)
+
 let expiredDeadlineAttempts = 0
 await assert.rejects(
   () => callOpenAiStructured({
@@ -402,4 +451,4 @@ await assert.rejects(
 )
 assert.equal(expiredDeadlineAttempts, 0)
 
-console.log(JSON.stringify({ status: 'passed', checks: 75 }))
+console.log(JSON.stringify({ status: 'passed', checks: 77 }))

@@ -82,14 +82,69 @@ const qwenStructuredResult = await callCompatibleStructured({
 })
 assert.deepEqual(qwenStructuredResult, { questions: [] })
 assert.equal(qwenRequests[0].enable_thinking, false)
-assert.equal(qwenRequests[0].max_tokens, 32768)
-assert.equal(qwenRequests[0].response_format.type, 'json_schema')
-assert.equal(qwenRequests[0].response_format.json_schema.name, 'fixture')
-assert.equal(qwenRequests[0].response_format.json_schema.strict, true)
-assert.deepEqual(qwenRequests[0].response_format.json_schema.schema, {
-  type: 'object',
-  properties: { questions: { type: 'array' } },
+assert.equal(Object.hasOwn(qwenRequests[0], 'max_tokens'), false)
+assert.deepEqual(qwenRequests[0].response_format, { type: 'json_object' })
+
+const qwenSchemaRequests = []
+await callCompatibleStructured({
+  apiKey: 'qwen-test-key',
+  model: 'qwen3.7-plus',
+  schemaName: 'fixture',
+  schema: { type: 'object', properties: { questions: { type: 'array' } } },
+  input: [{ role: 'system', content: [{ type: 'input_text', text: 'Return JSON.' }] }],
+  maxAttempts: 1,
+  fetchImpl: async (_url, request) => {
+    qwenSchemaRequests.push(JSON.parse(request.body))
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ choices: [{ message: { content: '{"questions":[]}' } }] }),
+    }
+  },
 })
+assert.equal(qwenSchemaRequests[0].response_format.type, 'json_schema')
+assert.equal(qwenSchemaRequests[0].response_format.json_schema.strict, true)
+
+const qwenStreamRequests = []
+const qwenStreamData = (content, finishReason = null) => `data: ${JSON.stringify({
+  choices: [{ delta: { content }, finish_reason: finishReason }],
+})}`
+const qwenStreamChunks = [
+  `id: 1\r\nevent: result\r\n${qwenStreamData('{"questions":')}\r`,
+  `\n\r\nid: 2\r\n${qwenStreamData('[]}')}\n`,
+  `\r\nid: 3\r\n${qwenStreamData('', 'stop')}\r\n\r\n`,
+  'data: [DONE]\n\n',
+]
+const qwenStreamResult = await callCompatibleStructured({
+  apiKey: 'qwen-test-key',
+  model: 'qwen3-vl-plus',
+  schemaName: 'fixture',
+  schema: { type: 'object', properties: { questions: { type: 'array' } } },
+  input: [{ role: 'system', content: [{ type: 'input_text', text: 'Return JSON.' }] }],
+  maxAttempts: 1,
+  fetchImpl: async (_url, request) => {
+    qwenStreamRequests.push(JSON.parse(request.body))
+    let index = 0
+    const encoder = new TextEncoder()
+    return {
+      ok: true,
+      status: 200,
+      body: {
+        getReader() {
+          return {
+            async read() {
+              if (index >= qwenStreamChunks.length) return { done: true, value: undefined }
+              return { done: false, value: encoder.encode(qwenStreamChunks[index++]) }
+            },
+            async cancel() {},
+          }
+        },
+      },
+    }
+  },
+})
+assert.deepEqual(qwenStreamResult, { questions: [] })
+assert.equal(qwenStreamRequests[0].stream, true)
 
 const qwenMalformedJsonRequests = []
 const qwenMalformedJsonSleeps = []
