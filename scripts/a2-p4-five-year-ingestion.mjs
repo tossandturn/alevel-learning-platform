@@ -9,7 +9,7 @@ const SUBJECT = '9702'
 const FIRST_YEAR = 2021
 const LAST_YEAR = 2025
 const DEFAULT_RENDER_DPI = 120
-const PAGE_WINDOW_MAX_ATTEMPTS = 1
+const PAGE_WINDOW_MAX_ATTEMPTS = 2
 const PAGE_WINDOW_OWNED_PAGES = 1
 const PAGE_WINDOW_TRAILING_PAGES = 1
 // Vision requests containing full rendered pages can take longer than text-only

@@ -83,6 +83,46 @@ assert.deepEqual(qwenStructuredResult, { questions: [] })
 assert.equal(qwenRequests[0].enable_thinking, false)
 assert.equal(qwenRequests[0].max_tokens, 32768)
 
+const qwenMalformedJsonRequests = []
+const qwenMalformedJsonSleeps = []
+const qwenMalformedJsonDiagnostics = []
+const originalConsoleError = console.error
+let qwenRecoveredResult
+try {
+  console.error = (entry) => qwenMalformedJsonDiagnostics.push(JSON.parse(String(entry)))
+  qwenRecoveredResult = await callCompatibleStructured({
+    apiKey: 'qwen-test-key',
+    model: 'qwen3-vl-plus',
+    schema: { type: 'object', properties: { questions: { type: 'array' } } },
+    input: [{ role: 'system', content: [{ type: 'input_text', text: 'Return JSON.' }] }],
+    maxAttempts: 2,
+    sleep: async (delayMs) => qwenMalformedJsonSleeps.push(delayMs),
+    fetchImpl: async () => {
+      qwenMalformedJsonRequests.push(true)
+      return {
+        ok: true,
+        status: 200,
+        json: async () => qwenMalformedJsonRequests.length === 1
+          ? { choices: [{ finish_reason: 'stop', message: { content: '{"questions":[' } }] }
+          : { choices: [{ finish_reason: 'stop', message: { content: '{"questions":[]}' } }] },
+      }
+    },
+  })
+} finally {
+  console.error = originalConsoleError
+}
+assert.deepEqual(qwenRecoveredResult, { questions: [] })
+assert.equal(qwenMalformedJsonRequests.length, 2)
+assert.deepEqual(qwenMalformedJsonSleeps, [250])
+assert.deepEqual(qwenMalformedJsonDiagnostics, [{
+  event: 'qwen_response_json_invalid',
+  finishReason: 'stop',
+  contentLength: 14,
+  startsWithObject: true,
+  endsWithObject: false,
+  hasCodeFence: false,
+}])
+
 const pairs = selectA2P4FiveYearPairs([
   '9702_m20_qp_42.pdf',
   '9702_m20_ms_42.pdf',

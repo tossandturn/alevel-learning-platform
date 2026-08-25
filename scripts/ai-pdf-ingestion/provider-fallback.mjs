@@ -193,7 +193,9 @@ export async function callCompatibleStructured({
           endsWithObject: text.trimEnd().endsWith('}'),
           hasCodeFence: text.includes('```'),
         }))
-        throw codedError('QWEN_RESPONSE_JSON_INVALID', 'Qwen did not return valid JSON.')
+        const error = codedError('QWEN_RESPONSE_JSON_INVALID', 'Qwen did not return valid JSON.')
+        error.retryable = true
+        throw error
       }
     } catch (error) {
       const retryable = controller.signal.aborted || error?.retryable === true
