@@ -2,7 +2,7 @@ import { callOpenAiStructured } from './openai-structured.mjs'
 
 const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504])
 const DEFAULT_QWEN_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1'
-const DEFAULT_QWEN_MAX_OUTPUT_TOKENS = 8192
+const DEFAULT_QWEN_MAX_OUTPUT_TOKENS = 32768
 
 function nonempty(value) {
   return typeof value === 'string' && value.trim() ? value.trim() : ''
@@ -185,6 +185,14 @@ export async function callCompatibleStructured({
       try {
         return parseCompatibleJson(text)
       } catch {
+        console.error(JSON.stringify({
+          event: 'qwen_response_json_invalid',
+          finishReason: payload?.choices?.[0]?.finish_reason || null,
+          contentLength: text.length,
+          startsWithObject: text.trimStart().startsWith('{'),
+          endsWithObject: text.trimEnd().endsWith('}'),
+          hasCodeFence: text.includes('```'),
+        }))
         throw codedError('QWEN_RESPONSE_JSON_INVALID', 'Qwen did not return valid JSON.')
       }
     } catch (error) {

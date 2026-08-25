@@ -81,7 +81,7 @@ const qwenStructuredResult = await callCompatibleStructured({
 })
 assert.deepEqual(qwenStructuredResult, { questions: [] })
 assert.equal(qwenRequests[0].enable_thinking, false)
-assert.equal(qwenRequests[0].max_tokens, 8192)
+assert.equal(qwenRequests[0].max_tokens, 32768)
 
 const pairs = selectA2P4FiveYearPairs([
   '9702_m20_qp_42.pdf',
