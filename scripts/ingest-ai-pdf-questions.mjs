@@ -29,6 +29,7 @@ const DEFAULT_OPENAI_TIMEOUT_MS = 120000
 const DEFAULT_PAPER_TIMEOUT_MS = 900000
 const DEFAULT_PAGE_WINDOW_OWNED_PAGE_COUNT = 4
 const DEFAULT_PAGE_WINDOW_TRAILING_CONTEXT_PAGE_COUNT = 1
+const PAGE_WINDOW_MARK_SCHEME_CONTEXT_PAGE_COUNT = 1
 const MAX_PDF_TEXT_BYTES = 2 * 1024 * 1024
 const NO_EXTRACTABLE_TEXT_PAGE_MARKER = '[No extractable text on this page.]'
 const SAFE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/
@@ -438,32 +439,34 @@ async function extractAndVerifyPageWindow({ source, questionRenderDirectory, pag
     schema: extractionSchemaFor(source.controlledTags),
     input: buildPageWindowedExtractionInput(source, questionRenderDirectory, pageWindow, pageText),
   })
+  const extractionValue = normalizePageWindowResponse(extractionResult.value)
   const extractionFilter = filterPageWindowQuestions(
-    extractionResult.value?.questions,
+    extractionValue?.questions,
     pageWindow,
     'PAGE_WINDOW_EXTRACTION',
     { sourcePages: source.pageImageHashes },
   )
-  const extraction = { ...(extractionResult.value || {}), questions: extractionFilter.questions }
+  const extraction = { ...(extractionValue || {}), questions: extractionFilter.questions }
 
   const verificationResult = await requestStructured({
     schemaName: 'ai_pdf_question_verification_v1',
     schema: verifierSchema,
     input: buildPageWindowedVerificationInput(source, questionRenderDirectory, pageWindow, pageText),
   })
+  const verificationValue = normalizePageWindowResponse(verificationResult.value, { verification: true })
   const verificationFilter = filterPageWindowQuestions(
-    verificationResult.value?.questions,
+    verificationValue?.questions,
     pageWindow,
     'PAGE_WINDOW_VERIFICATION',
     { verification: true, sourcePages: source.pageImageHashes },
   )
   const startFilter = filterPageWindowStarts(
-    verificationResult.value?.questionStarts,
+    verificationValue?.questionStarts,
     pageWindow,
     'PAGE_WINDOW_VERIFICATION',
     { sourcePages: source.pageImageHashes },
   )
-  const verification = { ...(verificationResult.value || {}), questions: verificationFilter.questions }
+  const verification = { ...(verificationValue || {}), questions: verificationFilter.questions }
   return {
     pageWindow,
     extraction,
@@ -487,6 +490,26 @@ function questionPaperPageWindows(pageHashes, { ownedPageCount = DEFAULT_PAGE_WI
     windows.push(Object.freeze({ ownedQuestionPaperPages, visibleQuestionPaperPages }))
   }
   return windows
+}
+
+export function selectPageWindowMarkSchemePages({ questionPaperPageHashes = {}, markSchemePageHashes = {}, pageWindow = {}, contextPageCount = PAGE_WINDOW_MARK_SCHEME_CONTEXT_PAGE_COUNT } = {}) {
+  const questionPages = sortedPageNumbers(questionPaperPageHashes)
+  const markSchemePages = sortedPageNumbers(markSchemePageHashes)
+  const ownedPages = (Array.isArray(pageWindow.ownedQuestionPaperPages) ? pageWindow.ownedQuestionPaperPages : [])
+    .filter(page => questionPages.includes(page))
+  const context = Number(contextPageCount)
+  if (!questionPages.length || !markSchemePages.length || !ownedPages.length || !Number.isInteger(context) || context < 0 || context > 4) {
+    throw codedError('PAGE_WINDOW_SOURCE_PAGES_INVALID')
+  }
+  const questionSpan = Math.max(1, questionPages.length - 1)
+  const markSchemeSpan = Math.max(1, markSchemePages.length - 1)
+  const firstQuestionIndex = questionPages.indexOf(Math.min(...ownedPages))
+  const lastQuestionIndex = questionPages.indexOf(Math.max(...ownedPages))
+  const firstRatio = firstQuestionIndex / questionSpan
+  const lastRatio = lastQuestionIndex / questionSpan
+  const startIndex = Math.max(0, Math.floor(firstRatio * markSchemeSpan) - context)
+  const endIndex = Math.min(markSchemePages.length - 1, Math.ceil(lastRatio * markSchemeSpan) + context)
+  return markSchemePages.slice(startIndex, endIndex + 1)
 }
 
 function recoveryPageWindow(pageHashes, observations) {
@@ -852,36 +875,153 @@ function buildVerificationInput(source, extraction, questionDirectory, markSchem
 }
 
 function buildPageWindowedExtractionInput(source, questionDirectory, pageWindow, pageText) {
+  const markSchemePages = selectPageWindowMarkSchemePages({
+    questionPaperPageHashes: source.pageImageHashes,
+    markSchemePageHashes: source.markSchemePageHashes,
+    pageWindow,
+  })
+  const requestPageWindow = { ...pageWindow, markSchemePages }
   return [
-    { role: 'system', content: [{ type: 'input_text', text: 'Extract only questions whose printed question heading begins on an owned question-paper page. Always return questionStartPage as the page where that printed heading begins. Use the supplied question-paper images for regions, diagrams, OCR and mathematics. Use the page-addressed mark-scheme text for marks and evidence. The explicit no-extractable-text marker means that PDF page has no text layer; it is not a missing page. Do not emit a question that begins outside the owned pages, invent a page hash, or emit an incomplete question.' }] },
+    { role: 'system', content: [{ type: 'input_text', text: 'Extract only questions whose printed question heading begins on an owned question-paper page. Always return questionNumber as a string containing only the whole-question number, and return questionStartPage as an integer page number. Use the supplied question-paper images for regions, diagrams, OCR and mathematics. Use the supplied mark-scheme page text for marks and evidence. The explicit no-extractable-text marker means that PDF page has no text layer; it is not a missing page. Do not emit a question that begins outside the owned pages, invent a page hash, or emit an incomplete question.' }] },
     { role: 'user', content: [
       { type: 'input_text', text: JSON.stringify({
-        source: serializableSource(source),
-        pageWindow,
-        instruction: 'The owned pages are the only question starts to emit. Visible pages include trailing context for questions that continue. The page-addressed text covers the visible question-paper context and complete mark scheme for navigation and matching.',
+        source: pageWindowSourceMetadata(source, requestPageWindow, { includeTags: true }),
+        pageWindow: requestPageWindow,
+        instruction: 'The owned pages are the only question starts to emit. Visible pages include trailing context for questions that continue. Mark-scheme pages listed in pageWindow.markSchemePages are the relevant bounded context; cite only page hashes supplied in the source.',
       }) },
       { type: 'input_text', text: pageTextByPage('Question-paper', pageText.questionPaper, source.pageImageHashes, pageWindow.visibleQuestionPaperPages) },
-      { type: 'input_text', text: pageTextByPage('Mark-scheme', pageText.markScheme, source.markSchemePageHashes) },
+      { type: 'input_text', text: pageTextByPage('Mark-scheme', pageText.markScheme, source.markSchemePageHashes, markSchemePages) },
       ...imageInputs(questionDirectory, 'question-paper', source.pageImageHashes, pageWindow.visibleQuestionPaperPages),
     ] },
   ]
 }
 
 function buildPageWindowedVerificationInput(source, questionDirectory, pageWindow, pageText) {
-  const { controlledTags: _controlledTags, ...verificationSource } = serializableSource(source)
+  const markSchemePages = selectPageWindowMarkSchemePages({
+    questionPaperPageHashes: source.pageImageHashes,
+    markSchemePageHashes: source.markSchemePageHashes,
+    pageWindow,
+  })
+  const requestPageWindow = { ...pageWindow, markSchemePages }
   return [
-    { role: 'system', content: [{ type: 'input_text', text: 'Independently verify the window. Return questionStarts for every printed question heading visible in the supplied pages, including trailing context, with questionStartPage. For detailed questions, only return questions whose printed heading begins on an owned page; always include questionStartPage. Use the supplied question-paper images and page-addressed mark-scheme text. The explicit no-extractable-text marker means that PDF page has no text layer; it is not a missing page. Return complete visible page spans, parts, diagram counts and mark-scheme evidence for detailed questions. Do not invent a heading or emit a detailed question outside the owned pages.' }] },
+    { role: 'system', content: [{ type: 'input_text', text: 'Independently verify the window. Return questionStarts for every printed question heading visible in the supplied pages, including trailing context, with questionNumber as a string containing only the whole-question number and questionStartPage as an integer. For detailed questions, only return questions whose printed heading begins on an owned page; always include questionStartPage. Use the supplied question-paper images and bounded mark-scheme page text. The explicit no-extractable-text marker means that PDF page has no text layer; it is not a missing page. Return complete visible page spans, parts, diagram counts and mark-scheme evidence for detailed questions. Do not invent a heading or emit a detailed question outside the owned pages.' }] },
     { role: 'user', content: [
       { type: 'input_text', text: JSON.stringify({
-        source: verificationSource,
-        pageWindow,
-        instruction: 'The owned pages are the only question starts to return. Visible pages include trailing context. Page-addressed text covers the visible question-paper context and complete mark scheme for navigation and matching.',
+        source: pageWindowSourceMetadata(source, requestPageWindow),
+        pageWindow: requestPageWindow,
+        instruction: 'The owned pages are the only question starts to return. Visible pages include trailing context. Mark-scheme pages listed in pageWindow.markSchemePages are the relevant bounded context; cite only page hashes supplied in the source.',
       }) },
       { type: 'input_text', text: pageTextByPage('Question-paper', pageText.questionPaper, source.pageImageHashes, pageWindow.visibleQuestionPaperPages) },
-      { type: 'input_text', text: pageTextByPage('Mark-scheme', pageText.markScheme, source.markSchemePageHashes) },
+      { type: 'input_text', text: pageTextByPage('Mark-scheme', pageText.markScheme, source.markSchemePageHashes, markSchemePages) },
       ...imageInputs(questionDirectory, 'question-paper', source.pageImageHashes, pageWindow.visibleQuestionPaperPages),
     ] },
   ]
+}
+
+export function pageWindowSourceMetadata(source, pageWindow, { includeTags = false } = {}) {
+  const visiblePages = Array.isArray(pageWindow?.visibleQuestionPaperPages)
+    ? pageWindow.visibleQuestionPaperPages
+    : []
+  const questionPaperPageHashes = Object.fromEntries(
+    visiblePages.map((page) => [String(page), source?.pageImageHashes?.[page]]).filter(([, hash]) => typeof hash === 'string'),
+  )
+  const metadata = {
+    board: source?.board,
+    paperId: source?.paperId,
+    specificationId: source?.specificationId,
+    stage: source?.stage,
+    rightsStatus: source?.rightsStatus,
+    accessPolicyId: source?.accessPolicyId,
+    questionPdfSha256: source?.questionPdfSha256,
+    markSchemePdfSha256: source?.markSchemePdfSha256,
+    questionPaperPageHashes,
+    markSchemePageHashes: Object.fromEntries(
+      sortedPageNumbers(source?.markSchemePageHashes).map((page) => [String(page), source.markSchemePageHashes[page]]),
+    ),
+  }
+  if (includeTags) {
+    metadata.controlledTags = Object.fromEntries(Object.entries(source?.controlledTags || {}).map(([name, values]) => [
+      name,
+      values instanceof Set ? [...values].sort() : Array.isArray(values) ? [...values].sort() : [],
+    ]))
+    metadata.controlledTopicCatalog = Array.isArray(source?.controlledTopicCatalog)
+      ? source.controlledTopicCatalog.map((topic) => ({ ...topic }))
+      : []
+  }
+  return metadata
+}
+
+export function normalizePageWindowResponse(value, { verification = false } = {}) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+  const normalized = { ...value }
+  if (Array.isArray(normalized.questions)) {
+    normalized.questions = normalized.questions.map((question) => normalizePageWindowQuestion(question, { verification }))
+  }
+  if (Array.isArray(normalized.questionStarts)) {
+    normalized.questionStarts = normalized.questionStarts.map((questionStart) => ({
+      ...questionStart,
+      questionNumber: normalizeQuestionNumber(questionStart?.questionNumber),
+      questionStartPage: normalizeIntegerLike(questionStart?.questionStartPage),
+    }))
+  }
+  return normalized
+}
+
+function normalizePageWindowQuestion(question, { verification }) {
+  if (!question || typeof question !== 'object' || Array.isArray(question)) return question
+  const normalized = {
+    ...question,
+    questionNumber: normalizeQuestionNumber(question.questionNumber),
+    questionStartPage: normalizeIntegerLike(question.questionStartPage),
+  }
+  if (verification && Array.isArray(question.pages)) normalized.pages = question.pages.map(normalizeIntegerLike)
+  if (Array.isArray(question.parts)) {
+    normalized.parts = question.parts.map((part) => ({
+      ...part,
+      marks: normalizeIntegerLike(part?.marks),
+    }))
+  }
+  if (Array.isArray(question.markSchemeEvidence)) {
+    normalized.markSchemeEvidence = question.markSchemeEvidence.map((evidence) => ({
+      ...evidence,
+      page: normalizeIntegerLike(evidence?.page),
+    }))
+  }
+  if (verification) normalized.diagramRegionCount = normalizeIntegerLike(question.diagramRegionCount)
+  if (Array.isArray(question.regions)) normalized.regions = question.regions.map(normalizePageWindowRegion)
+  if (Array.isArray(question.diagramRegions)) normalized.diagramRegions = question.diagramRegions.map(normalizePageWindowRegion)
+  return normalized
+}
+
+function normalizePageWindowRegion(region) {
+  if (!region || typeof region !== 'object' || Array.isArray(region)) return region
+  return {
+    ...region,
+    page: normalizeIntegerLike(region.page),
+    x0: normalizeNumberLike(region.x0),
+    y0: normalizeNumberLike(region.y0),
+    x1: normalizeNumberLike(region.x1),
+    y1: normalizeNumberLike(region.y1),
+  }
+}
+
+function normalizeQuestionNumber(value) {
+  if (Number.isInteger(value) && value > 0) return String(value)
+  if (typeof value !== 'string') return value
+  const trimmed = value.trim()
+  const match = /^(?:(?:question|q)\s*)?0*(\d+)[.)]?$/i.exec(trimmed)
+  if (!match || Number(match[1]) < 1) return value
+  return String(Number(match[1]))
+}
+
+function normalizeIntegerLike(value) {
+  if (typeof value === 'string' && /^\d+$/.test(value.trim())) return Number(value.trim())
+  return value
+}
+
+function normalizeNumberLike(value) {
+  if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value)
+  return value
 }
 
 function pageTextByPage(label, textByPage, pageHashes, selectedPages = null) {
@@ -958,7 +1098,8 @@ function artifactForResult(plan, source, options, validation, extraction, verifi
         id: 'page-windowed-v1',
         ownedQuestionPaperPageCount: options.pageWindowOwnedPages,
         trailingQuestionPaperContextPageCount: options.pageWindowTrailingPages,
-        markSchemeEvidenceMode: 'page-addressed-pdf-text',
+        markSchemeEvidenceMode: 'bounded-page-addressed-pdf-text',
+        markSchemeContextPageCount: PAGE_WINDOW_MARK_SCHEME_CONTEXT_PAGE_COUNT,
         ownershipReconciliation: 'boundary-recovery-v1',
       }
       : { id: 'whole-paper-v1' },
