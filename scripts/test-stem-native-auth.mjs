@@ -117,7 +117,8 @@ try {
   })
 
   const anonymous = await call(api, { method: 'GET', url: '/api/auth/status' })
-  assert.equal(anonymous.statusCode, 401, `anonymous native STEM auth status must require a STEM session: ${anonymous.body.error || 'unknown error'}`)
+  assert.equal(anonymous.statusCode, 200, 'anonymous native STEM auth status must return a normal guest response')
+  assert.deepEqual(anonymous.body, { authenticated: false })
 
   const config = await call(api, { method: 'GET', url: '/api/auth/config' })
   assert.equal(config.statusCode, 200)
@@ -202,7 +203,8 @@ try {
     url: '/api/auth/status',
     headers: { cookie: sessionCookie.split(';', 1)[0] },
   })
-  assert.equal(afterLogout.statusCode, 401, 'a cleared STEM session must not remain usable')
+  assert.equal(afterLogout.statusCode, 200, 'a cleared STEM session must return a guest response')
+  assert.deepEqual(afterLogout.body, { authenticated: false })
   console.log('STEM native account checks passed')
 } finally {
   closeStemDatabaseForTests()
