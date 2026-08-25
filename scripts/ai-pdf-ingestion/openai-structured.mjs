@@ -150,6 +150,7 @@ export async function callOpenAiStructured({
   maxAttempts = 3,
   timeoutMs = 30000,
   deadlineAt = null,
+  signal: externalSignal = null,
   transport = 'responses',
   sleep = (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)),
   randomImpl = Math.random,
@@ -191,6 +192,7 @@ export async function callOpenAiStructured({
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const requestTimeoutMs = effectiveTimeoutMs(timeoutMs, deadlineAt)
     const controller = new AbortController()
+    const detachExternalSignal = linkAbortSignal(externalSignal, controller)
     const timeout = setTimeout(() => controller.abort(), requestTimeoutMs)
     let failure
     let result
@@ -255,8 +257,12 @@ export async function callOpenAiStructured({
       }
     } finally {
       clearTimeout(timeout)
+      detachExternalSignal()
     }
 
+    if (externalSignal?.aborted) {
+      throw sanitizedError('OPENAI_TIMEOUT', 'OpenAI request timed out.')
+    }
     if (failure) {
       if (failure.retryable && attempt < maxAttempts) {
         const delayMs = retryDelayMs(attempt, randomImpl)
@@ -272,6 +278,14 @@ export async function callOpenAiStructured({
   }
 
   throw sanitizedError('OPENAI_NETWORK_ERROR', 'OpenAI request failed before a response was received.')
+}
+
+function linkAbortSignal(externalSignal, controller) {
+  if (!externalSignal || typeof externalSignal.addEventListener !== 'function') return () => {}
+  const abort = () => controller.abort()
+  if (externalSignal.aborted) controller.abort()
+  else externalSignal.addEventListener('abort', abort, { once: true })
+  return () => externalSignal.removeEventListener('abort', abort)
 }
 
 async function readJsonWithDeadline(response, controller, timeoutMs) {

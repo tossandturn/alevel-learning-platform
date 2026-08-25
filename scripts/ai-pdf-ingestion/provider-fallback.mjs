@@ -79,9 +79,9 @@ export async function callStructuredWithFallback({
   for (const provider of providers) {
     if (Number.isFinite(request?.deadlineAt) && Date.now() >= request.deadlineAt) throw codedError('AI_PAPER_TIMEOUT', 'AI paper deadline exceeded.')
     try {
-      const value = provider.name === 'openai'
-        ? await callOpenAi({ ...request, apiKey: provider.apiKey, model: provider.model, baseUrl: provider.baseUrl || undefined, transport: provider.transport || request?.transport })
-        : await callCompatible({ ...request, apiKey: provider.apiKey, model: provider.model, baseUrl: provider.baseUrl })
+      const value = await callProviderWithDeadline(provider, request, (signal) => provider.name === 'openai'
+        ? callOpenAi({ ...request, signal, apiKey: provider.apiKey, model: provider.model, baseUrl: provider.baseUrl || undefined, transport: provider.transport || request?.transport })
+        : callCompatible({ ...request, signal, apiKey: provider.apiKey, model: provider.model, baseUrl: provider.baseUrl }))
       return Object.freeze({ provider, value })
     } catch (error) {
       if (error?.code === 'AI_PAPER_TIMEOUT') throw error
@@ -92,12 +92,42 @@ export async function callStructuredWithFallback({
   throw codedError('AI_PROVIDER_NOT_CONFIGURED', 'No AI vision provider is configured.')
 }
 
+async function callProviderWithDeadline(provider, request, invoke) {
+  const timeoutMs = Number.isInteger(request?.timeoutMs) && request.timeoutMs > 0 ? request.timeoutMs : null
+  const deadlineAt = Number.isFinite(request?.deadlineAt) ? request.deadlineAt : null
+  if (!timeoutMs && !Number.isFinite(deadlineAt)) return invoke(undefined)
+
+  const remainingMs = Number.isFinite(deadlineAt) ? Math.floor(deadlineAt - Date.now()) : Number.POSITIVE_INFINITY
+  if (remainingMs < 1) throw codedError('AI_PAPER_TIMEOUT', 'AI paper deadline exceeded.')
+  const requestTimeoutMs = Number.isFinite(timeoutMs) ? Math.min(timeoutMs, remainingMs) : remainingMs
+  const controller = new AbortController()
+  let timer
+  const timeoutError = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort()
+      if (Number.isFinite(deadlineAt) && Date.now() >= deadlineAt) {
+        reject(codedError('AI_PAPER_TIMEOUT', 'AI paper deadline exceeded.'))
+        return
+      }
+      const error = codedError(provider.name === 'openai' ? 'OPENAI_TIMEOUT' : 'QWEN_TIMEOUT', `${provider.name} request timed out.`)
+      error.retryable = true
+      reject(error)
+    }, requestTimeoutMs)
+  })
+  try {
+    return await Promise.race([invoke(controller.signal), timeoutError])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 export async function callCompatibleStructured({
   apiKey,
   model,
   schema,
   input,
   baseUrl,
+  signal: externalSignal = null,
   fetchImpl = fetch,
   maxAttempts = 3,
   timeoutMs = 30000,
@@ -113,6 +143,7 @@ export async function callCompatibleStructured({
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const requestTimeoutMs = effectiveTimeoutMs(timeoutMs, deadlineAt)
     const controller = new AbortController()
+    const detachExternalSignal = linkAbortSignal(externalSignal, controller)
     const timeout = setTimeout(() => controller.abort(), requestTimeoutMs)
     try {
       const response = await fetchImpl(endpoint, {
@@ -139,6 +170,7 @@ export async function callCompatibleStructured({
       }
     } catch (error) {
       const retryable = controller.signal.aborted || error?.retryable === true
+      if (externalSignal?.aborted) throw codedError('QWEN_TIMEOUT', 'Qwen request timed out.')
       if (retryable && attempt < maxAttempts) {
         const delayMs = Math.min(4000, 250 * (2 ** (attempt - 1)))
         if (Number.isFinite(deadlineAt) && Date.now() + delayMs >= deadlineAt) throw codedError('AI_PAPER_TIMEOUT', 'AI paper deadline exceeded.')
@@ -150,9 +182,18 @@ export async function callCompatibleStructured({
       throw error?.code ? error : codedError('QWEN_NETWORK_ERROR', 'Qwen request failed before a response was received.')
     } finally {
       clearTimeout(timeout)
+      detachExternalSignal()
     }
   }
   throw codedError('QWEN_NETWORK_ERROR', 'Qwen request failed before a response was received.')
+}
+
+function linkAbortSignal(externalSignal, controller) {
+  if (!externalSignal || typeof externalSignal.addEventListener !== 'function') return () => {}
+  const abort = () => controller.abort()
+  if (externalSignal.aborted) controller.abort()
+  else externalSignal.addEventListener('abort', abort, { once: true })
+  return () => externalSignal.removeEventListener('abort', abort)
 }
 
 function effectiveTimeoutMs(timeoutMs, deadlineAt) {
