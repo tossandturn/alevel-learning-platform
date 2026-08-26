@@ -50,6 +50,7 @@ const providerBodies = []
 const providerTelemetry = []
 let failNextProviderRequest = false
 let corruptNextProviderStream = false
+let truncateNextProviderStream = false
 const providerServer = http.createServer(async (request, response) => {
   const chunks = []
   for await (const chunk of request) chunks.push(chunk)
@@ -66,6 +67,11 @@ const providerServer = http.createServer(async (request, response) => {
   if (corruptNextProviderStream) {
     corruptNextProviderStream = false
     response.end('data: {not-json}\n\ndata: {"choices":[{"delta":{"content":"must not recover"}}]}\n\ndata: [DONE]\n\n')
+    return
+  }
+  if (truncateNextProviderStream) {
+    truncateNextProviderStream = false
+    response.end('data: {"choices":[{"delta":{"content":"incomplete without sentinel"}}]}\n\n')
     return
   }
   response.write('data: {"choices":[{"delta":{"content":"stream "}}]}\n\n')
@@ -360,6 +366,20 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   assert.match(corruptStream.text, /"providerStatus":"error"/, 'a corrupt provider frame must fail closed')
   assert.doesNotMatch(corruptStream.text, /"providerStatus":"connected"|must not recover/, 'later deltas must not turn a corrupt stream into a successful response')
   assert.equal(providerTelemetry.at(-1)?.schemaStatus, 'invalid', 'corrupt SSE telemetry must preserve the schema failure')
+
+  truncateNextProviderStream = true
+  const truncatedStream = await post('/api/ai/coach/stream', {
+    message: 'Explain this method in detail only after the stream completes.',
+    hintLevel: 3,
+    context: {
+      stage: 'AS',
+      topic: 'Mechanics',
+      question: { prompt: 'Missing SSE completion sentinel fixture.', number: 8 },
+    },
+  }, signedIdentityToken)
+  assert.match(truncatedStream.text, /"providerStatus":"error"/, 'a stream without the completion sentinel must fail closed')
+  assert.doesNotMatch(truncatedStream.text, /"providerStatus":"connected"/, 'clean EOF alone must not certify a complete provider response')
+  assert.equal(providerTelemetry.at(-1)?.schemaStatus, 'invalid', 'truncated SSE telemetry must report invalid schema')
 
   const openAiRoutingPaths = []
   const openAiRoutingServer = http.createServer(async (request, response) => {

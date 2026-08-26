@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import crypto from 'node:crypto'
 import path from 'node:path'
 
 export const MAX_RELEASE_BYTES = 1024 * 1024 * 1024
@@ -99,6 +100,40 @@ export function findEscapingSymlinks(root, allowedExternalPaths = []) {
     }
   })
   return matches.sort()
+}
+
+export function artifactTreeIdentity(root, { exclude = [] } = {}) {
+  const excluded = new Set(exclude.map((entry) => String(entry).split(path.sep).join('/')))
+  const entries = []
+  let bytes = 0
+  walkPhysicalTree(root, ({ entryPath, relativePath, stats, symbolicLink }) => {
+    const normalizedPath = relativePath.split(path.sep).join('/')
+    if (excluded.has(normalizedPath)) return
+    if (symbolicLink) {
+      entries.push({ path: normalizedPath, type: 'symlink', target: fs.readlinkSync(entryPath) })
+      return
+    }
+    if (!stats.isFile()) return
+    bytes += stats.size
+    entries.push({
+      path: normalizedPath,
+      type: 'file',
+      bytes: stats.size,
+      mode: stats.mode & 0o777,
+      sha256: crypto.createHash('sha256').update(fs.readFileSync(entryPath)).digest('hex'),
+    })
+  })
+  entries.sort((left, right) => left.path.localeCompare(right.path))
+  const sha256 = crypto.createHash('sha256')
+    .update(entries.map((entry) => JSON.stringify(entry)).join('\n'))
+    .digest('hex')
+  return {
+    files: entries.filter((entry) => entry.type === 'file').length,
+    symlinks: entries.filter((entry) => entry.type === 'symlink').length,
+    bytes,
+    sha256,
+    entries,
+  }
 }
 
 export function physicalTreeBytes(root) {

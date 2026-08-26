@@ -5,6 +5,7 @@ import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import {
   MAX_RELEASE_BYTES,
+  artifactTreeIdentity,
   assertWithinLimit,
   findEscapingSymlinks,
   findForbiddenFiles,
@@ -90,6 +91,12 @@ try {
     ['node_modules'],
     'a release must reject cross-release dependencies while allowing links that resolve inside itself',
   )
+
+  const firstIdentity = artifactTreeIdentity(releaseRoot)
+  fs.appendFileSync(path.join(releaseRoot, 'dist', 'index.html'), '-tampered')
+  const changedIdentity = artifactTreeIdentity(releaseRoot)
+  assert.notEqual(changedIdentity.sha256, firstIdentity.sha256, 'the release tree digest must detect a changed runtime file')
+  assert.ok(firstIdentity.entries.some((entry) => entry.path === 'dist/index.html'), 'the release manifest identity must enumerate runtime files')
 
   console.log(JSON.stringify({ ok: true, maxReleaseBytes: MAX_RELEASE_BYTES }, null, 2))
 } finally {

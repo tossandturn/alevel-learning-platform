@@ -1110,11 +1110,16 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, o
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
+    let receivedDone = false
     async function consumeLine(line) {
       const clean = line.trim()
       if (!clean || !clean.startsWith('data:')) return
       const data = clean.slice(5).trim()
-      if (!data || data === '[DONE]') return
+      if (!data) return
+      if (data === '[DONE]') {
+        receivedDone = true
+        return
+      }
       let payload
       try {
         payload = JSON.parse(data)
@@ -1138,9 +1143,9 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, o
     }
     if (buffer) await consumeLine(buffer)
     answer = answer.trim()
-    if (!answer) {
+    if (!answer || !receivedDone) {
       schemaStatus = 'invalid'
-      throw new Error('AI provider returned an invalid response schema.')
+      throw aiResponseSchemaError('AI provider stream ended without a complete response.')
     }
     schemaStatus = 'valid'
     finalState = 'connected'

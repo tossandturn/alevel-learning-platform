@@ -10,6 +10,7 @@ const indexRelativePath = path.join('src', 'data', 'importedQuestionIndex.json')
 const sourceAssetRoot = path.join(repoRoot, 'public', 'question-assets')
 const sourceCatalogPath = path.join(repoRoot, 'public', 'data', 'papers.json')
 const archiveRef = String(process.env.SOURCE_IDENTITY_ARCHIVE_REF || 'HEAD').trim()
+const archiveCommit = execFileSync('git', ['rev-parse', archiveRef], { cwd: repoRoot, encoding: 'utf8' }).trim()
 const scratchParent = process.env.SOURCE_IDENTITY_TEST_ROOT
   || (process.platform === 'win32' && fs.existsSync('D:\\CodexWork') ? 'D:\\CodexWork' : os.tmpdir())
 const scratchRoot = fs.mkdtempSync(path.join(scratchParent, 'stem-source-identity-'))
@@ -81,12 +82,33 @@ function runDirectAudit(label, releaseRoot, args = []) {
 }
 
 function runReleaseVerification(releaseRoot) {
+  const releaseId = `test-${archiveCommit.slice(0, 7)}`
+  const packageSha256 = '0'.repeat(64)
+  const assetRoot = path.join(releaseRoot, 'public', 'question-assets')
+  const manifest = spawnSync(process.execPath, [
+    path.join(releaseRoot, 'scripts', 'write-stem-release-manifest.mjs'),
+    '--release-root', releaseRoot,
+    '--immutable-assets-root', assetRoot,
+    '--commit', archiveCommit,
+    '--release-id', releaseId,
+    '--package-sha256', packageSha256,
+  ], {
+    cwd: releaseRoot,
+    env: { ...process.env },
+    encoding: 'utf8',
+    maxBuffer: 32 * 1024 * 1024,
+  })
+  assert.equal(manifest.status, 0, `git archive release manifest must generate:\n${manifest.stdout}\n${manifest.stderr}`)
   const result = spawnSync(process.execPath, [
     path.join(releaseRoot, 'scripts', 'verify-stem-release.mjs'),
     '--release-root',
     releaseRoot,
     '--pdf-library-root',
     process.env.CIE_LIBRARY_ROOT || 'D:/CodexWork/cie-fraft-fetcher/output/pdf',
+    '--immutable-assets-root', assetRoot,
+    '--commit', archiveCommit,
+    '--release-id', releaseId,
+    '--package-sha256', packageSha256,
   ], {
     cwd: releaseRoot,
     env: { ...process.env, CIE_LIBRARY_ROOT: process.env.CIE_LIBRARY_ROOT || 'D:/CodexWork/cie-fraft-fetcher/output/pdf' },

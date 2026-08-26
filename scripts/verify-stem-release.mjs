@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import {
+  artifactTreeIdentity,
   assertWithinLimit,
   findEscapingSymlinks,
   findForbiddenFiles,
@@ -34,6 +35,9 @@ function hasRenderedAsset(assetRoot) {
 const releaseRoot = path.resolve(option('--release-root') || process.env.STEM_RELEASE_ROOT || process.cwd())
 const paperLibraryRoot = option('--pdf-library-root') || process.env.CIE_LIBRARY_ROOT || ''
 const immutableAssetsRoot = option('--immutable-assets-root') || ''
+const expectedCommit = option('--commit').toLowerCase()
+const expectedReleaseId = option('--release-id')
+const expectedPackageSha256 = option('--package-sha256').toLowerCase()
 const assetRoot = path.join(releaseRoot, 'public', 'question-assets')
 const catalogPath = path.join(releaseRoot, 'public', 'data', 'papers.json')
 const distRoot = path.join(releaseRoot, 'dist')
@@ -43,6 +47,22 @@ const syllabusCoverageScript = path.join(releaseRoot, 'scripts', 'verify-9702-sy
 const manifestPath = path.join(releaseRoot, 'src', 'data', 'sourceContentManifest.json')
 const identityPath = path.join(releaseRoot, 'src', 'data', 'sourceContentIdentity.js')
 const nodeModulesRoot = path.join(releaseRoot, 'node_modules')
+const releaseManifestPath = path.join(releaseRoot, 'release-manifest.json')
+
+assert.match(expectedCommit, /^[a-f0-9]{40}$/, 'Pass --commit <full-git-sha>')
+assert.ok(expectedReleaseId, 'Pass --release-id <id>')
+assert.match(expectedPackageSha256, /^[a-f0-9]{64}$/, 'Pass --package-sha256 <sha256>')
+assert.ok(fs.existsSync(releaseManifestPath) && fs.statSync(releaseManifestPath).isFile(), 'Release is missing release-manifest.json')
+const releaseManifest = JSON.parse(fs.readFileSync(releaseManifestPath, 'utf8'))
+assert.equal(releaseManifest.schemaVersion, 'stem-release-manifest.v1', 'Release manifest schema is invalid')
+assert.equal(releaseManifest.commit, expectedCommit, 'Release manifest commit does not match the expected commit')
+assert.equal(releaseManifest.releaseId, expectedReleaseId, 'Release manifest ID does not match the expected release')
+assert.equal(releaseManifest.packageSha256, expectedPackageSha256, 'Release manifest package digest does not match the uploaded package')
+const actualReleaseTree = artifactTreeIdentity(releaseRoot, { exclude: ['release-manifest.json'] })
+assert.equal(actualReleaseTree.sha256, releaseManifest.releaseTree?.sha256, 'Release file tree does not match its manifest')
+assert.equal(actualReleaseTree.files, releaseManifest.releaseTree?.files, 'Release file count does not match its manifest')
+assert.equal(actualReleaseTree.symlinks, releaseManifest.releaseTree?.symlinks, 'Release symlink count does not match its manifest')
+assert.equal(actualReleaseTree.bytes, releaseManifest.releaseTree?.bytes, 'Release byte count does not match its manifest')
 
 const unexpectedReleaseEntries = findUnexpectedReleaseEntries(releaseRoot)
 assert.equal(unexpectedReleaseEntries.length, 0, `Release root contains files outside the runtime allowlist: ${unexpectedReleaseEntries.slice(0, 10).join(', ')}`)
@@ -61,6 +81,11 @@ if (fs.lstatSync(assetRoot).isSymbolicLink()) {
   assert.ok(fs.existsSync(immutableAssetsRoot) && fs.statSync(immutableAssetsRoot).isDirectory(), `Immutable assets root is missing: ${immutableAssetsRoot}`)
   assert.equal(fs.realpathSync(assetRoot), fs.realpathSync(immutableAssetsRoot), 'Release public/question-assets must resolve to the declared immutable asset root')
 }
+const declaredAssetsRoot = immutableAssetsRoot || assetRoot
+const actualImmutableAssets = artifactTreeIdentity(declaredAssetsRoot)
+assert.equal(actualImmutableAssets.sha256, releaseManifest.immutableAssets?.sha256, 'Immutable question assets do not match the release manifest')
+assert.equal(actualImmutableAssets.files, releaseManifest.immutableAssets?.files, 'Immutable question asset count does not match the release manifest')
+assert.equal(actualImmutableAssets.bytes, releaseManifest.immutableAssets?.bytes, 'Immutable question asset bytes do not match the release manifest')
 assert.ok(hasRenderedAsset(assetRoot), 'Release public/question-assets contains no rendered source pages')
 assert.ok(fs.existsSync(catalogPath) && fs.statSync(catalogPath).size > 0, 'Release is missing public/data/papers.json')
 for (const fileName of ['index.html', 'robots.txt', 'sitemap.xml']) {
