@@ -61,7 +61,7 @@ import { normalizePaperStudyMode, paperDraftKey } from './lib/paperStudyMode'
 import { buildStemVocabularyContext, vocabularyCoverageForRoute } from './data/stemVocabularyTaxonomy'
 import { topicLearningContent } from './data/topicLearningContent'
 import { SOURCE_LIBRARY_SUMMARY } from './data/sourceLibrarySummary'
-import { aggregateTopicPracticeInventory, evidencePresent, practiceAttemptMetrics, practiceMetricsSummary, practiceUnitMetrics, topicDisplayNames, topicPracticeInventory, withPracticePresentation } from './lib/practicePresentation'
+import { aggregateTopicPracticeInventory, evidencePresent, filterQuestionGroupsByPracticeInventory, practiceAttemptMetrics, practiceMetricsSummary, practiceUnitMetrics, topicDisplayNames, topicPracticeInventory, withPracticePresentation } from './lib/practicePresentation'
 import { MIN_VERIFIED_GROUPS_FOR_PRACTICE } from './lib/practiceConstants'
 import './App.css'
 import './StudentV2.css'
@@ -3170,6 +3170,7 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen =
       : routeComponents
   const componentLabel = formatRouteComponents(selectedComponents, activeRoute) || 'theory'
   const serverTopicById = new Map((syllabusInventory?.data?.topics || []).map((candidate) => [candidate.id, candidate]))
+  const inventoryTopic = serverTopicById.get(topicId)
   const componentInventoryByTopic = new Map((routeOption?.topics || []).map((candidate) => {
     const serverTopic = serverTopicById.get(candidate.id)
     const componentCounts = serverTopic?.componentCounts || {}
@@ -3218,12 +3219,15 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen =
       if (!topicQuestionMatches(question, activeRouteId, topicId)) continue
       merged.set(question.sourceQuestionId, question)
     }
-    return stableSorted([...merged.values()], (left, right) => (
+    const matchedQuestions = stableSorted([...merged.values()], (left, right) => (
       (Number(right.sourceRef?.year) || 0) - (Number(left.sourceRef?.year) || 0)
       || String(left.sourceRef?.paper || '').localeCompare(String(right.sourceRef?.paper || ''))
       || String(left.sourceRef?.question || '').localeCompare(String(right.sourceRef?.question || ''), undefined, { numeric: true })
     ))
-  }, [activeRouteId, practiceQuestionGroups, topicId, verifiedQuestionGroups])
+    if (!dynamicSyllabusRoute) return matchedQuestions
+    if (syllabusInventory?.status !== 'ready') return []
+    return filterQuestionGroupsByPracticeInventory(matchedQuestions, [inventoryTopic], selectedComponents)
+  }, [activeRouteId, dynamicSyllabusRoute, inventoryTopic, practiceQuestionGroups, selectedComponents, syllabusInventory?.status, topicId, verifiedQuestionGroups])
   const topicQuestions = questionSourceGroups
   const chapterItems = (metadata?.themes?.length ? metadata.themes : topic ? [`${topic.label.replace(/^\d+(?:\.\d+)?\s+/, '')}`] : ['Core method selection', 'Complete working', 'Accuracy and checking']).map((theme, index) => {
     const normalizedTheme = theme.toLowerCase()

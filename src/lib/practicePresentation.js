@@ -259,6 +259,36 @@ function questionIdsForComponent(topic, component) {
 }
 
 /**
+ * Keep a Topic Detail question list on the same canonical server-authorized
+ * identity set as inventory and server-side practice-set creation. Production
+ * inventory intentionally omits study-only IDs; an explicit non-production
+ * review inventory may include them. A missing identity row is fail-closed.
+ */
+export function filterQuestionGroupsByPracticeInventory(questionGroups = [], topics = [], components = []) {
+  const selectedTopics = Array.isArray(topics) ? topics : [topics]
+  const selectedComponents = [...new Set((Array.isArray(components) ? components : [components])
+    .map((component) => Number(component))
+    .filter((component) => Number.isInteger(component) && component > 0))]
+  if (!selectedTopics.length || !selectedComponents.length) return []
+
+  const practiceQuestionIds = new Set()
+  for (const topic of selectedTopics) {
+    for (const component of selectedComponents) {
+      const row = questionIdsForComponent(topic, component)
+      if (!row) return []
+      row.verifiedQuestionIds.forEach((questionId) => practiceQuestionIds.add(questionId))
+      row.studyQuestionIds.forEach((questionId) => practiceQuestionIds.add(questionId))
+    }
+  }
+
+  return (Array.isArray(questionGroups) ? questionGroups : []).filter((question) => {
+    const sourceQuestionId = String(question?.sourceQuestionId || question?.id || question?.questionGroupId || '').trim()
+    const component = Number(question?.paperComponent ?? question?.sourceRef?.component)
+    return practiceQuestionIds.has(sourceQuestionId) && selectedComponents.includes(component)
+  })
+}
+
+/**
  * Aggregate selected syllabus topics by stable question identity. A question
  * may be mapped to more than one topic, so adding per-topic counts would
  * overstate the set size before the server builds the actual practice set.

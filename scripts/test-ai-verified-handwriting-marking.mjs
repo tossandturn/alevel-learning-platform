@@ -6,7 +6,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 
-import { createAiApi } from '../server/aiApi.js'
+import { canonicalHandwritingMarkingContext, canonicalHandwritingMarkingImages, createAiApi } from '../server/aiApi.js'
 import { createAiVerifiedQuestionBankLoader } from '../server/aiVerifiedQuestionBank.js'
 import { closeStemDatabaseForTests, createStemApi } from '../server/stemApi.js'
 import { canonicalAiMarkingProvenance } from '../src/lib/sourceContentContract.js'
@@ -212,6 +212,10 @@ const question = groups[0]
 const part = question.parts[0]
 const provenance = canonicalAiMarkingProvenance(question, part)
 assert.ok(provenance, 'the dynamic coordinate part must produce a canonical AI marking provenance')
+const canonical = canonicalHandwritingMarkingContext({
+  provenance: { routeId: question.routeId, ...provenance },
+}, { questionBank: groups })
+assert.equal(canonical.ok, true, 'the dynamic coordinate part must resolve to a canonical marking context')
 
 const providerCalls = []
 const providerServer = http.createServer(async (request, response) => {
@@ -266,6 +270,16 @@ const request = {
 }
 
 try {
+  await assert.rejects(
+    canonicalHandwritingMarkingImages(canonical, {
+      libraryRoot,
+      env,
+      deadlineAt: Date.now() - 1,
+    }),
+    (error) => error?.code === 'source_page_render_timeout',
+    'an expired end-to-end marking deadline must stop coordinate source rendering before an upstream provider call',
+  )
+
   const persistedAttempt = await post(appBase, '/api/stem/attempts', {
     attemptId: request.attemptId,
     mode: request.mode,

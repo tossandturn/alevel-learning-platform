@@ -427,7 +427,9 @@ function topicRowsForRoute(routeId, questionBank, { includeStudyOnly = true } = 
     const componentCounts = Object.fromEntries(config.components.map((component) => {
       const componentRecords = topicRecords.filter((record) => record.paperComponent === component)
       const componentVerified = componentRecords.filter((record) => record.eligible).length
-      const componentStudy = componentRecords.filter((record) => record.studyEligible).length
+      const componentStudy = includeStudyOnly
+        ? componentRecords.filter((record) => record.studyEligible).length
+        : 0
       return [component, {
         verifiedQuestionCount: componentVerified,
         studyQuestionCount: componentStudy,

@@ -421,7 +421,7 @@ function coordinatePdfFileName(value, failureCode) {
   return fileName
 }
 
-async function coordinateOfficialImages(canonical, { libraryRoot, env }) {
+async function coordinateOfficialImages(canonical, { libraryRoot, env, deadlineAt = null }) {
   const question = canonical.question
   const part = canonical.part
   const sourceRef = question.sourceRef || {}
@@ -451,6 +451,7 @@ async function coordinateOfficialImages(canonical, { libraryRoot, env }) {
       role: 'question-paper',
       region: evidence.region,
       renderDpi,
+      deadlineAt,
       env,
     }))),
     Promise.all(markSchemeEvidence.map((evidence) => renderVerifiedCoordinatePdfPage({
@@ -462,6 +463,7 @@ async function coordinateOfficialImages(canonical, { libraryRoot, env }) {
       expectedPageImageSha256: evidence.pageImageSha256,
       role: 'mark-scheme',
       renderDpi,
+      deadlineAt,
       env,
     }))),
   ])
@@ -473,13 +475,13 @@ async function coordinateOfficialImages(canonical, { libraryRoot, env }) {
  * The request never supplies source URLs, hashes or image bytes for official
  * material, so a stale or forged client capability cannot alter AI context.
  */
-export async function canonicalHandwritingMarkingImages(canonical, { assetRoot = DEFAULT_SOURCE_ASSET_ROOT, libraryRoot, env = process.env } = {}) {
+export async function canonicalHandwritingMarkingImages(canonical, { assetRoot = DEFAULT_SOURCE_ASSET_ROOT, libraryRoot, env = process.env, deadlineAt = null } = {}) {
   if (!canonical?.ok || !canonical.question || !canonical.part) throw sourceContextFailure('source_provenance_missing')
   const question = canonical.question
   const sourceRef = question.sourceRef || {}
   const answerRef = question.answerRef || {}
   if (canonical.provenance?.reviewSchemaVersion === STEM_AI_COORDINATE_SOURCE_BINDING_SCHEMA_VERSION) {
-    return coordinateOfficialImages(canonical, { libraryRoot, env })
+    return coordinateOfficialImages(canonical, { libraryRoot, env, deadlineAt })
   }
   if (canonical.provenance?.reviewSchemaVersion === STEM_AI_SOURCE_BINDING_SCHEMA_VERSION) {
     const questionImages = auditedQuestionAssetEvidence(question).map((evidence) => localOfficialImage({
@@ -1334,9 +1336,12 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
     })
   }
   if (hasStudentImage) imageBytes(payload.imageDataUrl)
+  // The request budget includes trusted QP/MS image rendering. Without this,
+  // a stalled local renderer can outlive the reverse proxy and become a 504.
+  const deadlineAt = Date.now() + timeoutConfig.requestDeadlineMs
   let officialImages
   try {
-    officialImages = await canonicalHandwritingMarkingImages(canonical, { assetRoot: sourceAssetRoot, libraryRoot, env })
+    officialImages = await canonicalHandwritingMarkingImages(canonical, { assetRoot: sourceAssetRoot, libraryRoot, env, deadlineAt })
   } catch (error) {
     return sendJson(response, error.statusCode || 422, {
       code: error.code || 'source_asset_unavailable',
@@ -1361,7 +1366,6 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
       ...markSchemeImages.map((image) => ({ role: image.role, page: image.page, sha256: image.sha256 })),
     ],
   }
-  const deadlineAt = Date.now() + timeoutConfig.requestDeadlineMs
   const requestId = crypto.randomUUID()
   const system = [
     'You are an assisted examiner reviewing one handwritten response for the exact qualification and subject supplied in context.',

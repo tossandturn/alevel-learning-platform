@@ -47,11 +47,45 @@ function localPdfPath(libraryRoot, subject, fileName) {
   return resolved
 }
 
-function runRenderer(executable, args) {
+function remainingDeadlineMs(deadlineAt) {
+  if (!Number.isFinite(deadlineAt)) return null
+  return Math.floor(deadlineAt - Date.now())
+}
+
+export function runRenderer(executable, args, { timeoutMs = null } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(executable, args, { stdio: 'ignore', windowsHide: true })
-    child.once('error', () => reject(sourceFailure('source_page_render_failed')))
-    child.once('exit', (code) => code === 0 ? resolve() : reject(sourceFailure('source_page_render_failed')))
+    let finished = false
+    let timeout = null
+    let terminationTimeout = null
+    let timedOut = false
+    const finish = (error = null) => {
+      if (finished) return
+      finished = true
+      if (timeout) clearTimeout(timeout)
+      if (terminationTimeout) clearTimeout(terminationTimeout)
+      if (error) reject(error)
+      else resolve()
+    }
+    let child
+    try {
+      child = spawn(executable, args, { stdio: 'ignore', windowsHide: true })
+    } catch {
+      finish(sourceFailure('source_page_render_failed'))
+      return
+    }
+    child.once('error', () => finish(sourceFailure(timedOut ? 'source_page_render_timeout' : 'source_page_render_failed')))
+    child.once('close', (code) => finish(timedOut || code !== 0 ? sourceFailure(timedOut ? 'source_page_render_timeout' : 'source_page_render_failed') : null))
+    const rendererTimeoutMs = Number(timeoutMs)
+    if (Number.isFinite(rendererTimeoutMs) && rendererTimeoutMs > 0) {
+      timeout = setTimeout(() => {
+        if (finished) return
+        timedOut = true
+        child.kill('SIGKILL')
+        // A hard-killed renderer normally closes immediately. Keep the HTTP
+        // request bounded even if a platform fails to report that close event.
+        terminationTimeout = setTimeout(() => finish(sourceFailure('source_page_render_timeout')), 250)
+      }, Math.floor(rendererTimeoutMs))
+    }
   })
 }
 
@@ -78,6 +112,7 @@ export async function renderVerifiedCoordinatePdfPage({
   role,
   region = null,
   renderDpi,
+  deadlineAt = null,
   env = process.env,
 } = {}) {
   const expectedDocumentHash = normalizedSha256(expectedPdfSha256)
@@ -85,6 +120,8 @@ export async function renderVerifiedCoordinatePdfPage({
   const safePageNumber = safePage(page)
   const dpi = safeRenderDpi(renderDpi)
   if (!expectedDocumentHash || !expectedPageHash || !safePageNumber || !dpi) throw sourceFailure('source_provenance_mismatch')
+  const rendererTimeoutMs = remainingDeadlineMs(deadlineAt)
+  if (rendererTimeoutMs !== null && rendererTimeoutMs <= 0) throw sourceFailure('source_page_render_timeout')
 
   const pdfPath = localPdfPath(libraryRoot, subject, fileName)
   const stat = fs.statSync(pdfPath, { throwIfNoEntry: false })
@@ -103,7 +140,7 @@ export async function renderVerifiedCoordinatePdfPage({
       outputPrefix,
       dpi,
     })]
-    await runRenderer(executable, args)
+    await runRenderer(executable, args, { timeoutMs: rendererTimeoutMs })
     const imagePath = renderedPagePath(outputDirectory, safePageNumber)
     if (!imagePath) throw sourceFailure('source_page_render_failed')
     const imageBytes = fs.readFileSync(imagePath)
