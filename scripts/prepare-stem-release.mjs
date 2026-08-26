@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
-import { spawnSync } from 'node:child_process'
 import {
   assertWithinLimit,
   findForbiddenFiles,
@@ -61,12 +60,11 @@ fs.copyFileSync(sourceCatalog, targetCatalog, fs.constants.COPYFILE_EXCL)
 
 const releaseBytes = physicalTreeBytes(releaseRoot)
 assertWithinLimit(releaseBytes, MAX_RELEASE_BYTES, 'Prepared release')
-
-const result = spawnSync(process.execPath, [verifier, '--release-root', releaseRoot, '--pdf-library-root', sourcePdfLibrary], {
-  cwd: releaseRoot,
-  env: process.env,
-  encoding: 'utf8',
-  maxBuffer: 32 * 1024 * 1024,
-})
-assert.equal(result.status, 0, `Prepared release did not verify:\n${result.stdout}\n${result.stderr}`)
-process.stdout.write(result.stdout)
+process.stdout.write(`${JSON.stringify({
+  ok: true,
+  phase: 'content-prepared',
+  releaseRoot,
+  assetsDir: targetAssets,
+  catalogFile: targetCatalog,
+  releaseBytes,
+}, null, 2)}\n`)

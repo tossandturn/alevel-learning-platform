@@ -56,14 +56,15 @@ The GitHub source mirror intentionally excludes the generated catalog and render
 
 ### Private Content Release Gate
 
-`git archive` is code-only. Before a release can be activated, materialise the authorised `public/question-assets` and `public/data/papers.json` inside the extracted release root, then verify the release root itself. Do not regenerate or relax the source manifest on the server.
+`git archive` is code-only. Release content preparation, manifest creation, and full verification are separate gates. Do not regenerate or relax the source manifest on the server.
 
 ```powershell
 node scripts/prepare-stem-release.mjs --release-root D:\path\to\release --assets-dir D:\authorised-content\question-assets --catalog-file D:\authorised-content\papers.json --pdf-library-root D:\authorised-content\pdf
-node scripts/verify-stem-release.mjs --release-root D:\path\to\release --pdf-library-root D:\authorised-content\pdf
+node scripts/write-stem-release-manifest.mjs --release-root D:\path\to\release --immutable-assets-root D:\path\to\release\public\question-assets --commit <full-git-sha> --release-id <release-id> --package-sha256 <package-sha256>
+node scripts/verify-stem-release.mjs --release-root D:\path\to\release --pdf-library-root D:\authorised-content\pdf --immutable-assets-root D:\path\to\release\public\question-assets --commit <full-git-sha> --release-id <release-id> --package-sha256 <package-sha256>
 ```
 
-The verifier runs source-content and governed-PDF audits from the release root. It fails if private source assets, catalog, source manifest, source identity, the governed PDF library, checksums, PDF structure, source policy, withdrawal state, duplicate relationship or QP/MS association are absent or stale. The PDF library is not copied into Git; production must mount or configure the same approved private library explicitly.
+Run the full verifier only after dependencies are installed and the production build is present. Production releases may bind `public/question-assets` and `dist/question-assets` to the same approved immutable rendered-asset tree; pass that external root as `--immutable-assets-root`. The verifier runs source-content and governed-PDF audits from the release root. It fails if private source assets, catalog, source manifest, source identity, the governed PDF library, checksums, PDF structure, source policy, withdrawal state, duplicate relationship or QP/MS association are absent or stale. The PDF library is not copied into Git; production must mount or configure the same approved private library explicitly.
 
 The release gate also rejects any physical PDF/archive inside a release, rejects an `assets-dir` that overlaps the PDF library, rejects nested asset symlinks, and caps physical release size at 1 GiB (`dist` at 512 MiB). Shared production links are allowed because the size and file checks do not follow release-internal symlinks.
 

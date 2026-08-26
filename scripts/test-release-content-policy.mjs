@@ -48,7 +48,7 @@ try {
   fs.mkdirSync(path.join(releaseRoot, 'scripts'), { recursive: true })
   const sourceCatalogPath = path.join(scratchRoot, 'papers.json')
   fs.writeFileSync(sourceCatalogPath, '{}')
-  fs.writeFileSync(path.join(releaseRoot, 'scripts', 'verify-stem-release.mjs'), 'process.exit(0)')
+  fs.writeFileSync(path.join(releaseRoot, 'scripts', 'verify-stem-release.mjs'), 'process.exit(91)')
 
   assert.equal(pathsOverlap(sourceAssetsRoot, pdfLibraryRoot), false, 'independent content roots must not overlap')
   assert.equal(pathsOverlap(sourceAssetsRoot, path.join(sourceAssetsRoot, 'paper-1')), true, 'nested content roots must overlap')
@@ -72,7 +72,25 @@ try {
   assert.notEqual(pdfRun.status, 0, 'prepare must reject PDF files in the rendered asset tree')
   assert.match(`${pdfRun.stdout}\n${pdfRun.stderr}`, /non-rendered archive\/PDF files/)
 
+  fs.rmSync(path.join(sourceAssetsRoot, 'paper-1', 'qp.pdf'))
   fs.writeFileSync(path.join(releaseRoot, 'dist', 'index.html'), 'ok')
+  const preparedRun = runPrepare(releaseRoot, sourceAssetsRoot, sourceCatalogPath, pdfLibraryRoot)
+  assert.equal(
+    preparedRun.status,
+    0,
+    `prepare must materialise release content before manifest-backed verification:\n${preparedRun.stdout}\n${preparedRun.stderr}`,
+  )
+  assert.equal(
+    fs.existsSync(path.join(releaseRoot, 'public', 'question-assets', 'paper-1', 'qp-01.jpg')),
+    true,
+    'prepare must materialise the approved rendered asset tree',
+  )
+  assert.equal(
+    fs.readFileSync(path.join(releaseRoot, 'public', 'data', 'papers.json'), 'utf8'),
+    '{}',
+    'prepare must materialise the approved paper catalog',
+  )
+
   assert.equal(physicalTreeBytes(releaseRoot) > 0, true, 'physical release size must include regular files')
   assert.throws(
     () => assertWithinLimit(MAX_RELEASE_BYTES + 1, MAX_RELEASE_BYTES, 'release'),
