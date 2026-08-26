@@ -79,7 +79,7 @@
     "qa:0625": "node scripts/qa-reviewed-0625-s25.cjs",
     "qa:ai-first-mistakes-syllabus": "node scripts/qa-ai-first-mistakes-syllabus.cjs",
     "qa:coach": "node scripts/qa-coach-generated.cjs",
-    "preview": "vite preview"
+    "preview": "vite preview --configLoader native"
   },
   "dependencies": {
     "lucide-react": "^1.28.0",

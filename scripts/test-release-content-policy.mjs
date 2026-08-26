@@ -14,8 +14,15 @@ import {
   pathsOverlap,
 } from './release-content-policy.mjs'
 
-const scratchRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'stem-release-policy-'))
 const prepareScript = path.resolve(import.meta.dirname, 'prepare-stem-release.mjs')
+const packageManifest = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, '..', 'package.json'), 'utf8'))
+
+assert.match(
+  packageManifest.scripts?.preview || '',
+  /(?:^|\s)--configLoader\s+native(?:\s|$)/,
+  'production preview must load the Vite config without writing temporary files into an immutable release',
+)
+const scratchRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'stem-release-policy-'))
 
 function runPrepare(releaseRoot, assetsRoot, catalogPath, pdfLibraryRoot) {
   return spawnSync(process.execPath, [
