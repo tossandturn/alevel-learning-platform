@@ -1663,9 +1663,9 @@ function eventPayload(value) {
 
 export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQuestionBankProvider = null, fetchImpl = fetch }) {
   // A single shared server key is sufficient for both the internal account
-  // request and the short-lived STEM API token. Keep the legacy identity key
-  // as the preferred value when both are configured.
-  const signingKey = String(env.STEM_IDENTITY_SIGNING_KEY || env.STEM_INTERNAL_AUTH_KEY || '')
+  // request and the short-lived STEM API token. The legacy identity key is a
+  // migration fallback only, so every active path uses the same canonical key.
+  const signingKey = String(env.STEM_INTERNAL_AUTH_KEY || env.STEM_IDENTITY_SIGNING_KEY || '')
   const markingCapabilitySigningKey = String(env.STEM_MARKING_CAPABILITY_SIGNING_KEY || signingKey)
   const identityOrigin = String(env.IELTSIST_ORIGIN || 'https://ieltsist.com').replace(/\/$/, '')
   const stemOrigin = String(env.STEM_ORIGIN || 'https://stem.ieltsist.com').replace(/\/$/, '')

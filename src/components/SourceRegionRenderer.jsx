@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import * as pdfjs from 'pdfjs-dist'
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 
@@ -44,19 +44,41 @@ function canvasToBlob(canvas) {
   })
 }
 
-function revokeObjectUrls(urls) {
-  for (const url of urls) URL.revokeObjectURL(url)
+function releaseObjectUrlAfterImageUnmount(objectUrl) {
+  const release = () => {
+    const stillRendered = typeof document !== 'undefined'
+      && Array.from(document.images).some((image) => image.getAttribute('src') === objectUrl)
+    if (!stillRendered) URL.revokeObjectURL(objectUrl)
+  }
+  if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(release)
+  } else {
+    release()
+  }
+}
+
+function RenderedBlobImage({ objectUrl, alt, onClaim }) {
+  const imageRef = useCallback((element) => {
+    if (element) onClaim(objectUrl)
+  }, [objectUrl, onClaim])
+
+  useEffect(() => () => releaseObjectUrlAfterImageUnmount(objectUrl), [objectUrl])
+
+  return <img ref={imageRef} src={objectUrl} alt={alt} />
 }
 
 export function SourceRegionRenderer({ manifest, mode = 'regions', onStatus = () => {} }) {
   const containerRef = useRef(null)
-  const renderedObjectUrlsRef = useRef([])
+  const unclaimedObjectUrlsRef = useRef(new Set())
   const [containerWidth, setContainerWidth] = useState(720)
   const [renderedPages, setRenderedPages] = useState([])
   const [, setFallbackLoadedPages] = useState([])
   const [status, setStatus] = useState('idle')
   const [error, setError] = useState('')
   const fallback = fallbackPages(manifest, mode)
+  const claimObjectUrl = useCallback((objectUrl) => {
+    unclaimedObjectUrlsRef.current.delete(objectUrl)
+  }, [])
 
   useEffect(() => {
     if (!containerRef.current || typeof ResizeObserver === 'undefined') return undefined
@@ -72,7 +94,10 @@ export function SourceRegionRenderer({ manifest, mode = 'regions', onStatus = ()
     let cancelled = false
     let loadingTask = null
     let documentProxy = null
-    let pendingObjectUrls = []
+    const releaseUnclaimedObjectUrls = () => {
+      for (const objectUrl of unclaimedObjectUrlsRef.current) URL.revokeObjectURL(objectUrl)
+      unclaimedObjectUrlsRef.current.clear()
+    }
     const pages = (Array.isArray(manifest?.pages) ? manifest.pages : []).map((entry) => mode === 'original'
       ? { ...entry, normalizedRegion: [0, 0, 1, 1], exactRegion: false }
       : entry)
@@ -137,7 +162,7 @@ export function SourceRegionRenderer({ manifest, mode = 'regions', onStatus = ()
         const blob = await canvasToBlob(croppedCanvas)
         if (cancelled) return
         const objectUrl = URL.createObjectURL(blob)
-        pendingObjectUrls.push(objectUrl)
+        unclaimedObjectUrlsRef.current.add(objectUrl)
         output.push({
           page: entry.page,
           exactRegion: entry.exactRegion,
@@ -154,8 +179,6 @@ export function SourceRegionRenderer({ manifest, mode = 'regions', onStatus = ()
       }
 
       if (cancelled) return
-      renderedObjectUrlsRef.current = pendingObjectUrls
-      pendingObjectUrls = []
       setRenderedPages(output)
       setStatus('ready')
       onStatus('ready')
@@ -163,8 +186,7 @@ export function SourceRegionRenderer({ manifest, mode = 'regions', onStatus = ()
 
     renderSource().catch((renderError) => {
       if (cancelled) return
-      revokeObjectUrls(pendingObjectUrls)
-      pendingObjectUrls = []
+      releaseUnclaimedObjectUrls()
       const message = String(renderError?.message || 'The official PDF could not be rendered.')
       if (fallback.length === pages.length) {
         setStatus('fallback-loading')
@@ -179,9 +201,7 @@ export function SourceRegionRenderer({ manifest, mode = 'regions', onStatus = ()
 
     return () => {
       cancelled = true
-      revokeObjectUrls(pendingObjectUrls)
-      revokeObjectUrls(renderedObjectUrlsRef.current)
-      renderedObjectUrlsRef.current = []
+      releaseUnclaimedObjectUrls()
       if (documentProxy) void documentProxy.destroy().catch(() => {})
       documentProxy = null
     }
@@ -212,7 +232,7 @@ export function SourceRegionRenderer({ manifest, mode = 'regions', onStatus = ()
       {status === 'fallback' && <div className="source-region-renderer__status source-region-renderer__status--fallback" role="status">Showing the audited source page while the PDF renderer recovers.</div>}
       {status === 'ready' && renderedPages.map((entry) => (
         <figure className="source-region-renderer__page" key={entry.page} data-source-page={entry.page} data-source-region={entry.normalizedRegion.join(',')} data-exact-region={entry.exactRegion ? 'true' : 'false'}>
-          <img src={entry.objectUrl} alt={`Rendered official question crop, page ${entry.page}`} />
+          <RenderedBlobImage objectUrl={entry.objectUrl} alt={`Rendered official question crop, page ${entry.page}`} onClaim={claimObjectUrl} />
           <figcaption>Source PDF page {entry.page}{entry.exactRegion ? '' : ' · complete page fallback'}</figcaption>
         </figure>
       ))}

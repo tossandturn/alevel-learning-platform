@@ -443,6 +443,60 @@ async function verifySourceControls(page, sourceCase) {
   if (await originalLink.getAttribute('href') !== sourcePdfFor0580()) throw new Error(`Q${sourceCase.number} original-paper link is not bound to its source PDF`)
 }
 
+async function verifyRenderedBlobUrlHandoff(page) {
+  const renderer = page.locator('.source-region-renderer')
+  const image = renderer.locator('img').first()
+  const before = await image.evaluate((element) => ({
+    source: element.getAttribute('src') || '',
+    rendererWidth: Math.round(element.closest('.source-region-renderer')?.getBoundingClientRect().width || 0),
+  }))
+  if (!before.source.startsWith('blob:') || before.rendererWidth < 320) {
+    throw new Error(`Source renderer did not expose a resizable Blob URL before handoff: ${JSON.stringify(before)}`)
+  }
+  const targetWidth = Math.max(280, Math.round(before.rendererWidth * 0.75))
+  await page.evaluate((width) => {
+    const element = document.querySelector('.source-region-renderer')
+    if (!element) throw new Error('Source renderer missing during Blob URL handoff audit')
+    const original = URL.revokeObjectURL.bind(URL)
+    window.__stemSourceObjectUrlAudit = { original, events: [] }
+    URL.revokeObjectURL = (url) => {
+      const active = Array.from(document.images).some((image) => image.getAttribute('src') === url)
+      window.__stemSourceObjectUrlAudit.events.push({ url, active })
+      return original(url)
+    }
+    element.style.width = `${width}px`
+  }, targetWidth)
+  try {
+    await page.waitForFunction(({ previousSource, expectedWidth }) => {
+      const element = document.querySelector('.source-region-renderer')
+      const currentImage = element?.querySelector('img')
+      return element
+        && Math.abs(element.getBoundingClientRect().width - expectedWidth) <= 1
+        && element.getAttribute('data-source-render-status') === 'ready'
+        && currentImage?.complete
+        && currentImage.naturalWidth > 0
+        && currentImage.getAttribute('src') !== previousSource
+    }, { previousSource: before.source, expectedWidth: targetWidth })
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+    const objectUrlAudit = await page.evaluate(() => window.__stemSourceObjectUrlAudit.events.slice())
+    const revokedWhileRendered = objectUrlAudit.filter((event) => event.active)
+    if (revokedWhileRendered.length) {
+      throw new Error(`Source renderer revoked a Blob URL while an image still referenced it: ${JSON.stringify(revokedWhileRendered)}`)
+    }
+    if (!objectUrlAudit.some((event) => event.url === before.source && !event.active)) {
+      throw new Error(`Source renderer did not release the replaced Blob URL after DOM handoff: ${JSON.stringify(objectUrlAudit)}`)
+    }
+  } finally {
+    await page.evaluate(() => {
+      const element = document.querySelector('.source-region-renderer')
+      if (element) element.style.width = ''
+      const audit = window.__stemSourceObjectUrlAudit
+      if (audit?.original) URL.revokeObjectURL = audit.original
+      delete window.__stemSourceObjectUrlAudit
+    })
+  }
+}
+
 async function verifyReviewedQuestion(page, sourceCase, viewport) {
   await clearBrowserState(page)
   await startReviewedTopic(page, sourceCase.topic)
@@ -478,6 +532,7 @@ async function verifyReviewedQuestion(page, sourceCase, viewport) {
     await assertFocusedSource(page, sourceCase, expectedPage, viewport, evidence)
   }
   await verifySourceControls(page, sourceCase)
+  if (sourceCase.number === 5 && viewport.name === 'ipad-portrait') await verifyRenderedBlobUrlHandoff(page)
 
   const geometry = await page.evaluate(() => {
     const source = document.querySelector('.qp-question-asset')?.getBoundingClientRect()
@@ -514,7 +569,14 @@ async function verifyReviewedSourceMatrix(browser) {
         const errors = []
         page.on('pageerror', (error) => errors.push(`pageerror:${error.message}`))
         page.on('console', (message) => {
-          if (message.type() === 'error' && !/Failed to load resource: the server responded with a status of 401/i.test(message.text())) errors.push(`console:${message.text()}`)
+          if (message.type() === 'error' && !/Failed to load resource: the server responded with a status of 401/i.test(message.text())) {
+            const location = message.location()
+            errors.push(`console:${message.text()} ${location.url}:${location.lineNumber}:${location.columnNumber}`)
+          }
+        })
+        page.on('requestfailed', (request) => {
+          const errorText = request.failure()?.errorText || 'unknown'
+          if (errorText !== 'net::ERR_ABORTED') errors.push(`requestfailed:${errorText} ${request.url()}`)
         })
         page.on('response', (response) => {
           const expectedGuestIdentity = response.status() === 401 && /\/api\/auth\/status$/.test(new URL(response.url()).pathname)

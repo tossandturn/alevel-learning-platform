@@ -84,7 +84,7 @@ function boundedCacheSet(cache, key, value, maxEntries) {
 
 function authenticatedStemUser(request, env) {
   const token = String(request.headers.authorization || '').match(/^Bearer\s+(.+)$/i)?.[1]
-  const identitySigningKey = env.STEM_IDENTITY_SIGNING_KEY || env.STEM_INTERNAL_AUTH_KEY
+  const identitySigningKey = env.STEM_INTERNAL_AUTH_KEY || env.STEM_IDENTITY_SIGNING_KEY
   const claims = validHmacJwt(token, identitySigningKey, { issuer: 'ieltsist.com', audience: 'stem.ieltsist.com', maxLifetimeSeconds: 60 * 60 })
   return claims && /^ielts:\d+$/.test(String(claims.sub)) ? String(claims.sub) : null
 }
@@ -1304,7 +1304,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
 
 async function handleHandwritingMark(request, response, provider, libraryRoot, allowedSubjects, sourceAssetRoot, env, questionBank, telemetry, timeoutConfig) {
   const payload = await readJsonBody(request)
-  const identitySigningKey = env.STEM_IDENTITY_SIGNING_KEY || env.STEM_INTERNAL_AUTH_KEY
+  const identitySigningKey = env.STEM_INTERNAL_AUTH_KEY || env.STEM_IDENTITY_SIGNING_KEY
   const capability = verifyMarkingCapability({
     request,
     payload,
