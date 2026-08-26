@@ -5,7 +5,7 @@ import { paperQuestionMarkingMetadata } from '../lib/verifiedPracticeCatalog'
 import { deletePaperEvidence, getPaperEvidence, putPaperEvidence } from '../lib/evidenceStorage'
 import { buildSharedMarkingSubmission, completedMarksByQuestion, createSharedMarkingSubmission, loadQuestionAssets, paperSubmissionMarkingSummary, readSharedMarkingAvailability, retrySharedMarkingSubmission, scorePaperMultipleChoice, sharedMarkingIsAvailable, waitForSharedMarkingSubmission } from '../lib/paperMarking'
 import { requestMarkingCapabilities } from '../lib/markingCapabilityClient'
-import { persistStudentAttempt } from '../lib/attemptPersistence'
+import { persistStudentAttempt, projectServerResultAuthority } from '../lib/attemptPersistence'
 import { normalizePaperStudyMode, paperStudyModeLabel } from '../lib/paperStudyMode'
 import { AiCoach } from './AiCoach'
 import { PaperAnswerSheet, SelfMarkSummary } from './PaperAnswerSheet'
@@ -913,6 +913,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
       unansweredQuestionNumbers,
     })
     if (lastSavedReview?.signature === signature) return
+    let completedReview = review
     if (sharedIdentityToken) {
       try {
         const paperRouteId = sharedMarkingContract?.routeId || paper.routeId || sourcePaper.routeId || ''
@@ -922,7 +923,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
             ? [{ provenance: { routeId: paperRouteId, ...part.markingProvenance } }]
             : []
         )))
-        await persistStudentAttempt({
+        const persisted = await persistStudentAttempt({
           token: sharedIdentityToken,
           attempt: {
             id: attemptId,
@@ -961,13 +962,19 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
           paperId: sourcePaper.id,
           markingParts,
         })
+        const authority = projectServerResultAuthority(persisted.attempt || review)
+        completedReview = {
+          ...review,
+          ...(authority.resultAuthority ? { resultAuthority: authority.resultAuthority } : {}),
+          formalResult: authority.formalResult,
+        }
       } catch (error) {
         setEvidenceStatus(error.message || 'The result could not be saved on the server. Try again.')
         return
       }
     }
-    setLastSavedReview({ savedAt: review.reviewedAt, rawMarks: review.rawMarks, maxMarks: review.maxMarks, signature })
-    onFinishReview(review)
+    setLastSavedReview({ savedAt: completedReview.reviewedAt, rawMarks: completedReview.rawMarks, maxMarks: completedReview.maxMarks, signature })
+    onFinishReview(completedReview)
   }
 
   return (

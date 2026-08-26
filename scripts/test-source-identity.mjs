@@ -17,7 +17,8 @@ const scratchRoot = fs.mkdtempSync(path.join(scratchParent, 'stem-source-identit
 function archiveReleaseRoot(name) {
   const releaseRoot = path.join(scratchRoot, name)
   const archivePath = path.join(scratchRoot, `${name}.tar`)
-  execFileSync('git', ['archive', '--format=tar', '--output', archivePath, archiveRef], {
+  const runtimePaths = ['index.html', 'package-lock.json', 'package.json', 'public', 'scripts', 'server', 'src', 'vite.config.js']
+  execFileSync('git', ['archive', '--format=tar', '--output', archivePath, archiveRef, '--', ...runtimePaths], {
     cwd: repoRoot,
     stdio: 'ignore',
   })
@@ -53,6 +54,14 @@ function buildArchiveDist(releaseRoot) {
     maxBuffer: 32 * 1024 * 1024,
   })
   assert.equal(result.status, 0, `git archive production build must pass:\n${result.stdout}\n${result.stderr}`)
+  if (fs.lstatSync(archiveNodeModules).isSymbolicLink()) {
+    fs.unlinkSync(archiveNodeModules)
+    fs.mkdirSync(archiveNodeModules, { recursive: true })
+    fs.copyFileSync(
+      path.join(workspaceNodeModules, '.package-lock.json'),
+      path.join(archiveNodeModules, '.package-lock.json'),
+    )
+  }
 }
 
 function runDirectAudit(label, releaseRoot, args = []) {

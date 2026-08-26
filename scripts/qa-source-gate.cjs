@@ -193,6 +193,8 @@ async function startQaServer() {
     env: {
       ...process.env,
       BROWSER: 'none',
+      NODE_ENV: 'test',
+      STEM_ENABLE_STUDY_ONLY_TOPIC_DRILL: '1',
       STEM_DB_PATH: qaDatabasePath,
       STEM_SESSION_SECURE: '0',
     },

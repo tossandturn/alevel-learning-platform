@@ -37,6 +37,9 @@ let providerAssessment = {
     studentEvidence: 'The principle is stated in the typed response.',
   }],
 }
+let providerDelayMs = 0
+let providerRawResponse = ''
+const providerTelemetry = []
 
 function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex')
@@ -215,7 +218,13 @@ const providerServer = http.createServer(async (request, response) => {
   const chunks = []
   for await (const chunk of request) chunks.push(chunk)
   providerCalls.push(JSON.parse(Buffer.concat(chunks).toString('utf8')))
+  if (providerDelayMs) await new Promise((resolve) => setTimeout(resolve, providerDelayMs))
+  if (response.destroyed) return
   response.setHeader('Content-Type', 'application/json')
+  if (providerRawResponse) {
+    response.end(providerRawResponse)
+    return
+  }
   response.end(JSON.stringify({
     choices: [{
       message: {
@@ -232,12 +241,15 @@ const env = {
   STEM_INTERNAL_AUTH_KEY: identitySigningKey,
   STEM_MARKING_CAPABILITY_SIGNING_KEY: capabilitySigningKey,
   STEM_DB_PATH: path.join(root, 'stem.sqlite'),
+  STEM_AI_PROVIDER_TIMEOUT_MS: '250',
+  STEM_AI_REQUEST_DEADLINE_MS: '450',
 }
 const aiApi = createAiApi({
   env,
   libraryRoot,
   allowedSubjects: new Set(['9702']),
   questionBankProvider: () => groups,
+  telemetry: (event) => providerTelemetry.push(event),
 })
 const stemApi = createStemApi({ env, topicQuestionBankProvider: () => groups })
 const appServer = requestHandler(stemApi, aiApi)
@@ -356,6 +368,7 @@ try {
   assert.equal(Object.hasOwn(malformedAssessment.payload, 'maxMarks'), false, 'a malformed assessment must not expose a score maximum')
   assert.equal(Object.hasOwn(malformedAssessment.payload, 'markPoints'), false, 'a malformed assessment must not expose fabricated criteria')
   assert.equal(Object.hasOwn(malformedAssessment.payload, 'autoFinal'), false, 'a malformed assessment must not look like a completed marking result')
+  assert.equal(providerTelemetry.at(-1)?.schemaStatus, 'invalid', 'provider telemetry must report the final marking schema failure')
 
   providerAssessment = {
     rawMarks: null,
@@ -370,6 +383,50 @@ try {
   assert.equal(nullMarks.payload.code, 'ai_assessment_schema_invalid')
   assert.equal(Object.hasOwn(nullMarks.payload, 'rawMarks'), false)
 
+  providerRawResponse = '{"choices":'
+  const callsBeforeInvalidJson = providerCalls.length
+  const invalidJson = await post(appBase, '/api/ai/mark-handwriting', { ...request, markingGrant }, token)
+  assert.equal(invalidJson.response.status, 422, 'HTTP 200 with malformed provider JSON must be classified as a schema failure')
+  assert.equal(invalidJson.payload.code, 'ai_assessment_schema_invalid')
+  assert.equal(invalidJson.payload.providerStatus, 'invalid_schema')
+  assert.equal(Object.hasOwn(invalidJson.payload, 'rawMarks'), false, 'malformed provider JSON must not expose a fabricated score')
+  assert.equal(providerCalls.length, callsBeforeInvalidJson + 1, 'the malformed JSON regression must cross the provider boundary')
+  assert.equal(providerTelemetry.at(-1)?.schemaStatus, 'invalid', 'malformed provider JSON must be observable as an invalid schema')
+  providerRawResponse = ''
+
+  providerAssessment = {
+    rawMarks: 1,
+    maxMarks: 99,
+    confidence: 0.94,
+    reviewRequired: false,
+    summary: 'Delayed provider fixture.',
+    markPoints: [{
+      id: 'M1',
+      awarded: true,
+      marks: 1,
+      reason: 'The delayed fixture contains a valid mark point.',
+      studentEvidence: 'The principle is stated in the typed response.',
+    }],
+  }
+  providerDelayMs = 600
+  const callsBeforeTimeout = providerCalls.length
+  const timeoutStartedAt = Date.now()
+  const timeoutResult = await post(appBase, '/api/ai/mark-handwriting', { ...request, markingGrant }, token)
+  const timeoutDurationMs = Date.now() - timeoutStartedAt
+  assert.equal(timeoutResult.response.status, 200, 'a provider timeout must resolve with a safe terminal response')
+  assert.equal(timeoutResult.payload.mode, 'offline', 'a provider timeout must not return an AI score')
+  assert.equal(timeoutResult.payload.code, 'vision_review_failed')
+  assert.equal(timeoutResult.payload.providerStatus, 'error')
+  assert.equal(timeoutResult.payload.retryable, true)
+  assert.equal(Object.hasOwn(timeoutResult.payload, 'rawMarks'), false, 'a provider timeout must not expose a fabricated score')
+  assert.ok(timeoutDurationMs < 550, `provider timeout exceeded its configured budget: ${timeoutDurationMs}ms`)
+  assert.equal(providerCalls.length, callsBeforeTimeout + 1, 'the timeout regression must reach the provider boundary')
+  const timeoutTelemetry = providerTelemetry.at(-1)
+  assert.equal(timeoutTelemetry.operation, 'handwriting-marking')
+  assert.equal(timeoutTelemetry.timeoutMs, 250)
+  assert.equal(timeoutTelemetry.finalState, 'timeout')
+
+  providerDelayMs = 0
   fs.appendFileSync(questionPdfPath, '\n% tampered fixture\n', 'utf8')
   const callsBeforeTamper = providerCalls.length
   const tampered = await post(appBase, '/api/ai/mark-handwriting', { ...request, markingGrant }, token)

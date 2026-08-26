@@ -243,6 +243,8 @@ function compactAttemptValue(value, key = '', depth = 0) {
 
 function compactStudentAttemptSnapshot(payload, { attemptId, routeId, stage, paperId, submittedAt }) {
   const source = payload?.attempt && typeof payload.attempt === 'object' ? payload.attempt : {}
+  const suppliedScoreResult = source.scoreResult ?? source.result ?? payload.scoreResult ?? payload.result
+  const hasClientReportedResult = suppliedScoreResult && typeof suppliedScoreResult === 'object' && !Array.isArray(suppliedScoreResult)
   const candidate = {
     attemptId,
     id: asText(source.id, 120) || attemptId,
@@ -250,7 +252,11 @@ function compactStudentAttemptSnapshot(payload, { attemptId, routeId, stage, pap
     routeId,
     stage,
     paperId,
-    attemptStatus: asText(source.attemptStatus || payload.attemptStatus, 80),
+    // Scores arrive from the browser after local marking. They are useful as
+    // saved evidence, but this endpoint has not independently verified them.
+    // Keep them explicitly provisional so a reload cannot promote them into
+    // formal progress or analytics.
+    attemptStatus: hasClientReportedResult ? 'provisional-result' : asText(source.attemptStatus || payload.attemptStatus, 80),
     submittedAt,
     elapsedSec: Number.isFinite(Number(source.elapsedSec)) ? Math.max(0, Math.min(Number(source.elapsedSec), 86_400)) : undefined,
     answeredCount: Number.isFinite(Number(source.answeredCount)) ? Math.max(0, Number(source.answeredCount)) : undefined,
@@ -272,8 +278,9 @@ function compactStudentAttemptSnapshot(payload, { attemptId, routeId, stage, pap
     maxMarksByQuestion: source.maxMarksByQuestion || payload.maxMarksByQuestion,
     aiMarks: source.aiMarks || payload.aiMarks,
     lastSavedReview: source.lastSavedReview || payload.lastSavedReview,
-    scoreResult: source.scoreResult ?? source.result ?? payload.scoreResult ?? payload.result,
-    formalResult: source.formalResult,
+    scoreResult: suppliedScoreResult,
+    formalResult: false,
+    ...(hasClientReportedResult ? { resultAuthority: 'client-reported' } : {}),
   }
   return compactAttemptValue(candidate)
 }
@@ -297,6 +304,15 @@ function parseStudentAttemptRow(row) {
 
 function publicStudentAttempt(row) {
   const parsed = parseStudentAttemptRow(row)
+  const snapshot = { ...parsed.snapshot }
+  const hasClientReportedResult = snapshot.scoreResult && typeof snapshot.scoreResult === 'object' && !Array.isArray(snapshot.scoreResult)
+  if (hasClientReportedResult) {
+    snapshot.attemptStatus = 'provisional-result'
+    snapshot.formalResult = false
+    snapshot.resultAuthority = 'client-reported'
+  } else {
+    snapshot.formalResult = false
+  }
   return {
     attemptId: parsed.attemptId,
     mode: parsed.binding?.mode || null,
@@ -309,7 +325,7 @@ function publicStudentAttempt(row) {
     updatedAt: parsed.updatedAt,
     binding: parsed.binding,
     attempt: {
-      ...parsed.snapshot,
+      ...snapshot,
       attemptId: parsed.attemptId,
       submissionStatus: parsed.submissionStatus,
       submittedAt: parsed.submittedAt,
@@ -1657,9 +1673,9 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
   // Production uses unifiedQuestionBank, which fails closed on file and
   // semantic source completeness. Supplying a fixture is test-only.
   const assignableQuestionIds = assignableQuestionIdsForBank(questionBank)
-  // Topic Drill may expose complete study-only source records while review is
-  // pending. The study pool remains separate from formal assignments,
-  // mastery, and AI-marking authority.
+  // Topic Drill production availability is practice-ready only. Study-only
+  // source records may be enabled for local review, but must not inflate the
+  // production count/list/start gate.
   const baseTopicPracticeQuestionBank = questionBank === unifiedQuestionBank ? studyQuestionBank : questionBank
   const includeStudyOnly = questionBank === unifiedQuestionBank
   const runtimeReleaseGatedRoutes = new Set(['cie-9702-a2-physics'])
@@ -1667,9 +1683,11 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
 
   function includeStudyOnlyForRoute() {
     // Runtime AI records are marked studentStudyEligible=false below until
-    // their release gate is satisfied. Keep the static source-backed study
-    // pool visible while filtering those runtime records individually.
+    // their release gate is satisfied. Static study-only records are also
+    // hidden unless a non-production review task opts in explicitly.
     return includeStudyOnly
+      && String(env.STEM_ENABLE_STUDY_ONLY_TOPIC_DRILL || '').trim() === '1'
+      && String(env.NODE_ENV || '').trim().toLowerCase() !== 'production'
   }
 
   function currentTopicPracticeQuestionBank() {

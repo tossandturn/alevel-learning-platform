@@ -29,6 +29,29 @@ export function sourceMarkingPartsForUnit(unit = {}) {
   })
 }
 
+export function projectServerResultAuthority(source = {}, fallbackStatus = 'marking-pending') {
+  const hasClientReportedResult = (source.scoreResult && typeof source.scoreResult === 'object' && !Array.isArray(source.scoreResult))
+    || (source.selfMarks && typeof source.selfMarks === 'object' && !Array.isArray(source.selfMarks))
+    || (source.aiMarks && typeof source.aiMarks === 'object' && !Array.isArray(source.aiMarks))
+  return {
+    attemptStatus: hasClientReportedResult ? 'provisional-result' : String(source.attemptStatus || fallbackStatus),
+    formalResult: false,
+    ...(hasClientReportedResult ? { resultAuthority: 'client-reported' } : {}),
+  }
+}
+
+export function applyServerResultAuthority(localAttempt = {}, persistedAttempt = null) {
+  const source = persistedAttempt && typeof persistedAttempt === 'object' && !Array.isArray(persistedAttempt)
+    ? persistedAttempt
+    : localAttempt
+  const projected = {
+    ...localAttempt,
+    ...projectServerResultAuthority(source, localAttempt.attemptStatus || 'marking-pending'),
+  }
+  if (projected.resultAuthority === 'client-reported') delete projected.learningSignal
+  return projected
+}
+
 export function buildStudentAttemptPersistencePayload({ attempt, mode, routeId, stage, paperId = '', markingParts = [] } = {}) {
   const attemptId = String(attempt?.id || attempt?.attemptId || '').trim()
   if (!attemptId) throw Object.assign(new Error('A valid attemptId is required before saving.'), { code: 'attempt_invalid' })

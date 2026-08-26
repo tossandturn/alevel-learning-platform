@@ -1,9 +1,14 @@
 import assert from 'node:assert/strict'
 import { Readable } from 'node:stream'
+import crypto from 'node:crypto'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { closeStemDatabaseForTests, createStemApi } from '../server/stemApi.js'
 
 const signingKey = 'stem-native-auth-test-signing-key'
 const calls = []
+let expiredDbDirectory = ''
 
 function call(api, { method, url, body, headers = {} }) {
   return new Promise((resolve, reject) => {
@@ -205,7 +210,44 @@ try {
   })
   assert.equal(afterLogout.statusCode, 200, 'a cleared STEM session must return a guest response')
   assert.deepEqual(afterLogout.body, { authenticated: false })
+
+  closeStemDatabaseForTests()
+  expiredDbDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'stem-native-auth-expiry-'))
+  const expiredDbPath = path.join(expiredDbDirectory, 'stem.sqlite')
+  const expiredApiEnv = {
+    STEM_IDENTITY_SIGNING_KEY: signingKey,
+    STEM_AUTH_INTERNAL_ORIGIN: 'http://127.0.0.1:4321',
+    STEM_ORIGIN: 'https://stem.example.test',
+    STEM_SESSION_SECURE: '0',
+    STEM_DB_PATH: expiredDbPath,
+  }
+  const expiredApi = createStemApi({ env: expiredApiEnv, fetchImpl })
+  const expiryLogin = await call(expiredApi, {
+    method: 'POST',
+    url: '/api/auth/login',
+    body: { username: 'expiry_student', password: 'testing123' },
+  })
+  assert.equal(expiryLogin.statusCode, 200)
+  const expiryCookie = String(expiryLogin.headers['set-cookie'] || '').split(';', 1)[0]
+  const expiryToken = decodeURIComponent(expiryCookie.slice('stem_session='.length))
+  closeStemDatabaseForTests()
+  const sqlite = process.getBuiltinModule?.('node:sqlite')
+  assert.ok(sqlite?.DatabaseSync, 'session expiry regression requires the supported SQLite runtime')
+  const expiryDatabase = new sqlite.DatabaseSync(expiredDbPath)
+  const expiryHash = crypto.createHash('sha256').update(expiryToken).digest('hex')
+  expiryDatabase.prepare('UPDATE stem_sessions SET expires_at = ? WHERE token_hash = ?').run('2000-01-01T00:00:00.000Z', expiryHash)
+  expiryDatabase.close()
+  const expiredStatus = await call(createStemApi({ env: expiredApiEnv, fetchImpl }), {
+    method: 'GET',
+    url: '/api/auth/status',
+    headers: { cookie: expiryCookie },
+  })
+  assert.equal(expiredStatus.statusCode, 200, 'an expired STEM session must resolve as a guest status')
+  assert.deepEqual(expiredStatus.body, { authenticated: false })
+  closeStemDatabaseForTests()
+
   console.log('STEM native account checks passed')
 } finally {
   closeStemDatabaseForTests()
+  if (expiredDbDirectory) fs.rmSync(expiredDbDirectory, { recursive: true, force: true })
 }

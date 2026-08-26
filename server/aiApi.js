@@ -16,7 +16,7 @@ import {
   STEM_MARKING_MANIFEST_SCHEMA_VERSION,
   STEM_SOURCE_REVIEW_SCHEMA_VERSION,
 } from '../src/lib/sourceContentContract.js'
-import { verifyMarkingCapability } from './markingCapability.js'
+import { validHmacJwt, verifyMarkingCapability } from './markingCapability.js'
 
 const IMAGE_PATTERN = /^data:image\/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=]+)$/
 const MAX_BODY_BYTES = 16 * 1024 * 1024
@@ -28,6 +28,11 @@ const TEMP_IMAGE_TTL_MS = 5 * 60 * 1000
 const PDF_TEXT_CACHE_MAX_ENTRIES = 6
 const COACH_CONTEXT_CACHE_MAX_ENTRIES = 48
 const COACH_CONTEXT_MAX_CHARS = 4_800
+const DEFAULT_AI_PROVIDER_TIMEOUT_MS = 25_000
+const DEFAULT_AI_REQUEST_DEADLINE_MS = 50_000
+const MIN_AI_TIMEOUT_MS = 250
+const MAX_AI_PROVIDER_TIMEOUT_MS = 45_000
+const MAX_AI_REQUEST_DEADLINE_MS = 55_000
 const pdfTextCache = new Map()
 const coachContextCache = new Map()
 const CIE_SUBJECTS = new Set(['0580', '0606', '0625', '9231', '9701', '9702', '9708', '9709'])
@@ -75,28 +80,6 @@ function boundedCacheSet(cache, key, value, maxEntries) {
   if (cache.has(key)) cache.delete(key)
   cache.set(key, value)
   while (cache.size > maxEntries) cache.delete(cache.keys().next().value)
-}
-
-function decodeBase64Url(value) {
-  return JSON.parse(Buffer.from(String(value || ''), 'base64url').toString('utf8'))
-}
-
-function validHmacJwt(token, key, { issuer, audience, maxLifetimeSeconds = 900 } = {}) {
-  if (!token || !key) return null
-  const parts = String(token).split('.')
-  if (parts.length !== 3) return null
-  const [encodedHeader, encodedPayload, signature] = parts
-  const expected = crypto.createHmac('sha256', key).update(`${encodedHeader}.${encodedPayload}`).digest('base64url')
-  if (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null
-  try {
-    const header = decodeBase64Url(encodedHeader)
-    const claims = decodeBase64Url(encodedPayload)
-    const now = Math.floor(Date.now() / 1000)
-    if (header.alg !== 'HS256' || (issuer && claims.iss !== issuer) || (audience && claims.aud !== audience) || !claims.sub || !Number.isFinite(Number(claims.exp)) || Number(claims.exp) <= now || (Number(claims.iat) && Number(claims.exp) - Number(claims.iat) > maxLifetimeSeconds)) return null
-    return claims
-  } catch {
-    return null
-  }
 }
 
 function authenticatedStemUser(request, env) {
@@ -763,29 +746,129 @@ function providerCandidates(provider) {
   return candidates
 }
 
-async function callCompatibleAi(provider, { messages, temperature = 0.2, json = false }) {
-  if (!provider.apiKey) return null
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 60000)
+function boundedDuration(value, fallback, minimum, maximum) {
+  const number = Number(value)
+  if (!Number.isFinite(number) || number <= 0) return fallback
+  return Math.min(maximum, Math.max(minimum, Math.round(number)))
+}
+
+function aiTimeoutConfig(env = {}) {
+  const providerTimeoutMs = boundedDuration(
+    env.STEM_AI_PROVIDER_TIMEOUT_MS || env.PHYSICS_AI_PROVIDER_TIMEOUT_MS,
+    DEFAULT_AI_PROVIDER_TIMEOUT_MS,
+    MIN_AI_TIMEOUT_MS,
+    MAX_AI_PROVIDER_TIMEOUT_MS,
+  )
+  const requestDeadlineMs = boundedDuration(
+    env.STEM_AI_REQUEST_DEADLINE_MS || env.PHYSICS_AI_REQUEST_DEADLINE_MS,
+    DEFAULT_AI_REQUEST_DEADLINE_MS,
+    providerTimeoutMs,
+    MAX_AI_REQUEST_DEADLINE_MS,
+  )
+  return Object.freeze({ providerTimeoutMs, requestDeadlineMs })
+}
+
+function aiDeadlineError() {
+  const error = new Error('AI request deadline exceeded.')
+  error.name = 'AbortError'
+  error.code = 'AI_REQUEST_DEADLINE'
+  return error
+}
+
+function effectiveAiTimeoutMs(timeoutMs, deadlineAt) {
+  const configuredTimeoutMs = boundedDuration(timeoutMs, DEFAULT_AI_PROVIDER_TIMEOUT_MS, 1, MAX_AI_PROVIDER_TIMEOUT_MS)
+  if (!Number.isFinite(deadlineAt)) return configuredTimeoutMs
+  const remainingMs = Math.floor(deadlineAt - Date.now())
+  if (remainingMs <= 0) throw aiDeadlineError()
+  return Math.min(configuredTimeoutMs, remainingMs)
+}
+
+function emitProviderTelemetry(telemetry, event) {
+  const safeEvent = {
+    requestId: String(event.requestId || '').replace(/[^a-z0-9._:-]/gi, '').slice(0, 80) || null,
+    operation: String(event.operation || 'ai').slice(0, 40),
+    provider: String(event.provider || '').slice(0, 40),
+    model: String(event.model || '').slice(0, 120),
+    providerAttempt: Number.isInteger(event.providerAttempt) && event.providerAttempt > 0 ? Math.min(event.providerAttempt, 10) : 1,
+    fallbackPath: String(event.fallbackPath || event.provider || '').replace(/[^a-z0-9._:>-]/gi, '').slice(0, 160),
+    timeoutMs: boundedDuration(event.timeoutMs, DEFAULT_AI_PROVIDER_TIMEOUT_MS, 1, MAX_AI_REQUEST_DEADLINE_MS),
+    fallback: Boolean(event.fallback),
+    statusCode: Number.isInteger(event.statusCode) ? event.statusCode : null,
+    schemaStatus: String(event.schemaStatus || 'unknown').slice(0, 40),
+    durationMs: Math.max(0, Number(event.durationMs) || 0),
+    finalState: String(event.finalState || 'error').slice(0, 40),
+  }
   try {
+    if (typeof telemetry === 'function') telemetry(safeEvent)
+    else console.info(`[ai-provider] ${JSON.stringify(safeEvent)}`)
+  } catch {
+    // Telemetry must never change provider or marking behavior.
+  }
+}
+
+function aiResponseSchemaError(error) {
+  const schemaError = error instanceof Error ? error : new Error(String(error || 'AI provider returned an invalid response schema.'))
+  schemaError.code = 'AI_RESPONSE_SCHEMA_INVALID'
+  return schemaError
+}
+
+async function callCompatibleAi(provider, { messages, temperature = 0.2, json = false, operation = 'ai', requestId = '', providerAttempt = 1, fallbackPath = '', fallback = false, telemetry = null, timeoutMs = DEFAULT_AI_PROVIDER_TIMEOUT_MS, deadlineAt = null, validateResponse = null }) {
+  const startedAt = Date.now()
+  let statusCode = null
+  let schemaStatus = 'not-checked'
+  let finalState = provider.apiKey ? 'error' : 'not_configured'
+  let requestTimeoutMs = timeoutMs
+  if (!provider.apiKey) {
+    emitProviderTelemetry(telemetry, { requestId, operation, provider: provider.name, model: provider.model, providerAttempt, fallbackPath, fallback, timeoutMs: requestTimeoutMs, statusCode, schemaStatus, finalState, durationMs: Date.now() - startedAt })
+    return null
+  }
+  let timeout = null
+  try {
+    requestTimeoutMs = effectiveAiTimeoutMs(timeoutMs, deadlineAt)
+    const controller = new AbortController()
+    timeout = setTimeout(() => controller.abort(), requestTimeoutMs)
     const response = await fetch(`${provider.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${provider.apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: provider.model, messages, ...providerSampling(provider, temperature), stream: false, ...(json ? { response_format: { type: 'json_object' } } : {}) }),
       signal: controller.signal,
     })
+    statusCode = response.status
     if (!response.ok) {
       const providerPayload = await response.json().catch(() => ({}))
       const providerCode = compactText(providerPayload?.error?.code || providerPayload?.code, 80)
       const providerDetail = compactText(providerPayload?.error?.message || providerPayload?.message, 140)
       throw new Error(`AI provider returned ${response.status}${providerCode ? ` (${providerCode})` : ''}${providerDetail ? `: ${providerDetail}` : ''}`)
     }
-    const payload = await response.json()
+    let payload
+    try {
+      payload = await response.json()
+    } catch (error) {
+      schemaStatus = 'invalid'
+      throw aiResponseSchemaError(error)
+    }
     const answer = String(payload?.choices?.[0]?.message?.content || '').trim()
-    if (!answer) throw new Error('AI provider returned an empty response.')
+    if (!Array.isArray(payload?.choices) || !answer) {
+      schemaStatus = 'invalid'
+      throw aiResponseSchemaError('AI provider returned an invalid response schema.')
+    }
+    if (typeof validateResponse === 'function') {
+      try {
+        validateResponse(answer)
+      } catch (error) {
+        schemaStatus = 'invalid'
+        throw aiResponseSchemaError(error)
+      }
+    }
+    schemaStatus = 'valid'
+    finalState = 'connected'
     return answer
+  } catch (error) {
+    finalState = error?.name === 'AbortError' ? 'timeout' : 'error'
+    throw error
   } finally {
-    clearTimeout(timeout)
+    if (timeout) clearTimeout(timeout)
+    emitProviderTelemetry(telemetry, { requestId, operation, provider: provider.name, model: provider.model, providerAttempt, fallbackPath, fallback, timeoutMs: requestTimeoutMs, statusCode, schemaStatus, finalState, durationMs: Date.now() - startedAt })
   }
 }
 
@@ -912,7 +995,7 @@ function coachRequestContext(context, message) {
   }), COACH_CONTEXT_MAX_CHARS)
 }
 
-async function handleCoach(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env) {
+async function handleCoach(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig) {
   const payload = await readJsonBody(request)
   const message = compactText(payload.message, 3000)
   const history = Array.isArray(payload.history) ? payload.history.slice(-10).map((item) => ({ role: item.role === 'assistant' ? 'assistant' : 'user', content: compactText(item.content, 3000) })) : []
@@ -943,8 +1026,10 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   const activeProviders = providerCandidates(configuredProvider)
   if (!activeProviders.length) return sendJson(response, 200, { mode: 'offline', providerStatus: 'not_configured', answer: localAnswer, warning: 'AI Coach provider is not configured on this server. This is an offline hint, not an AI review.' })
   const userText = coachRequestContext(context, message)
+  const deadlineAt = Date.now() + timeoutConfig.requestDeadlineMs
+  const requestId = crypto.randomUUID()
   let lastError = null
-  for (const activeProvider of activeProviders) {
+  for (const [providerIndex, activeProvider] of activeProviders.entries()) {
     let providerImages = []
     try {
       providerImages = await temporaryProviderImages(imageDataUrls, imagePublicBase(activeProvider, request))
@@ -952,6 +1037,14 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
       const answer = await callCompatibleAi(activeProvider, {
         messages: [{ role: 'system', content: buildCoachSystemPrompt({ verifiedSubmitted, hintLevel }) }, ...history, { role: 'user', content }],
         temperature: 0.2,
+        operation: hasImages ? 'coach-vision' : 'coach',
+        requestId,
+        providerAttempt: providerIndex + 1,
+        fallbackPath: activeProviders.slice(0, providerIndex + 1).map((candidate) => candidate.name).join('>'),
+        fallback: providerIndex > 0,
+        telemetry,
+        timeoutMs: timeoutConfig.providerTimeoutMs,
+        deadlineAt,
       })
       return sendJson(response, 200, { mode: 'ai', provider: activeProvider.name, providerStatus: 'connected', answer: answer || localAnswer, model: activeProvider.model })
     } catch (error) {
@@ -964,18 +1057,29 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   return sendJson(response, 200, { mode: 'offline', provider: failedProvider.name, providerStatus: 'error', answer: localAnswer, warning: providerMessage(lastError, failedProvider), retryable: true })
 }
 
-async function callCompatibleAiStream(provider, { messages, temperature = 0.2, onDelta }) {
-  if (!provider.apiKey) return { answer: '', providerStatus: 'not_configured' }
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 60_000)
+async function callCompatibleAiStream(provider, { messages, temperature = 0.2, onDelta, operation = 'ai-stream', requestId = '', providerAttempt = 1, fallbackPath = '', fallback = false, telemetry = null, timeoutMs = DEFAULT_AI_PROVIDER_TIMEOUT_MS, deadlineAt = null }) {
+  const startedAt = Date.now()
+  let statusCode = null
+  let schemaStatus = 'not-checked'
+  let finalState = provider.apiKey ? 'error' : 'not_configured'
+  let requestTimeoutMs = timeoutMs
+  if (!provider.apiKey) {
+    emitProviderTelemetry(telemetry, { requestId, operation, provider: provider.name, model: provider.model, providerAttempt, fallbackPath, fallback, timeoutMs: requestTimeoutMs, statusCode, schemaStatus, finalState, durationMs: Date.now() - startedAt })
+    return { answer: '', providerStatus: 'not_configured' }
+  }
+  let timeout = null
   let answer = ''
   try {
+    requestTimeoutMs = effectiveAiTimeoutMs(timeoutMs, deadlineAt)
+    const controller = new AbortController()
+    timeout = setTimeout(() => controller.abort(), requestTimeoutMs)
     const response = await fetch(`${provider.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${provider.apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: provider.model, messages, ...providerSampling(provider, temperature), stream: true }),
       signal: controller.signal,
     })
+    statusCode = response.status
     if (!response.ok) {
       const providerPayload = await response.json().catch(() => ({}))
       const providerCode = compactText(providerPayload?.error?.code || providerPayload?.code, 80)
@@ -985,10 +1089,21 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, o
 
     const contentType = response.headers.get('content-type') || ''
     if (!response.body || !contentType.includes('text/event-stream')) {
-      const payload = await response.json().catch(() => ({}))
+      let payload
+      try {
+        payload = await response.json()
+      } catch (error) {
+        schemaStatus = 'invalid'
+        throw aiResponseSchemaError(error)
+      }
       answer = String(payload?.choices?.[0]?.message?.content || '').trim()
-      if (!answer) throw new Error('AI provider returned an empty response.')
+      if (!Array.isArray(payload?.choices) || !answer) {
+        schemaStatus = 'invalid'
+        throw new Error('AI provider returned an invalid response schema.')
+      }
+      schemaStatus = 'valid'
       await onDelta?.(answer)
+      finalState = 'connected'
       return { answer, providerStatus: 'connected' }
     }
 
@@ -1003,8 +1118,9 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, o
       let payload
       try {
         payload = JSON.parse(data)
-      } catch {
-        return
+      } catch (error) {
+        schemaStatus = 'invalid'
+        throw aiResponseSchemaError(error)
       }
       const delta = String(payload?.choices?.[0]?.delta?.content || payload?.choices?.[0]?.message?.content || '')
       if (!delta) return
@@ -1022,10 +1138,19 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, o
     }
     if (buffer) await consumeLine(buffer)
     answer = answer.trim()
-    if (!answer) throw new Error('AI provider returned an empty response.')
+    if (!answer) {
+      schemaStatus = 'invalid'
+      throw new Error('AI provider returned an invalid response schema.')
+    }
+    schemaStatus = 'valid'
+    finalState = 'connected'
     return { answer, providerStatus: 'connected' }
+  } catch (error) {
+    finalState = error?.name === 'AbortError' ? 'timeout' : 'error'
+    throw error
   } finally {
-    clearTimeout(timeout)
+    if (timeout) clearTimeout(timeout)
+    emitProviderTelemetry(telemetry, { requestId, operation, provider: provider.name, model: provider.model, providerAttempt, fallbackPath, fallback, timeoutMs: requestTimeoutMs, statusCode, schemaStatus, finalState, durationMs: Date.now() - startedAt })
   }
 }
 
@@ -1033,7 +1158,7 @@ function sendCoachEvent(response, event, value) {
   response.write(`event: ${event}\ndata: ${JSON.stringify(value)}\n\n`)
 }
 
-async function handleCoachStream(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env) {
+async function handleCoachStream(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig) {
   const payload = await readJsonBody(request)
   const message = compactText(payload.message, 3000)
   const history = Array.isArray(payload.history)
@@ -1090,6 +1215,8 @@ async function handleCoachStream(request, response, provider, visionProvider, li
   }
 
   const userText = coachRequestContext(context, message)
+  const deadlineAt = Date.now() + timeoutConfig.requestDeadlineMs
+  const requestId = crypto.randomUUID()
   let streamedAnswer = ''
   let lastPartialAnswer = ''
   let lastError = null
@@ -1114,6 +1241,14 @@ async function handleCoachStream(request, response, provider, visionProvider, li
         const result = await callCompatibleAiStream(activeProvider, {
           messages: [{ role: 'system', content: buildCoachSystemPrompt({ verifiedSubmitted, hintLevel }) }, ...history, { role: 'user', content }],
           temperature: 0.2,
+          operation: hasImages ? 'coach-vision-stream' : 'coach-stream',
+          requestId,
+          providerAttempt: providerIndex + 1,
+          fallbackPath: activeProviders.slice(0, providerIndex + 1).map((candidate) => candidate.name).join('>'),
+          fallback: providerIndex > 0,
+          telemetry,
+          timeoutMs: timeoutConfig.providerTimeoutMs,
+          deadlineAt,
           onDelta: async (delta) => {
             attemptAnswer += delta
             sendCoachEvent(response, 'delta', { text: delta })
@@ -1160,7 +1295,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
   }
 }
 
-async function handleHandwritingMark(request, response, provider, libraryRoot, allowedSubjects, sourceAssetRoot, env, questionBank) {
+async function handleHandwritingMark(request, response, provider, libraryRoot, allowedSubjects, sourceAssetRoot, env, questionBank, telemetry, timeoutConfig) {
   const payload = await readJsonBody(request)
   const identitySigningKey = env.STEM_IDENTITY_SIGNING_KEY || env.STEM_INTERNAL_AUTH_KEY
   const capability = verifyMarkingCapability({
@@ -1221,6 +1356,8 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
       ...markSchemeImages.map((image) => ({ role: image.role, page: image.page, sha256: image.sha256 })),
     ],
   }
+  const deadlineAt = Date.now() + timeoutConfig.requestDeadlineMs
+  const requestId = crypto.randomUUID()
   const system = [
     'You are an assisted examiner reviewing one handwritten response for the exact qualification and subject supplied in context.',
     'Read the student image directly. Use the exact mark-scheme extract when supplied; otherwise use only explicit stored expected mark points.',
@@ -1232,7 +1369,7 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
   ].join('\n')
   let lastError = null
   let lastAttemptedProvider = activeProviders[0]
-  for (const activeProvider of activeProviders) {
+  for (const [providerIndex, activeProvider] of activeProviders.entries()) {
     lastAttemptedProvider = activeProvider
     let studentImage = null
     let sourceImages = []
@@ -1260,7 +1397,19 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
       ]
       // Providers accept the OpenAI-compatible image message, but some reject
       // response_format. The prompt still requires JSON and the parser validates it.
-      const raw = await callCompatibleAi(activeProvider, { messages: [{ role: 'system', content: system }, { role: 'user', content }], temperature: 0.05 })
+      const raw = await callCompatibleAi(activeProvider, {
+        messages: [{ role: 'system', content: system }, { role: 'user', content }],
+        temperature: 0.05,
+        operation: 'handwriting-marking',
+        requestId,
+        providerAttempt: providerIndex + 1,
+        fallbackPath: activeProviders.slice(0, providerIndex + 1).map((candidate) => candidate.name).join('>'),
+        fallback: providerIndex > 0,
+        telemetry,
+        timeoutMs: timeoutConfig.providerTimeoutMs,
+        deadlineAt,
+        validateResponse: (answer) => validateMarkAssessment(parseStructuredJson(answer), requestedMaxMarks),
+      })
       const assessment = validateMarkAssessment(parseStructuredJson(raw), requestedMaxMarks)
       const result = normalizeMarkResult(assessment, requestedMaxMarks)
       const autoFinal = canonical.autoFinal && result.reviewRequired === false && result.confidence >= 0.7
@@ -1285,7 +1434,7 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
       sourceImages.forEach((image) => image.cleanup())
     }
   }
-  if (/^AI assessment /.test(String(lastError?.message || ''))) {
+  if (lastError?.code === 'AI_RESPONSE_SCHEMA_INVALID' || /^AI assessment /.test(String(lastError?.message || ''))) {
     return sendJson(response, 422, {
       code: 'ai_assessment_schema_invalid',
       provider: lastAttemptedProvider.name,
@@ -1299,8 +1448,9 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
   return sendJson(response, 200, { mode: 'offline', code: 'vision_review_failed', provider: lastAttemptedProvider.name, providerStatus: 'error', error: providerMessage(lastError, lastAttemptedProvider), retryable: true })
 }
 
-export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null }) {
+export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null }) {
   const config = providerConfig(env)
+  const timeoutConfig = aiTimeoutConfig(env)
   const currentAiMarkingQuestionBank = () => {
     if (typeof questionBankProvider !== 'function') return studyQuestionBank
     try {
@@ -1327,9 +1477,9 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
           visionModel: visionProvider?.model || null,
         })
       }
-      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach') return await handleCoach(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env)
-      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach/stream') return await handleCoachStream(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env)
-      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/mark-handwriting') return await handleHandwritingMark(request, response, config.vision, libraryRoot, allowedSubjects, sourceAssetRoot, env, currentAiMarkingQuestionBank())
+      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach') return await handleCoach(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig)
+      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach/stream') return await handleCoachStream(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig)
+      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/mark-handwriting') return await handleHandwritingMark(request, response, config.vision, libraryRoot, allowedSubjects, sourceAssetRoot, env, currentAiMarkingQuestionBank(), telemetry, timeoutConfig)
       return sendJson(response, 404, { error: 'AI route not found.' })
     } catch (error) {
       return sendJson(response, error.statusCode || 500, { error: error.statusCode ? error.message : 'The AI request could not be completed.' })

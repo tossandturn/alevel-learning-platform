@@ -51,7 +51,7 @@ import { buildCompletionByUnit, buildLearningProgress, latestSubmittedActivity, 
 import { stableSorted } from './lib/arrayOrder'
 import { accountRefreshFailureState, accountRefreshRetryDelay, professionalTermsUrl, requestNativeAccountReadiness, requestSharedAccount, requestSyllabusPracticeRebind, requestSyllabusPracticeSet, sharedAccountRequest, signInSharedAccount, signOutSharedAccount } from './lib/sharedAccount'
 import { requestMarkingCapabilities } from './lib/markingCapabilityClient'
-import { persistStudentAttempt, readStudentAttempts, sourceMarkingPartsForUnit } from './lib/attemptPersistence'
+import { applyServerResultAuthority, persistStudentAttempt, projectServerResultAuthority, readStudentAttempts, sourceMarkingPartsForUnit } from './lib/attemptPersistence'
 import { getPaperEvidence } from './lib/evidenceStorage'
 import { mapWithConcurrency } from './lib/asyncPool'
 import { parseProductContext, termIdsForStemContext } from './lib/productContext'
@@ -174,7 +174,10 @@ function serverAttemptProjection(record) {
     stage: String(record.stage || source.stage || ''),
     paperId: String(record.paperId || source.paperId || ''),
     submittedAt: String(record.submittedAt || source.submittedAt || ''),
-    attemptStatus: String(source.attemptStatus || 'marking-pending'),
+    // The persistence endpoint stores browser-calculated results as evidence;
+    // it does not independently verify their authority. Never rehydrate one
+    // as a formal result that can affect mastery or recommendations.
+    ...projectServerResultAuthority(source),
     attemptPersistenceStatus: 'saved',
   }
   const sourceBinding = sourceBindingFromServerAttempt(record, attempt)
@@ -197,6 +200,7 @@ function mergeServerStudentAttempts(state, records = []) {
       delete merged.learningSignal
       merged.formalResult = false
     }
+    if (serverAttempt.resultAuthority === 'client-reported') delete merged.learningSignal
     localById.set(serverAttempt.id, merged)
   }
 
@@ -227,6 +231,8 @@ function mergeServerStudentAttempts(state, records = []) {
         aiMarks: attempt.aiMarks || {},
         rawMarks: attempt.scoreResult?.rawMarks ?? 0,
         maxMarks: attempt.scoreResult?.maxMarks ?? 0,
+        partial: attempt.resultAuthority === 'client-reported' || attempt.scoreResult?.partial === true,
+        resultAuthority: attempt.resultAuthority || 'client-reported',
         reviewedAt: attempt.submittedAt,
         completedAt: attempt.submittedAt,
       })
@@ -1642,7 +1648,7 @@ function App() {
 
     if (sharedAccount.token) {
       try {
-        await persistStudentAttempt({
+        const persisted = await persistStudentAttempt({
           token: sharedAccount.token,
           attempt: completedAttempt,
           mode: 'topic',
@@ -1650,7 +1656,10 @@ function App() {
           stage: unit.stage,
           markingParts: sourceMarkingPartsForUnit(unit),
         })
-        completedAttempt.attemptPersistenceStatus = 'saved'
+        completedAttempt = {
+          ...applyServerResultAuthority(completedAttempt, persisted.attempt),
+          attemptPersistenceStatus: 'saved',
+        }
       } catch (error) {
         const { scoreResult: _scoreResult, learningSignal: _learningSignal, ...pendingAttempt } = completedAttempt
         completedAttempt = {
@@ -1664,7 +1673,7 @@ function App() {
       }
     }
 
-    if (formalScore && completedAttempt.attemptPersistenceStatus !== 'pending' && attemptSnapshot.assignmentId && sharedAccount.status === 'ready') {
+    if (completedAttempt.formalResult === true && completedAttempt.attemptPersistenceStatus !== 'pending' && attemptSnapshot.assignmentId && sharedAccount.status === 'ready') {
       try {
         await sharedAccountRequest(sharedAccount.token, `/api/stem/assignments/${encodeURIComponent(attemptSnapshot.assignmentId)}/submissions`, {
           method: 'POST',
@@ -1729,7 +1738,7 @@ function App() {
       .filter((attempt) => attempt.id !== attemptId && isScoredAttempt(attempt, unit) && attempt.routeId === unit.routeId && attempt.unitId === unit.id)
       .map((attempt) => attempt.scoreResult.percentage)
     const masteryBefore = previousScores.length ? Math.round(previousScores.reduce((total, score) => total + score, 0) / previousScores.length) : null
-    const recorded = {
+    let recorded = {
       ...pending,
       id: makeAttemptId(),
       finalizedFromAttemptId: pending.id,
@@ -1751,7 +1760,7 @@ function App() {
     }
     if (sharedAccount.token) {
       try {
-        await persistStudentAttempt({
+        const persisted = await persistStudentAttempt({
           token: sharedAccount.token,
           attempt: recorded,
           mode: 'topic',
@@ -1759,6 +1768,7 @@ function App() {
           stage: unit.stage,
           markingParts: sourceMarkingPartsForUnit(unit),
         })
+        recorded = applyServerResultAuthority(recorded, persisted.attempt)
       } catch (error) {
         setResultAttempt({
           ...pending,
@@ -1819,7 +1829,7 @@ function App() {
     }
     if (sharedAccount.token) {
       try {
-        await persistStudentAttempt({
+        const persisted = await persistStudentAttempt({
           token: sharedAccount.token,
           attempt: recorded,
           mode: 'topic',
@@ -1827,6 +1837,7 @@ function App() {
           stage: unit.stage,
           markingParts: sourceMarkingPartsForUnit(unit),
         })
+        recorded = applyServerResultAuthority(recorded, persisted.attempt)
       } catch (error) {
         const { scoreResult: _scoreResult, ...pendingRecorded } = recorded
         recorded = {

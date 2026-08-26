@@ -6,6 +6,7 @@ import {
   assertWithinLimit,
   findForbiddenFiles,
   findNestedSymlinks,
+  findUnexpectedReleaseEntries,
   MAX_RELEASE_BYTES,
   pathsOverlap,
   physicalTreeBytes,
@@ -36,6 +37,8 @@ const targetCatalog = path.join(releaseRoot, 'public', 'data', 'papers.json')
 const verifier = path.join(releaseRoot, 'scripts', 'verify-stem-release.mjs')
 
 assert.ok(fs.existsSync(releaseRoot) && fs.statSync(releaseRoot).isDirectory(), `Release root is missing: ${releaseRoot}`)
+const unexpectedReleaseEntries = findUnexpectedReleaseEntries(releaseRoot)
+assert.equal(unexpectedReleaseEntries.length, 0, `Release root contains files outside the runtime allowlist: ${unexpectedReleaseEntries.slice(0, 10).join(', ')}`)
 assert.ok(fs.existsSync(sourceAssets) && fs.statSync(sourceAssets).isDirectory(), `Source assets are missing: ${sourceAssets}`)
 assert.ok(fs.existsSync(sourceCatalog) && fs.statSync(sourceCatalog).isFile(), `Source catalog is missing: ${sourceCatalog}`)
 assert.ok(fs.existsSync(sourcePdfLibrary) && fs.statSync(sourcePdfLibrary).isDirectory(), `Governed PDF library is missing: ${sourcePdfLibrary}`)

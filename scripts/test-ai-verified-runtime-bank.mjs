@@ -89,7 +89,14 @@ try {
   const databasePath = path.join(root, 'stem.sqlite')
   let runtimeGroups = []
   const api = createStemApi({
-    env: { STEM_DB_PATH: databasePath },
+    // This fixture intentionally exercises the local study-only pool. The
+    // production API must keep the opt-in disabled and expose only
+    // practice-ready records.
+    env: {
+      NODE_ENV: 'test',
+      STEM_ENABLE_STUDY_ONLY_TOPIC_DRILL: '1',
+      STEM_DB_PATH: databasePath,
+    },
     topicQuestionBankProvider: () => runtimeGroups,
   })
   const server = http.createServer((request, response) => api(request, response, () => {

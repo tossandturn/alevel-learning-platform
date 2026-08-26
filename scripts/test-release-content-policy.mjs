@@ -6,7 +6,9 @@ import { spawnSync } from 'node:child_process'
 import {
   MAX_RELEASE_BYTES,
   assertWithinLimit,
+  findEscapingSymlinks,
   findForbiddenFiles,
+  findUnexpectedReleaseEntries,
   physicalTreeBytes,
   pathsOverlap,
 } from './release-content-policy.mjs'
@@ -68,6 +70,25 @@ try {
     () => assertWithinLimit(MAX_RELEASE_BYTES + 1, MAX_RELEASE_BYTES, 'release'),
     /exceeding the .* release policy limit/,
     'oversized physical releases must be rejected',
+  )
+
+  fs.writeFileSync(path.join(releaseRoot, 'AGENTS.md'), 'not runtime content')
+  fs.mkdirSync(path.join(releaseRoot, 'docs'), { recursive: true })
+  fs.writeFileSync(path.join(releaseRoot, '.env.example'), 'must not be packaged')
+  assert.deepEqual(
+    findUnexpectedReleaseEntries(releaseRoot),
+    ['.env.example', 'AGENTS.md', 'docs'],
+    'the release allowlist must reject policy, documentation, and environment files',
+  )
+
+  const externalDependencies = path.join(scratchRoot, 'external-node-modules')
+  fs.mkdirSync(externalDependencies, { recursive: true })
+  fs.symlinkSync(externalDependencies, path.join(releaseRoot, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir')
+  fs.symlinkSync(path.join(releaseRoot, 'scripts'), path.join(releaseRoot, 'internal-scripts-link'), process.platform === 'win32' ? 'junction' : 'dir')
+  assert.deepEqual(
+    findEscapingSymlinks(releaseRoot),
+    ['node_modules'],
+    'a release must reject cross-release dependencies while allowing links that resolve inside itself',
   )
 
   console.log(JSON.stringify({ ok: true, maxReleaseBytes: MAX_RELEASE_BYTES }, null, 2))

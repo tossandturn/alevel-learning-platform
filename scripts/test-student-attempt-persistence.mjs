@@ -3,11 +3,40 @@ import crypto from 'node:crypto'
 import { Readable } from 'node:stream'
 
 import { isAiMarkablePastPaperItem, studyQuestionBank } from '../src/data/questionBank.js'
+import { isProvisionalAttempt, isScoredAttempt } from '../src/lib/attemptAudit.js'
 import { canonicalAiMarkingProvenance } from '../src/lib/sourceContentContract.js'
+import { applyServerResultAuthority, projectServerResultAuthority } from '../src/lib/attemptPersistence.js'
 import { closeStemDatabaseForTests, createStemApi } from '../server/stemApi.js'
 
 const identitySigningKey = 'student-attempt-persistence-identity-key'
 const capabilitySigningKey = 'student-attempt-persistence-capability-key'
+
+assert.deepEqual(
+  projectServerResultAuthority({ attemptStatus: 'result', formalResult: true, scoreResult: { rawMarks: 1 } }),
+  { attemptStatus: 'provisional-result', formalResult: false, resultAuthority: 'client-reported' },
+  'server-rehydrated browser results must remain provisional even when the client claims formal authority',
+)
+assert.deepEqual(
+  projectServerResultAuthority({ attemptStatus: 'marking-pending', formalResult: true }),
+  { attemptStatus: 'marking-pending', formalResult: false },
+  'server-rehydrated pending attempts must not inherit a client formalResult flag',
+)
+assert.deepEqual(
+  applyServerResultAuthority(
+    { attemptStatus: 'result', formalResult: true, scoreResult: { rawMarks: 2, maxMarks: 2, percentage: 100 } },
+    { attemptStatus: 'provisional-result', formalResult: false, resultAuthority: 'client-reported', scoreResult: { rawMarks: 2, maxMarks: 2, percentage: 100 } },
+  ),
+  { attemptStatus: 'provisional-result', formalResult: false, resultAuthority: 'client-reported', scoreResult: { rawMarks: 2, maxMarks: 2, percentage: 100 } },
+  'a locally displayed result must be downgraded immediately after server persistence confirms client-reported authority',
+)
+const clientReportedAttempt = {
+  attemptStatus: 'result',
+  resultAuthority: 'client-reported',
+  submittedAt: '2026-08-26T00:00:00.000Z',
+  scoreResult: { rawMarks: 2, maxMarks: 2, percentage: 100 },
+}
+assert.equal(isScoredAttempt(clientReportedAttempt), false, 'client-reported authority must never be treated as a formal scored attempt')
+assert.equal(isProvisionalAttempt(clientReportedAttempt), true, 'client-reported authority must be visible as provisional evidence')
 
 function signedIdentityToken(userId, { includeExpiry = true } = {}) {
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
@@ -242,12 +271,15 @@ try {
         routeId: first.question.routeId,
         attemptStatus: 'provisional-result',
         scoreResult: { rawMarks: 1, maxMarks: 2, percentage: 50, partial: true },
-        formalResult: false,
+        formalResult: true,
       },
     },
   })
   assert.equal(resultUpdate.statusCode, 200, resultUpdate.payload.error)
   assert.equal(resultUpdate.payload.duplicate, true, 'retrying a persisted attempt must update the same authoritative record')
+  assert.equal(resultUpdate.payload.attempt.formalResult, false, 'server-persisted client results must never be marked formal')
+  assert.equal(resultUpdate.payload.attempt.resultAuthority, 'client-reported', 'server-persisted results must retain an explicit untrusted authority')
+  assert.equal(resultUpdate.payload.attempt.attemptStatus, 'provisional-result', 'server-persisted client results must remain provisional')
 
   const ownerHistory = await call(api, { method: 'GET', url: '/api/stem/attempts', token: ownerToken })
   assert.equal(ownerHistory.statusCode, 200)
@@ -255,6 +287,9 @@ try {
   const persistedSubmittedAttempts = ownerHistory.payload.attempts.filter((item) => item.attemptId === attemptId)
   assert.equal(persistedSubmittedAttempts.length, 1, 'retries must not create duplicate stored submitted attempts')
   assert.equal(persistedSubmittedAttempts[0].attempt.scoreResult.percentage, 50, 'a compact result must survive a reload request')
+  assert.equal(persistedSubmittedAttempts[0].attempt.formalResult, false, 'reloaded client results must stay outside formal metrics')
+  assert.equal(persistedSubmittedAttempts[0].attempt.resultAuthority, 'client-reported', 'reloaded client results must identify their authority')
+  assert.equal(persistedSubmittedAttempts[0].attempt.attemptStatus, 'provisional-result', 'reloaded client results must remain provisional')
   assert.doesNotMatch(JSON.stringify(ownerHistory.payload), /data:image|base64/i, 'reloaded attempts must not expose handwriting blobs')
 } finally {
   closeStemDatabaseForTests()

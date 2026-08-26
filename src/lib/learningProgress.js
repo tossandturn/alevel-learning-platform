@@ -62,7 +62,11 @@ function completedPaperRecords({ paperSessions = [], paperReviews = [], routeId 
     .filter(({ session, review }) => {
       const questionCount = Number(session.questionCount)
       const scoredCount = review?.scoredQuestionNumbers?.length || 0
-      return Boolean(review && review.partial !== true && questionCount > 0 && scoredCount >= questionCount)
+      return Boolean(review
+        && review.resultAuthority !== 'client-reported'
+        && review.partial !== true
+        && questionCount > 0
+        && scoredCount >= questionCount)
     })
 }
 
@@ -94,7 +98,7 @@ export function latestSubmittedActivity({ attempts = [], units = [], paperSessio
         rawMarks: Number.isFinite(rawMarks) ? rawMarks : null,
         maxMarks: Number.isFinite(maxMarks) ? maxMarks : null,
         percentage: Number.isFinite(rawMarks) && Number.isFinite(maxMarks) && maxMarks > 0 ? rawMarks / maxMarks * 100 : null,
-        partial: review ? review.partial !== false : true,
+        partial: review ? review.partial !== false || review.resultAuthority === 'client-reported' : true,
         answeredCount: Number(session.answeredCount) || 0,
         questionCount: Number(session.questionCount) || 0,
       }

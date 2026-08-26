@@ -117,7 +117,15 @@ async function startServer() {
   const vite = path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js')
   const child = spawn(process.execPath, [vite, '--host', '127.0.0.1', '--port', String(port), '--strictPort'], {
     cwd: ROOT,
-    env: { ...process.env, BROWSER: 'none', STEM_DB_PATH: databasePath, STEM_SESSION_SECURE: '0', STEM_IDENTITY_SIGNING_KEY: QA_SIGNING_KEY },
+    env: {
+      ...process.env,
+      BROWSER: 'none',
+      NODE_ENV: 'test',
+      STEM_ENABLE_STUDY_ONLY_TOPIC_DRILL: '1',
+      STEM_DB_PATH: databasePath,
+      STEM_SESSION_SECURE: '0',
+      STEM_IDENTITY_SIGNING_KEY: QA_SIGNING_KEY,
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   })

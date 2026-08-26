@@ -3,6 +3,19 @@ import path from 'node:path'
 
 export const MAX_RELEASE_BYTES = 1024 * 1024 * 1024
 export const MAX_DIST_BYTES = 512 * 1024 * 1024
+export const RELEASE_TOP_LEVEL_ALLOWLIST = Object.freeze([
+  'dist',
+  'index.html',
+  'node_modules',
+  'package-lock.json',
+  'package.json',
+  'public',
+  'release-manifest.json',
+  'scripts',
+  'server',
+  'src',
+  'vite.config.js',
+])
 
 function comparablePath(value) {
   const resolved = path.resolve(value)
@@ -52,6 +65,38 @@ export function findNestedSymlinks(root) {
   const matches = []
   walkPhysicalTree(root, ({ relativePath, symbolicLink }) => {
     if (symbolicLink) matches.push(relativePath)
+  })
+  return matches.sort()
+}
+
+export function findUnexpectedReleaseEntries(root, allowlist = RELEASE_TOP_LEVEL_ALLOWLIST) {
+  const allowed = new Set(allowlist.map((entry) => String(entry).toLowerCase()))
+  return fs.readdirSync(root, { withFileTypes: true })
+    .map((entry) => entry.name)
+    .filter((entry) => !allowed.has(entry.toLowerCase()))
+    .sort()
+}
+
+export function findEscapingSymlinks(root, allowedExternalPaths = []) {
+  const resolvedRoot = fs.realpathSync(root)
+  const normalizeRelative = (value) => {
+    const normalized = String(value).split(path.sep).join('/')
+    return process.platform === 'win32' ? normalized.toLowerCase() : normalized
+  }
+  const allowed = new Set(allowedExternalPaths.map(normalizeRelative))
+  const matches = []
+  walkPhysicalTree(root, ({ entryPath, relativePath, symbolicLink }) => {
+    if (!symbolicLink) return
+    let resolvedTarget = ''
+    try {
+      resolvedTarget = fs.realpathSync(entryPath)
+    } catch {
+      matches.push(relativePath)
+      return
+    }
+    if (!isSameOrInside(resolvedRoot, resolvedTarget) && !allowed.has(normalizeRelative(relativePath))) {
+      matches.push(relativePath)
+    }
   })
   return matches.sort()
 }

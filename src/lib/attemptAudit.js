@@ -104,7 +104,7 @@ export function isStudyOnlyAttempt(attempt, unit = null) {
 
 export function isScoredAttempt(attempt, unit = null) {
   if (!attempt || isPendingSelfMarkAttempt(attempt)) return false
-  if (attempt.scoreResult?.partial === true || attempt.attemptStatus === 'provisional-result') return false
+  if (attempt.resultAuthority === 'client-reported' || attempt.scoreResult?.partial === true || attempt.attemptStatus === 'provisional-result') return false
   if (unit && isStudyOnlyPracticeUnit(unit)) return false
   if (unit && !hasCurrentSourceBindingForAttempt(attempt, unit)) return false
   return hasValidAttemptScore(attempt)
@@ -112,7 +112,7 @@ export function isScoredAttempt(attempt, unit = null) {
 
 export function isProvisionalAttempt(attempt, unit = null) {
   if (!attempt || isPendingSelfMarkAttempt(attempt)) return false
-  if (!(attempt.scoreResult?.partial === true || attempt.attemptStatus === 'provisional-result')) return false
+  if (!(attempt.resultAuthority === 'client-reported' || attempt.scoreResult?.partial === true || attempt.attemptStatus === 'provisional-result')) return false
   if (unit && !hasCurrentSourceBindingForAttempt(attempt, unit)) return false
   return hasValidAttemptScore(attempt)
 }

@@ -81,6 +81,8 @@ async function startServer() {
     env: {
       ...process.env,
       BROWSER: 'none',
+      NODE_ENV: 'test',
+      STEM_ENABLE_STUDY_ONLY_TOPIC_DRILL: '1',
       STEM_DB_PATH: path.join(databaseDir, 'stem.sqlite'),
       STEM_SESSION_SECURE: '0',
       STEM_IDENTITY_SIGNING_KEY: QA_SIGNING_KEY,

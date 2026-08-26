@@ -47,7 +47,9 @@ function requestHandler(...middlewares) {
 }
 
 const providerBodies = []
+const providerTelemetry = []
 let failNextProviderRequest = false
+let corruptNextProviderStream = false
 const providerServer = http.createServer(async (request, response) => {
   const chunks = []
   for await (const chunk of request) chunks.push(chunk)
@@ -61,6 +63,11 @@ const providerServer = http.createServer(async (request, response) => {
   }
   response.statusCode = 200
   response.setHeader('Content-Type', 'text/event-stream')
+  if (corruptNextProviderStream) {
+    corruptNextProviderStream = false
+    response.end('data: {not-json}\n\ndata: {"choices":[{"delta":{"content":"must not recover"}}]}\n\ndata: [DONE]\n\n')
+    return
+  }
   response.write('data: {"choices":[{"delta":{"content":"stream "}}]}\n\n')
   await new Promise((resolve) => setTimeout(resolve, 5))
   response.write('data: {"choices":[{"delta":{"content":"answer"}}]}\n\n')
@@ -83,20 +90,26 @@ const api = createAiApi({
   },
   libraryRoot: path.join(tempRoot, 'library'),
   allowedSubjects: new Set(['0580']),
+  telemetry: (event) => providerTelemetry.push(event),
 })
 const appServer = requestHandler(api)
 const appBase = await listen(appServer)
 
-function identityToken(userId = 42) {
+function identityToken(userId = 42, overrides = {}) {
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
   const now = Math.floor(Date.now() / 1000)
-  const payload = Buffer.from(JSON.stringify({
+  const claims = {
     iss: 'ieltsist.com',
     aud: 'stem.ieltsist.com',
     sub: `ielts:${userId}`,
     iat: now,
     exp: now + 3600,
-  })).toString('base64url')
+    ...overrides,
+  }
+  for (const [key, value] of Object.entries(overrides)) {
+    if (value === undefined) delete claims[key]
+  }
+  const payload = Buffer.from(JSON.stringify(claims)).toString('base64url')
   const signature = crypto.createHmac('sha256', identitySigningKey).update(`${header}.${payload}`).digest('base64url')
   return `${header}.${payload}.${signature}`
 }
@@ -170,6 +183,25 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   assert.doesNotMatch(unauthenticatedDetailed.text, /stream answer|event: meta/, 'an unauthenticated Coach request must not start a provider stream')
   assert.equal(providerBodies.length, 0, 'an unauthenticated detailed Coach request must make zero provider calls')
 
+  for (const [label, token] of [
+    ['missing iat', identityToken(42, { iat: undefined })],
+    ['invalid iat', identityToken(42, { iat: 'not-a-number' })],
+    ['future iat', identityToken(42, { iat: Math.floor(Date.now() / 1000) + 301 })],
+  ]) {
+    const invalidIdentity = await post('/api/ai/coach/stream', {
+      message: `Reject ${label} before provider invocation.`,
+      hintLevel: 3,
+      context: {
+        stage: 'AS',
+        topic: 'Mechanics',
+        question: { prompt: `${label} token fixture.`, number: 1 },
+      },
+    }, token)
+    assert.equal(invalidIdentity.response.status, 401, `${label} must be rejected before the Coach provider is called`)
+    assert.doesNotMatch(invalidIdentity.text, /event: meta|stream answer/, `${label} must not start a provider stream`)
+    assert.equal(providerBodies.length, 0, `${label} must result in zero provider calls`)
+  }
+
   const local = await post('/api/ai/coach/stream', {
     message: 'Give me a hint for the next step.',
     hintLevel: 1,
@@ -203,11 +235,75 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   assert.match(streamed.text, /"text":"answer"/)
   assert.match(streamed.text, /"answer":"stream answer"/)
   assert.equal(providerBodies.length, 1, 'a detailed request should escalate to the configured provider')
+  assert.equal(providerTelemetry.length, 1, 'a real Coach provider call must emit one safe telemetry event')
+  assert.deepEqual(
+    { ...providerTelemetry[0], durationMs: undefined },
+    {
+      requestId: providerTelemetry[0].requestId,
+      operation: 'coach-stream',
+      provider: 'qwen',
+      model: 'qwen-test-coach',
+      providerAttempt: 1,
+      fallbackPath: 'qwen',
+      timeoutMs: 25_000,
+      fallback: false,
+      statusCode: 200,
+      schemaStatus: 'valid',
+      finalState: 'connected',
+      durationMs: undefined,
+    },
+    'provider telemetry must contain only the safe operational fields required by the production contract',
+  )
+  assert.ok(Number.isFinite(providerTelemetry[0].durationMs) && providerTelemetry[0].durationMs >= 0, 'provider telemetry must record a non-negative duration')
   const providerUserMessage = providerBodies[0].messages.at(-1)
   const providerText = typeof providerUserMessage.content === 'string'
     ? providerUserMessage.content
     : providerUserMessage.content?.find((item) => item.type === 'text')?.text || ''
   assert.ok(providerText.length <= 4_800, `focused Coach context must stay bounded, received ${providerText.length} characters`)
+
+  const nonStreamProviderServer = http.createServer(async (request, response) => {
+    for await (const _chunk of request) {}
+    response.statusCode = 200
+    response.setHeader('Content-Type', 'application/json')
+    response.end(JSON.stringify({ choices: [{ message: { content: 'non-stream answer' } }] }))
+  })
+  const nonStreamProviderBase = await listen(nonStreamProviderServer)
+  const nonStreamApi = createAiApi({
+    env: {
+      COACH_AI_API_KEY: 'test-coach-non-stream-key',
+      COACH_AI_BASE_URL: nonStreamProviderBase,
+      COACH_AI_MODEL: 'qwen-test-non-stream',
+      STEM_INTERNAL_AUTH_KEY: identitySigningKey,
+    },
+    libraryRoot: path.join(tempRoot, 'library'),
+    allowedSubjects: new Set(['0580']),
+  })
+  const nonStreamAppServer = requestHandler(nonStreamApi)
+  const nonStreamAppBase = await listen(nonStreamAppServer)
+  try {
+    const nonStream = await (async () => {
+      const response = await fetch(`${nonStreamAppBase}/api/ai/coach`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${signedIdentityToken}` },
+        body: JSON.stringify({
+          message: 'Explain the method in one paragraph.',
+          hintLevel: 3,
+          context: { stage: 'AS', topic: 'Mechanics', question: { prompt: 'Non-stream fixture.', number: 5 } },
+        }),
+      })
+      return { response, text: await response.text() }
+    })()
+    assert.equal(nonStream.response.status, 200)
+    assert.deepEqual(JSON.parse(nonStream.text), {
+      mode: 'ai',
+      provider: 'qwen',
+      providerStatus: 'connected',
+      answer: 'non-stream answer',
+      model: 'qwen-test-non-stream',
+    }, 'the non-stream Coach route must invoke the configured provider and return its answer')
+  } finally {
+    await Promise.all([close(nonStreamAppServer), close(nonStreamProviderServer)])
+  }
 
   const attachedImages = [
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
@@ -249,6 +345,21 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   assert.match(failed.text, /"retryable":true/)
   assert.match(failed.text, /Qwen upstream returned HTTP 503/)
   assert.doesNotMatch(failed.text, /provider secret balance detail|insufficient_balance/)
+
+  corruptNextProviderStream = true
+  const corruptStream = await post('/api/ai/coach/stream', {
+    message: 'Explain this method in detail after validating every provider frame.',
+    hintLevel: 3,
+    context: {
+      stage: 'AS',
+      topic: 'Mechanics',
+      question: { prompt: 'Corrupt SSE frame fixture.', number: 7 },
+    },
+  }, signedIdentityToken)
+  assert.equal(corruptStream.response.status, 200, 'stream schema failures after headers must resolve to a safe terminal event')
+  assert.match(corruptStream.text, /"providerStatus":"error"/, 'a corrupt provider frame must fail closed')
+  assert.doesNotMatch(corruptStream.text, /"providerStatus":"connected"|must not recover/, 'later deltas must not turn a corrupt stream into a successful response')
+  assert.equal(providerTelemetry.at(-1)?.schemaStatus, 'invalid', 'corrupt SSE telemetry must preserve the schema failure')
 
   const openAiRoutingPaths = []
   const openAiRoutingServer = http.createServer(async (request, response) => {
@@ -307,6 +418,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
 
   let openAiFallbackRequests = 0
   let qwenFallbackRequests = 0
+  const fallbackTelemetry = []
   const openAiFallbackServer = http.createServer((request, response) => {
     openAiFallbackRequests += 1
     response.statusCode = 503
@@ -333,6 +445,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
     },
     libraryRoot: path.join(tempRoot, 'library'),
     allowedSubjects: new Set(['0580']),
+    telemetry: (event) => fallbackTelemetry.push(event),
   })
   const fallbackAppServer = requestHandler(fallbackApi)
   const fallbackAppBase = await listen(fallbackAppServer)
@@ -353,6 +466,11 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
     assert.equal(openAiFallbackRequests, 1, 'OpenAI must be attempted first')
     assert.equal(qwenFallbackRequests, 1, 'Qwen must take over when OpenAI is unsupported')
     assert.doesNotMatch(fallbackText, /provider detail must stay server-side/)
+    assert.equal(fallbackTelemetry.length, 2, 'each provider attempt in one fallback request must be observable')
+    assert.ok(fallbackTelemetry[0].requestId, 'fallback telemetry must include a request correlation ID')
+    assert.equal(fallbackTelemetry[0].requestId, fallbackTelemetry[1].requestId, 'primary and fallback attempts must share one request correlation ID')
+    assert.deepEqual(fallbackTelemetry.map((event) => event.providerAttempt), [1, 2], 'fallback telemetry must preserve provider attempt order')
+    assert.deepEqual(fallbackTelemetry.map((event) => event.fallbackPath), ['openai', 'openai>qwen'], 'fallback telemetry must record the provider path')
   } finally {
     await Promise.all([close(fallbackAppServer), close(openAiFallbackServer), close(qwenFallbackServer)])
   }

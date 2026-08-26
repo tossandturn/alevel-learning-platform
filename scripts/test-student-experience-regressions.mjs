@@ -75,8 +75,46 @@ const progress = buildLearningProgress({
 assert.equal(progress.week.completedQuestions, 0, 'partial paper work must not enter formal progress')
 assert.equal(progress.week.completedSets, 0, 'partial paper work must not create a completed-set event')
 
+const persistedClientReportedReview = {
+  ...partialPaperReview,
+  partial: false,
+  scoredQuestionNumbers: Array.from({ length: 40 }, (_, index) => index + 1),
+  resultAuthority: 'client-reported',
+}
+const provisionalActivity = latestSubmittedActivity({
+  attempts: [],
+  units: [unit],
+  paperSessions: [paperSession],
+  paperReviews: [persistedClientReportedReview],
+  routes: courseRoutes,
+  routeId: 'cie-9702-as-physics',
+})
+assert.equal(provisionalActivity.partial, true, 'a fully self-marked client result must remain visibly provisional after server persistence')
+const provisionalProgress = buildLearningProgress({
+  attempts: [],
+  drafts: {},
+  units: [unit],
+  routes: courseRoutes,
+  routeId: 'cie-9702-as-physics',
+  weeklyTarget: 10,
+  paperSessions: [paperSession],
+  paperReviews: [persistedClientReportedReview],
+})
+assert.equal(provisionalProgress.week.completedQuestions, 0, 'client-reported paper results must stay outside formal weekly progress')
+assert.equal(provisionalProgress.week.completedSets, 0, 'client-reported paper results must stay outside formal completed sets')
+
 const appSource = fs.readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8')
 assert.match(appSource, /function StudentDashboard\(\{[\s\S]*latestActivity/, 'Today dashboard must receive the latest paper activity')
 assert.match(appSource, /const latest = latestActivity \|\| scoredAttempts\.at\(-1\)/, 'Today dashboard must prefer the latest paper/topic activity')
+assert.match(
+  appSource,
+  /if \(completedAttempt\.formalResult === true && completedAttempt\.attemptPersistenceStatus !== 'pending'/,
+  'assignment submission must use the post-persistence result authority rather than a stale pre-persistence score flag',
+)
+assert.doesNotMatch(
+  appSource,
+  /if \(formalScore && completedAttempt\.attemptPersistenceStatus !== 'pending'/,
+  'a client-reported result downgraded by persistence must not create assignment completion analytics',
+)
 
 console.log('Student experience regressions passed.')
