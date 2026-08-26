@@ -68,6 +68,15 @@ Run the full verifier only after dependencies are installed and the production b
 
 The release gate also rejects any physical PDF/archive inside a release, rejects an `assets-dir` that overlaps the PDF library, rejects nested asset symlinks, and caps physical release size at 1 GiB (`dist` at 512 MiB). Shared production links are allowed because the size and file checks do not follow release-internal symlinks.
 
+After a production release has passed health checks, prune only releases that are neither active nor explicitly retained for rollback. The command is dry-run by default and requires `--apply` to remove anything. Always preserve the current release, the chosen rollback release, and an explicit number of newest additional releases:
+
+```powershell
+node scripts/prune-stem-releases.mjs --releases-root /home/ubuntu/alevel-physics/releases --current /home/ubuntu/alevel-physics/current --retain /home/ubuntu/alevel-physics/releases/<rollback-release> --keep 4
+node scripts/prune-stem-releases.mjs --releases-root /home/ubuntu/alevel-physics/releases --current /home/ubuntu/alevel-physics/current --retain /home/ubuntu/alevel-physics/releases/<rollback-release> --keep 4 --apply
+```
+
+The pruner refuses paths outside the release directory, refuses to run without an explicit retention count, rechecks the current symlink before deletion, and never follows release symlinks.
+
 Run the paper-governance audit before a content release:
 
 ```powershell
