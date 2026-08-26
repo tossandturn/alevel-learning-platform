@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { studyQuestionBank, unifiedQuestionBank } from '../src/data/questionBank.js'
+import { canonicalAiMarkingProvenance, canonicalSourcePracticeProvenance } from '../src/lib/sourceContentContract.js'
 import { listAiPdfIngestionCandidates, resolveAiPdfIngestionRoot } from './aiPdfIngestionCandidates.js'
 import { issueMarkingCapabilities } from './markingCapability.js'
 import { buildSyllabusPracticeSet, rebindSyllabusPracticeUnit, seedSyllabusTables, syllabusDatabaseInventory, syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
@@ -191,6 +192,251 @@ function storedScope(row) {
 
 function nowIso() {
   return new Date().toISOString()
+}
+
+function canonicalTimestamp(value, fallback = nowIso()) {
+  if (value == null || String(value).trim() === '') return fallback
+  const parsed = Date.parse(String(value))
+  if (!Number.isFinite(parsed)) {
+    throw Object.assign(new Error('submittedAt must be a valid timestamp.'), {
+      statusCode: 400,
+      code: 'submitted_at_invalid',
+    })
+  }
+  return new Date(parsed).toISOString()
+}
+
+function canonicalAttemptId(value) {
+  const attemptId = asText(value, 120)
+  if (!attemptId || !/^[A-Za-z0-9._:-]{8,120}$/.test(attemptId)) {
+    throw Object.assign(new Error('A valid attemptId is required.'), { statusCode: 400, code: 'attempt_invalid' })
+  }
+  return attemptId
+}
+
+function compactAttemptValue(value, key = '', depth = 0) {
+  const normalizedKey = String(key || '').toLowerCase()
+  if (
+    normalizedKey
+    && /(authorization|cookie|token|secret|password|user.?id|owner.?id|data.?url|base64|blob|handwriting|image.?data)/i.test(normalizedKey)
+  ) return undefined
+  if (value === null || typeof value === 'boolean' || typeof value === 'number') return value
+  if (typeof value === 'string') {
+    const text = value.replaceAll(String.fromCharCode(0), '').trim()
+    if (/data:[^,]*;base64,/i.test(text) || /^[A-Za-z0-9+/]{96,}={0,2}$/.test(text)) return undefined
+    return text.slice(0, 20_000)
+  }
+  if (depth >= 6 || !value || typeof value !== 'object') return undefined
+  if (Array.isArray(value)) {
+    return value
+      .slice(0, 120)
+      .map((item) => compactAttemptValue(item, '', depth + 1))
+      .filter((item) => item !== undefined)
+  }
+  const result = {}
+  for (const [childKey, childValue] of Object.entries(value).slice(0, 120)) {
+    const compact = compactAttemptValue(childValue, childKey, depth + 1)
+    if (compact !== undefined) result[childKey] = compact
+  }
+  return result
+}
+
+function compactStudentAttemptSnapshot(payload, { attemptId, routeId, stage, paperId, submittedAt }) {
+  const source = payload?.attempt && typeof payload.attempt === 'object' ? payload.attempt : {}
+  const candidate = {
+    attemptId,
+    id: asText(source.id, 120) || attemptId,
+    unitId: asText(source.unitId || payload.unitId, 200),
+    routeId,
+    stage,
+    paperId,
+    attemptStatus: asText(source.attemptStatus || payload.attemptStatus, 80),
+    submittedAt,
+    elapsedSec: Number.isFinite(Number(source.elapsedSec)) ? Math.max(0, Math.min(Number(source.elapsedSec), 86_400)) : undefined,
+    answeredCount: Number.isFinite(Number(source.answeredCount)) ? Math.max(0, Number(source.answeredCount)) : undefined,
+    questionCount: Number.isFinite(Number(source.questionCount)) ? Math.max(0, Number(source.questionCount)) : undefined,
+    partial: typeof source.partial === 'boolean' ? source.partial : undefined,
+    markingMode: asText(source.markingMode || payload.markingMode, 60),
+    paperStudyMode: asText(source.paperStudyMode || payload.paperStudyMode, 60),
+    pairKey: asText(source.pairKey || payload.pairKey, 240),
+    paperRef: source.paperRef || payload.paperRef,
+    profile: source.profile || payload.profile,
+    notes: source.notes || payload.notes,
+    answers: source.answers,
+    working: source.working,
+    evidence: source.evidence,
+    pdfInkByPage: source.pdfInkByPage || payload.pdfInkByPage,
+    pdfInkQuestionMap: source.pdfInkQuestionMap || payload.pdfInkQuestionMap,
+    timeUp: typeof source.timeUp === 'boolean' ? source.timeUp : undefined,
+    selfMarks: source.selfMarks || payload.selfMarks,
+    maxMarksByQuestion: source.maxMarksByQuestion || payload.maxMarksByQuestion,
+    aiMarks: source.aiMarks || payload.aiMarks,
+    lastSavedReview: source.lastSavedReview || payload.lastSavedReview,
+    scoreResult: source.scoreResult ?? source.result ?? payload.scoreResult ?? payload.result,
+    formalResult: source.formalResult,
+  }
+  return compactAttemptValue(candidate)
+}
+
+function parseStudentAttemptRow(row) {
+  let binding = null
+  let snapshot = {}
+  try { binding = JSON.parse(row.binding_json) } catch { binding = null }
+  try { snapshot = JSON.parse(row.attempt_json) || {} } catch { snapshot = {} }
+  return {
+    userId: String(row.user_id),
+    attemptId: String(row.attempt_id),
+    binding,
+    snapshot,
+    submissionStatus: String(row.submission_status || (row.submitted_at ? 'submitted' : 'draft')),
+    submittedAt: row.submitted_at ? String(row.submitted_at) : null,
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  }
+}
+
+function publicStudentAttempt(row) {
+  const parsed = parseStudentAttemptRow(row)
+  return {
+    attemptId: parsed.attemptId,
+    mode: parsed.binding?.mode || null,
+    routeId: parsed.binding?.routeId || null,
+    stage: parsed.binding?.stage || null,
+    paperId: parsed.binding?.paperId || '',
+    submissionStatus: parsed.submissionStatus,
+    submittedAt: parsed.submittedAt,
+    createdAt: parsed.createdAt,
+    updatedAt: parsed.updatedAt,
+    binding: parsed.binding,
+    attempt: {
+      ...parsed.snapshot,
+      attemptId: parsed.attemptId,
+      submissionStatus: parsed.submissionStatus,
+      submittedAt: parsed.submittedAt,
+    },
+  }
+}
+
+function canonicalAttemptProvenanceMatches(provided, canonical) {
+  const sourceEvidence = provided?.sourceEvidence || {}
+  const expectedEvidence = canonical?.sourceEvidence || {}
+  return Boolean(
+    canonical
+    && (!canonical.schemaVersion || provided.schemaVersion === canonical.schemaVersion)
+    && (!canonical.manifestSchemaVersion || provided.manifestSchemaVersion === canonical.manifestSchemaVersion)
+    && (!canonical.reviewSchemaVersion || provided.reviewSchemaVersion === canonical.reviewSchemaVersion)
+    && provided.sourceQuestionId === canonical.sourceQuestionId
+    && provided.questionPartId === canonical.questionPartId
+    && provided.bindingSignature === canonical.bindingSignature
+    && provided.reviewVersion === canonical.reviewVersion
+    && provided.sourceDocumentSha256 === canonical.sourceDocumentSha256
+    && provided.answerDocumentSha256 === canonical.answerDocumentSha256
+    && provided.sourceIndexSha256 === canonical.sourceIndexSha256
+    && provided.sourceManifestChecksum === canonical.sourceManifestChecksum
+    && sourceEvidence.assetId === expectedEvidence.assetId
+    && Number(sourceEvidence.page) === Number(expectedEvidence.page)
+    && sourceEvidence.assetUrl === expectedEvidence.assetUrl
+    && sourceEvidence.assetSha256 === expectedEvidence.assetSha256
+    && sourceEvidence.quote === expectedEvidence.quote
+    && (!expectedEvidence.coordinateSpace || sourceEvidence.coordinateSpace === expectedEvidence.coordinateSpace)
+    && (!expectedEvidence.region || JSON.stringify(sourceEvidence.region) === JSON.stringify(expectedEvidence.region))
+    && (!expectedEvidence.markSchemePage || Number(sourceEvidence.markSchemePage) === Number(expectedEvidence.markSchemePage))
+    && (!expectedEvidence.markSchemePageImageSha256 || sourceEvidence.markSchemePageImageSha256 === expectedEvidence.markSchemePageImageSha256)
+  )
+}
+
+function canonicalStudentAttemptBinding(payload, questionBank) {
+  const attempt = payload?.attempt && typeof payload.attempt === 'object' ? payload.attempt : {}
+  const attemptId = canonicalAttemptId(payload.attemptId)
+  if (attempt.id && String(attempt.id) !== attemptId) {
+    throw Object.assign(new Error('The attempt body ID must match attemptId.'), {
+      statusCode: 409,
+      code: 'attempt_binding_mismatch',
+    })
+  }
+  for (const [label, outerValue, innerValue] of [
+    ['mode', payload.mode, attempt.mode],
+    ['routeId', payload.routeId, attempt.routeId],
+    ['stage', payload.stage, attempt.stage],
+    ['paperId', payload.paperId, attempt.paperId],
+  ]) {
+    if (outerValue && innerValue && asText(outerValue, 240) !== asText(innerValue, 240)) {
+      throw Object.assign(new Error(`The supplied ${label} values do not match.`), {
+        statusCode: 409,
+        code: 'attempt_binding_mismatch',
+      })
+    }
+  }
+  const mode = asText(payload.mode || attempt.mode, 32)
+  if (!['topic', 'full-paper'].includes(mode)) {
+    throw Object.assign(new Error('Attempt mode must be topic or full-paper.'), { statusCode: 400, code: 'attempt_mode_invalid' })
+  }
+  const routeCandidate = asText(payload.routeId || attempt.routeId, 120)
+  const stageCandidate = asText(payload.stage || attempt.stage || stageForRoute(routeCandidate), 40)
+  const scope = verifiedRouteScope(routeCandidate, stageCandidate)
+  const paperId = asText(payload.paperId || attempt.paperId, 200)
+  if (mode === 'full-paper' && !paperId) {
+    throw Object.assign(new Error('A full-paper attempt requires paperId.'), { statusCode: 400, code: 'paper_context_missing' })
+  }
+
+  const markingParts = Array.isArray(payload.markingParts)
+    ? payload.markingParts
+    : (Array.isArray(attempt.markingParts) ? attempt.markingParts : [])
+  let parts = []
+  if (markingParts.length) {
+    const seen = new Set()
+    parts = markingParts.map((requestPart) => {
+      const provenance = requestPart?.provenance && typeof requestPart.provenance === 'object' ? requestPart.provenance : requestPart
+      const sourceQuestionId = asText(provenance.sourceQuestionId, 320)
+      const questionPartId = asText(provenance.questionPartId, 360)
+      const routeId = asText(provenance.routeId, 160)
+      const uniqueKey = `${sourceQuestionId}\u0000${questionPartId}`
+      if (!sourceQuestionId || !questionPartId || !routeId || seen.has(uniqueKey)) {
+        throw Object.assign(new Error('Every source-bound attempt part must be unique and complete.'), { statusCode: 422, code: 'source_provenance_missing' })
+      }
+      seen.add(uniqueKey)
+      const question = questionBank.find((candidate) => candidate?.routeId === routeId && candidate?.sourceQuestionId === sourceQuestionId)
+      if (!question) throw Object.assign(new Error('The source-bound attempt part is unavailable.'), { statusCode: 422, code: 'source_question_unreviewed' })
+      const part = (question.parts || []).find((candidate) => String(candidate?.partId || candidate?.questionPartId || candidate?.id || '') === questionPartId)
+      if (!part) throw Object.assign(new Error('The source-bound attempt part is unavailable.'), { statusCode: 422, code: 'source_question_unknown' })
+      const aiCanonical = canonicalAiMarkingProvenance(question, part)
+      const practiceCanonical = canonicalSourcePracticeProvenance(question, part)
+      const canonical = [aiCanonical, practiceCanonical].find((candidate) => canonicalAttemptProvenanceMatches(provenance, candidate))
+      if (!canonical) throw Object.assign(new Error('The source-bound attempt provenance no longer matches the current catalog.'), { statusCode: 409, code: 'source_provenance_mismatch' })
+      if (question.routeId !== scope.routeId || question.stage !== scope.stage) {
+        throw Object.assign(new Error('Every source part must belong to the attempt route and stage.'), {
+          statusCode: 409,
+          code: 'attempt_binding_mismatch',
+        })
+      }
+      if (paperId && String(question.sourceRef?.paperId || '') !== paperId) {
+        throw Object.assign(new Error('Every source part must belong to the attempt paper.'), { statusCode: 409, code: 'attempt_binding_mismatch' })
+      }
+      return {
+        routeId: question.routeId,
+        stage: question.stage,
+        paperId: String(question.sourceRef?.paperId || ''),
+        sourceQuestionId: canonical.sourceQuestionId,
+        questionPartId: canonical.questionPartId,
+        provenance: canonical,
+      }
+    }).sort((left, right) => (
+      `${left.sourceQuestionId}\u0000${left.questionPartId}`.localeCompare(`${right.sourceQuestionId}\u0000${right.questionPartId}`)
+    ))
+  }
+
+  return {
+    attemptId,
+    mode,
+    routeId: scope.routeId,
+    stage: scope.stage,
+    paperId: mode === 'full-paper' ? paperId : '',
+    parts,
+  }
+}
+
+function sameCanonicalBinding(left, right) {
+  return JSON.stringify(left || null) === JSON.stringify(right || null)
 }
 
 function ensureColumn(database, table, column, definition) {
@@ -394,6 +640,23 @@ function appDatabase(env, questionBank = unifiedQuestionBank) {
       UNIQUE (assignment_id, student_user_id, idempotency_key)
     );
     CREATE INDEX IF NOT EXISTS idx_submission_events_assignment ON submission_events(assignment_id, student_user_id, occurred_at DESC);
+    CREATE TABLE IF NOT EXISTS student_attempts (
+      user_id TEXT NOT NULL,
+      attempt_id TEXT NOT NULL,
+      mode TEXT NOT NULL,
+      route_id TEXT NOT NULL,
+      stage TEXT NOT NULL,
+      paper_id TEXT NOT NULL,
+      binding_json TEXT NOT NULL,
+      attempt_json TEXT NOT NULL,
+      submission_status TEXT NOT NULL DEFAULT 'draft',
+      submitted_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, attempt_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_student_attempts_user_updated ON student_attempts(user_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_student_attempts_attempt ON student_attempts(attempt_id);
     CREATE TABLE IF NOT EXISTS private_notes (
       user_id TEXT NOT NULL,
       route_id TEXT NOT NULL,
@@ -416,12 +679,60 @@ function appDatabase(env, questionBank = unifiedQuestionBank) {
     CREATE INDEX IF NOT EXISTS idx_stem_sessions_user ON stem_sessions(user_id, expires_at DESC);
   `)
   ensureColumn(database, 'private_notes', 'deleted_at', 'TEXT')
+  migrateStudentAttemptsSchema(database)
   migrateRouteScope(database)
   migrateRegisteredRouteStages(database)
   migrateSubmissionIdempotency(database)
   databaseQuestionBankSignature = ''
   seedCurrentQuestionBank(database, questionBank)
   return database
+}
+
+function migrateStudentAttemptsSchema(database) {
+  const columns = database.prepare('PRAGMA table_info(student_attempts)').all()
+  if (!columns.length) return
+  if (!columns.some((column) => column.name === 'submission_status')) {
+    database.exec("ALTER TABLE student_attempts ADD COLUMN submission_status TEXT NOT NULL DEFAULT 'draft'")
+  }
+  database.prepare("UPDATE student_attempts SET submission_status = 'submitted' WHERE submitted_at IS NOT NULL AND TRIM(submitted_at) <> '' AND submission_status <> 'submitted'").run()
+
+  const submittedAtColumn = columns.find((column) => column.name === 'submitted_at')
+  if (submittedAtColumn?.notnull !== 1) return
+
+  database.exec('BEGIN IMMEDIATE')
+  try {
+    database.exec(`
+      CREATE TABLE student_attempts_migrated (
+        user_id TEXT NOT NULL,
+        attempt_id TEXT NOT NULL,
+        mode TEXT NOT NULL,
+        route_id TEXT NOT NULL,
+        stage TEXT NOT NULL,
+        paper_id TEXT NOT NULL,
+        binding_json TEXT NOT NULL,
+        attempt_json TEXT NOT NULL,
+        submission_status TEXT NOT NULL DEFAULT 'draft',
+        submitted_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (user_id, attempt_id)
+      );
+      INSERT INTO student_attempts_migrated
+        (user_id, attempt_id, mode, route_id, stage, paper_id, binding_json, attempt_json, submission_status, submitted_at, created_at, updated_at)
+      SELECT user_id, attempt_id, mode, route_id, stage, paper_id, binding_json, attempt_json,
+        CASE WHEN submitted_at IS NULL OR TRIM(submitted_at) = '' THEN 'draft' ELSE 'submitted' END,
+        submitted_at, created_at, updated_at
+      FROM student_attempts;
+      DROP TABLE student_attempts;
+      ALTER TABLE student_attempts_migrated RENAME TO student_attempts;
+      CREATE INDEX IF NOT EXISTS idx_student_attempts_user_updated ON student_attempts(user_id, updated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_student_attempts_attempt ON student_attempts(attempt_id);
+    `)
+    database.exec('COMMIT')
+  } catch (error) {
+    database.exec('ROLLBACK')
+    throw error
+  }
 }
 
 function requireNodeSqlite() {
@@ -465,7 +776,20 @@ function identityFromRequest(request, signingKey) {
     throw Object.assign(new Error('Your shared sign-in is invalid.'), { statusCode: 401 })
   }
   const now = Math.floor(Date.now() / 1000)
-  if (tokenHeader.alg !== 'HS256' || payload.iss !== TOKEN_ISSUER || payload.aud !== TOKEN_AUDIENCE || !/^ielts:\d+$/.test(String(payload.sub || '')) || Number(payload.exp) <= now) {
+  const issuedAt = Number(payload.iat)
+  const expiresAt = Number(payload.exp)
+  if (
+    tokenHeader.alg !== 'HS256'
+    || payload.iss !== TOKEN_ISSUER
+    || payload.aud !== TOKEN_AUDIENCE
+    || !/^ielts:\d+$/.test(String(payload.sub || ''))
+    || !Number.isInteger(issuedAt)
+    || !Number.isInteger(expiresAt)
+    || issuedAt > now + 300
+    || expiresAt <= now
+    || expiresAt <= issuedAt
+    || expiresAt - issuedAt > 60 * 60
+  ) {
     throw Object.assign(new Error('Your shared sign-in has expired. Please refresh and try again.'), { statusCode: 401 })
   }
   return { id: payload.sub, username: asText(payload.username, 80), avatarDataUrl: String(payload.avatarDataUrl || '').slice(0, 500_000), roles: verifiedRoleClaims(payload) }
@@ -1333,14 +1657,30 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
   // Production uses unifiedQuestionBank, which fails closed on file and
   // semantic source completeness. Supplying a fixture is test-only.
   const assignableQuestionIds = assignableQuestionIdsForBank(questionBank)
+  // Topic Drill may expose complete study-only source records while review is
+  // pending. The study pool remains separate from formal assignments,
+  // mastery, and AI-marking authority.
   const baseTopicPracticeQuestionBank = questionBank === unifiedQuestionBank ? studyQuestionBank : questionBank
   const includeStudyOnly = questionBank === unifiedQuestionBank
+  const runtimeReleaseGatedRoutes = new Set(['cie-9702-a2-physics'])
   let nativeBridgeProbe = null
+
+  function includeStudyOnlyForRoute() {
+    // Runtime AI records are marked studentStudyEligible=false below until
+    // their release gate is satisfied. Keep the static source-backed study
+    // pool visible while filtering those runtime records individually.
+    return includeStudyOnly
+  }
 
   function currentTopicPracticeQuestionBank() {
     if (typeof topicQuestionBankProvider !== 'function') return baseTopicPracticeQuestionBank
     try {
-      return mergeTopicPracticeQuestionBanks(baseTopicPracticeQuestionBank, topicQuestionBankProvider())
+      const runtimeQuestionBank = topicQuestionBankProvider()
+      const guardedRuntimeQuestionBank = (Array.isArray(runtimeQuestionBank) ? runtimeQuestionBank : [])
+        .map((question) => runtimeReleaseGatedRoutes.has(String(question?.routeId || ''))
+          ? { ...question, studentStudyEligible: false }
+          : question)
+      return mergeTopicPracticeQuestionBanks(baseTopicPracticeQuestionBank, guardedRuntimeQuestionBank)
     } catch {
       // An invalid runtime artifact must fail closed to the established static study bank.
       return baseTopicPracticeQuestionBank
@@ -1421,8 +1761,9 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
       const syllabusRouteMatch = url.pathname.match(/^\/api\/stem\/routes\/([^/]+)\/syllabus-topics$/)
       if (request.method === 'GET' && syllabusRouteMatch) {
         const routeId = decodeURIComponent(syllabusRouteMatch[1])
-        const staticInventory = syllabusTopicsInventory({ routeId, questionBank: topicPracticeQuestionBank })
-        const databaseRows = syllabusDatabaseInventory(db, routeId)
+        const routeIncludesStudyOnly = includeStudyOnlyForRoute()
+        const staticInventory = syllabusTopicsInventory({ routeId, questionBank: topicPracticeQuestionBank, includeStudyOnly: routeIncludesStudyOnly })
+        const databaseRows = syllabusDatabaseInventory(db, routeId, { includeStudyOnly: routeIncludesStudyOnly })
         const databaseById = new Map(databaseRows.map((topic) => [topic.id, topic]))
         // The database is the authority for live inventory counts. Static
         // data supplies only the official syllabus shape and labels; merging
@@ -1478,6 +1819,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
       if (request.method === 'POST' && url.pathname === '/api/stem/practice-sets') {
         const payload = await readJson(request)
         const user = request.headers.authorization ? identityFromRequest(request, signingKey) : null
+        const routeIncludesStudyOnly = includeStudyOnlyForRoute()
         const result = buildSyllabusPracticeSet({
           routeId: payload.routeId,
           syllabusTopicIds: payload.syllabusTopicIds,
@@ -1488,7 +1830,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
           sourceQuestionIds: payload.sourceQuestionIds,
           seed: payload.seed,
           questionBank: topicPracticeQuestionBank,
-          includeStudyOnly,
+          includeStudyOnly: routeIncludesStudyOnly,
         })
         sendJson(response, 201, { ...result, ownerId: user?.id || null })
         return
@@ -1540,13 +1882,117 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
         sendJson(response, 200, currentWorkspace(db, user))
         return
       }
+      if (request.method === 'GET' && url.pathname === '/api/stem/attempts') {
+        const rows = db.prepare(`
+          SELECT user_id, attempt_id, binding_json, attempt_json, submission_status, submitted_at, created_at, updated_at
+          FROM student_attempts
+          WHERE user_id = ?
+          ORDER BY updated_at DESC, submitted_at DESC
+        `).all(user.id)
+        sendJson(response, 200, { attempts: rows.map(publicStudentAttempt) })
+        return
+      }
+      if (request.method === 'POST' && url.pathname === '/api/stem/attempts') {
+        const payload = await readJson(request, 8 * 1024 * 1024)
+        const binding = canonicalStudentAttemptBinding(payload, topicPracticeQuestionBank)
+        const existingRow = db.prepare(`
+          SELECT user_id, attempt_id, mode, route_id, stage, paper_id, binding_json, attempt_json, submission_status, submitted_at, created_at, updated_at
+          FROM student_attempts
+          WHERE user_id = ? AND attempt_id = ?
+        `).get(user.id, binding.attemptId)
+        const updatedAt = nowIso()
+        const existing = existingRow ? parseStudentAttemptRow(existingRow) : null
+        if (existing && !sameCanonicalBinding(existing.binding, binding)) {
+          throw Object.assign(new Error('The persisted attempt binding cannot be changed.'), {
+            statusCode: 409,
+            code: 'attempt_binding_mismatch',
+          })
+        }
+        if (!existingRow) {
+          const attemptOwner = db.prepare('SELECT user_id FROM student_attempts WHERE attempt_id = ? LIMIT 1').get(binding.attemptId)
+          if (attemptOwner && String(attemptOwner.user_id) !== String(user.id)) {
+            throw Object.assign(new Error('The submitted attempt does not belong to this account.'), {
+              statusCode: 404,
+              code: 'attempt_not_found',
+            })
+          }
+        }
+        const submittedAt = existing?.submittedAt || canonicalTimestamp(
+          payload.submittedAt || payload.attempt?.submittedAt,
+          null,
+        )
+        const submissionStatus = existing?.submissionStatus === 'submitted' || submittedAt ? 'submitted' : 'draft'
+        const attemptSnapshot = compactStudentAttemptSnapshot(payload, {
+          attemptId: binding.attemptId,
+          routeId: binding.routeId,
+          stage: binding.stage,
+          paperId: binding.paperId,
+          submittedAt,
+        })
+        const attemptJson = JSON.stringify(attemptSnapshot)
+        if (existingRow) {
+          db.prepare(`
+            UPDATE student_attempts
+            SET attempt_json = ?, submission_status = ?, submitted_at = ?, updated_at = ?
+            WHERE user_id = ? AND attempt_id = ?
+          `).run(attemptJson, submissionStatus, submittedAt, updatedAt, user.id, binding.attemptId)
+          const updated = db.prepare(`
+            SELECT user_id, attempt_id, mode, route_id, stage, paper_id, binding_json, attempt_json, submission_status, submitted_at, created_at, updated_at
+            FROM student_attempts
+            WHERE user_id = ? AND attempt_id = ?
+          `).get(user.id, binding.attemptId)
+          sendJson(response, 200, { attempt: publicStudentAttempt(updated).attempt, duplicate: true })
+          return
+        }
+        db.prepare(`
+          INSERT INTO student_attempts
+            (user_id, attempt_id, mode, route_id, stage, paper_id, binding_json, attempt_json, submission_status, submitted_at, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          user.id,
+          binding.attemptId,
+          binding.mode,
+          binding.routeId,
+          binding.stage,
+          binding.paperId,
+          JSON.stringify(binding),
+          attemptJson,
+          submissionStatus,
+          submittedAt,
+          updatedAt,
+          updatedAt,
+        )
+        const created = db.prepare(`
+          SELECT user_id, attempt_id, mode, route_id, stage, paper_id, binding_json, attempt_json, submission_status, submitted_at, created_at, updated_at
+          FROM student_attempts
+          WHERE user_id = ? AND attempt_id = ?
+        `).get(user.id, binding.attemptId)
+        sendJson(response, 201, { attempt: publicStudentAttempt(created).attempt, duplicate: false })
+        return
+      }
       if (request.method === 'POST' && url.pathname === '/api/stem/marking/capabilities') {
         const payload = await readJson(request)
+        const requestedAttemptId = canonicalAttemptId(payload.attemptId)
+        const persistedAttemptRow = db.prepare(`
+          SELECT user_id, attempt_id, mode, route_id, stage, paper_id, binding_json, attempt_json, submission_status, submitted_at, created_at, updated_at
+          FROM student_attempts
+          WHERE user_id = ? AND attempt_id = ?
+        `).get(user.id, requestedAttemptId)
+        if (!persistedAttemptRow) {
+          const attemptExists = db.prepare('SELECT 1 FROM student_attempts WHERE attempt_id = ? LIMIT 1').get(requestedAttemptId)
+          throw Object.assign(new Error(attemptExists
+            ? 'The submitted attempt does not belong to this account.'
+            : 'A server-owned submitted attempt is required before AI marking.'), {
+            statusCode: attemptExists ? 404 : 409,
+            code: attemptExists ? 'attempt_not_found' : 'attempt_not_persisted',
+          })
+        }
         const issued = issueMarkingCapabilities({
           userId: user.id,
           payload,
           questionBank: topicPracticeQuestionBank,
           signingKey: markingCapabilitySigningKey,
+          persistedAttempt: parseStudentAttemptRow(persistedAttemptRow),
         })
         if (!issued.ok) throw Object.assign(new Error(issued.message), { statusCode: issued.statusCode || 422, code: issued.code })
         sendJson(response, 201, issued)

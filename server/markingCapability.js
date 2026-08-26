@@ -25,14 +25,19 @@ export function validHmacJwt(token, key, { issuer, audience, maxLifetimeSeconds 
     const header = decodeBase64Url(encodedHeader)
     const claims = decodeBase64Url(encodedPayload)
     const now = Math.floor(Date.now() / 1000)
+    const issuedAt = Number(claims.iat)
+    const expiresAt = Number(claims.exp)
     if (
       header.alg !== 'HS256'
       || (issuer && claims.iss !== issuer)
       || (audience && claims.aud !== audience)
       || !claims.sub
-      || !Number.isFinite(Number(claims.exp))
-      || Number(claims.exp) <= now
-      || (Number(claims.iat) && Number(claims.exp) - Number(claims.iat) > maxLifetimeSeconds)
+      || !Number.isInteger(issuedAt)
+      || !Number.isInteger(expiresAt)
+      || issuedAt > now + 300
+      || expiresAt <= now
+      || expiresAt <= issuedAt
+      || expiresAt - issuedAt > maxLifetimeSeconds
     ) return null
     return claims
   } catch {
@@ -99,6 +104,39 @@ function rejected(code, message, statusCode = 422) {
   return { ok: false, code, message, statusCode }
 }
 
+function sameJson(left, right) {
+  return JSON.stringify(left ?? null) === JSON.stringify(right ?? null)
+}
+
+function persistedPartMatchesResolvedPart(persistedPart, resolvedPart) {
+  const canonical = resolvedPart.canonical
+  const question = resolvedPart.question
+  return Boolean(
+    persistedPart
+    && persistedPart.routeId === question.routeId
+    && persistedPart.stage === question.stage
+    && persistedPart.paperId === String(question.sourceRef?.paperId || '')
+    && persistedPart.sourceQuestionId === canonical.sourceQuestionId
+    && persistedPart.questionPartId === canonical.questionPartId
+    && sameJson(persistedPart.provenance, canonical)
+  )
+}
+
+function persistedAttemptMatchesRequest(persistedAttempt, request) {
+  const binding = persistedAttempt?.binding
+  if (
+    !binding
+    || binding.attemptId !== request.attemptId
+    || binding.mode !== request.mode
+    || binding.routeId !== request.parts[0]?.question?.routeId
+    || binding.stage !== request.parts[0]?.question?.stage
+    || (request.mode === 'full-paper' && binding.paperId !== request.paperId)
+  ) return false
+
+  const persistedParts = Array.isArray(binding.parts) ? binding.parts : []
+  return request.parts.every((resolvedPart) => persistedParts.some((persistedPart) => persistedPartMatchesResolvedPart(persistedPart, resolvedPart)))
+}
+
 /**
  * Resolve every requested part against the effective server bank. The client
  * never chooses a reviewed capability, a source version, or a page image.
@@ -146,9 +184,21 @@ export function canonicalMarkingCapabilityRequest(payload = {}, questionBank = [
   return Object.freeze({ ok: true, mode, attemptId, paperId: mode === 'full-paper' ? paperId : '', parts: Object.freeze(resolved) })
 }
 
-export function issueMarkingCapabilities({ userId, payload, questionBank, signingKey }) {
+export function issueMarkingCapabilities({ userId, payload, questionBank, signingKey, persistedAttempt = null }) {
+  if (!persistedAttempt) {
+    return rejected('attempt_not_persisted', 'A server-owned submitted attempt is required before AI marking.', 409)
+  }
+  if (String(persistedAttempt.userId || '') !== String(userId || '')) {
+    return rejected('attempt_not_found', 'The submitted attempt does not belong to this account.', 404)
+  }
+  if (persistedAttempt.submissionStatus !== 'submitted' || !persistedAttempt.submittedAt) {
+    return rejected('attempt_not_submitted', 'AI marking is available only after the server records a submitted attempt.', 409)
+  }
   const request = canonicalMarkingCapabilityRequest(payload, questionBank)
   if (!request.ok) return request
+  if (!persistedAttemptMatchesRequest(persistedAttempt, request)) {
+    return rejected('attempt_binding_mismatch', 'The submitted attempt binding does not match the requested source.', 409)
+  }
   const capabilities = request.parts.map(({ canonical, question }) => ({
     sourceQuestionId: canonical.sourceQuestionId,
     questionPartId: canonical.questionPartId,
@@ -159,9 +209,8 @@ export function issueMarkingCapabilities({ userId, payload, questionBank, signin
       mode: request.mode,
       submitted: true,
       paperId: String(question?.sourceRef?.paperId || request.paperId || ''),
-      routeId: payload.parts.find((part) => (part.provenance || part).questionPartId === canonical.questionPartId)?.provenance?.routeId
-        || payload.parts.find((part) => (part.provenance || part).questionPartId === canonical.questionPartId)?.routeId
-        || '',
+      routeId: String(question?.routeId || ''),
+      stage: String(question?.stage || ''),
       sourceQuestionId: canonical.sourceQuestionId,
       questionPartId: canonical.questionPartId,
       bindingSignature: canonical.bindingSignature,

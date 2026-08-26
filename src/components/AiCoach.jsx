@@ -558,7 +558,10 @@ export function AiCoach({
       updateAssistant({ content: 'Preparing Coach response...', mode: 'streaming', status: 'streaming', hintLevel: level, warning: retryWarning })
       const response = await fetch('/api/ai/coach/stream', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(sharedIdentityToken ? { Authorization: `Bearer ${sharedIdentityToken}` } : {}),
+        },
         body: JSON.stringify({
           message: studentMessage.content,
           history: previous,

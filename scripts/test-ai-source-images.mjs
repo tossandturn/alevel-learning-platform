@@ -64,9 +64,11 @@ function canonicalRequest(questionNumber, partLabel, { mode = 'topic', paperId =
   const part = question?.parts.find((item) => item.label === partLabel)
   assert.ok(question && part, `reviewed Q${questionNumber}(${partLabel}) fixture must exist`)
   return {
-    attemptId: 'source-image-attempt',
+    attemptId: `source-image-attempt-${mode}-${questionNumber}-${String(partLabel).replace(/[^A-Za-z0-9]+/g, '-')}`,
     mode,
     paperId: paperId || question.sourceRef.paperId,
+    routeId: question.routeId,
+    stage: question.stage,
     submitted: true,
     imageDataUrl: blankPng,
     typedResponse: 'student handwriting transcription',
@@ -85,6 +87,8 @@ function canonicalA2Request(sourceQuestionId, partLabel) {
     attemptId: 'a2-source-image-attempt',
     mode: 'topic',
     paperId: question.sourceRef.paperId,
+    routeId: question.routeId,
+    stage: question.stage,
     submitted: true,
     imageDataUrl: '',
     typedResponse: 'Uses the gravitational field equation and substitutes the stated values.',
@@ -151,7 +155,13 @@ const providerServer = http.createServer(async (request, response) => {
           confidence: 0.92,
           reviewRequired: false,
           summary: 'Captured official image context.',
-          markPoints: [],
+          markPoints: [{
+            id: 'M1',
+            awarded: true,
+            marks: 1,
+            reason: 'The response matches the official mark point.',
+            studentEvidence: 'The submitted typed response contains the required statement.',
+          }],
         }),
       },
     }],
@@ -171,7 +181,10 @@ const env = {
 const allowedSubjects = new Set(['0580'])
 const sourceLibraryRoot = path.join(root, 'missing-test-library')
 const api = createAiApi({ env, libraryRoot: sourceLibraryRoot, allowedSubjects })
-const stemApi = createStemApi({ env })
+// This regression exercises the dedicated AI marking boundary, including the
+// machine-indexed study fixture. Student Topic Drill eligibility is tested
+// separately and remains backed by unifiedQuestionBank in production.
+const stemApi = createStemApi({ env, questionBank: studyQuestionBank })
 const appServer = requestHandler(stemApi, api)
 const appBase = await listen(appServer)
 const emptyAssetRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'stem-source-assets-missing-'))
@@ -198,6 +211,22 @@ const signedIdentity = identityToken()
 
 async function authorizedRequest(url, questionNumber, partLabel, options = {}) {
   const request = canonicalRequest(questionNumber, partLabel, options)
+  const persisted = await fetch(`${url}/api/stem/attempts`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${signedIdentity}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      attemptId: request.attemptId,
+      mode: request.mode,
+      routeId: request.routeId,
+      stage: request.stage,
+      paperId: request.paperId,
+      submittedAt: new Date().toISOString(),
+      markingParts: [{ provenance: { ...request.provenance } }],
+      attempt: { id: request.attemptId, unitId: `source-image-${request.attemptId}`, attemptStatus: 'marking-pending', answers: { response: request.typedResponse } },
+    }),
+  })
+  const persistedPayload = await persisted.json()
+  assert.ok([200, 201].includes(persisted.status), `Q${questionNumber}(${partLabel}) attempt must be persisted before capability issuance: ${persistedPayload.error || ''}`)
   const capability = await issueCapability(url, request, signedIdentity)
   assert.equal(capability.response.status, 201, `Q${questionNumber}(${partLabel}) capability must be issued for the submitted reviewed attempt`)
   const markingGrant = capability.payload.capabilities?.[0]?.markingGrant
@@ -358,6 +387,21 @@ try {
 
   const a2Request = canonicalA2Request('cie-9702-9702_m24_qp_42:q1', 'b(ii)')
   assert.ok(a2Request.provenance.sourceEvidence?.assetSha256, 'machine-indexed A2 provenance must be bound to the audited source image checksum')
+  const a2Persisted = await fetch(`${appBase}/api/stem/attempts`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${signedIdentity}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      attemptId: a2Request.attemptId,
+      mode: a2Request.mode,
+      routeId: a2Request.routeId,
+      stage: a2Request.stage,
+      paperId: a2Request.paperId,
+      submittedAt: new Date().toISOString(),
+      markingParts: [{ provenance: { ...a2Request.provenance } }],
+      attempt: { id: a2Request.attemptId, unitId: 'a2-source-image-unit', attemptStatus: 'marking-pending', answers: { response: a2Request.typedResponse } },
+    }),
+  })
+  assert.ok([200, 201].includes(a2Persisted.status), 'A2 attempt must be persisted before capability issuance')
   const a2Capability = await issueCapability(appBase, a2Request, signedIdentity)
   assert.equal(a2Capability.response.status, 201, 'a submitted source-complete A2 answer must receive an AI marking capability')
   const a2MarkingGrant = a2Capability.payload.capabilities?.[0]?.markingGrant
@@ -378,6 +422,22 @@ try {
   ], 'A2 marking must include the complete multi-page question and paired mark-scheme page')
 
   const a2UnmappedRequest = canonicalA2Request('cie-9702-9702_m25_qp_42:q2', 'a')
+  a2UnmappedRequest.attemptId = 'a2-unmapped-source-image-attempt'
+  const a2UnmappedPersisted = await fetch(`${appBase}/api/stem/attempts`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${signedIdentity}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      attemptId: a2UnmappedRequest.attemptId,
+      mode: a2UnmappedRequest.mode,
+      routeId: a2UnmappedRequest.routeId,
+      stage: a2UnmappedRequest.stage,
+      paperId: a2UnmappedRequest.paperId,
+      submittedAt: new Date().toISOString(),
+      markingParts: [{ provenance: { ...a2UnmappedRequest.provenance } }],
+      attempt: { id: a2UnmappedRequest.attemptId, unitId: 'a2-unmapped-source-image-unit', attemptStatus: 'marking-pending', answers: { response: a2UnmappedRequest.typedResponse } },
+    }),
+  })
+  assert.ok([200, 201].includes(a2UnmappedPersisted.status), 'the unmapped A2 attempt must be persisted before capability issuance')
   const a2UnmappedCapability = await issueCapability(appBase, a2UnmappedRequest, signedIdentity)
   assert.equal(a2UnmappedCapability.response.status, 201, 'a complete MS document remains AI-markable when OCR did not isolate one MS page')
   const callsBeforeA2Unmapped = providerCalls.length

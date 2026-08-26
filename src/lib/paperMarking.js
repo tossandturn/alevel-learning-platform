@@ -367,25 +367,58 @@ export async function waitForSharedMarkingSubmission(options) {
   return { submissionId: options.submissionId, status: 'failed', retryable: true, failureCode: 'status_timeout' }
 }
 
+function validMarkNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+function validMarkedPart(result) {
+  if (!result || typeof result !== 'object') return false
+  if (typeof result.questionPartId !== 'string' || !result.questionPartId.trim()) return false
+  if (!validMarkNumber(result.awardedMarks) || !validMarkNumber(result.maxMarks)) return false
+  if (result.maxMarks <= 0 || result.awardedMarks < 0 || result.awardedMarks > result.maxMarks) return false
+  if (!validMarkNumber(result.confidence) || result.confidence < 0 || result.confidence > 1) return false
+  if (typeof result.reviewRequired !== 'boolean' || !Array.isArray(result.markPoints)) return false
+  return result.markPoints.every((point) => (
+    point
+    && typeof point === 'object'
+    && typeof point.pointId === 'string'
+    && point.pointId.trim()
+    && validMarkNumber(point.awardedMarks)
+    && point.awardedMarks >= 0
+    && point.awardedMarks <= result.maxMarks
+  ))
+}
+
 export function completedMarksByQuestion(submission, questionNumberByPartId) {
-  if (submission?.status !== 'completed' || !submission.result) return {}
+  if (submission?.status !== 'completed' || !submission.result || !questionNumberByPartId || typeof questionNumberByPartId !== 'object') return {}
+  const expectedPartIds = Object.keys(questionNumberByPartId)
+  if (expectedPartIds.some((partId) => !Number.isFinite(Number(questionNumberByPartId[partId])))) return {}
+  const questions = submission.result.questions
+  if (!expectedPartIds.length || !Array.isArray(questions) || questions.length !== expectedPartIds.length) return {}
+  const expectedPartIdSet = new Set(expectedPartIds)
+  const seenPartIds = new Set()
+  for (const result of questions) {
+    if (!validMarkedPart(result) || !expectedPartIdSet.has(result.questionPartId) || seenPartIds.has(result.questionPartId)) return {}
+    seenPartIds.add(result.questionPartId)
+  }
   const grouped = new Map()
-  for (const result of submission.result.questions || []) {
+  for (const result of questions) {
     const questionNumber = questionNumberByPartId[result.questionPartId]
     if (!questionNumber) continue
     const current = grouped.get(questionNumber) || { rawMarks: 0, maxMarks: 0, confidence: 1, reviewRequired: false, markPoints: [] }
-    current.rawMarks += Number(result.awardedMarks) || 0
-    current.maxMarks += Number(result.maxMarks) || 0
-    current.confidence = Math.min(current.confidence, Number(result.confidence) || 0)
+    current.rawMarks += result.awardedMarks
+    current.maxMarks += result.maxMarks
+    current.confidence = Math.min(current.confidence, result.confidence)
     current.reviewRequired ||= Boolean(result.reviewRequired)
-    current.markPoints.push(...(result.markPoints || []).map((point) => ({
+    current.markPoints.push(...result.markPoints.map((point) => ({
       id: point.pointId,
-      awarded: Number(point.awardedMarks) > 0,
-      marks: Number(point.awardedMarks) || 0,
-      reason: point.studentEvidence?.quote || (Number(point.awardedMarks) > 0 ? 'Mark point evidenced.' : 'Mark point not evidenced.'),
+      awarded: point.awardedMarks > 0,
+      marks: point.awardedMarks,
+      reason: point.studentEvidence?.quote || (point.awardedMarks > 0 ? 'Mark point evidenced.' : 'Mark point not evidenced.'),
     })))
     grouped.set(questionNumber, current)
   }
+  if (seenPartIds.size !== expectedPartIds.length || grouped.size === 0) return {}
   return Object.fromEntries([...grouped].map(([number, result]) => [number, {
     ...result,
     status: 'completed',

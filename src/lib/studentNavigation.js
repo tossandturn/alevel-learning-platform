@@ -4,7 +4,6 @@ const VIEW_PATHS = Object.freeze({
   topic: '/practice/topic',
   history: '/progress',
   notebook: '/notebook',
-  workspace: '/workspace',
   practice: '/attempt',
   result: '/result',
   paper: '/papers',

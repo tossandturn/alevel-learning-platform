@@ -49,6 +49,8 @@ assert.equal(studentNavigationFromLocation('https://stem.ieltsist.com/papers?rou
 assert.equal(studentNavigationFromLocation('https://stem.ieltsist.com/?routeId=cie-9702-as-physics').view, 'dashboard', 'the legacy root URL remains a valid dashboard link')
 assert.equal(studentNavigationHref({ view: 'result', attemptId: 'att-1', routeId: 'bad route with spaces' }), '/result?attemptId=att-1', 'invalid query data must not enter shareable URLs')
 assert.equal(studentNavigationFromLocation('https://stem.ieltsist.com/notebook?routeId=cie-0580-igcse-mathematics&answer=secret&note=private').attemptId, '', 'only documented safe navigation identifiers may be parsed from notebook URLs')
+assert.equal(studentNavigationFromLocation('https://stem.ieltsist.com/workspace').view, 'dashboard', 'teacher and school workspace must not be a student route')
+assert.equal(studentNavigationHref({ view: 'workspace', routeId: 'cie-0580-igcse-mathematics' }), '/today?routeId=cie-0580-igcse-mathematics', 'workspace navigation must fall back to the student dashboard')
 
 const appSource = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8')
 const historySource = readFileSync(new URL('../src/components/HistoryView.jsx', import.meta.url), 'utf8')

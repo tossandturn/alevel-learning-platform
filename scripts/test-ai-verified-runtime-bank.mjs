@@ -104,6 +104,13 @@ try {
     const initialInventory = await initialInventoryResponse.json()
     const initialTopic = initialInventory.topics.find((topic) => topic.id === 'physics-9702-topic-13')
     assert.ok(initialTopic)
+    const initialStudyQuestionCount = Number(initialTopic.studyQuestionCount)
+    assert.ok(initialStudyQuestionCount > 0, 'static source-backed A2 study questions must remain visible while runtime AI records are release-gated')
+    assert.equal(
+      Number(initialTopic.availableQuestionCount),
+      Number(initialTopic.verifiedQuestionCount) + Number(initialTopic.studyQuestionCount),
+      'A2 count must combine the reviewed and static study-only pools consistently',
+    )
 
     runtimeGroups = load().groups
     const inventoryResponse = await fetch(`${origin}/api/stem/routes/cie-9702-a2-physics/syllabus-topics`)
@@ -111,9 +118,16 @@ try {
     const inventory = await inventoryResponse.json()
     const runtimeTopic = inventory.topics.find((topic) => topic.id === 'physics-9702-topic-13')
     assert.ok(
-      runtimeTopic?.questionIdsByComponent?.[4]?.studyQuestionIds?.includes(`${paperId}:q2`),
-      'runtime inventory must include the loaded coordinate record',
+      runtimeTopic?.questionIdsByComponent?.[4]?.pendingReviewQuestionIds?.includes(`${paperId}:q2`),
+      'runtime inventory must retain the loaded coordinate record as pending review',
     )
+    assert.equal(runtimeTopic.studyQuestionCount, initialStudyQuestionCount, 'student inventory must not add release-gated ai-verified records to the static study-only pool')
+    assert.equal(
+      Number(runtimeTopic.availableQuestionCount),
+      Number(runtimeTopic.verifiedQuestionCount) + initialStudyQuestionCount,
+      'student count must include static study questions while excluding release-gated runtime records',
+    )
+    assert.equal(runtimeTopic.questionIdsByComponent?.[4]?.studyQuestionIds?.includes(`${paperId}:q2`), false, 'student inventory must not list study-only IDs')
     assert.ok(
       Number(runtimeTopic?.indexedQuestionCount) > Number(initialTopic.indexedQuestionCount),
       'inventory must refresh SQLite counts after a new verified coordinate artifact appears',
@@ -130,13 +144,9 @@ try {
         sourceQuestionIds: [`${paperId}:q2`],
       }),
     })
-    assert.equal(practiceResponse.status, 201, 'runtime API must compose a P4 set from the loaded coordinate record')
+    assert.equal(practiceResponse.status, 409, 'student practice must reject a coordinate-only ai-verified record that is not release-ready')
     const practice = await practiceResponse.json()
-    assert.equal(practice.questionCount, 1)
-    assert.deepEqual(practice.syllabusTopicIds, ['physics-9702-topic-13'], 'legacy topic input must be canonicalized in the response')
-    assert.equal(practice.practiceMode, 'study-only')
-    assert.equal(practice.questionGroups[0].reviewStatus, 'ai-verified')
-    assert.equal(practice.questionGroups[0].parts[0].aiAssistedMarkingAvailable, true)
+    assert.equal(practice.code, 'invalid_source_question_selection')
 
     runtimeGroups = []
     const removedInventoryResponse = await fetch(`${origin}/api/stem/routes/cie-9702-a2-physics/syllabus-topics`)

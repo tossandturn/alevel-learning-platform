@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Camera, Eraser, FilePlus2, Hand, Keyboard, PenTool, Redo2, Trash2, Undo2, Upload } from 'lucide-react'
 import { canvasPoint, createInkMetrics, drawDot, drawSegment, exposeInkMetrics, pointDistance, pointerSamples } from '../lib/inkStroke'
+import { deletePaperEvidence, getPaperEvidence, putPaperEvidence } from '../lib/evidenceStorage'
 import { HANDWRITING_HISTORY_MAX_BYTES, HANDWRITING_HISTORY_MAX_ENTRIES, handwritingHistorySize, trimHandwritingHistory } from '../lib/inkHistory'
 
 const CANVAS_HEIGHT = 340
@@ -35,15 +36,6 @@ function canvasBlob(exportCanvas) {
       }
       resolve(blob)
     }, 'image/jpeg', 0.82)
-  })
-}
-
-function blobDataUrl(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result || ''))
-    reader.onerror = () => reject(new Error('The handwritten response could not be prepared.'))
-    reader.readAsDataURL(blob)
   })
 }
 
@@ -104,6 +96,7 @@ function drawImage(canvas, source, { allowUpscale = true } = {}) {
 
 export function HandwritingPad({
   answerId,
+  evidenceId = '',
   disabled = false,
   aiReviewEligible = false,
   image,
@@ -125,13 +118,15 @@ export function HandwritingPad({
   const redoRef = useRef([])
   const historyBytesRef = useRef(0)
   const latestSnapshotRef = useRef('')
-  const hasVisualResponseRef = useRef(Boolean(imageUrl(image)))
+  const hasVisualResponseRef = useRef(Boolean(imageUrl(image) || image?.id))
   const initializedRef = useRef(false)
   const pendingPageEmitRef = useRef(false)
   const saveVersionRef = useRef(0)
   const mountedRef = useRef(true)
   const emitTimerRef = useRef(null)
   const emitCanvasRef = useRef(null)
+  const storedEvidenceIdRef = useRef(String(image?.id || evidenceId || `handwriting:${answerId || instanceId}`))
+  const storedPreviewUrlRef = useRef('')
   const touchPointersRef = useRef(new Map())
   const [mode, setMode] = useState(imageUrl(image) ? 'handwrite' : text ? 'type' : 'handwrite')
   const [tool, setTool] = useState('pen')
@@ -179,15 +174,22 @@ export function HandwritingPad({
     updateHistoryControls(canvas)
   }
 
+  function rememberStoredPreview(blob) {
+    if (storedPreviewUrlRef.current) URL.revokeObjectURL(storedPreviewUrlRef.current)
+    storedPreviewUrlRef.current = URL.createObjectURL(blob)
+    latestSnapshotRef.current = storedPreviewUrlRef.current
+    return storedPreviewUrlRef.current
+  }
+
   async function prepareCanvas(canvas) {
     const name = `${answerId || 'response'}-handwriting.jpg`
     const exportCanvas = exportCanvasFor(canvas)
     const blob = await canvasBlob(exportCanvas)
-    const dataUrl = await blobDataUrl(blob)
     const evidence = {
+      id: storedEvidenceIdRef.current,
       name,
       type: 'image/jpeg',
-      dataUrl,
+      bytes: blob.size,
       hasVisualContent: true,
       inkMetrics: { ...inkMetricsRef.current },
       width: exportCanvas.width,
@@ -198,7 +200,7 @@ export function HandwritingPad({
     }
     const file = new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() })
     Object.defineProperty(file, 'answerPages', { value: pageCount })
-    return { evidence, file }
+    return { evidence, file, blob }
   }
 
   async function emitCanvas(canvas) {
@@ -208,16 +210,26 @@ export function HandwritingPad({
     if (mountedRef.current) setStatus('Saving locally...')
     const startedAt = performance.now()
     try {
-      const { evidence, file } = await prepareCanvas(canvas)
+      const { evidence, file, blob } = await prepareCanvas(canvas)
       if (version !== saveVersionRef.current) return
-      onSnapshotChange?.(evidence)
-      latestSnapshotRef.current = evidence.dataUrl
-      exposeHistoryMetrics(canvas, performance.now() - startedAt)
-      if (!onImageChange) {
-        if (mountedRef.current) setStatus('Saved locally')
-        return evidence
+      if (onImageChange) {
+        await onImageChange(file)
+      } else {
+        await putPaperEvidence({
+          id: evidence.id,
+          attemptId: evidenceId || null,
+          partId: answerId || null,
+          blob,
+          name: evidence.name,
+          type: evidence.type,
+          width: evidence.width,
+          height: evidence.height,
+          pages: evidence.pages,
+          createdAt: evidence.attachedAt,
+        })
       }
-      await onImageChange?.(file)
+      onSnapshotChange?.(evidence)
+      exposeHistoryMetrics(canvas, performance.now() - startedAt)
       if (version === saveVersionRef.current && mountedRef.current) setStatus('Saved locally')
       return evidence
     } catch (error) {
@@ -243,6 +255,8 @@ export function HandwritingPad({
     return () => {
       window.clearTimeout(timerRef.current)
       mounted.current = false
+      if (storedPreviewUrlRef.current) URL.revokeObjectURL(storedPreviewUrlRef.current)
+      storedPreviewUrlRef.current = ''
     }
   }, [])
 
@@ -257,6 +271,7 @@ export function HandwritingPad({
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || mode !== 'handwrite') return undefined
+    let cancelled = false
 
     function resize() {
       const rect = canvas.getBoundingClientRect()
@@ -270,6 +285,7 @@ export function HandwritingPad({
       canvas.height = targetHeight
       canvas.getContext('2d').setTransform(1, 0, 0, 1, 0, 0)
       const finishResize = () => {
+        if (cancelled) return
         if (!initializedRef.current) setBaseline(canvas)
         initializedRef.current = true
         if (pendingPageEmitRef.current) {
@@ -278,28 +294,40 @@ export function HandwritingPad({
           void emitCanvas(canvas)
         }
       }
-      if (previousCanvas) {
-        restoreCanvas(canvas, previousCanvas)
-        finishResize()
-      } else if (previousUrl) {
-        drawImage(canvas, previousUrl).then(() => {
+      const restore = async () => {
+        if (previousCanvas) {
+          restoreCanvas(canvas, previousCanvas)
+          return
+        }
+        if (previousUrl) {
+          await drawImage(canvas, previousUrl)
           hasVisualResponseRef.current = true
-          finishResize()
-        }).catch(() => {
-          hasVisualResponseRef.current = false
-          fillPaper(canvas)
-          finishResize()
-        })
-      } else {
+          return
+        }
+        if (image?.id) {
+          const stored = await getPaperEvidence(image.id)
+          if (!stored?.blob) throw new Error('Stored handwriting evidence is unavailable.')
+          const previewUrl = rememberStoredPreview(stored.blob)
+          await drawImage(canvas, previewUrl)
+          hasVisualResponseRef.current = true
+          return
+        }
+        fillPaper(canvas)
+        hasVisualResponseRef.current = false
+      }
+      restore().then(finishResize).catch(() => {
+        if (cancelled) return
+        hasVisualResponseRef.current = false
         fillPaper(canvas)
         finishResize()
-      }
+      })
     }
 
     resize()
     const observer = new ResizeObserver(resize)
     observer.observe(canvas)
     return () => {
+      cancelled = true
       observer.disconnect()
       initializedRef.current = false
     }
@@ -494,7 +522,8 @@ export function HandwritingPad({
     setBaseline(canvasRef.current)
     setStatus('Answer area cleared')
     onSnapshotChange?.(null)
-    await onImageChange?.(null)
+    if (onImageChange) await onImageChange(null)
+    else if (storedEvidenceIdRef.current) await deletePaperEvidence(storedEvidenceIdRef.current)
   }
 
   async function importImage(event) {

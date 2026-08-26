@@ -170,6 +170,7 @@ function AnswerPartWorkspace({ part, partIndex, totalParts, attempt, active, sou
       {sourceComplete && part.answerType !== 'multiple-choice' && <HandwritingPad
         key={part.id}
         answerId={part.id}
+        evidenceId={`${attempt.id}:${part.id}`}
         aiReviewEligible={Boolean(part.aiAssistedMarkingAvailable && ['reviewed', 'machine-indexed'].includes(part.reviewStatus))}
         image={attempt.evidence?.[part.id]}
         label={part.answerType === 'numeric' ? 'Working and method' : `${answerTypeLabel(part)} area`}

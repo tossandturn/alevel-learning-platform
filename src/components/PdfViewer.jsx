@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Download, ZoomIn, ZoomOut } from 'lucide-rea
 import * as pdfjs from 'pdfjs-dist'
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { canvasPoint, createInkMetrics, drawDot, drawSegment, exposeInkMetrics, pointDistance, pointerSamples } from '../lib/inkStroke'
+import { deletePaperEvidence, getPaperEvidence, putPaperEvidence } from '../lib/evidenceStorage'
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker
 
@@ -28,15 +29,6 @@ function canvasBlob(canvas, type, quality) {
   return new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('PDF handwriting could not be saved.')), type, quality))
 }
 
-function blobDataUrl(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result || ''))
-    reader.onerror = () => reject(new Error('PDF handwriting could not be saved.'))
-    reader.readAsDataURL(blob)
-  })
-}
-
 function cloneCanvas(canvas) {
   const clone = window.document.createElement('canvas')
   clone.width = canvas.width
@@ -45,7 +37,7 @@ function cloneCanvas(canvas) {
   return clone
 }
 
-function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, questionNumber, tool = 'pen', onChange, onTouchZoom, registerInkFlush, readOnly = false, panMode = false }) {
+function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, evidenceStorageKey = '', questionNumber, tool = 'pen', onChange, onTouchZoom, registerInkFlush, readOnly = false, panMode = false }) {
   const canvasRef = useRef(null)
   const drawingRef = useRef(false)
   const movedRef = useRef(false)
@@ -62,7 +54,23 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, questionNumb
   const changedAtRef = useRef(0)
   const touchPointersRef = useRef(new Map())
   const pinchDistanceRef = useRef(0)
+  const storedPreviewUrlRef = useRef('')
   const [ready, setReady] = useState(false)
+
+  const evidenceIds = useMemo(() => {
+    const prefix = `${String(evidenceStorageKey || 'pdf-document')}:page:${pageNumber}`
+    return {
+      ink: `${prefix}:ink`,
+      image: `${prefix}:image`,
+    }
+  }, [evidenceStorageKey, pageNumber])
+
+  function rememberStoredPreview(blob) {
+    if (storedPreviewUrlRef.current) URL.revokeObjectURL(storedPreviewUrlRef.current)
+    storedPreviewUrlRef.current = URL.createObjectURL(blob)
+    latestInkRef.current = storedPreviewUrlRef.current
+    return storedPreviewUrlRef.current
+  }
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -78,16 +86,28 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, questionNumb
     canvas.height = pixelHeight
     canvas.style.width = `${width}px`
     canvas.style.height = `${height}px`
-    const restore = previousCanvas
-      ? Promise.resolve(canvas.getContext('2d').drawImage(previousCanvas, 0, 0, previousCanvas.width, previousCanvas.height, 0, 0, canvas.width, canvas.height))
-      : drawDataUrl(canvas, previousUrl)
-    restore.finally(() => {
+    const restore = async () => {
+      if (previousCanvas) {
+        canvas.getContext('2d').drawImage(previousCanvas, 0, 0, previousCanvas.width, previousCanvas.height, 0, 0, canvas.width, canvas.height)
+        return
+      }
+      if (previousUrl) {
+        await drawDataUrl(canvas, previousUrl)
+        return
+      }
+      if (ink?.inkEvidenceId) {
+        const stored = await getPaperEvidence(ink.inkEvidenceId)
+        if (!stored?.blob) throw new Error('Stored PDF handwriting is unavailable.')
+        await drawDataUrl(canvas, rememberStoredPreview(stored.blob))
+      }
+    }
+    restore().catch(() => {}).finally(() => {
       initializedRef.current = true
       exposeInkMetrics(canvas, inkMetricsRef.current)
       setReady(true)
     })
     return undefined
-  }, [baseCanvas, height, width])
+  }, [baseCanvas, height, ink?.inkDataUrl, ink?.inkEvidenceId, width])
 
   useEffect(() => {
     const externalInk = ink?.inkDataUrl || ''
@@ -95,6 +115,7 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, questionNumb
       latestInkRef.current = externalInk
       return
     }
+    if (ink?.inkEvidenceId) return
     const canvas = canvasRef.current
     if (!canvas || !latestInkRef.current || dirtyRevisionRef.current > persistedRevisionRef.current) return
     canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height)
@@ -103,7 +124,7 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, questionNumb
     persistedRevisionRef.current = 0
     inkMetricsRef.current = createInkMetrics()
     exposeInkMetrics(canvas, inkMetricsRef.current)
-  }, [ink?.inkDataUrl])
+  }, [ink?.inkDataUrl, ink?.inkEvidenceId])
 
   const emitInk = useCallback(async () => {
     while (encodingPromiseRef.current) {
@@ -120,27 +141,63 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, questionNumb
     const startedAt = performance.now()
     const encoding = (async () => {
       const snapshot = cloneCanvas(canvas)
-      const inkDataUrl = await blobDataUrl(await canvasBlob(snapshot, 'image/png'))
+      const inkBlob = await canvasBlob(snapshot, 'image/png')
       const composite = window.document.createElement('canvas')
       composite.width = snapshot.width
       composite.height = snapshot.height
       const context = composite.getContext('2d')
       if (baseCanvas) context.drawImage(baseCanvas, 0, 0, composite.width, composite.height)
       context.drawImage(snapshot, 0, 0)
-      const dataUrl = await blobDataUrl(await canvasBlob(composite, 'image/jpeg', 0.82))
+      const imageBlob = await canvasBlob(composite, 'image/jpeg', 0.82)
       if (revision < persistedRevisionRef.current) return null
+      const { ink: inkEvidenceId, image: imageEvidenceId } = evidenceIds
+      const updatedAt = changedAtRef.current || Date.now()
+      try {
+        await Promise.all([
+          putPaperEvidence({
+            id: inkEvidenceId,
+            attemptId: evidenceStorageKey || null,
+            pageNumber,
+            blob: inkBlob,
+            name: `page-${pageNumber}-ink.png`,
+            type: inkBlob.type || 'image/png',
+            width: snapshot.width,
+            height: snapshot.height,
+            createdAt: new Date(updatedAt).toISOString(),
+          }),
+          putPaperEvidence({
+            id: imageEvidenceId,
+            attemptId: evidenceStorageKey || null,
+            pageNumber,
+            blob: imageBlob,
+            name: `page-${pageNumber}-response.jpg`,
+            type: imageBlob.type || 'image/jpeg',
+            width: composite.width,
+            height: composite.height,
+            createdAt: new Date(updatedAt).toISOString(),
+          }),
+        ])
+      } catch (error) {
+        await Promise.allSettled([deletePaperEvidence(inkEvidenceId), deletePaperEvidence(imageEvidenceId)])
+        throw error
+      }
       persistedRevisionRef.current = revision
-      latestInkRef.current = inkDataUrl
+      latestInkRef.current = rememberStoredPreview(inkBlob)
       canvas.dataset.lastEncodeMs = String(Math.round(performance.now() - startedAt))
       canvas.dataset.encodedRevision = String(revision)
       const nextInk = {
-        dataUrl,
-        inkDataUrl,
+        inkEvidenceId,
+        imageEvidenceId,
+        bytes: inkBlob.size + imageBlob.size,
+        inkBytes: inkBlob.size,
+        imageBytes: imageBlob.size,
+        width: composite.width,
+        height: composite.height,
         questionNumber: dirtyQuestionNumberRef.current,
         strokeCount: inkMetricsRef.current.strokes,
         segmentCount: inkMetricsRef.current.segments,
         maxSegmentGap: inkMetricsRef.current.maxSegmentGap,
-        updatedAt: changedAtRef.current,
+        updatedAt,
       }
       onChange?.(pageNumber, nextInk)
       return { pageNumber, ink: nextInk }
@@ -151,7 +208,7 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, questionNumb
     } finally {
       if (encodingPromiseRef.current === encoding) encodingPromiseRef.current = null
     }
-  }, [baseCanvas, onChange, pageNumber])
+  }, [baseCanvas, evidenceIds, evidenceStorageKey, onChange, pageNumber])
 
   function scheduleEmit() {
     window.clearTimeout(emitTimerRef.current)
@@ -174,6 +231,8 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, questionNumb
     const pending = emitTimerRef.current
     window.clearTimeout(pending)
     if (pending) void emitInk().catch(() => {})
+    if (storedPreviewUrlRef.current) URL.revokeObjectURL(storedPreviewUrlRef.current)
+    storedPreviewUrlRef.current = ''
   }, [emitInk])
 
   function brushFor(point) {
@@ -323,7 +382,7 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, questionNumb
   return <canvas ref={canvasRef} className={`pdf-ink-layer ${readOnly ? 'read-only' : ''} ${panMode ? 'pdf-pan-mode' : ''}`} aria-label={`Handwriting layer for PDF page ${pageNumber}`} data-stroke-count={inkMetricsRef.current.strokes} data-segment-count={inkMetricsRef.current.segments} onPointerDown={inert ? undefined : startStroke} onPointerMove={inert ? undefined : continueStroke} onPointerUp={inert ? undefined : finishStroke} onPointerCancel={inert ? undefined : finishStroke} onLostPointerCapture={inert ? undefined : finishStroke} onDragStart={(event) => event.preventDefault()} onContextMenu={(event) => event.preventDefault()} />
 }
 
-export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage = {}, inkTool = 'pen', questionNumber = 1, onInkChange, registerInkFlush }) {
+export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage = {}, inkTool = 'pen', questionNumber = 1, evidenceStorageKey = '', onInkChange, registerInkFlush }) {
   const PAGE_WINDOW_BUFFER = 2
   const PAGE_CAPTION_HEIGHT = 30
   const containerRef = useRef(null)
@@ -515,7 +574,7 @@ export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage 
             <div className="pdf-page-layer" style={placeholderStyle}>
               <canvas ref={(canvas) => { if (canvas) canvasRefs.current.set(pageNumber, canvas); else canvasRefs.current.delete(pageNumber) }} aria-label={`${file.file}, page ${pageNumber}`} />
               {!size && <span className="pdf-page-placeholder">Scroll to render this page</span>}
-              {annotate && size && <PdfInkCanvas pageNumber={pageNumber} baseCanvas={canvasRefs.current.get(pageNumber)} width={size.width} height={size.height} ink={inkByPage[pageNumber]} tool={inkTool} questionNumber={questionNumber} onChange={onInkChange} onTouchZoom={zoomFromTouch} registerInkFlush={registerInkFlush} readOnly={readOnly} panMode={inkTool === 'hand'} />}
+              {annotate && size && <PdfInkCanvas pageNumber={pageNumber} baseCanvas={canvasRefs.current.get(pageNumber)} width={size.width} height={size.height} ink={inkByPage[pageNumber]} evidenceStorageKey={evidenceStorageKey} tool={inkTool} questionNumber={questionNumber} onChange={onInkChange} onTouchZoom={zoomFromTouch} registerInkFlush={registerInkFlush} readOnly={readOnly} panMode={inkTool === 'hand'} />}
             </div>
           </figure>
           })}

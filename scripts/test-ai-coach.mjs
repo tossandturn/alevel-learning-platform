@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import http from 'node:http'
 import os from 'node:os'
@@ -69,6 +70,7 @@ const providerServer = http.createServer(async (request, response) => {
 const providerBase = await listen(providerServer)
 const root = path.resolve(import.meta.dirname, '..')
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'stem-ai-coach-test-'))
+const identitySigningKey = 'ai-coach-identity-test-key'
 const api = createAiApi({
   env: {
     COACH_AI_API_KEY: 'test-coach-key',
@@ -77,6 +79,7 @@ const api = createAiApi({
     VISION_AI_API_KEY: 'test-vision-key',
     VISION_AI_BASE_URL: providerBase,
     VISION_AI_MODEL: 'qwen-test-vision',
+    STEM_INTERNAL_AUTH_KEY: identitySigningKey,
   },
   libraryRoot: path.join(tempRoot, 'library'),
   allowedSubjects: new Set(['0580']),
@@ -84,10 +87,29 @@ const api = createAiApi({
 const appServer = requestHandler(api)
 const appBase = await listen(appServer)
 
-async function post(pathname, body) {
+function identityToken(userId = 42) {
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
+  const now = Math.floor(Date.now() / 1000)
+  const payload = Buffer.from(JSON.stringify({
+    iss: 'ieltsist.com',
+    aud: 'stem.ieltsist.com',
+    sub: `ielts:${userId}`,
+    iat: now,
+    exp: now + 3600,
+  })).toString('base64url')
+  const signature = crypto.createHmac('sha256', identitySigningKey).update(`${header}.${payload}`).digest('base64url')
+  return `${header}.${payload}.${signature}`
+}
+
+const signedIdentityToken = identityToken()
+
+async function post(pathname, body, token = '') {
   const response = await fetch(`${appBase}${pathname}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify(body),
   })
   return { response, text: await response.text() }
@@ -135,6 +157,19 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   assert.ok(screenshotFormulaValues.includes('T²') && screenshotFormulaValues.includes('r³') && screenshotFormulaValues.includes('4π²'), 'Coach must preserve formula exponents as readable superscripts')
   assert.doesNotMatch(JSON.stringify(screenshotFormulaMessage), /\\[()[\]]|\\qquad/, 'Coach must not expose raw LaTeX delimiters or spacing commands')
 
+  const unauthenticatedDetailed = await post('/api/ai/coach/stream', {
+    message: 'Explain the method and check the units in detail.',
+    hintLevel: 3,
+    context: {
+      stage: 'AS',
+      topic: 'Mechanics',
+      question: { prompt: 'Unauthenticated detailed request.', number: 1 },
+    },
+  })
+  assert.equal(unauthenticatedDetailed.response.status, 401, 'detailed Coach requests without STEM Authorization must be rejected')
+  assert.doesNotMatch(unauthenticatedDetailed.text, /stream answer|event: meta/, 'an unauthenticated Coach request must not start a provider stream')
+  assert.equal(providerBodies.length, 0, 'an unauthenticated detailed Coach request must make zero provider calls')
+
   const local = await post('/api/ai/coach/stream', {
     message: 'Give me a hint for the next step.',
     hintLevel: 1,
@@ -161,7 +196,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
       topic: 'Mechanics',
       question: { prompt: 'A long focused question prompt.', number: 1 },
     },
-  })
+  }, signedIdentityToken)
   assert.equal(streamed.response.status, 200)
   assert.match(streamed.response.headers.get('content-type') || '', /text\/event-stream/)
   assert.match(streamed.text, /"text":"stream "/)
@@ -187,7 +222,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
       topic: 'Mechanics',
       question: { prompt: 'Inspect the photographed working.', number: 3 },
     },
-  })
+  }, signedIdentityToken)
   assert.equal(screenshot.response.status, 200)
   assert.match(screenshot.text, /"mode":"ai"/)
   assert.equal(providerBodies.length, 2, 'screenshot questions must reach the configured vision provider')
@@ -208,7 +243,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
       topic: 'Mechanics',
       question: { prompt: 'A provider failure fixture.', number: 2 },
     },
-  })
+  }, signedIdentityToken)
   assert.equal(failed.response.status, 200, 'stream errors after headers must resolve to a safe terminal event')
   assert.match(failed.text, /"providerStatus":"error"/)
   assert.match(failed.text, /"retryable":true/)
@@ -239,6 +274,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
           OPENAI_API_KEY: 'test-openai-routing-key',
           OPENAI_BASE_URL: configuredBase,
           OPENAI_MODEL: 'gpt-5.6-test',
+          STEM_INTERNAL_AUTH_KEY: identitySigningKey,
         },
         libraryRoot: path.join(tempRoot, 'library'),
         allowedSubjects: new Set(['0580']),
@@ -248,7 +284,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
       routingAppServers.push(routingAppServer)
       const routingResponse = await fetch(`${routingAppBase}/api/ai/coach/stream`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${signedIdentityToken}` },
         body: JSON.stringify({
           message: 'Explain the method and check the units in detail.',
           hintLevel: 3,
@@ -293,6 +329,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
       DASHSCOPE_API_KEY: 'test-qwen-key',
       DASHSCOPE_COMPAT_BASE_URL: qwenFallbackBase,
       COACH_AI_MODEL: 'qwen-fallback-coach',
+      STEM_INTERNAL_AUTH_KEY: identitySigningKey,
     },
     libraryRoot: path.join(tempRoot, 'library'),
     allowedSubjects: new Set(['0580']),
@@ -302,7 +339,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   try {
     const fallback = await fetch(`${fallbackAppBase}/api/ai/coach/stream`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${signedIdentityToken}` },
       body: JSON.stringify({
         message: 'Explain the method and check the units in detail.',
         hintLevel: 3,
@@ -345,6 +382,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
       DASHSCOPE_API_KEY: 'test-qwen-partial-key',
       DASHSCOPE_COMPAT_BASE_URL: partialQwenBase,
       COACH_AI_MODEL: 'qwen-partial-recovery',
+      STEM_INTERNAL_AUTH_KEY: identitySigningKey,
     },
     libraryRoot: path.join(tempRoot, 'library'),
     allowedSubjects: new Set(['0580']),
@@ -354,7 +392,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   try {
     const partialFallback = await fetch(`${partialFallbackAppBase}/api/ai/coach/stream`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${signedIdentityToken}` },
       body: JSON.stringify({
         message: 'Explain this method fully and check the units.',
         hintLevel: 3,
@@ -384,6 +422,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
       OPENAI_API_KEY: 'test-openai-partial-only-key',
       OPENAI_BASE_URL: partialOnlyBase,
       OPENAI_MODEL: 'gpt-5.6-test',
+      STEM_INTERNAL_AUTH_KEY: identitySigningKey,
     },
     libraryRoot: path.join(tempRoot, 'library'),
     allowedSubjects: new Set(['0580']),
@@ -393,7 +432,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   try {
     const partialOnly = await fetch(`${partialOnlyAppBase}/api/ai/coach/stream`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${signedIdentityToken}` },
       body: JSON.stringify({
         message: 'Explain this method fully and check the units.',
         hintLevel: 3,
@@ -421,6 +460,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   const practiceWorkspaceSource = fs.readFileSync(path.join(root, 'src', 'components', 'PracticeWorkspace.jsx'), 'utf8')
   assert.match(coachSource, /\/api\/ai\/coach\/stream/)
   assert.match(coachSource, /text\/event-stream/)
+  assert.match(coachSource, /Authorization:\s*`Bearer \$\{sharedIdentityToken\}`/, 'Coach provider requests must carry the in-memory STEM identity token in the request header')
   assert.match(coachSource, /payload\.retryable/, 'a retryable streamed terminal result must restore the Coach Retry action')
   assert.match(
     coachSource,

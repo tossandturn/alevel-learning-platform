@@ -49,8 +49,10 @@ import {
 import { latestBphoSpcPaper } from './lib/coachIntent'
 import { buildCompletionByUnit, buildLearningProgress, latestSubmittedActivity, recommendForRoute } from './lib/learningProgress'
 import { stableSorted } from './lib/arrayOrder'
-import { accountRefreshFailureState, accountRefreshRetryDelay, professionalTermsUrl, requestNativeAccountReadiness, requestSharedAccount, requestSharedWorkspace, requestSyllabusPracticeRebind, requestSyllabusPracticeSet, sharedAccountRequest, signInSharedAccount, signOutSharedAccount } from './lib/sharedAccount'
+import { accountRefreshFailureState, accountRefreshRetryDelay, professionalTermsUrl, requestNativeAccountReadiness, requestSharedAccount, requestSyllabusPracticeRebind, requestSyllabusPracticeSet, sharedAccountRequest, signInSharedAccount, signOutSharedAccount } from './lib/sharedAccount'
 import { requestMarkingCapabilities } from './lib/markingCapabilityClient'
+import { persistStudentAttempt, readStudentAttempts, sourceMarkingPartsForUnit } from './lib/attemptPersistence'
+import { getPaperEvidence } from './lib/evidenceStorage'
 import { mapWithConcurrency } from './lib/asyncPool'
 import { parseProductContext, termIdsForStemContext } from './lib/productContext'
 import { questionMatchesSearch } from './lib/questionSearch'
@@ -80,10 +82,6 @@ const AiCoach = lazy(() =>
 const HistoryView = lazy(() =>
   import('./components/HistoryView').then((module) => ({ default: module.HistoryView })),
 )
-const RoleWorkspace = lazy(() =>
-  import('./components/RoleWorkspace').then((module) => ({ default: module.RoleWorkspace })),
-)
-
 const EMPTY_SELF_MARKS = Object.freeze({})
 let practiceRuntimePromise
 let studyQuestionRuntimePromise
@@ -141,6 +139,106 @@ function questionGroupCountForUnit(unit) {
   if (Number.isInteger(count) && count > 0) return count
   const groupCount = new Set((unit?.parts || []).map((part) => part?.sourceQuestionId || part?.questionGroupId || part?.bankId).filter(Boolean)).size
   return groupCount || unit?.parts?.length || 0
+}
+
+function sourceBindingFromServerAttempt(record, attempt) {
+  const parts = Array.isArray(record?.binding?.parts) ? record.binding.parts : []
+  if (!parts.length) return null
+  const snapshots = parts.map((part) => {
+    const provenance = part?.provenance || {}
+    return {
+      sourceQuestionId: String(part.sourceQuestionId || provenance.sourceQuestionId || ''),
+      questionPartId: String(part.questionPartId || provenance.questionPartId || ''),
+      bindingSignature: String(provenance.bindingSignature || ''),
+      reviewVersion: String(provenance.reviewVersion || ''),
+      sourceDocumentSha256: String(provenance.sourceDocumentSha256 || ''),
+      answerDocumentSha256: String(provenance.answerDocumentSha256 || ''),
+      sourceIndexSha256: String(provenance.sourceIndexSha256 || ''),
+      sourceManifestChecksum: String(provenance.sourceManifestChecksum || ''),
+    }
+  }).filter((part) => part.sourceQuestionId && part.questionPartId)
+  if (!snapshots.length) return null
+  return {
+    schemaVersion: 'attempt-source-binding.v1',
+    unitId: String(attempt?.unitId || ''),
+    parts: stableSorted(snapshots, (left, right) => left.sourceQuestionId.localeCompare(right.sourceQuestionId) || left.questionPartId.localeCompare(right.questionPartId)),
+  }
+}
+
+function serverAttemptProjection(record) {
+  const source = record?.attempt && typeof record.attempt === 'object' ? record.attempt : {}
+  const attempt = {
+    ...source,
+    id: String(record.attemptId || source.id || source.attemptId || ''),
+    routeId: String(record.routeId || source.routeId || ''),
+    stage: String(record.stage || source.stage || ''),
+    paperId: String(record.paperId || source.paperId || ''),
+    submittedAt: String(record.submittedAt || source.submittedAt || ''),
+    attemptStatus: String(source.attemptStatus || 'marking-pending'),
+    attemptPersistenceStatus: 'saved',
+  }
+  const sourceBinding = sourceBindingFromServerAttempt(record, attempt)
+  if (sourceBinding) attempt.sourceBinding = sourceBinding
+  return attempt
+}
+
+function mergeServerStudentAttempts(state, records = []) {
+  const localAttempts = Array.isArray(state.attempts) ? state.attempts : []
+  const localById = new Map(localAttempts.map((attempt) => [String(attempt.id), attempt]))
+  const serverAttempts = records
+    .map(serverAttemptProjection)
+    .filter((attempt) => attempt.id)
+  for (const serverAttempt of serverAttempts) {
+    const local = localById.get(serverAttempt.id)
+    const merged = { ...local, ...serverAttempt }
+    if (serverAttempt.sourceBinding) merged.sourceBinding = serverAttempt.sourceBinding
+    if (!Object.prototype.hasOwnProperty.call(serverAttempt, 'scoreResult') && ['marking-pending', 'self-mark-pending'].includes(serverAttempt.attemptStatus)) {
+      delete merged.scoreResult
+      delete merged.learningSignal
+      merged.formalResult = false
+    }
+    localById.set(serverAttempt.id, merged)
+  }
+
+  const paperSessionsByAttemptId = new Map((state.paperSessions || []).map((session) => [String(session.attemptId), session]))
+  const paperReviewsByAttemptId = new Map((state.paperReviews || []).map((review) => [String(review.attemptId), review]))
+  for (const record of records) {
+    if (record?.mode !== 'full-paper') continue
+    const attempt = serverAttemptProjection(record)
+    const paperSession = {
+      ...attempt,
+      attemptId: attempt.id,
+      paperId: attempt.paperId,
+      file: attempt.paperRef?.file || 'Past paper',
+      paperRef: attempt.paperRef || null,
+      completedAt: attempt.submittedAt,
+      serverSync: 'synced',
+    }
+    paperSessionsByAttemptId.set(attempt.id, { ...paperSessionsByAttemptId.get(attempt.id), ...paperSession })
+    if (attempt.scoreResult || attempt.selfMarks) {
+      paperReviewsByAttemptId.set(attempt.id, {
+        ...paperReviewsByAttemptId.get(attempt.id),
+        attemptId: attempt.id,
+        paperId: attempt.paperId,
+        routeId: attempt.routeId,
+        paperStudyMode: attempt.paperStudyMode,
+        selfMarks: attempt.selfMarks || {},
+        maxMarksByQuestion: attempt.maxMarksByQuestion || {},
+        aiMarks: attempt.aiMarks || {},
+        rawMarks: attempt.scoreResult?.rawMarks ?? 0,
+        maxMarks: attempt.scoreResult?.maxMarks ?? 0,
+        reviewedAt: attempt.submittedAt,
+        completedAt: attempt.submittedAt,
+      })
+    }
+  }
+
+  return {
+    ...state,
+    attempts: [...localById.values()],
+    paperSessions: [...paperSessionsByAttemptId.values()],
+    paperReviews: [...paperReviewsByAttemptId.values()],
+  }
 }
 
 function focusedRetestUnit(unit, partId) {
@@ -224,7 +322,33 @@ async function requestVisionReviews(unit, attempt, identityToken = '') {
           mode: 'topic',
           submitted: true,
           markingGrant: capabilityByPartId?.[part.markingProvenance?.questionPartId] || '',
-          imageDataUrl: responseEntry.evidence?.dataUrl || '',
+          imageDataUrl: await (async () => {
+            const evidence = responseEntry.evidence
+            if (!evidence) return ''
+            if (evidence.dataUrl) return evidence.dataUrl
+            if (evidence.previewUrl) {
+              const previewResponse = await fetch(evidence.previewUrl)
+              if (!previewResponse.ok) throw Object.assign(new Error('The saved handwriting image is unavailable.'), { code: 'evidence_unavailable' })
+              return new Promise((resolve, reject) => {
+                const reader = new FileReader()
+                reader.onload = () => resolve(String(reader.result || ''))
+                reader.onerror = () => reject(Object.assign(new Error('The saved handwriting image is unavailable.'), { code: 'evidence_unavailable' }))
+                previewResponse.blob().then((blob) => reader.readAsDataURL(blob)).catch(() => reject(Object.assign(new Error('The saved handwriting image is unavailable.'), { code: 'evidence_unavailable' })))
+              })
+            }
+            if (evidence.id) {
+              const stored = await getPaperEvidence(evidence.id)
+              if (stored?.blob) {
+                return new Promise((resolve, reject) => {
+                  const reader = new FileReader()
+                  reader.onload = () => resolve(String(reader.result || ''))
+                  reader.onerror = () => reject(Object.assign(new Error('The saved handwriting image is unavailable.'), { code: 'evidence_unavailable' }))
+                  reader.readAsDataURL(stored.blob)
+                })
+              }
+            }
+            throw Object.assign(new Error('The saved handwriting image is unavailable.'), { code: 'evidence_unavailable' })
+          })(),
           typedResponse: responseEntry.typedResponse,
           provenance: {
             routeId: unit.routeId,
@@ -237,8 +361,8 @@ async function requestVisionReviews(unit, attempt, identityToken = '') {
       if (!response.ok) return [partId, { status: payload.code === 'vision_not_configured' ? 'unconfigured' : 'error', error: payload.error || 'AI review could not be completed.' }]
       if (payload.mode !== 'vision') return [partId, { status: 'error', error: payload.error || 'AI review could not be completed.' }]
       return [partId, { ...payload, status: 'success' }]
-    } catch {
-      return [partId, { status: 'error', error: 'AI review could not be reached. Your response remains saved.' }]
+    } catch (error) {
+      return [partId, { status: 'error', failureCode: error.code || 'provider_unavailable', retryable: error.code !== 'evidence_unavailable', error: error.message || 'AI review could not be reached. Your response remains saved.' }]
     }
   })
   return { ...reviews, ...Object.fromEntries(results) }
@@ -712,16 +836,7 @@ function App() {
     try {
       const account = await requestSharedAccount()
       if (sharedAccountRefreshRef.current !== refreshId) return sharedAccountRef.current
-      let workspace = account.workspace
-      let workspaceError = ''
-      try {
-        workspace = await requestSharedWorkspace(account.token)
-      } catch (error) {
-        // Authentication is independent from teacher/school workspace reads.
-        // Keep the student signed in when the optional workspace is unavailable.
-        workspaceError = error.message || 'Teacher and school workspace is temporarily unavailable.'
-      }
-      const next = { status: 'ready', ...account, workspace, error: '', refreshState: 'ready', workspaceError }
+      const next = { status: 'ready', ...account, workspace: null, error: '', refreshState: 'ready' }
       if (sharedAccountRefreshRef.current !== refreshId) return sharedAccountRef.current
       setSharedAccount(next)
       return next
@@ -773,6 +888,19 @@ function App() {
       .catch(() => {})
     return () => { cancelled = true }
   }, [activeRouteId, sharedAccount.identity?.id, sharedAccount.status, sharedAccount.token, stateOwnerId])
+
+  useEffect(() => {
+    const accountUserId = String(sharedAccount.identity?.id || '')
+    if (sharedAccount.status !== 'ready' || !sharedAccount.token || !accountUserId || accountUserId !== stateOwnerId) return undefined
+    let cancelled = false
+    readStudentAttempts({ token: sharedAccount.token })
+      .then((records) => {
+        if (cancelled || stateOwnerIdRef.current !== accountUserId) return
+        setAppState((state) => mergeServerStudentAttempts(state, records))
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [sharedAccount.identity?.id, sharedAccount.status, sharedAccount.token, stateOwnerId])
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -1028,78 +1156,8 @@ function App() {
 
   async function submitNativeAccount({ mode, username, password }) {
     const account = await signInSharedAccount({ mode, username, password })
-    let workspace = account.workspace
-    let workspaceError = ''
-    try {
-      workspace = await requestSharedWorkspace(account.token)
-    } catch (error) {
-      // Do not turn a successful native STEM login into a false auth failure
-      // just because optional teacher/school aggregation is unavailable.
-      workspaceError = error.message || 'Teacher and school workspace is temporarily unavailable.'
-    }
-    setSharedAccount({ status: 'ready', ...account, workspace, error: '', workspaceError })
+    setSharedAccount({ status: 'ready', ...account, workspace: null, error: '' })
     setAccountDialogMode(null)
-  }
-
-  async function createClassroom(name) {
-    const account = sharedAccount.status === 'ready' ? sharedAccount : await refreshSharedAccount()
-    if (!account?.token) throw new Error('Sign in to STEM before creating a class.')
-    const result = await sharedAccountRequest(account.token, '/api/stem/classrooms', { method: 'POST', body: JSON.stringify({ name }) })
-    const workspace = await requestSharedWorkspace(account.token)
-    setSharedAccount((current) => ({ ...current, status: 'ready', workspace }))
-    return result.classroom
-  }
-
-  async function joinClassroom(inviteCode) {
-    const account = sharedAccount.status === 'ready' ? sharedAccount : await refreshSharedAccount()
-    if (!account?.token) throw new Error('Sign in to STEM before joining a class.')
-    await sharedAccountRequest(account.token, '/api/stem/classrooms/join', { method: 'POST', body: JSON.stringify({ inviteCode }) })
-    const workspace = await requestSharedWorkspace(account.token)
-    setSharedAccount((current) => ({ ...current, status: 'ready', workspace }))
-  }
-
-  async function createAssignment(draft) {
-    const account = sharedAccount.status === 'ready' ? sharedAccount : await refreshSharedAccount()
-    if (!account?.token) throw new Error('Sign in to STEM before creating an assignment.')
-    const route = routeById(draft.routeId)
-    if (!route || route.stage !== draft.stage) throw new Error('Choose a valid registered route before publishing.')
-    const subject = subjects.find((item) => item.routeIds?.includes(route.routeId))
-    const topic = learningPlan.knowledgeGroups.find((group) => group.id === draft.topicId)
-    const classroomId = draft.classroomId || account.workspace?.classrooms?.find((classroom) => ['owner', 'teacher'].includes(classroom.role))?.id
-    if (!classroomId) throw new Error('Create or join a teacher class before assigning work.')
-    const runtime = await ensurePracticeRuntime()
-    const verifiedUnit = runtime.buildCoachPractice({ routeId: route.routeId, knowledgeGroupId: draft.topicId, questionCount: 10 })
-    const result = await sharedAccountRequest(account.token, '/api/stem/assignments', {
-      method: 'POST',
-      body: JSON.stringify({
-        classroomId,
-        subjectId: verifiedUnit.subjectId,
-        routeId: route.routeId,
-        stage: route.stage,
-        syllabusPointId: draft.topicId,
-        title: draft.title || `${subject?.code || ''} ${topic?.name || 'verified practice'}`.trim(),
-        dueAt: draft.dueDate || null,
-        sourceScope: { routeId: route.routeId, stage: route.stage, questionIds: [...new Set(verifiedUnit.parts.map((part) => part.bankId))], provenanceVersion: 'qp-ms-v2' },
-      }),
-    })
-    const workspace = await requestSharedWorkspace(account.token)
-    setSharedAccount((current) => ({ ...current, status: 'ready', workspace }))
-    return result.assignment
-  }
-
-  async function startAssignedAssignment(assignment) {
-    const sourceQuestionIds = assignment.sourceScope?.questionIds
-    if (!Array.isArray(sourceQuestionIds) || !sourceQuestionIds.length) {
-      throw new Error('This assignment has no official question list. Ask the teacher to republish it.')
-    }
-    const runtime = await ensurePracticeRuntime()
-    const unit = runtime.buildCoachPractice({
-      routeId: assignment.routeId,
-      knowledgeGroupId: assignment.syllabusPointId,
-      sourceQuestionIds,
-      unitId: `assignment:${assignment.id}`,
-    })
-    startPractice(unit, { assignmentId: assignment.id })
   }
 
   function startPractice(unit, options = {}) {
@@ -1511,15 +1569,36 @@ function App() {
     }
     const submittedAt = new Date().toISOString()
     const submittedAttempt = { ...attemptSnapshot, submittedAt, submitting: false }
+    const pendingStatus = capability.mode === 'self-mark' ? 'self-mark-pending' : 'marking-pending'
+    let attemptPersistenceStatus = sharedAccount.token ? 'pending' : 'local-only'
+    if (sharedAccount.token) {
+      try {
+        await persistStudentAttempt({
+          token: sharedAccount.token,
+          attempt: { ...submittedAttempt, attemptStatus: pendingStatus, selfMarkPending: true },
+          mode: 'topic',
+          routeId: unit.routeId,
+          stage: unit.stage,
+          markingParts: sourceMarkingPartsForUnit(unit),
+        })
+        attemptPersistenceStatus = 'saved'
+      } catch (error) {
+        setCurrentAttempt({
+          ...attemptSnapshot,
+          submitting: false,
+          saveStatus: error.message || 'The submitted attempt could not be saved on the server. Try again.',
+        })
+        return
+      }
+    }
     const visionReviews = capability.counts['ai-assisted'] ? await requestVisionReviews(unit, submittedAttempt, sharedAccount.token) : {}
     const markingLifecycle = buildPartMarkingLifecycle(unit, attemptSnapshot.answers, attemptSnapshot.elapsedSec, visionReviews, attemptSnapshot.evidence)
     const scoreResult = markingLifecycle.complete && markingLifecycle.provisionalCriteria.length > 0
       ? finalizePartMarking(unit, markingLifecycle, {}, attemptSnapshot.elapsedSec)
       : null
     const formalScore = isFormalScoreResult(scoreResult, studyOnly)
-    const pendingStatus = capability.mode === 'self-mark' ? 'self-mark-pending' : 'marking-pending'
     const imageEvidence = Object.entries(attemptSnapshot.evidence || {}).filter(([, evidence]) => evidencePresent(evidence)).map(([partId, evidence]) => ({ partId, ...evidence }))
-    const completedAttempt = {
+    let completedAttempt = {
       ...attemptSnapshot,
       submitting: false,
       routeId: unit.routeId,
@@ -1534,6 +1613,7 @@ function App() {
       markingLifecycle,
       selfMarkPending: !scoreResult,
       formalResult: formalScore,
+      attemptPersistenceStatus,
       contentScope: {
         unitId: unit.id,
         title: unit.title,
@@ -1560,7 +1640,31 @@ function App() {
       }
     }
 
-    if (formalScore && attemptSnapshot.assignmentId && sharedAccount.status === 'ready') {
+    if (sharedAccount.token) {
+      try {
+        await persistStudentAttempt({
+          token: sharedAccount.token,
+          attempt: completedAttempt,
+          mode: 'topic',
+          routeId: unit.routeId,
+          stage: unit.stage,
+          markingParts: sourceMarkingPartsForUnit(unit),
+        })
+        completedAttempt.attemptPersistenceStatus = 'saved'
+      } catch (error) {
+        const { scoreResult: _scoreResult, learningSignal: _learningSignal, ...pendingAttempt } = completedAttempt
+        completedAttempt = {
+          ...pendingAttempt,
+          attemptStatus: pendingStatus,
+          selfMarkPending: true,
+          formalResult: false,
+          attemptPersistenceStatus: 'pending',
+          attemptPersistenceError: error.message || 'The result could not be saved on the server. It remains pending.',
+        }
+      }
+    }
+
+    if (formalScore && completedAttempt.attemptPersistenceStatus !== 'pending' && attemptSnapshot.assignmentId && sharedAccount.status === 'ready') {
       try {
         await sharedAccountRequest(sharedAccount.token, `/api/stem/assignments/${encodeURIComponent(attemptSnapshot.assignmentId)}/submissions`, {
           method: 'POST',
@@ -1608,7 +1712,7 @@ function App() {
     }))
   }
 
-  function recordSelfMark(attemptId, marksByPart) {
+  async function recordSelfMark(attemptId, marksByPart) {
     const pending = appState.attempts.find((attempt) => attempt.id === attemptId)
     const unit = pending && allPracticeUnits.find((item) => item.id === pending.unitId)
     if (!pending || !unit || !isPendingSelfMarkAttempt(pending) || !hasCurrentSourceBindingForAttempt(pending, unit)) return
@@ -1645,6 +1749,25 @@ function App() {
         masteryDelta: masteryBefore == null ? null : scoreResult.percentage - masteryBefore,
       } }),
     }
+    if (sharedAccount.token) {
+      try {
+        await persistStudentAttempt({
+          token: sharedAccount.token,
+          attempt: recorded,
+          mode: 'topic',
+          routeId: unit.routeId,
+          stage: unit.stage,
+          markingParts: sourceMarkingPartsForUnit(unit),
+        })
+      } catch (error) {
+        setResultAttempt({
+          ...pending,
+          attemptPersistenceStatus: 'pending',
+          attemptPersistenceError: error.message || 'The result could not be saved on the server. Try again.',
+        })
+        return
+      }
+    }
     setAppState((state) => {
       const { [attemptId]: _removedDraft, ...selfMarkDrafts } = state.selfMarkDrafts || {}
       return { ...state, attempts: [...state.attempts, recorded], selfMarkDrafts }
@@ -1664,13 +1787,28 @@ function App() {
       attemptStatus: 'marking-pending',
       selfMarkPending: true,
     }
+    if (sharedAccount.token) {
+      try {
+        await persistStudentAttempt({
+          token: sharedAccount.token,
+          attempt: retryAttempt,
+          mode: 'topic',
+          routeId: unit.routeId,
+          stage: unit.stage,
+          markingParts: sourceMarkingPartsForUnit(unit),
+        })
+      } catch (error) {
+        setResultAttempt({ ...pending, attemptPersistenceStatus: 'pending', attemptPersistenceError: error.message || 'The retry could not be saved on the server.' })
+        return false
+      }
+    }
     const visionReviews = await requestVisionReviews(unit, retryAttempt, sharedAccount.token)
     const markingLifecycle = buildPartMarkingLifecycle(unit, retryAttempt.answers, retryAttempt.elapsedSec, visionReviews, retryAttempt.evidence)
     const scoreResult = markingLifecycle.complete && markingLifecycle.provisionalCriteria.length > 0
       ? finalizePartMarking(unit, markingLifecycle, {}, retryAttempt.elapsedSec)
       : null
     const studyOnly = isStudyOnlyPracticeUnit(unit)
-    const recorded = {
+    let recorded = {
       ...retryAttempt,
       attemptStatus: scoreResult ? (scoreResult.partial ? 'provisional-result' : studyOnly ? 'study-result' : 'result') : 'marking-pending',
       visionReviews,
@@ -1678,6 +1816,28 @@ function App() {
       ...(scoreResult ? { scoreResult } : {}),
       selfMarkPending: !scoreResult,
       formalResult: isFormalScoreResult(scoreResult, studyOnly),
+    }
+    if (sharedAccount.token) {
+      try {
+        await persistStudentAttempt({
+          token: sharedAccount.token,
+          attempt: recorded,
+          mode: 'topic',
+          routeId: unit.routeId,
+          stage: unit.stage,
+          markingParts: sourceMarkingPartsForUnit(unit),
+        })
+      } catch (error) {
+        const { scoreResult: _scoreResult, ...pendingRecorded } = recorded
+        recorded = {
+          ...pendingRecorded,
+          attemptStatus: 'marking-pending',
+          selfMarkPending: true,
+          formalResult: false,
+          attemptPersistenceStatus: 'pending',
+          attemptPersistenceError: error.message || 'The retry result could not be saved on the server.',
+        }
+      }
     }
     setAppState((state) => ({ ...state, attempts: [...state.attempts, recorded] }))
     setResultAttempt(recorded)
@@ -1898,7 +2058,7 @@ function App() {
 
   return (
     <main className={`app-shell app-shell--${view}`}>
-      {view !== 'practice' && view !== 'paper' && <TopNav view={view} activeTab={activeTab} activeRoute={activeRoute} setView={setView} profile={appState.profile} sharedAccount={sharedAccount} onDisconnectSharedAccount={disconnectSharedAccount} onOpenAccount={setAccountDialogMode} onAccountPopoverChange={setAccountPopoverOpen} openNotebook={() => setView('notebook')} openRoleWorkspace={() => setView('workspace')} openPractice={() => { setActiveTab('recommended'); setView('library') }} openPapers={() => { setActiveTab('papers'); setView('library') }} />}
+      {view !== 'practice' && view !== 'paper' && <TopNav view={view} activeTab={activeTab} activeRoute={activeRoute} setView={setView} profile={appState.profile} sharedAccount={sharedAccount} onDisconnectSharedAccount={disconnectSharedAccount} onOpenAccount={setAccountDialogMode} onAccountPopoverChange={setAccountPopoverOpen} openNotebook={() => setView('notebook')} openPractice={() => { setActiveTab('recommended'); setView('library') }} openPapers={() => { setActiveTab('papers'); setView('library') }} />}
       {practiceRuntimeState.status === 'error' && view !== 'paper' && view !== 'practice' && <div className="inventory-alert" role="alert"><AlertTriangle size={18} /><span>{practiceRuntimeState.error}</span><button type="button" className="text-action" onClick={() => void ensurePracticeRuntime().catch(() => {})}>Retry</button></div>}
 
       {view === 'dashboard' && (
@@ -1931,11 +2091,8 @@ function App() {
            onRefreshSharedAccount={refreshSharedAccount}
            onOpenAccount={setAccountDialogMode}
            openNotebook={() => setView('notebook')}
-          openRoleWorkspace={() => setView('workspace')}
         />
       )}
-
-      {view === 'workspace' && <Suspense fallback={<div className="workspace-loading"><span className="loading-line" />Loading workspace...</div>}><RoleWorkspace profile={appState.profile} updateProfile={updateProfile} assignments={sharedAccount.workspace?.assignments || []} classrooms={sharedAccount.workspace?.classrooms || []} submissions={sharedAccount.workspace?.submissions || []} serverSummaries={sharedAccount.workspace?.serverSummaries || {}} attempts={appState.attempts} learningProgress={learningProgress} account={sharedAccount} onRefreshAccount={refreshSharedAccount} onCreateClassroom={createClassroom} onJoinClassroom={joinClassroom} onCreateAssignment={createAssignment} onStartAssignedAssignment={startAssignedAssignment} /></Suspense>}
 
       {view === 'notebook' && (
         <StudentNotebook
@@ -2310,7 +2467,7 @@ function SharedAccountDialog({ mode = 'login', onClose, onModeChange, onSubmit }
   )
 }
 
-function TopNav({ view, activeTab, activeRoute, setView, profile, sharedAccount, onDisconnectSharedAccount, onOpenAccount, onAccountPopoverChange, openNotebook, openRoleWorkspace, openPractice, openPapers }) {
+function TopNav({ view, activeTab, activeRoute, setView, profile, sharedAccount, onDisconnectSharedAccount, onOpenAccount, onAccountPopoverChange, openNotebook, openPractice, openPapers }) {
   const [campusOpen, setCampusOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
   const learnerName = String(profile?.learnerName || 'Student').trim() || 'Student'
@@ -2357,7 +2514,7 @@ function TopNav({ view, activeTab, activeRoute, setView, profile, sharedAccount,
           Notebook
         </button>
       </nav>
-      <div className="nav-context"><a className="vocabulary-link" href={vocabularyUrl} target="_blank" rel="noreferrer"><Brain size={15} />Vocabulary</a><button type="button" className="notification-button" aria-label="Notifications"><span /></button><div className="account-menu"><button type="button" className={`account-trigger ${sharedAccount.status !== 'ready' ? 'account-trigger--guest' : ''}`} aria-label={sharedAccount.status === 'ready' ? `Account: ${accountName}` : 'Sign in to STEM'} title={sharedAccount.status === 'ready' ? `Account: ${accountName}` : 'Sign in to STEM'} aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}><span className="account-avatar">{firstName.slice(0, 1).toUpperCase()}</span><span>{sharedAccount.status === 'ready' ? accountName : 'Sign in'}</span><ChevronRight size={14} /></button>{accountOpen && <div className="account-popover"><strong>{sharedAccount.status === 'ready' ? accountName : 'STEM account'}</strong><small>{sharedAccount.status === 'ready' ? 'Shared account connected' : 'Same account database as IELTSist'}</small>{sharedAccount.status !== 'ready' ? <><p className="account-popover__hint">Sign in or register directly in STEM. This creates only a local STEM session for the same IELTSist account.</p><button type="button" className="account-popover__primary" onClick={() => { setAccountOpen(false); onOpenAccount?.('login') }}><LogIn size={15} />Sign in <ChevronRight size={14} /></button><button type="button" onClick={() => { setAccountOpen(false); onOpenAccount?.('register') }}><Users size={15} />Create account <ChevronRight size={14} /></button>{sharedAccount.error && <p className="account-popover__error" role="alert">{sharedAccount.error}</p>}</> : <><div><span>Student</span><b>STEM</b></div><span className="account-popover__privacy">Private notes are visible only to you.</span>{sharedAccount.workspaceError && <p className="account-popover__error account-popover__error--muted" role="status">{sharedAccount.workspaceError}</p>}<a href="https://ieltsist.com/#mine" target="_blank" rel="noreferrer">Open IELTSist separately <ChevronRight size={14} /></a><button type="button" onClick={() => { openRoleWorkspace(); setAccountOpen(false) }}>Teacher &amp; school workspace <ChevronRight size={14} /></button><button type="button" className="account-popover__logout" onClick={() => { setAccountOpen(false); onDisconnectSharedAccount() }}><LogOut size={15} />Sign out of STEM <ChevronRight size={14} /></button></>}<div className="account-popover__legal"><a href="https://ieltsist.com/terms" target="_blank" rel="noreferrer">Terms</a><a href="https://ieltsist.com/privacy" target="_blank" rel="noreferrer">Privacy</a></div></div>}</div></div>
+      <div className="nav-context"><a className="vocabulary-link" href={vocabularyUrl} target="_blank" rel="noreferrer"><Brain size={15} />Vocabulary</a><button type="button" className="notification-button" aria-label="Notifications"><span /></button><div className="account-menu"><button type="button" className={`account-trigger ${sharedAccount.status !== 'ready' ? 'account-trigger--guest' : ''}`} aria-label={sharedAccount.status === 'ready' ? `Account: ${accountName}` : 'Sign in to STEM'} title={sharedAccount.status === 'ready' ? `Account: ${accountName}` : 'Sign in to STEM'} aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}><span className="account-avatar">{firstName.slice(0, 1).toUpperCase()}</span><span>{sharedAccount.status === 'ready' ? accountName : 'Sign in'}</span><ChevronRight size={14} /></button>{accountOpen && <div className="account-popover"><strong>{sharedAccount.status === 'ready' ? accountName : 'STEM account'}</strong><small>{sharedAccount.status === 'ready' ? 'Shared account connected' : 'Same account database as IELTSist'}</small>{sharedAccount.status !== 'ready' ? <><p className="account-popover__hint">Sign in or register directly in STEM. This creates only a local STEM session for the same IELTSist account.</p><button type="button" className="account-popover__primary" onClick={() => { setAccountOpen(false); onOpenAccount?.('login') }}><LogIn size={15} />Sign in <ChevronRight size={14} /></button><button type="button" onClick={() => { setAccountOpen(false); onOpenAccount?.('register') }}><Users size={15} />Create account <ChevronRight size={14} /></button>{sharedAccount.error && <p className="account-popover__error" role="alert">{sharedAccount.error}</p>}</> : <><div><span>Student</span><b>STEM</b></div><span className="account-popover__privacy">Private notes are visible only to you.</span><a href="https://ieltsist.com/#mine" target="_blank" rel="noreferrer">Open IELTSist separately <ChevronRight size={14} /></a><button type="button" className="account-popover__logout" onClick={() => { setAccountOpen(false); onDisconnectSharedAccount() }}><LogOut size={15} />Sign out of STEM <ChevronRight size={14} /></button></>}<div className="account-popover__legal"><a href="https://ieltsist.com/terms" target="_blank" rel="noreferrer">Terms</a><a href="https://ieltsist.com/privacy" target="_blank" rel="noreferrer">Privacy</a></div></div>}</div></div>
     </header>
   )
 }
@@ -2377,7 +2534,6 @@ function Dashboard({
   setView,
   setActiveTab,
   setSubjectFilter,
-  openWorkspace,
   learningProgress,
   syllabusRoadmap,
   allPracticeUnits = [],
@@ -2419,11 +2575,6 @@ function Dashboard({
       <section className="course-launcher" aria-label="Choose a course">
         <div className="section-heading-row"><div><p className="section-label">Start here</p><h2>Choose your qualification</h2></div><span>Each route keeps its own syllabus, stages and paper archive.</span></div>
         <div className="course-launcher__grid">{subjects.map((subject) => <button type="button" key={subject.id} onClick={() => openCourse(subject)}><span className="course-launcher__code" style={{ color: subject.accent }}>{subject.code}</span><span><strong>{subject.name}</strong><small>{subject.topics.slice(0, 3).join(' · ')}</small></span><ChevronRight size={17} /></button>)}</div>
-      </section>
-
-      <section className="audience-callout" aria-label="Choose workspace">
-        <div><p className="section-label">Student / Teacher / School</p><h2>Use the same evidence at the right level.</h2><p>Students get a next action. Teachers get assignable verified work. Schools get programme-level signals without exposing private notebooks.</p></div>
-        <button type="button" className="secondary-action" onClick={openWorkspace}><Users size={17} />Open workspace</button>
       </section>
 
       <div className="decision-panel student-decision">
@@ -3658,6 +3809,36 @@ function MistakeList({ mistakes, paperMistakes, startPractice, retestPaper, onRe
   )
 }
 
+function SavedEvidencePreview({ evidence, alt }) {
+  const [source, setSource] = useState(evidence?.dataUrl || evidence?.previewUrl || '')
+
+  useEffect(() => {
+    let active = true
+    let objectUrl = ''
+    const directSource = evidence?.dataUrl || evidence?.previewUrl || ''
+    if (directSource) {
+      setSource(directSource)
+      return undefined
+    }
+    if (!evidence?.id) {
+      setSource('')
+      return undefined
+    }
+    getPaperEvidence(evidence.id).then((stored) => {
+      if (!active || !stored?.blob) return
+      objectUrl = URL.createObjectURL(stored.blob)
+      setSource(objectUrl)
+    }).catch(() => {})
+    return () => {
+      active = false
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [evidence?.id, evidence?.dataUrl, evidence?.previewUrl])
+
+  if (!source) return <div className="image-evidence-missing" role="status">Saved handwriting image unavailable on this device.</div>
+  return <img src={source} alt={alt} />
+}
+
 function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibrary, recordSelfMark, retryAiMarking, initialSelfMarks, onSelfMarksChange }) {
   const safeInitialSelfMarks = initialSelfMarks || EMPTY_SELF_MARKS
   const [selfMarks, setSelfMarks] = useState(() => safeInitialSelfMarks)
@@ -3833,7 +4014,7 @@ function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibr
         <section className="ai-review-summary">
           <header><span className="ai-review-icon"><Sparkles size={19} /></span><div><p className="section-label">Process review</p><h2>{assisted.overallLabel}</h2><p>Objective typed answers use deterministic checks. Handwriting marks are AI-assisted suggestions with confidence and review status, not an official Cambridge decision.</p></div><div className="confidence-meter"><span>Confidence</span><strong>{Math.round(assisted.confidence * 100)}%</strong></div></header>
           <div className="ai-review-grid"><div><span className="review-label secure">What worked</span>{assisted.strengths.length ? <ul>{assisted.strengths.slice(0, 3).map((item) => <li key={item}>{item}</li>)}</ul> : <p>No secure evidence yet.</p>}</div><div><span className="review-label gap">Marks still available</span>{assisted.gaps.length ? <ul>{assisted.gaps.slice(0, 3).map((item) => <li key={item}>{item}</li>)}</ul> : <p>No missing mark points detected.</p>}</div><div><span className="review-label next">Do this next</span><p>{assisted.nextStep}</p>{assisted.suggestedRetest.recommended && <button type="button" className="text-action" onClick={() => startPractice(unit, { clearDraft: true, retestOf: attempt.id })}>Build focused retest <ChevronRight size={15} /></button>}</div></div>
-          {attempt.imageEvidence?.length > 0 && <div className="image-evidence-review"><div><strong>Handwritten responses</strong><span>{attempt.imageEvidence.length} response image{attempt.imageEvidence.length === 1 ? '' : 's'} saved with this attempt. Configured vision results are shown beside each question below.</span></div>{attempt.imageEvidence.map((evidence) => <figure key={evidence.partId}><img src={evidence.dataUrl} alt={`Handwritten response for part ${evidence.partId}`} /><figcaption>Part {unit.parts.find((part) => part.id === evidence.partId)?.label || evidence.partId}</figcaption></figure>)}</div>}
+          {attempt.imageEvidence?.length > 0 && <div className="image-evidence-review"><div><strong>Handwritten responses</strong><span>{attempt.imageEvidence.length} response image{attempt.imageEvidence.length === 1 ? '' : 's'} saved with this attempt. Configured vision results are shown beside each question below.</span></div>{attempt.imageEvidence.map((evidence) => <figure key={evidence.partId}><SavedEvidencePreview evidence={evidence} alt={`Handwritten response for part ${evidence.partId}`} /><figcaption>Part {unit.parts.find((part) => part.id === evidence.partId)?.label || evidence.partId}</figcaption></figure>)}</div>}
         </section>
       )}
       {hasSavedHandwriting && !hasAiReview && <section className="handwriting-self-mark-note"><strong>Handwritten responses saved</strong><span>{unit.parts.some((part) => part.aiAssistedMarkingAvailable) ? 'Your handwriting is attached to this attempt. Retry automatic AI marking when the service is available.' : 'Your handwriting is attached to this attempt. Compare it with the paired official mark scheme and record your self-mark.'}</span></section>}

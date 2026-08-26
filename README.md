@@ -65,6 +65,8 @@ node scripts/verify-stem-release.mjs --release-root D:\path\to\release --pdf-lib
 
 The verifier runs source-content and governed-PDF audits from the release root. It fails if private source assets, catalog, source manifest, source identity, the governed PDF library, checksums, PDF structure, source policy, withdrawal state, duplicate relationship or QP/MS association are absent or stale. The PDF library is not copied into Git; production must mount or configure the same approved private library explicitly.
 
+The release gate also rejects any physical PDF/archive inside a release, rejects an `assets-dir` that overlaps the PDF library, rejects nested asset symlinks, and caps physical release size at 1 GiB (`dist` at 512 MiB). Shared production links are allowed because the size and file checks do not follow release-internal symlinks.
+
 Run the paper-governance audit before a content release:
 
 ```powershell

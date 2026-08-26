@@ -8,6 +8,7 @@ export const GUEST_STORAGE_CLAIM_KEY = `${STORAGE_KEY}:guest-claim`
 const MAX_SYNC_QUEUE = 50
 const MAX_COMPLETED_SYNC_KEYS = 100
 const DEFAULT_ROUTE_ID = 'cie-9702-as-physics'
+const LOCAL_BINARY_KEYS = new Set(['dataurl', 'inkdataurl', 'previewurl', 'bloburl', 'blob'])
 
 const fallbackState = {
   profile: { role: 'student', learningTrack: 'AS', activeRouteId: DEFAULT_ROUTE_ID, recentRouteIds: [DEFAULT_ROUTE_ID], learnerName: '', schoolName: '', targetGrade: 'A', examBoard: 'Cambridge International', weeklyQuestions: 18, deadline: '2026-10-15', preferredMode: 'Topics' },
@@ -51,6 +52,33 @@ function sanitizePaperReviews(value) {
 
 function canUseStorage() {
   return typeof window !== 'undefined' && Boolean(window.localStorage)
+}
+
+function compactLocalValue(value, key = '', depth = 0) {
+  const normalizedKey = String(key || '').replace(/[^a-z]/gi, '').toLowerCase()
+  if (LOCAL_BINARY_KEYS.has(normalizedKey)) return undefined
+  if (value == null || typeof value === 'boolean' || typeof value === 'number') return value
+  if (typeof value === 'string') {
+    const text = value.replaceAll(String.fromCharCode(0), '').trim()
+    if (/^(?:data:[^,]*;base64,|blob:)/i.test(text)) return undefined
+    return text.slice(0, 20_000)
+  }
+  if (depth >= 8 || typeof value !== 'object') return undefined
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => compactLocalValue(item, '', depth + 1))
+      .filter((item) => item !== undefined)
+  }
+  const result = {}
+  for (const [childKey, childValue] of Object.entries(value)) {
+    const compact = compactLocalValue(childValue, childKey, depth + 1)
+    if (compact !== undefined) result[childKey] = compact
+  }
+  return result
+}
+
+export function compactStateForLocalStorage(state) {
+  return compactLocalValue(state) || {}
 }
 
 export function storageKeyForUser(userId = '', storage = canUseStorage() ? window.localStorage : null) {
@@ -351,7 +379,30 @@ export function saveState(nextState, { replaceSyncQueue = false, units, userId =
   // UI state is saved frequently. Merge server receipts and completion
   // tombstones so a stale React render cannot resurrect a completed upload.
   if (!replaceSyncQueue) next = mergeStoredState(loadState({ ...normalizeOptions, userId }), next)
-  window.localStorage.setItem(storageKeyForUser(userId, window.localStorage), JSON.stringify(next))
+  const storage = window.localStorage
+  const key = storageKeyForUser(userId, storage)
+  const compact = compactStateForLocalStorage(next)
+  try {
+    storage.setItem(key, JSON.stringify(compact))
+  } catch {
+    // Quota errors must not turn an autosave into a fatal render exception.
+    // The next interaction can retry after the browser frees local storage.
+    try {
+      const fallback = compactStateForLocalStorage({
+        profile: next.profile,
+        attempts: (next.attempts || []).slice(-20),
+        paperSessions: (next.paperSessions || []).slice(-20),
+        paperReviews: (next.paperReviews || []).slice(-20),
+        recentPapers: next.recentPapers,
+        recentPractice: next.recentPractice,
+        favoriteUnitIds: next.favoriteUnitIds,
+      })
+      storage.setItem(key, JSON.stringify(fallback))
+    } catch {
+      // Storage can be disabled or full even after compaction. Keep the
+      // current in-memory attempt usable and let a later save retry.
+    }
+  }
 }
 
 function updateStoredState(update, { userId = '' } = {}) {

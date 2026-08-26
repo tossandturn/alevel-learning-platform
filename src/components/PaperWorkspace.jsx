@@ -5,6 +5,7 @@ import { paperQuestionMarkingMetadata } from '../lib/verifiedPracticeCatalog'
 import { deletePaperEvidence, getPaperEvidence, putPaperEvidence } from '../lib/evidenceStorage'
 import { buildSharedMarkingSubmission, completedMarksByQuestion, createSharedMarkingSubmission, loadQuestionAssets, paperSubmissionMarkingSummary, readSharedMarkingAvailability, retrySharedMarkingSubmission, scorePaperMultipleChoice, sharedMarkingIsAvailable, waitForSharedMarkingSubmission } from '../lib/paperMarking'
 import { requestMarkingCapabilities } from '../lib/markingCapabilityClient'
+import { persistStudentAttempt } from '../lib/attemptPersistence'
 import { normalizePaperStudyMode, paperStudyModeLabel } from '../lib/paperStudyMode'
 import { AiCoach } from './AiCoach'
 import { PaperAnswerSheet, SelfMarkSummary } from './PaperAnswerSheet'
@@ -72,8 +73,16 @@ function blobToDataUrl(blob) {
 function cleanAnswers(answers) {
   return Object.fromEntries(Object.entries(answers).map(([questionNumber, answer]) => {
     if (!answer.image) return [questionNumber, answer]
-    const { previewUrl: _previewUrl, dataUrl: _dataUrl, ...image } = answer.image
+    const { previewUrl: _previewUrl, dataUrl: _dataUrl, blobUrl: _blobUrl, ...image } = answer.image
     return [questionNumber, { ...answer, image }]
+  }))
+}
+
+function cleanPdfInkByPage(pdfInkByPage) {
+  return Object.fromEntries(Object.entries(pdfInkByPage || {}).map(([pageNumber, ink]) => {
+    if (!ink || typeof ink !== 'object') return [pageNumber, ink]
+    const { dataUrl: _dataUrl, inkDataUrl: _inkDataUrl, previewUrl: _previewUrl, blobUrl: _blobUrl, ...metadata } = ink
+    return [pageNumber, metadata]
   }))
 }
 
@@ -245,6 +254,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
   const componentLabel = profile.paperNumber ? `P${profile.paperNumber}` : profile.title || sourcePaper.subject.toUpperCase()
   const studyMode = normalizePaperStudyMode(paper.paperStudyMode || paperDraft?.paperStudyMode)
   const studyModeLabel = paperStudyModeLabel(studyMode)
+  const pdfEvidenceStorageKey = `paper:${attemptId}:${sourcePaper.id}`
   const isTimedSimulation = isAttempt && studyMode === 'exam-simulation'
   const coachAvailable = studyMode === 'past-paper-practice' || submitted
   const timeLimitSec = isTimedSimulation && Number(profile.durationMinutes) > 0 ? Number(profile.durationMinutes) * 60 : 0
@@ -283,7 +293,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
   function persistLatestDraft(overrides = {}) {
     const snapshot = latestDraft.current ? { ...latestDraft.current, ...overrides } : null
     if (!snapshot) return
-    onSaveDraft({ ...snapshot, answers: cleanAnswers(snapshot.answers), updatedAt: new Date().toISOString() })
+    onSaveDraft({ ...snapshot, answers: cleanAnswers(snapshot.answers), pdfInkByPage: cleanPdfInkByPage(snapshot.pdfInkByPage), updatedAt: new Date().toISOString() })
   }
 
   const registerPdfInkFlush = useCallback((pageNumber, flush) => {
@@ -480,12 +490,16 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
   }
 
   function clearPdfInk() {
+    const evidenceIds = Object.values(pdfInkByPageRef.current || {}).flatMap((ink) => [ink?.inkEvidenceId, ink?.imageEvidenceId]).filter(Boolean)
     pdfInkByPageRef.current = {}
     pdfInkQuestionMapRef.current = {}
     lastPdfInkPageRef.current = null
     setPdfInkByPage({})
     setPdfInkQuestionMap({})
     setLastPdfInkPage(null)
+    void Promise.all([...new Set(evidenceIds)].map((id) => deletePaperEvidence(id))).catch(() => {
+      setEvidenceStatus('Some PDF handwriting evidence could not be removed from this device.')
+    })
   }
 
   async function updateImage(questionNumber, file) {
@@ -547,14 +561,20 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
     const inkPage = Object.entries(inkQuestionMap).find(([, questions]) => questions.map(Number).includes(Number(questionNumber)))?.[0]
     const pdfInk = inkPage ? inkByPage[inkPage] : null
     let handwritingImageDataUrl = answer.image?.dataUrl || pdfInk?.inkDataUrl || pdfInk?.dataUrl || ''
+    const storedEvidenceId = answer.image?.id || pdfInk?.imageEvidenceId || ''
     if (!handwritingImageDataUrl && answer.image?.id) {
       const stored = await getPaperEvidence(answer.image.id)
+      if (stored?.blob) handwritingImageDataUrl = await blobToDataUrl(stored.blob)
+    }
+    if (!handwritingImageDataUrl && pdfInk?.imageEvidenceId) {
+      const stored = await getPaperEvidence(pdfInk.imageEvidenceId)
       if (stored?.blob) handwritingImageDataUrl = await blobToDataUrl(stored.blob)
     }
     if (!handwritingImageDataUrl && answer.image?.previewUrl) {
       const response = await fetch(answer.image.previewUrl)
       handwritingImageDataUrl = await blobToDataUrl(await response.blob())
     }
+    if (storedEvidenceId && !handwritingImageDataUrl) throw Object.assign(new Error('The saved handwriting image is unavailable.'), { code: 'evidence_unavailable' })
     return {
       questionNumber,
       questionMetadata,
@@ -742,6 +762,52 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
     ])].filter(Number.isFinite)
     const submittedAnsweredCount = Array.from({ length: questionCount }, (_, index) => index + 1)
       .filter((questionNumber) => hasResponse(profile, snapshot[questionNumber]) || submittedQuestionNumbers.includes(questionNumber)).length
+    if (sharedIdentityToken) {
+      try {
+        const paperRouteId = sharedMarkingContract?.routeId || paper.routeId || sourcePaper.routeId || ''
+        const paperStage = paper.stage || sourcePaper.stage || profile.stages?.[0] || ''
+        const markingParts = Object.values(questionMetadataByNumber).flatMap((metadata) => (metadata.parts || []).flatMap((part) => (
+          part.markingProvenance
+            ? [{ provenance: { routeId: paperRouteId, ...part.markingProvenance } }]
+            : []
+        )))
+        await persistStudentAttempt({
+          token: sharedIdentityToken,
+          attempt: {
+            id: attemptId,
+            attemptId,
+            unitId: `paper:${sourcePaper.id}`,
+            mode: 'full-paper',
+            routeId: paperRouteId,
+            stage: paperStage,
+            paperId: sourcePaper.id,
+            paperStudyMode: studyMode,
+            pairKey: sourcePaper.pairKey,
+            paperRef: { subject: sourcePaper.subject, file: sourcePaper.file, sha256: sourcePaper.sha256, sessionCode: sourcePaper.sessionCode, variant: sourcePaper.variant, questionPaperId: sourcePaper.id, markSchemeId: markScheme?.id || null },
+            profile,
+            questionCount,
+            answeredCount: submittedAnsweredCount,
+            answers: snapshot,
+            pdfInkByPage: cleanPdfInkByPage(flushed.pdfInkByPage),
+            pdfInkQuestionMap: inkQuestionMap,
+            elapsedSec,
+            notes,
+            submittedAt,
+            timeUp: submittedByTimer || timeUp,
+            attemptStatus: 'marking-pending',
+          },
+          mode: 'full-paper',
+          routeId: paperRouteId,
+          stage: paperStage,
+          paperId: sourcePaper.id,
+          markingParts,
+        })
+      } catch (error) {
+        submitInProgressRef.current = false
+        setEvidenceStatus(error.message || 'The submitted paper could not be saved on the server. Try again.')
+        return
+      }
+    }
     setSubmitted(true)
     setShowSubmitCheck(false)
     if (markScheme) {
@@ -762,7 +828,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
       questionCount,
       answeredCount: submittedAnsweredCount,
       answers: snapshot,
-      pdfInkByPage: flushed.pdfInkByPage,
+      pdfInkByPage: cleanPdfInkByPage(flushed.pdfInkByPage),
       pdfInkQuestionMap: inkQuestionMap,
       elapsedSec,
       notes,
@@ -795,7 +861,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
       setAiMarks((current) => ({ ...current, ...Object.fromEntries(submittedQuestionNumbers.map((questionNumber) => [questionNumber, questionMetadataByNumber[questionNumber]?.reviewStatus === 'reviewed' ? { status: 'checking_availability' } : { status: 'missing_metadata', code: 'question_metadata_missing' }])) }))
     }
     if (profile.mode === 'mcq' && Object.keys(nextSelfMarks).some((number) => submittedQuestionNumbers.includes(Number(number)))) {
-      finishReview({
+      await finishReview({
         selfMarks: nextSelfMarks,
         maxMarksByQuestion: nextMaxMarksByQuestion,
         responseQuestionNumbers: submittedQuestionNumbers,
@@ -808,7 +874,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
 
   submitPaperRef.current = submitPaper
 
-  function finishReview(overrides = {}) {
+  async function finishReview(overrides = {}) {
     const marksByQuestion = overrides.selfMarks || selfMarks
     const maxMarksByQuestionForReview = overrides.maxMarksByQuestion || maxMarksByQuestion
     const responseNumbers = overrides.responseQuestionNumbers || responseQuestionNumbers
@@ -847,6 +913,59 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
       unansweredQuestionNumbers,
     })
     if (lastSavedReview?.signature === signature) return
+    if (sharedIdentityToken) {
+      try {
+        const paperRouteId = sharedMarkingContract?.routeId || paper.routeId || sourcePaper.routeId || ''
+        const paperStage = paper.stage || sourcePaper.stage || profile.stages?.[0] || ''
+        const markingParts = Object.values(questionMetadataByNumber).flatMap((metadata) => (metadata.parts || []).flatMap((part) => (
+          part.markingProvenance
+            ? [{ provenance: { routeId: paperRouteId, ...part.markingProvenance } }]
+            : []
+        )))
+        await persistStudentAttempt({
+          token: sharedIdentityToken,
+          attempt: {
+            id: attemptId,
+            attemptId,
+            unitId: `paper:${sourcePaper.id}`,
+            mode: 'full-paper',
+            routeId: paperRouteId,
+            stage: paperStage,
+            paperId: sourcePaper.id,
+            paperStudyMode: studyMode,
+            pairKey: sourcePaper.pairKey,
+            paperRef: { subject: sourcePaper.subject, file: sourcePaper.file, sha256: sourcePaper.sha256, sessionCode: sourcePaper.sessionCode, variant: sourcePaper.variant, questionPaperId: sourcePaper.id, markSchemeId: markScheme?.id || null },
+            profile,
+            questionCount,
+            answeredCount: responseNumbers.length,
+            answers: cleanAnswers(answers),
+            pdfInkByPage: cleanPdfInkByPage(pdfInkByPageRef.current),
+            pdfInkQuestionMap: pdfInkQuestionMapRef.current,
+            elapsedSec,
+            notes,
+            submittedAt: review.reviewedAt,
+            attemptStatus: review.partial ? 'provisional-result' : 'result',
+            selfMarks: marksByQuestion,
+            maxMarksByQuestion: maxMarksByQuestionForReview,
+            aiMarks,
+            scoreResult: {
+              rawMarks: review.rawMarks,
+              maxMarks: review.maxMarks,
+              percentage: review.maxMarks > 0 ? Math.round((review.rawMarks / review.maxMarks) * 100) : 0,
+              partial: review.partial,
+            },
+          },
+          mode: 'full-paper',
+          routeId: paperRouteId,
+          stage: paperStage,
+          paperId: sourcePaper.id,
+          markingParts,
+        })
+      } catch (error) {
+        setEvidenceStatus(error.message || 'The result could not be saved on the server. Try again.')
+        return
+      }
+    }
     setLastSavedReview({ savedAt: review.reviewedAt, rawMarks: review.rawMarks, maxMarks: review.maxMarks, signature })
     onFinishReview(review)
   }
@@ -893,8 +1012,8 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
         <div id="paper-document-pane" role="tabpanel" className={`pdf-stage ${documentMode === 'compare' ? 'pdf-stage-compare' : ''} ${mobilePane !== 'paper' ? 'mobile-pane-hidden' : ''}`}>
           <Suspense fallback={<PdfViewerLoading />}>
             {documentMode === 'compare'
-              ? <div className="pdf-compare"><section><header>Question paper</header><PdfViewer file={questionPaper} annotate={isAttempt && Object.keys(pdfInkByPage).length > 0} readOnly inkByPage={pdfInkByPage} /></section><section><header>Mark scheme</header><PdfViewer file={markScheme} /></section></div>
-              : <PdfViewer file={displayPaper || paper} annotate={isAttempt && documentMode === 'question' && pdfWritingEnabled} inkByPage={pdfInkByPage} inkTool={pdfInkTool} questionNumber={focusedQuestion} onInkChange={updatePdfInk} registerInkFlush={registerPdfInkFlush} />}
+              ? <div className="pdf-compare"><section><header>Question paper</header><PdfViewer file={questionPaper} annotate={isAttempt && Object.keys(pdfInkByPage).length > 0} readOnly inkByPage={pdfInkByPage} evidenceStorageKey={pdfEvidenceStorageKey} /></section><section><header>Mark scheme</header><PdfViewer file={markScheme} /></section></div>
+              : <PdfViewer file={displayPaper || paper} annotate={isAttempt && documentMode === 'question' && pdfWritingEnabled} inkByPage={pdfInkByPage} inkTool={pdfInkTool} questionNumber={focusedQuestion} evidenceStorageKey={pdfEvidenceStorageKey} onInkChange={updatePdfInk} registerInkFlush={registerPdfInkFlush} />}
           </Suspense>
         </div>
         {isAttempt && <div

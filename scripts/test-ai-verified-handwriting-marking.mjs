@@ -23,6 +23,20 @@ const artifactRoot = path.join(root, 'artifacts')
 const paperId = 'cie-9702-9702_m21_qp_42'
 const questionFile = '9702_m21_qp_42.pdf'
 const markSchemeFile = '9702_m21_ms_42.pdf'
+let providerAssessment = {
+  rawMarks: 2,
+  maxMarks: 99,
+  confidence: 0.94,
+  reviewRequired: false,
+  summary: 'Marked from the verified local source pages.',
+  markPoints: [{
+    id: 'M1',
+    awarded: true,
+    marks: 2,
+    reason: 'The stated principle matches the paired mark scheme.',
+    studentEvidence: 'The principle is stated in the typed response.',
+  }],
+}
 
 function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex')
@@ -205,14 +219,7 @@ const providerServer = http.createServer(async (request, response) => {
   response.end(JSON.stringify({
     choices: [{
       message: {
-        content: JSON.stringify({
-          rawMarks: 2,
-          maxMarks: 99,
-          confidence: 0.94,
-          reviewRequired: false,
-          summary: 'Marked from the verified local source pages.',
-          markPoints: [],
-        }),
+        content: JSON.stringify(providerAssessment),
       },
     }],
   }))
@@ -247,6 +254,25 @@ const request = {
 }
 
 try {
+  const persistedAttempt = await post(appBase, '/api/stem/attempts', {
+    attemptId: request.attemptId,
+    mode: request.mode,
+    routeId: question.routeId,
+    stage: question.stage,
+    paperId: request.paperId,
+    submittedAt: new Date().toISOString(),
+    markingParts: [{ provenance: request.provenance }],
+    attempt: {
+      id: request.attemptId,
+      unitId: 'ai-verified-coordinate-unit',
+      attemptStatus: 'marking-pending',
+      answers: { [part.id]: request.typedResponse },
+      evidence: { [part.id]: { dataUrl: 'data:image/png;base64,fixture-only' } },
+    },
+  }, token)
+  assert.equal(persistedAttempt.response.status, 201, persistedAttempt.payload.error)
+  assert.doesNotMatch(JSON.stringify(persistedAttempt.payload), /data:image/i, 'attempt persistence must strip handwriting data URLs')
+
   const capability = await post(appBase, '/api/stem/marking/capabilities', {
     attemptId: request.attemptId,
     mode: request.mode,
@@ -271,6 +297,78 @@ try {
   ])
   assert.deepEqual(images.context.officialSourceImages.map((image) => image.sha256), [questionPageImageSha256, markSchemePageImageSha256])
   assert.equal(images.images.length, 2, 'typed marking must send the QP and MS page images without a fabricated student image')
+
+  providerAssessment = {
+    rawMarks: 1,
+    maxMarks: 99,
+    confidence: 0.94,
+    reviewRequired: true,
+    summary: 'The evidence is readable but still needs a review pass.',
+    markPoints: [{
+      id: 'M1',
+      awarded: true,
+      marks: 1,
+      reason: 'The principle is present, but the handwriting needs a human check.',
+      studentEvidence: 'The principle is stated in the typed response.',
+    }],
+  }
+  const reviewRequiredResult = await post(appBase, '/api/ai/mark-handwriting', { ...request, markingGrant }, token)
+  assert.equal(reviewRequiredResult.response.status, 200, 'a schema-valid review-required assessment may be returned as provisional')
+  assert.equal(reviewRequiredResult.payload.autoFinal, false, 'reviewRequired must prevent an automatic final result')
+  assert.equal(reviewRequiredResult.payload.humanReviewRequired, true)
+  assert.equal(reviewRequiredResult.payload.rawMarks, 1)
+
+  providerAssessment = {
+    rawMarks: 0,
+    maxMarks: 99,
+    confidence: 0.94,
+    reviewRequired: false,
+    summary: 'Malformed mark point types.',
+    markPoints: [{
+      id: 'M1',
+      awarded: 'false',
+      marks: 1.5,
+      reason: 'Invalid provider types.',
+      studentEvidence: 'Invalid provider evidence.',
+    }],
+  }
+  const callsBeforeInvalidMarkPoint = providerCalls.length
+  const invalidMarkPoint = await post(appBase, '/api/ai/mark-handwriting', { ...request, markingGrant }, token)
+  assert.equal(invalidMarkPoint.response.status, 422, 'invalid mark point types must fail closed')
+  assert.equal(invalidMarkPoint.payload.code, 'ai_assessment_schema_invalid')
+  assert.equal(providerCalls.length, callsBeforeInvalidMarkPoint + 1)
+
+  providerAssessment = {
+    maxMarks: 99,
+    confidence: 0.94,
+    reviewRequired: false,
+    summary: 'Malformed assessment without rawMarks.',
+    markPoints: [],
+  }
+  const callsBeforeMalformedAssessment = providerCalls.length
+  const malformedAssessment = await post(appBase, '/api/ai/mark-handwriting', { ...request, markingGrant }, token)
+  assert.equal(malformedAssessment.response.status, 422, 'a malformed provider assessment must fail closed')
+  assert.equal(malformedAssessment.payload.code, 'ai_assessment_schema_invalid')
+  assert.equal(malformedAssessment.payload.providerStatus, 'invalid_schema')
+  assert.equal(malformedAssessment.payload.reviewRequired, true)
+  assert.equal(providerCalls.length, callsBeforeMalformedAssessment + 1, 'the malformed assessment regression must exercise the provider boundary')
+  assert.equal(Object.hasOwn(malformedAssessment.payload, 'rawMarks'), false, 'a malformed assessment must not expose a fabricated score')
+  assert.equal(Object.hasOwn(malformedAssessment.payload, 'maxMarks'), false, 'a malformed assessment must not expose a score maximum')
+  assert.equal(Object.hasOwn(malformedAssessment.payload, 'markPoints'), false, 'a malformed assessment must not expose fabricated criteria')
+  assert.equal(Object.hasOwn(malformedAssessment.payload, 'autoFinal'), false, 'a malformed assessment must not look like a completed marking result')
+
+  providerAssessment = {
+    rawMarks: null,
+    maxMarks: 99,
+    confidence: 0.94,
+    reviewRequired: false,
+    summary: 'Malformed null rawMarks.',
+    markPoints: [],
+  }
+  const nullMarks = await post(appBase, '/api/ai/mark-handwriting', { ...request, markingGrant }, token)
+  assert.equal(nullMarks.response.status, 422, 'null rawMarks must not be coerced into a zero score')
+  assert.equal(nullMarks.payload.code, 'ai_assessment_schema_invalid')
+  assert.equal(Object.hasOwn(nullMarks.payload, 'rawMarks'), false)
 
   fs.appendFileSync(questionPdfPath, '\n% tampered fixture\n', 'utf8')
   const callsBeforeTamper = providerCalls.length

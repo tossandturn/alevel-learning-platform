@@ -6,6 +6,7 @@ import { formatRouteComponents } from '../data/routeRegistry'
 import { isPaperAvailableToStudents } from '../lib/paperGovernance'
 import { filterDefaults, paperFilterStorageKey, readPaperFilters, restorePaperFilters, writePaperFilters } from '../lib/paperFilters'
 import { paperItemMatchesActiveRoute } from '../lib/paperRouteEligibility'
+import { sortPaperLibraryItems } from '../lib/paperOrdering'
 
 const PAGE_SIZE = 20
 const EMPTY_ITEMS = []
@@ -125,7 +126,7 @@ export function PaperLibrary({ catalogState, initialSubject = 'all', activeRoute
   }, [activeRoute, filters.subject, items])
   const filtered = useMemo(() => {
     const query = filters.query.trim().toLowerCase()
-    return items.filter((item) => {
+    return sortPaperLibraryItems(items.filter((item) => {
       const isSeriesDocument = !item.variant && ['er', 'gt'].includes(item.kind)
       const searchText = `${studentPaperCode(item)} ${item.file} ${item.subject} ${item.year} ${item.season} ${item.variant}`.toLowerCase()
       const matchesQuery = !query || query.split(/\s+/).every((term) => searchText.includes(term))
@@ -140,7 +141,7 @@ export function PaperLibrary({ catalogState, initialSubject = 'all', activeRoute
         && (filters.kind === 'all' || item.kind === filters.kind)
         && matchesQuery
       )
-    })
+    }))
   }, [activeRoute, filters, items])
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))

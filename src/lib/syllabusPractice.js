@@ -347,6 +347,7 @@ function effectiveQuestionRecords(questionBank, config = SYLLABUS_CONFIGS[CAMBRI
     const sourceBackedStudy = Boolean(
       suppliedByCurrentBank
       && !reviewed
+      && question.studentStudyEligible !== false
       && mapping?.topicIds?.length
       && (isHumanReviewedPastPaperItem(question) || isStudyOnlyPastPaperItem(question)),
     )
@@ -381,7 +382,7 @@ function effectiveQuestionRecords(questionBank, config = SYLLABUS_CONFIGS[CAMBRI
   })
 }
 
-function topicRowsForRoute(routeId, questionBank) {
+function topicRowsForRoute(routeId, questionBank, { includeStudyOnly = true } = {}) {
   const config = syllabusConfig(routeId)
   if (!config) {
     const route = routeById(routeId)
@@ -411,7 +412,7 @@ function topicRowsForRoute(routeId, questionBank) {
     const topicRecords = records.filter((record) => record.mapping.topicIds?.includes(topic.id))
     const eligible = topicRecords.filter((record) => record.eligible)
     const verifiedQuestionCount = eligible.length
-    const studyQuestionCount = topicRecords.filter((record) => record.studyEligible).length
+    const studyQuestionCount = includeStudyOnly ? topicRecords.filter((record) => record.studyEligible).length : 0
     const availableQuestionCount = verifiedQuestionCount + studyQuestionCount
     const questionIdsByComponent = Object.fromEntries(config.components.map((component) => {
       const componentRecords = topicRecords.filter((record) => record.paperComponent === component)
@@ -419,7 +420,7 @@ function topicRowsForRoute(routeId, questionBank) {
       return [component, {
         indexedQuestionIds: componentIds(() => true),
         verifiedQuestionIds: componentIds((record) => record.eligible),
-        studyQuestionIds: componentIds((record) => record.studyEligible),
+        studyQuestionIds: componentIds((record) => includeStudyOnly && record.studyEligible),
         pendingReviewQuestionIds: componentIds((record) => !record.eligible),
       }]
     }))
@@ -458,7 +459,7 @@ function topicRowsForRoute(routeId, questionBank) {
   })
 }
 
-export function syllabusTopicsInventory({ routeId, questionBank = unifiedQuestionBank } = {}) {
+export function syllabusTopicsInventory({ routeId, questionBank = unifiedQuestionBank, includeStudyOnly = true } = {}) {
   const route = routeById(routeId)
   if (!route) {
     const error = new Error('routeId is not registered.')
@@ -467,7 +468,7 @@ export function syllabusTopicsInventory({ routeId, questionBank = unifiedQuestio
     throw error
   }
   const config = syllabusConfig(routeId)
-  const topics = topicRowsForRoute(routeId, questionBank)
+  const topics = topicRowsForRoute(routeId, questionBank, { includeStudyOnly })
   const firstBatchPapers = config ? officialFirstBatchPapers(config) : []
   const effectiveRecords = config ? effectiveQuestionRecords(questionBank, config) : []
   return {
@@ -1162,7 +1163,7 @@ export function seedSyllabusTables(database, questionBank = []) {
   }
 }
 
-export function syllabusDatabaseInventory(database, routeId) {
+export function syllabusDatabaseInventory(database, routeId, { includeStudyOnly = true } = {}) {
   const config = syllabusConfig(routeId)
   const components = config?.components?.length ? config.components : [1, 2]
   const componentPlaceholders = components.map(() => '?').join(', ')
@@ -1212,7 +1213,7 @@ export function syllabusDatabaseInventory(database, routeId) {
   `).all(...components, routeId)
   return topics.map((topic) => {
     const verifiedQuestionCount = Number(topic.verifiedQuestionCount) || 0
-    const studyQuestionCount = Number(topic.studyQuestionCount) || 0
+    const studyQuestionCount = includeStudyOnly ? Number(topic.studyQuestionCount) || 0 : 0
     const availableQuestionCount = verifiedQuestionCount + studyQuestionCount
     const indexedQuestionCount = Number(topic.indexedQuestionCount) || 0
     const pendingReviewCount = Number(topic.pendingReviewCount) || 0

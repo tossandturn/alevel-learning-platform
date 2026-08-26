@@ -797,6 +797,31 @@ export function parseStructuredJson(value) {
   return JSON.parse(source.slice(start, end + 1))
 }
 
+function validateMarkAssessment(value, requestedMaxMarks) {
+  const maxMarks = Math.max(1, Math.round(Number(requestedMaxMarks) || 1))
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('AI assessment must be an object.')
+  if (!Object.hasOwn(value, 'rawMarks') || typeof value.rawMarks !== 'number' || !Number.isFinite(value.rawMarks) || !Number.isInteger(value.rawMarks)) throw new Error('AI assessment rawMarks is missing or invalid.')
+  if (Number(value.rawMarks) < 0 || Number(value.rawMarks) > maxMarks) throw new Error('AI assessment rawMarks is outside the requested mark range.')
+  if (!Object.hasOwn(value, 'confidence') || typeof value.confidence !== 'number' || !Number.isFinite(value.confidence) || value.confidence < 0 || value.confidence > 1) throw new Error('AI assessment confidence is missing or invalid.')
+  if (typeof value.reviewRequired !== 'boolean') throw new Error('AI assessment reviewRequired is missing or invalid.')
+  if (!Array.isArray(value.markPoints) || !value.markPoints.length) throw new Error('AI assessment markPoints are missing or invalid.')
+  const pointIds = new Set()
+  let totalMarks = 0
+  for (const point of value.markPoints) {
+    if (!point || typeof point !== 'object' || Array.isArray(point)) throw new Error('AI assessment mark point is invalid.')
+    if (typeof point.id !== 'string' || !point.id.trim() || pointIds.has(point.id.trim())) throw new Error('AI assessment mark point ID is missing or duplicated.')
+    if (typeof point.awarded !== 'boolean') throw new Error('AI assessment mark point awarded must be boolean.')
+    if (typeof point.marks !== 'number' || !Number.isFinite(point.marks) || !Number.isInteger(point.marks) || point.marks < 0 || point.marks > maxMarks) throw new Error('AI assessment mark point marks are invalid.')
+    if ((!point.awarded && point.marks !== 0) || (point.awarded && point.marks <= 0)) throw new Error('AI assessment mark point awarded state conflicts with marks.')
+    if (typeof point.reason !== 'string' || !point.reason.trim()) throw new Error('AI assessment mark point rationale is missing.')
+    if (typeof point.studentEvidence !== 'string' || !point.studentEvidence.trim()) throw new Error('AI assessment mark point student evidence is missing.')
+    pointIds.add(point.id.trim())
+    totalMarks += point.marks
+  }
+  if (totalMarks !== value.rawMarks) throw new Error('AI assessment mark points do not reconcile with rawMarks.')
+  return value
+}
+
 export function normalizeMarkResult(value, requestedMaxMarks) {
   const maxMarks = Math.max(1, Math.round(Number(requestedMaxMarks) || 1))
   const rawMarks = Math.min(maxMarks, Math.max(0, Math.round(Number(value.rawMarks) || 0)))
@@ -911,6 +936,9 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
       canEscalate: true,
     })
   }
+  if (!authenticatedStemUser(request, env)) {
+    throw Object.assign(new Error('Sign in to STEM before using detailed AI Coach.'), { statusCode: 401 })
+  }
   const configuredProvider = hasImages ? visionProvider : provider
   const activeProviders = providerCandidates(configuredProvider)
   if (!activeProviders.length) return sendJson(response, 200, { mode: 'offline', providerStatus: 'not_configured', answer: localAnswer, warning: 'AI Coach provider is not configured on this server. This is an offline hint, not an AI review.' })
@@ -1021,6 +1049,9 @@ async function handleCoachStream(request, response, provider, visionProvider, li
   const imageDataUrls = coachImageDataUrls(payload)
   const hasImages = imageDataUrls.length > 0
   if (!message && !hasImages) throw Object.assign(new Error('Ask a question or attach an image.'), { statusCode: 400 })
+  if (!shouldUseLocalCoachFirst({ message, hasImages, hintLevel }) && !authenticatedStemUser(request, env)) {
+    throw Object.assign(new Error('Sign in to STEM before using detailed AI Coach.'), { statusCode: 401 })
+  }
 
   response.statusCode = 200
   response.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
@@ -1042,7 +1073,6 @@ async function handleCoachStream(request, response, provider, visionProvider, li
     response.end()
     return
   }
-
   const configuredProvider = hasImages ? visionProvider : provider
   const activeProviders = providerCandidates(configuredProvider)
   if (!activeProviders.length) {
@@ -1231,14 +1261,39 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
       // Providers accept the OpenAI-compatible image message, but some reject
       // response_format. The prompt still requires JSON and the parser validates it.
       const raw = await callCompatibleAi(activeProvider, { messages: [{ role: 'system', content: system }, { role: 'user', content }], temperature: 0.05 })
-      const result = normalizeMarkResult(parseStructuredJson(raw), requestedMaxMarks)
-      return sendJson(response, 200, { mode: 'vision', provider: activeProvider.name, providerStatus: 'connected', model: activeProvider.model, autoFinal: canonical.autoFinal, ...result })
+      const assessment = validateMarkAssessment(parseStructuredJson(raw), requestedMaxMarks)
+      const result = normalizeMarkResult(assessment, requestedMaxMarks)
+      const autoFinal = canonical.autoFinal && result.reviewRequired === false && result.confidence >= 0.7
+      return sendJson(response, 200, {
+        mode: 'vision',
+        provider: activeProvider.name,
+        providerStatus: 'connected',
+        model: activeProvider.model,
+        autoFinal,
+        humanReviewRequired: result.reviewRequired,
+        score: result.rawMarks,
+        maxScore: result.maxMarks,
+        criteria: result.markPoints,
+        evidence: result.markPoints.map((point) => point.studentEvidence),
+        rationale: result.summary,
+        ...result,
+      })
     } catch (error) {
       lastError = error
     } finally {
       studentImage?.cleanup()
       sourceImages.forEach((image) => image.cleanup())
     }
+  }
+  if (/^AI assessment /.test(String(lastError?.message || ''))) {
+    return sendJson(response, 422, {
+      code: 'ai_assessment_schema_invalid',
+      provider: lastAttemptedProvider.name,
+      providerStatus: 'invalid_schema',
+      error: 'The AI marking response could not be validated. Your answer remains saved for review or retry.',
+      reviewRequired: true,
+      retryable: true,
+    })
   }
   console.error(`[${lastAttemptedProvider.name}-vision] ${providerMessage(lastError, lastAttemptedProvider)}`)
   return sendJson(response, 200, { mode: 'offline', code: 'vision_review_failed', provider: lastAttemptedProvider.name, providerStatus: 'error', error: providerMessage(lastError, lastAttemptedProvider), retryable: true })
