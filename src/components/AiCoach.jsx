@@ -13,6 +13,7 @@ import {
   serializeCoachConversation,
 } from '../lib/coachHistory'
 import { parseCoachMessage } from '../lib/coachMessage'
+import { createCoachStreamParser } from '../lib/coachStream'
 import { MIN_VERIFIED_GROUPS_FOR_PRACTICE } from '../lib/practiceConstants'
 import { sharedAccountRequest } from '../lib/sharedAccount'
 import {
@@ -600,17 +601,11 @@ export function AiCoach({
         if (!reader) throw new Error('AI Coach returned no stream body.')
         const decoder = new TextDecoder()
         let buffer = ''
+        const parseStreamEvent = createCoachStreamParser()
         const consumeEvent = (rawEvent) => {
-          const lines = rawEvent.split(/\r?\n/)
-          const eventName = lines.find((line) => line.startsWith('event:'))?.slice(6).trim() || 'message'
-          const dataLine = lines.find((line) => line.startsWith('data:'))
-          if (!dataLine) return
-          let payload
-          try {
-            payload = JSON.parse(dataLine.slice(5).trim())
-          } catch {
-            return
-          }
+          const parsed = parseStreamEvent(rawEvent)
+          if (!parsed) return
+          const { eventName, payload } = parsed
           if (eventName === 'delta') {
             streamedAnswer += String(payload.text || '')
             updateAssistant({ content: streamedAnswer, mode: 'ai', status: 'streaming', hintLevel: level, warning: retryWarning })

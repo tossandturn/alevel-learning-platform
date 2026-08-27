@@ -6,7 +6,7 @@ import { formatRouteComponents } from '../data/routeRegistry'
 import { isPaperAvailableToStudents } from '../lib/paperGovernance'
 import { filterDefaults, paperFilterStorageKey, readPaperFilters, restorePaperFilters, writePaperFilters } from '../lib/paperFilters'
 import { paperItemMatchesActiveRoute } from '../lib/paperRouteEligibility'
-import { sortPaperLibraryItems } from '../lib/paperOrdering'
+import { sortPaperLibraryItems, sortPaperLibrarySessions } from '../lib/paperOrdering'
 
 const PAGE_SIZE = 20
 const EMPTY_ITEMS = []
@@ -97,8 +97,10 @@ export function PaperLibrary({ catalogState, initialSubject = 'all', activeRoute
     [subjectItems],
   )
   const seasons = useMemo(
-    () => [...new Set(subjectItems.map((item) => item.season).filter(Boolean))]
-      .sort((left, right) => archiveSeasonLabel(filters.subject, left).localeCompare(archiveSeasonLabel(filters.subject, right))),
+    () => sortPaperLibrarySessions(
+      [...new Set(subjectItems.map((item) => item.season).filter(Boolean))],
+      (season) => archiveSeasonLabel(filters.subject, season),
+    ),
     [filters.subject, subjectItems],
   )
   const stageOptions = getStageOptions(filters.subject)

@@ -50,11 +50,19 @@ function buildArchiveDist(releaseRoot) {
   }
   const result = spawnSync(process.execPath, [viteBin, 'build', '--config', path.join(releaseRoot, 'vite.config.js')], {
     cwd: releaseRoot,
-    env: { ...process.env },
+    env: { ...process.env, STEM_BUILD_COMMIT: archiveCommit },
     encoding: 'utf8',
     maxBuffer: 32 * 1024 * 1024,
   })
   assert.equal(result.status, 0, `git archive production build must pass:\n${result.stdout}\n${result.stderr}`)
+  const buildIdentityPath = path.join(releaseRoot, 'dist', 'build-identity.json')
+  const expectedBuildIdentity = { schemaVersion: 'stem-build-identity.v1', commit: archiveCommit, sourceState: 'clean' }
+  assert.ok(fs.existsSync(buildIdentityPath), 'the Vite build identity plugin must emit dist/build-identity.json')
+  assert.deepEqual(
+    JSON.parse(fs.readFileSync(buildIdentityPath, 'utf8')),
+    expectedBuildIdentity,
+    'git archive build identity must bind the dist output to the archived commit',
+  )
   if (fs.lstatSync(archiveNodeModules).isSymbolicLink()) {
     fs.unlinkSync(archiveNodeModules)
     fs.mkdirSync(archiveNodeModules, { recursive: true })
@@ -82,7 +90,7 @@ function runDirectAudit(label, releaseRoot, args = []) {
 }
 
 function runReleaseVerification(releaseRoot) {
-  const releaseId = `test-${archiveCommit.slice(0, 7)}`
+  const releaseId = path.basename(releaseRoot)
   const packageSha256 = '0'.repeat(64)
   const assetRoot = path.join(releaseRoot, 'public', 'question-assets')
   const manifest = spawnSync(process.execPath, [

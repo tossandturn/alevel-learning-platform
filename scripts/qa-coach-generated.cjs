@@ -180,13 +180,13 @@ async function assertCoachScreenshotFlow(page) {
       contentType: 'text/event-stream',
       body: [
         'event: meta',
-        'data: {"mode":"ai"}',
+        'data: {"mode":"ai","providerStatus":"connecting"}',
         '',
         'event: delta',
         `data: ${JSON.stringify({ text: formulaAnswer })}`,
         '',
         'event: done',
-        `data: ${JSON.stringify({ answer: formulaAnswer, mode: 'ai' })}`,
+        `data: ${JSON.stringify({ answer: formulaAnswer, mode: 'ai', providerStatus: 'connected' })}`,
         '',
       ].join('\n'),
     })
@@ -296,7 +296,7 @@ async function assertCoachInterruptedStreamRecovery(page) {
     const body = requestCount === 1
       ? [
           'event: meta',
-          'data: {"mode":"ai"}',
+          'data: {"mode":"ai","providerStatus":"connecting"}',
           '',
           'event: delta',
           'data: {"text":"Partial guidance kept after the stream ended."}',
@@ -304,13 +304,13 @@ async function assertCoachInterruptedStreamRecovery(page) {
         ].join('\n')
       : [
           'event: meta',
-          'data: {"mode":"ai"}',
+          'data: {"mode":"ai","providerStatus":"connecting"}',
           '',
           'event: delta',
           'data: {"text":"Recovered guidance after retry."}',
           '',
           'event: done',
-          'data: {"answer":"Recovered guidance after retry.","mode":"ai"}',
+          'data: {"answer":"Recovered guidance after retry.","mode":"ai","providerStatus":"connected"}',
           '',
         ].join('\n')
     await route.fulfill({ status: 200, contentType: 'text/event-stream', body })
@@ -413,6 +413,12 @@ async function assertRemoteCoachHistoryRecovery(page, recoveryStatus) {
     contentType: 'application/json',
     body: JSON.stringify({ classrooms: [], assignments: [] }),
   }))
+  await page.route('**/api/stem/attempts**', async (route) => {
+    if (route.request().method() !== 'GET') {
+      return route.fulfill({ status: 405, contentType: 'application/json', body: JSON.stringify({ error: 'Unexpected attempt mutation in Coach history fixture.' }) })
+    }
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ attempts: [] }) })
+  })
   await page.route('**/api/stem/notebook/notes**', async (route) => route.fulfill({
     status: 200,
     contentType: 'application/json',
@@ -442,10 +448,10 @@ async function assertRemoteCoachHistoryRecovery(page, recoveryStatus) {
       contentType: 'text/event-stream',
       body: [
         'event: meta',
-        'data: {"mode":"ai"}',
+        'data: {"mode":"ai","providerStatus":"connecting"}',
         '',
         'event: done',
-        'data: {"answer":"Remote history retry completed.","mode":"ai"}',
+        'data: {"answer":"Remote history retry completed.","mode":"ai","providerStatus":"connected"}',
         '',
       ].join('\n'),
     })
@@ -511,6 +517,7 @@ async function assertRemoteCoachHistoryRecovery(page, recoveryStatus) {
     await page.unroute('**/api/ai/coach/stream')
     await page.unroute('**/api/stem/coach/conversations**')
     await page.unroute('**/api/stem/notebook/notes**')
+    await page.unroute('**/api/stem/attempts**')
     await page.unroute('**/api/stem/workspace')
     await page.unroute('**/api/auth/status')
   }
@@ -533,8 +540,10 @@ async function run() {
     const errors = []
     page.on('pageerror', (error) => errors.push(error.stack || error.message))
     page.on('response', (response) => {
-      const expectedGuestIdentity = response.status() === 401 && new URL(response.url()).pathname === '/api/auth/status'
-      if (response.status() >= 400 && !expectedGuestIdentity) errors.push(`${response.status()} ${response.url()}`)
+      const pathname = new URL(response.url()).pathname
+      const expectedGuestIdentity = response.status() === 401 && pathname === '/api/auth/status'
+      const verifiedPracticeRejection = response.status() === 409 && pathname === '/api/stem/practice-sets'
+      if (response.status() >= 400 && !expectedGuestIdentity && !verifiedPracticeRejection) errors.push(`${response.status()} ${response.url()}`)
     })
 
     try {
@@ -602,15 +611,38 @@ async function run() {
         throw new Error(`An unavailable Admissions Coach request must not persist another practice unit: ${JSON.stringify(afterAdmissions.map((unit) => unit.id))}`)
       }
 
+      const igcseMathResponsePromise = page.waitForResponse((response) => (
+        response.request().method() === 'POST'
+        && new URL(response.url()).pathname === '/api/stem/practice-sets'
+      ))
       await sendCoachMessage(page, 'IGCSE Mathematics Number 10 questions')
+      const igcseMathResponse = await igcseMathResponsePromise
+      const igcseMathFailure = await igcseMathResponse.json()
+      if (igcseMathResponse.status() !== 409 || igcseMathFailure.code !== 'insufficient_verified_questions') {
+        throw new Error(`IGCSE Mathematics without practice-ready questions must fail closed: ${JSON.stringify({ status: igcseMathResponse.status(), igcseMathFailure })}`)
+      }
+      await page.locator('.ai-message--assistant').last().waitFor()
+      const unavailableIgcseMathMessage = await page.locator('.ai-message--assistant').last().innerText()
+      if (!/no source-backed study questions|no verified question|source inventory|human source review/i.test(unavailableIgcseMathMessage)) {
+        throw new Error(`IGCSE Mathematics without practice-ready questions returned an unexpected message: ${unavailableIgcseMathMessage}`)
+      }
+      if (await page.getByRole('combobox', { name: 'Current course' }).inputValue() !== 'bpho-admissions-physics') {
+        throw new Error('An unavailable IGCSE Mathematics request must not discard the current Competition route')
+      }
+      const afterIgcseMath = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) || '{}').generatedUnits || [], STORAGE_KEY)
+      if (afterIgcseMath.length !== 1 || afterIgcseMath[0].id !== generatedPhysicsSet.id) {
+        throw new Error(`An unavailable IGCSE Mathematics request must not persist a non-practice-ready unit: ${JSON.stringify(afterIgcseMath.map((unit) => unit.id))}`)
+      }
+
+      await sendCoachMessage(page, 'IGCSE Physics Waves 10 questions')
       await page.waitForSelector('.practice-view')
       const generated = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)).generatedUnits[0], STORAGE_KEY)
-      if (generated.questionGroupCount !== 10) throw new Error(`Coach did not assemble ten source-backed Number question groups: ${JSON.stringify(generated)}`)
+      if (generated.questionGroupCount !== 10) throw new Error(`Coach did not assemble ten reviewed IGCSE Physics Waves question groups: ${JSON.stringify(generated)}`)
       if ((await page.locator('.index-list button').count()) !== generated.questionGroupCount) throw new Error('Coach workspace did not expose one navigation item per selected source question')
       const activeAnswerPartCount = await page.locator('.qp-answer-part').count()
       if (activeAnswerPartCount < 1 || activeAnswerPartCount > generated.parts.length) throw new Error(`Coach workspace rendered an invalid answer-part count for the focused source question: ${activeAnswerPartCount}`)
       if ((await page.locator('.question-block').count()) !== 1) throw new Error('Student workspace must show one focused question')
-      if (!(await page.getByText('Study mode', { exact: true }).count())) throw new Error('Self-mark study status is missing')
+      if (await page.getByText('Study mode', { exact: true }).count()) throw new Error('Reviewed IGCSE Physics questions were incorrectly downgraded to study-only mode')
       await page.getByRole('button', { name: 'Enter focus mode' }).click()
       await page.locator('.qp-player--immersive').waitFor()
       if (!await page.evaluate((key) => JSON.parse(localStorage.getItem(key) || '{}').profile?.immersiveLearning === true, STORAGE_KEY)) {
@@ -624,16 +656,24 @@ async function run() {
         src: image.getAttribute('src') || '',
         decoded: image.complete && image.naturalWidth > 0 && image.naturalHeight > 0,
       }))
-      if (!sourceMetrics.decoded || !/\/question-assets\//.test(sourceMetrics.src)) {
-        throw new Error(`The official source page is not rendered inline and decoded: ${JSON.stringify(sourceMetrics)}`)
+      const renderedPart = generated.parts[0]
+      const sourceRef = renderedPart?.sourceRef || {}
+      const sourceBinding = renderedPart?.sourceBindingProvenance || {}
+      const boundOriginalPdf = /^\/local-pdf\/.+\.pdf$/i.test(sourceRef.localUrl || '')
+        && /^[a-f0-9]{64}$/i.test(sourceRef.sha256 || '')
+        && Number(sourceRef.pageStart || sourceRef.page) > 0
+        && sourceBinding.sourceDocumentSha256 === sourceRef.sha256
+      const controlledSourceImage = /^blob:/.test(sourceMetrics.src) || /\/question-assets\//.test(sourceMetrics.src)
+      if (!sourceMetrics.decoded || !controlledSourceImage || (/^blob:/.test(sourceMetrics.src) && !boundOriginalPdf)) {
+        throw new Error(`The official source page is not rendered from its bound QP and decoded: ${JSON.stringify({ sourceMetrics, boundOriginalPdf })}`)
       }
       if (!generated.parts.length || generated.questionGroupCount !== 10) throw new Error('Generated unit did not preserve the selected ten question groups and their answer parts')
-      if (generated.routeId !== 'cie-0580-igcse-mathematics' || generated.stage !== 'IGCSE') throw new Error(`Competition-to-IGCSE Coach action opened the wrong route: ${JSON.stringify({ routeId: generated.routeId, stage: generated.stage })}`)
-      if (!generated.agentGenerated || generated.topicId !== '0580-igcse-topic-01' || generated.knowledgeGroupId !== '0580-igcse-topic-01') {
+      if (generated.routeId !== 'cie-0625-igcse-physics' || generated.stage !== 'IGCSE') throw new Error(`Competition-to-IGCSE Coach action opened the wrong route: ${JSON.stringify({ routeId: generated.routeId, stage: generated.stage })}`)
+      if (!generated.agentGenerated || generated.topicId !== '0625-igcse-topic-03' || generated.knowledgeGroupId !== '0625-igcse-topic-03') {
         throw new Error(`Coach generated unit lost its canonical route/topic persistence context: ${JSON.stringify({ agentGenerated: generated.agentGenerated, topicId: generated.topicId, knowledgeGroupId: generated.knowledgeGroupId })}`)
       }
-      if (generated.practiceMode !== 'study-only' || !generated.parts.every((part) => part.studyOnly === true && part.aiAssistedMarkingAvailable === false)) {
-        throw new Error('IGCSE Number source-backed questions escaped the self-mark-only review boundary')
+      if (generated.practiceMode !== 'verified' || !generated.parts.every((part) => part.studyOnly !== true && part.aiAssistedMarkingAvailable === true)) {
+        throw new Error('Reviewed IGCSE Physics questions lost their practice-ready marking boundary')
       }
       if (!generated.parts.every((part) => part.sourceKind === 'past-paper' && part.sourceRef?.sha256 && part.answerRef?.sha256)) {
         throw new Error('Every Coach item must preserve independent QP/MS provenance')
@@ -642,7 +682,7 @@ async function run() {
       await page.getByRole('button', { name: /Next/ }).click()
       const secondSource = await page.locator('.question-source-label strong').textContent()
       if (firstSource === secondSource) throw new Error('Next question did not change the focused source item')
-      const screenshot = path.join(ARTIFACT_DIR, 'qa-coach-competition-to-igcse-number.png')
+      const screenshot = path.join(ARTIFACT_DIR, 'qa-coach-competition-to-igcse-waves.png')
       await page.screenshot({ path: screenshot, fullPage: false })
 
       if (await page.locator('.ai-coach-backdrop').count()) {
@@ -665,9 +705,10 @@ async function run() {
         unavailableAsPhysicsTopic: true,
         bphoRoute: 'bpho-admissions-physics',
         bphoPaper: 'BPhO_SPC_2025_QP.pdf',
-        igcseRoute: 'cie-0580-igcse-mathematics',
-        sourceBackedQuestionGroups: generated.questionGroupCount,
-        sourceBackedAnswerParts: generated.parts.length,
+        unavailableIgcseMathRoute: 'cie-0580-igcse-mathematics',
+        igcseRoute: 'cie-0625-igcse-physics',
+        reviewedQuestionGroups: generated.questionGroupCount,
+        reviewedAnswerParts: generated.parts.length,
         practiceMode: generated.practiceMode,
         sourceChanged: true,
         immersivePaperAndTopic: true,

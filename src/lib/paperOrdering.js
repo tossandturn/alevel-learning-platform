@@ -14,6 +14,14 @@ function sessionRank(value) {
   return REVERSE_SESSION_ORDER[String(value || '').trim().toLowerCase()] || 0
 }
 
+export function sortPaperLibrarySessions(sessions = [], labelFor = (value) => String(value || '')) {
+  return [...(Array.isArray(sessions) ? sessions : [])].sort((left, right) => (
+    sessionRank(right) - sessionRank(left)
+      || String(labelFor(left) || '').localeCompare(String(labelFor(right) || ''))
+      || String(left || '').localeCompare(String(right || ''))
+  ))
+}
+
 export function sortPaperLibraryItems(items = []) {
   return [...(Array.isArray(items) ? items : [])].sort((left, right) => (
     (Number(right?.year) || 0) - (Number(left?.year) || 0)

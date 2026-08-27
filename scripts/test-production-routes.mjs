@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
+import crypto from 'node:crypto'
+import { execFileSync, spawn } from 'node:child_process'
 import fs from 'node:fs'
 import net from 'node:net'
+import os from 'node:os'
 import path from 'node:path'
 
 import { resolveLibraryRoot } from '../server/pdfLibrary.js'
+import { releaseBuildIdentity } from '../vite.config.js'
+import { artifactTreeIdentity } from './release-content-policy.mjs'
 
 const root = path.resolve(import.meta.dirname, '..')
 const viteCli = path.join(root, 'node_modules', 'vite', 'bin', 'vite.js')
@@ -40,9 +44,93 @@ async function main() {
   const libraryRoot = resolveLibraryRoot({ cwd: root, env: process.env })
   const sourcePdf = path.join(libraryRoot, '9702', '9702_m25_qp_42.pdf')
   assert.ok(fs.existsSync(sourcePdf), `the governed local PDF fixture is missing: ${sourcePdf}`)
-  const child = spawn(process.execPath, [viteCli, 'preview', '--host', '127.0.0.1', '--port', String(port), '--strictPort'], {
-    cwd: root,
-    env: { ...process.env, BROWSER: 'none', CIE_LIBRARY_ROOT: libraryRoot },
+  const scratchParent = fs.mkdtempSync(path.join(os.tmpdir(), 'stem-production-routes-'))
+  const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim().toLowerCase()
+  assert.match(commit, /^[a-f0-9]{40}$/)
+  const sourceState = execFileSync('git', ['status', '--porcelain=v1', '--untracked-files=all'], { cwd: root, encoding: 'utf8' }).trim()
+    ? 'dirty'
+    : 'clean'
+  const builtIdentityPath = path.join(root, 'dist', 'build-identity.json')
+  assert.ok(fs.existsSync(builtIdentityPath), 'vite build must emit dist/build-identity.json before production route verification')
+  assert.deepEqual(
+    JSON.parse(fs.readFileSync(builtIdentityPath, 'utf8')),
+    { schemaVersion: 'stem-build-identity.v1', commit, sourceState },
+    'vite build output must embed the actual repository commit and source-tree state',
+  )
+  const releaseId = `stem-route-test-${commit.slice(0, 7)}`
+  const scratchRoot = path.join(scratchParent, releaseId)
+  fs.mkdirSync(scratchRoot)
+  fs.cpSync(path.join(root, 'dist'), path.join(scratchRoot, 'dist'), { recursive: true })
+  if (sourceState === 'dirty') {
+    fs.writeFileSync(path.join(scratchRoot, 'dist', 'build-identity.json'), `${JSON.stringify({
+      schemaVersion: 'stem-build-identity.v1',
+      commit,
+      sourceState: 'clean',
+    }, null, 2)}\n`, 'utf8')
+  }
+  fs.copyFileSync(path.join(root, 'package.json'), path.join(scratchRoot, 'package.json'))
+  const copyPublicFile = (relativePath) => {
+    const source = path.join(root, 'public', relativePath)
+    const target = path.join(scratchRoot, 'public', relativePath)
+    fs.mkdirSync(path.dirname(target), { recursive: true })
+    fs.copyFileSync(source, target)
+  }
+  for (const relativePath of [
+    'robots.txt',
+    'sitemap.xml',
+    'data/papers.json',
+    'data/study-question-index/manifest.json',
+    'question-assets/cie-0580-0580_m25_qp_12/qp-03.jpg',
+  ]) copyPublicFile(relativePath)
+
+  const releaseManifestPath = path.join(scratchRoot, 'release-manifest.json')
+  const immutableAssetsRoot = path.join(scratchRoot, 'public', 'question-assets')
+  const immutableAssets = artifactTreeIdentity(immutableAssetsRoot)
+  const releaseIdentity = {
+    schemaVersion: 'stem-release-manifest.v1',
+    releaseId,
+    commit,
+    packageSha256: crypto.createHash('sha256').update('production-route-test-package').digest('hex'),
+    generatedAt: new Date().toISOString(),
+    releaseTree: artifactTreeIdentity(scratchRoot, { exclude: ['release-manifest.json'] }),
+    immutableAssets: { identity: path.basename(immutableAssetsRoot), ...immutableAssets },
+  }
+  fs.writeFileSync(releaseManifestPath, `${JSON.stringify(releaseIdentity, null, 2)}\n`, 'utf8')
+
+  const forgedManifestPath = path.join(scratchParent, 'forged-release-manifest.json')
+  fs.writeFileSync(forgedManifestPath, `${JSON.stringify({ ...releaseIdentity, commit: '1'.repeat(40) }, null, 2)}\n`, 'utf8')
+  assert.deepEqual(
+    releaseBuildIdentity({ STEM_RELEASE_MANIFEST_PATH: forgedManifestPath }, scratchRoot),
+    { status: 'unavailable' },
+    'an external manifest must not impersonate the runtime release',
+  )
+  assert.deepEqual(releaseBuildIdentity({ STEM_RELEASE_MANIFEST_PATH: releaseManifestPath }, scratchRoot), {
+    status: 'verified',
+    schemaVersion: releaseIdentity.schemaVersion,
+    releaseId,
+    commit,
+    generatedAt: releaseIdentity.generatedAt,
+  })
+  const releaseIndexPath = path.join(scratchRoot, 'dist', 'index.html')
+  const originalReleaseIndex = fs.readFileSync(releaseIndexPath)
+  fs.appendFileSync(releaseIndexPath, '\n<!-- tampered -->\n')
+  assert.deepEqual(
+    releaseBuildIdentity({ STEM_RELEASE_MANIFEST_PATH: releaseManifestPath }, scratchRoot),
+    { status: 'unavailable' },
+    'a release changed after manifest creation must not report a verified build identity',
+  )
+  fs.writeFileSync(releaseIndexPath, originalReleaseIndex)
+
+  const child = spawn(process.execPath, [viteCli, 'preview', '--config', path.join(root, 'vite.config.js'), '--host', '127.0.0.1', '--port', String(port), '--strictPort'], {
+    cwd: scratchRoot,
+    env: {
+      ...process.env,
+      BROWSER: 'none',
+      CIE_LIBRARY_ROOT: libraryRoot,
+      STEM_DB_PATH: ':memory:',
+      STEM_PDF_ACCESS_LOG_PATH: path.join(scratchParent, 'pdf-access.log'),
+      STEM_RELEASE_MANIFEST_PATH: releaseManifestPath,
+    },
     stdio: ['ignore', 'ignore', 'pipe'],
     windowsHide: true,
   })
@@ -53,7 +141,17 @@ async function main() {
       const response = await fetch(`${baseUrl}${pathname}`)
       assert.equal(response.status, 200, `${pathname} must be healthy`)
       assert.match(response.headers.get('content-type') || '', /application\/json/i)
-      assert.deepEqual(await response.json(), { ok: true, service: 'stem' })
+      assert.deepEqual(await response.json(), {
+        ok: true,
+        service: 'stem',
+        build: {
+          status: 'verified',
+          schemaVersion: releaseIdentity.schemaVersion,
+          releaseId,
+          commit,
+          generatedAt: releaseIdentity.generatedAt,
+        },
+      })
     }
 
     const robots = await fetch(`${baseUrl}/robots.txt`)
@@ -112,6 +210,7 @@ async function main() {
       child.kill()
       await new Promise((resolve) => child.once('close', resolve))
     }
+    fs.rmSync(scratchParent, { recursive: true, force: true })
   }
 }
 

@@ -1456,22 +1456,32 @@ function routeScopesForClass(database, classroomId, filter = {}) {
 }
 
 function summaryForClass(database, classroomId, filter = {}, { includeRouteGroups = true } = {}) {
-  const latestFilter = submissionFilter('submission_events', filter)
-  const outerFilter = submissionFilter('events', filter)
+  const eventFilter = submissionFilter('events', filter)
   const rows = database.prepare(`
-    SELECT events.student_user_id, events.payload_json, events.occurred_at, events.route_id, events.stage,
+    SELECT events.rowid AS event_sequence, events.id, events.assignment_id, events.student_user_id, events.event_type,
+      events.payload_json, events.occurred_at, events.route_id, events.stage,
       assignments.syllabus_point_id, assignments.status
     FROM submission_events AS events
     JOIN assignments ON assignments.id = events.assignment_id
-    JOIN (
-      SELECT assignment_id, student_user_id, MAX(occurred_at) AS latest_at
-      FROM submission_events WHERE ${latestFilter.sql} GROUP BY assignment_id, student_user_id
-    ) latest ON latest.assignment_id = events.assignment_id AND latest.student_user_id = events.student_user_id AND latest.latest_at = events.occurred_at
-    WHERE assignments.classroom_id = ? AND assignments.status <> 'archived' AND ${outerFilter.sql}
-  `).all(...latestFilter.parameters, classroomId, ...outerFilter.parameters)
+    WHERE assignments.classroom_id = ? AND assignments.status <> 'archived' AND ${eventFilter.sql}
+    ORDER BY events.occurred_at, events.rowid
+  `).all(classroomId, ...eventFilter.parameters)
   const results = rows.map((row) => ({ ...row, payload: JSON.parse(row.payload_json) }))
-  const verifiedResults = results.filter((row) => scoreStatus(row.payload) === 'verified')
-  const reportedScoreCount = results.length - verifiedResults.length
+  const resultStates = new Map()
+  for (const row of results) {
+    const key = `${row.assignment_id}::${row.student_user_id}`
+    const state = resultStates.get(key) || { verified: null, reported: null }
+    const authority = row.event_type === 'verified' && scoreStatus(row.payload) === 'verified'
+      ? 'verified'
+      : 'reported'
+    state[authority] = row
+    resultStates.set(key, state)
+  }
+  const verifiedResults = [...resultStates.values()].flatMap((state) => state.verified ? [state.verified] : [])
+  const reportedScoreCount = [...resultStates.values()].filter((state) => (
+    state.reported
+    && (!state.verified || Number(state.reported.event_sequence) > Number(state.verified.event_sequence))
+  )).length
   const percentages = verifiedResults.map((row) => Number(row.payload.percentage)).filter(Number.isFinite)
   const enrolment = database.prepare(`
     SELECT
@@ -1481,7 +1491,7 @@ function summaryForClass(database, classroomId, filter = {}, { includeRouteGroup
   `).get(classroomId)
   const activeFilter = assignmentFilter('assignments', filter, { activeOnly: true })
   const activeAssignments = database.prepare(`SELECT COUNT(*) AS count FROM assignments WHERE classroom_id = ? AND ${activeFilter.sql}`).get(classroomId, ...activeFilter.parameters).count
-  const reportableResults = results.filter((row) => !['draft', 'archived'].includes(row.status))
+  const reportableResults = verifiedResults.filter((row) => !['draft', 'archived'].includes(row.status))
   const activeCutoff = new Date(Date.now() - 28 * 86_400_000).toISOString()
   const coverageBySyllabusPoint = reportableResults.reduce((coverage, row) => {
     const scope = storedScope(row)
@@ -1510,23 +1520,22 @@ function summaryForClass(database, classroomId, filter = {}, { includeRouteGroup
   const expectedCompletions = activeAssignments * studentCount
   const completionRate = expectedCompletions ? Math.round((reportableResults.filter((row) => row.status === 'active').length / expectedCompletions) * 100) : null
   const riskReasons = []
-  if (studentCount && new Set(results.filter((row) => row.occurred_at >= activeCutoff).map((row) => row.student_user_id)).size / studentCount < 0.6) riskReasons.push('Low recent participation')
+  if (studentCount && new Set(verifiedResults.filter((row) => row.occurred_at >= activeCutoff).map((row) => row.student_user_id)).size / studentCount < 0.6) riskReasons.push('Low recent participation')
   if (completionRate != null && completionRate < 60) riskReasons.push('Low assignment completion')
   if (percentages.length && percentages.reduce((total, value) => total + value, 0) / percentages.length < 60) riskReasons.push('Low verified accuracy')
-  if (reportedScoreCount) riskReasons.push('Scores await verified marking')
   if (!reportableResults.length && activeAssignments) riskReasons.push('No submitted evidence')
   const summary = {
     filter: { routeId: filter.routeId || null, stage: filter.stage || null },
     aggregationMode: filter.routeId || filter.stage ? 'single-scope' : 'cross-route-overview',
-    submissions: results.length,
-    totalSubmissionCount: results.length,
+    submissions: verifiedResults.length,
+    totalSubmissionCount: verifiedResults.length,
     verifiedScoreCount: verifiedResults.length,
     reportedScoreCount,
     averagePercentage: percentages.length ? Math.round(percentages.reduce((total, value) => total + value, 0) / percentages.length) : null,
     needsSupport: percentages.filter((value) => value < 60).length,
     studentCount,
     teacherCount: Number(enrolment.teacher_count) || 0,
-    activeStudentCount: new Set(results.filter((row) => row.occurred_at >= activeCutoff).map((row) => row.student_user_id)).size,
+    activeStudentCount: new Set(verifiedResults.filter((row) => row.occurred_at >= activeCutoff).map((row) => row.student_user_id)).size,
     activeAssignments,
     completedActiveAssignments: reportableResults.filter((row) => row.status === 'active').length,
     expectedCompletions,

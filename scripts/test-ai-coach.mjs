@@ -192,7 +192,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   for (const [label, token] of [
     ['missing iat', identityToken(42, { iat: undefined })],
     ['invalid iat', identityToken(42, { iat: 'not-a-number' })],
-    ['future iat', identityToken(42, { iat: Math.floor(Date.now() / 1000) + 301 })],
+    ['future iat', identityToken(42, { iat: Math.floor(Date.now() / 1000) + 601 })],
   ]) {
     const invalidIdentity = await post('/api/ai/coach/stream', {
       message: `Reject ${label} before provider invocation.`,

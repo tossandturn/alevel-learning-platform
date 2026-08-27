@@ -5,6 +5,7 @@ import { viteStaticCopy } from 'vite-plugin-static-copy'
 import fs from 'node:fs'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
+import { execFileSync } from 'node:child_process'
 import { createAiApi } from './server/aiApi.js'
 import { createAiVerifiedQuestionBankLoader } from './server/aiVerifiedQuestionBank.js'
 import { resolveAiPdfIngestionRoot } from './server/aiPdfIngestionCandidates.js'
@@ -12,6 +13,13 @@ import { createStemApi } from './server/stemApi.js'
 import { isPaperAvailableToStudents } from './src/lib/paperGovernance.js'
 import { mergeRuntimeEnv } from './src/lib/runtimeEnv.js'
 import { resolveLibraryRoot } from './server/pdfLibrary.js'
+import { artifactTreeIdentity } from './scripts/release-content-policy.mjs'
+import {
+  releaseIdMatchesCommit,
+  sameTreeIdentity,
+  validateBuildIdentity,
+  validateReleaseManifest,
+} from './scripts/release-manifest-contract.mjs'
 
 const ALLOWED_SUBJECTS = new Set(['0580', '0606', '0610', '0625', '9231', '9700', '9701', '9702', '9708', '9709', 'bpho', 'amc12', 'esat', 'tmua'])
 const PUBLIC_ROOT = path.resolve(process.cwd(), 'public')
@@ -242,13 +250,93 @@ function sendPublicAsset(request, response, next) {
   fs.createReadStream(filePath).pipe(response)
 }
 
-function sendHealth(request, response, next) {
-  const requestUrl = new URL(request.url, 'http://127.0.0.1')
-  if (!['/healthz', '/api/health'].includes(requestUrl.pathname)) return next()
-  response.statusCode = 200
-  response.setHeader('Content-Type', 'application/json; charset=utf-8')
-  response.setHeader('Cache-Control', 'no-store')
-  response.end(JSON.stringify({ ok: true, service: 'stem' }))
+export function releaseBuildIdentity(env, runtimeRootInput = process.cwd()) {
+  try {
+    const runtimeRoot = fs.realpathSync(runtimeRootInput)
+    if (env.STEM_RELEASE_ROOT && fs.realpathSync(env.STEM_RELEASE_ROOT) !== runtimeRoot) return { status: 'unavailable' }
+    const expectedManifestPath = path.join(runtimeRoot, 'release-manifest.json')
+    const manifestPath = path.resolve(env.STEM_RELEASE_MANIFEST_PATH || expectedManifestPath)
+    if (fs.realpathSync(manifestPath) !== fs.realpathSync(expectedManifestPath)) return { status: 'unavailable' }
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+    if (!validateReleaseManifest(manifest, { releaseId: path.basename(runtimeRoot) }).valid) return { status: 'unavailable' }
+    if (env.STEM_RELEASE_ID && String(env.STEM_RELEASE_ID) !== manifest.releaseId) return { status: 'unavailable' }
+    if (env.STEM_RELEASE_COMMIT && String(env.STEM_RELEASE_COMMIT).toLowerCase() !== manifest.commit) return { status: 'unavailable' }
+    if (!releaseIdMatchesCommit(manifest.releaseId, manifest.commit)) return { status: 'unavailable' }
+    const embeddedBuild = JSON.parse(fs.readFileSync(path.join(runtimeRoot, 'dist', 'build-identity.json'), 'utf8'))
+    if (!validateBuildIdentity(embeddedBuild, { commit: manifest.commit, requireClean: true }).valid) return { status: 'unavailable' }
+    const releaseTree = artifactTreeIdentity(runtimeRoot, { exclude: ['release-manifest.json'] })
+    if (!sameTreeIdentity(releaseTree, manifest.releaseTree)) return { status: 'unavailable' }
+    const immutableAssetsRoot = fs.realpathSync(path.join(runtimeRoot, 'public', 'question-assets'))
+    if (path.basename(immutableAssetsRoot) !== manifest.immutableAssets.identity) return { status: 'unavailable' }
+    if (!sameTreeIdentity(artifactTreeIdentity(immutableAssetsRoot), manifest.immutableAssets)) return { status: 'unavailable' }
+    return {
+      status: 'verified',
+      schemaVersion: manifest.schemaVersion,
+      releaseId: manifest.releaseId,
+      commit: manifest.commit,
+      generatedAt: manifest.generatedAt,
+    }
+  } catch {
+    return { status: 'unavailable' }
+  }
+}
+
+function buildSourceIdentity(env, root) {
+  const configured = String(env.STEM_BUILD_COMMIT || '').trim().toLowerCase()
+  if (configured && !/^[a-f0-9]{40}$/.test(configured)) {
+    throw new Error('STEM_BUILD_COMMIT must be a full lowercase Git commit.')
+  }
+  let gitRoot = ''
+  try {
+    gitRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+  } catch {
+    gitRoot = ''
+  }
+  if (gitRoot && fs.realpathSync(gitRoot) === fs.realpathSync(root)) {
+    const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim().toLowerCase()
+    if (!/^[a-f0-9]{40}$/.test(commit)) throw new Error('Git HEAD did not resolve to a full commit.')
+    if (configured && configured !== commit) throw new Error('STEM_BUILD_COMMIT does not match the actual Git HEAD.')
+    const status = execFileSync('git', ['status', '--porcelain=v1', '--untracked-files=all'], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim()
+    return { commit, sourceState: status ? 'dirty' : 'clean' }
+  }
+  return configured ? { commit: configured, sourceState: 'clean' } : null
+}
+
+function stemBuildIdentityOutput(env) {
+  let resolvedRoot = process.cwd()
+  let resolvedOutDir = path.resolve(process.cwd(), 'dist')
+  return {
+    name: 'stem-build-identity-output',
+    apply: 'build',
+    configResolved(config) {
+      resolvedRoot = config.root
+      resolvedOutDir = path.resolve(config.root, config.build.outDir || 'dist')
+    },
+    closeBundle() {
+      const identity = buildSourceIdentity(env, resolvedRoot)
+      if (!identity) throw new Error('A full Git commit is required to create the STEM build identity.')
+      fs.writeFileSync(path.join(resolvedOutDir, 'build-identity.json'), `${JSON.stringify({
+        schemaVersion: 'stem-build-identity.v1',
+        ...identity,
+      }, null, 2)}\n`, 'utf8')
+    },
+  }
+}
+
+function createHealthMiddleware(env) {
+  const build = releaseBuildIdentity(env)
+  return function sendHealth(request, response, next) {
+    const requestUrl = new URL(request.url, 'http://127.0.0.1')
+    if (!['/healthz', '/api/health'].includes(requestUrl.pathname)) return next()
+    response.statusCode = 200
+    response.setHeader('Content-Type', 'application/json; charset=utf-8')
+    response.setHeader('Cache-Control', 'no-store')
+    response.end(JSON.stringify({ ok: true, service: 'stem', build }))
+  }
 }
 
 function securityHeaders(request, response, next) {
@@ -332,6 +420,7 @@ function stemPublicAssetOutput() {
 
 function localCieLibrary(env) {
   const libraryRoot = resolveLibraryRoot({ env, cwd: process.cwd() })
+  const sendHealth = createHealthMiddleware(env)
   const runtimeAiQuestionBank = createAiVerifiedQuestionBankLoader({
     artifactRoot: resolveAiPdfIngestionRoot(env),
     libraryRoot: path.join(libraryRoot, '9702'),
@@ -391,6 +480,7 @@ export default defineConfig(({ mode }) => {
       react(),
       stemAppModulePreload(),
       stemPublicAssetOutput(),
+      stemBuildIdentityOutput(env),
       viteStaticCopy({
         targets: [
           { src: 'node_modules/pdfjs-dist/cmaps/*', dest: 'pdfjs/cmaps', rename: { stripBase: true } },

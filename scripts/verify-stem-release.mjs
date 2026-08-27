@@ -13,6 +13,11 @@ import {
   pathsOverlap,
   physicalTreeBytes,
 } from './release-content-policy.mjs'
+import {
+  releaseIdMatchesCommit,
+  validateBuildIdentity,
+  validateReleaseManifest,
+} from './release-manifest-contract.mjs'
 
 function option(name) {
   const index = process.argv.indexOf(name)
@@ -48,16 +53,25 @@ const manifestPath = path.join(releaseRoot, 'src', 'data', 'sourceContentManifes
 const identityPath = path.join(releaseRoot, 'src', 'data', 'sourceContentIdentity.js')
 const nodeModulesRoot = path.join(releaseRoot, 'node_modules')
 const releaseManifestPath = path.join(releaseRoot, 'release-manifest.json')
+const buildIdentityPath = path.join(distRoot, 'build-identity.json')
 
 assert.match(expectedCommit, /^[a-f0-9]{40}$/, 'Pass --commit <full-git-sha>')
 assert.ok(expectedReleaseId, 'Pass --release-id <id>')
 assert.match(expectedPackageSha256, /^[a-f0-9]{64}$/, 'Pass --package-sha256 <sha256>')
+assert.ok(releaseIdMatchesCommit(expectedReleaseId, expectedCommit), 'Release ID must end with the commit short SHA')
+assert.equal(path.basename(releaseRoot), expectedReleaseId, 'Release root basename must match the release ID')
 assert.ok(fs.existsSync(releaseManifestPath) && fs.statSync(releaseManifestPath).isFile(), 'Release is missing release-manifest.json')
 const releaseManifest = JSON.parse(fs.readFileSync(releaseManifestPath, 'utf8'))
-assert.equal(releaseManifest.schemaVersion, 'stem-release-manifest.v1', 'Release manifest schema is invalid')
+assert.ok(validateReleaseManifest(releaseManifest, { releaseId: expectedReleaseId }).valid, 'Release manifest contract is invalid')
 assert.equal(releaseManifest.commit, expectedCommit, 'Release manifest commit does not match the expected commit')
 assert.equal(releaseManifest.releaseId, expectedReleaseId, 'Release manifest ID does not match the expected release')
 assert.equal(releaseManifest.packageSha256, expectedPackageSha256, 'Release manifest package digest does not match the uploaded package')
+assert.ok(fs.existsSync(buildIdentityPath) && fs.statSync(buildIdentityPath).isFile(), 'Release is missing dist/build-identity.json')
+const buildIdentity = JSON.parse(fs.readFileSync(buildIdentityPath, 'utf8'))
+assert.ok(
+  validateBuildIdentity(buildIdentity, { commit: expectedCommit, requireClean: true }).valid,
+  'Release build identity must match the expected commit and come from a clean source tree',
+)
 const actualReleaseTree = artifactTreeIdentity(releaseRoot, { exclude: ['release-manifest.json'] })
 assert.equal(actualReleaseTree.sha256, releaseManifest.releaseTree?.sha256, 'Release file tree does not match its manifest')
 assert.equal(actualReleaseTree.files, releaseManifest.releaseTree?.files, 'Release file count does not match its manifest')

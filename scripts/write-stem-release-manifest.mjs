@@ -3,6 +3,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { artifactTreeIdentity } from './release-content-policy.mjs'
+import { releaseIdMatchesCommit, validateBuildIdentity } from './release-manifest-contract.mjs'
 
 function option(name) {
   const index = process.argv.indexOf(name)
@@ -21,11 +22,20 @@ const commit = requiredOption('--commit').toLowerCase()
 const releaseId = requiredOption('--release-id')
 const packageSha256 = requiredOption('--package-sha256').toLowerCase()
 const manifestPath = path.join(releaseRoot, 'release-manifest.json')
+const buildIdentityPath = path.join(releaseRoot, 'dist', 'build-identity.json')
 
 assert.match(commit, /^[a-f0-9]{40}$/, 'Release commit must be a full Git SHA')
 assert.match(packageSha256, /^[a-f0-9]{64}$/, 'Package SHA-256 must be a full lowercase digest')
+assert.ok(releaseIdMatchesCommit(releaseId, commit), 'Release ID must end with the commit short SHA')
+assert.equal(path.basename(releaseRoot), releaseId, 'Release root basename must match the release ID')
 assert.ok(!fs.existsSync(manifestPath), `Release manifest already exists: ${manifestPath}`)
 assert.ok(fs.existsSync(immutableAssetsRoot) && fs.statSync(immutableAssetsRoot).isDirectory(), `Immutable assets root is missing: ${immutableAssetsRoot}`)
+assert.ok(fs.existsSync(buildIdentityPath) && fs.statSync(buildIdentityPath).isFile(), 'Release is missing dist/build-identity.json')
+const buildIdentity = JSON.parse(fs.readFileSync(buildIdentityPath, 'utf8'))
+assert.ok(
+  validateBuildIdentity(buildIdentity, { commit, requireClean: true }).valid,
+  'Release build identity must match the release commit and come from a clean source tree',
+)
 
 const releaseTree = artifactTreeIdentity(releaseRoot, { exclude: ['release-manifest.json'] })
 const immutableAssets = artifactTreeIdentity(immutableAssetsRoot)
