@@ -127,7 +127,7 @@ function runReleaseVerification(releaseRoot) {
 }
 
 try {
-  const archiveRoot = archiveReleaseRoot('archive-lf')
+  const archiveRoot = archiveReleaseRoot(`archive-lf-${archiveCommit.slice(0, 7)}`)
   materializePrivateContent(archiveRoot)
   const archiveRun = runDirectAudit('git archive with private content', archiveRoot)
   buildArchiveDist(archiveRoot)
