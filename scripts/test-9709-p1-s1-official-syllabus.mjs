@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { courseRoutes, formatRouteComponents } from '../src/data/routeRegistry.js'
 import {
   canonicalSyllabusTopicIdForRoute,
+  syllabusTopicScopeIdsForRoute,
   syllabusPracticeComponentsForRoute,
   supportsSyllabusPracticeRoute,
 } from '../src/lib/syllabusPracticeRoutes.js'
@@ -49,8 +50,10 @@ const expectedTopicNames = [
 
 assert.deepEqual(route.syllabus.topics.map((topic) => topic.id), expectedTopicIds, 'P1 + S1 route must expose official syllabus chapters, not paper-component buckets')
 assert.deepEqual(route.syllabus.topics.map((topic) => topic.title.replace(/^\d+(?:\.\d+)?\s+/, '')), expectedTopicNames)
-assert.equal(canonicalSyllabusTopicIdForRoute(routeId, 'math-9709-pure'), '9709-p1-topic-01', 'legacy pure records must fail into an official P1 chapter')
-assert.equal(canonicalSyllabusTopicIdForRoute(routeId, 'math-9709-statistics'), '9709-s1-topic-01', 'legacy statistics records must fail into an official S1 chapter')
+assert.equal(canonicalSyllabusTopicIdForRoute(routeId, 'math-9709-pure'), 'math-9709-pure', 'a broad legacy domain must not become an arbitrary chapter')
+assert.deepEqual(syllabusTopicScopeIdsForRoute(routeId, 'math-9709-pure'), expectedTopicIds.slice(0, 8))
+assert.deepEqual(syllabusTopicScopeIdsForRoute(routeId, 'math-9709-statistics'), expectedTopicIds.slice(8))
+assert.equal(route.syllabus.topics.reduce((sum, topic) => sum + topic.points.length, 0), 51, 'P1 + S1 must expose all official outcome bullets for its chapters')
 
 const inventory = syllabusTopicsInventory({ routeId, questionBank: studyQuestionBank })
 assert.equal(inventory.assessmentComponents.find((item) => item.component === 5)?.label, 'Paper 5 Probability & Statistics 1')

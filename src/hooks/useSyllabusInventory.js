@@ -27,6 +27,10 @@ export function validateSyllabusInventoryPayload(payload) {
       name,
       routeId: String(topic.routeId || payload.routeId || '').trim(),
       points: Array.isArray(topic.points) ? topic.points : [],
+      officialNotes: Array.isArray(topic.officialNotes) ? topic.officialNotes : [],
+      componentScope: isPlainObject(topic.componentScope)
+        ? { ...topic.componentScope, notes: Array.isArray(topic.componentScope.notes) ? topic.componentScope.notes : [] }
+        : null,
       verifiedQuestionCount: finiteNumberOrNull(topic.verifiedQuestionCount) ?? 0,
       studyQuestionCount: finiteNumberOrNull(topic.studyQuestionCount) ?? 0,
       availableQuestionCount: finiteNumberOrNull(topic.availableQuestionCount ?? topic.verifiedQuestionCount) ?? 0,

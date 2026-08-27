@@ -1870,7 +1870,10 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
             code: 'invalid_syllabus_practice_set',
           })
         }
-        const unit = rebindSyllabusPracticeUnit(payload.unit, { questionBank: topicPracticeQuestionBank })
+        const unit = rebindSyllabusPracticeUnit(payload.unit, {
+          questionBank: topicPracticeQuestionBank,
+          includeStudyOnly: includeStudyOnlyForRoute(),
+        })
         if (!unit) {
           throw Object.assign(new Error('This saved syllabus set no longer matches the current source catalog.'), {
             statusCode: 409,

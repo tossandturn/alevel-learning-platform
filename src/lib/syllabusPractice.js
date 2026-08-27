@@ -9,7 +9,7 @@ import { CAMBRIDGE_9709_AS_P1_S1_SYLLABUS } from '../data/syllabus/cambridge-970
 import { isAiMarkablePastPaperItem, isHumanReviewedPastPaperItem, isStudyOnlyPastPaperItem, normalizeImportedQuestion, studyQuestionBank, unifiedQuestionBank } from '../data/questionBank.js'
 import { routeById } from '../data/routeRegistry.js'
 import { canonicalAiMarkingProvenance, canonicalSourcePracticeProvenance } from './sourceContentContract.js'
-import { canonicalSyllabusTopicIdForRoute } from './syllabusPracticeRoutes.js'
+import { canonicalSyllabusTopicIdForRoute, syllabusTopicScopeIdsForRoute } from './syllabusPracticeRoutes.js'
 import { practiceUnitMetrics, withPracticePresentation } from './practicePresentation.js'
 
 export { supportsSyllabusPracticeRoute } from './syllabusPracticeRoutes.js'
@@ -18,7 +18,7 @@ export const SYLLABUS_CATALOG_SCHEMA_VERSION = 'syllabus-catalog-v1'
 export const SYLLABUS_MAPPING_SCHEMA_VERSION = 'question-syllabus-mapping-v1'
 
 const SUPPORTED_9702_COMPONENTS = Object.freeze([1, 2])
-const SUPPORTED_9702_A2_COMPONENTS = Object.freeze([4, 5])
+const SUPPORTED_9702_A2_COMPONENTS = Object.freeze([4])
 const SUPPORTED_0625_COMPONENTS = Object.freeze([2])
 const SET_SIZES = Object.freeze([5, 10, 15])
 
@@ -27,16 +27,27 @@ function routeSyllabus(routeId, supportedComponents) {
   const topics = route?.syllabus?.topics || []
   const components = supportedComponents || route?.paperComponents || []
   const syllabusVersion = route?.syllabus?.version || '2026-2027'
+  const officialComponents = route?.syllabus?.assessmentComponents || []
   return Object.freeze({
     routeId,
     syllabusVersion,
     officialUrl: route?.syllabus?.url || '',
-    assessmentComponents: Object.freeze(components.map((component) => Object.freeze({
-      component,
-      stage: route.stage,
-      track: 'theory',
-      label: `Paper ${component}`,
+    componentScope: Object.freeze((route?.syllabus?.componentScope || [])
+      .filter((scope) => components.includes(Number(scope.component)))
+      .map((scope) => Object.freeze({
+      ...scope,
+      notes: Object.freeze(Array.isArray(scope.notes) ? scope.notes : []),
     }))),
+    assessmentComponents: Object.freeze(components.map((component) => {
+      const official = officialComponents.find((item) => Number(item.component) === Number(component))
+      return Object.freeze({
+        ...(official || {}),
+        component,
+        stage: official?.stage || route.stage,
+        track: official?.track || 'theory',
+        label: official?.label || `Paper ${component}`,
+      })
+    })),
     topics: Object.freeze(topics.map((topic, index) => Object.freeze({
       id: topic.id,
       routeId: topic.routeId || routeId,
@@ -45,6 +56,8 @@ function routeSyllabus(routeId, supportedComponents) {
       name: String(topic.name || topic.title || '').replace(/^\d+(?:\.\d+)?\s+/, ''),
       order: Number(topic.order) || index + 1,
       officialPage: topic.officialPage ?? null,
+      officialNotes: Object.freeze(Array.isArray(topic.officialNotes) ? topic.officialNotes : []),
+      componentScope: topic.componentScope || null,
       points: Object.freeze(Array.isArray(topic.points) ? topic.points : []),
       component: topic.component || null,
     }))),
@@ -106,8 +119,8 @@ const SYLLABUS_CONFIGS = Object.freeze({
     stage: 'IGCSE',
     components: Object.freeze([1, 2]),
   }),
-  'cie-9709-as-p1-p2': math9709Config('cie-9709-as-p1-p2', { 1: '9709-as-topic-01', 2: '9709-as-topic-02' }),
-  'cie-9709-as-p1-p4': math9709Config('cie-9709-as-p1-p4', { 1: '9709-as-topic-01', 4: '9709-as-topic-03' }),
+  'cie-9709-as-p1-p2': math9709Config('cie-9709-as-p1-p2', { 1: '9709-p1-topic-01', 2: '9709-p2-topic-01' }),
+  'cie-9709-as-p1-p4': math9709Config('cie-9709-as-p1-p4', { 1: '9709-p1-topic-01', 4: '9709-m1-topic-01' }),
   [CAMBRIDGE_9709_AS_P1_S1_SYLLABUS.routeId]: Object.freeze({
     syllabus: CAMBRIDGE_9709_AS_P1_S1_SYLLABUS,
     subjectCode: '9709',
@@ -115,9 +128,9 @@ const SYLLABUS_CONFIGS = Object.freeze({
     components: Object.freeze([1, 5]),
     topicByComponent: Object.freeze({ 1: '9709-p1-topic-01', 5: '9709-s1-topic-01' }),
   }),
-  'cie-9709-a2-after-p1-p5-p3-p4': math9709Config('cie-9709-a2-after-p1-p5-p3-p4', { 3: '9709-a2-topic-01', 4: '9709-a2-topic-02' }),
-  'cie-9709-a2-after-p1-p5-p3-p6': math9709Config('cie-9709-a2-after-p1-p5-p3-p6', { 3: '9709-a2-topic-01', 6: '9709-a2-topic-04' }),
-  'cie-9709-a2-after-p1-p4-p3-p5': math9709Config('cie-9709-a2-after-p1-p4-p3-p5', { 3: '9709-a2-topic-01', 5: '9709-a2-topic-03' }),
+  'cie-9709-a2-after-p1-p5-p3-p4': math9709Config('cie-9709-a2-after-p1-p5-p3-p4', { 3: '9709-p3-topic-01', 4: '9709-m1-topic-01' }),
+  'cie-9709-a2-after-p1-p5-p3-p6': math9709Config('cie-9709-a2-after-p1-p5-p3-p6', { 3: '9709-p3-topic-01', 6: '9709-s2-topic-01' }),
+  'cie-9709-a2-after-p1-p4-p3-p5': math9709Config('cie-9709-a2-after-p1-p4-p3-p5', { 3: '9709-p3-topic-01', 5: '9709-s1-topic-01' }),
 })
 
 function syllabusConfig(routeId) {
@@ -133,90 +146,146 @@ const MATH_9709_COMPONENT_DOMAIN = Object.freeze({
   6: 'statistics',
 })
 
-const MATH_9709_DOMAIN_TOPIC_BY_ROUTE = Object.freeze({
-  'cie-9709-as-p1-p2': Object.freeze({ pure: Object.freeze({ 1: '9709-as-topic-01', 2: '9709-as-topic-02' }) }),
-  'cie-9709-as-p1-p4': Object.freeze({ pure: Object.freeze({ 1: '9709-as-topic-01' }), mechanics: Object.freeze({ 4: '9709-as-topic-03' }) }),
-  'cie-9709-as-p1-p5': Object.freeze({ pure: Object.freeze({ 1: '9709-p1-topic-01' }), statistics: Object.freeze({ 5: '9709-s1-topic-01' }) }),
-  'cie-9709-a2-after-p1-p5-p3-p4': Object.freeze({ pure: Object.freeze({ 3: '9709-a2-topic-01' }), mechanics: Object.freeze({ 4: '9709-a2-topic-02' }) }),
-  'cie-9709-a2-after-p1-p5-p3-p6': Object.freeze({ pure: Object.freeze({ 3: '9709-a2-topic-01' }), statistics: Object.freeze({ 6: '9709-a2-topic-04' }) }),
-  'cie-9709-a2-after-p1-p4-p3-p5': Object.freeze({ pure: Object.freeze({ 3: '9709-a2-topic-01' }), statistics: Object.freeze({ 5: '9709-a2-topic-03' }) }),
-})
-
-function routeTopicIdsFor9709(routeId, topicId) {
+function routeTopicIdsFor9709(routeId, topicId, component = null) {
   const canonical = canonicalSyllabusTopicIdForRoute(routeId, topicId)
-  return canonical && syllabusConfig(routeId)?.syllabus.topics.some((topic) => topic.id === canonical)
+  const topic = syllabusConfig(routeId)?.syllabus.topics.find((item) => item.id === canonical)
+  return topic && (component == null || Number(topic.component) === Number(component))
     ? [canonical]
     : []
 }
 
-const MATH_9709_TAG_TOPIC_BY_ROUTE_COMPONENT = Object.freeze({
-  'cie-9709-as-p1-p5': Object.freeze({
-    1: Object.freeze([
-      [/quadratic|polynomial|discriminant|factor/i, '9709-p1-topic-01'],
-      [/function|graph|transformation/i, '9709-p1-topic-02'],
-      [/coordinate|straight.?line|circle|vectors?/i, '9709-p1-topic-03'],
-      [/circular|radian|arc|sector/i, '9709-p1-topic-04'],
-      [/trigonometry|trig|sine|cosine|tangent/i, '9709-p1-topic-05'],
-      [/series|sequence|progression|binomial/i, '9709-p1-topic-06'],
-      [/differentiat|derivative|gradient/i, '9709-p1-topic-07'],
-      [/integration|integral|area under/i, '9709-p1-topic-08'],
-    ]),
-    5: Object.freeze([
-      [/representation of data|histogram|box.?and.?whisker|stem.?and.?leaf|data/i, '9709-s1-topic-01'],
-      [/permutation|combination|arrangement|selection/i, '9709-s1-topic-02'],
-      [/probability|conditional|independent|mutually exclusive/i, '9709-s1-topic-03'],
-      [/discrete|random variables?|binomial distribution|expectation|variance/i, '9709-s1-topic-04'],
-      [/normal distribution|normal approximation|standard normal|z.?score/i, '9709-s1-topic-05'],
-    ]),
-  }),
+const MATH_9709_TAG_TOPIC_BY_COMPONENT = Object.freeze({
+  1: Object.freeze([
+    [/quadratic|completing the square|discriminant|simultaneous equations/i, '9709-p1-topic-01'],
+    [/\bfunctions?\b|one.?one|inverse function|composition of functions|range of function|transformations?/i, '9709-p1-topic-02'],
+    [/coordinate geometry|straight.?line|intersection of line and circle|midpoint/i, '9709-p1-topic-03'],
+    [/circular measure|radian|arc length|sector/i, '9709-p1-topic-04'],
+    [/trigonometry|trigonometr|sine|cosine|tangent/i, '9709-p1-topic-05'],
+    [/sequences? and series|progression|binomial theorem|binomial expansion/i, '9709-p1-topic-06'],
+    [/differentiation|derivative|stationary points?|second derivative|related rates|rates of change|chain rule|dy\/dx/i, '9709-p1-topic-07'],
+    [/integration|integral|area between curves|area under curve|volume of revolution/i, '9709-p1-topic-08'],
+  ]),
+  2: Object.freeze([
+    [/algebra and functions|modulus|absolute value|polynomial division|factor theorem|remainder theorem/i, '9709-p2-topic-01'],
+    [/logarithm|exponential|linear form/i, '9709-p2-topic-02'],
+    [/trigonometry|trigonometr|secant|cosecant|cotangent|double.?angle/i, '9709-p2-topic-03'],
+    [/differentiation|derivative|parametric differentiation|implicit differentiation|product rule|quotient rule|chain rule/i, '9709-p2-topic-04'],
+    [/integration|integral|trapezium rule|area under curve/i, '9709-p2-topic-05'],
+    [/numerical solution|iterative|iteration|sequence of approximations|searching for a sign change/i, '9709-p2-topic-06'],
+  ]),
+  3: Object.freeze([
+    [/algebra and functions|modulus|absolute value|polynomial division|factor theorem|remainder theorem|partial fractions?|binomial series|binomial expansion/i, '9709-p3-topic-01'],
+    [/logarithm|exponential|linear form/i, '9709-p3-topic-02'],
+    [/trigonometry|trigonometr|secant|cosecant|cotangent|double.?angle/i, '9709-p3-topic-03'],
+    [/differentiation|derivative|parametric equations?|implicit differentiation|product rule|quotient rule|chain rule/i, '9709-p3-topic-04'],
+    [/integration|integral|integration by parts|substitution/i, '9709-p3-topic-05'],
+    [/numerical solution|iterative|iteration|sequence of approximations|searching for a sign change/i, '9709-p3-topic-06'],
+    [/\bvectors?\b|vector equations? of lines|scalar product|skew lines?/i, '9709-p3-topic-07'],
+    [/differential equations?|separation of variables|initial conditions?/i, '9709-p3-topic-08'],
+    [/complex numbers?|argand|polar form|conjugate pairs?|complex loci|real part condition/i, '9709-p3-topic-09'],
+  ]),
+  4: Object.freeze([
+    [/forces? and equilibrium|\bequilibrium\b|friction|resultant force|resolution of forces|vector resolution|statics/i, '9709-m1-topic-01'],
+    [/\bkinematics\b|motion in a straight line|moves in a straight line|travelling along a straight|displacement.?time|velocity.?time|constant acceleration/i, '9709-m1-topic-02'],
+    [/\bmomentum\b|direct impact|collision|coalesce/i, '9709-m1-topic-03'],
+    [/newton.?s? laws?|connected particles|inclined plane|tension|mass and weight/i, '9709-m1-topic-04'],
+    [/work energy and power|energy method|kinetic energy|potential energy|\bpower\b/i, '9709-m1-topic-05'],
+  ]),
+  5: Object.freeze([
+    [/representation of data|histogram|box.?and.?whisker|stem.?and.?leaf|cumulative frequency/i, '9709-s1-topic-01'],
+    [/permutations? and combinations?|arrangements?|selections?/i, '9709-s1-topic-02'],
+    [/\bprobability\b|conditional|independent events?|exclusive events?/i, '9709-s1-topic-03'],
+    [/discrete distributions?|discrete random variables?|binomial distribution|geometric distribution|expectation|variance/i, '9709-s1-topic-04'],
+    [/normal distribution|normal approximation|standardisation|standard normal|z.?score/i, '9709-s1-topic-05'],
+  ]),
+  6: Object.freeze([
+    [/poisson|\bpo\s*\(/i, '9709-s2-topic-01'],
+    [/linear combinations? of (?:normal |random )?variables?|expectation and variance/i, '9709-s2-topic-02'],
+    [/continuous distributions?|continuous random variables?|probability density/i, '9709-s2-topic-03'],
+    [/\bsampling\b|estimation|confidence interval|central limit|unbiased estimate/i, '9709-s2-topic-04'],
+    [/hypothesis test|hypothesis testing|null hypothesis|alternative hypothesis|significance level|type i error|type ii error|rejection region|critical region/i, '9709-s2-topic-05'],
+  ]),
 })
 
-function tagTopicIdsFor9709(routeId, component, topicTags) {
-  const mappings = MATH_9709_TAG_TOPIC_BY_ROUTE_COMPONENT[routeId]?.[component] || []
-  const text = [...topicTags].join(' | ')
+function classificationTextFor9709(question) {
+  const partText = (Array.isArray(question.parts) ? question.parts : []).flatMap((part) => [
+    part?.prompt,
+    part?.promptFragment,
+    part?.questionText,
+    part?.text,
+  ])
+  return [
+    ...(Array.isArray(question.topicTags) ? question.topicTags : []),
+    ...(Array.isArray(question.skillTags) ? question.skillTags : []),
+    question.prompt,
+    question.questionText,
+    question.stem,
+    question.title,
+    ...partText,
+  ].map((value) => String(value || '').trim()).filter(Boolean).join(' | ')
+}
+
+function tagTopicIdsFor9709(component, question, validTopics) {
+  const mappings = MATH_9709_TAG_TOPIC_BY_COMPONENT[component] || []
+  const text = classificationTextFor9709(question)
   const topicIds = []
   for (const [pattern, topicId] of mappings) {
-    if (pattern.test(text) && !topicIds.includes(topicId)) topicIds.push(topicId)
+    if (validTopics.has(topicId) && pattern.test(text) && !topicIds.includes(topicId)) topicIds.push(topicId)
   }
   return topicIds
 }
 
+function explicitTopicResolutionFor9709(question, config, component) {
+  const suppliedMapping = question.syllabusMapping || {}
+  const rawTopicIds = [suppliedMapping.primaryTopicId, ...(suppliedMapping.secondaryTopicIds || [])]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+  const topicIds = []
+  let invalid = false
+  for (const rawTopicId of rawTopicIds) {
+    const topicId = routeTopicIdsFor9709(config.syllabus.routeId, rawTopicId, component)[0]
+    if (!topicId) {
+      invalid = true
+      continue
+    }
+    if (!topicIds.includes(topicId)) topicIds.push(topicId)
+  }
+  return { topicIds, invalid, supplied: rawTopicIds.length > 0 }
+}
+
 /**
- * Resolve every explicit 9709 syllabus membership available on one question.
- * The component's canonical parent domain is the baseline; explicitly mapped
- * secondary memberships are additive only when they are valid for the route.
+ * Resolve chapter-level 9709 syllabus evidence without turning a broad legacy
+ * domain into an arbitrary chapter. Reviewed mappings must be wholly valid for
+ * the route and component; inferred mappings remain pending review.
  */
 export function topicMembershipIdsForQuestion(question, { routeId = question?.routeId } = {}) {
   if (String(question?.subjectCode || '') !== '9709') return []
   const route = String(routeId || '')
   const config = syllabusConfig(route)
-  if (!config || !MATH_9709_DOMAIN_TOPIC_BY_ROUTE[route]) return []
+  if (!config) return []
   const component = Number(question.sourceRef?.component)
   const domain = MATH_9709_COMPONENT_DOMAIN[component]
   if (!domain) return []
   const validTopics = new Set(config.syllabus.topics.map((topic) => topic.id))
   const topicTags = new Set((Array.isArray(question.topicTags) ? question.topicTags : []).map((tag) => String(tag || '').trim()))
   const knowledgeGroup = String(question.knowledgeGroupId || question.topicId || '').split('@')[0]
+  const explicit = explicitTopicResolutionFor9709(question, config, component)
+  const suppliedStatus = String(question.syllabusMapping?.reviewStatus || '').toLowerCase()
+  if (suppliedStatus === 'reviewed') {
+    return explicit.supplied && !explicit.invalid ? explicit.topicIds : []
+  }
+
   const memberships = []
   const add = (topicId) => {
     if (topicId && validTopics.has(topicId) && !memberships.includes(topicId)) memberships.push(topicId)
   }
 
-  // Narrow skill labels are evidence only after the question declares its
-  // canonical parent domain. This prevents a stray skill label from crossing
-  // the component/topic boundary.
   const canonicalDomainTag = 'math-9709-' + domain
-  const hasDomainTag = knowledgeGroup === canonicalDomainTag
-    && topicTags.has(canonicalDomainTag)
-  for (const topicId of tagTopicIdsFor9709(route, component, topicTags)) add(topicId)
-  if (!memberships.length && hasDomainTag) add(MATH_9709_DOMAIN_TOPIC_BY_ROUTE[route]?.[domain]?.[component])
-
-  const reviewedMapping = question.syllabusMapping || {}
-  const mappingTopics = [reviewedMapping.primaryTopicId, ...(reviewedMapping.secondaryTopicIds || [])]
-  for (const topicId of mappingTopics) {
-    const mapped = routeTopicIdsFor9709(route, topicId)[0]
-    if (mapped) add(mapped)
+  const hasDomainTag = knowledgeGroup === canonicalDomainTag || topicTags.has(canonicalDomainTag)
+  if (hasDomainTag) {
+    for (const topicId of tagTopicIdsFor9709(component, question, validTopics)) add(topicId)
   }
+  for (const topicId of explicit.topicIds) add(topicId)
 
   return memberships
 }
@@ -268,6 +337,20 @@ function rawSyllabusQuestionGroups(config) {
     })
 }
 
+function syllabusPointResolutionFor9709(syllabus, topicIds, suppliedPointIds = []) {
+  const requested = [...new Set((Array.isArray(suppliedPointIds) ? suppliedPointIds : [])
+    .map((value) => String(value || '').trim())
+    .filter(Boolean))]
+  const validPointIds = new Set(syllabus.topics
+    .filter((topic) => topicIds.includes(topic.id))
+    .flatMap((topic) => topic.points || [])
+    .map((point) => point.id))
+  return {
+    pointIds: requested.filter((pointId) => validPointIds.has(pointId)),
+    invalid: requested.some((pointId) => !validPointIds.has(pointId)),
+  }
+}
+
 function candidateMappingFor(question, syllabus, config = {}) {
   const component = Number(question.sourceRef?.component)
   const knowledgeGroupId = String(question.knowledgeGroupId || question.topicId || '')
@@ -275,18 +358,22 @@ function candidateMappingFor(question, syllabus, config = {}) {
     const topicIds = topicMembershipIdsForQuestion(question, { routeId: syllabus.routeId })
     if (!topicIds.length) return null
     const suppliedMapping = question.syllabusMapping || {}
-    const suppliedPrimary = routeTopicIdsFor9709(syllabus.routeId, suppliedMapping.primaryTopicId)[0]
+    const explicit = explicitTopicResolutionFor9709(question, config, component)
+    const suppliedPrimary = routeTopicIdsFor9709(syllabus.routeId, suppliedMapping.primaryTopicId, component)[0]
     const primaryTopicId = suppliedPrimary && topicIds.includes(suppliedPrimary) ? suppliedPrimary : topicIds[0]
     const secondaryTopicIds = topicIds.filter((topicId) => topicId !== primaryTopicId)
     const suppliedStatus = String(suppliedMapping.reviewStatus || '').toLowerCase()
-    const reviewed = suppliedStatus === 'reviewed'
+    const reviewed = suppliedStatus === 'reviewed' && explicit.supplied && !explicit.invalid && explicit.topicIds.length > 0
+    if (suppliedStatus === 'reviewed' && !reviewed) return null
+    const pointResolution = syllabusPointResolutionFor9709(syllabus, topicIds, suppliedMapping.syllabusPointIds)
+    if (reviewed && pointResolution.invalid) return null
     return Object.freeze({
       schemaVersion: SYLLABUS_MAPPING_SCHEMA_VERSION,
       questionGroupId: question.sourceQuestionId || question.questionGroupId,
       primaryTopicId,
       secondaryTopicIds: Object.freeze(secondaryTopicIds),
       topicIds: Object.freeze(topicIds),
-      syllabusPointIds: Object.freeze(suppliedMapping.syllabusPointIds || []),
+      syllabusPointIds: Object.freeze(pointResolution.pointIds),
       confidence: reviewed ? Number(suppliedMapping.confidence || 1) : 0.5,
       mappingMethod: reviewed ? 'manual' : 'rule',
       reviewStatus: reviewed ? 'reviewed' : 'pending',
@@ -473,6 +560,10 @@ export function syllabusTopicsInventory({ routeId, questionBank = unifiedQuestio
   const topics = topicRowsForRoute(routeId, questionBank, { includeStudyOnly })
   const firstBatchPapers = config ? officialFirstBatchPapers(config) : []
   const effectiveRecords = config ? effectiveQuestionRecords(questionBank, config) : []
+  const mappedRecords = effectiveRecords.filter((record) => record.mapping.topicIds?.length)
+  const verifiedRecords = mappedRecords.filter((record) => record.eligible)
+  const studyRecords = includeStudyOnly ? mappedRecords.filter((record) => record.studyEligible) : []
+  const availableRecordIds = new Set([...verifiedRecords, ...studyRecords].map((record) => record.sourceQuestionId))
   return {
     schemaVersion: SYLLABUS_CATALOG_SCHEMA_VERSION,
     routeId,
@@ -482,6 +573,9 @@ export function syllabusTopicsInventory({ routeId, questionBank = unifiedQuestio
     syllabusUrl: config
       ? config.syllabus.officialUrl
       : route.syllabus.url,
+    componentScope: config
+      ? config.syllabus.componentScope || []
+      : route.syllabus.componentScope || [],
     assessmentComponents: config
       ? config.syllabus.assessmentComponents.filter((item) => config.components.includes(Number(item.component)))
       : [],
@@ -490,9 +584,9 @@ export function syllabusTopicsInventory({ routeId, questionBank = unifiedQuestio
     officialPaperCount: firstBatchPapers.length,
     officialPairedPaperCount: firstBatchPapers.filter((paper) => Boolean(paper.markSchemeId)).length,
     indexedQuestionGroupCount: config ? effectiveRecords.length : topics.reduce((sum, topic) => sum + topic.indexedQuestionCount, 0),
-    verifiedQuestionGroupCount: topics.reduce((sum, topic) => sum + topic.verifiedQuestionCount, 0),
-    studyQuestionGroupCount: topics.reduce((sum, topic) => sum + topic.studyQuestionCount, 0),
-    availableQuestionGroupCount: topics.reduce((sum, topic) => sum + topic.availableQuestionCount, 0),
+    verifiedQuestionGroupCount: config ? verifiedRecords.length : topics.reduce((sum, topic) => sum + topic.verifiedQuestionCount, 0),
+    studyQuestionGroupCount: config ? studyRecords.length : topics.reduce((sum, topic) => sum + topic.studyQuestionCount, 0),
+    availableQuestionGroupCount: config ? availableRecordIds.size : topics.reduce((sum, topic) => sum + topic.availableQuestionCount, 0),
     unmappedQuestionGroupCount: effectiveRecords.filter((record) => !record.mapping.topicIds?.length).length,
     source: 'server-syllabus-catalog',
     gate: 'reviewed-or-source-backed-study-question',
@@ -744,7 +838,7 @@ function syllabusTopicsForPersistedUnit(unit, config) {
     .map((value) => value.trim())
     .filter(Boolean)
   const validTopicIds = new Set(config.syllabus.topics.map((topic) => topic.id))
-  const topicIds = [...new Set(candidates.map((topicId) => canonicalSyllabusTopicIdForRoute(config.syllabus.routeId, topicId)))]
+  const topicIds = [...new Set(candidates.flatMap((topicId) => syllabusTopicScopeIdsForRoute(config.syllabus.routeId, topicId)))]
   return topicIds.length && topicIds.every((topicId) => validTopicIds.has(topicId)) ? topicIds : []
 }
 
@@ -753,7 +847,7 @@ function syllabusTopicsForPersistedUnit(unit, config) {
  * Rebuild the exact part scope from the current study pool and require every
  * persisted source identity to match before restoring a session or history.
  */
-export function rebindSyllabusPracticeUnit(unit, { questionBank = studyQuestionBank } = {}) {
+export function rebindSyllabusPracticeUnit(unit, { questionBank = studyQuestionBank, includeStudyOnly = true } = {}) {
   if (!unit || unit.sourceAuthority !== 'server-syllabus' || unit.sourceGateVersion !== 'server-syllabus-catalog-v2') return null
   const route = routeById(unit.routeId)
   const config = route && syllabusConfig(route.routeId)
@@ -767,7 +861,7 @@ export function rebindSyllabusPracticeUnit(unit, { questionBank = studyQuestionB
   if (!topicIds.length || !selectedComponents.length || !persistedParts.length || persistedParts.length > 500) return null
 
   const recordsByQuestionId = new Map(effectiveQuestionRecords(questionBank, config)
-    .filter((record) => (record.eligible || record.studyEligible)
+    .filter((record) => (record.eligible || (includeStudyOnly && record.studyEligible))
       && topicIds.some((topicId) => record.mapping.topicIds?.includes(topicId))
       && selectedComponents.includes(record.paperComponent))
     .map((record) => [record.sourceQuestionId, record]))
@@ -888,7 +982,7 @@ export function buildSyllabusPracticeSet({
     throw error
   }
   const topicIds = [...new Set(syllabusTopicIds
-    .map((value) => canonicalSyllabusTopicIdForRoute(routeId, String(value || '').trim()))
+    .flatMap((value) => syllabusTopicScopeIdsForRoute(routeId, String(value || '').trim()))
     .filter(Boolean))]
   const validTopicIds = new Set(config.syllabus.topics.map((topic) => topic.id))
   if (!topicIds.length || topicIds.some((topicId) => !validTopicIds.has(topicId))) {
@@ -1031,6 +1125,70 @@ export function ensureSyllabusTables(database) {
     );
     CREATE INDEX IF NOT EXISTS idx_question_syllabus_mapping_gate
       ON question_syllabus_mapping(primary_topic_id, review_status);
+    CREATE TABLE IF NOT EXISTS syllabus_route_topics (
+      route_id TEXT NOT NULL,
+      id TEXT NOT NULL,
+      syllabus_version TEXT NOT NULL,
+      code TEXT NOT NULL,
+      name TEXT NOT NULL,
+      order_index INTEGER NOT NULL,
+      official_page INTEGER,
+      official_url TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (route_id, id)
+    );
+    CREATE TABLE IF NOT EXISTS syllabus_route_points (
+      route_id TEXT NOT NULL,
+      id TEXT NOT NULL,
+      topic_id TEXT NOT NULL,
+      section_code TEXT NOT NULL,
+      outcome_number INTEGER NOT NULL,
+      official_text TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (route_id, id),
+      FOREIGN KEY (route_id, topic_id) REFERENCES syllabus_route_topics(route_id, id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS route_question_groups (
+      route_id TEXT NOT NULL,
+      id TEXT NOT NULL,
+      stage TEXT NOT NULL,
+      subject_code TEXT NOT NULL,
+      paper_component INTEGER,
+      question_paper_id TEXT,
+      mark_scheme_id TEXT,
+      question_pages_json TEXT NOT NULL,
+      mark_scheme_pages_json TEXT NOT NULL,
+      total_marks INTEGER NOT NULL,
+      source_content_complete INTEGER NOT NULL,
+      study_eligible INTEGER NOT NULL DEFAULT 0,
+      verification_status TEXT NOT NULL,
+      source_json TEXT NOT NULL,
+      answer_json TEXT NOT NULL,
+      parts_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (route_id, id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_route_question_groups_syllabus_gate
+      ON route_question_groups(route_id, paper_component, source_content_complete, verification_status);
+    CREATE TABLE IF NOT EXISTS route_question_syllabus_mapping (
+      route_id TEXT NOT NULL,
+      question_group_id TEXT NOT NULL,
+      primary_topic_id TEXT,
+      secondary_topic_ids_json TEXT NOT NULL,
+      syllabus_point_ids_json TEXT NOT NULL,
+      confidence REAL NOT NULL,
+      mapping_method TEXT NOT NULL,
+      review_status TEXT NOT NULL,
+      reviewed_by TEXT,
+      reviewed_at TEXT,
+      evidence_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (route_id, question_group_id),
+      FOREIGN KEY (route_id, question_group_id) REFERENCES route_question_groups(route_id, id) ON DELETE CASCADE,
+      FOREIGN KEY (route_id, primary_topic_id) REFERENCES syllabus_route_topics(route_id, id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_route_question_syllabus_mapping_gate
+      ON route_question_syllabus_mapping(route_id, primary_topic_id, review_status);
   `)
   const groupColumns = database.prepare('PRAGMA table_info(question_groups)').all().map((column) => column.name)
   if (!groupColumns.includes('study_eligible')) {
@@ -1042,10 +1200,9 @@ export function seedSyllabusTables(database, questionBank = []) {
   ensureSyllabusTables(database)
   const now = new Date().toISOString()
   const insertTopic = database.prepare(`
-    INSERT INTO syllabus_topics (id, route_id, syllabus_version, code, name, order_index, official_page, official_url, updated_at)
+    INSERT INTO syllabus_route_topics (route_id, id, syllabus_version, code, name, order_index, official_page, official_url, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET
-      route_id = excluded.route_id,
+    ON CONFLICT(route_id, id) DO UPDATE SET
       syllabus_version = excluded.syllabus_version,
       code = excluded.code,
       name = excluded.name,
@@ -1055,9 +1212,9 @@ export function seedSyllabusTables(database, questionBank = []) {
       updated_at = excluded.updated_at
   `)
   const insertPoint = database.prepare(`
-    INSERT INTO syllabus_points (id, topic_id, section_code, outcome_number, official_text, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET
+    INSERT INTO syllabus_route_points (route_id, id, topic_id, section_code, outcome_number, official_text, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(route_id, id) DO UPDATE SET
       topic_id = excluded.topic_id,
       section_code = excluded.section_code,
       outcome_number = excluded.outcome_number,
@@ -1066,19 +1223,20 @@ export function seedSyllabusTables(database, questionBank = []) {
   `)
   for (const config of Object.values(SYLLABUS_CONFIGS)) {
     for (const topic of config.syllabus.topics) {
-      insertTopic.run(topic.id, topic.routeId, topic.syllabusVersion, topic.code, topic.name, topic.order, topic.officialPage, config.syllabus.officialUrl, now)
-      for (const syllabusPoint of topic.points) insertPoint.run(syllabusPoint.id, topic.id, syllabusPoint.sectionCode, syllabusPoint.outcomeNumber, syllabusPoint.officialText, now)
+      insertTopic.run(config.syllabus.routeId, topic.id, topic.syllabusVersion, topic.code, topic.name, topic.order, topic.officialPage, config.syllabus.officialUrl, now)
+      for (const syllabusPoint of topic.points) {
+        insertPoint.run(config.syllabus.routeId, syllabusPoint.id, topic.id, syllabusPoint.sectionCode, syllabusPoint.outcomeNumber, syllabusPoint.officialText, now)
+      }
     }
   }
 
   const insertQuestion = database.prepare(`
-    INSERT INTO question_groups (
-      id, route_id, stage, subject_code, paper_component, question_paper_id, mark_scheme_id,
+    INSERT INTO route_question_groups (
+      route_id, id, stage, subject_code, paper_component, question_paper_id, mark_scheme_id,
       question_pages_json, mark_scheme_pages_json, total_marks, source_content_complete, study_eligible,
       verification_status, source_json, answer_json, parts_json, updated_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET
-      route_id = excluded.route_id,
+    ON CONFLICT(route_id, id) DO UPDATE SET
       stage = excluded.stage,
       subject_code = excluded.subject_code,
       paper_component = excluded.paper_component,
@@ -1096,11 +1254,11 @@ export function seedSyllabusTables(database, questionBank = []) {
       updated_at = excluded.updated_at
   `)
   const insertMapping = database.prepare(`
-    INSERT INTO question_syllabus_mapping (
-      question_group_id, primary_topic_id, secondary_topic_ids_json, syllabus_point_ids_json,
+    INSERT INTO route_question_syllabus_mapping (
+      route_id, question_group_id, primary_topic_id, secondary_topic_ids_json, syllabus_point_ids_json,
       confidence, mapping_method, review_status, reviewed_by, reviewed_at, evidence_json, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(question_group_id) DO UPDATE SET
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(route_id, question_group_id) DO UPDATE SET
       primary_topic_id = excluded.primary_topic_id,
       secondary_topic_ids_json = excluded.secondary_topic_ids_json,
       syllabus_point_ids_json = excluded.syllabus_point_ids_json,
@@ -1119,10 +1277,10 @@ export function seedSyllabusTables(database, questionBank = []) {
     const question = record.question
     const answerRef = question.answerRef || {}
     const mapping = record.mapping
-    if (record.verificationStatus === 'ai-verified') activeAiVerifiedQuestionGroupIds.add(record.questionGroupId)
+    if (record.verificationStatus === 'ai-verified') activeAiVerifiedQuestionGroupIds.add(`${record.routeId}\u0000${record.questionGroupId}`)
     insertQuestion.run(
-      record.questionGroupId,
       record.routeId,
+      record.questionGroupId,
       record.stage,
       record.subjectCode,
       record.paperComponent,
@@ -1140,6 +1298,7 @@ export function seedSyllabusTables(database, questionBank = []) {
       now,
     )
     insertMapping.run(
+      record.routeId,
       record.questionGroupId,
       mapping.primaryTopicId,
       JSON.stringify(mapping.secondaryTopicIds || []),
@@ -1158,10 +1317,10 @@ export function seedSyllabusTables(database, questionBank = []) {
   // Coordinate-only records are loaded only when their artifact and both
   // local PDFs still validate. Remove an earlier runtime copy when that guard
   // stops returning it, while leaving reviewed and machine-indexed rows intact.
-  const existingAiVerified = database.prepare("SELECT id FROM question_groups WHERE verification_status = 'ai-verified'").all()
-  const deleteStaleAiVerified = database.prepare("DELETE FROM question_groups WHERE id = ? AND verification_status = 'ai-verified'")
+  const existingAiVerified = database.prepare("SELECT route_id AS routeId, id FROM route_question_groups WHERE verification_status = 'ai-verified'").all()
+  const deleteStaleAiVerified = database.prepare("DELETE FROM route_question_groups WHERE route_id = ? AND id = ? AND verification_status = 'ai-verified'")
   for (const row of existingAiVerified) {
-    if (!activeAiVerifiedQuestionGroupIds.has(row.id)) deleteStaleAiVerified.run(row.id)
+    if (!activeAiVerifiedQuestionGroupIds.has(`${row.routeId}\u0000${row.id}`)) deleteStaleAiVerified.run(row.routeId, row.id)
   }
 }
 
@@ -1197,17 +1356,20 @@ export function syllabusDatabaseInventory(database, routeId, { includeStudyOnly 
         )
         THEN groups.id END
       ) AS pendingReviewCount
-    FROM syllabus_topics AS topics
-      LEFT JOIN question_syllabus_mapping AS mapping
-        ON mapping.primary_topic_id = topics.id
-        OR EXISTS (
+    FROM syllabus_route_topics AS topics
+      LEFT JOIN route_question_syllabus_mapping AS mapping
+        ON mapping.route_id = topics.route_id
+        AND (
+          mapping.primary_topic_id = topics.id
+          OR EXISTS (
           SELECT 1
           FROM json_each(mapping.secondary_topic_ids_json)
           WHERE json_each.value = topics.id
+          )
         )
-    LEFT JOIN question_groups AS groups
-      ON groups.id = mapping.question_group_id
-      AND groups.route_id = topics.route_id
+    LEFT JOIN route_question_groups AS groups
+      ON groups.route_id = mapping.route_id
+      AND groups.id = mapping.question_group_id
       AND groups.paper_component IN (${componentPlaceholders})
     WHERE topics.route_id = ?
     GROUP BY topics.id

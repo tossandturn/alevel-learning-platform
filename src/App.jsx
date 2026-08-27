@@ -33,7 +33,7 @@ import { COURSE_STAGE_ORDER } from './data/stages'
 import { usePaperCatalog } from './hooks/usePaperCatalog'
 import { useSyllabusInventory } from './hooks/useSyllabusInventory'
 import { loadState, makeAttemptId, normalizeState, saveState } from './lib/storage'
-import { canonicalSyllabusTopicIdForRoute, questionMatchesSyllabusTopic, supportsSyllabusPracticeRoute, syllabusPracticeComponentsForRoute } from './lib/syllabusPracticeRoutes'
+import { questionMatchesSyllabusTopic, supportsSyllabusPracticeRoute, syllabusPracticeComponentsForRoute, syllabusTopicScopeIdsForRoute } from './lib/syllabusPracticeRoutes'
 import { attemptedSourceQuestionIds, buildAttemptReviewQueue, buildProvisionalAttemptEvidence, hasAttemptResponse, hasCurrentSourceBindingForAttempt, isPendingSelfMarkAttempt, isProvisionalAttempt, isScoredAttempt, isStudyOnlyAttempt, isStudyOnlyPracticeUnit, prepareLearningExport, sourceBindingSnapshotForUnit } from './lib/attemptAudit'
 import { mergeNotebookNote, notebookNoteRequest } from './lib/privateNotes'
 import { stripSourceVisualPlaceholders } from './lib/questionText'
@@ -690,6 +690,8 @@ function App() {
         availableSetSizes: topic.availableSetSizes,
         ctaPolicy: topic.ctaPolicy,
         sourceGap: topic.sourceGap,
+        officialNotes: topic.officialNotes || [],
+        componentScope: topic.componentScope || null,
         points: topic.points || [],
       })),
     }]
@@ -719,6 +721,8 @@ function App() {
           availableSetSizes: serverTopic.availableSetSizes,
           ctaPolicy: serverTopic.ctaPolicy,
           sourceGap: serverTopic.sourceGap,
+          officialNotes: serverTopic.officialNotes || [],
+          componentScope: serverTopic.componentScope || null,
           points: serverTopic.points || [],
         }))
         : option.topics,
@@ -1299,7 +1303,7 @@ function App() {
   async function generateSyllabusPractice(selection) {
     if (!supportsSyllabusPracticeRoute(selection?.routeId)) return generateCoachPractice(selection)
     const syllabusTopicIds = (selection.syllabusTopicIds || [selection.knowledgeGroupId])
-      .map((topicId) => canonicalSyllabusTopicIdForRoute(selection.routeId, topicId))
+      .flatMap((topicId) => syllabusTopicScopeIdsForRoute(selection.routeId, topicId))
       .filter(Boolean)
     const components = selection.components?.length
       ? selection.components
@@ -2382,7 +2386,7 @@ function SharedAccountBanner({ sharedAccount, onRefreshSharedAccount, onOpenAcco
   if (sharedAccount.status === 'ready') {
     return <section className="student-account-banner student-account-banner--ready" role="status"><CheckCircle2 size={19} /><div><strong>Shared account connected</strong><span>{sharedAccount.identity?.username || 'Your account'} · STEM has its own local session and syncs to the same account database.</span></div><button type="button" className="text-action" onClick={onRefreshSharedAccount}>Refresh session <RefreshCcw size={14} /></button></section>
   }
-  return <section className="student-account-banner" role="status"><LogIn size={19} /><div><strong>Save your learning across devices</strong><span>Use the same IELTSist account, but sign in directly on STEM. Your private notebook stays private from teachers and schools.</span></div><button type="button" className="primary-action compact-action" onClick={() => onOpenAccount?.('login')}>Log in or create account <ChevronRight size={15} /></button></section>
+  return <section className="student-account-banner" role="status"><LogIn size={19} /><div><strong>Save your learning across devices</strong><span>Use the same IELTSist account, but sign in directly on STEM. Your private notebook stays linked only to your account.</span></div><button type="button" className="primary-action compact-action" onClick={() => onOpenAccount?.('login')}>Log in or create account <ChevronRight size={15} /></button></section>
 }
 
 function SharedAccountDialog({ mode = 'login', onClose, onModeChange, onSubmit }) {
@@ -2578,7 +2582,7 @@ function Dashboard({
         <div>
           <p className="section-label">STEM practice studio</p>
           <h1>Learn from the paper, not from made-up questions.</h1>
-          <p>Choose a course and syllabus point, then work through official questions with teacher support.</p>
+          <p>Choose a course and syllabus point, then work through official questions with source-backed feedback.</p>
         </div>
         <div className="streak-note"><span>Weekly target</span><strong>{Math.min(attempts.length, profile.weeklyQuestions)}/{profile.weeklyQuestions}</strong><small>scored questions</small></div>
       </div>

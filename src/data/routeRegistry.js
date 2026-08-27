@@ -1,8 +1,14 @@
 import { CAMBRIDGE_0580_IGCSE_TOPICS } from './syllabus/cambridge-0580-igcse-2025-2027.js'
+import { CAMBRIDGE_0580_IGCSE_SYLLABUS } from './syllabus/cambridge-0580-igcse-2025-2027.js'
 import { CAMBRIDGE_0625_IGCSE_TOPICS } from './syllabus/cambridge-0625-igcse-2026-2028.js'
+import { CAMBRIDGE_0625_IGCSE_SYLLABUS } from './syllabus/cambridge-0625-igcse-2026-2028.js'
+import { CAMBRIDGE_0606_IGCSE_SYLLABUS } from './syllabus/cambridge-0606-igcse-2025-2027.js'
 import { CAMBRIDGE_9702_AS_TOPICS } from './syllabus/cambridge-9702-as-2025-2027.js'
+import { CAMBRIDGE_9702_AS_SYLLABUS } from './syllabus/cambridge-9702-as-2025-2027.js'
 import { CAMBRIDGE_9702_A2_TOPICS } from './syllabus/cambridge-9702-a2-2025-2027.js'
+import { CAMBRIDGE_9702_A2_SYLLABUS } from './syllabus/cambridge-9702-a2-2025-2027.js'
 import { CAMBRIDGE_9709_AS_P1_S1_TOPICS } from './syllabus/cambridge-9709-as-p1-s1-2026-2027.js'
+import { cambridge9709SyllabusForRoute, cambridge9709TopicsForRoute } from './syllabus/cambridge-9709-2026-2027.js'
 
 export const LEGACY_UNSCOPED_ROUTE_ID = 'legacy-unscoped'
 
@@ -69,13 +75,25 @@ function freezeTopics(key) {
 
 function cieRoute({ routeId, qualification, stage, subject, subjectId, code, paperComponents, topicKey, paperComponentLabels = {} }) {
   const [version, url] = SYLLABUS[code]
-  const officialTopics = officialTopicsForRoute({ routeId, code, stage })
+  const officialSyllabus = officialSyllabusForRoute({ routeId, code, stage, paperComponents })
+  const officialTopics = officialSyllabus?.topics || officialTopicsForRoute({ routeId, code, stage })
   const syllabusTopics = officialTopics
     ? officialTopics.map((topic) => Object.freeze({
       ...topic,
       title: `${topic.code} ${topic.name}`,
     }))
     : freezeTopics(topicKey)
+  const assessmentComponents = officialSyllabus?.assessmentComponents?.length
+    ? officialSyllabus.assessmentComponents.filter((item) => paperComponents.includes(Number(item.component)))
+    : paperComponents.map((component) => ({
+      component,
+      stage,
+      track: 'theory',
+      label: paperComponentLabels[component] || `Paper ${component}`,
+    }))
+  const fallbackComponentScope = [...new Map(syllabusTopics
+    .filter((topic) => topic.componentScope?.component != null)
+    .map((topic) => [Number(topic.componentScope.component), topic.componentScope])).values()]
   return Object.freeze({
     routeId,
     qualification,
@@ -86,8 +104,29 @@ function cieRoute({ routeId, qualification, stage, subject, subjectId, code, pap
     subjectCode: code,
     paperComponents: Object.freeze([...paperComponents]),
     paperComponentLabels: Object.freeze({ ...paperComponentLabels }),
-    syllabus: Object.freeze({ board: 'Cambridge International', code, version, url, topics: Object.freeze(syllabusTopics) }),
+    syllabus: Object.freeze({
+      board: officialSyllabus?.board || 'Cambridge International',
+      code,
+      version: officialSyllabus?.syllabusVersion || version,
+      url: officialSyllabus?.officialUrl || url,
+      assessmentComponents: Object.freeze(assessmentComponents.map((item) => Object.freeze({ ...item }))),
+      componentScope: Object.freeze((officialSyllabus?.componentScope || fallbackComponentScope).map((scope) => Object.freeze({
+        ...scope,
+        notes: Object.freeze(Array.isArray(scope.notes) ? [...scope.notes] : []),
+      }))),
+      topics: Object.freeze(syllabusTopics),
+    }),
   })
+}
+
+function officialSyllabusForRoute({ routeId, code, stage, paperComponents }) {
+  if (code === '0580') return CAMBRIDGE_0580_IGCSE_SYLLABUS
+  if (code === '0606') return CAMBRIDGE_0606_IGCSE_SYLLABUS
+  if (code === '0625') return CAMBRIDGE_0625_IGCSE_SYLLABUS
+  if (code === '9702' && stage === 'AS') return CAMBRIDGE_9702_AS_SYLLABUS
+  if (code === '9702' && stage === 'A2') return CAMBRIDGE_9702_A2_SYLLABUS
+  if (code === '9709') return cambridge9709SyllabusForRoute(routeId, paperComponents)
+  return null
 }
 
 function officialTopicsForRoute({ routeId, code, stage }) {
@@ -96,6 +135,16 @@ function officialTopicsForRoute({ routeId, code, stage }) {
   if (code === '9702' && stage === 'AS') return CAMBRIDGE_9702_AS_TOPICS
   if (code === '9702' && stage === 'A2') return CAMBRIDGE_9702_A2_TOPICS
   if (routeId === 'cie-9709-as-p1-p5') return CAMBRIDGE_9709_AS_P1_S1_TOPICS
+  if (code === '9709') {
+    const componentByRoute = {
+      'cie-9709-as-p1-p2': [1, 2],
+      'cie-9709-as-p1-p4': [1, 4],
+      'cie-9709-a2-after-p1-p5-p3-p4': [3, 4],
+      'cie-9709-a2-after-p1-p5-p3-p6': [3, 6],
+      'cie-9709-a2-after-p1-p4-p3-p5': [3, 5],
+    }
+    return cambridge9709TopicsForRoute(routeId, componentByRoute[routeId] || [])
+  }
   return null
 }
 
@@ -135,11 +184,11 @@ export const courseRoutes = Object.freeze([
   cieRoute({ routeId: 'cie-9708-as-economics', qualification: QUALIFICATIONS.A_LEVEL, stage: 'AS', subject: 'Economics', subjectId: 'economics-9708', code: '9708', paperComponents: [1, 2], topicKey: '9708-as' }),
   cieRoute({ routeId: 'cie-9708-a2-economics', qualification: QUALIFICATIONS.A_LEVEL, stage: 'A2', subject: 'Economics', subjectId: 'economics-9708', code: '9708', paperComponents: [3, 4], topicKey: '9708-a2' }),
   cieRoute({ routeId: 'cie-9709-as-p1-p2', qualification: QUALIFICATIONS.A_LEVEL, stage: 'AS', subject: 'Mathematics', subjectId: 'math-9709', code: '9709', paperComponents: [1, 2], topicKey: '9709-as' }),
-  cieRoute({ routeId: 'cie-9709-as-p1-p4', qualification: QUALIFICATIONS.A_LEVEL, stage: 'AS', subject: 'Mathematics', subjectId: 'math-9709', code: '9709', paperComponents: [1, 4], topicKey: '9709-as' }),
+  cieRoute({ routeId: 'cie-9709-as-p1-p4', qualification: QUALIFICATIONS.A_LEVEL, stage: 'AS', subject: 'Mathematics', subjectId: 'math-9709', code: '9709', paperComponents: [1, 4], paperComponentLabels: { 4: 'M1' }, topicKey: '9709-as' }),
   cieRoute({ routeId: 'cie-9709-as-p1-p5', qualification: QUALIFICATIONS.A_LEVEL, stage: 'AS', subject: 'Mathematics', subjectId: 'math-9709', code: '9709', paperComponents: [1, 5], paperComponentLabels: { 5: 'S1' }, topicKey: '9709-as' }),
-  cieRoute({ routeId: 'cie-9709-a2-after-p1-p5-p3-p4', qualification: QUALIFICATIONS.A_LEVEL, stage: 'A2', subject: 'Mathematics', subjectId: 'math-9709', code: '9709', paperComponents: [3, 4], topicKey: '9709-a2' }),
-  cieRoute({ routeId: 'cie-9709-a2-after-p1-p5-p3-p6', qualification: QUALIFICATIONS.A_LEVEL, stage: 'A2', subject: 'Mathematics', subjectId: 'math-9709', code: '9709', paperComponents: [3, 6], topicKey: '9709-a2' }),
-  cieRoute({ routeId: 'cie-9709-a2-after-p1-p4-p3-p5', qualification: QUALIFICATIONS.A_LEVEL, stage: 'A2', subject: 'Mathematics', subjectId: 'math-9709', code: '9709', paperComponents: [3, 5], topicKey: '9709-a2' }),
+  cieRoute({ routeId: 'cie-9709-a2-after-p1-p5-p3-p4', qualification: QUALIFICATIONS.A_LEVEL, stage: 'A2', subject: 'Mathematics', subjectId: 'math-9709', code: '9709', paperComponents: [3, 4], paperComponentLabels: { 4: 'M1' }, topicKey: '9709-a2' }),
+  cieRoute({ routeId: 'cie-9709-a2-after-p1-p5-p3-p6', qualification: QUALIFICATIONS.A_LEVEL, stage: 'A2', subject: 'Mathematics', subjectId: 'math-9709', code: '9709', paperComponents: [3, 6], paperComponentLabels: { 6: 'S2' }, topicKey: '9709-a2' }),
+  cieRoute({ routeId: 'cie-9709-a2-after-p1-p4-p3-p5', qualification: QUALIFICATIONS.A_LEVEL, stage: 'A2', subject: 'Mathematics', subjectId: 'math-9709', code: '9709', paperComponents: [3, 5], paperComponentLabels: { 5: 'S1' }, topicKey: '9709-a2' }),
   cieRoute({ routeId: 'cie-9231-as-p1-p3', qualification: QUALIFICATIONS.A_LEVEL, stage: 'AS', subject: 'Further Mathematics', subjectId: 'math-9231', code: '9231', paperComponents: [1, 3], topicKey: '9231-as' }),
   cieRoute({ routeId: 'cie-9231-as-p1-p4', qualification: QUALIFICATIONS.A_LEVEL, stage: 'AS', subject: 'Further Mathematics', subjectId: 'math-9231', code: '9231', paperComponents: [1, 4], topicKey: '9231-as' }),
   cieRoute({ routeId: 'cie-9231-a2-after-p1-p3-p2-p4', qualification: QUALIFICATIONS.A_LEVEL, stage: 'A2', subject: 'Further Mathematics', subjectId: 'math-9231', code: '9231', paperComponents: [2, 4], topicKey: '9231-a2' }),

@@ -10,6 +10,7 @@ import { CAMBRIDGE_9702_A2_SYLLABUS } from '../src/data/syllabus/cambridge-9702-
 import { CAMBRIDGE_0580_IGCSE_SYLLABUS } from '../src/data/syllabus/cambridge-0580-igcse-2025-2027.js'
 import { CAMBRIDGE_0625_IGCSE_SYLLABUS } from '../src/data/syllabus/cambridge-0625-igcse-2026-2028.js'
 import { CAMBRIDGE_9709_AS_P1_S1_SYLLABUS } from '../src/data/syllabus/cambridge-9709-as-p1-s1-2026-2027.js'
+import { cambridge9709SyllabusForRoute } from '../src/data/syllabus/cambridge-9709-2026-2027.js'
 import { mergeRuntimeEnv } from '../src/lib/runtimeEnv.js'
 import { AI_PDF_INGESTION_SCHEMA_VERSION, artifactId } from './ai-pdf-ingestion/contract.mjs'
 import { callStructuredWithFallback, providersFromEnvironment } from './ai-pdf-ingestion/provider-fallback.mjs'
@@ -34,11 +35,37 @@ const MAX_PDF_TEXT_BYTES = 2 * 1024 * 1024
 const NO_EXTRACTABLE_TEXT_PAGE_MARKER = '[No extractable text on this page.]'
 const SAFE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/
 const PDF_VALIDATION_PROGRAM = 'from pypdf import PdfReader; import sys; reader = PdfReader(sys.argv[1]); expected = int(sys.argv[2]); assert expected > 0 and len(reader.pages) == expected'
+function math9709Route(routeId, stage, components) {
+  return Object.freeze({
+    routeId,
+    stage,
+    components: Object.freeze([...components]),
+    syllabus: cambridge9709SyllabusForRoute(routeId, components),
+  })
+}
+
+const CAMBRIDGE_9709_INGESTION_ROUTES = Object.freeze({
+  'cie-9709-as-p1-p2': math9709Route('cie-9709-as-p1-p2', 'AS', [1, 2]),
+  'cie-9709-as-p1-p4': math9709Route('cie-9709-as-p1-p4', 'AS', [1, 4]),
+  'cie-9709-as-p1-p5': math9709Route('cie-9709-as-p1-p5', 'AS', [1, 5]),
+  'cie-9709-a2-after-p1-p5-p3-p4': math9709Route('cie-9709-a2-after-p1-p5-p3-p4', 'A2', [3, 4]),
+  'cie-9709-a2-after-p1-p5-p3-p6': math9709Route('cie-9709-a2-after-p1-p5-p3-p6', 'A2', [3, 6]),
+  'cie-9709-a2-after-p1-p4-p3-p5': math9709Route('cie-9709-a2-after-p1-p4-p3-p5', 'A2', [3, 5]),
+})
+
+const DEFAULT_9709_ROUTE_BY_STAGE_COMPONENT = Object.freeze({
+  AS: Object.freeze({ 1: 'cie-9709-as-p1-p5', 2: 'cie-9709-as-p1-p2', 4: 'cie-9709-as-p1-p4', 5: 'cie-9709-as-p1-p5' }),
+  A2: Object.freeze({ 3: 'cie-9709-a2-after-p1-p5-p3-p6', 4: 'cie-9709-a2-after-p1-p5-p3-p4', 5: 'cie-9709-a2-after-p1-p4-p3-p5', 6: 'cie-9709-a2-after-p1-p5-p3-p6' }),
+})
+
 const SUPPORTED_SYLLABUSES = Object.freeze({
   '0580': Object.freeze({ IGCSE: CAMBRIDGE_0580_IGCSE_SYLLABUS }),
   '0625': Object.freeze({ IGCSE: CAMBRIDGE_0625_IGCSE_SYLLABUS }),
   '9702': Object.freeze({ AS: CAMBRIDGE_9702_AS_SYLLABUS, A2: CAMBRIDGE_9702_A2_SYLLABUS }),
-  '9709': Object.freeze({ AS: CAMBRIDGE_9709_AS_P1_S1_SYLLABUS }),
+  '9709': Object.freeze({
+    AS: CAMBRIDGE_9709_AS_P1_S1_SYLLABUS,
+    A2: CAMBRIDGE_9709_INGESTION_ROUTES['cie-9709-a2-after-p1-p5-p3-p6'].syllabus,
+  }),
 })
 
 function pageWindowSize(value, label, fallback) {
@@ -112,7 +139,7 @@ export function parseArgs(argv, { cwd = process.cwd(), env = process.env } = {})
   const values = {}
   const flags = new Set(['--dry-run', '--retry', '--coordinate-only', '--page-windowed'])
   const options = new Set([
-    '--paper-id', '--question-pdf', '--mark-scheme-pdf', '--subject', '--stage', '--output-root', '--model', '--base-url', '--render-dpi', '--max-attempts', '--timeout-ms', '--paper-timeout-ms', '--page-window-owned-pages', '--page-window-trailing-pages',
+    '--paper-id', '--question-pdf', '--mark-scheme-pdf', '--subject', '--stage', '--route-id', '--output-root', '--model', '--base-url', '--render-dpi', '--max-attempts', '--timeout-ms', '--paper-timeout-ms', '--page-window-owned-pages', '--page-window-trailing-pages',
   ])
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -144,6 +171,14 @@ export function parseArgs(argv, { cwd = process.cwd(), env = process.env } = {})
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(values['--subject'])) throw new RangeError('--subject must be a safe identifier.')
   if (!supportedSubject(values['--subject'])) throw codedError('UNSUPPORTED_SUBJECT')
   const stage = normalizeStage(values['--subject'], values['--stage'])
+  const paperComponent = paperComponentFromIdentity(values['--paper-id'], values['--question-pdf'])
+  const routeId = syllabusRouteIdForOptions({
+    subject: values['--subject'],
+    stage,
+    paperComponent,
+    routeId: values['--route-id'],
+  })
+  syllabusForOptions({ subject: values['--subject'], stage, paperComponent, routeId })
 
   const renderDpi = positiveInteger(values['--render-dpi'] ?? DEFAULT_RENDER_DPI, '--render-dpi')
   const maxAttempts = positiveInteger(values['--max-attempts'] ?? DEFAULT_MAX_ATTEMPTS, '--max-attempts')
@@ -167,6 +202,8 @@ export function parseArgs(argv, { cwd = process.cwd(), env = process.env } = {})
     markSchemePdf: resolveExistingFile(values['--mark-scheme-pdf'], '--mark-scheme-pdf', cwd),
     subject: values['--subject'],
     stage,
+    routeId,
+    paperComponent,
     outputRoot,
     model: nonemptyString(values['--model'] ?? runtimeEnv.AI_PDF_INGESTION_MODEL) ?? 'gpt-5.6',
     baseUrl: nonemptyString(values['--base-url'] ?? runtimeEnv.OPENAI_BASE_URL),
@@ -810,36 +847,50 @@ function sourceMetadata(plan, options) {
     pageSizes: {},
     markSchemePageHashes: {},
     markSchemePageSizes: {},
-    controlledTags: controlledTagsForSubject(options.subject, options.stage),
-    controlledTopicCatalog: controlledTopicCatalogForSubject(options.subject, options.stage),
+    controlledTags: controlledTagsForOptions(options),
+    controlledTopicCatalog: controlledTopicCatalogForOptions(options),
   }
 }
 
 function syllabusForOptions(options = {}) {
   const subject = nonemptyString(options.subject)
   const stage = normalizeStage(subject, options.stage)
+  if (subject === '9709') {
+    const routeId = syllabusRouteIdForOptions({ ...options, subject, stage })
+    const config = CAMBRIDGE_9709_INGESTION_ROUTES[routeId]
+    if (!config || config.stage !== stage) throw codedError('UNSUPPORTED_SYLLABUS_ROUTE')
+    if (options.paperComponent != null && !config.components.includes(Number(options.paperComponent))) {
+      throw codedError('PAPER_COMPONENT_NOT_IN_ROUTE')
+    }
+    return config.syllabus
+  }
   const syllabus = SUPPORTED_SYLLABUSES[subject]?.[stage]
   if (!syllabus) throw codedError('UNSUPPORTED_SYLLABUS_STAGE')
+  if (options.routeId && options.routeId !== syllabus.routeId) throw codedError('UNSUPPORTED_SYLLABUS_ROUTE')
   return syllabus
 }
 
-function controlledTagsForSubject(subject, stage) {
-  const syllabus = syllabusForOptions({ subject, stage })
-  const topics = syllabus.topics
+function controlledTopicsForOptions(options) {
+  const syllabus = syllabusForOptions(options)
+  if (options?.subject !== '9709' || options.paperComponent == null) return syllabus.topics
+  return syllabus.topics.filter((topic) => Number(topic.component) === Number(options.paperComponent))
+}
+
+function controlledTagsForOptions(options) {
+  const topics = controlledTopicsForOptions(options)
   const topicIds = new Set(topics.map(topic => topic.id))
   return {
     primaryTopicIds: topicIds,
     secondaryTopicIds: new Set(topicIds),
-    syllabusPointIds: new Set(syllabus.points.map(point => point.id)),
+    syllabusPointIds: new Set(topics.flatMap(topic => topic.points).map(point => point.id)),
     // These legacy validator fields stay empty because the platform has no canonical registry yet.
     skillTagIds: new Set(),
     questionFormatIds: new Set(),
   }
 }
 
-function controlledTopicCatalogForSubject(subject, stage) {
-  const syllabus = syllabusForOptions({ subject, stage })
-  return syllabus.topics.map((topic) => ({
+function controlledTopicCatalogForSubject(options) {
+  return controlledTopicsForOptions(options).map((topic) => ({
     id: topic.id,
     code: topic.code,
     name: topic.name,
@@ -848,7 +899,7 @@ function controlledTopicCatalogForSubject(subject, stage) {
 }
 
 export function controlledTopicCatalogForOptions(options) {
-  return controlledTopicCatalogForSubject(options?.subject, options?.stage)
+  return controlledTopicCatalogForSubject(options || {})
 }
 
 function buildExtractionInput(source, questionDirectory, markSchemeDirectory) {
@@ -1230,6 +1281,36 @@ function safeArtifactFilename(id) {
 
 function supportedSubject(subject) {
   return Boolean(SUPPORTED_SYLLABUSES[subject])
+}
+
+function paperComponentFromIdentity(paperId, questionPdf) {
+  for (const identity of [paperId, path.basename(String(questionPdf || ''))]) {
+    const match = String(identity || '').match(/(?:^|_)qp_(\d)(?:\d)?(?:\.pdf)?$/i)
+    if (match) return Number(match[1])
+  }
+  return null
+}
+
+function syllabusRouteIdForOptions({ subject, stage, paperComponent = null, routeId = null } = {}) {
+  const explicitRouteId = nonemptyString(routeId)
+  if (subject !== '9709') {
+    const syllabus = SUPPORTED_SYLLABUSES[subject]?.[stage]
+    if (!syllabus) throw codedError('UNSUPPORTED_SYLLABUS_STAGE')
+    if (explicitRouteId && explicitRouteId !== syllabus.routeId) throw codedError('UNSUPPORTED_SYLLABUS_ROUTE')
+    return syllabus.routeId
+  }
+
+  if (explicitRouteId) {
+    const config = CAMBRIDGE_9709_INGESTION_ROUTES[explicitRouteId]
+    if (!config || config.stage !== stage) throw codedError('UNSUPPORTED_SYLLABUS_ROUTE')
+    return explicitRouteId
+  }
+
+  const inferredRouteId = DEFAULT_9709_ROUTE_BY_STAGE_COMPONENT[stage]?.[Number(paperComponent)]
+  if (inferredRouteId) return inferredRouteId
+  return stage === 'A2'
+    ? 'cie-9709-a2-after-p1-p5-p3-p6'
+    : 'cie-9709-as-p1-p5'
 }
 
 function normalizeStage(subject, value) {

@@ -54,6 +54,11 @@ assert.equal(studentNavigationHref({ view: 'workspace', routeId: 'cie-0580-igcse
 
 const appSource = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8')
 const historySource = readFileSync(new URL('../src/components/HistoryView.jsx', import.meta.url), 'utf8')
+assert.doesNotMatch(
+  appSource,
+  /private from teachers and schools|with teacher support/,
+  'student-facing copy must not advertise teacher or school features while those product surfaces are hidden',
+)
 assert.match(
   appSource,
   /if \(currentHref === navigationHref\) \{\s*navigationInitializedRef\.current = true\s*return\s*\}/,

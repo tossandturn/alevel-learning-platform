@@ -17,7 +17,7 @@ const COMPONENTS_BY_ROUTE = Object.freeze({
   'cie-0606-igcse-additional-mathematics': Object.freeze([1, 2]),
   'cie-0625-igcse-physics': Object.freeze([2]),
   'cie-9702-as-physics': Object.freeze([1, 2]),
-  'cie-9702-a2-physics': Object.freeze([4, 5]),
+  'cie-9702-a2-physics': Object.freeze([4]),
   'cie-9709-as-p1-p2': Object.freeze([1, 2]),
   'cie-9709-as-p1-p4': Object.freeze([1, 4]),
   'cie-9709-as-p1-p5': Object.freeze([1, 5]),
@@ -69,41 +69,54 @@ const LEGACY_TOPIC_BY_ROUTE = Object.freeze({
     'physics-9702-particles': 'physics-9702-topic-11',
     'physics-9702-practical-data': 'physics-9702-topic-01',
   }),
+})
+
+function topicIds(prefix, count) {
+  return Object.freeze(Array.from({ length: count }, (_, index) => `${prefix}${String(index + 1).padStart(2, '0')}`))
+}
+
+const P1_TOPICS = topicIds('9709-p1-topic-', 8)
+const P2_TOPICS = topicIds('9709-p2-topic-', 6)
+const P3_TOPICS = topicIds('9709-p3-topic-', 9)
+const M1_TOPICS = topicIds('9709-m1-topic-', 5)
+const S1_TOPICS = topicIds('9709-s1-topic-', 5)
+const S2_TOPICS = topicIds('9709-s2-topic-', 5)
+
+const LEGACY_TOPIC_SCOPE_BY_ROUTE = Object.freeze({
   'cie-9709-as-p1-p2': Object.freeze({
-    'math-9709-pure': '9709-as-topic-01',
-    'math-9709-mechanics': '9709-as-topic-03',
-    'math-9709-statistics': '9709-as-topic-04',
-    'math-9709-problem-solving': '9709-as-topic-01',
+    '9709-as-topic-01': P1_TOPICS,
+    '9709-as-topic-02': P2_TOPICS,
+    'math-9709-pure': Object.freeze([...P1_TOPICS, ...P2_TOPICS]),
   }),
   'cie-9709-as-p1-p4': Object.freeze({
-    'math-9709-pure': '9709-as-topic-01',
-    'math-9709-mechanics': '9709-as-topic-03',
-    'math-9709-statistics': '9709-as-topic-04',
-    'math-9709-problem-solving': '9709-as-topic-01',
+    '9709-as-topic-01': P1_TOPICS,
+    '9709-as-topic-03': M1_TOPICS,
+    'math-9709-pure': P1_TOPICS,
+    'math-9709-mechanics': M1_TOPICS,
   }),
   'cie-9709-as-p1-p5': Object.freeze({
-    'math-9709-pure': '9709-p1-topic-01',
-    'math-9709-mechanics': '9709-p1-topic-01',
-    'math-9709-statistics': '9709-s1-topic-01',
-    'math-9709-problem-solving': '9709-p1-topic-01',
+    '9709-as-topic-01': P1_TOPICS,
+    '9709-as-topic-04': S1_TOPICS,
+    'math-9709-pure': P1_TOPICS,
+    'math-9709-statistics': S1_TOPICS,
   }),
   'cie-9709-a2-after-p1-p5-p3-p4': Object.freeze({
-    'math-9709-pure': '9709-a2-topic-01',
-    'math-9709-mechanics': '9709-a2-topic-02',
-    'math-9709-statistics': '9709-a2-topic-03',
-    'math-9709-problem-solving': '9709-a2-topic-01',
+    '9709-a2-topic-01': P3_TOPICS,
+    '9709-a2-topic-02': M1_TOPICS,
+    'math-9709-pure': P3_TOPICS,
+    'math-9709-mechanics': M1_TOPICS,
   }),
   'cie-9709-a2-after-p1-p5-p3-p6': Object.freeze({
-    'math-9709-pure': '9709-a2-topic-01',
-    'math-9709-mechanics': '9709-a2-topic-02',
-    'math-9709-statistics': '9709-a2-topic-04',
-    'math-9709-problem-solving': '9709-a2-topic-01',
+    '9709-a2-topic-01': P3_TOPICS,
+    '9709-a2-topic-04': S2_TOPICS,
+    'math-9709-pure': P3_TOPICS,
+    'math-9709-statistics': S2_TOPICS,
   }),
   'cie-9709-a2-after-p1-p4-p3-p5': Object.freeze({
-    'math-9709-pure': '9709-a2-topic-01',
-    'math-9709-mechanics': '9709-a2-topic-02',
-    'math-9709-statistics': '9709-a2-topic-03',
-    'math-9709-problem-solving': '9709-a2-topic-01',
+    '9709-a2-topic-01': P3_TOPICS,
+    '9709-a2-topic-03': S1_TOPICS,
+    'math-9709-pure': P3_TOPICS,
+    'math-9709-statistics': S1_TOPICS,
   }),
 })
 
@@ -123,8 +136,18 @@ export function canonicalSyllabusTopicIdForRoute(routeId, topicId) {
   return LEGACY_TOPIC_BY_ROUTE[route]?.[rawTopicId] || rawTopicId
 }
 
+export function syllabusTopicScopeIdsForRoute(routeId, topicId) {
+  const route = String(routeId || '')
+  const rawTopicId = String(topicId || '').split('@')[0]
+  const legacyScope = LEGACY_TOPIC_SCOPE_BY_ROUTE[route]?.[rawTopicId]
+  if (legacyScope) return [...legacyScope]
+  const canonical = canonicalSyllabusTopicIdForRoute(route, rawTopicId)
+  return canonical ? [canonical] : []
+}
+
 export function questionMatchesSyllabusTopic(routeId, questionTopicId, syllabusTopicId) {
-  return canonicalSyllabusTopicIdForRoute(routeId, questionTopicId) === canonicalSyllabusTopicIdForRoute(routeId, syllabusTopicId)
+  const canonicalQuestionTopicId = canonicalSyllabusTopicIdForRoute(routeId, questionTopicId)
+  return syllabusTopicScopeIdsForRoute(routeId, syllabusTopicId).includes(canonicalQuestionTopicId)
 }
 
 export { SYLLABUS_PRACTICE_ROUTE_IDS }

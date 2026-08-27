@@ -14,6 +14,7 @@ import {
   canonicalSyllabusTopicIdForRoute,
   questionMatchesSyllabusTopic,
   syllabusPracticeComponentsForRoute,
+  syllabusTopicScopeIdsForRoute,
 } from '../src/lib/syllabusPracticeRoutes.js'
 
 const { buildSyllabusPracticeSet, syllabusTopicsInventory, supportsSyllabusPracticeRoute } = syllabusPractice
@@ -93,8 +94,12 @@ assert.equal(canonicalSyllabusTopicIdForRoute('cie-0580-igcse-mathematics', 'mat
 assert.equal(canonicalSyllabusTopicIdForRoute('cie-0625-igcse-physics', 'physics-0625-waves'), '0625-igcse-topic-03')
 assert.equal(canonicalSyllabusTopicIdForRoute('cie-9702-a2-physics', 'physics-9702-topic-20'), 'physics-9702-topic-20')
 assert.equal(canonicalSyllabusTopicIdForRoute('cie-9702-a2-physics', '9702-a2-topic-09'), 'physics-9702-topic-20')
-assert.equal(canonicalSyllabusTopicIdForRoute('cie-9709-as-p1-p4', 'math-9709-mechanics'), '9709-as-topic-03')
-assert.equal(canonicalSyllabusTopicIdForRoute('cie-9709-a2-after-p1-p5-p3-p6', 'math-9709-statistics'), '9709-a2-topic-04')
+assert.deepEqual(syllabusTopicScopeIdsForRoute('cie-9709-as-p1-p4', 'math-9709-mechanics'), [
+  '9709-m1-topic-01', '9709-m1-topic-02', '9709-m1-topic-03', '9709-m1-topic-04', '9709-m1-topic-05',
+])
+assert.deepEqual(syllabusTopicScopeIdsForRoute('cie-9709-a2-after-p1-p5-p3-p6', 'math-9709-statistics'), [
+  '9709-s2-topic-01', '9709-s2-topic-02', '9709-s2-topic-03', '9709-s2-topic-04', '9709-s2-topic-05',
+])
 assert.deepEqual(syllabusPracticeComponentsForRoute('cie-0580-igcse-mathematics'), [1, 2, 3, 4])
 assert.deepEqual(syllabusPracticeComponentsForRoute('cie-9702-as-physics'), [1, 2])
 assert.deepEqual(syllabusPracticeComponentsForRoute('cie-9709-as-p1-p4'), [1, 4])
@@ -219,16 +224,18 @@ assert.deepEqual(
 )
 assert.deepEqual(
   asMath.topics.map((topic) => topic.availableQuestionCount),
-  [42, 21, 0, 0],
+  [5, 16, 10, 3, 12, 12, 9, 5, 11, 5, 7, 9, 3, 3],
   '9709 AS P1/P2 must expose the current audit-backed file-complete study inventory by syllabus topic',
 )
 assert.deepEqual(
   asMath.topics.map((topic) => topic.verifiedQuestionCount),
-  [0, 0, 0, 0],
+  Array(14).fill(0),
   'study-only inventory must not inflate the formal verified count',
 )
-assert.equal(asMath.topics[0].componentCounts['1'].availableQuestionCount, 42)
-assert.equal(asMath.topics[1].componentCounts['2'].availableQuestionCount, 21)
+assert.equal(asMath.studyQuestionGroupCount, 63, 'multi-topic memberships must not inflate the distinct AS study count')
+assert.equal(asMath.availableQuestionGroupCount, 63)
+assert.equal(asMath.topics.find((topic) => topic.id === '9709-p1-topic-01').componentCounts['1'].availableQuestionCount, 5)
+assert.equal(asMath.topics.find((topic) => topic.id === '9709-p2-topic-01').componentCounts['2'].availableQuestionCount, 11)
 
 const asSet = buildSyllabusPracticeSet({
   routeId: 'cie-9709-as-p1-p2',
@@ -351,9 +358,10 @@ assert.deepEqual(
 )
 assert.deepEqual(
   a2Math.topics.map((topic) => topic.availableQuestionCount),
-  [26, 21, 0, 0],
+  [15, 1, 9, 5, 5, 3, 2, 1, 4, 11, 9, 2, 6, 6],
   '9709 A2 study-only inventory must retain only the current audit-backed P3/P4 source groups',
 )
+assert.equal(a2Math.studyQuestionGroupCount, 47, 'multi-topic memberships must not inflate the distinct A2 study count')
 const a2Set = buildSyllabusPracticeSet({
   routeId: 'cie-9709-a2-after-p1-p5-p3-p4',
   syllabusTopicIds: ['9709-a2-topic-02'],

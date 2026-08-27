@@ -6,13 +6,14 @@ import {
 } from '../src/lib/syllabusPractice.js'
 import { studyQuestionBank } from '../src/data/questionBank.js'
 
-function question({ routeId, component, knowledgeGroupId, topicTags = [], syllabusMapping = null }) {
+function question({ routeId, component, knowledgeGroupId, topicTags = [], skillTags = [], syllabusMapping = null }) {
   return {
     routeId,
     subjectCode: '9709',
     sourceRef: { component },
     knowledgeGroupId,
     topicTags,
+    skillTags,
     syllabusMapping,
   }
 }
@@ -24,8 +25,8 @@ assert.deepEqual(
     knowledgeGroupId: 'math-9709-pure',
     topicTags: ['math-9709-pure', 'algebra and functions', 'differentiation'],
   })),
-  ['9709-as-topic-01'],
-  'AS Paper 1 pure questions must map to Pure Mathematics 1',
+  ['9709-p1-topic-02', '9709-p1-topic-07'],
+  'AS Paper 1 evidence must map to the matching official Function and Differentiation chapters',
 )
 
 assert.deepEqual(
@@ -35,8 +36,8 @@ assert.deepEqual(
     knowledgeGroupId: 'math-9709-pure',
     topicTags: ['math-9709-pure', 'integration'],
   })),
-  ['9709-as-topic-02'],
-  'AS Paper 2 pure questions must map to the AS-only Pure Mathematics 2 topic',
+  ['9709-p2-topic-05'],
+  'AS Paper 2 integration evidence must map to official chapter 2.5',
 )
 
 assert.deepEqual(
@@ -46,8 +47,8 @@ assert.deepEqual(
     knowledgeGroupId: 'math-9709-mechanics',
     topicTags: ['math-9709-mechanics', 'kinematics'],
   })),
-  ['9709-as-topic-03'],
-  'AS Mechanics questions must use the Mechanics topic even when the skill tag is narrower',
+  ['9709-m1-topic-02'],
+  'AS Mechanics kinematics evidence must map to official chapter 4.2',
 )
 
 assert.deepEqual(
@@ -57,8 +58,8 @@ assert.deepEqual(
     knowledgeGroupId: 'math-9709-mechanics',
     topicTags: ['math-9709-mechanics', 'forces and equilibrium'],
   })),
-  ['9709-a2-topic-02'],
-  'A2 Paper 4 questions must map to A2 Mechanics, never AS Mechanics',
+  ['9709-m1-topic-01'],
+  'A2 Paper 4 equilibrium evidence must use the shared official Mechanics chapter 4.1',
 )
 
 assert.deepEqual(
@@ -66,13 +67,14 @@ assert.deepEqual(
     routeId: 'cie-9709-a2-after-p1-p5-p3-p6',
     component: 6,
     knowledgeGroupId: 'math-9709-statistics',
-    topicTags: ['math-9709-statistics', 'normal distribution', 'probability'],
+    topicTags: ['math-9709-statistics', 'sampling', 'hypothesis testing'],
     syllabusMapping: {
-      primaryTopicId: '9709-a2-topic-04',
-      secondaryTopicIds: ['9709-a2-topic-03'],
+      primaryTopicId: '9709-s2-topic-05',
+      secondaryTopicIds: ['9709-s2-topic-04'],
+      reviewStatus: 'reviewed',
     },
   })),
-  ['9709-a2-topic-04', '9709-a2-topic-03'],
+  ['9709-s2-topic-05', '9709-s2-topic-04'],
   'an explicitly reviewed cross-topic mapping must retain both valid Topic memberships',
 )
 
@@ -82,7 +84,7 @@ assert.deepEqual(
     component: 1,
     knowledgeGroupId: 'math-9709-statistics@cie-9709-as-p1-p2',
     topicTags: ['math-9709-statistics', 'probability'],
-    syllabusMapping: { primaryTopicId: '9709-a2-topic-04' },
+    syllabusMapping: { primaryTopicId: '9709-p2-topic-01', reviewStatus: 'reviewed' },
   })),
   [],
   'a cross-domain tag on a Pure paper must not cross the component boundary',
@@ -98,8 +100,8 @@ const dualMappedP1 = {
   ...sourceBackedP1,
   syllabusMapping: {
     ...(sourceBackedP1.syllabusMapping || {}),
-    primaryTopicId: '9709-as-topic-01',
-    secondaryTopicIds: ['9709-as-topic-02'],
+    primaryTopicId: '9709-p1-topic-02',
+    secondaryTopicIds: ['9709-p1-topic-03'],
     reviewStatus: 'pending',
   },
 }
@@ -108,11 +110,11 @@ const dualInventory = syllabusTopicsInventory({
   routeId: 'cie-9709-as-p1-p2',
   questionBank: dualMappedBank,
 })
-assert.equal(dualInventory.topics.find((topic) => topic.id === '9709-as-topic-01')?.studyQuestionCount, 1)
-assert.equal(dualInventory.topics.find((topic) => topic.id === '9709-as-topic-02')?.studyQuestionCount, 1)
+assert.equal(dualInventory.topics.find((topic) => topic.id === '9709-p1-topic-02')?.studyQuestionCount, 1)
+assert.equal(dualInventory.topics.find((topic) => topic.id === '9709-p1-topic-03')?.studyQuestionCount, 1)
 const mixedSet = buildSyllabusPracticeSet({
   routeId: 'cie-9709-as-p1-p2',
-  syllabusTopicIds: ['9709-as-topic-01', '9709-as-topic-02'],
+  syllabusTopicIds: ['9709-p1-topic-02', '9709-p1-topic-03'],
   components: [1],
   questionCount: 2,
   questionBank: dualMappedBank,
