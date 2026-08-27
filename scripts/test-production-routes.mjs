@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
-import { execFileSync, spawn } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import net from 'node:net'
 import os from 'node:os'
@@ -9,6 +9,7 @@ import path from 'node:path'
 import { resolveLibraryRoot } from '../server/pdfLibrary.js'
 import { releaseBuildIdentity } from '../vite.config.js'
 import { artifactTreeIdentity } from './release-content-policy.mjs'
+import { resolveProductionBuildIdentity } from './productionRouteBuildIdentity.mjs'
 
 const root = path.resolve(import.meta.dirname, '..')
 const viteCli = path.join(root, 'node_modules', 'vite', 'bin', 'vite.js')
@@ -45,11 +46,7 @@ async function main() {
   const sourcePdf = path.join(libraryRoot, '9702', '9702_m25_qp_42.pdf')
   assert.ok(fs.existsSync(sourcePdf), `the governed local PDF fixture is missing: ${sourcePdf}`)
   const scratchParent = fs.mkdtempSync(path.join(os.tmpdir(), 'stem-production-routes-'))
-  const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim().toLowerCase()
-  assert.match(commit, /^[a-f0-9]{40}$/)
-  const sourceState = execFileSync('git', ['status', '--porcelain=v1', '--untracked-files=all'], { cwd: root, encoding: 'utf8' }).trim()
-    ? 'dirty'
-    : 'clean'
+  const { commit, sourceState } = resolveProductionBuildIdentity({ cwd: root, env: process.env })
   const builtIdentityPath = path.join(root, 'dist', 'build-identity.json')
   assert.ok(fs.existsSync(builtIdentityPath), 'vite build must emit dist/build-identity.json before production route verification')
   assert.deepEqual(
