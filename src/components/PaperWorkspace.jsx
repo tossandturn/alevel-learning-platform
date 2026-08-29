@@ -165,6 +165,14 @@ function questionBatches(questionNumbers, size = SHARED_MARKING_BATCH_SIZE) {
   return batches
 }
 
+function paperMarkingPartsForMetadata(metadataByNumber, routeId) {
+  return Object.values(metadataByNumber || {}).flatMap((metadata) => (metadata.parts || []).flatMap((part) => (
+    part.markingProvenance
+      ? [{ provenance: { routeId, ...part.markingProvenance } }]
+      : []
+  )))
+}
+
 export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null, sharedIdentityToken = '', sharedIdentityUserId = '', stateOwnerId = '', onBack, onSaveDraft, onFinish, onFinishReview, onOpenAccount, onAttemptReady, immersive = false, onToggleImmersive = () => {} }) {
   const itemById = useMemo(() => new Map((catalog?.items || []).map((item) => [item.id, item])), [catalog])
   const questionPaper = itemById.get(paper.questionPaperId) || (paper.kind === 'qp' ? paper : null)
@@ -196,6 +204,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
   const [notes, setNotes] = useState(paperDraft?.notes || '')
   const [answers, setAnswers] = useState(paperDraft?.answers || {})
   const [submitted, setSubmitted] = useState(Boolean(paperDraft?.submitted))
+  const [serverAttemptReady, setServerAttemptReady] = useState(() => !sharedIdentityToken)
   const [selfMarks, setSelfMarks] = useState(paperDraft?.selfMarks || {})
   const [maxMarksByQuestion, setMaxMarksByQuestion] = useState(() => ({ ...reviewedMaxMarks, ...(paperDraft?.maxMarksByQuestion || {}) }))
   const [lastSavedReview, setLastSavedReview] = useState(paperDraft?.lastSavedReview || null)
@@ -256,7 +265,13 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
   const studyModeLabel = paperStudyModeLabel(studyMode)
   const pdfEvidenceStorageKey = `paper:${attemptId}:${sourcePaper.id}`
   const isTimedSimulation = isAttempt && studyMode === 'exam-simulation'
-  const coachAvailable = studyMode === 'past-paper-practice' || submitted
+  const paperRouteId = sharedMarkingContract?.routeId || paper.routeId || sourcePaper.routeId || ''
+  const paperStage = paper.stage || sourcePaper.stage || profile.stages?.[0] || ''
+  const coachQuestionMetadata = questionMetadataByNumber[focusedQuestion]
+  const coachQuestionPart = coachQuestionMetadata?.parts?.[0]
+  const hasAuthoritativeCoachBinding = Boolean(sharedIdentityToken) && serverAttemptReady && Boolean(coachQuestionPart?.id)
+  const coachAvailable = (studyMode === 'past-paper-practice' || submitted) && hasAuthoritativeCoachBinding
+  const coachQuestionPartId = coachQuestionPart?.id || ''
   const timeLimitSec = isTimedSimulation && Number(profile.durationMinutes) > 0 ? Number(profile.durationMinutes) * 60 : 0
   const remainingSec = timeLimitSec > 0 ? Math.max(0, timeLimitSec - elapsedSec) : 0
 
@@ -344,9 +359,52 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
   useEffect(() => {
     onAttemptReady?.(attemptId)
     persistLatestDraft()
+    if (!sharedIdentityToken || !isAttempt || submitted) {
+      setServerAttemptReady(true)
+      return undefined
+    }
+    let active = true
+    setServerAttemptReady(false)
+    persistStudentAttempt({
+      token: sharedIdentityToken,
+      attempt: {
+        id: attemptId,
+        attemptId,
+        mode: 'full-paper',
+        routeId: paperRouteId,
+        stage: paperStage,
+        paperId: sourcePaper.id,
+        paperStudyMode: studyMode,
+        pairKey: sourcePaper.pairKey,
+        paperRef: { subject: sourcePaper.subject, file: sourcePaper.file, sha256: sourcePaper.sha256, sessionCode: sourcePaper.sessionCode, variant: sourcePaper.variant, questionPaperId: sourcePaper.id, markSchemeId: markScheme?.id || null },
+        profile,
+        questionCount,
+        answeredCount,
+        answers: cleanAnswers(answers),
+        pdfInkByPage: cleanPdfInkByPage(pdfInkByPage),
+        pdfInkQuestionMap,
+        elapsedSec,
+        notes,
+        submittedAt: null,
+        attemptStatus: 'draft',
+      },
+      mode: 'full-paper',
+      routeId: paperRouteId,
+      stage: paperStage,
+      paperId: sourcePaper.id,
+      markingParts: paperMarkingPartsForMetadata(questionMetadataByNumber, paperRouteId),
+      allowDraft: true,
+    }).then(() => {
+      if (active) setServerAttemptReady(true)
+    }).catch((error) => {
+      if (!active) return
+      setServerAttemptReady(false)
+      setEvidenceStatus(error.message || 'This paper draft could not be synced for Coach access. Try again after signing in.')
+    })
+    return () => { active = false }
     // This is the one-time bootstrap write for refresh-safe paper deep links.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attemptId, onAttemptReady])
+  }, [attemptId, onAttemptReady, sharedIdentityToken])
 
   useEffect(() => {
     let active = true
@@ -1095,7 +1153,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
       </div>
 
       {showSubmitCheck && <div className="submit-dialog-backdrop" role="presentation" onMouseDown={() => setShowSubmitCheck(false)}><div className="submit-dialog" role="dialog" aria-modal="true" aria-labelledby="paper-submit-title" onMouseDown={(event) => event.stopPropagation()}><AlertTriangle size={24} /><h2 id="paper-submit-title">{questionCount - answeredCount} questions are unanswered</h2><p>Return to the paper or submit the current answer sheet. Blank responses remain unmarked.</p><div><button type="button" className="secondary-action" onClick={() => setShowSubmitCheck(false)}>Keep working</button><button type="button" className="submit-button" onClick={submitPaper}>Submit anyway</button></div></div></div>}
-      {submitted && <AiCoach
+      {coachAvailable && <AiCoach
         key={`${attemptId}:${focusedQuestion}`}
         stateOwnerId={stateOwnerId}
         sharedIdentityToken={sharedIdentityToken}
@@ -1106,12 +1164,16 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
           attemptId,
           stateOwnerId,
           view: 'full-paper',
-          routeId: paper.routeId || '',
+          routeId: paperRouteId,
           subject: { code: sourcePaper.subject, title: profile.title },
-          stage: paper.stage || profile.stages?.join(' / ') || 'Cambridge paper',
+          stage: paperStage || profile.stages?.join(' / ') || 'Cambridge paper',
           component: profile.paperNumber ? `Paper ${profile.paperNumber}` : profile.title,
-          paper: { questionFile: questionPaper?.file, markSchemeFile: markScheme?.file },
-          question: { number: focusedQuestion, label: `Question ${focusedQuestion}`, prompt: `Question ${focusedQuestion} in ${questionPaper?.file || sourcePaper.file}` },
+          paperStudyMode: studyMode,
+          submissionStatus: submitted ? 'submitted' : 'draft',
+          responseStatus: hasResponse(profile, answers[focusedQuestion]) || pdfInkQuestionNumbers.includes(focusedQuestion) ? 'answered' : 'unanswered',
+          paper: { id: sourcePaper.id, paperId: sourcePaper.id, questionFile: questionPaper?.file, markSchemeFile: markScheme?.file },
+          question: { id: `${sourcePaper.id}:q${focusedQuestion}`, number: focusedQuestion, label: `Question ${focusedQuestion}`, prompt: `Question ${focusedQuestion} in ${questionPaper?.file || sourcePaper.file}` },
+          part: { id: coachQuestionPartId, questionPartId: coachQuestionPartId, answerSlotId: `answer-slot-${focusedQuestion}`, label: coachQuestionPart?.label || `Answer slot ${focusedQuestion}` },
           response: responseText(answers[focusedQuestion]),
           handwritingAttached: Boolean(answers[focusedQuestion]?.image),
           submitted,

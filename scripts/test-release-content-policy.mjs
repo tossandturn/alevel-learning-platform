@@ -42,12 +42,16 @@ try {
   const pdfLibraryRoot = path.join(scratchRoot, 'library')
   const sourceAssetsRoot = path.join(scratchRoot, 'question-assets')
   const releaseRoot = path.join(scratchRoot, 'release')
+  const sourceSubjectCatalogRoot = path.join(scratchRoot, 'papers')
   fs.mkdirSync(path.join(pdfLibraryRoot, '9702'), { recursive: true })
   fs.mkdirSync(path.join(sourceAssetsRoot, 'paper-1'), { recursive: true })
+  fs.mkdirSync(sourceSubjectCatalogRoot, { recursive: true })
   fs.mkdirSync(path.join(releaseRoot, 'dist'), { recursive: true })
   fs.mkdirSync(path.join(releaseRoot, 'scripts'), { recursive: true })
   const sourceCatalogPath = path.join(scratchRoot, 'papers.json')
   fs.writeFileSync(sourceCatalogPath, '{}')
+  fs.writeFileSync(path.join(sourceSubjectCatalogRoot, '0580.json'), '{"items":[{"subject":"0580"}]}')
+  fs.writeFileSync(path.join(sourceSubjectCatalogRoot, '9709.json'), '{"items":[{"subject":"9709"}]}')
   fs.writeFileSync(path.join(releaseRoot, 'scripts', 'verify-stem-release.mjs'), 'process.exit(91)')
 
   assert.equal(pathsOverlap(sourceAssetsRoot, pdfLibraryRoot), false, 'independent content roots must not overlap')
@@ -89,6 +93,16 @@ try {
     fs.readFileSync(path.join(releaseRoot, 'public', 'data', 'papers.json'), 'utf8'),
     '{}',
     'prepare must materialise the approved paper catalog',
+  )
+  assert.equal(
+    fs.readFileSync(path.join(releaseRoot, 'public', 'data', 'papers', '0580.json'), 'utf8'),
+    '{"items":[{"subject":"0580"}]}',
+    'prepare must materialise subject-scoped paper catalogs beside papers.json',
+  )
+  assert.equal(
+    fs.readFileSync(path.join(releaseRoot, 'public', 'data', 'papers', '9709.json'), 'utf8'),
+    '{"items":[{"subject":"9709"}]}',
+    'prepare must materialise the 9709 subject-scoped paper catalog beside papers.json',
   )
 
   assert.equal(physicalTreeBytes(releaseRoot) > 0, true, 'physical release size must include regular files')

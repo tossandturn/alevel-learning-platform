@@ -52,7 +52,7 @@ export function applyServerResultAuthority(localAttempt = {}, persistedAttempt =
   return projected
 }
 
-export function buildStudentAttemptPersistencePayload({ attempt, mode, routeId, stage, paperId = '', markingParts = [] } = {}) {
+export function buildStudentAttemptPersistencePayload({ attempt, mode, routeId, stage, paperId = '', markingParts = [], allowDraft = false } = {}) {
   const attemptId = String(attempt?.id || attempt?.attemptId || '').trim()
   if (!attemptId) throw Object.assign(new Error('A valid attemptId is required before saving.'), { code: 'attempt_invalid' })
   const compactAttempt = compactAttemptValue({
@@ -69,7 +69,9 @@ export function buildStudentAttemptPersistencePayload({ attempt, mode, routeId, 
     routeId: String(routeId || '').trim(),
     stage: String(stage || '').trim(),
     paperId: String(paperId || '').trim(),
-    submittedAt: attempt?.submittedAt || new Date().toISOString(),
+    submittedAt: allowDraft
+      ? (Object.hasOwn(attempt || {}, 'submittedAt') ? attempt.submittedAt : null)
+      : attempt?.submittedAt || new Date().toISOString(),
     markingParts: compactAttemptValue(markingParts) || [],
     attempt: compactAttempt,
   }
@@ -85,9 +87,9 @@ export class StudentAttemptPersistenceError extends Error {
   }
 }
 
-export async function persistStudentAttempt({ token, attempt, mode, routeId, stage, paperId = '', markingParts = [], fetchImpl = fetch } = {}) {
+export async function persistStudentAttempt({ token, attempt, mode, routeId, stage, paperId = '', markingParts = [], allowDraft = false, fetchImpl = fetch } = {}) {
   if (!token) throw new StudentAttemptPersistenceError('identity_required', 'Sign in to STEM before saving a submitted attempt.', { loginRequired: true })
-  const body = buildStudentAttemptPersistencePayload({ attempt, mode, routeId, stage, paperId, markingParts })
+  const body = buildStudentAttemptPersistencePayload({ attempt, mode, routeId, stage, paperId, markingParts, allowDraft })
   let response
   try {
     response = await fetchImpl('/api/stem/attempts', {

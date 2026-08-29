@@ -27,6 +27,34 @@ import {
 
 const EMPTY_PRACTICE_OPTIONS = Object.freeze([])
 
+function createImageAttachment(dataUrl = '', { name = 'Attached image', status = 'ready', source = 'upload', mimeType = 'image/*', errorMessage = '' } = {}) {
+  return {
+    id: `coach-image-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+    dataUrl: String(dataUrl || ''),
+    name: String(name || 'Attached image').trim() || 'Attached image',
+    status: String(status || 'ready'),
+    source: String(source || 'upload'),
+    mimeType: String(mimeType || 'image/*'),
+    ...(errorMessage ? { errorMessage: String(errorMessage) } : {}),
+  }
+}
+
+function attachmentDataUrl(attachment) {
+  return typeof attachment === 'string' ? attachment : String(attachment?.dataUrl || '')
+}
+
+function asImageAttachment(value, index = 0) {
+  if (typeof value === 'string') return createImageAttachment(value, { name: `Attached image ${index + 1}` })
+  if (!value || typeof value !== 'object') return createImageAttachment('', { name: `Attached image ${index + 1}`, status: 'error', errorMessage: 'Invalid image attachment.' })
+  return {
+    ...createImageAttachment('', { name: `Attached image ${index + 1}` }),
+    ...value,
+    dataUrl: attachmentDataUrl(value),
+    name: String(value.name || `Attached image ${index + 1}`),
+    status: String(value.status || (attachmentDataUrl(value) ? 'ready' : 'error')),
+  }
+}
+
 function CoachMessage({ content }) {
   return (
     <p className="ai-message__content">
@@ -129,7 +157,7 @@ export function AiCoach({
       topicId: selectedConversation.binding?.topicId,
       contextText: selectedConversation.contextText,
     }
-    return mergeCoachContext({}, persisted)
+    return mergeCoachContext(context, persisted)
   }, [context, selectedConversation])
   const conversationId = selectedConversation?.conversationId || baseConversationId
   const storageKey = buildCoachStorageKey(conversationId, storageOwnerId)
@@ -206,7 +234,9 @@ export function AiCoach({
     && captureSelection.width >= MIN_CAPTURE_SELECTION_SIDE
     && captureSelection.height >= MIN_CAPTURE_SELECTION_SIDE,
   )
-  const hasImageAttachments = imageDataUrls.length > 0
+  const readyImageAttachments = imageDataUrls.filter((attachment) => attachmentDataUrl(attachment) && attachment.status !== 'error')
+  const hasImageAttachments = readyImageAttachments.length > 0
+  const hasImageAttachmentTray = imageDataUrls.length > 0
   const closeCoach = useCallback(() => {
     setOpen(false)
     setBuilderOpen(false)
@@ -486,9 +516,11 @@ export function AiCoach({
 
   async function ask(message, level = hintLevel, options = {}) {
     const clean = String(message || '').trim()
-    const attachments = Array.isArray(options.attachments)
-      ? options.attachments.slice(0, MAX_COACH_IMAGE_ATTACHMENTS)
-      : imageDataUrls.slice(0, MAX_COACH_IMAGE_ATTACHMENTS)
+    const attachmentItems = (Array.isArray(options.attachments)
+      ? options.attachments
+      : imageDataUrls
+    ).map((attachment, index) => asImageAttachment(attachment, index)).slice(0, MAX_COACH_IMAGE_ATTACHMENTS)
+    const attachments = attachmentItems.map(attachmentDataUrl).filter(Boolean)
     const retryAssistantId = String(options.retryAssistantId || '')
     const retryWarning = String(options.retryWarning || '')
     if ((!clean && !attachments.length) || loading) return
@@ -679,7 +711,7 @@ export function AiCoach({
   function retryLastRequest() {
     const retry = retryRequest || lastRequestRef.current
     if (!retry || loading) return
-    setImageDataUrls(retry.attachments || [])
+    setImageDataUrls((retry.attachments || []).map((attachment, index) => asImageAttachment(attachment, index)))
     const retryWarning = retry.unavailableAttachmentCount
       ? `The original ${retry.unavailableAttachmentCount === 1 ? 'photo was' : 'photos were'} not saved in account history. Retry uses the saved question and OCR text; attach the photo again if it is needed.`
       : ''
@@ -692,32 +724,64 @@ export function AiCoach({
     })
   }
 
-  async function attachImage(event) {
-    const files = [...(event.target.files || [])]
-    event.target.value = ''
-    if (!files.length) return
+  async function attachFiles(files, { source = 'upload' } = {}) {
+    const imageFiles = files.filter((file) => file?.type?.startsWith('image/'))
+    if (!imageFiles.length) return
     const available = MAX_COACH_IMAGE_ATTACHMENTS - imageDataUrls.length
     if (available <= 0) {
       setError(`Remove a photo before adding more. Coach accepts up to ${MAX_COACH_IMAGE_ATTACHMENTS}.`)
       return
     }
-    const selected = files.slice(0, available)
+    const selected = imageFiles.slice(0, available)
+    const pending = selected.map((file, index) => createImageAttachment('', {
+      name: String(file.name || '').trim() || (source === 'clipboard' ? `Pasted image ${index + 1}` : `Image ${index + 1}`),
+      status: 'preparing',
+      source,
+      mimeType: file.type || 'image/*',
+    }))
+    setImageDataUrls((current) => [...current, ...pending].slice(0, MAX_COACH_IMAGE_ATTACHMENTS))
     setPreparingImages(true)
     setError('')
     try {
       const prepared = await Promise.allSettled(selected.map((file) => imageFileToDataUrl(file)))
-      const ready = prepared.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
-      if (ready.length) {
-        setImageDataUrls((current) => [...current, ...ready].slice(0, MAX_COACH_IMAGE_ATTACHMENTS))
-      }
+      setImageDataUrls((current) => current.map((attachment) => {
+        const pendingIndex = pending.findIndex((item) => item.id === attachment.id)
+        if (pendingIndex < 0) return attachment
+        const result = prepared[pendingIndex]
+        if (result?.status === 'fulfilled' && result.value) {
+          return { ...attachment, dataUrl: result.value, status: 'ready', errorMessage: '' }
+        }
+        return {
+          ...attachment,
+          status: 'error',
+          errorMessage: result?.reason?.message || 'This photo could not be attached.',
+        }
+      }))
       const rejected = prepared.find((result) => result.status === 'rejected')
       if (rejected) setError(rejected.reason?.message || 'One of the selected photos could not be attached.')
-      else if (files.length > selected.length) setError(`Only the first ${MAX_COACH_IMAGE_ATTACHMENTS} photos were attached.`)
+      else if (imageFiles.length > selected.length) setError(`Only the first ${MAX_COACH_IMAGE_ATTACHMENTS} photos were attached.`)
     } catch (attachError) {
       setError(attachError.message)
     } finally {
       setPreparingImages(false)
     }
+  }
+
+  async function attachImage(event) {
+    const files = [...(event.target.files || [])]
+    event.target.value = ''
+    await attachFiles(files, { source: 'upload' })
+  }
+
+  function attachClipboardImages(event) {
+    const items = [...(event.clipboardData?.items || [])]
+    const files = items
+      .filter((item) => item.kind === 'file' && item.type?.startsWith('image/'))
+      .map((item) => item.getAsFile?.())
+      .filter(Boolean)
+    if (!files.length) return
+    event.preventDefault()
+    void attachFiles(files, { source: 'clipboard' })
   }
 
   async function captureCurrentPage() {
@@ -800,7 +864,12 @@ export function AiCoach({
       const screenshot = captureFrameRef.current
         ? await cropCurrentPageCapture(captureFrameRef.current, captureSelection)
         : await cropVisiblePageVisuals(captureSelection)
-      setImageDataUrls((current) => [...current, screenshot].slice(0, MAX_COACH_IMAGE_ATTACHMENTS))
+      setImageDataUrls((current) => [...current, createImageAttachment(screenshot, {
+        name: 'Captured question area',
+        status: 'ready',
+        source: captureSource || 'screen-capture',
+        mimeType: 'image/jpeg',
+      })].slice(0, MAX_COACH_IMAGE_ATTACHMENTS))
       setError('')
       closeScreenshotCapture({ focus: false })
     } catch (selectionError) {
@@ -939,12 +1008,17 @@ export function AiCoach({
             <button type="button" disabled={preparingImages || loading || imageDataUrls.length >= MAX_COACH_IMAGE_ATTACHMENTS} onClick={() => screenshotInputRef.current?.click()}><Upload size={16} />Upload photo</button>
             {hasImageAttachments && <button type="button" className="ai-coach__analyze-photo" disabled={preparingImages || loading} onClick={() => ask('Analyze this photographed question. Read the full question and diagrams, identify what it asks, list the relevant concepts and known values, then explain the next step without inventing missing text.', 3)}><Sparkles size={16} />Analyze question</button>}
           </div>
-          {hasImageAttachments && <div className="ai-coach__attachments" role="status" aria-live="polite">
-            <span className="ai-coach__attachment-summary"><strong>{imageDataUrls.length}/{MAX_COACH_IMAGE_ATTACHMENTS}</strong> photos ready</span>
-            {imageDataUrls.map((image, index) => <div className="ai-coach__attachment" key={`${image.slice(-24)}-${index}`}>
-              <img src={image} alt={`Attached work ${index + 1}`} />
-              <button type="button" onClick={() => setImageDataUrls((current) => current.filter((_, itemIndex) => itemIndex !== index))} aria-label={`Remove attached photo ${index + 1}`}><X size={14} /></button>
-            </div>)}
+          {hasImageAttachmentTray && <div className="ai-coach__attachments" role="status" aria-live="polite">
+            <span className="ai-coach__attachment-summary"><strong>{readyImageAttachments.length}/{MAX_COACH_IMAGE_ATTACHMENTS}</strong> photos ready</span>
+            {imageDataUrls.map((attachment, index) => {
+              const image = attachmentDataUrl(attachment)
+              const statusLabel = attachment.status === 'preparing' ? 'Preparing...' : attachment.status === 'error' ? 'Could not attach' : 'Ready'
+              return <div className="ai-coach__attachment" key={attachment.id || `${image.slice(-24)}-${index}`}>
+                {image ? <img src={image} alt={`${attachment.name} preview`} /> : <span className="ai-coach__attachment-placeholder">{statusLabel}</span>}
+                <div className="ai-coach__attachment-meta"><strong title={attachment.name}>{attachment.name}</strong><small>{attachment.status}</small></div>
+                <button type="button" onClick={() => setImageDataUrls((current) => current.filter((_, itemIndex) => itemIndex !== index))} aria-label={`Remove attached photo ${index + 1}`}><X size={14} /></button>
+              </div>
+            })}
           </div>}
           {preparingImages && <p className="ai-coach__attachment-status" role="status">Preparing photos...</p>}
           {(historySyncState === 'loading' || historySyncState === 'syncing') && <p className="ai-coach__history-status" role="status">Saving chat history...</p>}
@@ -954,7 +1028,7 @@ export function AiCoach({
             <button type="button" className="ai-coach__composer-attach" title="Add photos" aria-label="Add photos" disabled={preparingImages || imageDataUrls.length >= MAX_COACH_IMAGE_ATTACHMENTS} onClick={() => screenshotInputRef.current?.click()}><ImagePlus size={18} /></button>
             <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" hidden onChange={attachImage} />
             <input ref={screenshotInputRef} type="file" accept="image/*" multiple hidden onChange={attachImage} />
-            <textarea rows="2" value={draft} placeholder="Ask about a concept or your next step..." onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
+            <textarea rows="2" value={draft} placeholder="Ask about a concept or your next step..." onChange={(event) => setDraft(event.target.value)} onPaste={attachClipboardImages} onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault()
                 void ask(draft)

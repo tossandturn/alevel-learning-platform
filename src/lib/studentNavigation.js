@@ -50,6 +50,7 @@ export function studentNavigationFromLocation(href = typeof window === 'undefine
     partId: safeValue(url.searchParams.get('partId')),
     mode: safeValue(url.searchParams.get('mode')),
     paperMode: SAFE_PAPER_MODES.has(url.searchParams.get('paperMode')) ? url.searchParams.get('paperMode') : '',
+    coach: url.searchParams.get('coach') === '1',
   }
 }
 
@@ -72,6 +73,7 @@ export function studentNavigationHref(state = {}) {
   append('attemptId', state.attemptId)
   append('partId', state.partId)
   append('mode', state.mode)
+  if (view === 'dashboard' && state.coach) params.set('coach', '1')
   if (view === 'paper' && SAFE_PAPER_MODES.has(state.paperMode)) params.set('paperMode', state.paperMode)
   const query = params.toString()
   const pathname = view === 'library' && libraryTab === 'papers' ? '/papers' : VIEW_PATHS[view]

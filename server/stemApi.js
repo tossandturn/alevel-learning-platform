@@ -344,6 +344,260 @@ function publicStudentAttempt(row) {
   }
 }
 
+function coachAuthorizationError(statusCode, code, message) {
+  return Object.assign(new Error(message), { statusCode, code })
+}
+
+function coachPaperId(context = {}) {
+  const paper = context.paper && typeof context.paper === 'object' ? context.paper : {}
+  return asText(paper.id || paper.paperId || context.paperId, 240)
+}
+
+function isExplicitFullPaperCoachContext(context = {}) {
+  return String(context.view || '') === 'full-paper' || Boolean(coachPaperId(context))
+}
+
+function hasBearerAuthorization(request) {
+  return /^Bearer\s+\S+$/i.test(String(request?.headers?.authorization || ''))
+}
+
+function coachQuestionId(context = {}) {
+  const question = context.question && typeof context.question === 'object' ? context.question : {}
+  return asText(question.id || question.questionId || context.sourceQuestionId, 360)
+}
+
+function coachQuestionNumber(context = {}) {
+  const question = context.question && typeof context.question === 'object' ? context.question : {}
+  const explicit = Number(question.number || context.questionNumber)
+  if (Number.isInteger(explicit) && explicit > 0) return explicit
+  const id = coachQuestionId(context)
+  const match = id.match(/:q(\d+)$/i) || id.match(/(?:^|[-_:])question[-_]?(\d+)$/i)
+  return match ? Number(match[1]) : null
+}
+
+function coachPartId(context = {}) {
+  const part = context.part && typeof context.part === 'object' ? context.part : {}
+  return asText(part.id || part.questionPartId || context.questionPartId, 360)
+}
+
+function coachPartMatchesQuestion(part, questionId, questionNumber) {
+  if (!part || typeof part !== 'object') return false
+  const sourceQuestionId = asText(part.sourceQuestionId || part.questionGroupId, 360)
+  if (sourceQuestionId && sourceQuestionId === questionId) return true
+  if (!sourceQuestionId || !Number.isInteger(questionNumber)) return false
+  return new RegExp(`:q${questionNumber}$`, 'i').test(sourceQuestionId)
+}
+
+function coachStoredPart(binding, questionId, questionNumber, requestedPartId) {
+  const parts = Array.isArray(binding?.parts) ? binding.parts : []
+  if (!parts.length) return null
+  const exact = parts.find((part) => (
+    String(part?.questionPartId || '') === requestedPartId
+    || String(part?.partId || '') === requestedPartId
+  ))
+  if (exact && coachPartMatchesQuestion(exact, questionId, questionNumber)) return exact
+  return null
+}
+
+function canonicalCoachPartBinding({ questionBank, routeId, stage, paperId, storedPart }) {
+  const sourceQuestionId = asText(storedPart?.sourceQuestionId, 360)
+  const questionPartId = asText(storedPart?.questionPartId || storedPart?.partId, 360)
+  if (!sourceQuestionId || !questionPartId) return null
+  const question = (Array.isArray(questionBank) ? questionBank : []).find((candidate) => (
+    String(candidate?.routeId || '') === routeId
+    && String(candidate?.stage || '') === stage
+    && String(candidate?.sourceRef?.paperId || '') === paperId
+    && String(candidate?.sourceQuestionId || candidate?.questionGroupId || '') === sourceQuestionId
+  ))
+  if (!question) return null
+  const part = (question.parts || []).find((candidate) => (
+    String(candidate?.partId || candidate?.questionPartId || candidate?.id || '') === questionPartId
+  ))
+  if (!part) return null
+  const canonical = [
+    canonicalAiMarkingProvenance(question, part),
+    canonicalSourcePracticeProvenance(question, part),
+  ].find((candidate) => canonicalAttemptProvenanceMatches(storedPart.provenance, candidate))
+  return canonical ? { question, part, provenance: canonical } : null
+}
+
+function coachQuestionBinding({ paperId, questionId, questionNumber, partId, binding, questionBank, routeId, stage }) {
+  if (!paperId) throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'A paper-bound Coach context is required.')
+  const expectedQuestionPrefix = `${paperId}:q`
+  let canonicalQuestionId = questionId
+  if (!canonicalQuestionId && Number.isInteger(questionNumber)) canonicalQuestionId = `${paperId}:q${questionNumber}`
+  if (canonicalQuestionId && !canonicalQuestionId.startsWith(expectedQuestionPrefix)) {
+    throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'The Coach question is not part of the persisted paper attempt.')
+  }
+  const parsedQuestionNumber = Number.isInteger(questionNumber)
+    ? questionNumber
+    : Number(canonicalQuestionId?.match(/:q(\d+)$/i)?.[1])
+  if (!canonicalQuestionId || !Number.isInteger(parsedQuestionNumber) || parsedQuestionNumber <= 0) {
+    throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'The Coach question binding is incomplete.')
+  }
+  if (questionId && canonicalQuestionId !== `${paperId}:q${parsedQuestionNumber}`) {
+    throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'The Coach question binding is invalid.')
+  }
+  if (!partId) {
+    throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'The Coach answer part binding is incomplete.')
+  }
+  const requestedPartId = partId
+  const storedPart = coachStoredPart(binding, canonicalQuestionId, parsedQuestionNumber, requestedPartId)
+  if (!storedPart) {
+    throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'The Coach answer part is not part of the persisted paper attempt.')
+  }
+  const canonicalPart = canonicalCoachPartBinding({ questionBank, routeId, stage, paperId, storedPart })
+  if (!canonicalPart) {
+    throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'The persisted Coach source binding is stale or unavailable.')
+  }
+  const sourceRef = canonicalPart.question?.sourceRef || {}
+  const answerRef = canonicalPart.question?.answerRef || {}
+  return {
+    paper: {
+      id: paperId,
+      ...(sourceRef.paper ? { questionFile: String(sourceRef.paper) } : {}),
+      ...(answerRef.file ? { markSchemeFile: String(answerRef.file) } : {}),
+    },
+    question: {
+      id: canonicalQuestionId,
+      number: parsedQuestionNumber,
+      ...(sourceRef.question ? { label: String(sourceRef.question) } : {}),
+      ...(canonicalPart.question?.prompt ? { prompt: String(canonicalPart.question.prompt) } : {}),
+      ...(canonicalPart.question?.totalMarks != null ? { marks: Number(canonicalPart.question.totalMarks) || 0 } : {}),
+    },
+    part: {
+      id: requestedPartId,
+      questionPartId: String(canonicalPart.provenance.questionPartId),
+      ...(canonicalPart.part?.label ? { label: String(canonicalPart.part.label) } : {}),
+      ...(canonicalPart.part?.promptFragment ? { prompt: String(canonicalPart.part.promptFragment) } : {}),
+      ...(canonicalPart.part?.marks != null ? { marks: Number(canonicalPart.part.marks) || 0 } : {}),
+    },
+  }
+}
+
+/**
+ * Authorizes Coach access to a persisted attempt without trusting the browser's
+ * paper, submission, or ownership claims. The returned object is deliberately
+ * safe to merge into the provider context; it contains no credentials or raw
+ * attempt payload.
+ */
+export function createCoachAttemptAuthorizer({ env = process.env, questionBank = unifiedQuestionBank, questionBankProvider = null, databaseProvider = null } = {}) {
+  const signingKey = String(env?.STEM_INTERNAL_AUTH_KEY || env?.STEM_IDENTITY_SIGNING_KEY || '')
+  return function authorizeCoachRequest(input, payloadArgument) {
+    const request = input?.request && input?.payload ? input.request : input
+    const payload = input?.request && input?.payload ? input.payload : payloadArgument
+    const context = payload?.context && typeof payload.context === 'object' ? payload.context : {}
+    const attemptId = asText(context.attemptId || payload?.attemptId, 120)
+    const explicitFullPaperContext = isExplicitFullPaperCoachContext(context)
+    if (!attemptId) {
+      if (explicitFullPaperContext) throw coachAuthorizationError(409, 'coach_attempt_required', 'Open Coach from a persisted paper attempt.')
+      return null
+    }
+
+    let user = null
+    let row = null
+    if (explicitFullPaperContext) {
+      user = identityFromRequest(request, signingKey)
+    } else {
+      // Topic Drill continues to use the existing Coach contract. When a
+      // signed request happens to reference a persisted full-paper attempt,
+      // still discover and enforce that server-side binding below.
+      if (!hasBearerAuthorization(request)) return null
+      try {
+        user = identityFromRequest(request, signingKey)
+      } catch {
+        return null
+      }
+    }
+    const db = typeof databaseProvider === 'function' ? databaseProvider() : (database || appDatabase(env, questionBank))
+    row = db.prepare(`
+      SELECT user_id, attempt_id, mode, route_id, stage, paper_id, binding_json, attempt_json, submission_status, submitted_at, created_at, updated_at
+      FROM student_attempts
+      WHERE user_id = ? AND attempt_id = ?
+    `).get(user.id, attemptId)
+    if (!row) {
+      if (explicitFullPaperContext) throw coachAuthorizationError(404, 'coach_attempt_not_found', 'This Coach attempt is not available.')
+      return null
+    }
+
+    const parsed = parseStudentAttemptRow(row)
+    const binding = parsed.binding
+    const persistedFullPaperAttempt = String(binding?.mode || row.mode || '') === 'full-paper'
+    if (!persistedFullPaperAttempt) {
+      if (explicitFullPaperContext) throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'This attempt is not a full-paper Coach attempt.')
+      return null
+    }
+    if (!binding || String(binding.attemptId || row.attempt_id) !== attemptId) {
+      throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'The persisted Coach attempt binding is invalid.')
+    }
+    const requestedRouteId = asText(context.routeId, 120).toLowerCase()
+    const requestedStage = asText(context.stage, 40).toLowerCase()
+    if ((requestedRouteId && requestedRouteId !== String(binding.routeId || row.route_id).toLowerCase())
+      || (requestedStage && requestedStage !== String(binding.stage || row.stage).toLowerCase())) {
+      throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'The Coach route binding does not match the persisted attempt.')
+    }
+
+    const persistedPaperId = String(binding.paperId || row.paper_id || '')
+    const requestedPaperId = coachPaperId(context)
+    if ((requestedPaperId && requestedPaperId !== persistedPaperId) || !persistedPaperId) {
+      throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'The Coach paper binding does not match the persisted attempt.')
+    }
+    const currentQuestionBank = (() => {
+      if (typeof questionBankProvider !== 'function') return questionBank
+      try {
+        return mergeTopicPracticeQuestionBanks(questionBank, questionBankProvider())
+      } catch {
+        return questionBank
+      }
+    })()
+    if (!Array.isArray(binding.parts) || !binding.parts.length) {
+      throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'This paper attempt has no authoritative source part bindings.')
+    }
+
+    const persistedStudyMode = parsed.snapshot?.paperStudyMode === 'exam-simulation' ? 'exam-simulation' : 'past-paper-practice'
+    const requestedStudyMode = asText(context.paperStudyMode, 60)
+    if (requestedStudyMode && requestedStudyMode !== persistedStudyMode) {
+      throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'The Coach study mode does not match the persisted attempt.')
+    }
+    const submissionStatus = parsed.submissionStatus === 'submitted' || parsed.submittedAt ? 'submitted' : 'draft'
+    if (persistedStudyMode === 'exam-simulation' && submissionStatus !== 'submitted') {
+      throw coachAuthorizationError(403, 'coach_exam_in_progress', 'AI Coach is unavailable until the exam simulation is submitted.')
+    }
+
+    const questionId = coachQuestionId(context)
+    const questionNumber = coachQuestionNumber(context)
+    const partId = coachPartId(context)
+    const questionBinding = coachQuestionBinding({
+      paperId: persistedPaperId,
+      questionId,
+      questionNumber,
+      partId,
+      binding,
+      questionBank: currentQuestionBank,
+      routeId: String(binding.routeId || row.route_id || ''),
+      stage: String(binding.stage || row.stage || ''),
+    })
+    const responseStatus = ['answered', 'unanswered'].includes(String(context.responseStatus || '').toLowerCase())
+      ? String(context.responseStatus).toLowerCase()
+      : null
+    return {
+      userId: user.id,
+      attemptId,
+      mode: String(binding.mode || row.mode || ''),
+      routeId: String(binding.routeId || row.route_id || ''),
+      stage: String(binding.stage || row.stage || ''),
+      paperId: persistedPaperId,
+      paperStudyMode: persistedStudyMode,
+      submissionStatus,
+      submitted: submissionStatus === 'submitted',
+      responseStatus,
+      question: questionBinding.question,
+      part: questionBinding.part,
+      paper: questionBinding.paper,
+    }
+  }
+}
+
 function canonicalAttemptProvenanceMatches(provided, canonical) {
   const sourceEvidence = provided?.sourceEvidence || {}
   const expectedEvidence = canonical?.sourceEvidence || {}

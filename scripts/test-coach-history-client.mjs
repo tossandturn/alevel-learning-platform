@@ -115,6 +115,29 @@ assert.equal(serialized.messages[1].updatedAt, '2026-08-19T01:00:07.000Z')
 assert.equal(serialized.context.routeId, baseContext.routeId, 'account history must retain safe route context for cross-version restoration')
 assert.doesNotMatch(JSON.stringify(serialized), /data:image|base64|secret/)
 
+const serializedPaperContext = coachHistory.serializeCoachContext({
+  ...baseContext,
+  view: 'full-paper',
+  attemptId: 'paper-attempt-42',
+  paperStudyMode: 'past-paper-practice',
+  submissionStatus: 'draft',
+  responseStatus: 'answered',
+  part: {
+    id: 'part-q4-a',
+    questionPartId: 'part-q4-a',
+    label: 'Part (a)',
+    prompt: 'Use the stated data to determine the acceleration.',
+    marks: 3,
+  },
+})
+assert.equal(serializedPaperContext.attemptId, 'paper-attempt-42', 'paper Coach history must retain the bounded attempt binding')
+assert.equal(serializedPaperContext.paperStudyMode, 'past-paper-practice', 'paper Coach history must retain the study mode')
+assert.equal(serializedPaperContext.submissionStatus, 'draft', 'paper Coach history must retain authoritative submission status')
+assert.equal(serializedPaperContext.responseStatus, 'answered', 'paper Coach history must retain the current response status')
+assert.equal(serializedPaperContext.part.id, 'part-q4-a', 'paper Coach history must retain the answer-part ID')
+assert.equal(serializedPaperContext.part.questionPartId, 'part-q4-a', 'paper Coach history must retain the canonical question-part ID')
+assert.doesNotMatch(JSON.stringify(serializedPaperContext), /data:image|base64/)
+
 assert.equal(typeof coachHistory.serializeCoachContext, 'function', 'Coach history must expose a sanitized context snapshot serializer')
 assert.equal(typeof coachHistory.mergeCoachContext, 'function', 'Coach history must restore a persisted context snapshot without replacing live state')
 assert.equal(typeof coachHistory.buildCoachRetryRequest, 'function', 'Coach history must reconstruct an interrupted request after refresh')

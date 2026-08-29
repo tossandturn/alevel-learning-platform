@@ -211,6 +211,12 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   assert.ok(screenshotFormulaValues.includes('GMm/r²=mv²/r, v=2πr/T,'), 'Coach must recognize multiline LaTeX block math and spacing commands')
   assert.ok(screenshotFormulaValues.includes('T²') && screenshotFormulaValues.includes('r³') && screenshotFormulaValues.includes('4π²'), 'Coach must preserve formula exponents as readable superscripts')
   assert.doesNotMatch(JSON.stringify(screenshotFormulaMessage), /\\[()[\]]|\\qquad/, 'Coach must not expose raw LaTeX delimiters or spacing commands')
+  const vectorFormulaMessage = parseCoachMessage(String.raw`Use $\vec{a}=\frac{\mathbf{F}}{m}$ and $\begin{pmatrix}a_x\\a_y\end{pmatrix}$.`)
+  const vectorFormulaText = vectorFormulaMessage.map((token) => token.value || '').join('')
+  assert.match(vectorFormulaText, /a⃗/, 'Coach must render vector arrows instead of exposing the raw vec command')
+  assert.match(vectorFormulaText, /𝐅\/m/, 'Coach must render bold vector symbols and fractions through the shared formula pipeline')
+  assert.match(vectorFormulaText, /\[aₓ; a_y\]/, 'Coach must render vector component matrices as readable components')
+  assert.doesNotMatch(vectorFormulaText, /\\(?:vec|mathbf|frac|begin|end)|\^\{|_\{/, 'Coach vector output must not expose raw LaTeX commands')
 
   const unauthenticatedDetailed = await post('/api/ai/coach/stream', {
     message: 'Explain the method and check the units in detail.',
@@ -749,6 +755,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   const paperLibrarySource = fs.readFileSync(path.join(root, 'src', 'components', 'PaperLibrary.jsx'), 'utf8')
   const paperWorkspaceSource = fs.readFileSync(path.join(root, 'src', 'components', 'PaperWorkspace.jsx'), 'utf8')
   const paperAnswerSheetSource = fs.readFileSync(path.join(root, 'src', 'components', 'PaperAnswerSheet.jsx'), 'utf8')
+  const viteSource = fs.readFileSync(path.join(root, 'vite.config.js'), 'utf8')
   const handwritingSource = fs.readFileSync(path.join(root, 'src', 'components', 'HandwritingPad.jsx'), 'utf8')
   const practiceWorkspaceSource = fs.readFileSync(path.join(root, 'src', 'components', 'PracticeWorkspace.jsx'), 'utf8')
   assert.match(coachSource, /\/api\/ai\/coach\/stream/)
@@ -757,10 +764,16 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   assert.match(coachSource, /payload\.retryable/, 'a retryable streamed terminal result must restore the Coach Retry action')
   assert.match(
     coachSource,
+    /if \(!selectedConversation\) return context[\s\S]{0,700}return mergeCoachContext\(context, persisted\)/,
+    'a selected history conversation must not replace the current paper attempt binding',
+  )
+  assert.match(
+    coachSource,
     /const ownerChanged = hydratedStorageOwnerRef\.current !== storageOwnerId[\s\S]{0,2500}if \(ownerChanged\) setOpen\(false\)/,
     'opening a saved Coach conversation must retain the drawer; only an account switch may close it',
   )
   assert.match(aiSource, /providerStatus: 'not_configured'[\s\S]{0,300}retryable: true/, 'an unavailable streamed provider must expose a retry action')
+  assert.match(viteSource, /createCoachAttemptAuthorizer\(\{ env, questionBankProvider: runtimeAiGroups \}\)/, 'the Coach authorizer must revalidate dynamic reviewed source bindings')
   assert.match(appSource, /disabled=\{Boolean\(accountDialogMode \|\| accountPopoverOpen\)\}/, 'account overlays must disable the floating Coach layer')
   assert.match(coachSource, /if \(disabled\) return null/, 'account overlays must remove the Coach DOM entirely instead of merely moving it behind a modal')
   assert.doesNotMatch(appStyles, /dashboard-studio\s*~\s*\.ai-coach-trigger\s*\{\s*display:\s*none/i, 'dashboard must keep the floating AI Coach entry available')
@@ -778,12 +791,21 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   assert.match(coachSource, /Take photo/, 'Coach must expose a clearly labelled take-photo action')
   assert.match(coachSource, /Upload photo/, 'Coach must expose a clearly labelled upload-photo action')
   assert.match(coachSource, /Analyze (?:this )?question/, 'Coach must expose a visible action to analyze an attached question photo')
+  assert.match(coachSource, /onPaste=\{attachClipboardImages\}/, 'Coach must accept pasted clipboard images from the dialog')
+  assert.match(coachSource, /clipboardData\?\.items/, 'Coach paste handling must read clipboard image items without persisting clipboard text')
+  assert.match(coachSource, /Pasted image/, 'pasted photos must receive a visible fallback filename')
+  assert.match(coachSource, /attachment\.status/, 'Coach must render an explicit preparation status for pending pasted photos')
+  assert.match(coachSource, /attachment\.name/, 'Coach must show the filename for every pending photo')
   assert.match(coachSource, /const \[imageDataUrls, setImageDataUrls\]/, 'Coach must retain multiple pending image attachments')
   assert.match(coachSource, /type="file"[^>]*multiple/, 'Coach image selection must support choosing several photos at once')
   assert.match(coachSource, /imageDataUrls\.map\(/, 'Coach must render every pending attachment for review and removal')
   assert.match(appStyles, /\.ai-coach__attachments/, 'Coach must provide a visible multi-image attachment tray')
   assert.match(practiceWorkspaceSource, /export function PracticeWorkspace\(\{[\s\S]*onGeneratePractice[\s\S]*onAgentAction/, 'Practice workspace must receive the App Coach action callbacks')
   assert.match(practiceWorkspaceSource, /<AiCoach[\s\S]*onGeneratePractice=\{onGeneratePractice\}[\s\S]*onAgentAction=\{onAgentAction\}/, 'Practice workspace must forward Coach action callbacks into its in-practice tutor')
+  assert.match(paperWorkspaceSource, /\{coachAvailable && <AiCoach/, 'Past-paper practice must mount Coach before submission while simulation stays gated')
+  assert.match(paperWorkspaceSource, /paperStudyMode:\s*studyMode/, 'full-paper Coach context must include the selected study mode')
+  assert.match(paperWorkspaceSource, /responseStatus:/, 'full-paper Coach context must explicitly distinguish answered and unanswered questions')
+  assert.match(paperWorkspaceSource, /part:\s*\{[^}]*answer-slot-/, 'full-paper Coach context must bind the current answer part')
   assert.match(handwritingSource, /Upload photo/, 'paper responses need a normal photo upload action')
   assert.match(handwritingSource, /Take photo/, 'paper responses need a camera capture action distinct from upload')
   assert.match(handwritingSource, /cameraInputRef/, 'camera capture must use its own input instead of silently forcing capture mode for uploads')

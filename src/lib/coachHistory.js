@@ -220,6 +220,27 @@ function serializedQuestion(question) {
   }
 }
 
+function serializedPart(part) {
+  const source = part && typeof part === 'object' ? part : {}
+  const id = text(source.id || source.questionPartId, 360)
+  const questionPartId = text(source.questionPartId || source.id, 360)
+  const label = contextText(source.label, 300)
+  const prompt = contextText(source.prompt, 2_000)
+  const marks = numberInRange(source.marks, 0, 10_000)
+  return {
+    ...(id ? { id } : {}),
+    ...(questionPartId ? { questionPartId } : {}),
+    ...(label ? { label } : {}),
+    ...(prompt ? { prompt } : {}),
+    ...(marks != null ? { marks } : {}),
+  }
+}
+
+function serializedEnum(value, allowed) {
+  const normalized = text(value, 80).toLowerCase()
+  return allowed.includes(normalized) ? normalized : ''
+}
+
 /**
  * Retains only retry-safe text context. Student image bytes intentionally never
  * enter account history, so a restored retry can request a fresh attachment.
@@ -229,9 +250,14 @@ export function serializeCoachContext(context = {}) {
   const question = serializedQuestion(source.question)
   const subject = serializedSubject(source.subject)
   const paper = serializedPaper(source.paper)
+  const part = serializedPart(source.part)
   const sourceContextText = contextText(source.contextText || source.sourceQuestionExtract, 6_000)
   const topic = text(source.topic?.label || source.topic?.name || source.topic?.id || source.topic || source.topicId, 500)
+  const paperStudyMode = serializedEnum(source.paperStudyMode, ['past-paper-practice', 'exam-simulation'])
+  const submissionStatus = serializedEnum(source.submissionStatus, ['draft', 'submitted'])
+  const responseStatus = serializedEnum(source.responseStatus, ['answered', 'unanswered'])
   return {
+    ...(text(source.attemptId, 120) ? { attemptId: text(source.attemptId, 120) } : {}),
     ...(text(source.routeId, 500) ? { routeId: text(source.routeId, 500) } : {}),
     ...(text(source.view, 120) ? { view: text(source.view, 120) } : {}),
     ...(text(source.stage, 120) ? { stage: text(source.stage, 120) } : {}),
@@ -241,6 +267,10 @@ export function serializeCoachContext(context = {}) {
     ...(Object.keys(subject).length ? { subject } : {}),
     ...(Object.keys(paper).length ? { paper } : {}),
     ...(Object.keys(question).length ? { question } : {}),
+    ...(Object.keys(part).length ? { part } : {}),
+    ...(paperStudyMode ? { paperStudyMode } : {}),
+    ...(submissionStatus ? { submissionStatus } : {}),
+    ...(responseStatus ? { responseStatus } : {}),
     ...(sourceContextText ? { contextText: sourceContextText, sourceQuestionExtract: sourceContextText } : {}),
     ...(hasOwn(source, 'response') ? { response: text(source.response, 6_000) } : {}),
     ...(hasOwn(source, 'handwritingAttached') ? { handwritingAttached: Boolean(source.handwritingAttached) } : {}),
@@ -256,12 +286,14 @@ export function mergeCoachContext(currentContext = {}, persistedContext = {}) {
   const question = { ...(persisted.question || {}), ...(current.question || {}) }
   const subject = { ...(persisted.subject || {}), ...(current.subject || {}) }
   const paper = { ...(persisted.paper || {}), ...(current.paper || {}) }
+  const part = { ...(persisted.part || {}), ...(current.part || {}) }
   const merged = {
     ...persisted,
     ...current,
     ...(Object.keys(question).length ? { question } : {}),
     ...(Object.keys(subject).length ? { subject } : {}),
     ...(Object.keys(paper).length ? { paper } : {}),
+    ...(Object.keys(part).length ? { part } : {}),
   }
   const mergedContextText = contextText(current.contextText || persisted.contextText, 6_000)
   if (mergedContextText) {

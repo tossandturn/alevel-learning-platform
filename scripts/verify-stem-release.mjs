@@ -45,6 +45,7 @@ const expectedReleaseId = option('--release-id')
 const expectedPackageSha256 = option('--package-sha256').toLowerCase()
 const assetRoot = path.join(releaseRoot, 'public', 'question-assets')
 const catalogPath = path.join(releaseRoot, 'public', 'data', 'papers.json')
+const subjectCatalogRoot = path.join(releaseRoot, 'public', 'data', 'papers')
 const distRoot = path.join(releaseRoot, 'dist')
 const auditScript = path.join(releaseRoot, 'scripts', 'audit-question-bank.mjs')
 const paperAuditScript = path.join(releaseRoot, 'scripts', 'audit-paper-catalog.mjs')
@@ -102,6 +103,11 @@ assert.equal(actualImmutableAssets.files, releaseManifest.immutableAssets?.files
 assert.equal(actualImmutableAssets.bytes, releaseManifest.immutableAssets?.bytes, 'Immutable question asset bytes do not match the release manifest')
 assert.ok(hasRenderedAsset(assetRoot), 'Release public/question-assets contains no rendered source pages')
 assert.ok(fs.existsSync(catalogPath) && fs.statSync(catalogPath).size > 0, 'Release is missing public/data/papers.json')
+assert.ok(fs.existsSync(subjectCatalogRoot) && fs.statSync(subjectCatalogRoot).isDirectory(), 'Release is missing public/data/papers')
+for (const subject of ['0580', '0625', '9702', '9709']) {
+  const subjectCatalogPath = path.join(subjectCatalogRoot, `${subject}.json`)
+  assert.ok(fs.existsSync(subjectCatalogPath) && fs.statSync(subjectCatalogPath).size > 0, `Release is missing public/data/papers/${subject}.json`)
+}
 for (const fileName of ['index.html', 'robots.txt', 'sitemap.xml']) {
   const filePath = path.join(distRoot, fileName)
   assert.ok(fs.existsSync(filePath) && fs.statSync(filePath).size > 0, `Release dist is missing ${fileName}`)

@@ -9,7 +9,7 @@ import { execFileSync } from 'node:child_process'
 import { createAiApi } from './server/aiApi.js'
 import { createAiVerifiedQuestionBankLoader } from './server/aiVerifiedQuestionBank.js'
 import { resolveAiPdfIngestionRoot } from './server/aiPdfIngestionCandidates.js'
-import { createStemApi } from './server/stemApi.js'
+import { createCoachAttemptAuthorizer, createStemApi } from './server/stemApi.js'
 import { isPaperAvailableToStudents } from './src/lib/paperGovernance.js'
 import { mergeRuntimeEnv } from './src/lib/runtimeEnv.js'
 import { resolveLibraryRoot } from './server/pdfLibrary.js'
@@ -430,8 +430,14 @@ function localCieLibrary(env) {
   })
   const runtimeAiGroups = () => runtimeAiQuestionBank().groups
   const runtimePdfDocuments = () => runtimeAiQuestionBank().documents
-  const aiApi = createAiApi({ env, libraryRoot, allowedSubjects: ALLOWED_SUBJECTS, questionBankProvider: runtimeAiGroups })
   const stemApi = createStemApi({ env, topicQuestionBankProvider: runtimeAiGroups, libraryRoot })
+  const aiApi = createAiApi({
+    env,
+    libraryRoot,
+    allowedSubjects: ALLOWED_SUBJECTS,
+    questionBankProvider: runtimeAiGroups,
+    authorizeCoachRequest: createCoachAttemptAuthorizer({ env, questionBankProvider: runtimeAiGroups }),
+  })
   return {
     name: 'local-cie-library',
     configureServer(server) {

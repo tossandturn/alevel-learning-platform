@@ -168,10 +168,10 @@ export function PaperLibrary({ catalogState, initialSubject = 'all', activeRoute
   }
 
   if (catalogState.status === 'loading') {
-    return <div className="paper-state"><span className="loading-line" />Loading the verified local catalog...</div>
+    return <div className="paper-state"><span className="loading-line" />Loading the verified {subject === 'all' ? 'local' : subject} catalog...</div>
   }
   if (catalogState.status === 'error') {
-    return <div className="paper-state error"><FileText size={24} />Catalog unavailable: {catalogState.error}</div>
+    return <div className="paper-state error"><FileText size={24} /><div><strong>Catalog unavailable</strong><span>{catalogState.error}</span><button type="button" className="secondary-action" onClick={() => void catalogState.load().catch(() => {})}>Retry</button></div></div>
   }
 
   const routeComponents = activeRoute ? formatRouteComponents(activeRoute.paperComponents, activeRoute) : ''

@@ -111,15 +111,48 @@ function verifiedCoachSubmission(payload, request, env) {
 function safeCoachContext(value) {
   const source = value && typeof value === 'object' ? value : {}
   const question = source.question && typeof source.question === 'object' ? source.question : {}
+  const part = source.part && typeof source.part === 'object' ? source.part : {}
   const paper = source.paper && typeof source.paper === 'object' ? source.paper : {}
   const contextText = compactCoachContextText(source.contextText || source.sourceQuestionExtract, 4000)
   return {
-    subject: typeof source.subject === 'object' ? { code: compactText(source.subject.code, 20), name: compactText(source.subject.name, 100) } : compactText(source.subject, 80),
-    syllabus: compactText(source.syllabus, 200), stage: compactText(source.stage, 30), topic: compactText(source.topic, 200), attemptId: compactText(source.attemptId, 100),
-    question: { id: compactText(question.id || question.questionId, 160), number: Number(question.number) || null, title: compactText(question.title, 300), prompt: compactText(question.prompt, 4000), hint: compactText(question.hint, 1000) },
-    paper: { id: compactText(paper.id || paper.paperId, 160), questionFile: compactText(paper.questionFile, 180), markSchemeFile: compactText(paper.markSchemeFile, 180) },
+    view: compactText(source.view, 80),
+    subject: typeof source.subject === 'object' ? { code: compactText(source.subject.code, 20), name: compactText(source.subject.name || source.subject.title, 100) } : compactText(source.subject, 80),
+    syllabus: compactText(source.syllabus, 200), stage: compactText(source.stage, 30), routeId: compactText(source.routeId, 120), topic: compactText(source.topic, 200), component: compactText(source.component, 120), attemptId: compactText(source.attemptId, 100),
+    paperStudyMode: compactText(source.paperStudyMode, 60), submissionStatus: compactText(source.submissionStatus, 30), responseStatus: compactText(source.responseStatus, 30), submitted: typeof source.submitted === 'boolean' ? source.submitted : false,
+    question: { id: compactText(question.id || question.questionId, 360), number: Number(question.number) || null, label: compactText(question.label, 300), title: compactText(question.title, 300), prompt: compactText(question.prompt, 4000), hint: compactText(question.hint, 1000), marks: Number(question.marks) || null },
+    part: { id: compactText(part.id || part.questionPartId, 360), questionPartId: compactText(part.questionPartId, 360), label: compactText(part.label, 300), prompt: compactText(part.prompt, 2000), marks: Number(part.marks) || null },
+    paper: { id: compactText(paper.id || paper.paperId, 240), questionFile: compactText(paper.questionFile, 180), markSchemeFile: compactText(paper.markSchemeFile, 180) },
     ...(contextText ? { contextText, sourceQuestionExtract: contextText } : {}),
     agentIntent: source.agentIntent && typeof source.agentIntent === 'object' ? { type: compactText(source.agentIntent.type, 80) } : null,
+  }
+}
+
+function applyCoachAuthorization(context, authorization) {
+  if (!authorization) return context
+  const question = context.question && typeof context.question === 'object' ? context.question : {}
+  const part = context.part && typeof context.part === 'object' ? context.part : {}
+  return {
+    ...context,
+    attemptId: String(authorization.attemptId || context.attemptId || ''),
+    routeId: String(authorization.routeId || context.routeId || ''),
+    stage: String(authorization.stage || context.stage || ''),
+    paperStudyMode: String(authorization.paperStudyMode || context.paperStudyMode || 'past-paper-practice'),
+    submissionStatus: String(authorization.submissionStatus || 'draft'),
+    submitted: Boolean(authorization.submitted),
+    ...(authorization.responseStatus ? { responseStatus: authorization.responseStatus } : {}),
+    ...(authorization.paperId
+      ? {
+        paper: authorization.paper
+          ? { ...authorization.paper }
+          : { id: String(authorization.paperId) },
+        // Source extracts are rebuilt from the canonical QP below. Never pass
+        // a client-supplied extract through when a paper attempt is bound.
+        contextText: undefined,
+        sourceQuestionExtract: undefined,
+      }
+      : {}),
+    question: authorization.question ? { ...authorization.question } : question,
+    part: authorization.part ? { ...authorization.part } : part,
   }
 }
 
@@ -833,7 +866,7 @@ function aiResponseSchemaError(error) {
   return schemaError
 }
 
-async function callCompatibleAi(provider, { messages, temperature = 0.2, json = false, operation = 'ai', requestId = '', providerAttempt = 1, fallbackPath = '', fallback = false, telemetry = null, timeoutMs = DEFAULT_AI_PROVIDER_TIMEOUT_MS, deadlineAt = null, validateResponse = null }) {
+async function callCompatibleAi(provider, { messages, temperature = 0.2, json = false, metadata = null, operation = 'ai', requestId = '', providerAttempt = 1, fallbackPath = '', fallback = false, telemetry = null, timeoutMs = DEFAULT_AI_PROVIDER_TIMEOUT_MS, deadlineAt = null, validateResponse = null }) {
   const startedAt = Date.now()
   let statusCode = null
   let schemaStatus = 'not-checked'
@@ -851,7 +884,7 @@ async function callCompatibleAi(provider, { messages, temperature = 0.2, json = 
     const response = await fetch(`${provider.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${provider.apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: provider.model, messages, ...providerSampling(provider, temperature), stream: false, ...(json ? { response_format: { type: 'json_object' } } : {}) }),
+      body: JSON.stringify({ model: provider.model, messages, ...providerSampling(provider, temperature), stream: false, ...(json ? { response_format: { type: 'json_object' } } : {}), ...(metadata ? { metadata } : {}) }),
       signal: controller.signal,
     })
     statusCode = response.status
@@ -1005,26 +1038,38 @@ function shouldUseLocalCoachFirst({ message, hasImages, hintLevel }) {
 
 function coachRequestContext(context, message) {
   return compactText(JSON.stringify({
+    view: context.view,
     subject: context.subject,
     syllabus: context.syllabus,
+    routeId: context.routeId,
     stage: context.stage,
     topic: context.topic,
+    component: context.component,
+    attemptId: context.attemptId,
+    paperStudyMode: context.paperStudyMode,
+    submissionStatus: context.submissionStatus,
+    responseStatus: context.responseStatus,
+    submitted: context.submitted,
     question: context.question,
+    part: context.part,
     paper: context.paper,
     sourceQuestionExtract: context.sourceQuestionExtract,
     studentRequest: message,
   }), COACH_CONTEXT_MAX_CHARS)
 }
 
-async function handleCoach(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig) {
+async function handleCoach(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest) {
   const payload = await readJsonBody(request)
+  const authorization = typeof authorizeCoachRequest === 'function'
+    ? await authorizeCoachRequest({ request, payload })
+    : null
   const message = compactText(payload.message, 3000)
   const history = Array.isArray(payload.history) ? payload.history.slice(-10).map((item) => ({ role: item.role === 'assistant' ? 'assistant' : 'user', content: compactText(item.content, 3000) })) : []
   // Client context is useful for tutoring, but cannot authorize answer release.
   // In particular, `context.submitted` is deliberately discarded here.
   const suppliedContext = safeCoachContext(payload.context)
-  const context = await hydrateCoachPaperContext(suppliedContext, libraryRoot, allowedSubjects)
-  const verifiedSubmitted = verifiedCoachSubmission(payload, request, env)
+  const context = await hydrateCoachPaperContext(applyCoachAuthorization(suppliedContext, authorization), libraryRoot, allowedSubjects)
+  const verifiedSubmitted = Boolean(authorization?.submitted) || verifiedCoachSubmission(payload, request, env)
   const hintLevel = Math.min(5, Math.max(1, Number(payload.hintLevel) || 1))
   const imageDataUrls = coachImageDataUrls(payload)
   const hasImages = imageDataUrls.length > 0
@@ -1061,6 +1106,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
       const answer = await callCompatibleAi(activeProvider, {
         messages: [{ role: 'system', content: buildCoachSystemPrompt({ verifiedSubmitted, hintLevel }) }, ...history, { role: 'user', content }],
         temperature: 0.2,
+        metadata: { stemCoachContext: context },
         operation: hasImages ? 'coach-vision' : 'coach',
         requestId,
         providerAttempt: providerIndex + 1,
@@ -1081,7 +1127,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   return sendJson(response, 200, { mode: 'offline', provider: failedProvider.name, providerStatus: 'error', answer: localAnswer, warning: providerMessage(lastError, failedProvider), retryable: true })
 }
 
-async function callCompatibleAiStream(provider, { messages, temperature = 0.2, onDelta, operation = 'ai-stream', requestId = '', providerAttempt = 1, fallbackPath = '', fallback = false, telemetry = null, timeoutMs = DEFAULT_AI_PROVIDER_TIMEOUT_MS, deadlineAt = null }) {
+async function callCompatibleAiStream(provider, { messages, temperature = 0.2, metadata = null, onDelta, operation = 'ai-stream', requestId = '', providerAttempt = 1, fallbackPath = '', fallback = false, telemetry = null, timeoutMs = DEFAULT_AI_PROVIDER_TIMEOUT_MS, deadlineAt = null }) {
   const startedAt = Date.now()
   let statusCode = null
   let schemaStatus = 'not-checked'
@@ -1111,7 +1157,7 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, o
     const response = await fetch(`${provider.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${provider.apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: provider.model, messages, ...providerSampling(provider, temperature), stream: true }),
+      body: JSON.stringify({ model: provider.model, messages, ...providerSampling(provider, temperature), stream: true, ...(metadata ? { metadata } : {}) }),
       signal: controller.signal,
     })
     resetIdleTimeout()
@@ -1201,8 +1247,11 @@ function sendCoachEvent(response, event, value) {
   response.write(`event: ${event}\ndata: ${JSON.stringify(value)}\n\n`)
 }
 
-async function handleCoachStream(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig) {
+async function handleCoachStream(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest) {
   const payload = await readJsonBody(request)
+  const authorization = typeof authorizeCoachRequest === 'function'
+    ? await authorizeCoachRequest({ request, payload })
+    : null
   const message = compactText(payload.message, 3000)
   const history = Array.isArray(payload.history)
     ? payload.history.slice(-8).map((item) => ({
@@ -1211,8 +1260,8 @@ async function handleCoachStream(request, response, provider, visionProvider, li
     }))
     : []
   const suppliedContext = safeCoachContext(payload.context)
-  const context = await hydrateCoachPaperContext(suppliedContext, libraryRoot, allowedSubjects)
-  const verifiedSubmitted = verifiedCoachSubmission(payload, request, env)
+  const context = await hydrateCoachPaperContext(applyCoachAuthorization(suppliedContext, authorization), libraryRoot, allowedSubjects)
+  const verifiedSubmitted = Boolean(authorization?.submitted) || verifiedCoachSubmission(payload, request, env)
   const hintLevel = Math.min(5, Math.max(1, Number(payload.hintLevel) || 1))
   const imageDataUrls = coachImageDataUrls(payload)
   const hasImages = imageDataUrls.length > 0
@@ -1288,6 +1337,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
         const result = await callCompatibleAiStream(activeProvider, {
           messages: [{ role: 'system', content: buildCoachSystemPrompt({ verifiedSubmitted, hintLevel }) }, ...history, { role: 'user', content }],
           temperature: 0.2,
+          metadata: { stemCoachContext: context },
           operation: hasImages ? 'coach-vision-stream' : 'coach-stream',
           requestId,
           providerAttempt: providerIndex + 1,
@@ -1509,7 +1559,7 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
   return sendJson(response, 200, { mode: 'offline', code: 'vision_review_failed', provider: lastAttemptedProvider.name, providerStatus: 'error', error: providerMessage(lastError, lastAttemptedProvider), retryable: true })
 }
 
-export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null }) {
+export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null, authorizeCoachRequest = null }) {
   const config = providerConfig(env)
   const timeoutConfig = aiTimeoutConfig(env)
   const currentAiMarkingQuestionBank = () => {
@@ -1538,12 +1588,15 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
           visionModel: visionProvider?.model || null,
         })
       }
-      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach') return await handleCoach(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig)
-      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach/stream') return await handleCoachStream(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig)
+      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach') return await handleCoach(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest)
+      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach/stream') return await handleCoachStream(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest)
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/mark-handwriting') return await handleHandwritingMark(request, response, config.vision, libraryRoot, allowedSubjects, sourceAssetRoot, env, currentAiMarkingQuestionBank(), telemetry, timeoutConfig)
       return sendJson(response, 404, { error: 'AI route not found.' })
     } catch (error) {
-      return sendJson(response, error.statusCode || 500, { error: error.statusCode ? error.message : 'The AI request could not be completed.' })
+      return sendJson(response, error.statusCode || 500, {
+        ...(error.code ? { code: String(error.code).slice(0, 80) } : {}),
+        error: error.statusCode ? error.message : 'The AI request could not be completed.',
+      })
     }
   }
 }

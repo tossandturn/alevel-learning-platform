@@ -252,26 +252,23 @@ const items = preGovernanceItems.map((item) => {
   }
 })
 
-const totals = items.reduce(
-  (acc, item) => {
-    acc.files += 1
-    acc.bytes += item.bytes
-    acc.bySubject[item.subject] = (acc.bySubject[item.subject] || 0) + 1
-    acc.byKind[item.kind] = (acc.byKind[item.kind] || 0) + 1
-    if (item.kind === 'qp') {
-      acc.questionPapers += 1
-      if (item.markSchemeId) acc.pairedQuestionPapers += 1
-      else acc.unpairedQuestionPapers += 1
-    }
-    return acc
-  },
-  { files: 0, bytes: 0, bySubject: {}, byKind: {}, questionPapers: 0, pairedQuestionPapers: 0, unpairedQuestionPapers: 0 },
-)
-
-fs.mkdirSync(path.dirname(outputPath), { recursive: true })
-fs.writeFileSync(
-  outputPath,
-  `${JSON.stringify({
+function catalogPayload(catalogItems) {
+  const catalogTotals = catalogItems.reduce(
+    (acc, item) => {
+      acc.files += 1
+      acc.bytes += item.bytes
+      acc.bySubject[item.subject] = (acc.bySubject[item.subject] || 0) + 1
+      acc.byKind[item.kind] = (acc.byKind[item.kind] || 0) + 1
+      if (item.kind === 'qp') {
+        acc.questionPapers += 1
+        if (item.markSchemeId) acc.pairedQuestionPapers += 1
+        else acc.unpairedQuestionPapers += 1
+      }
+      return acc
+    },
+    { files: 0, bytes: 0, bySubject: {}, byKind: {}, questionPapers: 0, pairedQuestionPapers: 0, unpairedQuestionPapers: 0 },
+  )
+  return {
     schemaVersion: PAPER_CATALOG_SCHEMA_VERSION,
     generatedAt: new Date().toISOString(),
     sourceRoot,
@@ -281,8 +278,28 @@ fs.writeFileSync(
       accessPolicies: PAPER_ACCESS_POLICIES,
       policy: 'Catalogue records provenance and local-access constraints; a source URL is not a redistribution licence.',
     },
-    totals,
-    items,
-  }, null, 2)}\n`,
-)
+    totals: catalogTotals,
+    items: catalogItems,
+  }
+}
+
+function writeCatalog(filePath, catalogItems) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true })
+  fs.writeFileSync(filePath, `${JSON.stringify(catalogPayload(catalogItems), null, 2)}\n`)
+}
+
+fs.mkdirSync(path.dirname(outputPath), { recursive: true })
+fs.writeFileSync(outputPath, `${JSON.stringify(catalogPayload(items), null, 2)}\n`)
 console.log(`Wrote ${items.length} records to ${outputPath}`)
+
+const subjectOutputRoot = path.join(projectRoot, 'public', 'data', 'papers')
+const itemsBySubject = new Map()
+for (const item of items) {
+  const subjectItems = itemsBySubject.get(item.subject) || []
+  subjectItems.push(item)
+  itemsBySubject.set(item.subject, subjectItems)
+}
+for (const [subject, subjectItems] of itemsBySubject) {
+  writeCatalog(path.join(subjectOutputRoot, `${subject}.json`), subjectItems)
+}
+console.log(`Wrote ${itemsBySubject.size} subject catalogs to ${subjectOutputRoot}`)

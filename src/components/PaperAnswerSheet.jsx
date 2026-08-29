@@ -279,17 +279,18 @@ export function PaperAnswerSheet({
       </nav>
 
       <div className="paper-answer-sheet__questions">
-        {renderedQuestionNumbers.map((questionNumber) => {
-          const index = questionNumber - 1
-          const answer = draftAnswers[questionNumber] || {}
-          const sectionId = `${instanceId}-question-${questionNumber}`
-          const aiReviewEligible = reviewedResponseSet.has(questionNumber) && questionMetadataByNumber[questionNumber]?.reviewStatus === 'reviewed' && Boolean(sharedMarkingContract)
+          {renderedQuestionNumbers.map((questionNumber) => {
+            const index = questionNumber - 1
+            const answer = draftAnswers[questionNumber] || {}
+            const sectionId = `${instanceId}-question-${questionNumber}`
+            const aiReviewEligible = reviewedResponseSet.has(questionNumber) && questionMetadataByNumber[questionNumber]?.reviewStatus === 'reviewed' && Boolean(sharedMarkingContract)
+            const coachEligible = questionMetadataByNumber[questionNumber]?.parts?.some((part) => part.id && part.markingProvenance)
 
-          return (
-            <section id={sectionId} className="paper-answer-sheet__question" data-state={states[index]} key={questionNumber}>
+            return (
+              <section id={sectionId} className="paper-answer-sheet__question" data-state={states[index]} key={questionNumber}>
               <header>
                 <h3>Question {questionNumber}</h3>
-                <div>{onAskCoach && <button type="button" className="ask-coach-button" onClick={() => onAskCoach(questionNumber)}><Sparkles size={14} />Ask Coach</button>}<span role="status">{stateLabel(states[index])}</span></div>
+                <div>{onAskCoach && coachEligible && <button type="button" className="ask-coach-button" onClick={() => onAskCoach(questionNumber)}><Sparkles size={14} />Ask Coach</button>}<span role="status">{stateLabel(states[index])}</span></div>
               </header>
 
               {mode === 'mcq' ? (

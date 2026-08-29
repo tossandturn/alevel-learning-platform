@@ -28,7 +28,7 @@ import {
 } from 'lucide-react'
 import { subjects } from './data/subjectCatalog'
 import { learningPlan, stagesForComponentTags } from './data/learningPlan'
-import { courseRoutes, formatRouteComponents, routeById, routeForStagePreservingSubject, routesForSubject } from './data/routeRegistry'
+import { courseRoutes, formatRouteComponents, routeById, routeForStageDeepLink, routeForStagePreservingSubject, routesForSubject } from './data/routeRegistry'
 import { COURSE_STAGE_ORDER } from './data/stages'
 import { usePaperCatalog } from './hooks/usePaperCatalog'
 import { useSyllabusInventory } from './hooks/useSyllabusInventory'
@@ -516,26 +516,37 @@ function App() {
     if (typeof window !== 'undefined') window.__stemAppReady?.()
   }, [])
   const [initialNavigation] = useState(() => studentNavigationFromLocation())
+  const initialCoachOpen = Boolean(initialNavigation.coach)
   const [appState, setAppState] = useState(() => loadState())
   const incomingContext = getIncomingProductContext()
   const [view, setView] = useState(() => initialNavigation.view !== 'dashboard' ? initialNavigation.view : incomingContext.from === 'ieltsist' || incomingContext.focus ? 'library' : 'dashboard')
   const [activeTab, setActiveTab] = useState(() => initialNavigation.tab)
-  const paperCatalogState = usePaperCatalog({
-    enabled: view === 'paper'
-      || (view === 'library' && ['papers', 'exams'].includes(activeTab))
-      || Boolean(appState.paperSessions?.length || appState.paperReviews?.length),
-  })
   const [selectedTopicId, setSelectedTopicId] = useState(() => initialNavigation.topicId || incomingContext.topicId || null)
   const [topicBuilderRequested, setTopicBuilderRequested] = useState(false)
+  const initialStageRouteId = initialNavigation.stage
+    ? routeForStageDeepLink({
+        stage: initialNavigation.stage,
+        preferredRouteId: routeById(initialNavigation.routeId)?.routeId || routeById(incomingContext.routeId)?.routeId || routeById(appState.profile?.activeRouteId)?.routeId || '',
+        subjectId: initialNavigation.course || incomingContext.subjectId,
+        routes: courseRoutes,
+      })?.routeId || ''
+    : ''
   const [activeRouteId, setActiveRouteId] = useState(() => {
     if (routeById(initialNavigation.routeId)) return initialNavigation.routeId
     if (routeById(incomingContext.routeId)) return incomingContext.routeId
+    if (initialStageRouteId) return initialStageRouteId
     if (routeById(appState.profile?.activeRouteId)) return appState.profile.activeRouteId
     return routesForSubject(incomingContext.subjectId).find((route) => route.stage === 'AS')?.routeId
       || routesForSubject(incomingContext.subjectId)[0]?.routeId
       || 'cie-9702-as-physics'
   })
   const activeRoute = routeById(activeRouteId) || courseRoutes[0]
+  const paperCatalogState = usePaperCatalog({
+    subject: activeRoute.subjectCode || routeById(initialNavigation.routeId)?.subjectCode || routeById(incomingContext.routeId)?.subjectCode || routeById(appState.profile?.activeRouteId)?.subjectCode || 'all',
+    enabled: view === 'paper'
+      || (view === 'library' && ['papers', 'exams'].includes(activeTab))
+      || Boolean(appState.paperSessions?.length || appState.paperReviews?.length),
+  })
   const activeSubject = subjects.find((subject) => subject.routeIds?.includes(activeRoute.routeId)) || subjects[0]
   const [_subjectFilter, setSubjectFilter] = useState(() => activeSubject.id)
   const [completionFilter] = useState('all')
@@ -544,7 +555,7 @@ function App() {
   const [activePaper, setActivePaper] = useState(null)
   const [pendingSession, setPendingSession] = useState(null)
   const [coachMounted, setCoachMounted] = useState(false)
-  const [coachOpenPending, setCoachOpenPending] = useState(false)
+  const [coachOpenPending, setCoachOpenPending] = useState(() => initialCoachOpen)
   const [coachOpenRequest, setCoachOpenRequest] = useState(0)
   const coachBuilderOpenRequest = 0
   const [sharedAccount, setSharedAccount] = useState({ status: 'loading', token: '', workspace: null, error: '' })
@@ -595,6 +606,10 @@ function App() {
   const openPastPaperQuestions = useCallback(() => {
     void ensureStudyQuestionRuntime(activeRouteId).catch(() => {})
   }, [activeRouteId, ensureStudyQuestionRuntime])
+  useEffect(() => {
+    if (!initialCoachOpen || view !== 'dashboard' || coachMounted) return
+    setCoachMounted(true)
+  }, [coachMounted, initialCoachOpen, view])
   const practiceRuntime = practiceRuntimeState.module
   const verifiedCatalogUnits = useMemo(() => practiceRuntime?.buildVerifiedPracticeCatalog() || [], [practiceRuntime])
   const persistedSyllabusUnits = useMemo(() => (
@@ -1881,8 +1896,16 @@ function App() {
 
   const restoreStudentNavigation = useCallback((navigation) => {
     const route = routeById(navigation.routeId)
-    const routeId = route?.routeId || activeRouteId
-    if (route && route.routeId !== activeRouteId) selectRoute(route.routeId)
+    const stageRoute = !route && navigation.stage
+      ? routeForStageDeepLink({
+          stage: navigation.stage,
+          subjectId: navigation.course,
+          routes: courseRoutes,
+        })
+      : null
+    const resolvedRoute = route || stageRoute
+    const routeId = resolvedRoute?.routeId || activeRouteId
+    if (resolvedRoute && resolvedRoute.routeId !== activeRouteId) selectRoute(resolvedRoute.routeId)
     if (navigation.view === 'library') setActiveTab(navigation.tab)
     if (navigation.topicId) setSelectedTopicId(navigation.topicId)
     if (['practice', 'result'].includes(navigation.view) && practiceRuntimeState.status !== 'ready') {
@@ -2034,6 +2057,7 @@ function App() {
     attemptId: view === 'practice' ? currentAttempt?.id : view === 'result' ? resultAttempt?.id : view === 'paper' ? activePaper?.attemptId || activePaper?.retestOf || '' : '',
     partId: view === 'practice' ? currentAttempt?.activePartId : '',
     mode: view === 'practice' ? currentAttempt?.settings?.mode || currentAttempt?.mode : '',
+    coach: view === 'dashboard' && (coachMounted || coachOpenPending || initialCoachOpen) ? '1' : '',
     paperMode: view === 'paper' ? normalizePaperStudyMode(activePaper?.paperStudyMode) : '',
   })
 

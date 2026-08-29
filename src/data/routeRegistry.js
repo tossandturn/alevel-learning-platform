@@ -297,6 +297,30 @@ export function routeForStagePreservingSubject(activeRoute, nextStage, routes = 
     || null
 }
 
+export function routeForStageDeepLink({ stage, preferredRouteId = '', subjectId = '', subject = '', routes = courseRoutes } = {}) {
+  const normalizedStage = normaliseStage(stage)
+  if (!normalizedStage) return null
+  const candidates = routes.filter((route) => route.stage === normalizedStage)
+  if (!candidates.length) return null
+
+  const preferredRoute = routeById(preferredRouteId)
+  if (preferredRoute) {
+    const preservedRoute = routeForStagePreservingSubject(preferredRoute, normalizedStage, routes)
+    if (preservedRoute) return preservedRoute
+  }
+
+  const subjectHints = [subjectId, subject].map((value) => canonicalSubjectId(value) || String(value || '').trim().toLowerCase()).filter(Boolean)
+  for (const hint of subjectHints) {
+    const hintedRoute = candidates.find((route) => route.subjectId === hint || String(route.subject || '').trim().toLowerCase() === hint)
+    if (hintedRoute) return hintedRoute
+    const familyHint = routesForSubject(hint).find((route) => route.stage === normalizedStage)
+    if (familyHint) return familyHint
+  }
+
+  if (preferredRoute && preferredRoute.stage === normalizedStage) return preferredRoute
+  return candidates[0] || null
+}
+
 export function routesForSubject(subjectId) {
   const canonical = canonicalSubjectId(subjectId)
   if (!canonical) return []

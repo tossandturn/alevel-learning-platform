@@ -66,11 +66,23 @@ assert.ok(paperAnswerSheet.includes('QUESTION_INDEX_WINDOW = 11'), 'answer navig
 const runtimePerformance = fs.readFileSync(path.join(root, 'src', 'lib', 'runtimePerformance.js'), 'utf8')
 const appSource = fs.readFileSync(path.join(root, 'src', 'App.jsx'), 'utf8')
 const paperCatalogHook = fs.readFileSync(path.join(root, 'src', 'hooks', 'usePaperCatalog.js'), 'utf8')
+const paperCatalogPath = path.join(root, 'public', 'data', 'papers.json')
+const paperCatalog = JSON.parse(fs.readFileSync(paperCatalogPath, 'utf8'))
 assert.ok(runtimePerformance.includes("observe('largest-contentful-paint'"), 'runtime monitoring must observe LCP where supported')
 assert.ok(runtimePerformance.includes("observe('event'"), 'runtime monitoring must observe interaction latency where supported')
 assert.ok(runtimePerformance.includes('performance.memory'), 'runtime monitoring must sample supported memory metrics')
 assert.ok(appSource.includes("view === 'library' && ['papers', 'exams'].includes(activeTab)"), 'the paper catalog must load only when the student opens a paper workflow')
 assert.ok(paperCatalogHook.includes('if (enabled) void load()'), 'the paper catalog request must remain gated behind the enabled state')
+assert.ok(paperCatalogHook.includes('/data/papers/${encodeURIComponent(normalizedSubject)}.json'), 'the paper catalog must load a lightweight subject-specific index when possible')
+assert.ok(paperCatalogHook.includes('Loading the verified paper catalog took too long. Retry.'), 'the paper catalog must expose a visible timeout state')
+assert.ok(fs.readFileSync(path.join(root, 'src', 'components', 'PaperLibrary.jsx'), 'utf8').includes('Retry'), 'the paper catalog error state must expose a retry action')
+for (const subject of ['0580', '0625', '9702', '9709']) {
+  const subjectCatalogPath = path.join(root, 'public', 'data', 'papers', `${subject}.json`)
+  assert.ok(fs.existsSync(subjectCatalogPath), `the ${subject} subject catalog must be materialized for route-scoped paper browsing`)
+  const subjectCatalog = JSON.parse(fs.readFileSync(subjectCatalogPath, 'utf8'))
+  assert.ok(Array.isArray(subjectCatalog.items) && subjectCatalog.items.length > 0, `the ${subject} subject catalog must contain paper items`)
+  assert.ok(subjectCatalog.items.length < paperCatalog.items.length, `the ${subject} subject catalog must be smaller than the full verified paper catalog`)
+}
 assert.ok(fs.existsSync(path.join(root, 'public', 'data', 'study-question-index', 'manifest.json')), 'route-scoped study question fragments must be generated before build')
 
 console.log(JSON.stringify({
