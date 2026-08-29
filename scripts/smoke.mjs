@@ -188,11 +188,12 @@ assert.equal(qwenProviders.coach.apiKey, 'test-only', 'Coach must inherit the IE
 assert.equal(qwenProviders.coach.model, 'qwen-coach-test', 'Coach must use its Qwen model override')
 assert.equal(qwenProviders.vision.model, 'qwen-vision-test', 'Vision marking must use its Qwen vision model override')
 const openAiProviders = providerConfig({
+  AI_PROVIDER: 'openai',
   OPENAI_API_KEY: 'openai-test-only',
   OPENAI_BASE_URL: 'https://api.openai.test/v1',
   OPENAI_MODEL: 'gpt-5.6-test',
 })
-assert.equal(openAiProviders.provider, 'openai', 'AI routing must use OpenAI when an OpenAI key is configured')
+assert.equal(openAiProviders.provider, 'openai', 'AI routing must use OpenAI only when it is explicitly selected')
 assert.equal(openAiProviders.coach.apiKey, 'openai-test-only', 'Coach must inherit the server-side OpenAI key')
 assert.equal(openAiProviders.coach.baseUrl, 'https://api.openai.test/v1', 'Coach must use the configured OpenAI-compatible base URL')
 assert.equal(openAiProviders.coach.model, 'gpt-5.6-test', 'Coach must use the OpenAI model override')

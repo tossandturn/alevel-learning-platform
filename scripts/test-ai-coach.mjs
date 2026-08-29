@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
-import { createAiApi } from '../server/aiApi.js'
+import { createAiApi, providerConfig } from '../server/aiApi.js'
 import { parseCoachMessage } from '../src/lib/coachMessage.js'
 import { PracticeInventoryError, buildCoachPractice, coachPracticeOptions } from '../src/lib/verifiedPracticeCatalog.js'
 
@@ -15,6 +15,20 @@ assert.throws(
   PracticeInventoryError,
   'an external Admissions topic with no reviewed questions must fail closed instead of throwing an undefined-group error',
 )
+
+const qwenDefaultProvider = providerConfig({
+  OPENAI_API_KEY: 'configured-but-not-the-coach-default',
+  DASHSCOPE_API_KEY: 'test-qwen-key',
+})
+assert.equal(qwenDefaultProvider.provider, 'qwen', 'Coach must prefer Qwen by default even when an OpenAI key is configured for a separate entry')
+assert.equal(qwenDefaultProvider.coach.name, 'qwen', 'Coach default routing must select Qwen directly')
+
+const explicitOpenAiProvider = providerConfig({
+  AI_PROVIDER: 'openai',
+  OPENAI_API_KEY: 'separate-openai-entry-key',
+  DASHSCOPE_API_KEY: 'test-qwen-key',
+})
+assert.equal(explicitOpenAiProvider.provider, 'openai', 'an explicit OpenAI entry may still opt in to OpenAI routing')
 
 function listen(server) {
   return new Promise((resolve, reject) => {
@@ -51,6 +65,8 @@ const providerTelemetry = []
 let failNextProviderRequest = false
 let corruptNextProviderStream = false
 let truncateNextProviderStream = false
+let slowNextProviderStream = false
+let deadlineNextProviderStream = false
 const providerServer = http.createServer(async (request, response) => {
   const chunks = []
   for await (const chunk of request) chunks.push(chunk)
@@ -72,6 +88,26 @@ const providerServer = http.createServer(async (request, response) => {
   if (truncateNextProviderStream) {
     truncateNextProviderStream = false
     response.end('data: {"choices":[{"delta":{"content":"incomplete without sentinel"}}]}\n\n')
+    return
+  }
+  if (slowNextProviderStream) {
+    slowNextProviderStream = false
+    response.write('data: {"choices":[{"delta":{"content":"long "}}]}\n\n')
+    await new Promise((resolve) => setTimeout(resolve, 130))
+    response.write('data: {"choices":[{"delta":{"content":"but "}}]}\n\n')
+    await new Promise((resolve) => setTimeout(resolve, 130))
+    response.end('data: {"choices":[{"delta":{"content":"healthy"}}]}\n\ndata: [DONE]\n\n')
+    return
+  }
+  if (deadlineNextProviderStream) {
+    deadlineNextProviderStream = false
+    response.write('data: {"choices":[{"delta":{"content":"deadline "}}]}\n\n')
+    for (const chunk of ['must ', 'remain ', 'absolute']) {
+      await new Promise((resolve) => setTimeout(resolve, 150))
+      if (response.destroyed) return
+      response.write(`data: {"choices":[{"delta":{"content":"${chunk}"}}]}\n\n`)
+    }
+    response.end('data: [DONE]\n\n')
     return
   }
   response.write('data: {"choices":[{"delta":{"content":"stream "}}]}\n\n')
@@ -267,6 +303,74 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
     : providerUserMessage.content?.find((item) => item.type === 'text')?.text || ''
   assert.ok(providerText.length <= 4_800, `focused Coach context must stay bounded, received ${providerText.length} characters`)
 
+  const slowStreamApi = createAiApi({
+    env: {
+      COACH_AI_API_KEY: 'test-qwen-slow-stream-key',
+      COACH_AI_BASE_URL: providerBase,
+      COACH_AI_MODEL: 'qwen-test-slow-stream',
+      STEM_AI_PROVIDER_TIMEOUT_MS: '250',
+      STEM_AI_REQUEST_DEADLINE_MS: '1000',
+      STEM_INTERNAL_AUTH_KEY: identitySigningKey,
+    },
+    libraryRoot: path.join(tempRoot, 'library'),
+    allowedSubjects: new Set(['0580']),
+  })
+  const slowStreamAppServer = requestHandler(slowStreamApi)
+  const slowStreamAppBase = await listen(slowStreamAppServer)
+  try {
+    slowNextProviderStream = true
+    const slowStream = await fetch(`${slowStreamAppBase}/api/ai/coach/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${signedIdentityToken}` },
+      body: JSON.stringify({
+        message: 'Explain the method and check the units in detail.',
+        hintLevel: 3,
+        context: { stage: 'AS', topic: 'Mechanics', question: { prompt: 'Slow but healthy stream fixture.', number: 2 } },
+      }),
+    })
+    const slowStreamText = await slowStream.text()
+    assert.equal(slowStream.status, 200)
+    assert.match(slowStreamText, /"answer":"long but healthy"/, 'active provider streams must not be aborted while valid deltas continue arriving')
+    assert.match(slowStreamText, /"providerStatus":"connected"/, 'a healthy long stream must remain connected')
+    assert.equal(slowStream.headers.get('x-accel-buffering'), 'no', 'Coach SSE responses must disable reverse-proxy buffering')
+  } finally {
+    await close(slowStreamAppServer)
+  }
+
+  const deadlineStreamApi = createAiApi({
+    env: {
+      COACH_AI_API_KEY: 'test-qwen-deadline-stream-key',
+      COACH_AI_BASE_URL: providerBase,
+      COACH_AI_MODEL: 'qwen-test-deadline-stream',
+      STEM_AI_PROVIDER_TIMEOUT_MS: '250',
+      STEM_AI_REQUEST_DEADLINE_MS: '400',
+      STEM_INTERNAL_AUTH_KEY: identitySigningKey,
+    },
+    libraryRoot: path.join(tempRoot, 'library'),
+    allowedSubjects: new Set(['0580']),
+  })
+  const deadlineStreamAppServer = requestHandler(deadlineStreamApi)
+  const deadlineStreamAppBase = await listen(deadlineStreamAppServer)
+  try {
+    deadlineNextProviderStream = true
+    const deadlineStream = await fetch(`${deadlineStreamAppBase}/api/ai/coach/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${signedIdentityToken}` },
+      body: JSON.stringify({
+        message: 'Explain the method and check the units in detail.',
+        hintLevel: 3,
+        context: { stage: 'AS', topic: 'Mechanics', question: { prompt: 'Absolute deadline stream fixture.', number: 2 } },
+      }),
+    })
+    const deadlineStreamText = await deadlineStream.text()
+    assert.equal(deadlineStream.status, 200)
+    assert.match(deadlineStreamText, /"mode":"interrupted"/, 'a stream that outlives its request deadline must preserve partial text as interrupted')
+    assert.match(deadlineStreamText, /"retryable":true/, 'a request-deadline interruption must be retryable')
+    assert.doesNotMatch(deadlineStreamText, /"providerStatus":"connected"/, 'provider chunks must not extend the absolute Coach request deadline')
+  } finally {
+    await close(deadlineStreamAppServer)
+  }
+
   const nonStreamProviderServer = http.createServer(async (request, response) => {
     for await (const _chunk of request) {}
     response.statusCode = 200
@@ -315,6 +419,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+1P6Q6QAAAABJRU5ErkJggg==',
   ]
+  const providerCountBeforeScreenshot = providerBodies.length
   const screenshot = await post('/api/ai/coach/stream', {
     message: 'Read the attached work and identify the first issue.',
     hintLevel: 3,
@@ -327,8 +432,8 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   }, signedIdentityToken)
   assert.equal(screenshot.response.status, 200)
   assert.match(screenshot.text, /"mode":"ai"/)
-  assert.equal(providerBodies.length, 2, 'screenshot questions must reach the configured vision provider')
-  const screenshotMessage = providerBodies[1].messages.at(-1)
+  assert.equal(providerBodies.length, providerCountBeforeScreenshot + 1, 'screenshot questions must reach the configured vision provider')
+  const screenshotMessage = providerBodies.at(-1).messages.at(-1)
   assert.ok(Array.isArray(screenshotMessage.content), 'vision requests must use multimodal provider content')
   assert.equal(
     screenshotMessage.content.filter((item) => item.type === 'image_url').length,
@@ -455,6 +560,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   const qwenFallbackBase = await listen(qwenFallbackServer)
   const fallbackApi = createAiApi({
     env: {
+      AI_PROVIDER: 'openai',
       OPENAI_API_KEY: 'test-openai-key',
       OPENAI_BASE_URL: openAiFallbackBase,
       OPENAI_MODEL: 'gpt-5.6-test',
@@ -514,6 +620,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   const partialQwenBase = await listen(partialQwenServer)
   const partialFallbackApi = createAiApi({
     env: {
+      AI_PROVIDER: 'openai',
       OPENAI_API_KEY: 'test-openai-partial-key',
       OPENAI_BASE_URL: partialOpenAiBase,
       OPENAI_MODEL: 'gpt-5.6-test',
@@ -557,6 +664,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   const partialOnlyBase = await listen(partialOnlyServer)
   const partialOnlyApi = createAiApi({
     env: {
+      AI_PROVIDER: 'openai',
       OPENAI_API_KEY: 'test-openai-partial-only-key',
       OPENAI_BASE_URL: partialOnlyBase,
       OPENAI_MODEL: 'gpt-5.6-test',

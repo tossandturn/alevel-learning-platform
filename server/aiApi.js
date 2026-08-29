@@ -629,13 +629,7 @@ export function canonicalHandwritingMarkingContext(payload = {}, { questionBank 
 export function providerConfig(env = {}) {
   const explicitProvider = String(env.AI_PROVIDER || env.COACH_AI_PROVIDER || env.PHYSICS_AI_PROVIDER || '').trim().toLowerCase()
   const openAiKey = env.OPENAI_API_KEY || env.OPENAI_COACH_API_KEY || ''
-  const selectedProvider = explicitProvider === 'qwen' || explicitProvider === 'dashscope'
-    ? 'qwen'
-    : explicitProvider === 'openai'
-      ? 'openai'
-      : openAiKey
-        ? 'openai'
-        : 'qwen'
+  const selectedProvider = explicitProvider === 'openai' ? 'openai' : 'qwen'
   const workspaceId = env.DASHSCOPE_WORKSPACE_ID || env.QWEN_WORKSPACE_ID || ''
   const region = env.DASHSCOPE_REGION || 'cn-beijing'
   const dashscopeBase = workspaceId
@@ -1080,18 +1074,30 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, o
     emitProviderTelemetry(telemetry, { requestId, operation, provider: provider.name, model: provider.model, providerAttempt, fallbackPath, fallback, timeoutMs: requestTimeoutMs, statusCode, schemaStatus, finalState, durationMs: Date.now() - startedAt })
     return { answer: '', providerStatus: 'not_configured' }
   }
-  let timeout = null
+  let idleTimeout = null
+  let deadlineTimeout = null
   let answer = ''
   try {
     requestTimeoutMs = effectiveAiTimeoutMs(timeoutMs, deadlineAt)
     const controller = new AbortController()
-    timeout = setTimeout(() => controller.abort(), requestTimeoutMs)
+    const resetIdleTimeout = () => {
+      if (idleTimeout) clearTimeout(idleTimeout)
+      const idleTimeoutMs = effectiveAiTimeoutMs(timeoutMs, deadlineAt)
+      idleTimeout = setTimeout(() => controller.abort(), idleTimeoutMs)
+    }
+    if (Number.isFinite(deadlineAt)) {
+      const remainingDeadlineMs = Math.floor(deadlineAt - Date.now())
+      if (remainingDeadlineMs <= 0) throw aiDeadlineError()
+      deadlineTimeout = setTimeout(() => controller.abort(), remainingDeadlineMs)
+    }
+    resetIdleTimeout()
     const response = await fetch(`${provider.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${provider.apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: provider.model, messages, ...providerSampling(provider, temperature), stream: true }),
       signal: controller.signal,
     })
+    resetIdleTimeout()
     statusCode = response.status
     if (!response.ok) {
       const providerPayload = await response.json().catch(() => ({}))
@@ -1148,6 +1154,7 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, o
 
     while (true) {
       const { value, done } = await reader.read()
+      if (!done) resetIdleTimeout()
       buffer += decoder.decode(value || new Uint8Array(), { stream: !done })
       const lines = buffer.split(/\r?\n/)
       buffer = lines.pop() || ''
@@ -1167,7 +1174,8 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, o
     finalState = error?.name === 'AbortError' ? 'timeout' : 'error'
     throw error
   } finally {
-    if (timeout) clearTimeout(timeout)
+    if (idleTimeout) clearTimeout(idleTimeout)
+    if (deadlineTimeout) clearTimeout(deadlineTimeout)
     emitProviderTelemetry(telemetry, { requestId, operation, provider: provider.name, model: provider.model, providerAttempt, fallbackPath, fallback, timeoutMs: requestTimeoutMs, statusCode, schemaStatus, finalState, durationMs: Date.now() - startedAt })
   }
 }
@@ -1200,6 +1208,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
   response.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
   response.setHeader('Cache-Control', 'no-cache, no-transform')
   response.setHeader('Connection', 'keep-alive')
+  response.setHeader('X-Accel-Buffering', 'no')
   response.flushHeaders?.()
 
   const localAnswer = localCoachReply(context, hintLevel)
