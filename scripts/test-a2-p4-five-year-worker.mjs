@@ -35,7 +35,7 @@ try {
     '9702_w25_qp_44.pdf',
   ])
   assert.ok(jobs.every((job) => job.year >= 2021 && job.year <= 2025))
-  assert.ok(jobs.every((job) => job.component === 4 && job.subject === '9702' && job.stage === 'A2' && job.coordinateOnly === true && job.pageWindowed === true && job.pageWindowOwnedPages === 1 && job.pageWindowTrailingPages === 1 && job.maxAttempts === 2 && job.timeoutMs === 180000 && job.paperTimeoutMs === 7200000))
+  assert.ok(jobs.every((job) => job.component === 4 && job.subject === '9702' && job.stage === 'A2' && job.coordinateOnly === true && job.pageWindowed === true && job.pageWindowOwnedPages === 2 && job.pageWindowTrailingPages === 1 && job.maxAttempts === 2 && job.timeoutMs === 120000 && job.paperTimeoutMs === 7200000))
   assert.ok(jobs.every((job) => !/_[qm]p?_?5/i.test(job.questionFile)), 'P5 must never enter the A2 P4 ingestion queue')
 
   const calls = []
@@ -46,7 +46,7 @@ try {
     },
   })
   assert.deepEqual(calls.map((job) => job.paperId), jobs.map((job) => job.paperId))
-  assert.ok(calls.every((job) => job.coordinateOnly && job.pageWindowed && job.subject === '9702' && job.stage === 'A2' && job.renderDpi === 120 && job.pageWindowOwnedPages === 1 && job.pageWindowTrailingPages === 1 && job.maxAttempts === 2 && job.timeoutMs === 180000 && job.paperTimeoutMs === 7200000))
+  assert.ok(calls.every((job) => job.coordinateOnly && job.pageWindowed && job.subject === '9702' && job.stage === 'A2' && job.renderDpi === 120 && job.pageWindowOwnedPages === 2 && job.pageWindowTrailingPages === 1 && job.maxAttempts === 2 && job.timeoutMs === 120000 && job.paperTimeoutMs === 7200000))
   assert.equal(summary.total, 3)
   assert.equal(summary.verified, 3)
   assert.equal(summary.quarantined, 0)

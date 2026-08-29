@@ -6,7 +6,8 @@ import { CAMBRIDGE_0580_IGCSE_SYLLABUS } from '../data/syllabus/cambridge-0580-i
 import { CAMBRIDGE_0625_IGCSE_SYLLABUS } from '../data/syllabus/cambridge-0625-igcse-2026-2028.js'
 import { CAMBRIDGE_0606_IGCSE_SYLLABUS } from '../data/syllabus/cambridge-0606-igcse-2025-2027.js'
 import { CAMBRIDGE_9709_AS_P1_S1_SYLLABUS } from '../data/syllabus/cambridge-9709-as-p1-s1-2026-2027.js'
-import { isAiMarkablePastPaperItem, isHumanReviewedPastPaperItem, isStudyOnlyPastPaperItem, normalizeImportedQuestion, studyQuestionBank, unifiedQuestionBank } from '../data/questionBank.js'
+import { CAMBRIDGE_0580_P1_M25_SYLLABUS_REVIEW_BY_QUESTION_ID } from '../data/reviewedQuestionSets/cambridge-0580-p1-m25-syllabus-review-ledger.js'
+import { isAiMarkablePastPaperItem, isHumanReviewedPastPaperItem, isStudentReleasedAiStudyItem, isStudyOnlyPastPaperItem, normalizeImportedQuestion, studyQuestionBank, unifiedQuestionBank } from '../data/questionBank.js'
 import { routeById } from '../data/routeRegistry.js'
 import { canonicalAiMarkingProvenance, canonicalSourcePracticeProvenance } from './sourceContentContract.js'
 import { canonicalSyllabusTopicIdForRoute, syllabusTopicScopeIdsForRoute } from './syllabusPracticeRoutes.js'
@@ -351,9 +352,37 @@ function syllabusPointResolutionFor9709(syllabus, topicIds, suppliedPointIds = [
   }
 }
 
+function reviewed0580SyllabusMapping(question, syllabus) {
+  if (syllabus.routeId !== CAMBRIDGE_0580_IGCSE_SYLLABUS.routeId) return null
+  const questionId = String(question.sourceQuestionId || question.questionGroupId || '')
+  const review = CAMBRIDGE_0580_P1_M25_SYLLABUS_REVIEW_BY_QUESTION_ID[questionId]
+  if (!review || review.routeId !== syllabus.routeId) return null
+  const topicIds = [review.primaryTopicId, ...review.secondaryTopicIds]
+  const validTopics = new Map(syllabus.topics.map((topic) => [topic.id, topic]))
+  if (topicIds.some((topicId) => !validTopics.has(topicId))) return null
+  const validPointIds = new Set(topicIds.flatMap((topicId) => validTopics.get(topicId).points.map((point) => point.id)))
+  if (!review.syllabusPointIds.length || review.syllabusPointIds.some((pointId) => !validPointIds.has(pointId))) return null
+  return Object.freeze({
+    schemaVersion: SYLLABUS_MAPPING_SCHEMA_VERSION,
+    questionGroupId: questionId,
+    primaryTopicId: review.primaryTopicId,
+    secondaryTopicIds: review.secondaryTopicIds,
+    topicIds: Object.freeze(topicIds),
+    syllabusPointIds: review.syllabusPointIds,
+    confidence: review.confidence,
+    mappingMethod: review.mappingMethod,
+    reviewStatus: review.reviewStatus,
+    reviewedBy: review.reviewedBy,
+    reviewedAt: review.reviewedAt,
+    reviewReason: null,
+  })
+}
+
 function candidateMappingFor(question, syllabus, config = {}) {
   const component = Number(question.sourceRef?.component)
   const knowledgeGroupId = String(question.knowledgeGroupId || question.topicId || '')
+  const reviewed0580Mapping = reviewed0580SyllabusMapping(question, syllabus)
+  if (reviewed0580Mapping) return reviewed0580Mapping
   if (config.subjectCode === '9709') {
     const topicIds = topicMembershipIdsForQuestion(question, { routeId: syllabus.routeId })
     if (!topicIds.length) return null
@@ -438,6 +467,7 @@ function effectiveQuestionRecords(questionBank, config = SYLLABUS_CONFIGS[CAMBRI
       && mapping?.topicIds?.length
       && (isHumanReviewedPastPaperItem(question) || isStudyOnlyPastPaperItem(question)),
     )
+    const releasedStudy = sourceBackedStudy && isStudentReleasedAiStudyItem(question)
     return Object.freeze({
       question,
       sourceQuestionId,
@@ -464,9 +494,18 @@ function effectiveQuestionRecords(questionBank, config = SYLLABUS_CONFIGS[CAMBRI
       }),
       eligible: reviewed,
       studyEligible: sourceBackedStudy,
+      releasedStudyEligible: releasedStudy,
       studyOnly: sourceBackedStudy,
     })
   })
+}
+
+function recordStudyAvailable(record, includeStudyOnly) {
+  return Boolean(record.releasedStudyEligible || (includeStudyOnly && record.studyEligible))
+}
+
+function recordPracticeAvailable(record, includeStudyOnly) {
+  return Boolean(record.eligible || recordStudyAvailable(record, includeStudyOnly))
 }
 
 function topicRowsForRoute(routeId, questionBank, { includeStudyOnly = true } = {}) {
@@ -499,7 +538,7 @@ function topicRowsForRoute(routeId, questionBank, { includeStudyOnly = true } = 
     const topicRecords = records.filter((record) => record.mapping.topicIds?.includes(topic.id))
     const eligible = topicRecords.filter((record) => record.eligible)
     const verifiedQuestionCount = eligible.length
-    const studyQuestionCount = includeStudyOnly ? topicRecords.filter((record) => record.studyEligible).length : 0
+    const studyQuestionCount = topicRecords.filter((record) => recordStudyAvailable(record, includeStudyOnly)).length
     const availableQuestionCount = verifiedQuestionCount + studyQuestionCount
     const questionIdsByComponent = Object.fromEntries(config.components.map((component) => {
       const componentRecords = topicRecords.filter((record) => record.paperComponent === component)
@@ -507,16 +546,14 @@ function topicRowsForRoute(routeId, questionBank, { includeStudyOnly = true } = 
       return [component, {
         indexedQuestionIds: componentIds(() => true),
         verifiedQuestionIds: componentIds((record) => record.eligible),
-        studyQuestionIds: componentIds((record) => includeStudyOnly && record.studyEligible),
+        studyQuestionIds: componentIds((record) => recordStudyAvailable(record, includeStudyOnly)),
         pendingReviewQuestionIds: componentIds((record) => !record.eligible),
       }]
     }))
     const componentCounts = Object.fromEntries(config.components.map((component) => {
       const componentRecords = topicRecords.filter((record) => record.paperComponent === component)
       const componentVerified = componentRecords.filter((record) => record.eligible).length
-      const componentStudy = includeStudyOnly
-        ? componentRecords.filter((record) => record.studyEligible).length
-        : 0
+      const componentStudy = componentRecords.filter((record) => recordStudyAvailable(record, includeStudyOnly)).length
       return [component, {
         verifiedQuestionCount: componentVerified,
         studyQuestionCount: componentStudy,
@@ -562,7 +599,7 @@ export function syllabusTopicsInventory({ routeId, questionBank = unifiedQuestio
   const effectiveRecords = config ? effectiveQuestionRecords(questionBank, config) : []
   const mappedRecords = effectiveRecords.filter((record) => record.mapping.topicIds?.length)
   const verifiedRecords = mappedRecords.filter((record) => record.eligible)
-  const studyRecords = includeStudyOnly ? mappedRecords.filter((record) => record.studyEligible) : []
+  const studyRecords = mappedRecords.filter((record) => recordStudyAvailable(record, includeStudyOnly))
   const availableRecordIds = new Set([...verifiedRecords, ...studyRecords].map((record) => record.sourceQuestionId))
   return {
     schemaVersion: SYLLABUS_CATALOG_SCHEMA_VERSION,
@@ -647,7 +684,7 @@ function questionSortKey(question) {
 function selectBalancedQuestions(records, topicIds, requestedCount, attemptedIds, seed, components, includeStudyOnly = false) {
   const random = seededRandom(seed)
   const eligible = [...new Map(records.filter((record) => (
-    (record.eligible || (includeStudyOnly && record.studyEligible))
+    recordPracticeAvailable(record, includeStudyOnly)
     && topicIds.some((topicId) => record.mapping.topicIds?.includes(topicId))
     && components.includes(record.paperComponent)
   )).map((record) => [record.sourceQuestionId, record])).values()]
@@ -715,7 +752,7 @@ function selectBalancedQuestions(records, topicIds, requestedCount, attemptedIds
 
 function selectExplicitQuestions(records, sourceQuestionIds, topicIds, components, includeStudyOnly = false) {
   const byId = new Map(records.filter((record) => (
-    (record.eligible || (includeStudyOnly && record.studyEligible))
+    recordPracticeAvailable(record, includeStudyOnly)
     && components.includes(record.paperComponent)
     && topicIds.some((topicId) => record.mapping.topicIds?.includes(topicId))
   )).map((record) => [record.sourceQuestionId, record]))
@@ -794,6 +831,8 @@ function publicQuestionGroup(record) {
     answerRef: question.answerRef,
     reviewStatus: question.answerBinding?.verificationStatus || 'machine-indexed',
     studyOnly: record.studyOnly,
+    studentStudyEligible: Boolean(record.releasedStudyEligible || record.eligible),
+    formalProgressEligible: Boolean(record.eligible && question.formalProgressEligible !== false),
     sourceContent: {
       complete: question.sourceContent?.complete === true,
       fileComplete: question.sourceContent?.fileComplete === true,
@@ -861,7 +900,7 @@ export function rebindSyllabusPracticeUnit(unit, { questionBank = studyQuestionB
   if (!topicIds.length || !selectedComponents.length || !persistedParts.length || persistedParts.length > 500) return null
 
   const recordsByQuestionId = new Map(effectiveQuestionRecords(questionBank, config)
-    .filter((record) => (record.eligible || (includeStudyOnly && record.studyEligible))
+    .filter((record) => recordPracticeAvailable(record, includeStudyOnly)
       && topicIds.some((topicId) => record.mapping.topicIds?.includes(topicId))
       && selectedComponents.includes(record.paperComponent))
     .map((record) => [record.sourceQuestionId, record]))
@@ -898,6 +937,8 @@ export function rebindSyllabusPracticeUnit(unit, { questionBank = studyQuestionB
       sourceAssetUrls: group.sourceContent.assetUrls || group.sourceRef?.assetUrls || [],
       reviewStatus: group.reviewStatus,
       studyOnly: group.studyOnly === true,
+      studentStudyEligible: group.studentStudyEligible === true,
+      formalProgressEligible: group.formalProgressEligible === true,
       practiceAvailable: true,
       deterministicScoringAvailable: Boolean(currentPart.answerKey),
       aiAssistedMarkingAvailable: Boolean(
@@ -1015,7 +1056,7 @@ export function buildSyllabusPracticeSet({
     throw error
   }
   const availableRecords = records.filter((record) => (
-    (record.eligible || (includeStudyOnly && record.studyEligible))
+    recordPracticeAvailable(record, includeStudyOnly)
     && topicIds.some((topicId) => record.mapping.topicIds?.includes(topicId))
   ))
   const effectiveRequestedCount = explicitSourceQuestionIds.length || requestedCount
@@ -1102,6 +1143,7 @@ export function ensureSyllabusTables(database) {
       total_marks INTEGER NOT NULL,
       source_content_complete INTEGER NOT NULL,
       study_eligible INTEGER NOT NULL DEFAULT 0,
+      student_study_released INTEGER NOT NULL DEFAULT 0,
       verification_status TEXT NOT NULL,
       source_json TEXT NOT NULL,
       answer_json TEXT NOT NULL,
@@ -1161,6 +1203,7 @@ export function ensureSyllabusTables(database) {
       total_marks INTEGER NOT NULL,
       source_content_complete INTEGER NOT NULL,
       study_eligible INTEGER NOT NULL DEFAULT 0,
+      student_study_released INTEGER NOT NULL DEFAULT 0,
       verification_status TEXT NOT NULL,
       source_json TEXT NOT NULL,
       answer_json TEXT NOT NULL,
@@ -1193,6 +1236,13 @@ export function ensureSyllabusTables(database) {
   const groupColumns = database.prepare('PRAGMA table_info(question_groups)').all().map((column) => column.name)
   if (!groupColumns.includes('study_eligible')) {
     database.exec('ALTER TABLE question_groups ADD COLUMN study_eligible INTEGER NOT NULL DEFAULT 0')
+  }
+  if (!groupColumns.includes('student_study_released')) {
+    database.exec('ALTER TABLE question_groups ADD COLUMN student_study_released INTEGER NOT NULL DEFAULT 0')
+  }
+  const routeGroupColumns = database.prepare('PRAGMA table_info(route_question_groups)').all().map((column) => column.name)
+  if (!routeGroupColumns.includes('student_study_released')) {
+    database.exec('ALTER TABLE route_question_groups ADD COLUMN student_study_released INTEGER NOT NULL DEFAULT 0')
   }
 }
 
@@ -1233,9 +1283,9 @@ export function seedSyllabusTables(database, questionBank = []) {
   const insertQuestion = database.prepare(`
     INSERT INTO route_question_groups (
       route_id, id, stage, subject_code, paper_component, question_paper_id, mark_scheme_id,
-      question_pages_json, mark_scheme_pages_json, total_marks, source_content_complete, study_eligible,
+      question_pages_json, mark_scheme_pages_json, total_marks, source_content_complete, study_eligible, student_study_released,
       verification_status, source_json, answer_json, parts_json, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(route_id, id) DO UPDATE SET
       stage = excluded.stage,
       subject_code = excluded.subject_code,
@@ -1247,6 +1297,7 @@ export function seedSyllabusTables(database, questionBank = []) {
       total_marks = excluded.total_marks,
       source_content_complete = excluded.source_content_complete,
       study_eligible = excluded.study_eligible,
+      student_study_released = excluded.student_study_released,
       verification_status = excluded.verification_status,
       source_json = excluded.source_json,
       answer_json = excluded.answer_json,
@@ -1291,6 +1342,7 @@ export function seedSyllabusTables(database, questionBank = []) {
       Number(question.totalMarks || question.marks || 0),
       record.sourceContentComplete ? 1 : 0,
       record.studyEligible ? 1 : 0,
+      record.releasedStudyEligible ? 1 : 0,
       record.verificationStatus,
       JSON.stringify(question.sourceRef || {}),
       JSON.stringify(answerRef),
@@ -1328,6 +1380,9 @@ export function syllabusDatabaseInventory(database, routeId, { includeStudyOnly 
   const config = syllabusConfig(routeId)
   const components = config?.components?.length ? config.components : [1, 2]
   const componentPlaceholders = components.map(() => '?').join(', ')
+  const studyAvailabilityPredicate = includeStudyOnly
+    ? 'groups.study_eligible = 1'
+    : 'groups.student_study_released = 1'
   const topics = database.prepare(`
     SELECT
       topics.id,
@@ -1344,7 +1399,7 @@ export function syllabusDatabaseInventory(database, routeId, { includeStudyOnly 
         THEN groups.id END
       ) AS verifiedQuestionCount,
       COUNT(DISTINCT CASE
-        WHEN groups.study_eligible = 1
+        WHEN ${studyAvailabilityPredicate}
         THEN groups.id END
       ) AS studyQuestionCount,
       COUNT(DISTINCT groups.id) AS indexedQuestionCount,
@@ -1377,7 +1432,7 @@ export function syllabusDatabaseInventory(database, routeId, { includeStudyOnly 
   `).all(...components, routeId)
   return topics.map((topic) => {
     const verifiedQuestionCount = Number(topic.verifiedQuestionCount) || 0
-    const studyQuestionCount = includeStudyOnly ? Number(topic.studyQuestionCount) || 0 : 0
+    const studyQuestionCount = Number(topic.studyQuestionCount) || 0
     const availableQuestionCount = verifiedQuestionCount + studyQuestionCount
     const indexedQuestionCount = Number(topic.indexedQuestionCount) || 0
     const pendingReviewCount = Number(topic.pendingReviewCount) || 0

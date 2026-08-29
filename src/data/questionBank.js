@@ -149,6 +149,28 @@ export function isAiMarkablePastPaperItem(question) {
   )
 }
 
+export function isStudentReleasedAiStudyItem(question) {
+  const release = question?.studentRelease
+  return Boolean(
+    isStudyOnlyPastPaperItem(question)
+    && question?.studentStudyEligible === true
+    && question?.formalProgressEligible === false
+    && release?.schemaVersion === 'ai-student-study-release.v1'
+    && release?.status === 'released'
+    && release?.authority === 'ai-provisional'
+    && release?.studentStudyEligible === true
+    && release?.formalProgressEligible === false
+    && release?.artifactId
+    && release.artifactId === question?.answerBinding?.artifactId
+    && release?.routeId === question?.routeId
+    && release?.sourceBinding?.questionPdfSha256 === question?.sourceRef?.sha256
+    && release?.sourceBinding?.markSchemePdfSha256 === question?.answerRef?.sha256
+    && release?.review?.extractionSchemaName === 'ai_pdf_question_extraction_v1'
+    && release?.review?.verificationSchemaName === 'ai_pdf_question_verification_v1'
+    && release?.review?.independentPassCount === 2,
+  )
+}
+
 function routesForImportedQuestion(question) {
   const stages = new Set(question.stageTags || [])
   const component = Number(question.sourceRef?.component || question.componentTags?.[0])

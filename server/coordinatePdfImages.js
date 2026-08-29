@@ -31,6 +31,15 @@ function safeRenderDpi(value) {
   return Number.isInteger(dpi) && dpi >= 72 && dpi <= 300 ? dpi : 0
 }
 
+function safeRegion(value) {
+  if (value === null || value === undefined) return null
+  if (!Array.isArray(value) || value.length !== 4) return null
+  const [x0, y0, x1, y1] = value.map(Number)
+  return [x0, y0, x1, y1].every(Number.isFinite) && x0 >= 0 && y0 >= 0 && x1 <= 1 && y1 <= 1 && x0 < x1 && y0 < y1
+    ? [x0, y0, x1, y1]
+    : null
+}
+
 function localPdfPath(libraryRoot, subject, fileName) {
   const root = path.resolve(String(libraryRoot || ''))
   const safeSubject = String(subject || '').trim()
@@ -89,12 +98,60 @@ export function runRenderer(executable, args, { timeoutMs = null } = {}) {
   })
 }
 
-function renderedPagePath(outputDirectory, page) {
+function renderedPagePath(outputDirectory, page, prefix = 'page') {
+  const expectedName = `${prefix}-${page}.jpg`.toLowerCase()
   const match = fs.readdirSync(outputDirectory, { withFileTypes: true })
     .filter((entry) => entry.isFile())
-    .map((entry) => ({ name: entry.name, page: /^page-(\d+)\.jpg$/i.exec(entry.name) }))
-    .find((entry) => entry.page && Number(entry.page[1]) === page)
+    .find((entry) => entry.name.toLowerCase() === expectedName)
   return match ? path.join(outputDirectory, match.name) : null
+}
+
+function jpegDimensions(bytes) {
+  if (bytes?.[0] !== 0xff || bytes?.[1] !== 0xd8) throw sourceFailure('source_page_render_failed')
+  const startOfFrameMarkers = new Set([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf])
+  let offset = 2
+  while (offset + 8 < bytes.length) {
+    if (bytes[offset] !== 0xff) {
+      offset += 1
+      continue
+    }
+    while (bytes[offset] === 0xff) offset += 1
+    const marker = bytes[offset]
+    offset += 1
+    if (marker === 0xd9 || marker === 0xda) break
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) continue
+    if (offset + 2 > bytes.length) break
+    const segmentLength = bytes.readUInt16BE(offset)
+    if (segmentLength < 2 || offset + segmentLength > bytes.length) throw sourceFailure('source_page_render_failed')
+    if (startOfFrameMarkers.has(marker)) {
+      const height = bytes.readUInt16BE(offset + 3)
+      const width = bytes.readUInt16BE(offset + 5)
+      if (!width || !height) throw sourceFailure('source_page_render_failed')
+      return { width, height }
+    }
+    offset += segmentLength
+  }
+  throw sourceFailure('source_page_render_failed')
+}
+
+function cropBounds(region, imageSize) {
+  const [x0, y0, x1, y1] = region
+  const left = Math.floor(x0 * imageSize.width)
+  const top = Math.floor(y0 * imageSize.height)
+  const right = Math.ceil(x1 * imageSize.width)
+  const bottom = Math.ceil(y1 * imageSize.height)
+  const width = right - left
+  const height = bottom - top
+  if (left < 0 || top < 0 || right > imageSize.width || bottom > imageSize.height || width <= 0 || height <= 0) {
+    throw sourceFailure('source_provenance_mismatch')
+  }
+  return { left, top, width, height }
+}
+
+function rendererTimeoutMs(deadlineAt) {
+  const timeoutMs = remainingDeadlineMs(deadlineAt)
+  if (timeoutMs !== null && timeoutMs <= 0) throw sourceFailure('source_page_render_timeout')
+  return timeoutMs
 }
 
 /**
@@ -119,9 +176,10 @@ export async function renderVerifiedCoordinatePdfPage({
   const expectedPageHash = normalizedSha256(expectedPageImageSha256)
   const safePageNumber = safePage(page)
   const dpi = safeRenderDpi(renderDpi)
-  if (!expectedDocumentHash || !expectedPageHash || !safePageNumber || !dpi) throw sourceFailure('source_provenance_mismatch')
-  const rendererTimeoutMs = remainingDeadlineMs(deadlineAt)
-  if (rendererTimeoutMs !== null && rendererTimeoutMs <= 0) throw sourceFailure('source_page_render_timeout')
+  const normalizedRegion = safeRegion(region)
+  if (!expectedDocumentHash || !expectedPageHash || !safePageNumber || !dpi || (region !== null && region !== undefined && !normalizedRegion)) {
+    throw sourceFailure('source_provenance_mismatch')
+  }
 
   const pdfPath = localPdfPath(libraryRoot, subject, fileName)
   const stat = fs.statSync(pdfPath, { throwIfNoEntry: false })
@@ -140,19 +198,51 @@ export async function renderVerifiedCoordinatePdfPage({
       outputPrefix,
       dpi,
     })]
-    await runRenderer(executable, args, { timeoutMs: rendererTimeoutMs })
+    await runRenderer(executable, args, { timeoutMs: rendererTimeoutMs(deadlineAt) })
     const imagePath = renderedPagePath(outputDirectory, safePageNumber)
     if (!imagePath) throw sourceFailure('source_page_render_failed')
     const imageBytes = fs.readFileSync(imagePath)
     if (!imageBytes.length) throw sourceFailure('source_page_render_failed')
-    const sha256 = crypto.createHash('sha256').update(imageBytes).digest('hex')
-    if (sha256 !== expectedPageHash) throw sourceFailure('source_asset_checksum_mismatch')
+    const sourcePageSha256 = crypto.createHash('sha256').update(imageBytes).digest('hex')
+    if (sourcePageSha256 !== expectedPageHash) throw sourceFailure('source_asset_checksum_mismatch')
+    const sourcePageImageSize = jpegDimensions(imageBytes)
+
+    let providerImageBytes = imageBytes
+    let providerImageSize = sourcePageImageSize
+    if (normalizedRegion) {
+      const bounds = cropBounds(normalizedRegion, sourcePageImageSize)
+      if (bounds.left !== 0 || bounds.top !== 0 || bounds.width !== sourcePageImageSize.width || bounds.height !== sourcePageImageSize.height) {
+        const cropPrefix = path.join(outputDirectory, 'crop')
+        const cropArgs = [
+          '-f', String(safePageNumber),
+          '-l', String(safePageNumber),
+          '-x', String(bounds.left),
+          '-y', String(bounds.top),
+          '-W', String(bounds.width),
+          '-H', String(bounds.height),
+          ...buildRenderArgs({ pdfPath, outputPrefix: cropPrefix, dpi }),
+        ]
+        await runRenderer(executable, cropArgs, { timeoutMs: rendererTimeoutMs(deadlineAt) })
+        const cropPath = renderedPagePath(outputDirectory, safePageNumber, 'crop')
+        if (!cropPath) throw sourceFailure('source_page_render_failed')
+        providerImageBytes = fs.readFileSync(cropPath)
+        if (!providerImageBytes.length) throw sourceFailure('source_page_render_failed')
+        providerImageSize = jpegDimensions(providerImageBytes)
+        if (providerImageSize.width !== bounds.width || providerImageSize.height !== bounds.height) {
+          throw sourceFailure('source_provenance_mismatch')
+        }
+      }
+    }
+    const sha256 = crypto.createHash('sha256').update(providerImageBytes).digest('hex')
     return Object.freeze({
       role: String(role || 'question-paper'),
       page: safePageNumber,
       sha256,
-      region: Array.isArray(region) ? [...region] : null,
-      dataUrl: `data:image/jpeg;base64,${imageBytes.toString('base64')}`,
+      sourcePageSha256,
+      region: normalizedRegion ? Object.freeze([...normalizedRegion]) : null,
+      imageSize: Object.freeze([providerImageSize.width, providerImageSize.height]),
+      sourcePageImageSize: Object.freeze([sourcePageImageSize.width, sourcePageImageSize.height]),
+      dataUrl: `data:image/jpeg;base64,${providerImageBytes.toString('base64')}`,
     })
   } finally {
     fs.rmSync(outputDirectory, { recursive: true, force: true })

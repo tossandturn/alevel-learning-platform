@@ -5,7 +5,15 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, 
 import os from 'node:os'
 import path from 'node:path'
 
-import { buildDryRunPlan, parseArgs, runCli } from './ingest-ai-pdf-questions.mjs'
+import {
+  buildDryRunPlan,
+  extractPdfTextPages,
+  markSchemeEvidenceByQuestionFromText,
+  mergePageWindowExtractions,
+  mergePageWindowVerifications,
+  parseArgs,
+  runCli,
+} from './ingest-ai-pdf-questions.mjs'
 import { listAiPdfIngestionCandidates } from '../server/aiPdfIngestionCandidates.js'
 
 const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), 'ai-pdf-ingestion-cli-'))
@@ -17,6 +25,126 @@ try {
   const outputRoot = path.join(temporaryRoot, 'artifacts')
   writeFileSync(questionPdf, Buffer.from('%PDF-question-fixture', 'utf8'))
   writeFileSync(markSchemePdf, Buffer.from('%PDF-mark-scheme-fixture', 'utf8'))
+
+  const mergeSource = { questionPdfSha256: 'a'.repeat(64), markSchemePdfSha256: 'b'.repeat(64) }
+  const deterministicMarkSchemeEvidence = markSchemeEvidenceByQuestionFromText({
+    8: 'Question Answer Marks\n1(a) first point',
+    9: 'Question Answer Marks\n1(b) continuation\n2(a)(i) next question',
+    10: 'Question Answer Marks\n2(b) continuation',
+  }, {
+    8: '8'.repeat(64),
+    9: '9'.repeat(64),
+    10: 'a'.repeat(64),
+  })
+  assert.deepEqual(deterministicMarkSchemeEvidence, {
+    1: [{ page: 8, pageImageSha256: '8'.repeat(64) }, { page: 9, pageImageSha256: '9'.repeat(64) }],
+    2: [{ page: 9, pageImageSha256: '9'.repeat(64) }, { page: 10, pageImageSha256: 'a'.repeat(64) }],
+  })
+  const extractionQuestion = (questionNumber, questionStartPage) => ({ questionNumber, questionStartPage })
+  const verificationQuestion = (questionNumber, questionStartPage) => ({ questionNumber, questionStartPage })
+
+  assert.throws(
+    () => mergePageWindowExtractions([
+      { extraction: { source: mergeSource, questions: [extractionQuestion('1', 1), extractionQuestion('1', 1)] } },
+    ]),
+    /PAGE_WINDOW_QUESTION_DUPLICATE/,
+  )
+  const extractionFragment = ({ page, parts, primaryTopicId = 'physics-9702-topic-17', evidencePage }) => ({
+    questionNumber: '4',
+    questionStartPage: 10,
+    regions: [{ page, pageImageSha256: 'c'.repeat(64), x0: 0.1, y0: 0.1, x1: 0.9, y1: 0.9 }],
+    diagramRegions: [{ page, pageImageSha256: 'd'.repeat(64), x0: 0.2, y0: 0.2, x1: 0.8, y1: 0.8 }],
+    parts: parts.map(({ label, marks }) => ({ label, marks, ocrText: label, math: [], diagramAssociations: [0] })),
+    tags: { primaryTopicId, secondaryTopicIds: [], syllabusPointIds: [] },
+    markSchemeEvidence: [{ page: evidencePage, pageImageSha256: 'e'.repeat(64) }],
+  })
+  const mergedFragments = mergePageWindowExtractions([{
+    extraction: {
+      source: mergeSource,
+      questions: [
+        extractionFragment({ page: 10, parts: [{ label: 'a', marks: 1 }, { label: 'b(i)', marks: 2 }], evidencePage: 4 }),
+        extractionFragment({ page: 11, parts: [{ label: 'b(ii)', marks: 3 }], evidencePage: 5 }),
+      ],
+    },
+    verification: {
+      questions: [{
+        questionNumber: '4', questionStartPage: 10, pages: [10, 11],
+        parts: [{ label: 'a', marks: 1 }, { label: 'b(i)', marks: 2 }, { label: 'b(ii)', marks: 3 }],
+        diagramRegionCount: 2,
+        markSchemeEvidence: [
+          { page: 4, pageImageSha256: 'e'.repeat(64) },
+          { page: 5, pageImageSha256: 'e'.repeat(64) },
+        ],
+      }],
+    },
+  }]).questions
+  assert.equal(mergedFragments.length, 1, 'same-question page fragments must merge into one whole question')
+  assert.deepEqual(mergedFragments[0].regions.map((region) => region.page), [10, 11])
+  assert.deepEqual(mergedFragments[0].diagramRegions.map((region) => region.page), [10, 11])
+  assert.deepEqual(mergedFragments[0].parts.map((part) => part.label), ['a', 'b(i)', 'b(ii)'])
+  assert.deepEqual(mergedFragments[0].parts.map((part) => part.diagramAssociations), [[0], [0], [1]])
+  assert.deepEqual(mergedFragments[0].markSchemeEvidence.map((evidence) => evidence.page), [4, 5])
+  assert.throws(
+    () => mergePageWindowExtractions([{
+      extraction: {
+        source: mergeSource,
+        questions: [
+          extractionFragment({ page: 10, parts: [{ label: 'a', marks: 1 }], evidencePage: 4 }),
+          extractionFragment({ page: 11, parts: [{ label: 'b', marks: 3 }], primaryTopicId: 'physics-9702-topic-18', evidencePage: 5 }),
+        ],
+      },
+      verification: {
+        questions: [{
+          questionNumber: '4', questionStartPage: 10, pages: [10, 11],
+          parts: [{ label: 'a', marks: 1 }, { label: 'b', marks: 3 }],
+          diagramRegionCount: 2,
+          markSchemeEvidence: [],
+        }],
+      },
+    }]),
+    /PAGE_WINDOW_QUESTION_TAG_DISAGREEMENT/,
+  )
+  assert.deepEqual(
+    mergePageWindowExtractions([
+      { extraction: { source: mergeSource, questions: [extractionQuestion('1', 1)] } },
+      { extraction: { source: mergeSource, questions: [extractionQuestion('1', 2), extractionQuestion('2', 5)] } },
+    ]).questions.map((question) => ({ questionNumber: question.questionNumber, questionStartPage: question.questionStartPage })),
+    [{ questionNumber: '1', questionStartPage: 1 }, { questionNumber: '2', questionStartPage: 5 }],
+  )
+  assert.throws(
+    () => mergePageWindowExtractions([
+      { extraction: { source: mergeSource, questions: [extractionQuestion('2', 5)] } },
+      { extraction: { source: mergeSource, questions: [extractionQuestion('2', 4)] } },
+    ]),
+    /PAGE_WINDOW_QUESTION_START_REGRESSION/,
+  )
+
+  assert.throws(
+    () => mergePageWindowVerifications([
+      { verification: { questionStarts: [{ questionNumber: '1', questionStartPage: 1 }, { questionNumber: '1', questionStartPage: 1 }], questions: [] } },
+    ]),
+    /PAGE_WINDOW_QUESTION_START_DUPLICATE/,
+  )
+  assert.deepEqual(
+    mergePageWindowVerifications([
+      { verification: { questionStarts: [{ questionNumber: '1', questionStartPage: 1 }], questions: [verificationQuestion('1', 1)] } },
+      { verification: { questionStarts: [{ questionNumber: '1', questionStartPage: 2 }, { questionNumber: '2', questionStartPage: 5 }], questions: [verificationQuestion('1', 2), verificationQuestion('2', 5)] } },
+    ]).questions.map((question) => ({ questionNumber: question.questionNumber, questionStartPage: question.questionStartPage })),
+    [{ questionNumber: '1', questionStartPage: 1 }, { questionNumber: '2', questionStartPage: 5 }],
+  )
+  assert.throws(
+    () => mergePageWindowVerifications([
+      { verification: { questionStarts: [], questions: [verificationQuestion('1', 1), verificationQuestion('1', 1)] } },
+    ]),
+    /PAGE_WINDOW_VERIFICATION_DUPLICATE/,
+  )
+  assert.throws(
+    () => mergePageWindowVerifications([
+      { verification: { questionStarts: [{ questionNumber: '2', questionStartPage: 5 }], questions: [verificationQuestion('2', 5)] } },
+      { verification: { questionStarts: [{ questionNumber: '2', questionStartPage: 4 }], questions: [verificationQuestion('2', 4)] } },
+    ]),
+    /PAGE_WINDOW_QUESTION_START_REGRESSION/,
+  )
 
   assert.throws(
     () => parseArgs(['--paper-id', 'cie-9702-9702_m25_qp_22'], { cwd: temporaryRoot }),
@@ -227,6 +355,18 @@ try {
   assert.equal(existsSync(outputRoot), false)
   assert.doesNotMatch(JSON.stringify(plan), new RegExp(fakeApiKey))
 
+  const imageOnlyPages = await extractPdfTextPages(
+    questionPdf,
+    { 1: 'a'.repeat(64), 2: 'b'.repeat(64) },
+    {},
+    { runText: async () => { throw Object.assign(new Error('image-only PDF'), { code: 'PDF_TEXT_EXTRACTION_FAILED' }) } },
+  )
+  assert.deepEqual(
+    imageOnlyPages,
+    { 1: '[No extractable text on this page.]', 2: '[No extractable text on this page.]' },
+    'a rendered scanned PDF must continue through vision OCR when its text layer is unavailable',
+  )
+
   let dryRunCalls = 0
   const dryRunResult = await runCli(options, {
     renderPdf: async () => { dryRunCalls += 1 },
@@ -269,6 +409,8 @@ try {
   assert.equal(verifiedResult.status, 'ai-verified', JSON.stringify(verifiedResult))
   assert.equal(verifiedResult.source.questionPdfPath, questionPdf)
   assert.equal(verifiedResult.source.markSchemePdfPath, markSchemePdf)
+  assert.equal(verifiedResult.source.questionPdfRelativePath, '9702/question.pdf')
+  assert.equal(verifiedResult.source.markSchemePdfRelativePath, '9702/mark-scheme.pdf')
   assert.deepEqual(verifiedResult.source.pageSizes, { 1: { width: 1200, height: 1600 }, 2: { width: 1200, height: 1600 } })
   assert.deepEqual(verifiedResult.source.markSchemePageSizes, { 1: { width: 1200, height: 1600 } })
   assert.ok(verifiedResult.source.controlledTopicCatalog.some((topic) => topic.id === 'physics-9702-topic-01'))
@@ -290,7 +432,9 @@ try {
   assert.ok(structuredInputs.every((input) => Number.isInteger(input.timeoutMs) && input.timeoutMs > 0 && input.timeoutMs <= options.timeoutMs))
   assert.ok(structuredInputs.every((input) => Number.isFinite(input.deadlineAt)))
   const verifierUserText = structuredInputs[1].input[1].content[0].text
-  assert.doesNotMatch(verifierUserText, /extraction|Part a|primaryTopicId|x0/)
+  assert.doesNotMatch(verifierUserText, /extraction|Part a|x0/)
+  assert.match(verifierUserText, /controlledTopicCatalog/)
+  assert.match(JSON.stringify(structuredInputs[1].schema), /primaryTopicId/)
   assert.doesNotMatch(JSON.stringify(structuredInputs[1].schema), /skillTagIds|questionFormatIds/)
 
   const coordinateOutputRoot = path.join(temporaryRoot, 'coordinate-artifacts')
@@ -309,6 +453,17 @@ try {
   assert.equal(coordinateResult.storageMode, 'coordinate-only')
   assert.deepEqual(coordinateResult.assets, [])
   assert.equal(existsSync(path.join(path.dirname(coordinatePlan.outputArtifactPath), `${coordinatePlan.artifactId.slice('sha256:'.length)}.assets`)), false)
+
+  const mismatchedMappingVerification = structuredClone(verification)
+  for (const question of mismatchedMappingVerification.questions) question.tags.primaryTopicId = 'physics-9702-topic-02'
+  let mismatchedMappingCalls = 0
+  const mismatchedMappingResult = await runCli({ ...coordinateOptions, outputRoot: path.join(temporaryRoot, 'mapping-mismatch-artifacts') }, {
+    env: { OPENAI_API_KEY: fakeApiKey },
+    renderPdf: fakeRenderer({ questionPdf, pageHashes, markSchemePageHashes }),
+    callStructured: async () => mismatchedMappingCalls++ === 0 ? extraction : mismatchedMappingVerification,
+  })
+  assert.equal(mismatchedMappingResult.status, 'auto-quarantined')
+  assert.deepEqual(mismatchedMappingResult.reasonCodes, ['SYLLABUS_MAPPING_UNVERIFIED'])
 
   const fallbackOutputRoot = path.join(temporaryRoot, 'fallback-artifacts')
   const fallbackOptions = { ...liveOptions, outputRoot: fallbackOutputRoot, coordinateOnly: true }
@@ -329,7 +484,9 @@ try {
   })
   assert.equal(fallbackResult.status, 'ai-verified', JSON.stringify(fallbackResult.reasonCodes))
   assert.equal(fallbackResult.extractor.provider, 'qwen')
+  assert.equal(fallbackResult.extractor.model, 'qwen3-vl-plus')
   assert.equal(fallbackResult.verifier.provider, 'qwen')
+  assert.equal(fallbackResult.verifier.model, 'qwen3-vl-plus')
   assert.deepEqual(fallbackStages, ['ai_pdf_question_extraction_v1', 'ai_pdf_question_verification_v1'])
 
   const windowedPageHashes = Object.fromEntries(Array.from({ length: 9 }, (_, index) => [index + 1, `${index + 1}`.repeat(64)]))
@@ -379,7 +536,16 @@ try {
   assert.deepEqual(windowedResult.candidate.questions.map(question => question.questionNumber), ['1', '2', '3'])
   assert.equal(windowedExtractionIndex, 3)
   assert.equal(windowedVerificationIndex, 3)
-  assert.ok(windowedRequests.every((request) => request.input[1].content.filter(item => item.type === 'input_image').length <= 5))
+  assert.ok(windowedRequests.every((request) => {
+    const content = request.input[1].content
+    const imageCount = content.filter(item => item.type === 'input_image').length
+    const questionPaperImageCount = content.filter((item, index) => item.type === 'input_image'
+      && String(content[index - 1]?.text || '').startsWith('Question-paper page ')).length
+    const markSchemeImageCount = content.filter((item, index) => item.type === 'input_image'
+      && String(content[index - 1]?.text || '').startsWith('Mark-scheme page ')).length
+    return imageCount <= 7 && questionPaperImageCount <= 5 && markSchemeImageCount <= 2
+  }))
+  assert.ok(windowedRequests.filter((request) => request.schemaName === 'ai_pdf_question_extraction_v1').every((request) => request.input[0].content[0].text.includes('at least one region for every page in its full page span')))
   assert.ok(windowedRequests.every((request) => request.input[1].content.some(item => item.type === 'input_text' && item.text.startsWith('Mark-scheme text by page:'))))
   assert.ok(windowedRequests.every((request) => request.input[1].content.filter(item => item.type === 'input_text' && item.text.startsWith('Question-paper text by page:')).every(item => (item.text.match(/Question-paper page \d+;/g) || []).length <= 5)))
   assert.ok(windowedRequests.some((request) => request.input[1].content.some(item => item.type === 'input_text' && item.text.includes('Question-paper page 4;') && item.text.includes('[No extractable text on this page.]'))))
@@ -580,15 +746,36 @@ try {
   const coordinateListing = listAiPdfIngestionCandidates({ root: coordinateOutputRoot })
   assert.equal(coordinateListing.candidates.length, 1)
   assert.equal(coordinateListing.candidates[0].status, 'ai-verified', 'coordinate-only artifacts must not require cropped PDF assets')
+  assert.equal(coordinateListing.candidates[0].studentEligibility, 'study-released', 'a valid checksum-bound AI release must be reported as student study-ready')
   assert.equal(coordinateListing.candidates[0].assetCount, 0)
   assert.deepEqual(coordinateListing.candidates[0].reasonCodes, [])
 
-  writeFileSync(markSchemePdf, Buffer.from('%PDF-coordinate-source-tampered', 'utf8'))
-  const staleCoordinateListing = listAiPdfIngestionCandidates({ root: coordinateOutputRoot })
+  const portableLibraryRoot = path.join(temporaryRoot, 'portable-library')
+  const portableSubjectRoot = path.join(portableLibraryRoot, '9702')
+  const portableQuestionPath = path.join(portableSubjectRoot, '9702_m25_qp_22.pdf')
+  const portableMarkSchemePath = path.join(portableSubjectRoot, '9702_m25_ms_22.pdf')
+  mkdirSync(portableSubjectRoot, { recursive: true })
+  writeFileSync(portableQuestionPath, readFileSync(questionPdf))
+  writeFileSync(portableMarkSchemePath, readFileSync(markSchemePdf))
+  const portableCoordinateArtifact = JSON.parse(readFileSync(coordinatePlan.outputArtifactPath, 'utf8'))
+  portableCoordinateArtifact.source.questionPdfPath = 'D:\\CodexWork\\cie-fraft-fetcher\\output\\pdf\\9702\\9702_m25_qp_22.pdf'
+  portableCoordinateArtifact.source.markSchemePdfPath = 'D:\\CodexWork\\cie-fraft-fetcher\\output\\pdf\\9702\\9702_m25_ms_22.pdf'
+  portableCoordinateArtifact.source.questionPdfRelativePath = '9702/9702_m25_qp_22.pdf'
+  portableCoordinateArtifact.source.markSchemePdfRelativePath = '9702/9702_m25_ms_22.pdf'
+  writeFileSync(coordinatePlan.outputArtifactPath, JSON.stringify(portableCoordinateArtifact), 'utf8')
+  const portableCoordinateListing = listAiPdfIngestionCandidates({
+    root: coordinateOutputRoot,
+    libraryRoot: portableLibraryRoot,
+  })
+  assert.equal(portableCoordinateListing.candidates[0].status, 'ai-verified', 'portable source paths must be validated against the configured library root')
+  assert.deepEqual(portableCoordinateListing.candidates[0].reasonCodes, [])
+
+  writeFileSync(portableMarkSchemePath, Buffer.from('%PDF-coordinate-source-tampered', 'utf8'))
+  const staleCoordinateListing = listAiPdfIngestionCandidates({ root: coordinateOutputRoot, libraryRoot: portableLibraryRoot })
   assert.equal(staleCoordinateListing.candidates[0].status, 'auto-quarantined')
   assert.ok(staleCoordinateListing.candidates[0].reasonCodes.includes('COORDINATE_SOURCE_SHA256_MISMATCH'))
 
-  console.log(JSON.stringify({ status: 'passed', checks: 81 }))
+  console.log(JSON.stringify({ status: 'passed', checks: 90 }))
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true })
 }
@@ -647,14 +834,19 @@ function validExtraction({ plan, pageHashes, markSchemePageHashes }) {
 }
 
 function validVerification(markSchemePageHashes) {
+  const tags = {
+    primaryTopicId: 'physics-9702-topic-01',
+    secondaryTopicIds: [],
+    syllabusPointIds: ['physics-9702-point-1-1-01'],
+  }
   return {
     questionStarts: [
       { questionNumber: '1', questionStartPage: 1 },
       { questionNumber: '2', questionStartPage: 2 },
     ],
     questions: [
-       { questionNumber: '1', questionStartPage: 1, pages: [1, 2], parts: [{ label: 'a', marks: 2 }], diagramRegionCount: 2, markSchemeEvidence: [{ page: 1, pageImageSha256: markSchemePageHashes[1] }] },
-      { questionNumber: '2', questionStartPage: 2, pages: [2], parts: [{ label: 'a', marks: 2 }], diagramRegionCount: 0, markSchemeEvidence: [{ page: 1, pageImageSha256: markSchemePageHashes[1] }] },
+       { questionNumber: '1', questionStartPage: 1, pages: [1, 2], parts: [{ label: 'a', marks: 2 }], diagramRegionCount: 2, tags, markSchemeEvidence: [{ page: 1, pageImageSha256: markSchemePageHashes[1] }] },
+      { questionNumber: '2', questionStartPage: 2, pages: [2], parts: [{ label: 'a', marks: 2 }], diagramRegionCount: 0, tags, markSchemeEvidence: [{ page: 1, pageImageSha256: markSchemePageHashes[1] }] },
     ],
   }
 }
@@ -690,6 +882,11 @@ function windowedVerification({ markSchemePageHashes, questionNumber, page, mark
       pages: [page],
       parts: [{ label: 'a', marks: 2 }],
       diagramRegionCount: 0,
+      tags: {
+        primaryTopicId: 'physics-9702-topic-01',
+        secondaryTopicIds: [],
+        syllabusPointIds: ['physics-9702-point-1-1-01'],
+      },
       markSchemeEvidence: [{ page: markSchemePage, pageImageSha256: markSchemePageHashes[markSchemePage] }],
     }],
   }

@@ -396,6 +396,17 @@ function coordinateRegion(value) {
     : null
 }
 
+function unionCoordinateRegions(left, right) {
+  if (!left) return right ? [...right] : null
+  if (!right) return [...left]
+  return [
+    Math.min(left[0], right[0]),
+    Math.min(left[1], right[1]),
+    Math.max(left[2], right[2]),
+    Math.max(left[3], right[3]),
+  ]
+}
+
 function coordinatePageEvidence(entries, { expectedDocumentSha256 = '', requireRegion = false, failureCode }) {
   const expectedHash = String(expectedDocumentSha256 || '').trim().toLowerCase()
   const byPage = new Map()
@@ -410,7 +421,7 @@ function coordinatePageEvidence(entries, { expectedDocumentSha256 = '', requireR
     if (requireRegion && (entry?.coordinateSpace !== 'normalized-xyxy' || !region)) throw sourceContextFailure(failureCode)
     const existing = byPage.get(page)
     if (existing && existing.pageImageSha256 !== pageImageSha256) throw sourceContextFailure('source_asset_checksum_conflict')
-    byPage.set(page, { page, pageImageSha256, region })
+    byPage.set(page, { page, pageImageSha256, region: unionCoordinateRegions(existing?.region, region) })
   }
   return [...byPage.values()].sort((left, right) => left.page - right.page)
 }
@@ -1362,8 +1373,20 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
     requestedMaxMarks,
     typedResponse,
     officialSourceImages: [
-      ...questionImages.map((image) => ({ role: image.role, page: image.page, sha256: image.sha256 })),
-      ...markSchemeImages.map((image) => ({ role: image.role, page: image.page, sha256: image.sha256 })),
+      ...questionImages.map((image) => ({
+        role: image.role,
+        page: image.page,
+        sha256: image.sha256,
+        sourcePageSha256: image.sourcePageSha256 || image.sha256,
+        region: image.region || null,
+      })),
+      ...markSchemeImages.map((image) => ({
+        role: image.role,
+        page: image.page,
+        sha256: image.sha256,
+        sourcePageSha256: image.sourcePageSha256 || image.sha256,
+        region: image.region || null,
+      })),
     ],
   }
   const requestId = crypto.randomUUID()

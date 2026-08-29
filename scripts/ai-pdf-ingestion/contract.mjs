@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto'
+import path from 'node:path'
 
 export const AI_PDF_INGESTION_SCHEMA_VERSION = 'ai-pdf-ingestion.v1'
+export const AI_STUDENT_STUDY_RELEASE_SCHEMA_VERSION = 'ai-student-study-release.v1'
 
 export const AI_PDF_INGESTION_LIFECYCLE = Object.freeze({
   INGESTED: 'ingested',
@@ -43,6 +45,8 @@ const allowedLifecycleTransitions = new Map([
 ])
 
 const canonicalSha256Pattern = /^(?:sha256:)?([a-fA-F0-9]{64})$/
+const safeSourceSubjectPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/
+const safeSourcePdfNamePattern = /^[A-Za-z0-9][A-Za-z0-9._ -]{0,255}\.pdf$/i
 
 export function normalizeRegion(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -88,6 +92,179 @@ export function artifactId({ paperId, questionPdfSha256, markSchemePdfSha256 } =
     .digest('hex')
 
   return `sha256:${digest}`
+}
+
+/**
+ * Store source PDFs relative to the complete private CIE library so artifacts
+ * can move between the Windows ingestion worker and the Linux runtime.
+ */
+export function subjectRelativePdfPath(filePath, subjectCode) {
+  const subject = safeSourceSubject(subjectCode)
+  const fileName = sourcePdfFileName(filePath)
+  if (!subject || !fileName) throw new TypeError('A source PDF path and subject code are required.')
+  return `${subject}/${fileName}`
+}
+
+/**
+ * Normalize and validate a portable source path. The canonical form is
+ * exactly `<subject>/<filename.pdf>` and never permits traversal or an
+ * absolute path.
+ */
+export function normalizeSubjectRelativePdfPath(value, subjectCode) {
+  const subject = safeSourceSubject(subjectCode)
+  const normalized = typeof value === 'string' ? value.trim().replaceAll('\\', '/') : ''
+  if (!subject || !normalized || normalized.startsWith('/') || /^[A-Za-z]:\//.test(normalized)) return ''
+  const segments = normalized.split('/')
+  if (segments.length !== 2 || segments[0] !== subject || !safeSourcePdfNamePattern.test(segments[1])) return ''
+  return `${subject}/${segments[1]}`
+}
+
+/**
+ * Resolve a source reference against the configured library. A portable path
+ * is authoritative when present; legacy absolute paths remain supported for
+ * artifacts produced before the portable fields existed.
+ */
+export function resolveArtifactSourcePdfPath({ source, absoluteField, relativeField, libraryRoot, subjectCode } = {}) {
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return ''
+  if (Object.hasOwn(source, relativeField)) {
+    const relative = normalizeSubjectRelativePdfPath(source[relativeField], subjectCode)
+    const rootText = typeof libraryRoot === 'string' ? libraryRoot.trim() : ''
+    if (relative && rootText) {
+      const root = path.resolve(rootText)
+      const subject = safeSourceSubject(subjectCode)
+      const [, fileName] = relative.split('/')
+      const rootIsSubject = path.basename(root).toLowerCase() === subject.toLowerCase()
+      return rootIsSubject ? path.resolve(root, fileName) : path.resolve(root, subject, fileName)
+    }
+    // Diagnostic callers that do not have the private library configured can
+    // still inspect legacy artifacts on the same host. Runtime callers always
+    // pass a library root, so an invalid portable path fails closed there.
+    if (rootText) return ''
+  }
+  const legacy = typeof source[absoluteField] === 'string' ? source[absoluteField].trim() : ''
+  return legacy ? path.resolve(legacy) : ''
+}
+
+export function buildAiStudentStudyRelease({ artifactId: boundArtifactId, routeId, status, source, extractor, verifier, candidate, verification } = {}) {
+  if (status !== AI_PDF_INGESTION_LIFECYCLE.AI_VERIFIED) return null
+  const questionPdfSha256 = normalizeSha256(source?.questionPdfSha256, 'questionPdfSha256')
+  const markSchemePdfSha256 = normalizeSha256(source?.markSchemePdfSha256, 'markSchemePdfSha256')
+  if (!/^sha256:[a-f0-9]{64}$/.test(String(boundArtifactId || ''))) throw new TypeError('artifactId must be canonical.')
+  if (typeof routeId !== 'string' || !routeId.trim()) throw new TypeError('routeId must be non-empty.')
+  if (!validReviewPass(extractor, 'ai_pdf_question_extraction_v1') || !validReviewPass(verifier, 'ai_pdf_question_verification_v1')) {
+    throw new TypeError('Both structured AI review passes are required for student release.')
+  }
+  const contentSha256 = studyContentSha256({
+    artifactId: boundArtifactId,
+    routeId: routeId.trim(),
+    source: { questionPdfSha256, markSchemePdfSha256 },
+    extractor,
+    verifier,
+    candidate,
+    verification,
+  })
+  return Object.freeze({
+    schemaVersion: AI_STUDENT_STUDY_RELEASE_SCHEMA_VERSION,
+    status: 'released',
+    artifactId: boundArtifactId,
+    routeId: routeId.trim(),
+    authority: 'ai-provisional',
+    studentStudyEligible: true,
+    formalProgressEligible: false,
+    sourceBinding: Object.freeze({ questionPdfSha256, markSchemePdfSha256 }),
+    contentBinding: Object.freeze({ algorithm: 'sha256', sha256: contentSha256 }),
+    review: Object.freeze({
+      extractionSchemaName: 'ai_pdf_question_extraction_v1',
+      verificationSchemaName: 'ai_pdf_question_verification_v1',
+      independentPassCount: 2,
+    }),
+  })
+}
+
+export function hasValidAiStudentStudyRelease(artifact) {
+  const release = artifact?.studentRelease
+  const source = artifact?.source
+  const questionPdfSha256 = safeSha256(source?.questionPdfSha256)
+  const markSchemePdfSha256 = safeSha256(source?.markSchemePdfSha256)
+  return Boolean(
+    artifact?.status === AI_PDF_INGESTION_LIFECYCLE.AI_VERIFIED
+    && release?.schemaVersion === AI_STUDENT_STUDY_RELEASE_SCHEMA_VERSION
+    && release?.status === 'released'
+    && release?.artifactId === artifact?.artifactId
+    && release?.routeId === artifact?.syllabusRouteId
+    && release?.authority === 'ai-provisional'
+    && release?.studentStudyEligible === true
+    && release?.formalProgressEligible === false
+    && questionPdfSha256
+    && markSchemePdfSha256
+    && safeSha256(release?.sourceBinding?.questionPdfSha256) === questionPdfSha256
+    && safeSha256(release?.sourceBinding?.markSchemePdfSha256) === markSchemePdfSha256
+    && release?.contentBinding?.algorithm === 'sha256'
+    && safeSha256(release?.contentBinding?.sha256) === safeStudyContentSha256({
+      artifactId: artifact.artifactId,
+      routeId: artifact.syllabusRouteId,
+      source: { questionPdfSha256, markSchemePdfSha256 },
+      extractor: artifact.extractor,
+      verifier: artifact.verifier,
+      candidate: artifact.candidate,
+      verification: artifact.verification,
+    })
+    && release?.review?.extractionSchemaName === 'ai_pdf_question_extraction_v1'
+    && release?.review?.verificationSchemaName === 'ai_pdf_question_verification_v1'
+    && release?.review?.independentPassCount === 2
+    && validReviewPass(artifact?.extractor, 'ai_pdf_question_extraction_v1')
+    && validReviewPass(artifact?.verifier, 'ai_pdf_question_verification_v1')
+  )
+}
+
+function studyContentSha256(value) {
+  if (!value?.candidate || typeof value.candidate !== 'object' || Array.isArray(value.candidate)
+    || !value?.verification || typeof value.verification !== 'object' || Array.isArray(value.verification)) {
+    throw new TypeError('Candidate and verification content are required for student release.')
+  }
+  return createHash('sha256').update(canonicalJson(value), 'utf8').digest('hex')
+}
+
+function safeStudyContentSha256(value) {
+  try {
+    return studyContentSha256(value)
+  } catch {
+    return ''
+  }
+}
+
+function canonicalJson(value) {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value)
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
+  const fields = Object.keys(value).filter((key) => value[key] !== undefined).sort()
+  return `{${fields.map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`
+}
+
+function validReviewPass(value, schemaName) {
+  return Boolean(
+    value
+    && typeof value.provider === 'string'
+    && value.provider.trim()
+    && typeof value.model === 'string'
+    && value.model.trim()
+    && value.schemaName === schemaName,
+  )
+}
+
+function safeSha256(value) {
+  const match = typeof value === 'string' ? canonicalSha256Pattern.exec(value) : null
+  return match ? match[1].toLowerCase() : ''
+}
+
+function safeSourceSubject(value) {
+  const subject = typeof value === 'string' ? value.trim() : ''
+  return safeSourceSubjectPattern.test(subject) ? subject : ''
+}
+
+function sourcePdfFileName(value) {
+  const normalized = typeof value === 'string' ? value.trim().replaceAll('\\', '/') : ''
+  const fileName = normalized.split('/').filter(Boolean).at(-1) || ''
+  return safeSourcePdfNamePattern.test(fileName) ? fileName : ''
 }
 
 function normalizeSha256(value, name) {

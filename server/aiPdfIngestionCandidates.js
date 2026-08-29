@@ -2,12 +2,18 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { artifactId } from '../scripts/ai-pdf-ingestion/contract.mjs'
+import {
+  artifactId,
+  hasValidAiStudentStudyRelease,
+  resolveArtifactSourcePdfPath,
+} from '../scripts/ai-pdf-ingestion/contract.mjs'
 
 export const AI_PDF_INGESTION_CANDIDATE_SCHEMA_VERSION = 'ai-pdf-ingestion-candidates.v1'
 
 const HASH_PATTERN = /^(?:sha256:)?([a-fA-F0-9]{64})$/
 const ARTIFACT_ID_PATTERN = /^sha256:[a-f0-9]{64}$/
+const ARTIFACT_FILENAME_PATTERN = /^([a-f0-9]{64})(?:--([A-Za-z0-9][A-Za-z0-9._-]{0,96}))?\.json$/i
+const SAFE_ARTIFACT_SUFFIX = /^[A-Za-z0-9][A-Za-z0-9._-]{0,96}$/
 const ALLOWED_STATUSES = new Set(['ai-verified', 'auto-quarantined'])
 const MAX_ARTIFACT_BYTES = 5 * 1024 * 1024
 const MAX_ARTIFACTS = 2_000
@@ -19,7 +25,7 @@ export function resolveAiPdfIngestionRoot(env = process.env, cwd = process.cwd()
   return path.resolve(cwd, configured)
 }
 
-export function listAiPdfIngestionCandidates({ root } = {}) {
+export function listAiPdfIngestionCandidates({ root, libraryRoot = null } = {}) {
   const resolvedRoot = path.resolve(root || resolveAiPdfIngestionRoot())
   if (!fs.existsSync(resolvedRoot)) {
     return emptyListing('not-configured')
@@ -33,8 +39,8 @@ export function listAiPdfIngestionCandidates({ root } = {}) {
     if (!paperEntry.isDirectory() || !/^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(paperEntry.name)) continue
     const paperDirectory = path.join(resolvedRoot, paperEntry.name)
     for (const artifactEntry of fs.readdirSync(paperDirectory, { withFileTypes: true })) {
-      if (!artifactEntry.isFile() || !/^[a-f0-9]{64}\.json$/.test(artifactEntry.name)) continue
-      entries.push(toSafeCandidate(path.join(paperDirectory, artifactEntry.name), paperEntry.name))
+      if (!artifactEntry.isFile() || !ARTIFACT_FILENAME_PATTERN.test(artifactEntry.name)) continue
+      entries.push(toSafeCandidate(path.join(paperDirectory, artifactEntry.name), paperEntry.name, libraryRoot))
       if (entries.length >= MAX_ARTIFACTS) break
     }
     if (entries.length >= MAX_ARTIFACTS) break
@@ -59,7 +65,7 @@ function emptyListing(rootStatus) {
   }
 }
 
-function toSafeCandidate(artifactPath, paperDirectoryName) {
+function toSafeCandidate(artifactPath, paperDirectoryName, libraryRoot) {
   let artifact
   try {
     const stat = fs.statSync(artifactPath)
@@ -78,10 +84,19 @@ function toSafeCandidate(artifactPath, paperDirectoryName) {
   const computedId = paperId && questionPdfSha256 && markSchemePdfSha256
     ? artifactId({ paperId, questionPdfSha256, markSchemePdfSha256 })
     : null
-  const artifactName = path.basename(artifactPath, '.json')
-  const declaredArtifactId = typeof artifact?.artifactId === 'string' ? artifact.artifactId : `sha256:${artifactName}`
+  const artifactName = path.basename(artifactPath)
+  const filenameMatch = ARTIFACT_FILENAME_PATTERN.exec(artifactName)
+  const filenameArtifactId = filenameMatch ? `sha256:${filenameMatch[1].toLowerCase()}` : null
+  const filenameSuffix = filenameMatch?.[2] || null
+  const declaredArtifactId = typeof artifact?.artifactId === 'string' ? artifact.artifactId : filenameArtifactId
   if (!ARTIFACT_ID_PATTERN.test(declaredArtifactId) || declaredArtifactId !== computedId) {
     reasonCodes.add('ARTIFACT_ID_MISMATCH')
+  }
+  if (!filenameArtifactId || filenameArtifactId !== declaredArtifactId) reasonCodes.add('ARTIFACT_FILENAME_ID_MISMATCH')
+  if (artifact?.artifactSuffix !== undefined
+    && artifact?.artifactSuffix !== null
+    && (!SAFE_ARTIFACT_SUFFIX.test(String(artifact.artifactSuffix)) || filenameSuffix !== String(artifact.artifactSuffix))) {
+    reasonCodes.add('ARTIFACT_SUFFIX_MISMATCH')
   }
 
   let effectiveStatus = declaredStatus || 'auto-quarantined'
@@ -96,7 +111,7 @@ function toSafeCandidate(artifactPath, paperDirectoryName) {
   let assetCount = Array.isArray(artifact?.assets) ? artifact.assets.length : 0
   if (effectiveStatus === 'ai-verified') {
     const integrityCheck = artifact?.storageMode === 'coordinate-only'
-      ? validateCoordinateSources(artifact)
+      ? validateCoordinateSources(artifact, libraryRoot)
       : validateAssets(artifactPath, artifact, declaredArtifactId)
     for (const reason of integrityCheck.reasonCodes) reasonCodes.add(reason)
     assetCount = integrityCheck.assetCount
@@ -109,11 +124,14 @@ function toSafeCandidate(artifactPath, paperDirectoryName) {
 
   return {
     artifactId: declaredArtifactId,
+    artifactSuffix: filenameSuffix,
     paperId,
     subject: safeText(artifact?.subject, null, 40),
     status: effectiveStatus,
     declaredStatus: declaredStatus || 'invalid',
-    studentEligibility: effectiveStatus === 'ai-verified' ? 'requires-human-review' : 'blocked',
+    studentEligibility: effectiveStatus === 'ai-verified'
+      ? hasValidAiStudentStudyRelease(artifact) ? 'study-released' : 'requires-human-review'
+      : 'blocked',
     questionCount,
     assetCount,
     source: questionPdfSha256 && markSchemePdfSha256
@@ -127,7 +145,11 @@ function validateAssets(artifactPath, artifact, declaredArtifactId) {
   const reasonCodes = new Set()
   const assets = Array.isArray(artifact?.assets) ? artifact.assets : []
   const artifactRoot = path.dirname(artifactPath)
-  const assetRoot = path.resolve(artifactRoot, `${declaredArtifactId.slice('sha256:'.length)}.assets`)
+  const suffix = SAFE_ARTIFACT_SUFFIX.test(String(artifact?.artifactSuffix || ''))
+    ? String(artifact.artifactSuffix)
+    : ''
+  const assetStem = `${declaredArtifactId.slice('sha256:'.length)}${suffix ? `--${suffix}` : ''}`
+  const assetRoot = path.resolve(artifactRoot, `${assetStem}.assets`)
   const seen = new Set()
   let validCount = 0
 
@@ -162,12 +184,30 @@ function validateAssets(artifactPath, artifact, declaredArtifactId) {
   return { reasonCodes, assetCount: validCount }
 }
 
-function validateCoordinateSources(artifact) {
+function validateCoordinateSources(artifact, libraryRoot) {
   const reasonCodes = new Set()
   const source = artifact?.source || {}
   const sourceFiles = [
-    { path: source.questionPdfPath, sha256: normalizeHash(source.questionPdfSha256) },
-    { path: source.markSchemePdfPath, sha256: normalizeHash(source.markSchemePdfSha256) },
+    {
+      path: resolveArtifactSourcePdfPath({
+        source,
+        absoluteField: 'questionPdfPath',
+        relativeField: 'questionPdfRelativePath',
+        libraryRoot,
+        subjectCode: artifact?.subject,
+      }),
+      sha256: normalizeHash(source.questionPdfSha256),
+    },
+    {
+      path: resolveArtifactSourcePdfPath({
+        source,
+        absoluteField: 'markSchemePdfPath',
+        relativeField: 'markSchemePdfRelativePath',
+        libraryRoot,
+        subjectCode: artifact?.subject,
+      }),
+      sha256: normalizeHash(source.markSchemePdfSha256),
+    },
   ]
 
   for (const sourceFile of sourceFiles) {
@@ -175,6 +215,10 @@ function validateCoordinateSources(artifact) {
       ? path.resolve(sourceFile.path)
       : ''
     if (!sourcePath) {
+      reasonCodes.add('COORDINATE_SOURCE_PATH_INVALID')
+      continue
+    }
+    if (libraryRoot && !withinSubjectLibrary(sourcePath, libraryRoot, artifact?.subject)) {
       reasonCodes.add('COORDINATE_SOURCE_PATH_INVALID')
       continue
     }
@@ -195,6 +239,17 @@ function validateCoordinateSources(artifact) {
   }
 
   return { reasonCodes, assetCount: 0 }
+}
+
+function withinSubjectLibrary(filePath, libraryRoot, subjectCode) {
+  const root = path.resolve(String(libraryRoot || ''))
+  const subject = typeof subjectCode === 'string' ? subjectCode.trim() : ''
+  if (!root || !subject) return false
+  const subjectRoot = path.basename(root).toLowerCase() === subject.toLowerCase()
+    ? root
+    : path.join(root, subject)
+  const relative = path.relative(subjectRoot, path.resolve(filePath))
+  return Boolean(relative) && !path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`)
 }
 
 function invalidCandidate(paperId, reason) {

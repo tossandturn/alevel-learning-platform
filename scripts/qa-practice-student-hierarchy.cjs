@@ -165,7 +165,20 @@ async function runViewport(page, server, viewport) {
   await page.screenshot({ path: path.join(ARTIFACT_DIR, `qa-student-hierarchy-a2-${viewport.name}.png`), fullPage: false })
   const a2RouteStatus = page.locator('.topic-directory__route-status')
   await a2RouteStatus.waitFor({ state: 'visible' })
-  assert.match((await a2RouteStatus.innerText()).replace(/\s+/g, ' '), /14 syllabus topics.*No reviewed questions yet.*21 study-only questions ready to open/i)
+  const a2Inventory = await page.evaluate(async () => {
+    const response = await fetch('/api/stem/routes/cie-9702-a2-physics/syllabus-topics')
+    return response.json()
+  })
+  const a2StudyCount = Number(a2Inventory.studyQuestionGroupCount)
+  assert.ok(Number.isInteger(a2StudyCount) && a2StudyCount > 0, 'A2 Physics must expose a distinct route-level study question count')
+  assert.match(
+    (await a2RouteStatus.innerText()).replace(/\s+/g, ' '),
+    new RegExp(`14 syllabus topics.*No reviewed questions yet.*${a2StudyCount} study-only questions ready to open`, 'i'),
+  )
+  const gravitationalTopic = a2Inventory.topics.find((topic) => topic.id === 'physics-9702-topic-13')
+  const a2AvailableCount = Number(gravitationalTopic?.availableQuestionCount)
+  const a2RequestedCount = Math.min(10, a2AvailableCount)
+  assert.ok(Number.isInteger(a2AvailableCount) && a2AvailableCount > 0, 'Gravitational fields must expose a canonical available question count')
   const a2TopicRows = page.locator('.topic-directory__row')
   assert.equal(await a2TopicRows.count(), 14, 'A2 Physics must show every official syllabus topic, including topics still awaiting source-backed practice')
   await a2TopicRows.filter({ hasText: 'Gravitational fields' }).click()
@@ -175,7 +188,7 @@ async function runViewport(page, server, viewport) {
   await a2QuestionSearch.fill('gravitational potential')
   assert.ok(await page.locator('.topic-detail__question-item').count() > 0, 'A2 topic search must expose study-only source questions through the canonical syllabus mapping')
   await a2QuestionSearch.fill('')
-  const a2Start = page.getByRole('button', { name: /Practice 4/i }).first()
+  const a2Start = page.getByRole('button', { name: new RegExp(`Practice ${a2RequestedCount}`) }).first()
   await a2Start.waitFor({ state: 'visible' })
   const a2PracticeResponse = page.waitForResponse((response) => response.url().includes('/api/stem/practice-sets') && response.request().method() === 'POST')
   await a2Start.click()
@@ -184,7 +197,7 @@ async function runViewport(page, server, viewport) {
   assert.equal(a2Response.status(), 201)
   assert.equal(a2Payload.routeId, 'cie-9702-a2-physics')
   assert.deepEqual(a2Payload.syllabusTopicIds, ['physics-9702-topic-13'])
-  assert.equal(a2Payload.questionCount, 4)
+  assert.equal(a2Payload.questionCount, a2RequestedCount)
   assert.ok(a2Payload.questionGroups.every((group) => group.studyOnly === true && group.paperComponent === 4), 'A2 source-backed expansion must stay self-mark only and inside P4')
 
   const unavailableUrl = `${server.url}practice?routeId=cie-9701-a2-chemistry&stage=A2&course=9701&tab=topics`

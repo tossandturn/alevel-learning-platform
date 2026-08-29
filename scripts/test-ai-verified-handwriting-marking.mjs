@@ -10,7 +10,7 @@ import { canonicalHandwritingMarkingContext, canonicalHandwritingMarkingImages, 
 import { createAiVerifiedQuestionBankLoader } from '../server/aiVerifiedQuestionBank.js'
 import { closeStemDatabaseForTests, createStemApi } from '../server/stemApi.js'
 import { canonicalAiMarkingProvenance } from '../src/lib/sourceContentContract.js'
-import { artifactId } from './ai-pdf-ingestion/contract.mjs'
+import { artifactId, buildAiStudentStudyRelease } from './ai-pdf-ingestion/contract.mjs'
 import { buildRenderArgs, resolvePopplerExecutable } from './ai-pdf-ingestion/render.mjs'
 
 const RENDER_DPI = 180
@@ -43,6 +43,48 @@ const providerTelemetry = []
 
 function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex')
+}
+
+function imageDataUrlBytes(value) {
+  const match = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(String(value || ''))
+  assert.ok(match, 'the provider fixture must receive an inline JPEG data URL')
+  return Buffer.from(match[1], 'base64')
+}
+
+function jpegDimensions(bytes) {
+  assert.equal(bytes[0], 0xff, 'JPEG must begin with the SOI marker')
+  assert.equal(bytes[1], 0xd8, 'JPEG must begin with the SOI marker')
+  const startOfFrameMarkers = new Set([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf])
+  let offset = 2
+  while (offset + 8 < bytes.length) {
+    if (bytes[offset] !== 0xff) {
+      offset += 1
+      continue
+    }
+    while (bytes[offset] === 0xff) offset += 1
+    const marker = bytes[offset]
+    offset += 1
+    if (marker === 0xd9 || marker === 0xda) break
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) continue
+    const segmentLength = bytes.readUInt16BE(offset)
+    assert.ok(segmentLength >= 2 && offset + segmentLength <= bytes.length, 'JPEG segment length must stay within the image')
+    if (startOfFrameMarkers.has(marker)) {
+      return {
+        width: bytes.readUInt16BE(offset + 5),
+        height: bytes.readUInt16BE(offset + 3),
+      }
+    }
+    offset += segmentLength
+  }
+  assert.fail('JPEG dimensions were not found')
+}
+
+function croppedDimensions(pageSize, region) {
+  const [x0, y0, x1, y1] = region
+  return {
+    width: Math.ceil(x1 * pageSize.width) - Math.floor(x0 * pageSize.width),
+    height: Math.ceil(y1 * pageSize.height) - Math.floor(y0 * pageSize.height),
+  }
 }
 
 function writeSinglePagePdf(filePath, text) {
@@ -164,14 +206,19 @@ const markSchemePageImage = await renderFixturePage(markSchemePdfPath)
 const questionPageImageSha256 = sha256(questionPageImage)
 const markSchemePageImageSha256 = sha256(markSchemePageImage)
 const artifactIdentity = artifactId({ paperId, questionPdfSha256, markSchemePdfSha256 })
+const questionRegion = [0.08, 0.08, 0.92, 0.92]
 
 const artifact = {
   schemaVersion: 'ai-pdf-ingestion.v1',
   artifactId: artifactIdentity,
   paperId,
   subject: '9702',
+  stage: 'A2',
+  syllabusRouteId: 'cie-9702-a2-physics',
   status: 'ai-verified',
   storageMode: 'coordinate-only',
+  extractor: { provider: 'codex-independent-extraction', model: 'gpt-5.6', schemaName: 'ai_pdf_question_extraction_v1' },
+  verifier: { provider: 'codex-independent-verification', model: 'gpt-5.6', schemaName: 'ai_pdf_question_verification_v1' },
   source: {
     questionPdfPath,
     markSchemePdfPath,
@@ -184,8 +231,8 @@ const artifact = {
   candidate: {
     questions: [{
       questionNumber: '1',
-      regions: [{ page: 1, pageImageSha256: questionPageImageSha256, x0: 0.08, y0: 0.08, x1: 0.92, y1: 0.92 }],
-      diagramRegions: [],
+      regions: [{ page: 1, pageImageSha256: questionPageImageSha256, x0: questionRegion[0], y0: questionRegion[1], x1: questionRegion[2], y1: questionRegion[3] }],
+      diagramRegions: [{ page: 1, pageImageSha256: questionPageImageSha256, x0: 0.7, y0: 0.7, x1: 0.9, y1: 0.9 }],
       parts: [{ label: 'a', marks: 2, ocrText: 'State a physics principle.', math: [], diagramAssociations: [] }],
       tags: { primaryTopicId: 'physics-9702-topic-13', secondaryTopicIds: [], syllabusPointIds: [] },
       markSchemeEvidence: [{ page: 1, pageImageSha256: markSchemePageImageSha256 }],
@@ -196,11 +243,21 @@ const artifact = {
       questionNumber: '1',
       pages: [1],
       parts: [{ label: 'a', marks: 2 }],
-      diagramRegionCount: 0,
+      diagramRegionCount: 1,
       markSchemeEvidence: [{ page: 1, pageImageSha256: markSchemePageImageSha256 }],
     }],
   },
 }
+artifact.studentRelease = buildAiStudentStudyRelease({
+  artifactId: artifact.artifactId,
+  routeId: artifact.syllabusRouteId,
+  status: artifact.status,
+  source: artifact.source,
+  extractor: artifact.extractor,
+  verifier: artifact.verifier,
+  candidate: artifact.candidate,
+  verification: artifact.verification,
+})
 const artifactDirectory = path.join(artifactRoot, paperId)
 fs.mkdirSync(artifactDirectory, { recursive: true })
 fs.writeFileSync(path.join(artifactDirectory, `${artifactIdentity.slice('sha256:'.length)}.json`), JSON.stringify(artifact), 'utf8')
@@ -239,9 +296,10 @@ const providerServer = http.createServer(async (request, response) => {
 })
 const providerBase = await listen(providerServer)
 const env = {
-  VISION_AI_API_KEY: 'test-only-vision-key',
-  VISION_AI_BASE_URL: providerBase,
-  VISION_AI_MODEL: 'test-vision',
+  AI_PROVIDER: 'openai',
+  OPENAI_VISION_API_KEY: 'test-only-openai-vision-key',
+  OPENAI_VISION_BASE_URL: providerBase,
+  OPENAI_VISION_MODEL: 'test-openai-vision',
   STEM_INTERNAL_AUTH_KEY: identitySigningKey,
   STEM_MARKING_CAPABILITY_SIGNING_KEY: capabilitySigningKey,
   STEM_DB_PATH: path.join(root, 'stem.sqlite'),
@@ -321,8 +379,21 @@ try {
     ['question-paper', 1],
     ['mark-scheme', 1],
   ])
-  assert.deepEqual(images.context.officialSourceImages.map((image) => image.sha256), [questionPageImageSha256, markSchemePageImageSha256])
   assert.equal(images.images.length, 2, 'typed marking must send the QP and MS page images without a fabricated student image')
+  const questionDescriptor = images.context.officialSourceImages[0]
+  const markSchemeDescriptor = images.context.officialSourceImages[1]
+  const questionImageBytes = imageDataUrlBytes(images.images[0])
+  const markSchemeImageBytes = imageDataUrlBytes(images.images[1])
+  assert.deepEqual(questionDescriptor.region, questionRegion, 'same-page question and diagram evidence must retain the whole-question union')
+  assert.equal(questionDescriptor.sourcePageSha256, questionPageImageSha256, 'the crop must remain bound to the verified full-page render')
+  assert.equal(questionDescriptor.sha256, sha256(questionImageBytes), 'the provider descriptor must hash the exact cropped bytes sent to the model')
+  assert.equal(markSchemeDescriptor.sha256, sha256(markSchemeImageBytes), 'the full mark-scheme descriptor must hash the bytes sent to the model')
+  assert.deepEqual(
+    jpegDimensions(questionImageBytes),
+    croppedDimensions(jpegDimensions(questionPageImage), questionRegion),
+    'the provider must receive the coordinate crop instead of the full question-paper page',
+  )
+  assert.notEqual(questionDescriptor.sha256, questionPageImageSha256, 'a non-full-page crop must not masquerade as the verified full-page bytes')
 
   providerAssessment = {
     rawMarks: 1,
@@ -437,7 +508,7 @@ try {
   assert.equal(providerCalls.length, callsBeforeTimeout + 1, 'the timeout regression must reach the provider boundary')
   const timeoutTelemetry = providerTelemetry.at(-1)
   assert.equal(timeoutTelemetry.operation, 'handwriting-marking')
-  assert.equal(timeoutTelemetry.timeoutMs, 250)
+  assert.ok(timeoutTelemetry.timeoutMs > 0 && timeoutTelemetry.timeoutMs <= 250, 'the provider timeout must be bounded by the configured provider budget and remaining request deadline')
   assert.equal(timeoutTelemetry.finalState, 'timeout')
 
   providerDelayMs = 0

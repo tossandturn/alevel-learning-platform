@@ -7,7 +7,7 @@ import path from 'node:path'
 
 import { createAiVerifiedQuestionBankLoader } from '../server/aiVerifiedQuestionBank.js'
 import { closeStemDatabaseForTests, createStemApi } from '../server/stemApi.js'
-import { artifactId } from './ai-pdf-ingestion/contract.mjs'
+import { artifactId, buildAiStudentStudyRelease } from './ai-pdf-ingestion/contract.mjs'
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'stem-ai-verified-runtime-bank-'))
 const libraryRoot = path.join(root, 'library', '9702')
@@ -30,8 +30,12 @@ const verifiedArtifact = {
   artifactId: artifactIdentity,
   paperId,
   subject: '9702',
+  stage: 'A2',
+  syllabusRouteId: 'cie-9702-a2-physics',
   status: 'ai-verified',
   storageMode: 'coordinate-only',
+  extractor: { provider: 'openai', model: 'gpt-5.6', schemaName: 'ai_pdf_question_extraction_v1' },
+  verifier: { provider: 'qwen', model: 'qwen3-vl-plus', schemaName: 'ai_pdf_question_verification_v1' },
   source: {
     questionPdfPath: path.join(libraryRoot, questionFile),
     markSchemePdfPath: path.join(libraryRoot, markSchemeFile),
@@ -60,6 +64,16 @@ const verifiedArtifact = {
     }],
   },
 }
+verifiedArtifact.studentRelease = buildAiStudentStudyRelease({
+  artifactId: verifiedArtifact.artifactId,
+  routeId: verifiedArtifact.syllabusRouteId,
+  status: verifiedArtifact.status,
+  source: verifiedArtifact.source,
+  extractor: verifiedArtifact.extractor,
+  verifier: verifiedArtifact.verifier,
+  candidate: verifiedArtifact.candidate,
+  verification: verifiedArtifact.verification,
+})
 
 const p5Artifact = {
   ...verifiedArtifact,
@@ -81,6 +95,9 @@ try {
   const loaded = load()
   assert.equal(loaded.groups.length, 1, 'only checksum-bound P4 coordinate artifacts may enter the runtime bank')
   assert.equal(loaded.groups[0].sourceQuestionId, `${paperId}:q2`)
+  assert.equal(loaded.groups[0].studentStudyEligible, true, 'a source-bound double-AI release must be startable in student study mode')
+  assert.equal(loaded.groups[0].formalProgressEligible, false, 'an AI release must remain outside formal learning progress')
+  assert.equal(loaded.groups[0].studentRelease?.artifactId, artifactIdentity)
   assert.equal(loaded.documents.length, 2, 'QP and paired MS documents must be exposed together')
   assert.ok(loaded.documents.every((document) => document.subject === '9702' && document.component === 4))
   assert.ok(loaded.documents.every((document) => document.year >= 2021 && document.year <= 2025))
@@ -89,12 +106,8 @@ try {
   const databasePath = path.join(root, 'stem.sqlite')
   let runtimeGroups = []
   const api = createStemApi({
-    // This fixture intentionally exercises the local study-only pool. The
-    // production API must keep the opt-in disabled and expose only
-    // practice-ready records.
     env: {
-      NODE_ENV: 'test',
-      STEM_ENABLE_STUDY_ONLY_TOPIC_DRILL: '1',
+      NODE_ENV: 'production',
       STEM_DB_PATH: databasePath,
     },
     topicQuestionBankProvider: () => runtimeGroups,
@@ -112,11 +125,10 @@ try {
     const initialTopic = initialInventory.topics.find((topic) => topic.id === 'physics-9702-topic-13')
     assert.ok(initialTopic)
     const initialStudyQuestionCount = Number(initialTopic.studyQuestionCount)
-    assert.ok(initialStudyQuestionCount > 0, 'static source-backed A2 study questions must remain visible while runtime AI records are release-gated')
     assert.equal(
       Number(initialTopic.availableQuestionCount),
       Number(initialTopic.verifiedQuestionCount) + Number(initialTopic.studyQuestionCount),
-      'A2 count must combine the reviewed and static study-only pools consistently',
+      'A2 count must combine the reviewed and released AI study pools consistently',
     )
 
     runtimeGroups = load().groups
@@ -124,17 +136,13 @@ try {
     assert.equal(inventoryResponse.status, 200)
     const inventory = await inventoryResponse.json()
     const runtimeTopic = inventory.topics.find((topic) => topic.id === 'physics-9702-topic-13')
-    assert.ok(
-      runtimeTopic?.questionIdsByComponent?.[4]?.pendingReviewQuestionIds?.includes(`${paperId}:q2`),
-      'runtime inventory must retain the loaded coordinate record as pending review',
-    )
-    assert.equal(runtimeTopic.studyQuestionCount, initialStudyQuestionCount, 'student inventory must not add release-gated ai-verified records to the static study-only pool')
+    assert.equal(runtimeTopic.studyQuestionCount, initialStudyQuestionCount + 1, 'student inventory must include an explicitly released ai-verified record')
     assert.equal(
       Number(runtimeTopic.availableQuestionCount),
-      Number(runtimeTopic.verifiedQuestionCount) + initialStudyQuestionCount,
-      'student count must include static study questions while excluding release-gated runtime records',
+      Number(runtimeTopic.verifiedQuestionCount) + initialStudyQuestionCount + 1,
+      'student count must include the released AI study record without treating it as formally reviewed',
     )
-    assert.equal(runtimeTopic.questionIdsByComponent?.[4]?.studyQuestionIds?.includes(`${paperId}:q2`), false, 'student inventory must not list study-only IDs')
+    assert.equal(runtimeTopic.questionIdsByComponent?.[4]?.studyQuestionIds?.includes(`${paperId}:q2`), true, 'count and start list must expose the same released study ID')
     assert.ok(
       Number(runtimeTopic?.indexedQuestionCount) > Number(initialTopic.indexedQuestionCount),
       'inventory must refresh SQLite counts after a new verified coordinate artifact appears',
@@ -151,9 +159,12 @@ try {
         sourceQuestionIds: [`${paperId}:q2`],
       }),
     })
-    assert.equal(practiceResponse.status, 409, 'student practice must reject a coordinate-only ai-verified record that is not release-ready')
+    assert.equal(practiceResponse.status, 201, 'student practice must start an explicitly released coordinate-bound AI study record')
     const practice = await practiceResponse.json()
-    assert.equal(practice.code, 'invalid_source_question_selection')
+    assert.equal(practice.practiceMode, 'study-only')
+    assert.equal(practice.questionCount, 1)
+    assert.equal(practice.questionGroups[0].formalProgressEligible, false)
+    assert.equal(practice.questionGroups[0].studentStudyEligible, true)
 
     runtimeGroups = []
     const removedInventoryResponse = await fetch(`${origin}/api/stem/routes/cie-9702-a2-physics/syllabus-topics`)

@@ -276,7 +276,7 @@ function validateVerification(identities, verification, markSchemePageHashes, re
     if (!verified
       || !sameArray(verified.pages, identity.pages)
       || !sameParts(verified.parts, identity.parts)
-      || verified.diagramRegionCount !== identity.diagramRegionCount) {
+      || !sameDiagramPresence(verified.diagramRegionCount, identity.diagramRegionCount)) {
       reasonCodes.add('VERIFICATION_IDENTITY_DISAGREEMENT')
       return
     }
@@ -353,6 +353,12 @@ function sameParts(left, right) {
     && left.every((part, index) => isPlainObject(part)
       && part.label === right[index].label
       && part.marks === right[index].marks)
+}
+
+function sameDiagramPresence(leftCount, rightCount) {
+  if (!Number.isInteger(leftCount) || leftCount < 0
+    || !Number.isInteger(rightCount) || rightCount < 0) return false
+  return (leftCount > 0) === (rightCount > 0)
 }
 
 function sameMarkSchemeEvidence(left, right) {

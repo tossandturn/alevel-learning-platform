@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
 
+import { artifactId, buildAiStudentStudyRelease } from './ai-pdf-ingestion/contract.mjs'
 import { callCompatibleStructured, callStructuredWithFallback, providersFromEnvironment } from './ai-pdf-ingestion/provider-fallback.mjs'
 import { selectA2P4FiveYearPairs } from './ai-pdf-ingestion/a2-p4-five-year.mjs'
 import { questionGroupsFromAiArtifacts } from '../server/aiVerifiedQuestionBank.js'
-import { isAiMarkablePastPaperItem, isStudyOnlyPastPaperItem } from '../src/data/questionBank.js'
+import { isAiMarkablePastPaperItem, isStudentReleasedAiStudyItem, isStudyOnlyPastPaperItem } from '../src/data/questionBank.js'
 import { buildSyllabusPracticeSet } from '../src/lib/syllabusPractice.js'
 
 const primaryAndFallback = providersFromEnvironment({
@@ -36,6 +37,16 @@ const fallbackResult = await callStructuredWithFallback({
 assert.deepEqual(attemptedProviders, ['openai', 'qwen'])
 assert.equal(fallbackResult.provider.name, 'qwen')
 assert.deepEqual(fallbackResult.value, { questions: [] })
+assert.deepEqual(fallbackResult.telemetry.attempts.map((attempt) => ({
+  provider: attempt.provider,
+  model: attempt.model,
+  providerStatus: attempt.providerStatus,
+  schemaStatus: attempt.schemaStatus,
+})), [
+  { provider: 'openai', model: 'gpt-5.6', providerStatus: 'OPENAI_HTTP_429', schemaStatus: 'not-returned' },
+  { provider: 'qwen', model: 'qwen3-vl-plus', providerStatus: 'success', schemaStatus: 'parsed' },
+])
+assert.ok(fallbackResult.telemetry.attempts.every((attempt) => Number.isInteger(attempt.durationMs) && attempt.durationMs >= 0))
 
 const providerTimeoutRequests = []
 const providerTimeoutProviders = providersFromEnvironment({
@@ -82,8 +93,32 @@ const qwenStructuredResult = await callCompatibleStructured({
 })
 assert.deepEqual(qwenStructuredResult, { questions: [] })
 assert.equal(qwenRequests[0].enable_thinking, false)
-assert.equal(Object.hasOwn(qwenRequests[0], 'max_tokens'), false)
+assert.equal(qwenRequests[0].max_tokens, 8192)
+assert.equal(qwenRequests[0].stream, false)
 assert.deepEqual(qwenRequests[0].response_format, { type: 'json_object' })
+
+const qwenJsonFallbackRequests = []
+await callCompatibleStructured({
+  apiKey: 'qwen-test-key',
+  model: 'qwen3-vl-plus',
+  schemaName: 'fixture',
+  schema: { type: 'object', properties: { questions: { type: 'array' } } },
+  input: [{ role: 'system', content: [{ type: 'input_text', text: 'Return JSON.' }] }],
+  maxAttempts: 1,
+  fetchImpl: async (_url, request) => {
+    qwenJsonFallbackRequests.push(JSON.parse(request.body))
+    if (qwenJsonFallbackRequests.length === 1) return { ok: false, status: 400, json: async () => ({}) }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ choices: [{ message: { content: '{"questions":[]}' } }] }),
+    }
+  },
+})
+assert.equal(qwenJsonFallbackRequests.length, 2)
+assert.equal(Object.hasOwn(qwenJsonFallbackRequests[0], 'response_format'), true)
+assert.equal(Object.hasOwn(qwenJsonFallbackRequests[1], 'response_format'), false)
+assert.equal(qwenJsonFallbackRequests[1].max_tokens, 8192)
 
 const qwenSchemaRequests = []
 await callCompatibleStructured({
@@ -104,47 +139,6 @@ await callCompatibleStructured({
 })
 assert.equal(qwenSchemaRequests[0].response_format.type, 'json_schema')
 assert.equal(qwenSchemaRequests[0].response_format.json_schema.strict, true)
-
-const qwenStreamRequests = []
-const qwenStreamData = (content, finishReason = null) => `data: ${JSON.stringify({
-  choices: [{ delta: { content }, finish_reason: finishReason }],
-})}`
-const qwenStreamChunks = [
-  `id: 1\r\nevent: result\r\n${qwenStreamData('{"questions":')}\r`,
-  `\n\r\nid: 2\r\n${qwenStreamData('[]}')}\n`,
-  `\r\nid: 3\r\n${qwenStreamData('', 'stop')}\r\n\r\n`,
-  'data: [DONE]\n\n',
-]
-const qwenStreamResult = await callCompatibleStructured({
-  apiKey: 'qwen-test-key',
-  model: 'qwen3-vl-plus',
-  schemaName: 'fixture',
-  schema: { type: 'object', properties: { questions: { type: 'array' } } },
-  input: [{ role: 'system', content: [{ type: 'input_text', text: 'Return JSON.' }] }],
-  maxAttempts: 1,
-  fetchImpl: async (_url, request) => {
-    qwenStreamRequests.push(JSON.parse(request.body))
-    let index = 0
-    const encoder = new TextEncoder()
-    return {
-      ok: true,
-      status: 200,
-      body: {
-        getReader() {
-          return {
-            async read() {
-              if (index >= qwenStreamChunks.length) return { done: true, value: undefined }
-              return { done: false, value: encoder.encode(qwenStreamChunks[index++]) }
-            },
-            async cancel() {},
-          }
-        },
-      },
-    }
-  },
-})
-assert.deepEqual(qwenStreamResult, { questions: [] })
-assert.equal(qwenStreamRequests[0].stream, true)
 
 const qwenMalformedJsonRequests = []
 const qwenMalformedJsonSleeps = []
@@ -212,13 +206,22 @@ assert.ok(pairs.every((pair) => pair.component === 4 && pair.year >= 2021 && pai
 const sha = 'a'.repeat(64)
 const markSha = 'b'.repeat(64)
 const sourcePath = '/library/pdf/9702/9702_m21_qp_42.pdf'
+const boundArtifactId = artifactId({
+  paperId: 'cie-9702-9702_m21_qp_42',
+  questionPdfSha256: sha,
+  markSchemePdfSha256: markSha,
+})
 const artifact = {
   schemaVersion: 'ai-pdf-ingestion.v1',
-  artifactId: `sha256:${'c'.repeat(64)}`,
+  artifactId: boundArtifactId,
   paperId: 'cie-9702-9702_m21_qp_42',
   subject: '9702',
+  stage: 'A2',
+  syllabusRouteId: 'cie-9702-a2-physics',
   status: 'ai-verified',
   storageMode: 'coordinate-only',
+  extractor: { provider: 'openai', model: 'gpt-5.6', schemaName: 'ai_pdf_question_extraction_v1' },
+  verifier: { provider: 'qwen', model: 'qwen3-vl-plus', schemaName: 'ai_pdf_question_verification_v1' },
   source: {
     questionPdfPath: sourcePath,
     markSchemePdfPath: '/library/pdf/9702/9702_m21_ms_42.pdf',
@@ -241,6 +244,36 @@ const artifact = {
     questions: [{ questionNumber: '2', pages: [3], parts: [{ label: 'a', marks: 4 }], diagramRegionCount: 0, markSchemeEvidence: [{ page: 5, pageImageSha256: 'e'.repeat(64) }] }],
   },
 }
+artifact.studentRelease = buildAiStudentStudyRelease({
+  artifactId: artifact.artifactId,
+  routeId: artifact.syllabusRouteId,
+  status: artifact.status,
+  source: artifact.source,
+  extractor: artifact.extractor,
+  verifier: artifact.verifier,
+  candidate: artifact.candidate,
+  verification: artifact.verification,
+})
+
+const unreleasedGroups = questionGroupsFromAiArtifacts([{ ...artifact, studentRelease: undefined }], { libraryRoot: '/library/pdf/9702' })
+assert.equal(unreleasedGroups.length, 1)
+assert.equal(isStudentReleasedAiStudyItem(unreleasedGroups[0]), false, 'AI verification without an explicit bound release must remain unavailable')
+
+const tamperedReleaseGroups = questionGroupsFromAiArtifacts([{
+  ...artifact,
+  studentRelease: {
+    ...artifact.studentRelease,
+    sourceBinding: { ...artifact.studentRelease.sourceBinding, markSchemePdfSha256: 'f'.repeat(64) },
+  },
+}], { libraryRoot: '/library/pdf/9702' })
+assert.equal(tamperedReleaseGroups.length, 1)
+assert.equal(isStudentReleasedAiStudyItem(tamperedReleaseGroups[0]), false, 'a release bound to another mark scheme must fail closed')
+
+const tamperedTopicArtifact = structuredClone(artifact)
+tamperedTopicArtifact.candidate.questions[0].tags.primaryTopicId = 'physics-9702-topic-14'
+const tamperedTopicGroups = questionGroupsFromAiArtifacts([tamperedTopicArtifact], { libraryRoot: '/library/pdf/9702' })
+assert.equal(tamperedTopicGroups.length, 1)
+assert.equal(isStudentReleasedAiStudyItem(tamperedTopicGroups[0]), false, 'changing a released syllabus topic must invalidate the content binding')
 
 const groups = questionGroupsFromAiArtifacts([artifact], { libraryRoot: '/library/pdf/9702' })
 assert.equal(groups.length, 1)
@@ -253,6 +286,7 @@ assert.deepEqual(groups[0].parts[0].sourceEvidence[0].region, [0.1, 0.2, 0.9, 0.
 assert.equal(groups[0].sourceContent.fileComplete, true)
 assert.equal(groups[0].sourceContent.semanticStatus, 'ai-verified')
 assert.equal(isStudyOnlyPastPaperItem(groups[0]), true, 'double-AI-verified coordinate records must be available as study questions')
+assert.equal(isStudentReleasedAiStudyItem(groups[0]), true, 'a fully bound release must be eligible for student study')
 assert.equal(isAiMarkablePastPaperItem(groups[0]), true, 'double-AI-verified coordinate records must receive automatic AI marking')
 
 const practiceSet = buildSyllabusPracticeSet({

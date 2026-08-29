@@ -423,12 +423,15 @@ function localCieLibrary(env) {
   const sendHealth = createHealthMiddleware(env)
   const runtimeAiQuestionBank = createAiVerifiedQuestionBankLoader({
     artifactRoot: resolveAiPdfIngestionRoot(env),
-    libraryRoot: path.join(libraryRoot, '9702'),
+    // The runtime bank validates each artifact against its own subject folder.
+    // Pass the complete private library so 9709 and other supported routes are
+    // not silently excluded by a 9702-only root.
+    libraryRoot,
   })
   const runtimeAiGroups = () => runtimeAiQuestionBank().groups
   const runtimePdfDocuments = () => runtimeAiQuestionBank().documents
   const aiApi = createAiApi({ env, libraryRoot, allowedSubjects: ALLOWED_SUBJECTS, questionBankProvider: runtimeAiGroups })
-  const stemApi = createStemApi({ env, topicQuestionBankProvider: runtimeAiGroups })
+  const stemApi = createStemApi({ env, topicQuestionBankProvider: runtimeAiGroups, libraryRoot })
   return {
     name: 'local-cie-library',
     configureServer(server) {

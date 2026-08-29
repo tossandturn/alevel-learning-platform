@@ -34,9 +34,9 @@ const igcseMath = syllabusTopicsInventory({
   routeId: 'cie-0580-igcse-mathematics',
   questionBank: studyQuestionBank,
 })
-assert.equal(igcseMath.verifiedQuestionGroupCount, 0, '0580 mappings remain study-only until the new syllabus mapping is reviewed')
+assert.equal(igcseMath.verifiedQuestionGroupCount, 26, 'the reviewed 0580 M25 Paper 1 ledger must remain formally available')
 assert.equal(igcseMath.availableQuestionGroupCount, 63, '0580 Topic study must include every currently eligible reviewed or self-mark source group')
-assert.equal(igcseMath.studyQuestionGroupCount, 63)
+assert.equal(igcseMath.studyQuestionGroupCount, 37, 'unreviewed 0580 source groups must remain study-only rather than inflating verified counts')
 assert.ok(igcseMath.topics.every((topic) => topic.availableQuestionCount > 0), 'every 0580 syllabus topic with complete source pages must be open for study')
 const igcseMathSet = buildSyllabusPracticeSet({
   routeId: 'cie-0580-igcse-mathematics',

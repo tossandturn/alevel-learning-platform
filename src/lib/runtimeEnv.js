@@ -51,8 +51,16 @@ export function findSharedEnvFile(cwd = process.cwd(), env = process.env) {
   }
 }
 
+export function findProjectEnvFile(cwd = process.cwd()) {
+  const candidate = path.join(path.resolve(cwd), '.env')
+  return fs.existsSync(candidate) && fs.statSync(candidate).isFile() ? candidate : ''
+}
+
 export function mergeRuntimeEnv({ cwd = process.cwd(), env = process.env } = {}) {
-  const merged = { ...readEnvFile(findSharedEnvFile(cwd, env)) }
+  const merged = {
+    ...readEnvFile(findSharedEnvFile(cwd, env)),
+    ...readEnvFile(findProjectEnvFile(cwd)),
+  }
   for (const [key, value] of Object.entries(env || {})) {
     if (value == null || value === '') continue
     merged[key] = value

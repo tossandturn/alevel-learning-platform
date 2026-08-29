@@ -2,6 +2,7 @@ import { callOpenAiStructured } from './openai-structured.mjs'
 
 const RETRYABLE_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504])
 const DEFAULT_QWEN_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+const DEFAULT_QWEN_MAX_OUTPUT_TOKENS = 8192
 
 function nonempty(value) {
   return typeof value === 'string' && value.trim() ? value.trim() : ''
@@ -78,8 +79,11 @@ export async function callStructuredWithFallback({
   callCompatible = callCompatibleStructured,
 } = {}) {
   let lastError = null
+  const attempts = []
   for (const provider of providers) {
     if (Number.isFinite(request?.deadlineAt) && Date.now() >= request.deadlineAt) throw codedError('AI_PAPER_TIMEOUT', 'AI paper deadline exceeded.')
+    const startedAt = Date.now()
+    const timeoutMs = provider.timeoutMs || request?.timeoutMs || null
     try {
       const providerRequest = provider.timeoutMs
         ? { ...request, timeoutMs: provider.timeoutMs }
@@ -87,14 +91,51 @@ export async function callStructuredWithFallback({
       const value = await callProviderWithDeadline(provider, providerRequest, (signal) => provider.name === 'openai'
         ? callOpenAi({ ...providerRequest, signal, apiKey: provider.apiKey, model: provider.model, baseUrl: provider.baseUrl || undefined, transport: provider.transport || providerRequest?.transport })
         : callCompatible({ ...providerRequest, signal, apiKey: provider.apiKey, model: provider.model, baseUrl: provider.baseUrl }))
-      return Object.freeze({ provider, value })
+      attempts.push(providerAttempt({ provider, timeoutMs, startedAt, providerStatus: 'success', schemaStatus: 'parsed' }))
+      return Object.freeze({ provider, value, telemetry: providerTelemetry(attempts) })
     } catch (error) {
       if (error?.code === 'AI_PAPER_TIMEOUT') throw error
+      attempts.push(providerAttempt({
+        provider,
+        timeoutMs,
+        startedAt,
+        providerStatus: safeProviderStatus(error),
+        schemaStatus: schemaStatusForError(error),
+      }))
       lastError = error
     }
   }
-  if (lastError) throw lastError
+  if (lastError) {
+    lastError.providerTelemetry = providerTelemetry(attempts)
+    throw lastError
+  }
   throw codedError('AI_PROVIDER_NOT_CONFIGURED', 'No AI vision provider is configured.')
+}
+
+function providerAttempt({ provider, timeoutMs, startedAt, providerStatus, schemaStatus }) {
+  return Object.freeze({
+    provider: nonempty(provider?.name) || 'unknown',
+    model: nonempty(provider?.model) || 'unknown',
+    timeoutMs: Number.isInteger(timeoutMs) && timeoutMs > 0 ? timeoutMs : null,
+    providerStatus,
+    schemaStatus,
+    durationMs: Math.max(0, Date.now() - startedAt),
+  })
+}
+
+function providerTelemetry(attempts) {
+  return Object.freeze({ attempts: Object.freeze([...attempts]) })
+}
+
+function safeProviderStatus(error) {
+  const code = typeof error?.code === 'string' && /^[A-Z][A-Z0-9_]{2,80}$/.test(error.code)
+    ? error.code
+    : 'PROVIDER_ERROR'
+  return code
+}
+
+function schemaStatusForError(error) {
+  return /(?:JSON|SCHEMA|RESPONSE_INVALID|TEXT_MISSING)/.test(String(error?.code || '')) ? 'invalid' : 'not-returned'
 }
 
 function configuredProviderTimeout(value) {
@@ -141,73 +182,87 @@ export async function callCompatibleStructured({
   signal: externalSignal = null,
   fetchImpl = fetch,
   maxAttempts = 3,
+  maxOutputTokens = DEFAULT_QWEN_MAX_OUTPUT_TOKENS,
   timeoutMs = 30000,
   deadlineAt = null,
   sleep = (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)),
 } = {}) {
   if (!nonempty(apiKey)) throw codedError('QWEN_CONFIGURATION_INVALID', 'Qwen API key is not configured.')
   if (!Number.isInteger(maxAttempts) || maxAttempts < 1) throw codedError('QWEN_CONFIGURATION_INVALID', 'maxAttempts must be positive.')
+  if (!Number.isInteger(maxOutputTokens) || maxOutputTokens < 1) throw codedError('QWEN_CONFIGURATION_INVALID', 'maxOutputTokens must be positive.')
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1) throw codedError('QWEN_CONFIGURATION_INVALID', 'timeoutMs must be positive.')
   const endpoint = `${normalizeCompatibleBaseUrl(baseUrl)}/chat/completions`
   const messages = compatibleMessages(input, schema)
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    const requestTimeoutMs = effectiveTimeoutMs(timeoutMs, deadlineAt)
-    const controller = new AbortController()
-    const detachExternalSignal = linkAbortSignal(externalSignal, controller)
-    const timeout = setTimeout(() => controller.abort(), requestTimeoutMs)
-    try {
-      const response = await fetchImpl(endpoint, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+    let jsonMode = true
+    while (true) {
+      const requestTimeoutMs = effectiveTimeoutMs(timeoutMs, deadlineAt)
+      const controller = new AbortController()
+      const detachExternalSignal = linkAbortSignal(externalSignal, controller)
+      const timeout = setTimeout(() => controller.abort(), requestTimeoutMs)
+      try {
+        const requestBody = {
           model,
           messages,
           temperature: 0,
+          max_tokens: maxOutputTokens,
           enable_thinking: false,
-          stream: true,
-          response_format: compatibleResponseFormat(model, schemaName, schema),
-        }),
-        signal: controller.signal,
-      })
-      if (!response?.ok) {
-        const error = codedError(`QWEN_HTTP_${response?.status || 0}`, `Qwen request failed with status ${response?.status || 0}.`)
-        error.retryable = RETRYABLE_STATUS_CODES.has(response?.status)
-        throw error
+          stream: false,
+        }
+        if (jsonMode) requestBody.response_format = compatibleResponseFormat(model, schemaName, schema)
+        const response = await fetchImpl(endpoint, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal,
+        })
+        if (!response?.ok) {
+          if (response?.status === 400 && jsonMode) {
+            jsonMode = false
+            continue
+          }
+          const error = codedError(`QWEN_HTTP_${response?.status || 0}`, `Qwen request failed with status ${response?.status || 0}.`)
+          error.retryable = RETRYABLE_STATUS_CODES.has(response?.status)
+          throw error
+        }
+        const payload = await readJsonWithDeadline(response, controller, requestTimeoutMs)
+        const content = payload?.choices?.[0]?.message?.content
+        const text = Array.isArray(content)
+          ? content.map((entry) => entry?.text || '').join('')
+          : String(content || '')
+        if (!text.trim()) throw codedError('QWEN_RESPONSE_TEXT_MISSING', 'Qwen returned an empty response.')
+        try {
+          return parseCompatibleJson(text)
+        } catch {
+          console.error(JSON.stringify({
+            event: 'qwen_response_json_invalid',
+            finishReason: payload?.choices?.[0]?.finish_reason || null,
+            contentLength: text.length,
+            startsWithObject: text.trimStart().startsWith('{'),
+            endsWithObject: text.trimEnd().endsWith('}'),
+            hasCodeFence: text.includes('```'),
+          }))
+          const error = codedError('QWEN_RESPONSE_JSON_INVALID', 'Qwen did not return valid JSON.')
+          error.retryable = true
+          throw error
+        }
+      } catch (error) {
+        const retryable = controller.signal.aborted || error?.retryable === true
+        if (externalSignal?.aborted) throw codedError('QWEN_TIMEOUT', 'Qwen request timed out.')
+        if (retryable && attempt < maxAttempts) {
+          const delayMs = Math.min(4000, 250 * (2 ** (attempt - 1)))
+          if (Number.isFinite(deadlineAt) && Date.now() + delayMs >= deadlineAt) throw codedError('AI_PAPER_TIMEOUT', 'AI paper deadline exceeded.')
+          await sleep(delayMs)
+          break
+        }
+        if (Number.isFinite(deadlineAt) && Date.now() >= deadlineAt) throw codedError('AI_PAPER_TIMEOUT', 'AI paper deadline exceeded.')
+        if (controller.signal.aborted) throw codedError('QWEN_TIMEOUT', 'Qwen request timed out.')
+        throw error?.code ? error : codedError('QWEN_NETWORK_ERROR', 'Qwen request failed before a response was received.')
+      } finally {
+        clearTimeout(timeout)
+        detachExternalSignal()
       }
-      const responseContent = await readCompatibleResponse(response, controller, requestTimeoutMs)
-      const text = responseContent.text
-      if (!text.trim()) throw codedError('QWEN_RESPONSE_TEXT_MISSING', 'Qwen returned an empty response.')
-      try {
-        return parseCompatibleJson(text)
-      } catch {
-        console.error(JSON.stringify({
-          event: 'qwen_response_json_invalid',
-          finishReason: responseContent.finishReason,
-          contentLength: text.length,
-          startsWithObject: text.trimStart().startsWith('{'),
-          endsWithObject: text.trimEnd().endsWith('}'),
-          hasCodeFence: text.includes('```'),
-        }))
-        const error = codedError('QWEN_RESPONSE_JSON_INVALID', 'Qwen did not return valid JSON.')
-        error.retryable = true
-        throw error
-      }
-    } catch (error) {
-      const retryable = controller.signal.aborted || error?.retryable === true
-      if (externalSignal?.aborted) throw codedError('QWEN_TIMEOUT', 'Qwen request timed out.')
-      if (retryable && attempt < maxAttempts) {
-        const delayMs = Math.min(4000, 250 * (2 ** (attempt - 1)))
-        if (Number.isFinite(deadlineAt) && Date.now() + delayMs >= deadlineAt) throw codedError('AI_PAPER_TIMEOUT', 'AI paper deadline exceeded.')
-        await sleep(delayMs)
-        continue
-      }
-      if (Number.isFinite(deadlineAt) && Date.now() >= deadlineAt) throw codedError('AI_PAPER_TIMEOUT', 'AI paper deadline exceeded.')
-      if (controller.signal.aborted) throw codedError('QWEN_TIMEOUT', 'Qwen request timed out.')
-      throw error?.code ? error : codedError('QWEN_NETWORK_ERROR', 'Qwen request failed before a response was received.')
-    } finally {
-      clearTimeout(timeout)
-      detachExternalSignal()
     }
   }
   throw codedError('QWEN_NETWORK_ERROR', 'Qwen request failed before a response was received.')
@@ -248,100 +303,9 @@ async function readJsonWithDeadline(response, controller, timeoutMs) {
   }
 }
 
-async function readCompatibleResponse(response, controller, timeoutMs) {
-  const contentType = compatibleResponseContentType(response)
-  if (!response?.body || typeof response.body.getReader !== 'function' || /json/i.test(contentType)) {
-    const payload = await readJsonWithDeadline(response, controller, timeoutMs)
-    return {
-      text: compatibleContentText(payload),
-      finishReason: payload?.choices?.[0]?.finish_reason || null,
-    }
-  }
-
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-  let text = ''
-  let finishReason = null
-  let streamCompleted = false
-  let timer
-  const stream = (async () => {
-    while (true) {
-      const chunk = await reader.read()
-      if (chunk.done) break
-      buffer += decoder.decode(chunk.value || new Uint8Array(), { stream: true })
-      const lines = buffer.split(/\r?\n/)
-      buffer = lines.pop() || ''
-      for (const line of lines) {
-        const event = parseCompatibleSseLine(line)
-        if (!event) continue
-        text += event.text
-        if (event.finishReason) finishReason = event.finishReason
-      }
-    }
-    buffer += decoder.decode()
-    const finalEvent = parseCompatibleSseLine(buffer)
-    if (finalEvent) {
-      text += finalEvent.text
-      if (finalEvent.finishReason) finishReason = finalEvent.finishReason
-    }
-    streamCompleted = true
-    return { text, finishReason }
-  })()
-  const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => {
-      controller.abort()
-      reject(codedError('QWEN_TIMEOUT', 'Qwen request timed out.'))
-    }, timeoutMs)
-  })
-  try {
-    return await Promise.race([stream, timeout])
-  } finally {
-    clearTimeout(timer)
-    if (!streamCompleted || controller.signal.aborted) {
-      try { await reader.cancel() } catch { /* the connection is already aborted */ }
-    }
-  }
-}
-
-function compatibleResponseContentType(response) {
-  const headers = response?.headers
-  if (!headers) return ''
-  if (typeof headers.get === 'function') return String(headers.get('content-type') || '')
-  if (typeof headers === 'object') return String(headers['content-type'] || headers['Content-Type'] || '')
-  return ''
-}
-
-function parseCompatibleSseLine(line) {
-  const raw = String(line || '').trim()
-  if (!raw.startsWith('data:')) return null
-  const payloadText = raw.slice(5).trim()
-  if (!payloadText || payloadText === '[DONE]') return null
-  let payload
-  try {
-    payload = JSON.parse(payloadText)
-  } catch {
-    throw codedError('QWEN_RESPONSE_INVALID', 'Qwen returned an unreadable stream response.')
-  }
-  const choice = payload?.choices?.[0]
-  const delta = choice?.delta?.content ?? choice?.message?.content
-  const text = Array.isArray(delta)
-    ? delta.map((entry) => entry?.text || '').join('')
-    : String(delta || '')
-  return { text, finishReason: choice?.finish_reason || null }
-}
-
-function compatibleContentText(payload) {
-  const content = payload?.choices?.[0]?.message?.content
-  return Array.isArray(content)
-    ? content.map((entry) => entry?.text || '').join('')
-    : String(content || '')
-}
-
 function compatibleMessages(input, _schema) {
-  // The task prompt already names the required fields. Repeating the complete
-  // controlled-tag schema makes compatible vision gateways spend excessive
-  // time reading the request and can cause their response stream to stall.
+  // Repeating the complete controlled-tag schema makes compatible vision
+  // gateways spend excessive time reading the request.
   const schemaInstruction = `Return only one valid JSON object matching this compact schema: ${JSON.stringify(compactSchema(_schema))}. Follow the page and coordinate constraints from the task prompt. Do not use Markdown fences or add commentary.`
   return (Array.isArray(input) ? input : []).map((message, index) => ({
     role: message?.role === 'system' ? 'system' : 'user',

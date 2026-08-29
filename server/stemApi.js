@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import { studyQuestionBank, unifiedQuestionBank } from '../src/data/questionBank.js'
+import { isHumanReviewedPastPaperItem, isStudentReleasedAiStudyItem, studyQuestionBank, unifiedQuestionBank } from '../src/data/questionBank.js'
 import { canonicalAiMarkingProvenance, canonicalSourcePracticeProvenance } from '../src/lib/sourceContentContract.js'
 import { listAiPdfIngestionCandidates, resolveAiPdfIngestionRoot } from './aiPdfIngestionCandidates.js'
 import { issueMarkingCapabilities } from './markingCapability.js'
@@ -155,7 +155,18 @@ function mergeTopicPracticeQuestionBanks(baseQuestionBank, additionalQuestionBan
     const sourceQuestionId = String(question?.sourceQuestionId || question?.questionGroupId || '').trim()
     const routeId = String(question?.routeId || '').trim()
     if (!sourceQuestionId || !routeId) continue
-    questions.set(`${routeId}\u0000${sourceQuestionId}`, question)
+    const key = `${routeId}\u0000${sourceQuestionId}`
+    const existing = questions.get(key)
+    const sameSourceDocuments = Boolean(
+      existing?.sourceRef?.sha256
+      && existing?.answerRef?.sha256
+      && existing.sourceRef.sha256 === question?.sourceRef?.sha256
+      && existing.answerRef.sha256 === question?.answerRef?.sha256
+    )
+    // A released coordinate-only record can supplement the bank, but it must
+    // not discard an existing human-reviewed QP/MS display binding.
+    if (sameSourceDocuments && isHumanReviewedPastPaperItem(existing) && question?.answerBinding?.verificationStatus === 'ai-verified') continue
+    questions.set(key, question)
   }
   return Object.freeze([...questions.values()])
 }
@@ -1670,7 +1681,7 @@ function eventPayload(value) {
   }
 }
 
-export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQuestionBankProvider = null, fetchImpl = fetch }) {
+export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQuestionBankProvider = null, fetchImpl = fetch, libraryRoot = null }) {
   // A single shared server key is sufficient for both the internal account
   // request and the short-lived STEM API token. The legacy identity key is a
   // migration fallback only, so every active path uses the same canonical key.
@@ -1687,7 +1698,6 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
   // production count/list/start gate.
   const baseTopicPracticeQuestionBank = questionBank === unifiedQuestionBank ? studyQuestionBank : questionBank
   const includeStudyOnly = questionBank === unifiedQuestionBank
-  const runtimeReleaseGatedRoutes = new Set(['cie-9702-a2-physics'])
   let nativeBridgeProbe = null
 
   function includeStudyOnlyForRoute() {
@@ -1704,9 +1714,9 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
     try {
       const runtimeQuestionBank = topicQuestionBankProvider()
       const guardedRuntimeQuestionBank = (Array.isArray(runtimeQuestionBank) ? runtimeQuestionBank : [])
-        .map((question) => runtimeReleaseGatedRoutes.has(String(question?.routeId || ''))
-          ? { ...question, studentStudyEligible: false }
-          : question)
+        .map((question) => isStudentReleasedAiStudyItem(question)
+          ? question
+          : { ...question, studentStudyEligible: false })
       return mergeTopicPracticeQuestionBanks(baseTopicPracticeQuestionBank, guardedRuntimeQuestionBank)
     } catch {
       // An invalid runtime artifact must fail closed to the established static study bank.
@@ -1905,7 +1915,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
       }
       if (request.method === 'GET' && url.pathname === '/api/stem/content/ai-ingestion-candidates') {
         requireVerifiedStaffClaim(user)
-        sendJson(response, 200, listAiPdfIngestionCandidates({ root: aiPdfIngestionRoot }))
+        sendJson(response, 200, listAiPdfIngestionCandidates({ root: aiPdfIngestionRoot, libraryRoot }))
         return
       }
       if (request.method === 'GET' && url.pathname === '/api/stem/workspace') {

@@ -3095,9 +3095,14 @@ function PracticeTopicDirectory({ activeRoute, activeRouteId, practiceOptions, v
     const metadata = topicMetadata(topic.id)
     return !normalizedQuery || [topic.label, metadata?.description, ...(metadata?.themes || [])].join(' ').toLowerCase().includes(normalizedQuery)
   })
-  const sourceQuestionCount = displayTopics.reduce((sum, topic) => sum + Number(topic.inventory || 0), 0)
-  const reviewedQuestionCount = displayTopics.reduce((sum, topic) => sum + Number(topic.verifiedQuestionCount || 0), 0)
-  const studyOnlyQuestionCount = displayTopics.reduce((sum, topic) => sum + Number(topic.studyQuestionCount || 0), 0)
+  // A question can map to multiple official topics. The API's route-level
+  // totals are distinct question groups; summing topic rows double-counts it.
+  const sourceQuestionCount = Number(syllabusInventory?.data?.availableQuestionGroupCount
+    ?? displayTopics.reduce((sum, topic) => sum + Number(topic.inventory || 0), 0))
+  const reviewedQuestionCount = Number(syllabusInventory?.data?.verifiedQuestionGroupCount
+    ?? displayTopics.reduce((sum, topic) => sum + Number(topic.verifiedQuestionCount || 0), 0))
+  const studyOnlyQuestionCount = Number(syllabusInventory?.data?.studyQuestionGroupCount
+    ?? displayTopics.reduce((sum, topic) => sum + Number(topic.studyQuestionCount || 0), 0))
   const multiTopicTarget = displayTopics.find((topic) => Number(topic.inventory || 0) > 0) || displayTopics[0]
   const topicDirectoryIntro = sourceQuestionCount > 0
     ? 'Choose one topic. Source-backed questions open first; study-only records stay marked so you can practise them without pretending they are reviewed.'

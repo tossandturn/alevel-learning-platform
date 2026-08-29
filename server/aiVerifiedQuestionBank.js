@@ -1,12 +1,29 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import { artifactId } from '../scripts/ai-pdf-ingestion/contract.mjs'
+import {
+  artifactId,
+  hasValidAiStudentStudyRelease,
+  resolveArtifactSourcePdfPath,
+} from '../scripts/ai-pdf-ingestion/contract.mjs'
+import { routeById } from '../src/data/routeRegistry.js'
 
-const A2_ROUTE_ID = 'cie-9702-a2-physics'
-const A2_TOPIC_IDS = new Set(Array.from({ length: 14 }, (_value, index) => `physics-9702-topic-${String(index + 12).padStart(2, '0')}`))
+const RUNTIME_ROUTE_COMPONENTS = Object.freeze({
+  'cie-0580-igcse-mathematics': Object.freeze([1, 2, 3, 4]),
+  'cie-0625-igcse-physics': Object.freeze([2]),
+  'cie-9702-as-physics': Object.freeze([1, 2]),
+  'cie-9702-a2-physics': Object.freeze([4]),
+  'cie-9709-as-p1-p2': Object.freeze([1, 2]),
+  'cie-9709-as-p1-p4': Object.freeze([1, 4]),
+  'cie-9709-as-p1-p5': Object.freeze([1, 5]),
+  'cie-9709-a2-after-p1-p5-p3-p4': Object.freeze([3, 4]),
+  'cie-9709-a2-after-p1-p5-p3-p6': Object.freeze([3, 6]),
+  'cie-9709-a2-after-p1-p4-p3-p5': Object.freeze([3, 5]),
+})
+const MIN_RUNTIME_YEAR = 2021
+const MAX_RUNTIME_YEAR = 2025
 const SHA256 = /^[a-f0-9]{64}$/i
-const MAX_RUNTIME_ARTIFACTS = 250
+const MAX_RUNTIME_ARTIFACTS = 2000
 const DEFAULT_RENDER_DPI = 180
 
 function asText(value) {
@@ -25,19 +42,88 @@ function withinRoot(filePath, root) {
   return Boolean(relative) && !path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`)
 }
 
+function withinSubjectLibrary(filePath, libraryRoot, subjectCode) {
+  const resolvedRoot = path.resolve(String(libraryRoot || ''))
+  const subject = String(subjectCode || '').trim()
+  if (!subject) return false
+  const subjectRoot = path.basename(resolvedRoot).toLowerCase() === subject.toLowerCase()
+    ? resolvedRoot
+    : path.join(resolvedRoot, subject)
+  return withinRoot(filePath, subjectRoot)
+}
+
+function sourceFileReference(source, absoluteField, relativeField) {
+  if (Object.hasOwn(source || {}, relativeField)) return source[relativeField]
+  return source?.[absoluteField]
+}
+
+function sourcePdfPaths(source, libraryRoot, subjectCode) {
+  const questionPath = resolveArtifactSourcePdfPath({
+    source,
+    absoluteField: 'questionPdfPath',
+    relativeField: 'questionPdfRelativePath',
+    libraryRoot,
+    subjectCode,
+  })
+  const markSchemePath = resolveArtifactSourcePdfPath({
+    source,
+    absoluteField: 'markSchemePdfPath',
+    relativeField: 'markSchemePdfRelativePath',
+    libraryRoot,
+    subjectCode,
+  })
+  return questionPath && markSchemePath ? Object.freeze({ questionPath, markSchemePath }) : null
+}
+
+function portableFileName(value) {
+  return String(value || '').trim().replaceAll('\\', '/').split('/').filter(Boolean).at(-1) || ''
+}
+
 function paperMetadata(file) {
-  const match = /^9702_([msw])(\d{2})_qp_4([1-4])?\.pdf$/i.exec(path.basename(String(file || '')))
+  const match = /^(\d{4})_([msw])(\d{2})_(qp|ms)_([1-6])(\d)\.pdf$/i.exec(portableFileName(file))
   if (!match) return null
-  const year = 2000 + Number(match[2])
-  if (year < 2021 || year > 2025) return null
+  const year = 2000 + Number(match[3])
+  const subjectCode = match[1]
+  const component = Number(match[5])
+  if (year < MIN_RUNTIME_YEAR || year > MAX_RUNTIME_YEAR) return null
   return Object.freeze({
     questionFile: match[0],
     markSchemeFile: match[0].replace(/_qp_/i, '_ms_'),
-    paperId: `cie-9702-${match[0].replace(/\.pdf$/i, '')}`,
-    markSchemeId: `cie-9702-${match[0].replace(/_qp_/i, '_ms_').replace(/\.pdf$/i, '')}`,
-    season: ({ m: 'Mar', s: 'Jun', w: 'Nov' })[match[1].toLowerCase()],
+    paperId: `cie-${subjectCode}-${match[0].replace(/\.pdf$/i, '')}`,
+    markSchemeId: `cie-${subjectCode}-${match[0].replace(/_qp_/i, '_ms_').replace(/\.pdf$/i, '')}`,
+    subjectCode,
+    kind: match[4].toLowerCase(),
+    component,
+    variant: Number(match[6]),
+    season: ({ m: 'Mar', s: 'Jun', w: 'Nov' })[match[2].toLowerCase()],
     year,
   })
+}
+
+function runtimeRouteConfig(routeId) {
+  const route = routeById(String(routeId || ''))
+  const components = RUNTIME_ROUTE_COMPONENTS[route?.routeId]
+  if (!route || !components?.length) return null
+  return Object.freeze({
+    route,
+    routeId: route.routeId,
+    subjectCode: route.subjectCode,
+    stage: route.stage,
+    components,
+    topicIds: new Set((route.syllabus?.topics || []).map((topic) => String(topic.id || '').trim()).filter(Boolean)),
+    specificationId: `cambridge-${route.subjectCode}-${route.syllabus?.version || 'current'}`,
+  })
+}
+
+function artifactRouteConfig(artifact, metadata) {
+  const config = runtimeRouteConfig(artifact?.syllabusRouteId)
+  if (!config
+    || String(artifact?.subject || '') !== config.subjectCode
+    || String(artifact?.stage || '').toUpperCase() !== config.stage
+    || metadata?.subjectCode !== config.subjectCode
+    || metadata?.kind !== 'qp'
+    || !config.components.includes(metadata.component)) return null
+  return config
 }
 
 function validRegion(region, pageSizes) {
@@ -88,7 +174,7 @@ function evidenceForRegion(region, sourceHash) {
   })
 }
 
-function questionFromArtifact(artifact, candidate, verification, metadata) {
+function questionFromArtifact(artifact, candidate, verification, metadata, routeConfig) {
   const source = artifact.source || {}
   const sourceHash = normalizedHash(source.questionPdfSha256)
   const markSchemeHash = normalizedHash(source.markSchemePdfSha256)
@@ -104,7 +190,14 @@ function questionFromArtifact(artifact, candidate, verification, metadata) {
   const verifiedEvidence = (verification?.markSchemeEvidence || [])
     .map((evidence) => validMarkSchemeEvidence(evidence, source.markSchemePageSizes))
     .filter(Boolean)
-  if (!/^\d+$/.test(number) || !A2_TOPIC_IDS.has(topicId) || !regions.length || !markSchemeEvidence.length || !renderDpi || !samePartMarks(candidate?.parts, verification?.parts)) return null
+  const verifiedTopicId = asText(verification?.tags?.primaryTopicId)
+  if (!/^\d+$/.test(number)
+    || !routeConfig?.topicIds.has(topicId)
+    || (verifiedTopicId && verifiedTopicId !== topicId)
+    || !regions.length
+    || !markSchemeEvidence.length
+    || !renderDpi
+    || !samePartMarks(candidate?.parts, verification?.parts)) return null
   if (JSON.stringify(markSchemeEvidence) !== JSON.stringify(verifiedEvidence)) return null
   const questionPages = [...new Set(regions.map((region) => region.page))].sort((left, right) => left - right)
   const verificationPages = [...new Set((verification?.pages || []).map(Number))].sort((left, right) => left - right)
@@ -136,13 +229,13 @@ function questionFromArtifact(artifact, candidate, verification, metadata) {
     documentId: metadata.paperId,
     paper: metadata.questionFile,
     question: `Q${number}`,
-    localUrl: `/local-pdf/9702/${metadata.questionFile}`,
+    localUrl: `/local-pdf/${metadata.subjectCode}/${metadata.questionFile}`,
     pageStart: questionPages[0],
     pageEnd: questionPages.at(-1),
     assetUrls: Object.freeze([]),
     year: metadata.year,
     season: metadata.season,
-    component: 4,
+    component: metadata.component,
     sha256: sourceHash,
     page: questionPages[0],
     renderDpi,
@@ -150,30 +243,31 @@ function questionFromArtifact(artifact, candidate, verification, metadata) {
   const answerRef = Object.freeze({
     documentId: metadata.markSchemeId,
     file: metadata.markSchemeFile,
-    localUrl: `/local-pdf/9702/${metadata.markSchemeFile}`,
+    localUrl: `/local-pdf/${metadata.subjectCode}/${metadata.markSchemeFile}`,
     pageStart: markSchemeEvidence[0].page,
     pageEnd: markSchemeEvidence.at(-1).page,
     assetUrls: Object.freeze([]),
     sha256: markSchemeHash,
     renderDpi,
   })
-  const bindingSignature = `ai:${artifact.artifactId}:${number}`
+  const bindingSignature = `ai:${artifact.artifactId}:${routeConfig.routeId}:${number}`
+  const studentStudyEligible = hasValidAiStudentStudyRelease(artifact)
   return Object.freeze({
     examFamilyId: 'cambridge',
-    qualificationId: 'cambridge-9702',
-    specificationId: 'cambridge-9702-2025-2027',
-    subjectId: 'physics',
-    subjectCode: '9702',
+    qualificationId: `cambridge-${routeConfig.subjectCode}`,
+    specificationId: routeConfig.specificationId,
+    subjectId: routeConfig.route.subjectId,
+    subjectCode: routeConfig.subjectCode,
     knowledgeGroupId: topicId,
     topicId,
-    stageTags: Object.freeze(['A2']),
-    componentTags: Object.freeze([4]),
+    stageTags: Object.freeze([routeConfig.stage]),
+    componentTags: Object.freeze([metadata.component]),
     topicTags: Object.freeze([topicId]),
     skillTags: Object.freeze([]),
     answerType: 'handwritten',
     prompt: parts.map((part) => part.promptFragment).filter(Boolean).join('\n'),
     questionId,
-    bankId: `${questionId}@${A2_ROUTE_ID}`,
+    bankId: `${questionId}@${routeConfig.routeId}`,
     sourceQuestionId: questionId,
     questionGroupId: questionId,
     questionGroupStatus: 'verified',
@@ -205,15 +299,18 @@ function questionFromArtifact(artifact, candidate, verification, metadata) {
       bindingSignature,
       audit: Object.freeze({ complete: true, fileComplete: true, semanticStatus: 'ai-verified', reasons: Object.freeze([]), bindingSignature }),
     }),
-    routeId: A2_ROUTE_ID,
-    qualification: 'A-Level',
-    stage: 'A2',
-    subject: 'Physics',
-    paperComponent: 4,
+    routeId: routeConfig.routeId,
+    qualification: routeConfig.route.qualification,
+    stage: routeConfig.stage,
+    subject: routeConfig.route.subject,
+    paperComponent: metadata.component,
     syllabusTopic: topicId,
     sourceKnowledgeGroupId: topicId,
     sourcePaper: metadata.questionFile,
     sourceKind: 'past-paper',
+    studentStudyEligible,
+    formalProgressEligible: false,
+    studentRelease: studentStudyEligible ? artifact.studentRelease : null,
     provenance: Object.freeze({
       source: 'Official question paper and exact paired mark scheme',
       licenseStatus: 'Official exam material; personal study library',
@@ -221,8 +318,9 @@ function questionFromArtifact(artifact, candidate, verification, metadata) {
       indexedAt: artifact.generatedAt || null,
     }),
     syllabusMapping: Object.freeze({
-      specificationId: 'cambridge-9702-2025-2027',
-      syllabusUrl: 'https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf',
+      specificationId: routeConfig.specificationId,
+      syllabusUrl: routeConfig.route.syllabus?.url || '',
+      primaryTopicId: topicId,
       knowledgeGroupId: topicId,
       mappingStatus: 'ai-verified',
     }),
@@ -233,19 +331,31 @@ export function questionGroupsFromAiArtifacts(artifacts = [], { libraryRoot } = 
   const groups = []
   const seen = new Set()
   for (const artifact of Array.isArray(artifacts) ? artifacts : []) {
-    if (artifact?.schemaVersion !== 'ai-pdf-ingestion.v1' || artifact?.status !== 'ai-verified' || artifact?.storageMode !== 'coordinate-only' || artifact?.subject !== '9702') continue
+    if (artifact?.schemaVersion !== 'ai-pdf-ingestion.v1' || artifact?.status !== 'ai-verified' || artifact?.storageMode !== 'coordinate-only') continue
     const source = artifact.source || {}
     const sourceHash = normalizedHash(source.questionPdfSha256)
     const markSchemeHash = normalizedHash(source.markSchemePdfSha256)
-    const metadata = paperMetadata(source.questionPdfPath)
-    if (!sourceHash || !markSchemeHash || !metadata || !withinRoot(source.questionPdfPath, libraryRoot) || !withinRoot(source.markSchemePdfPath, libraryRoot)) continue
-    if (path.basename(source.questionPdfPath) !== metadata.questionFile || path.basename(source.markSchemePdfPath) !== metadata.markSchemeFile) continue
+    const metadata = paperMetadata(sourceFileReference(source, 'questionPdfPath', 'questionPdfRelativePath'))
+    const markSchemeMetadata = paperMetadata(sourceFileReference(source, 'markSchemePdfPath', 'markSchemePdfRelativePath'))
+    const routeConfig = artifactRouteConfig(artifact, metadata)
+    const resolvedSources = metadata ? sourcePdfPaths(source, libraryRoot, metadata.subjectCode) : null
+    if (!sourceHash || !markSchemeHash || !metadata || !markSchemeMetadata || !routeConfig
+      || markSchemeMetadata.kind !== 'ms'
+      || markSchemeMetadata.paperId !== metadata.markSchemeId
+      || markSchemeMetadata.subjectCode !== metadata.subjectCode
+      || markSchemeMetadata.component !== metadata.component
+      || markSchemeMetadata.variant !== metadata.variant
+      || !resolvedSources
+      || !withinSubjectLibrary(resolvedSources.questionPath, libraryRoot, metadata.subjectCode)
+      || !withinSubjectLibrary(resolvedSources.markSchemePath, libraryRoot, metadata.subjectCode)) continue
+    if (path.basename(resolvedSources.questionPath) !== metadata.questionFile || path.basename(resolvedSources.markSchemePath) !== metadata.markSchemeFile) continue
     if (asText(artifact.paperId) !== metadata.paperId) continue
     const verificationByNumber = new Map((artifact.verification?.questions || []).map((question) => [asText(question?.questionNumber), question]))
     for (const candidate of artifact.candidate?.questions || []) {
-      const group = questionFromArtifact(artifact, candidate, verificationByNumber.get(asText(candidate?.questionNumber)), metadata)
-      if (!group || seen.has(group.sourceQuestionId)) continue
-      seen.add(group.sourceQuestionId)
+      const group = questionFromArtifact(artifact, candidate, verificationByNumber.get(asText(candidate?.questionNumber)), metadata, routeConfig)
+      const deduplicationKey = group ? `${group.routeId}:${group.sourceQuestionId}` : ''
+      if (!group || seen.has(deduplicationKey)) continue
+      seen.add(deduplicationKey)
       groups.push(group)
     }
   }
@@ -290,21 +400,31 @@ function readVerifiedCoordinateArtifact(artifactPath, libraryRoot) {
   }
 
   const source = artifact?.source || {}
-  const metadata = paperMetadata(source.questionPdfPath)
+  const metadata = paperMetadata(sourceFileReference(source, 'questionPdfPath', 'questionPdfRelativePath'))
+  const markSchemeMetadata = paperMetadata(sourceFileReference(source, 'markSchemePdfPath', 'markSchemePdfRelativePath'))
   const questionHash = normalizedHash(source.questionPdfSha256)
   const markSchemeHash = normalizedHash(source.markSchemePdfSha256)
+  const routeConfig = artifactRouteConfig(artifact, metadata)
+  const resolvedSources = metadata ? sourcePdfPaths(source, libraryRoot, metadata.subjectCode) : null
   if (
     artifact?.schemaVersion !== 'ai-pdf-ingestion.v1'
     || artifact?.status !== 'ai-verified'
     || artifact?.storageMode !== 'coordinate-only'
-    || artifact?.subject !== '9702'
     || !metadata
+    || !markSchemeMetadata
+    || !routeConfig
+    || markSchemeMetadata.kind !== 'ms'
+    || markSchemeMetadata.paperId !== metadata.markSchemeId
+    || markSchemeMetadata.subjectCode !== metadata.subjectCode
+    || markSchemeMetadata.component !== metadata.component
+    || markSchemeMetadata.variant !== metadata.variant
     || !questionHash
     || !markSchemeHash
-    || !withinRoot(source.questionPdfPath, libraryRoot)
-    || !withinRoot(source.markSchemePdfPath, libraryRoot)
-    || path.basename(source.questionPdfPath) !== metadata.questionFile
-    || path.basename(source.markSchemePdfPath) !== metadata.markSchemeFile
+    || !resolvedSources
+    || !withinSubjectLibrary(resolvedSources.questionPath, libraryRoot, metadata.subjectCode)
+    || !withinSubjectLibrary(resolvedSources.markSchemePath, libraryRoot, metadata.subjectCode)
+    || path.basename(resolvedSources.questionPath) !== metadata.questionFile
+    || path.basename(resolvedSources.markSchemePath) !== metadata.markSchemeFile
     || artifact.paperId !== metadata.paperId
   ) return null
 
@@ -316,8 +436,8 @@ function readVerifiedCoordinateArtifact(artifactPath, libraryRoot) {
   }
   if (artifact.artifactId !== expectedArtifactId) return null
 
-  const questionPath = path.resolve(source.questionPdfPath)
-  const markSchemePath = path.resolve(source.markSchemePdfPath)
+  const questionPath = resolvedSources.questionPath
+  const markSchemePath = resolvedSources.markSchemePath
   const questionStat = fs.statSync(questionPath, { throwIfNoEntry: false })
   const markSchemeStat = fs.statSync(markSchemePath, { throwIfNoEntry: false })
   if (!questionStat?.isFile() || !markSchemeStat?.isFile() || questionStat.size <= 0 || markSchemeStat.size <= 0) return null
@@ -331,8 +451,8 @@ function readVerifiedCoordinateArtifact(artifactPath, libraryRoot) {
     metadata,
     sourcePaths: Object.freeze([questionPath, markSchemePath]),
     documents: Object.freeze([
-      Object.freeze({ subject: '9702', file: metadata.questionFile, sha256: questionHash, bytes: questionStat.size, component: 4, year: metadata.year }),
-      Object.freeze({ subject: '9702', file: metadata.markSchemeFile, sha256: markSchemeHash, bytes: markSchemeStat.size, component: 4, year: metadata.year }),
+      Object.freeze({ subject: metadata.subjectCode, file: metadata.questionFile, sha256: questionHash, bytes: questionStat.size, component: metadata.component, year: metadata.year }),
+      Object.freeze({ subject: metadata.subjectCode, file: metadata.markSchemeFile, sha256: markSchemeHash, bytes: markSchemeStat.size, component: metadata.component, year: metadata.year }),
     ]),
   })
 }

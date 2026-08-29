@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stem.ieltsist.com/schemas/stem-paddle-ocr-manifest.v1.json",
+  "title": "STEM PaddleOCR-VL manifest",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "generatedAt", "sourceRoot", "workRoot", "engine", "selection", "readiness", "stats", "exclusions", "paths", "jobs"],
+  "properties": {
+    "schemaVersion": { "const": "stem-paddle-ocr-manifest.v1" },
+    "generatedAt": { "type": "string" },
+    "sourceRoot": { "type": "string", "minLength": 1 },
+    "workRoot": { "type": "string", "minLength": 1 },
+    "engine": {
+      "type": "object",
+      "required": ["name", "pipelineVersion", "executionMode", "officialApiUsed", "officialApiPagesConsumed"],
+      "properties": {
+        "name": { "const": "PaddleOCR-VL-1.6" },
+        "pipelineVersion": { "const": "v1.6" },
+        "executionMode": { "const": "local_gpu" },
+        "officialApiUsed": { "const": false },
+        "officialApiPagesConsumed": { "const": 0 }
+      }
+    },
+    "selection": { "type": "object" },
+    "readiness": {
+      "type": "object",
+      "required": ["status", "studentStudyEligible", "syllabusBindingStatus", "bulkApprovalAllowed"],
+      "properties": {
+        "status": { "const": "ocr_queue_only" },
+        "studentStudyEligible": { "const": false },
+        "syllabusBindingStatus": { "const": "pending_official_review" },
+        "bulkApprovalAllowed": { "const": false }
+      }
+    },
+    "stats": { "type": "object" },
+    "exclusions": { "type": "object" },
+    "paths": { "type": "object" },
+    "jobs": { "type": "array", "items": { "$ref": "#/$defs/job" } }
+  },
+  "$defs": {
+    "document": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["path", "sha256", "pageCount", "bytes"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "pageCount": { "type": "integer", "minimum": 1 },
+        "bytes": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "job": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schemaVersion", "jobId", "jobKey", "paperId", "subject", "year", "session", "component", "variant", "routeBindings", "documents", "statePath", "ocrOutputRoot", "stagingArtifactPath", "quarantinePath", "reviewStatus", "syllabusBindingStatus", "studentStudyEligible", "formalProgressEligible"],
+      "properties": {
+        "schemaVersion": { "const": "stem-paddle-ocr-job.v1" },
+        "jobId": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "jobKey": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "paperId": { "type": "string", "minLength": 1 },
+        "subject": { "enum": ["0580", "0625", "9702", "9709"] },
+        "year": { "type": "integer", "minimum": 2021, "maximum": 2025 },
+        "session": { "enum": ["m", "s", "w"] },
+        "component": { "type": "integer", "minimum": 1, "maximum": 6 },
+        "variant": { "type": "integer", "minimum": 0, "maximum": 9 },
+        "routeBindings": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/routeBinding" }
+        },
+        "documents": {
+          "type": "object",
+          "required": ["qp", "ms"],
+          "properties": {
+            "qp": { "$ref": "#/$defs/document" },
+            "ms": { "$ref": "#/$defs/document" }
+          }
+        },
+        "statePath": { "type": "string", "minLength": 1 },
+        "ocrOutputRoot": { "type": "string", "minLength": 1 },
+        "stagingArtifactPath": { "type": "string", "minLength": 1 },
+        "quarantinePath": { "type": "string", "minLength": 1 },
+        "reviewStatus": { "const": "pending_ai_structure_review" },
+        "syllabusBindingStatus": { "const": "pending_official_review" },
+        "studentStudyEligible": { "const": false },
+        "formalProgressEligible": { "const": false }
+      }
+    },
+    "routeBinding": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["routeCandidateId", "routeResolutionStatus", "qualificationStage", "paper", "component", "reviewStatus"],
+      "properties": {
+        "routeCandidateId": {
+          "type": "string",
+          "pattern": "^cie-[0-9]{4}-[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "not": {
+            "enum": ["cie-9709-as-mathematics", "cie-9709-a2-mathematics"]
+          }
+        },
+        "routeResolutionStatus": { "const": "candidate_requires_adapter_validation" },
+        "qualificationStage": { "enum": ["IGCSE", "AS", "A2"] },
+        "paper": { "type": "string", "minLength": 1 },
+        "component": { "type": "integer", "minimum": 1, "maximum": 6 },
+        "reviewStatus": { "const": "pending_official_review" }
+      }
+    },
+    "jobState": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schemaVersion", "jobId", "paperId", "status", "documents"],
+      "properties": {
+        "schemaVersion": { "const": "stem-paddle-ocr-job-state.v1" },
+        "jobId": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "paperId": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["pending", "running", "partial", "completed", "quarantined"] },
+        "documents": { "type": "object" }
+      }
+    },
+    "stagingArtifact": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schemaVersion", "artifactId", "paperId", "status", "reviewStatus", "syllabusBinding", "sourcePair", "ocr", "questionGroups", "studentStudyEligible", "formalProgressEligible"],
+      "properties": {
+        "schemaVersion": { "const": "stem-paddle-ocr-staging-artifact.v1" },
+        "artifactId": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "paperId": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["ocr-pending", "ocr-running", "ocr-partial", "ocr-complete-pending-review", "ocr-quarantined"] },
+        "reviewStatus": { "const": "pending_ai_structure_review" },
+        "syllabusBinding": { "type": "object" },
+        "sourcePair": { "type": "object" },
+        "ocr": { "type": "object" },
+        "questionGroups": { "type": "array", "maxItems": 0 },
+        "studentStudyEligible": { "const": false },
+        "formalProgressEligible": { "const": false }
+      }
+    }
+  }
+}
