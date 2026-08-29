@@ -126,9 +126,9 @@ export function normalizeSubjectRelativePdfPath(value, subjectCode) {
  */
 export function resolveArtifactSourcePdfPath({ source, absoluteField, relativeField, libraryRoot, subjectCode } = {}) {
   if (!source || typeof source !== 'object' || Array.isArray(source)) return ''
+  const rootText = typeof libraryRoot === 'string' ? libraryRoot.trim() : ''
   if (Object.hasOwn(source, relativeField)) {
     const relative = normalizeSubjectRelativePdfPath(source[relativeField], subjectCode)
-    const rootText = typeof libraryRoot === 'string' ? libraryRoot.trim() : ''
     if (relative && rootText) {
       const root = path.resolve(rootText)
       const subject = safeSourceSubject(subjectCode)
@@ -136,13 +136,22 @@ export function resolveArtifactSourcePdfPath({ source, absoluteField, relativeFi
       const rootIsSubject = path.basename(root).toLowerCase() === subject.toLowerCase()
       return rootIsSubject ? path.resolve(root, fileName) : path.resolve(root, subject, fileName)
     }
-    // Diagnostic callers that do not have the private library configured can
-    // still inspect legacy artifacts on the same host. Runtime callers always
-    // pass a library root, so an invalid portable path fails closed there.
-    if (rootText) return ''
+    // An explicitly supplied portable field is authoritative. Do not fall
+    // back to an unrelated legacy path when it is invalid or unresolvable.
+    return ''
   }
   const legacy = typeof source[absoluteField] === 'string' ? source[absoluteField].trim() : ''
-  return legacy ? path.resolve(legacy) : ''
+  if (!legacy) return ''
+  if (!rootText) return path.resolve(legacy)
+
+  // Older workers wrote Windows absolute paths. Re-anchor only the validated
+  // filename inside the configured subject root; never trust the old parent.
+  const subject = safeSourceSubject(subjectCode)
+  const fileName = sourcePdfFileName(legacy)
+  if (!subject || !fileName) return ''
+  const root = path.resolve(rootText)
+  const rootIsSubject = path.basename(root).toLowerCase() === subject.toLowerCase()
+  return rootIsSubject ? path.resolve(root, fileName) : path.resolve(root, subject, fileName)
 }
 
 export function buildAiStudentStudyRelease({ artifactId: boundArtifactId, routeId, status, source, extractor, verifier, candidate, verification } = {}) {

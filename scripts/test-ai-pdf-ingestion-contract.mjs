@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict'
+import path from 'node:path'
 import {
   AI_PDF_INGESTION_LIFECYCLE,
   AI_PDF_INGESTION_SCHEMA_VERSION,
   artifactId,
   assertLifecycleTransition,
   normalizeRegion,
+  resolveArtifactSourcePdfPath,
 } from './ai-pdf-ingestion/contract.mjs'
 import { validateCandidate } from './ai-pdf-ingestion/validate.mjs'
 
@@ -320,6 +322,33 @@ assert.equal(
     questionPdfSha256: 'a'.repeat(64),
     markSchemePdfSha256: 'b'.repeat(64),
   }),
+)
+
+const portableLibraryRoot = path.resolve('fixture-library')
+assert.equal(
+  resolveArtifactSourcePdfPath({
+    source: { questionPdfPath: 'D:\\CodexWork\\cie-fraft-fetcher\\output\\pdf\\9702\\9702_m21_qp_42.pdf' },
+    absoluteField: 'questionPdfPath',
+    relativeField: 'questionPdfRelativePath',
+    libraryRoot: portableLibraryRoot,
+    subjectCode: '9702',
+  }),
+  path.join(portableLibraryRoot, '9702', '9702_m21_qp_42.pdf'),
+  'legacy Windows source paths must resolve inside the configured subject library',
+)
+assert.equal(
+  resolveArtifactSourcePdfPath({
+    source: {
+      questionPdfPath: 'D:\\CodexWork\\cie-fraft-fetcher\\output\\pdf\\9702\\9702_m21_qp_42.pdf',
+      questionPdfRelativePath: '../outside.pdf',
+    },
+    absoluteField: 'questionPdfPath',
+    relativeField: 'questionPdfRelativePath',
+    libraryRoot: portableLibraryRoot,
+    subjectCode: '9702',
+  }),
+  '',
+  'an explicitly invalid portable path must fail closed instead of falling back to legacy data',
 )
 for (const invalidHash of [
   'a'.repeat(63),
