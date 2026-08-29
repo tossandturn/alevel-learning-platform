@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { BrainCircuit, FileText, History, ImagePlus, MonitorUp, RefreshCcw, Send, Sparkles, Wrench, X } from 'lucide-react'
+import { BrainCircuit, Camera, FileText, History, ImagePlus, MonitorUp, RefreshCcw, Send, Sparkles, Upload, Wrench, X } from 'lucide-react'
 import { resolveCoachIntent } from '../lib/coachIntent'
 import {
   buildCoachConversationId,
@@ -164,6 +164,7 @@ export function AiCoach({
   const dialogRef = useRef(null)
   const closeButtonRef = useRef(null)
   const captureButtonRef = useRef(null)
+  const cameraInputRef = useRef(null)
   const screenshotInputRef = useRef(null)
   const requestAbortRef = useRef(null)
   const historySyncTimerRef = useRef(null)
@@ -893,7 +894,7 @@ export function AiCoach({
           <div className="ai-coach__quick-actions">
             {onGeneratePractice && <button type="button" className={builderOpen ? 'active' : ''} onClick={() => setBuilderOpen((value) => !value)}><Sparkles size={13} />Build practice</button>}
             <button ref={captureButtonRef} type="button" className="ai-coach__screenshot" aria-label="Capture question area" disabled={capturing} onClick={captureCurrentPage}><MonitorUp size={13} />{capturing ? 'Capturing...' : 'Capture question area'}</button>
-            <button type="button" className="ai-coach__screenshot" disabled={preparingImages || imageDataUrls.length >= MAX_COACH_IMAGE_ATTACHMENTS} onClick={() => screenshotInputRef.current?.click()}><ImagePlus size={13} />{preparingImages ? 'Preparing...' : `Provide screenshots (${imageDataUrls.length}/${MAX_COACH_IMAGE_ATTACHMENTS})`}</button>
+            <button type="button" className="ai-coach__screenshot" aria-label="Provide screenshot or upload photo" disabled={preparingImages || imageDataUrls.length >= MAX_COACH_IMAGE_ATTACHMENTS} onClick={() => screenshotInputRef.current?.click()}><Upload size={13} />{preparingImages ? 'Preparing...' : `Upload photo (${imageDataUrls.length}/${MAX_COACH_IMAGE_ATTACHMENTS})`}</button>
             {canOpenBphoSpc && <button type="button" onClick={() => ask('打开最新的 BPhO SPC 真题，带答案。')}><FileText size={13} />Latest BPhO SPC</button>}
             <button type="button" onClick={() => ask('Give me a hint for the next step.', hintLevel)}>Hint {hintLevel}/5</button>
             <button type="button" onClick={() => ask('Check my method and identify the first issue.', 3)}>Check method</button>
@@ -933,6 +934,11 @@ export function AiCoach({
         </div>
 
         <footer>
+          <div className="ai-coach__photo-actions" aria-label="Photograph or upload a question">
+            <button type="button" disabled={preparingImages || loading || imageDataUrls.length >= MAX_COACH_IMAGE_ATTACHMENTS} onClick={() => cameraInputRef.current?.click()}><Camera size={16} />Take photo</button>
+            <button type="button" disabled={preparingImages || loading || imageDataUrls.length >= MAX_COACH_IMAGE_ATTACHMENTS} onClick={() => screenshotInputRef.current?.click()}><Upload size={16} />Upload photo</button>
+            {hasImageAttachments && <button type="button" className="ai-coach__analyze-photo" disabled={preparingImages || loading} onClick={() => ask('Analyze this photographed question. Read the full question and diagrams, identify what it asks, list the relevant concepts and known values, then explain the next step without inventing missing text.', 3)}><Sparkles size={16} />Analyze question</button>}
+          </div>
           {hasImageAttachments && <div className="ai-coach__attachments" role="status" aria-live="polite">
             <span className="ai-coach__attachment-summary"><strong>{imageDataUrls.length}/{MAX_COACH_IMAGE_ATTACHMENTS}</strong> photos ready</span>
             {imageDataUrls.map((image, index) => <div className="ai-coach__attachment" key={`${image.slice(-24)}-${index}`}>
@@ -946,6 +952,7 @@ export function AiCoach({
           {error && <p className="ai-coach__error" role="alert">{error}</p>}
           <form className="ai-coach__composer" onSubmit={submitComposer}>
             <button type="button" className="ai-coach__composer-attach" title="Add photos" aria-label="Add photos" disabled={preparingImages || imageDataUrls.length >= MAX_COACH_IMAGE_ATTACHMENTS} onClick={() => screenshotInputRef.current?.click()}><ImagePlus size={18} /></button>
+            <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" hidden onChange={attachImage} />
             <input ref={screenshotInputRef} type="file" accept="image/*" multiple hidden onChange={attachImage} />
             <textarea rows="2" value={draft} placeholder="Ask about a concept or your next step..." onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {

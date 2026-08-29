@@ -30,6 +30,8 @@ const COACH_CONTEXT_CACHE_MAX_ENTRIES = 48
 const COACH_CONTEXT_MAX_CHARS = 4_800
 const DEFAULT_AI_PROVIDER_TIMEOUT_MS = 25_000
 const DEFAULT_AI_REQUEST_DEADLINE_MS = 50_000
+const DEFAULT_AI_VISION_PROVIDER_TIMEOUT_MS = 45_000
+const DEFAULT_AI_VISION_REQUEST_DEADLINE_MS = 55_000
 const MIN_AI_TIMEOUT_MS = 250
 const MAX_AI_PROVIDER_TIMEOUT_MS = 45_000
 const MAX_AI_REQUEST_DEADLINE_MS = 55_000
@@ -772,7 +774,19 @@ function aiTimeoutConfig(env = {}) {
     providerTimeoutMs,
     MAX_AI_REQUEST_DEADLINE_MS,
   )
-  return Object.freeze({ providerTimeoutMs, requestDeadlineMs })
+  const visionProviderTimeoutMs = boundedDuration(
+    env.STEM_AI_VISION_PROVIDER_TIMEOUT_MS || env.PHYSICS_AI_VISION_PROVIDER_TIMEOUT_MS,
+    DEFAULT_AI_VISION_PROVIDER_TIMEOUT_MS,
+    MIN_AI_TIMEOUT_MS,
+    MAX_AI_PROVIDER_TIMEOUT_MS,
+  )
+  const visionRequestDeadlineMs = boundedDuration(
+    env.STEM_AI_VISION_REQUEST_DEADLINE_MS || env.PHYSICS_AI_VISION_REQUEST_DEADLINE_MS,
+    DEFAULT_AI_VISION_REQUEST_DEADLINE_MS,
+    visionProviderTimeoutMs,
+    MAX_AI_REQUEST_DEADLINE_MS,
+  )
+  return Object.freeze({ providerTimeoutMs, requestDeadlineMs, visionProviderTimeoutMs, visionRequestDeadlineMs })
 }
 
 function aiDeadlineError() {
@@ -1033,7 +1047,10 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   const activeProviders = providerCandidates(configuredProvider)
   if (!activeProviders.length) return sendJson(response, 200, { mode: 'offline', providerStatus: 'not_configured', answer: localAnswer, warning: 'AI Coach provider is not configured on this server. This is an offline hint, not an AI review.' })
   const userText = coachRequestContext(context, message)
-  const deadlineAt = Date.now() + timeoutConfig.requestDeadlineMs
+  const requestBudget = hasImages
+    ? { providerTimeoutMs: timeoutConfig.visionProviderTimeoutMs, requestDeadlineMs: timeoutConfig.visionRequestDeadlineMs }
+    : { providerTimeoutMs: timeoutConfig.providerTimeoutMs, requestDeadlineMs: timeoutConfig.requestDeadlineMs }
+  const deadlineAt = Date.now() + requestBudget.requestDeadlineMs
   const requestId = crypto.randomUUID()
   let lastError = null
   for (const [providerIndex, activeProvider] of activeProviders.entries()) {
@@ -1050,7 +1067,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
         fallbackPath: activeProviders.slice(0, providerIndex + 1).map((candidate) => candidate.name).join('>'),
         fallback: providerIndex > 0,
         telemetry,
-        timeoutMs: timeoutConfig.providerTimeoutMs,
+        timeoutMs: requestBudget.providerTimeoutMs,
         deadlineAt,
       })
       return sendJson(response, 200, { mode: 'ai', provider: activeProvider.name, providerStatus: 'connected', answer: answer || localAnswer, model: activeProvider.model })
@@ -1242,7 +1259,10 @@ async function handleCoachStream(request, response, provider, visionProvider, li
   }
 
   const userText = coachRequestContext(context, message)
-  const deadlineAt = Date.now() + timeoutConfig.requestDeadlineMs
+  const requestBudget = hasImages
+    ? { providerTimeoutMs: timeoutConfig.visionProviderTimeoutMs, requestDeadlineMs: timeoutConfig.visionRequestDeadlineMs }
+    : { providerTimeoutMs: timeoutConfig.providerTimeoutMs, requestDeadlineMs: timeoutConfig.requestDeadlineMs }
+  const deadlineAt = Date.now() + requestBudget.requestDeadlineMs
   const requestId = crypto.randomUUID()
   let streamedAnswer = ''
   let lastPartialAnswer = ''
@@ -1274,7 +1294,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
           fallbackPath: activeProviders.slice(0, providerIndex + 1).map((candidate) => candidate.name).join('>'),
           fallback: providerIndex > 0,
           telemetry,
-          timeoutMs: timeoutConfig.providerTimeoutMs,
+          timeoutMs: requestBudget.providerTimeoutMs,
           deadlineAt,
           onDelta: async (delta) => {
             attemptAnswer += delta
@@ -1358,7 +1378,7 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
   if (hasStudentImage) imageBytes(payload.imageDataUrl)
   // The request budget includes trusted QP/MS image rendering. Without this,
   // a stalled local renderer can outlive the reverse proxy and become a 504.
-  const deadlineAt = Date.now() + timeoutConfig.requestDeadlineMs
+  const deadlineAt = Date.now() + timeoutConfig.visionRequestDeadlineMs
   let officialImages
   try {
     officialImages = await canonicalHandwritingMarkingImages(canonical, { assetRoot: sourceAssetRoot, libraryRoot, env, deadlineAt })
@@ -1447,7 +1467,7 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
         fallbackPath: activeProviders.slice(0, providerIndex + 1).map((candidate) => candidate.name).join('>'),
         fallback: providerIndex > 0,
         telemetry,
-        timeoutMs: timeoutConfig.providerTimeoutMs,
+        timeoutMs: timeoutConfig.visionProviderTimeoutMs,
         deadlineAt,
         validateResponse: (answer) => validateMarkAssessment(parseStructuredJson(answer), requestedMaxMarks),
       })

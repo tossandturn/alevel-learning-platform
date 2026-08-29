@@ -305,6 +305,8 @@ const env = {
   STEM_DB_PATH: path.join(root, 'stem.sqlite'),
   STEM_AI_PROVIDER_TIMEOUT_MS: '250',
   STEM_AI_REQUEST_DEADLINE_MS: '450',
+  STEM_AI_VISION_PROVIDER_TIMEOUT_MS: '250',
+  STEM_AI_VISION_REQUEST_DEADLINE_MS: '450',
 }
 const aiApi = createAiApi({
   env,

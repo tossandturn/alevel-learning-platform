@@ -441,6 +441,53 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
     'vision requests must preserve every attached image in order',
   )
 
+  const slowVisionProviderServer = http.createServer(async (request, response) => {
+    for await (const _chunk of request) {}
+    await new Promise((resolve) => setTimeout(resolve, 350))
+    if (response.destroyed) return
+    response.statusCode = 200
+    response.setHeader('Content-Type', 'text/event-stream')
+    response.end('data: {"choices":[{"delta":{"content":"vision response"}}]}\n\ndata: [DONE]\n\n')
+  })
+  const slowVisionProviderBase = await listen(slowVisionProviderServer)
+  const slowVisionTelemetry = []
+  const slowVisionApi = createAiApi({
+    env: {
+      VISION_AI_API_KEY: 'test-qwen-slow-vision-key',
+      VISION_AI_BASE_URL: slowVisionProviderBase,
+      VISION_AI_MODEL: 'qwen-test-slow-vision',
+      STEM_AI_PROVIDER_TIMEOUT_MS: '250',
+      STEM_AI_REQUEST_DEADLINE_MS: '1000',
+      STEM_AI_VISION_PROVIDER_TIMEOUT_MS: '600',
+      STEM_AI_VISION_REQUEST_DEADLINE_MS: '900',
+      STEM_INTERNAL_AUTH_KEY: identitySigningKey,
+    },
+    libraryRoot: path.join(tempRoot, 'library'),
+    allowedSubjects: new Set(['0580']),
+    telemetry: (event) => slowVisionTelemetry.push(event),
+  })
+  const slowVisionAppServer = requestHandler(slowVisionApi)
+  const slowVisionAppBase = await listen(slowVisionAppServer)
+  try {
+    const slowVision = await fetch(`${slowVisionAppBase}/api/ai/coach/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${signedIdentityToken}` },
+      body: JSON.stringify({
+        message: 'Analyze the photographed question and explain the first step.',
+        hintLevel: 3,
+        imageDataUrls: [attachedImages[0]],
+        context: { stage: 'AS', topic: 'Mechanics', question: { prompt: 'Slow initial vision response fixture.', number: 4 } },
+      }),
+    })
+    const slowVisionText = await slowVision.text()
+    assert.equal(slowVision.status, 200)
+    assert.match(slowVisionText, /"answer":"vision response"/, 'vision Coach must tolerate a slow Qwen VL initial response')
+    assert.match(slowVisionText, /"providerStatus":"connected"/)
+    assert.equal(slowVisionTelemetry.at(-1)?.timeoutMs, 600, 'vision telemetry must record the independent vision timeout budget')
+  } finally {
+    await Promise.all([close(slowVisionAppServer), close(slowVisionProviderServer)])
+  }
+
   failNextProviderRequest = true
   const failed = await post('/api/ai/coach/stream', {
     message: 'Give a detailed explanation of this method and check the units.',
@@ -727,6 +774,10 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   assert.match(coachSource, /Capture question area/, 'Coach must expose an explicit current-page capture action')
   assert.match(coachSource, /cropVisiblePageVisuals/, 'Coach must fall back to visible official question or handwriting visuals when browser capture is unavailable')
   assert.match(coachSource, /Provide screenshot/, 'Coach must also let a student provide an existing screenshot')
+  assert.match(coachSource, /capture="environment"/, 'Coach must expose a native camera capture input for photographing a question')
+  assert.match(coachSource, /Take photo/, 'Coach must expose a clearly labelled take-photo action')
+  assert.match(coachSource, /Upload photo/, 'Coach must expose a clearly labelled upload-photo action')
+  assert.match(coachSource, /Analyze (?:this )?question/, 'Coach must expose a visible action to analyze an attached question photo')
   assert.match(coachSource, /const \[imageDataUrls, setImageDataUrls\]/, 'Coach must retain multiple pending image attachments')
   assert.match(coachSource, /type="file"[^>]*multiple/, 'Coach image selection must support choosing several photos at once')
   assert.match(coachSource, /imageDataUrls\.map\(/, 'Coach must render every pending attachment for review and removal')
