@@ -1,11 +1,11 @@
-const MAX_IMAGE_BYTES = 12 * 1024 * 1024
 const MAX_UPLOAD_SOURCE_BYTES = 24 * 1024 * 1024
-const MAX_UPLOAD_OUTPUT_BYTES = 3 * 1024 * 1024
+const MAX_UPLOAD_OUTPUT_BYTES = 2 * 1024 * 1024
 const MAX_UPLOAD_SIDE = 2000
 const MAX_CAPTURE_SIDE = 2400
 const MAX_CROP_SIDE = 1800
 export const MIN_CAPTURE_SELECTION_SIDE = 28
 export const MAX_COACH_IMAGE_ATTACHMENTS = 4
+export const MAX_COACH_IMAGE_OUTPUT_BYTES = MAX_UPLOAD_OUTPUT_BYTES
 
 function blobToDataUrl(blob) {
   return new Promise((resolve, reject) => {
@@ -26,6 +26,30 @@ function canvasToBlob(canvas, quality = 0.88) {
       resolve(blob)
     }, 'image/jpeg', quality)
   })
+}
+
+function scaledCanvas(source, scale) {
+  const canvas = window.document.createElement('canvas')
+  canvas.width = Math.max(1, Math.round(source.width * scale))
+  canvas.height = Math.max(1, Math.round(source.height * scale))
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('The browser could not prepare this photo.')
+  context.fillStyle = '#ffffff'
+  context.fillRect(0, 0, canvas.width, canvas.height)
+  context.drawImage(source, 0, 0, canvas.width, canvas.height)
+  return canvas
+}
+
+async function boundedCanvasBlob(source, maxBytes = MAX_COACH_IMAGE_OUTPUT_BYTES) {
+  let canvas = source
+  for (let sizeAttempt = 0; sizeAttempt < 4; sizeAttempt += 1) {
+    for (const quality of [0.88, 0.8, 0.72, 0.64]) {
+      const blob = await canvasToBlob(canvas, quality)
+      if (blob.size <= maxBytes) return blob
+    }
+    canvas = scaledCanvas(canvas, 0.8)
+  }
+  throw new Error('This image is still too large after compression. Crop it or choose a smaller area.')
 }
 
 function clamp(value, minimum, maximum) {
@@ -169,8 +193,7 @@ export async function cropVisiblePageVisuals(selection) {
     context.drawImage(visual.node, sourceX, sourceY, sourceWidth, sourceHeight, targetX, targetY, targetWidth, targetHeight)
   }
 
-  const blob = await canvasToBlob(canvas)
-  if (blob.size > MAX_IMAGE_BYTES) throw new Error('The selected screenshot is too large. Capture a smaller area.')
+  const blob = await boundedCanvasBlob(canvas)
   return blobToDataUrl(blob)
 }
 
@@ -222,8 +245,7 @@ export async function beginCurrentPageCapture() {
 
 export async function cropCurrentPageCapture(capture, selection) {
   if (!capture?.canvas) throw new Error('The selected page capture is no longer available. Start again.')
-  const blob = await canvasToBlob(croppedCanvas(capture.canvas, capture.viewport, selection))
-  if (blob.size > MAX_IMAGE_BYTES) throw new Error('The selected screenshot is too large. Capture a smaller area.')
+  const blob = await boundedCanvasBlob(croppedCanvas(capture.canvas, capture.viewport, selection))
   return blobToDataUrl(blob)
 }
 
