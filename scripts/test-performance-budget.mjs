@@ -73,7 +73,7 @@ assert.ok(runtimePerformance.includes("observe('event'"), 'runtime monitoring mu
 assert.ok(runtimePerformance.includes('performance.memory'), 'runtime monitoring must sample supported memory metrics')
 assert.ok(appSource.includes("view === 'library' && ['papers', 'exams'].includes(activeTab)"), 'the paper catalog must load only when the student opens a paper workflow')
 assert.ok(paperCatalogHook.includes('if (enabled) void load()'), 'the paper catalog request must remain gated behind the enabled state')
-assert.ok(paperCatalogHook.includes('/data/papers/${encodeURIComponent(normalizedSubject)}.json'), 'the paper catalog must load a lightweight subject-specific index when possible')
+assert.match(paperCatalogHook, /\/data\/papers\/\$\{encodeURIComponent\((?:subject|requestedSubject)\)\}\.json/, 'the paper catalog must load a lightweight subject-specific index when possible')
 assert.ok(paperCatalogHook.includes('Loading the verified paper catalog took too long. Retry.'), 'the paper catalog must expose a visible timeout state')
 assert.ok(fs.readFileSync(path.join(root, 'src', 'components', 'PaperLibrary.jsx'), 'utf8').includes('Retry'), 'the paper catalog error state must expose a retry action')
 for (const subject of ['0580', '0625', '9702', '9709']) {

@@ -743,6 +743,7 @@ function App() {
         : option.topics,
     }))
   }, [activeRouteId, aiPracticeOptions, syllabusInventory.data, syllabusInventory.status, syllabusPracticeFallbackOptions])
+
   const learningProgress = useMemo(() => buildLearningProgress({
     attempts: appState.attempts,
     drafts: appState.drafts,
@@ -1359,9 +1360,9 @@ function App() {
         return { handled: true, message: 'This Competition paper request is not bound to a verified learning route.' }
       }
       let catalog = paperCatalogState.catalog
-      if (!catalog) {
+      if (!catalog || !catalog.items?.some((item) => item.subject === bphoRoute.subjectCode)) {
         try {
-          catalog = await paperCatalogState.load()
+          catalog = await paperCatalogState.load({ subject: bphoRoute.subjectCode })
         } catch {
           return { handled: true, message: 'BPhO SPC 的本地 PDF 目录暂时无法加载。请稍后再试。' }
         }
@@ -2057,7 +2058,7 @@ function App() {
     attemptId: view === 'practice' ? currentAttempt?.id : view === 'result' ? resultAttempt?.id : view === 'paper' ? activePaper?.attemptId || activePaper?.retestOf || '' : '',
     partId: view === 'practice' ? currentAttempt?.activePartId : '',
     mode: view === 'practice' ? currentAttempt?.settings?.mode || currentAttempt?.mode : '',
-    coach: view === 'dashboard' && (coachMounted || coachOpenPending || initialCoachOpen) ? '1' : '',
+    coach: view === 'dashboard' && coachOpenPending ? '1' : '',
     paperMode: view === 'paper' ? normalizePaperStudyMode(activePaper?.paperStudyMode) : '',
   })
 

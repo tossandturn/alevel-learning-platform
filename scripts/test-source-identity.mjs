@@ -40,6 +40,16 @@ function materializePrivateContent(releaseRoot) {
   fs.copyFileSync(sourceCatalogPath, targetCatalog, fs.constants.COPYFILE_EXCL)
 }
 
+function generateArchiveCatalog(releaseRoot) {
+  const result = spawnSync(process.execPath, [path.join(releaseRoot, 'scripts', 'generate-paper-catalog.mjs')], {
+    cwd: releaseRoot,
+    env: { ...process.env, CIE_SOURCE_ROOT: process.env.CIE_SOURCE_ROOT || 'D:/CodexWork/cie-fraft-fetcher/output' },
+    encoding: 'utf8',
+    maxBuffer: 32 * 1024 * 1024,
+  })
+  assert.equal(result.status, 0, `git archive paper catalog generation must pass:\n${result.stdout}\n${result.stderr}`)
+}
+
 function buildArchiveDist(releaseRoot) {
   const workspaceNodeModules = path.join(repoRoot, 'node_modules')
   const archiveNodeModules = path.join(releaseRoot, 'node_modules')
@@ -129,6 +139,7 @@ function runReleaseVerification(releaseRoot) {
 try {
   const archiveRoot = archiveReleaseRoot(`archive-lf-${archiveCommit.slice(0, 7)}`)
   materializePrivateContent(archiveRoot)
+  generateArchiveCatalog(archiveRoot)
   const archiveRun = runDirectAudit('git archive with private content', archiveRoot)
   buildArchiveDist(archiveRoot)
   runReleaseVerification(archiveRoot)
@@ -157,6 +168,7 @@ try {
   const runtimeCatalogText = fs.readFileSync(runtimeCatalogPath, 'utf8')
   const runtimeCatalogCrlf = `\uFEFF${canonicalUtf8LfText(runtimeCatalogText).replace(/\n/g, '\r\n')}`
   fs.writeFileSync(runtimeCatalogPath, runtimeCatalogCrlf, 'utf8')
+  generateArchiveCatalog(archiveRoot)
   const runtimeCatalogCheck = spawnSync(process.execPath, [
     path.join(archiveRoot, 'scripts', 'generate-verified-practice-catalog.mjs'),
   ], {

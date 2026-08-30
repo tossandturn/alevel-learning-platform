@@ -2,32 +2,41 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 const PAPER_CATALOG_TIMEOUT_MS = 10_000
 
+function normalizeCatalogSubject(subject) {
+  return String(subject || 'all').trim() || 'all'
+}
+
+function catalogUrlForSubject(subject) {
+  return subject === 'all'
+    ? '/data/papers.json'
+    : `/data/papers/${encodeURIComponent(subject)}.json`
+}
+
 export function usePaperCatalog({ enabled = true, subject = 'all' } = {}) {
-  const normalizedSubject = String(subject || 'all').trim() || 'all'
+  const normalizedSubject = normalizeCatalogSubject(subject)
   const [state, setState] = useState({ subject: normalizedSubject, status: enabled ? 'loading' : 'idle', catalog: null, error: null })
   const requestRef = useRef(null)
   const catalogRef = useRef(new Map())
-  const catalogUrl = normalizedSubject === 'all'
-    ? '/data/papers.json'
-    : `/data/papers/${encodeURIComponent(normalizedSubject)}.json`
 
   const load = useCallback((options = {}) => {
     const force = Boolean(options.force)
-    const cached = catalogRef.current.get(catalogUrl)
+    const requestedSubject = normalizeCatalogSubject(options.subject || normalizedSubject)
+    const requestedCatalogUrl = catalogUrlForSubject(requestedSubject)
+    const cached = catalogRef.current.get(requestedCatalogUrl)
     if (!force && cached) {
-      setState({ subject: normalizedSubject, status: 'ready', catalog: cached, error: null })
+      setState({ subject: requestedSubject, status: 'ready', catalog: cached, error: null })
       return Promise.resolve(cached)
     }
-    if (!force && requestRef.current?.url === catalogUrl) return requestRef.current.promise
-    if (requestRef.current && requestRef.current.url !== catalogUrl) requestRef.current.controller.abort()
-    setState((current) => current.subject === normalizedSubject && current.catalog && !force ? current : { subject: normalizedSubject, status: 'loading', catalog: null, error: null })
+    if (!force && requestRef.current?.url === requestedCatalogUrl) return requestRef.current.promise
+    if (requestRef.current && requestRef.current.url !== requestedCatalogUrl) requestRef.current.controller.abort()
+    setState((current) => current.subject === requestedSubject && current.catalog && !force ? current : { subject: requestedSubject, status: 'loading', catalog: null, error: null })
     const controller = new AbortController()
     let timedOut = false
     const timeout = window.setTimeout(() => {
       timedOut = true
       controller.abort()
     }, PAPER_CATALOG_TIMEOUT_MS)
-    const request = fetch(catalogUrl, {
+    const request = fetch(requestedCatalogUrl, {
       headers: { Accept: 'application/json' },
       signal: controller.signal,
     })
@@ -43,9 +52,9 @@ export function usePaperCatalog({ enabled = true, subject = 'all' } = {}) {
         if (catalog.schemaVersion !== 2 || !catalog.paperGovernance?.schemaVersion || !Array.isArray(catalog.items) || !catalog.totals?.files) {
           throw new Error('Catalog response is missing the verified paper inventory.')
         }
-        catalogRef.current.set(catalogUrl, catalog)
+        catalogRef.current.set(requestedCatalogUrl, catalog)
         if (requestRef.current?.promise === request) {
-          setState({ subject: normalizedSubject, status: 'ready', catalog, error: null })
+          setState({ subject: requestedSubject, status: 'ready', catalog, error: null })
         }
         return catalog
       })
@@ -53,7 +62,7 @@ export function usePaperCatalog({ enabled = true, subject = 'all' } = {}) {
         if (controller.signal.aborted && !timedOut) return null
         if (requestRef.current?.promise === request) {
           setState({
-            subject: normalizedSubject,
+            subject: requestedSubject,
             status: 'error',
             catalog: null,
             error: timedOut
@@ -67,9 +76,9 @@ export function usePaperCatalog({ enabled = true, subject = 'all' } = {}) {
         window.clearTimeout(timeout)
         if (requestRef.current?.promise === request) requestRef.current = null
       })
-    requestRef.current = { url: catalogUrl, controller, promise: request }
+    requestRef.current = { url: requestedCatalogUrl, controller, promise: request }
     return request
-  }, [catalogUrl, normalizedSubject])
+  }, [normalizedSubject])
 
   useEffect(() => {
     if (enabled) void load().catch(() => {})
