@@ -251,6 +251,51 @@ function sendPublicAsset(request, response, next) {
   fs.createReadStream(filePath).pipe(response)
 }
 
+export function createMissingBuiltAssetMiddleware({ assetRoot = path.resolve(process.cwd(), 'dist') } = {}) {
+  const resolvedAssetRoot = path.resolve(assetRoot)
+  return function sendMissingBuiltAsset(request, response, next) {
+    if (request.method && !['GET', 'HEAD'].includes(request.method)) return next()
+    const requestUrl = new URL(request.url, 'http://127.0.0.1')
+    let pathname
+    try {
+      pathname = decodeURIComponent(requestUrl.pathname)
+    } catch {
+      response.statusCode = 400
+      response.setHeader('Content-Type', 'text/plain; charset=utf-8')
+      response.setHeader('Cache-Control', 'no-store')
+      response.end('Invalid built asset path')
+      return
+    }
+    if (!/^\/assets\/.+\.js$/i.test(pathname)) return next()
+    const filePath = path.resolve(resolvedAssetRoot, `.${pathname}`)
+    const relative = path.relative(resolvedAssetRoot, filePath)
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+      response.statusCode = 400
+      response.setHeader('Content-Type', 'text/plain; charset=utf-8')
+      response.setHeader('Cache-Control', 'no-store')
+      response.end('Invalid built asset path')
+      return
+    }
+    const stat = fs.existsSync(filePath) ? fs.statSync(filePath) : null
+    if (!stat || stat.isDirectory()) {
+      response.statusCode = 404
+      response.setHeader('Content-Type', 'text/plain; charset=utf-8')
+      response.setHeader('Cache-Control', 'no-store')
+      response.end('Built asset not found')
+      return
+    }
+    response.statusCode = 200
+    response.setHeader('Content-Type', 'application/javascript; charset=utf-8')
+    response.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+    response.setHeader('Content-Length', String(stat.size))
+    if (request.method === 'HEAD') {
+      response.end()
+      return
+    }
+    fs.createReadStream(filePath).pipe(response)
+  }
+}
+
 export function releaseBuildIdentity(env, runtimeRootInput = process.cwd()) {
   try {
     const runtimeRoot = fs.realpathSync(runtimeRootInput)
@@ -448,6 +493,7 @@ function localCieLibrary(env) {
     name: 'local-cie-library',
     configureServer(server) {
       server.middlewares.use(securityHeaders)
+      server.middlewares.use(createMissingBuiltAssetMiddleware({ assetRoot: path.resolve(server.config.root, server.config.build.outDir || 'dist') }))
       server.middlewares.use(sendHealth)
       server.middlewares.use(sendPublicAsset)
       server.middlewares.use(stemApi)
@@ -458,6 +504,7 @@ function localCieLibrary(env) {
     },
     configurePreviewServer(server) {
       server.middlewares.use(securityHeaders)
+      server.middlewares.use(createMissingBuiltAssetMiddleware({ assetRoot: path.resolve(server.config.root, server.config.build.outDir || 'dist') }))
       server.middlewares.use(sendHealth)
       server.middlewares.use(sendPublicAsset)
       server.middlewares.use(stemApi)

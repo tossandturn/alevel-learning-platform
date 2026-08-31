@@ -1,7 +1,7 @@
 import { Component, StrictMode, lazy, Suspense, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import { freshReloadUrl, isBootFailure } from './lib/bootRecovery'
+import { freshReloadUrl, isBootFailure, shouldRetryBootFailure } from './lib/bootRecovery'
 import { startRuntimePerformanceMonitoring } from './lib/runtimePerformance'
 
 startRuntimePerformanceMonitoring()
@@ -131,10 +131,10 @@ function handleBootFailure(reason = '') {
   try {
     const key = 'stem:chunk-reload-at'
     const previous = Number(window.sessionStorage.getItem(key) || 0)
-    shouldReload = !previous || Date.now() - previous > 30_000
+    shouldReload = shouldRetryBootFailure({ href: window.location.href, appReady, previousReloadAt: previous })
     if (shouldReload) window.sessionStorage.setItem(key, String(Date.now()))
   } catch {
-    shouldReload = !bootRecoveryStarted
+    shouldReload = shouldRetryBootFailure({ href: window.location.href, appReady })
   }
   if (bootRecoveryStarted) return
   bootRecoveryStarted = true
