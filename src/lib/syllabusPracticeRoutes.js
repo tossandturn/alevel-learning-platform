@@ -150,4 +150,22 @@ export function questionMatchesSyllabusTopic(routeId, questionTopicId, syllabusT
   return syllabusTopicScopeIdsForRoute(routeId, syllabusTopicId).includes(canonicalQuestionTopicId)
 }
 
+export function questionMatchesSyllabusTopicMembership(routeId, question, syllabusTopicId) {
+  const normalizedRouteId = String(routeId || '')
+  const normalizedTopicId = String(syllabusTopicId || '').trim()
+  if (!normalizedRouteId || !normalizedTopicId || String(question?.routeId || '') !== normalizedRouteId) return false
+
+  const mapping = question?.syllabusMapping
+  if (mapping && Object.hasOwn(mapping, 'topicIds')) {
+    if (!Array.isArray(mapping.topicIds) || mapping.topicIds.length === 0) return false
+    const topicIds = mapping.topicIds.map((topicId) => String(topicId || '').trim())
+    if (topicIds.some((topicId) => !topicId) || new Set(topicIds).size !== topicIds.length) return false
+    return topicIds.some((topicId) => questionMatchesSyllabusTopic(normalizedRouteId, topicId, normalizedTopicId))
+  }
+
+  const fallbackTopicId = question?.knowledgeGroupId || question?.topicId
+  if (!fallbackTopicId) return false
+  return questionMatchesSyllabusTopic(normalizedRouteId, String(fallbackTopicId).split('@')[0], normalizedTopicId)
+}
+
 export { SYLLABUS_PRACTICE_ROUTE_IDS }

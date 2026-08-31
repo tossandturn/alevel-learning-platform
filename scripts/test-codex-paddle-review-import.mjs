@@ -40,6 +40,11 @@ try {
   fs.writeFileSync(path.join(routeDirectory, 'verification.json'), verificationText, 'utf8')
 
   const observed = []
+  const validationCalls = []
+  const validateReviewImpl = (options) => {
+    validationCalls.push(options)
+    return { status: 'PASS', errorCode: null, counts: { questions: 1, parts: 1, marks: 1, topics: 1, points: 1 } }
+  }
   const runCliImpl = async (options, dependencies) => {
     observed.push(options)
     assert.equal(options.pageWindowed, false, 'Codex drafts describe a complete paper, not repeated page-window responses')
@@ -72,9 +77,58 @@ try {
     return { status: 'auto-quarantined' }
   }
 
-  const runDraft = createCodexDraftRunCli({ draftRoot, job, model: 'gpt-5.6', runCliImpl })
+  const runDraft = createCodexDraftRunCli({ workRoot, draftRoot, job, model: 'gpt-5.6', runCliImpl, validateReviewImpl })
   assert.deepEqual(await runDraft({ routeId, pageWindowed: true, retry: false, model: 'wrong' }, {}), { status: 'auto-quarantined' })
   assert.equal(observed.length, 1)
+  assert.deepEqual(validationCalls, [{ workRoot, reviewId: job.jobId, routeId }])
+
+  fs.writeFileSync(path.join(routeDirectory, 'extraction.json'), `${JSON.stringify({
+    ...extraction,
+    reviewSummary: {
+      status: 'paired_independent_local_passes_not_released',
+      providerStatus: 'not_called_local_evidence_synthesis',
+      studentRelease: false,
+    },
+  }, null, 2)}\n`, 'utf8')
+  fs.writeFileSync(path.join(routeDirectory, 'verification.json'), `${JSON.stringify({
+    ...verification,
+    reviewSummary: {
+      status: 'independent_verification_pass_not_released',
+      providerStatus: 'not_called_local_evidence_synthesis',
+      studentRelease: false,
+    },
+  }, null, 2)}\n`, 'utf8')
+  let releaseBlockedCalls = 0
+  const releaseBlockedRun = createCodexDraftRunCli({
+    workRoot,
+    draftRoot,
+    job,
+    model: 'gpt-5.6',
+    validateReviewImpl,
+    runCliImpl: async () => {
+      releaseBlockedCalls += 1
+      return { status: 'ai-verified' }
+    },
+  })
+  await assert.rejects(
+    () => releaseBlockedRun({ routeId }, {}),
+    error => error?.code === 'CODEX_DRAFT_RELEASE_BLOCKED',
+  )
+  assert.equal(releaseBlockedCalls, 0, 'a draft that explicitly says it is not released must stop before canonical ingestion')
+
+  const blockedRun = createCodexDraftRunCli({
+    workRoot,
+    draftRoot,
+    job,
+    model: 'gpt-5.6',
+    runCliImpl,
+    validateReviewImpl: () => ({ status: 'BLOCKED', errorCode: 'REVIEW_PARTS_MARKS_MISMATCH', counts: {} }),
+  })
+  await assert.rejects(
+    () => blockedRun({ routeId }, {}),
+    error => error?.code === 'CODEX_DRAFT_SYLLABUS_BINDING_BLOCKED',
+  )
+  assert.equal(observed.length, 1, 'a blocked syllabus review must stop before canonical ingestion')
 
   let capturedConsumerOptions = null
   let capturedIngestOptions = null
@@ -98,6 +152,8 @@ try {
   assert.deepEqual(result, { selected: 1, completed: 1 })
   assert.equal(capturedConsumerOptions.reviewId, job.jobId)
   assert.equal(capturedConsumerOptions.ledgerPath, isolatedLedgerPath, 'an isolated validation import must not mutate the live review ledger')
+  assert.equal(capturedConsumerOptions.retryFailed, true, 'an explicit Codex import must retry a prior provider failure')
+  assert.equal(capturedConsumerOptions.retryBlocked, true, 'an explicit Codex import must retry a prior validation block')
   assert.equal(capturedConsumerOptions.retryQuarantined, true)
   assert.equal(capturedConsumerOptions.retryCompleted, true, 'an explicit Codex import must be able to refresh a released artifact after a provenance migration')
   assert.equal(capturedIngestOptions.retry, true)

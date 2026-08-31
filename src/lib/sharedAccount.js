@@ -238,6 +238,53 @@ export async function sharedAccountRequest(token, resource, options = {}) {
   }
 }
 
+/**
+ * Fetches an on-demand topic PDF without trying to parse the binary response
+ * as JSON. The request is intentionally not persisted or queued: the server
+ * reconstructs the exact route/topic binding for every render.
+ */
+export async function requestTopicPdf(token, { routeId, topicId } = {}) {
+  if (!token) throw new SharedAccountError('session_missing', 'Sign in to STEM to generate a topic PDF.', { loginRequired: true })
+  const request = {
+    method: 'POST',
+    credentials: 'same-origin',
+    redirect: 'error',
+    cache: 'no-store',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ routeId: String(routeId || ''), topicId: String(topicId || '') }),
+  }
+  let response
+  try {
+    response = await fetch('/api/stem/topic-pdfs', request)
+  } catch (error) {
+    throw new SharedAccountError('topic_pdf_network_error', 'The topic PDF service is unavailable. Your study data remains unchanged.', { retryable: true, cause: error })
+  }
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}))
+    const status = Number(response.status)
+    const loginRequired = status === 401 || status === 403
+    const retryable = status === 429 || status >= 500
+    const code = String(payload?.code || (loginRequired ? 'session_expired' : retryable ? 'service_unavailable' : 'topic_pdf_failed'))
+    const message = String(payload?.error || (loginRequired
+      ? 'Your STEM session has expired. Sign in again to generate this PDF.'
+      : retryable
+        ? 'The topic PDF service is temporarily unavailable. Please try again.'
+        : 'This topic PDF could not be generated from the released source data.'))
+    const error = new SharedAccountError(code, message, { retryable, loginRequired })
+    error.statusCode = status
+    throw error
+  }
+  const blob = await response.blob()
+  const header = new Uint8Array(await blob.slice(0, 5).arrayBuffer())
+  if (header.length !== 5 || String.fromCharCode(...header) !== '%PDF-') {
+    throw new SharedAccountError('topic_pdf_invalid_output', 'The topic PDF response was not a valid PDF. No file was opened.')
+  }
+  return blob
+}
+
 export async function requestSyllabusPracticeSet(token, selection) {
   const options = {
     method: 'POST',

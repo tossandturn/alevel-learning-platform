@@ -198,10 +198,10 @@ async function assertCoachScreenshotFlow(page) {
       throw new Error(`Desktop Coach trigger must remain a right-bottom floating control: ${JSON.stringify({ viewport, triggerBox })}`)
     }
     await page.getByRole('button', { name: 'Open AI Coach' }).click()
-    const tools = page.locator('.ai-coach__tools')
-    if (await tools.count() && !await tools.evaluate((element) => element.open)) await tools.locator('summary').click()
-    await page.getByRole('button', { name: 'Capture question area' }).waitFor()
-    await page.locator('button.ai-coach__screenshot', { hasText: 'Provide screenshot' }).waitFor()
+      const tools = page.locator('.ai-coach__tools')
+      if (await tools.count() && !await tools.evaluate((element) => element.open)) await tools.locator('summary').click()
+      await page.getByRole('button', { name: 'Capture question area' }).waitFor()
+      await page.getByRole('button', { name: 'Provide screenshot or upload photo' }).waitFor()
     await page.evaluate(() => {
       const source = document.createElement('canvas')
       source.width = 640
@@ -617,24 +617,36 @@ async function run() {
       ))
       await sendCoachMessage(page, 'IGCSE Mathematics Number 10 questions')
       const igcseMathResponse = await igcseMathResponsePromise
-      const igcseMathFailure = await igcseMathResponse.json()
-      if (igcseMathResponse.status() !== 409 || igcseMathFailure.code !== 'insufficient_verified_questions') {
-        throw new Error(`IGCSE Mathematics without practice-ready questions must fail closed: ${JSON.stringify({ status: igcseMathResponse.status(), igcseMathFailure })}`)
+      const igcseMathSet = await igcseMathResponse.json()
+      if (igcseMathResponse.status() !== 201 || igcseMathSet.routeId !== 'cie-0580-igcse-mathematics' || igcseMathSet.sourceQuestionCount !== 10) {
+        throw new Error(`IGCSE Mathematics Number must generate ten source-backed question groups: ${JSON.stringify({ status: igcseMathResponse.status(), igcseMathSet })}`)
       }
-      await page.locator('.ai-message--assistant').last().waitFor()
-      const unavailableIgcseMathMessage = await page.locator('.ai-message--assistant').last().innerText()
-      if (!/no source-backed study questions|no verified question|source inventory|human source review/i.test(unavailableIgcseMathMessage)) {
-        throw new Error(`IGCSE Mathematics without practice-ready questions returned an unexpected message: ${unavailableIgcseMathMessage}`)
+      if (!igcseMathSet.questionGroups?.every((group) => (
+        group.sourceRef?.sha256
+        && group.answerRef?.sha256
+        && group.parts?.every((part) => part.markingProvenance?.bindingSignature && part.sourceBindingProvenance?.bindingSignature)
+      ))) {
+        throw new Error('IGCSE Mathematics Coach practice lost its QP/MS and per-part binding provenance.')
       }
-      if (await page.getByRole('combobox', { name: 'Current course' }).inputValue() !== 'bpho-admissions-physics') {
-        throw new Error('An unavailable IGCSE Mathematics request must not discard the current Competition route')
+      await page.waitForSelector('.practice-view')
+      await page.waitForFunction((key) => JSON.parse(localStorage.getItem(key) || '{}').profile?.activeRouteId === 'cie-0580-igcse-mathematics', STORAGE_KEY)
+      if (await page.evaluate((key) => JSON.parse(localStorage.getItem(key) || '{}').profile?.activeRouteId, STORAGE_KEY) !== 'cie-0580-igcse-mathematics') {
+        throw new Error('IGCSE Mathematics Coach practice did not retain its exact route.')
       }
-      const afterIgcseMath = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) || '{}').generatedUnits || [], STORAGE_KEY)
-      if (afterIgcseMath.length !== 1 || afterIgcseMath[0].id !== generatedPhysicsSet.id) {
-        throw new Error(`An unavailable IGCSE Mathematics request must not persist a non-practice-ready unit: ${JSON.stringify(afterIgcseMath.map((unit) => unit.id))}`)
+      const generatedIgcseMathSet = await page.evaluate((key) => {
+        const state = JSON.parse(localStorage.getItem(key) || '{}')
+        return state.generatedUnits?.find((unit) => unit.routeId === 'cie-0580-igcse-mathematics' && unit.knowledgeGroupId === '0580-igcse-topic-01') || null
+      }, STORAGE_KEY)
+      if (!generatedIgcseMathSet || generatedIgcseMathSet.questionGroupCount !== 10 || generatedIgcseMathSet.practiceMode !== 'verified') {
+        throw new Error(`IGCSE Mathematics Coach practice did not persist its verified ten-question unit: ${JSON.stringify(generatedIgcseMathSet)}`)
       }
 
       await sendCoachMessage(page, 'IGCSE Physics Waves 10 questions')
+      await page.waitForFunction((key) => {
+        const state = JSON.parse(localStorage.getItem(key) || '{}')
+        return state.profile?.activeRouteId === 'cie-0625-igcse-physics'
+          && state.generatedUnits?.[0]?.routeId === 'cie-0625-igcse-physics'
+      }, STORAGE_KEY)
       await page.waitForSelector('.practice-view')
       const generated = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)).generatedUnits[0], STORAGE_KEY)
       if (generated.questionGroupCount !== 10) throw new Error(`Coach did not assemble ten reviewed IGCSE Physics Waves question groups: ${JSON.stringify(generated)}`)
@@ -705,7 +717,8 @@ async function run() {
         unavailableAsPhysicsTopic: true,
         bphoRoute: 'bpho-admissions-physics',
         bphoPaper: 'BPhO_SPC_2025_QP.pdf',
-        unavailableIgcseMathRoute: 'cie-0580-igcse-mathematics',
+        igcseMathRoute: generatedIgcseMathSet.routeId,
+        igcseMathQuestionGroups: generatedIgcseMathSet.questionGroupCount,
         igcseRoute: 'cie-0625-igcse-physics',
         reviewedQuestionGroups: generated.questionGroupCount,
         reviewedAnswerParts: generated.parts.length,

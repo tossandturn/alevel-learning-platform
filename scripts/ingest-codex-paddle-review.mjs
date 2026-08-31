@@ -4,11 +4,13 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { runCli } from './ingest-ai-pdf-questions.mjs'
+import { reviewDraftAllowsStudentRelease } from './ai-pdf-ingestion/contract.mjs'
 import { ingestPaddleJob } from './ingest-paddle-ocr-queue.mjs'
 import {
   acquireReviewConsumerLock,
   consumePaddleReviewQueue,
 } from './review-paddle-ocr-queue.mjs'
+import { validateReviewFromWorkRoot } from './paddle-ocr/validate-syllabus-bindings.mjs'
 
 const SAFE_COMPONENT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,128}$/
 const DRAFT_SCHEMAS = Object.freeze({
@@ -23,12 +25,15 @@ const DRAFT_SCHEMAS = Object.freeze({
 })
 
 export function createCodexDraftRunCli({
+  workRoot,
   draftRoot,
   job,
   model = 'gpt-5.6',
   runCliImpl = runCli,
+  validateReviewImpl = validateReviewFromWorkRoot,
   now = () => Date.now(),
 } = {}) {
+  const reviewWorkRoot = requiredDirectory(workRoot, 'workRoot')
   const root = requiredDirectory(draftRoot, 'draftRoot')
   const jobKey = safeComponent(job?.jobKey, 'CODEX_DRAFT_JOB_KEY_INVALID')
   const selectedModel = safeText(model)
@@ -37,14 +42,22 @@ export function createCodexDraftRunCli({
 
   return async function runCodexDraftCli(options, adapters) {
     const routeId = safeComponent(options?.routeId, 'CODEX_DRAFT_ROUTE_INVALID')
+    const validation = validateReviewImpl({ workRoot: reviewWorkRoot, reviewId: job.jobId, routeId })
+    if (validation?.status !== 'PASS') throw codedError('CODEX_DRAFT_SYLLABUS_BINDING_BLOCKED')
     const routeDirectory = resolveInside(root, path.join(root, jobKey, routeId))
+    const drafts = new Map()
+    for (const [schemaName, draftConfig] of Object.entries(DRAFT_SCHEMAS)) {
+      const draftPath = resolveInside(routeDirectory, path.join(routeDirectory, draftConfig.file))
+      const draft = readDraft(draftPath)
+      if (!reviewDraftAllowsStudentRelease(draft.value)) throw codedError('CODEX_DRAFT_RELEASE_BLOCKED')
+      drafts.set(schemaName, draft)
+    }
     const providerChain = () => [{ name: 'codex-draft', model: selectedModel }]
     const callWithFallback = async ({ request } = {}) => {
       const draftConfig = DRAFT_SCHEMAS[request?.schemaName]
       if (!draftConfig) throw codedError('CODEX_DRAFT_SCHEMA_UNSUPPORTED')
       const startedAt = now()
-      const draftPath = resolveInside(routeDirectory, path.join(routeDirectory, draftConfig.file))
-      const { value, sha256 } = readDraft(draftPath)
+      const { value, sha256 } = drafts.get(request.schemaName)
       const durationMs = Math.max(0, Number(now()) - Number(startedAt))
       const provider = { name: draftConfig.provider, model: selectedModel }
       return Object.freeze({
@@ -97,12 +110,15 @@ export function importCodexPaddleReview({
     outputRoot,
     ledgerPath,
     reviewId: selectedReviewId,
+    retryFailed: true,
+    retryBlocked: true,
     retryQuarantined: true,
     retryCompleted: true,
     ingestJobImpl: async (options) => ingestPaddleJobImpl({
       ...options,
       retry: true,
       runCliImpl: createCodexDraftRunCli({
+        workRoot: root,
         draftRoot: resolvedDraftRoot,
         job: options.job,
         model,

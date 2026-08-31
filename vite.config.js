@@ -10,6 +10,7 @@ import { createAiApi } from './server/aiApi.js'
 import { createAiVerifiedQuestionBankLoader } from './server/aiVerifiedQuestionBank.js'
 import { resolveAiPdfIngestionRoot } from './server/aiPdfIngestionCandidates.js'
 import { createCoachAttemptAuthorizer, createStemApi } from './server/stemApi.js'
+import { createTopicPdfRenderer } from './server/topicPdfRenderer.js'
 import { isPaperAvailableToStudents } from './src/lib/paperGovernance.js'
 import { mergeRuntimeEnv } from './src/lib/runtimeEnv.js'
 import { resolveLibraryRoot } from './server/pdfLibrary.js'
@@ -430,7 +431,12 @@ function localCieLibrary(env) {
   })
   const runtimeAiGroups = () => runtimeAiQuestionBank().groups
   const runtimePdfDocuments = () => runtimeAiQuestionBank().documents
-  const stemApi = createStemApi({ env, topicQuestionBankProvider: runtimeAiGroups, libraryRoot })
+  const topicPdfRenderer = createTopicPdfRenderer({
+    artifactRoot: resolveAiPdfIngestionRoot(env),
+    libraryRoot,
+    timeoutMs: env.STEM_TOPIC_PDF_TIMEOUT_MS,
+  })
+  const stemApi = createStemApi({ env, topicQuestionBankProvider: runtimeAiGroups, libraryRoot, topicPdfRenderer })
   const aiApi = createAiApi({
     env,
     libraryRoot,

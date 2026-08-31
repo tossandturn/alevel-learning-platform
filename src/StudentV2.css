@@ -1450,6 +1450,32 @@
   font-weight: 700;
 }
 
+.topic-detail__pdf {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 42px;
+  margin-top: 4px;
+  border: 1px solid #c7d5ec;
+  border-radius: 6px;
+  color: #275da8;
+  background: #f7faff;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.topic-detail__pdf:hover:not(:disabled) {
+  border-color: #91acd8;
+  background: #eef4ff;
+}
+
+.topic-detail__pdf:disabled {
+  cursor: wait;
+  opacity: .65;
+}
+
 .topic-detail__error {
   margin-top: 12px !important;
   color: #b42318;

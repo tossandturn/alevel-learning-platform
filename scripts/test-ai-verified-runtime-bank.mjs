@@ -41,7 +41,10 @@ const verifiedArtifact = {
     markSchemePdfPath: path.join(libraryRoot, markSchemeFile),
     questionPdfSha256,
     markSchemePdfSha256,
+    renderDpi: 180,
+    pageImageHashes: { 3: 'd'.repeat(64) },
     pageSizes: { 3: { width: 1200, height: 1600 } },
+    markSchemePageHashes: { 5: 'e'.repeat(64) },
     markSchemePageSizes: { 5: { width: 1200, height: 1600 } },
   },
   candidate: {
@@ -74,6 +77,33 @@ verifiedArtifact.studentRelease = buildAiStudentStudyRelease({
   candidate: verifiedArtifact.candidate,
   verification: verifiedArtifact.verification,
 })
+
+const explicitlyUnreleasedCandidate = {
+  ...verifiedArtifact.candidate,
+  reviewSummary: {
+    status: 'paired_independent_local_passes_not_released',
+    providerStatus: 'not_called_local_evidence_synthesis',
+    studentRelease: false,
+  },
+}
+const explicitlyUnreleasedVerification = {
+  ...verifiedArtifact.verification,
+  reviewSummary: {
+    status: 'independent_verification_pass_not_released',
+    providerStatus: 'not_called_local_evidence_synthesis',
+    studentRelease: false,
+  },
+}
+assert.equal(buildAiStudentStudyRelease({
+  artifactId: verifiedArtifact.artifactId,
+  routeId: verifiedArtifact.syllabusRouteId,
+  status: verifiedArtifact.status,
+  source: verifiedArtifact.source,
+  extractor: verifiedArtifact.extractor,
+  verifier: verifiedArtifact.verifier,
+  candidate: explicitlyUnreleasedCandidate,
+  verification: explicitlyUnreleasedVerification,
+}), null, 'draft-only local evidence must not mint a student release')
 
 const p5Artifact = {
   ...verifiedArtifact,

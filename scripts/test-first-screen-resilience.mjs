@@ -57,6 +57,8 @@ assert.match(appSource, /setCoachMounted\(true\)/, 'opening Coach must mount it 
 assert.match(appSource, /view === 'dashboard' && !coachMounted && !accountDialogMode && !accountPopoverOpen/, 'Dashboard must keep a lightweight Coach launch control without mounting the heavy Coach chunk')
 assert.match(appSource, /initialOpen=\{coachOpenPending\}/, 'the lazy Coach mount must carry the user open intent across the async chunk load')
 assert.match(appSource, /onInitialOpenHandled=\{\(\) => setCoachOpenPending\(false\)\}/, 'the lazy Coach mount must acknowledge its open intent after mounting')
+assert.match(appSource, /coach: view === 'dashboard' && coachOpenPending \? '1' : ''/, 'the dashboard URL must retain only an unconsumed Coach deep-link request')
+assert.doesNotMatch(appSource, /coach:[^\n]*(?:coachMounted|initialCoachOpen)/, 'closing a mounted Coach must not leave coach=1 in the URL and reopen it after refresh')
 assert.match(appSource, /view !== 'dashboard' \|\| coachMounted/, 'the delayed dashboard preload must not mount Coach')
 assert.match(appSource, /if \(view === 'dashboard'\) return undefined/, 'the heavy practice runtime must stay unloaded on the dashboard')
 assert.match(appSource, /import\('\.\/data\/catalog'\)/, 'legacy seed units must load only when deferred state migration needs them')

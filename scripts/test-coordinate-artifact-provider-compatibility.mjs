@@ -49,7 +49,10 @@ function buildArtifact() {
       markSchemePdfPath: markSchemePath,
       questionPdfSha256,
       markSchemePdfSha256,
+      renderDpi: 180,
+      pageImageHashes: { 2: 'a'.repeat(64) },
       pageSizes: { 2: { width: 1200, height: 1600 } },
+      markSchemePageHashes: { 4: 'b'.repeat(64) },
       markSchemePageSizes: { 4: { width: 1200, height: 1600 } },
     },
     candidate: {
@@ -116,8 +119,7 @@ try {
   delete unreleasedArtifact.studentRelease
   fs.writeFileSync(artifactPath, JSON.stringify(unreleasedArtifact), 'utf8')
   const unreleased = load({ refresh: true })
-  assert.equal(unreleased.groups.length, 1, 'a canonical artifact may remain available for diagnostics before student release')
-  assert.equal(unreleased.groups[0].studentStudyEligible, false)
+  assert.equal(unreleased.groups.length, 0, 'an artifact without a student release must stay out of the runtime bank')
   const unreleasedInventory = syllabusTopicsInventory({
     routeId: 'cie-9702-a2-physics',
     questionBank: unreleased.groups,

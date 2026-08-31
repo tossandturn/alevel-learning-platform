@@ -35,6 +35,43 @@ function normalizedHash(value) {
   return SHA256.test(hash) ? hash.toLowerCase() : ''
 }
 
+function canonicalQuestionNumber(value) {
+  const number = asText(value)
+  return /^[1-9]\d*$/.test(number) ? number : ''
+}
+
+function canonicalQuestionNumberSet(questions) {
+  if (!Array.isArray(questions)) return null
+  const numbers = []
+  const seen = new Set()
+  for (const question of questions) {
+    const rawNumber = asText(question?.questionNumber)
+    const number = canonicalQuestionNumber(rawNumber)
+    if (!number || number !== rawNumber || seen.has(number)) return null
+    seen.add(number)
+    numbers.push(number)
+  }
+  return numbers
+}
+
+function validPageHashMap(pageSizes, pageHashes) {
+  if (!pageSizes || typeof pageSizes !== 'object' || Array.isArray(pageSizes)
+    || !pageHashes || typeof pageHashes !== 'object' || Array.isArray(pageHashes)) return false
+  const sizePages = Object.keys(pageSizes)
+  const hashPages = Object.keys(pageHashes)
+  if (!sizePages.length || sizePages.length !== hashPages.length) return false
+  for (const rawPage of sizePages) {
+    if (!/^[1-9]\d*$/.test(rawPage) || String(Number(rawPage)) !== rawPage) return false
+    const size = pageSizes[rawPage]
+    if (!size || typeof size !== 'object' || Array.isArray(size)
+      || !Number.isInteger(Number(size.width)) || Number(size.width) <= 0
+      || !Number.isInteger(Number(size.height)) || Number(size.height) <= 0
+      || !Object.hasOwn(pageHashes, rawPage)
+      || !normalizedHash(pageHashes[rawPage])) return false
+  }
+  return hashPages.every((rawPage) => Object.hasOwn(pageSizes, rawPage))
+}
+
 function withinRoot(filePath, root) {
   const target = path.resolve(String(filePath || ''))
   const base = path.resolve(String(root || ''))
@@ -104,13 +141,16 @@ function runtimeRouteConfig(routeId) {
   const route = routeById(String(routeId || ''))
   const components = RUNTIME_ROUTE_COMPONENTS[route?.routeId]
   if (!route || !components?.length) return null
+  const topics = route.syllabus?.topics || []
   return Object.freeze({
     route,
     routeId: route.routeId,
     subjectCode: route.subjectCode,
     stage: route.stage,
     components,
-    topicIds: new Set((route.syllabus?.topics || []).map((topic) => String(topic.id || '').trim()).filter(Boolean)),
+    topicIds: new Set(topics.map((topic) => String(topic.id || '').trim()).filter(Boolean)),
+    topicsById: new Map(topics.map((topic) => [String(topic.id || '').trim(), topic]).filter(([id]) => id)),
+    pointIds: new Set(topics.flatMap((topic) => topic.points || []).map((point) => String(point.id || '').trim()).filter(Boolean)),
     specificationId: `cambridge-${route.subjectCode}-${route.syllabus?.version || 'current'}`,
   })
 }
@@ -126,7 +166,7 @@ function artifactRouteConfig(artifact, metadata) {
   return config
 }
 
-function validRegion(region, pageSizes) {
+function validRegion(region, pageSizes, pageImageHashes) {
   const page = Number(region?.page)
   const bounds = ['x0', 'y0', 'x1', 'y1'].map((key) => Number(region?.[key]))
   const size = pageSizes?.[page]
@@ -135,6 +175,8 @@ function validRegion(region, pageSizes) {
   if (![x0, y0, x1, y1].every(Number.isFinite) || x0 < 0 || y0 < 0 || x1 > 1 || y1 > 1 || x0 >= x1 || y0 >= y1) return null
   const pageImageSha256 = normalizedHash(region?.pageImageSha256)
   if (!pageImageSha256) return null
+  if (pageImageHashes !== undefined && pageImageHashes !== null
+    && normalizedHash(pageImageHashes?.[page]) !== pageImageSha256) return null
   return Object.freeze({
     page,
     pageImageSha256,
@@ -143,10 +185,13 @@ function validRegion(region, pageSizes) {
   })
 }
 
-function validMarkSchemeEvidence(evidence, pageSizes) {
+function validMarkSchemeEvidence(evidence, pageSizes, pageImageHashes) {
   const page = Number(evidence?.page)
-  if (!Number.isInteger(page) || page < 1 || !pageSizes?.[page] || !normalizedHash(evidence?.pageImageSha256)) return null
-  return Object.freeze({ page, pageImageSha256: normalizedHash(evidence.pageImageSha256) })
+  const pageImageSha256 = normalizedHash(evidence?.pageImageSha256)
+  if (!Number.isInteger(page) || page < 1 || !pageSizes?.[page] || !pageImageSha256) return null
+  if (pageImageHashes !== undefined && pageImageHashes !== null
+    && normalizedHash(pageImageHashes?.[page]) !== pageImageSha256) return null
+  return Object.freeze({ page, pageImageSha256 })
 }
 
 function validRenderDpi(value) {
@@ -174,33 +219,104 @@ function evidenceForRegion(region, sourceHash) {
   })
 }
 
+function normalizedIdList(value) {
+  return Object.freeze([...new Set((Array.isArray(value) ? value : [])
+    .map((entry) => asText(entry))
+    .filter(Boolean))])
+}
+
+function sameIdList(left, right) {
+  const leftIds = normalizedIdList(left)
+  const rightIds = normalizedIdList(right)
+  return leftIds.length === rightIds.length && leftIds.every((id, index) => id === rightIds[index])
+}
+
+function regionKey(region) {
+  return [region.page, ...(region.region || []), region.pageImageSha256].join(':')
+}
+
+function sameRegionCollection(left, right) {
+  return JSON.stringify(left.map(regionKey).sort()) === JSON.stringify(right.map(regionKey).sort())
+}
+
+function normalizedRegions(value, pageSizes, pageImageHashes, { required = false } = {}) {
+  if (value === undefined && !required) return []
+  if (!Array.isArray(value) || (required && value.length === 0)) return null
+  const regions = value.map((region) => validRegion(region, pageSizes, pageImageHashes))
+  return regions.some((region) => !region) ? null : regions
+}
+
+function normalizedEvidence(value, pageSizes, pageImageHashes) {
+  if (!Array.isArray(value) || value.length === 0) return null
+  const evidence = value.map((entry) => validMarkSchemeEvidence(entry, pageSizes, pageImageHashes))
+  return evidence.some((entry) => !entry) ? null : evidence
+}
+
 function questionFromArtifact(artifact, candidate, verification, metadata, routeConfig) {
   const source = artifact.source || {}
   const sourceHash = normalizedHash(source.questionPdfSha256)
   const markSchemeHash = normalizedHash(source.markSchemePdfSha256)
   const renderDpi = validRenderDpi(source.renderDpi)
-  const number = asText(candidate?.questionNumber)
+  const rawNumber = asText(candidate?.questionNumber)
+  const number = canonicalQuestionNumber(rawNumber)
   const topicId = asText(candidate?.tags?.primaryTopicId)
-  const regions = [...(candidate?.regions || []), ...(candidate?.diagramRegions || [])]
-    .map((region) => validRegion(region, source.pageSizes))
-    .filter(Boolean)
-  const markSchemeEvidence = (candidate?.markSchemeEvidence || [])
-    .map((evidence) => validMarkSchemeEvidence(evidence, source.markSchemePageSizes))
-    .filter(Boolean)
-  const verifiedEvidence = (verification?.markSchemeEvidence || [])
-    .map((evidence) => validMarkSchemeEvidence(evidence, source.markSchemePageSizes))
-    .filter(Boolean)
+  const candidateRegions = normalizedRegions(candidate?.regions, source.pageSizes, source.pageImageHashes, { required: true })
+  const candidateDiagrams = normalizedRegions(candidate?.diagramRegions, source.pageSizes, source.pageImageHashes)
+  const regions = candidateRegions && candidateDiagrams ? [...candidateRegions, ...candidateDiagrams]
+    .filter((region, index, all) => all.findIndex((entry) => regionKey(entry) === regionKey(region)) === index) : null
+  const diagramRegions = candidateDiagrams
+  const markSchemeEvidence = normalizedEvidence(candidate?.markSchemeEvidence, source.markSchemePageSizes, source.markSchemePageHashes)
+  const verifiedEvidence = normalizedEvidence(verification?.markSchemeEvidence, source.markSchemePageSizes, source.markSchemePageHashes)
+  const verificationRegions = Object.hasOwn(verification || {}, 'regions')
+    ? normalizedRegions(verification.regions, source.pageSizes, source.pageImageHashes, { required: true })
+    : null
+  const verificationDiagrams = Object.hasOwn(verification || {}, 'diagramRegions')
+    ? normalizedRegions(verification.diagramRegions, source.pageSizes, source.pageImageHashes)
+    : null
+  const candidateQuestionStartPage = Number(candidate?.questionStartPage)
+  const verifiedQuestionStartPage = Number(verification?.questionStartPage)
+  const verifiedNumber = canonicalQuestionNumber(verification?.questionNumber)
   const verifiedTopicId = asText(verification?.tags?.primaryTopicId)
-  if (!/^\d+$/.test(number)
+  const candidateSecondaryTopicIds = normalizedIdList(candidate?.tags?.secondaryTopicIds)
+  const verifiedSecondaryTopicIds = normalizedIdList(verification?.tags?.secondaryTopicIds)
+  const candidateSyllabusPointIds = normalizedIdList(candidate?.tags?.syllabusPointIds)
+  const verifiedSyllabusPointIds = normalizedIdList(verification?.tags?.syllabusPointIds)
+  const questionRegionPages = [...new Set((regions || []).map((region) => region.page))].sort((left, right) => left - right)
+  const questionPages = [...new Set(questionRegionPages)].sort((left, right) => left - right)
+  const verificationPages = [...new Set((verification?.pages || []).map(Number))].sort((left, right) => left - right)
+  const topicsById = routeConfig?.topicsById || new Map()
+  const hasCandidateQuestionStartPage = Number.isInteger(candidateQuestionStartPage) && candidateQuestionStartPage > 0
+  const hasVerifiedQuestionStartPage = Number.isInteger(verifiedQuestionStartPage) && verifiedQuestionStartPage > 0
+  const questionStartPage = hasCandidateQuestionStartPage || hasVerifiedQuestionStartPage ? candidateQuestionStartPage : questionPages[0]
+  const verifiedDiagramRegionCount = Number(verification?.diagramRegionCount)
+  const hasVerifiedDiagramRegionCount = Number.isInteger(verifiedDiagramRegionCount) && verifiedDiagramRegionCount >= 0
+  const taggedTopicIds = [topicId, ...candidateSecondaryTopicIds]
+  const taggedTopics = taggedTopicIds.map((taggedTopicId) => topicsById.get(taggedTopicId))
+  const taggedPointIds = new Set(taggedTopics.flatMap((topic) => topic?.points || []).map((point) => String(point?.id || '').trim()).filter(Boolean))
+  if (!number
+    || number !== rawNumber
+    || !verifiedNumber
+    || verifiedNumber !== asText(verification?.questionNumber)
+    || verifiedNumber !== number
     || !routeConfig?.topicIds.has(topicId)
     || (verifiedTopicId && verifiedTopicId !== topicId)
-    || !regions.length
-    || !markSchemeEvidence.length
+    || (hasCandidateQuestionStartPage !== hasVerifiedQuestionStartPage)
+    || (hasCandidateQuestionStartPage && candidateQuestionStartPage !== verifiedQuestionStartPage)
+    || (hasCandidateQuestionStartPage && candidateQuestionStartPage !== questionPages[0])
+    || (!hasVerifiedDiagramRegionCount && diagramRegions.length > 0)
+    || (hasVerifiedDiagramRegionCount && verifiedDiagramRegionCount !== diagramRegions.length)
+    || !sameIdList(candidateSecondaryTopicIds, verifiedSecondaryTopicIds)
+    || !sameIdList(candidateSyllabusPointIds, verifiedSyllabusPointIds)
+    || candidateSecondaryTopicIds.includes(topicId)
+    || taggedTopics.some((topic) => !topic)
+    || !candidateSyllabusPointIds.every((pointId) => taggedPointIds.has(pointId))
+    || !regions?.length
+    || !markSchemeEvidence?.length
     || !renderDpi
-    || !samePartMarks(candidate?.parts, verification?.parts)) return null
-  if (JSON.stringify(markSchemeEvidence) !== JSON.stringify(verifiedEvidence)) return null
-  const questionPages = [...new Set(regions.map((region) => region.page))].sort((left, right) => left - right)
-  const verificationPages = [...new Set((verification?.pages || []).map(Number))].sort((left, right) => left - right)
+    || !samePartMarks(candidate?.parts, verification?.parts)
+    || (Object.hasOwn(verification || {}, 'regions') && (!verificationRegions || !sameRegionCollection(candidateRegions, verificationRegions)))
+    || (Object.hasOwn(verification || {}, 'diagramRegions') && (!verificationDiagrams || !sameRegionCollection(diagramRegions, verificationDiagrams)))) return null
+  if (!verifiedEvidence || JSON.stringify(markSchemeEvidence) !== JSON.stringify(verifiedEvidence)) return null
   if (JSON.stringify(questionPages) !== JSON.stringify(verificationPages)) return null
   const questionId = `${metadata.paperId}:q${number}`
   const parts = candidate.parts.map((part) => Object.freeze({
@@ -262,7 +378,7 @@ function questionFromArtifact(artifact, candidate, verification, metadata, route
     topicId,
     stageTags: Object.freeze([routeConfig.stage]),
     componentTags: Object.freeze([metadata.component]),
-    topicTags: Object.freeze([topicId]),
+    topicTags: Object.freeze(taggedTopicIds),
     skillTags: Object.freeze([]),
     answerType: 'handwritten',
     prompt: parts.map((part) => part.promptFragment).filter(Boolean).join('\n'),
@@ -274,8 +390,17 @@ function questionFromArtifact(artifact, candidate, verification, metadata, route
     totalMarks,
     marks: totalMarks,
     parts,
+    diagramRegions: Object.freeze(diagramRegions.map((region) => Object.freeze({
+      page: region.page,
+      documentSha256: sourceHash,
+      pageImageSha256: region.pageImageSha256,
+      coordinateSpace: 'normalized-xyxy',
+      region: region.region,
+      imageSize: region.imageSize,
+    }))),
     sourceRef,
     answerRef,
+    questionStartPage,
     answerBinding: Object.freeze({
       questionId,
       answerId: `${questionId}:answer`,
@@ -321,6 +446,10 @@ function questionFromArtifact(artifact, candidate, verification, metadata, route
       specificationId: routeConfig.specificationId,
       syllabusUrl: routeConfig.route.syllabus?.url || '',
       primaryTopicId: topicId,
+      secondaryTopicIds: candidateSecondaryTopicIds,
+      topicIds: Object.freeze([topicId, ...candidateSecondaryTopicIds]),
+      syllabusPointIds: candidateSyllabusPointIds,
+      questionStartPage,
       knowledgeGroupId: topicId,
       mappingStatus: 'ai-verified',
     }),
@@ -350,11 +479,28 @@ export function questionGroupsFromAiArtifacts(artifacts = [], { libraryRoot } = 
       || !withinSubjectLibrary(resolvedSources.markSchemePath, libraryRoot, metadata.subjectCode)) continue
     if (path.basename(resolvedSources.questionPath) !== metadata.questionFile || path.basename(resolvedSources.markSchemePath) !== metadata.markSchemeFile) continue
     if (asText(artifact.paperId) !== metadata.paperId) continue
-    const verificationByNumber = new Map((artifact.verification?.questions || []).map((question) => [asText(question?.questionNumber), question]))
-    for (const candidate of artifact.candidate?.questions || []) {
-      const group = questionFromArtifact(artifact, candidate, verificationByNumber.get(asText(candidate?.questionNumber)), metadata, routeConfig)
-      const deduplicationKey = group ? `${group.routeId}:${group.sourceQuestionId}` : ''
-      if (!group || seen.has(deduplicationKey)) continue
+    const candidates = Array.isArray(artifact.candidate?.questions) ? artifact.candidate.questions : null
+    const verifications = Array.isArray(artifact.verification?.questions) ? artifact.verification.questions : null
+    const candidateNumbers = canonicalQuestionNumberSet(candidates)
+    const verificationNumbers = canonicalQuestionNumberSet(verifications)
+    if (!candidateNumbers || !verificationNumbers
+      || candidateNumbers.length !== verificationNumbers.length
+      || candidateNumbers.some((number) => !verificationNumbers.includes(number))) continue
+    const verificationByNumber = new Map(verifications.map((question) => [canonicalQuestionNumber(question?.questionNumber), question]))
+    const artifactGroups = []
+    let invalidArtifact = false
+    for (const candidate of candidates) {
+      const group = questionFromArtifact(artifact, candidate, verificationByNumber.get(canonicalQuestionNumber(candidate?.questionNumber)), metadata, routeConfig)
+      if (!group) {
+        invalidArtifact = true
+        break
+      }
+      artifactGroups.push(group)
+    }
+    if (invalidArtifact) continue
+    for (const group of artifactGroups) {
+      const deduplicationKey = `${group.routeId}:${group.sourceQuestionId}`
+      if (seen.has(deduplicationKey)) continue
       seen.add(deduplicationKey)
       groups.push(group)
     }
@@ -410,6 +556,7 @@ function readVerifiedCoordinateArtifact(artifactPath, libraryRoot) {
     artifact?.schemaVersion !== 'ai-pdf-ingestion.v1'
     || artifact?.status !== 'ai-verified'
     || artifact?.storageMode !== 'coordinate-only'
+    || !hasValidAiStudentStudyRelease(artifact)
     || !metadata
     || !markSchemeMetadata
     || !routeConfig
@@ -435,6 +582,10 @@ function readVerifiedCoordinateArtifact(artifactPath, libraryRoot) {
     return null
   }
   if (artifact.artifactId !== expectedArtifactId) return null
+
+  if (!validPageHashMap(source.pageSizes, source.pageImageHashes)
+    || !validPageHashMap(source.markSchemePageSizes, source.markSchemePageHashes)
+    || !validRenderDpi(source.renderDpi)) return null
 
   const questionPath = resolvedSources.questionPath
   const markSchemePath = resolvedSources.markSchemePath

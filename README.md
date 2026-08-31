@@ -132,11 +132,21 @@ npm run preview -- --host 127.0.0.1 --port 4173
 
 `vite preview` also exposes the validated local PDF route.
 
-## Qwen AI
+## AI providers
 
-AI Coach and handwriting marking use the same DashScope-compatible configuration pattern as IELTS-ist. Create a local `.env` from `.env.example` and set `DASHSCOPE_API_KEY`; real values remain server-side and `.env` is ignored by Git. `COACH_AI_*` and `VISION_AI_*` can override the shared key, base URL and model independently.
+AI Coach and handwriting marking use the server-only GPT gateway when
+`AI_GATEWAY_API_KEY` is configured, with the configured DashScope/Qwen channel
+as the real fallback. Create a local `.env` from `.env.example`; real values
+remain server-side and `.env` is ignored by Git. `AI_GATEWAY_*` controls the
+gateway model and reasoning effort, while `COACH_AI_*` and `VISION_AI_*` can
+override the Qwen fallback key, base URL and model independently.
 
-The default models are `qwen3.7-max` for Coach and `qwen3-vl-plus` for handwriting vision. The app stays in labeled local fallback mode when Qwen is not configured or temporarily unavailable; it does not silently switch to OpenAI.
+The gateway defaults to `gpt-5.5` with `xhigh` reasoning. The Qwen fallback
+defaults to `qwen3.7-max` for Coach and `qwen3-vl-plus` for handwriting vision.
+Set `AI_PROVIDER=qwen` to force Qwen or `AI_PROVIDER=openai` to explicitly use
+the legacy direct OpenAI-compatible endpoint. If every configured provider is
+unavailable, the app stays in a labeled retryable/offline state and does not
+fabricate an answer or score.
 
 ## Verify
 

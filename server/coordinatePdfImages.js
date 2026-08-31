@@ -98,12 +98,18 @@ export function runRenderer(executable, args, { timeoutMs = null } = {}) {
   })
 }
 
-function renderedPagePath(outputDirectory, page, prefix = 'page') {
-  const expectedName = `${prefix}-${page}.jpg`.toLowerCase()
-  const match = fs.readdirSync(outputDirectory, { withFileTypes: true })
+export function renderedPagePath(outputDirectory, page, prefix = 'page') {
+  const safePrefix = String(prefix || '')
+  const escapedPrefix = safePrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const pattern = new RegExp(`^${escapedPrefix}-(\\d+)\\.jpg$`, 'i')
+  const matches = fs.readdirSync(outputDirectory, { withFileTypes: true })
     .filter((entry) => entry.isFile())
-    .find((entry) => entry.name.toLowerCase() === expectedName)
-  return match ? path.join(outputDirectory, match.name) : null
+    .map((entry) => ({ entry, match: pattern.exec(entry.name) }))
+    .filter(({ match }) => match && Number(match[1]) === Number(page))
+    // Prefer the canonical unpadded spelling if a renderer leaves more than
+    // one matching file, then choose deterministically by filename.
+    .sort((left, right) => left.match[1].length - right.match[1].length || left.entry.name.localeCompare(right.entry.name))
+  return matches[0] ? path.join(outputDirectory, matches[0].entry.name) : null
 }
 
 function jpegDimensions(bytes) {

@@ -44,7 +44,9 @@ const artifact = {
     questionPdfSha256,
     markSchemePdfSha256,
     renderDpi: 120,
+    pageImageHashes: { 3: 'd'.repeat(64) },
     pageSizes: { 3: { width: 1200, height: 1600 } },
+    markSchemePageHashes: { 5: 'e'.repeat(64) },
     markSchemePageSizes: { 5: { width: 1200, height: 1600 } },
   },
   candidate: {

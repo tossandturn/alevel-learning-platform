@@ -226,7 +226,9 @@ const artifact = {
     markSchemePdfSha256,
     renderDpi: RENDER_DPI,
     pageSizes: { 1: { width: 1530, height: 1980 } },
+    pageImageHashes: { 1: questionPageImageSha256 },
     markSchemePageSizes: { 1: { width: 1530, height: 1980 } },
+    markSchemePageHashes: { 1: markSchemePageImageSha256 },
   },
   candidate: {
     questions: [{

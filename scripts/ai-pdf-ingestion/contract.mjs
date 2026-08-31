@@ -156,6 +156,7 @@ export function resolveArtifactSourcePdfPath({ source, absoluteField, relativeFi
 
 export function buildAiStudentStudyRelease({ artifactId: boundArtifactId, routeId, status, source, extractor, verifier, candidate, verification } = {}) {
   if (status !== AI_PDF_INGESTION_LIFECYCLE.AI_VERIFIED) return null
+  if (!reviewContentAllowsStudentRelease(candidate, verification)) return null
   const questionPdfSha256 = normalizeSha256(source?.questionPdfSha256, 'questionPdfSha256')
   const markSchemePdfSha256 = normalizeSha256(source?.markSchemePdfSha256, 'markSchemePdfSha256')
   if (!/^sha256:[a-f0-9]{64}$/.test(String(boundArtifactId || ''))) throw new TypeError('artifactId must be canonical.')
@@ -223,7 +224,25 @@ export function hasValidAiStudentStudyRelease(artifact) {
     && release?.review?.independentPassCount === 2
     && validReviewPass(artifact?.extractor, 'ai_pdf_question_extraction_v1')
     && validReviewPass(artifact?.verifier, 'ai_pdf_question_verification_v1')
+    && reviewContentAllowsStudentRelease(artifact?.candidate, artifact?.verification)
   )
+}
+
+export function reviewDraftAllowsStudentRelease(document) {
+  const summary = document?.reviewSummary
+  if (!summary || typeof summary !== 'object' || Array.isArray(summary)) return true
+  if (summary.studentRelease === false || summary.studentStudyEligible === false) return false
+  const status = typeof summary.status === 'string' ? summary.status.trim().toLowerCase() : ''
+  const providerStatus = typeof summary.providerStatus === 'string' ? summary.providerStatus.trim().toLowerCase() : ''
+  return !status.includes('not_released')
+    && !status.includes('not-released')
+    && !status.includes('pending_independent')
+    && !providerStatus.startsWith('not_called')
+    && !providerStatus.startsWith('not-called')
+}
+
+export function reviewContentAllowsStudentRelease(candidate, verification) {
+  return reviewDraftAllowsStudentRelease(candidate) && reviewDraftAllowsStudentRelease(verification)
 }
 
 function studyContentSha256(value) {

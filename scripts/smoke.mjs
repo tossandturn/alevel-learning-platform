@@ -193,7 +193,7 @@ const openAiProviders = providerConfig({
   OPENAI_BASE_URL: 'https://api.openai.test/v1',
   OPENAI_MODEL: 'gpt-5.6-test',
 })
-assert.equal(openAiProviders.provider, 'openai', 'AI routing must use OpenAI only when it is explicitly selected')
+assert.equal(openAiProviders.provider, 'openai', 'AI routing must use OpenAI when explicitly selected')
 assert.equal(openAiProviders.coach.apiKey, 'openai-test-only', 'Coach must inherit the server-side OpenAI key')
 assert.equal(openAiProviders.coach.baseUrl, 'https://api.openai.test/v1', 'Coach must use the configured OpenAI-compatible base URL')
 assert.equal(openAiProviders.coach.model, 'gpt-5.6-test', 'Coach must use the OpenAI model override')
@@ -321,7 +321,7 @@ assert.ok(paperLibrarySource.includes("filters.subject === 'bpho' ? 'Round'"), '
 assert.ok(paperRouteEligibilitySource.includes('activeRoute.paperComponents.includes(component)'), 'route-scoped Paper selectors must be built from the route component allowlist')
 const coachSource = fs.readFileSync(path.resolve(import.meta.dirname, '..', 'src', 'components', 'AiCoach.jsx'), 'utf8')
 assert.ok(coachSource.includes('buildCoachConversationId') && coachSource.includes('buildCoachStorageKey') && coachSource.includes('sharedIdentityToken') && coachSource.includes('sharedIdentityUserId'), 'Coach history must use stable conversation identity and account-scoped sync')
-assert.ok(coachSource.includes('partialAnswer') && coachSource.includes('retryAssistantId'), 'Coach stream failures must preserve partial output and expose retry state')
+assert.ok(coachSource.includes('streamedAnswer') && coachSource.includes('coachStreamFailureState') && coachSource.includes('retryAssistantId'), 'Coach stream failures must preserve partial output and expose retry state')
 assert.ok(coachSource.includes('canOpenBphoSpc'), 'BPhO Coach quick action must be guarded by the Competition route')
 const paperWorkspaceSource = fs.readFileSync(path.resolve(import.meta.dirname, '..', 'src', 'components', 'PaperWorkspace.jsx'), 'utf8')
 const pdfViewerSource = fs.readFileSync(path.resolve(import.meta.dirname, '..', 'src', 'components', 'PdfViewer.jsx'), 'utf8')

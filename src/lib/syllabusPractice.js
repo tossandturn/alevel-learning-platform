@@ -378,9 +378,64 @@ function reviewed0580SyllabusMapping(question, syllabus) {
   })
 }
 
+function aiVerifiedSyllabusMapping(question, syllabus, config) {
+  const supplied = question?.syllabusMapping
+  if (supplied?.mappingStatus !== 'ai-verified') return null
+
+  const topicIds = Array.isArray(supplied.topicIds)
+    ? supplied.topicIds.map((value) => String(value || '').trim())
+    : null
+  const primaryTopicId = String(supplied.primaryTopicId || '').trim()
+  const secondaryTopicIds = Array.isArray(supplied.secondaryTopicIds)
+    ? supplied.secondaryTopicIds.map((value) => String(value || '').trim())
+    : null
+  const syllabusPointIds = Array.isArray(supplied.syllabusPointIds)
+    ? supplied.syllabusPointIds.map((value) => String(value || '').trim())
+    : null
+  const officialTopics = new Map((syllabus?.topics || []).map((topic) => [topic.id, topic]))
+  const validTopicIds = Boolean(
+    topicIds?.length
+    && primaryTopicId
+    && secondaryTopicIds
+    && topicIds[0] === primaryTopicId
+    && JSON.stringify(topicIds.slice(1)) === JSON.stringify(secondaryTopicIds)
+    && topicIds.every((topicId) => topicId && officialTopics.has(topicId))
+    && new Set(topicIds).size === topicIds.length
+    && !secondaryTopicIds.includes(primaryTopicId),
+  )
+  const topicPointIds = new Set((topicIds || []).flatMap((topicId) => officialTopics.get(topicId)?.points || [])
+    .map((point) => point.id) || [])
+  const validPointIds = Boolean(
+    syllabusPointIds
+    && new Set(syllabusPointIds).size === syllabusPointIds.length
+    && syllabusPointIds.every((pointId) => pointId && topicPointIds.has(pointId)),
+  )
+  const specificationMatches = !supplied.specificationId || supplied.specificationId === config.syllabus.syllabusVersion
+    || supplied.specificationId === `cambridge-${config.subjectCode}-${config.syllabus.syllabusVersion}`
+  if (!validTopicIds || !validPointIds || !specificationMatches) return { invalid: true }
+
+  return Object.freeze({
+    schemaVersion: SYLLABUS_MAPPING_SCHEMA_VERSION,
+    questionGroupId: question.sourceQuestionId || question.questionGroupId,
+    primaryTopicId,
+    secondaryTopicIds: Object.freeze(secondaryTopicIds),
+    topicIds: Object.freeze(topicIds),
+    syllabusPointIds: Object.freeze(syllabusPointIds),
+    confidence: 1,
+    mappingMethod: 'ai-verified',
+    reviewStatus: 'pending',
+    reviewedBy: null,
+    reviewedAt: null,
+    reviewReason: 'AI-verified source mapping; formal progress requires human review.',
+  })
+}
+
 function candidateMappingFor(question, syllabus, config = {}) {
   const component = Number(question.sourceRef?.component)
   const knowledgeGroupId = String(question.knowledgeGroupId || question.topicId || '')
+  const aiMapping = aiVerifiedSyllabusMapping(question, syllabus, config)
+  if (aiMapping?.invalid) return null
+  if (aiMapping) return aiMapping
   const reviewed0580Mapping = reviewed0580SyllabusMapping(question, syllabus)
   if (reviewed0580Mapping) return reviewed0580Mapping
   if (config.subjectCode === '9709') {

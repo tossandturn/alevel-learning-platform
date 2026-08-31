@@ -93,7 +93,9 @@ try {
   assert.equal(manifest.crops.length, 2)
   assert.deepEqual(manifest.crops.map(crop => crop.page), [10, 11])
   assert.deepEqual(manifest.crops[0].pageSize, { width: 1530, height: 1980 })
-  assert.deepEqual(manifest.crops[0].pixelBounds, { x0: 122, y0: 277, x1: 1439, y1: 1822 })
+  assert.deepEqual(manifest.crops[0].pixelBounds, { x0: 116, y0: 269, x1: 1445, y1: 1830 })
+  assert.ok(manifest.crops[0].normalizedRegion.x0 < 0.08, 'render crop must leave a safety margin before the source region')
+  assert.ok(manifest.crops[0].normalizedRegion.x1 > 0.94, 'render crop must leave a safety margin after the source region')
   assert.equal(manifest.questionPdfPath, path.join(expectedDirectory, 'question.pdf'))
   const cropCommand = buildCropCommand(manifest, { pythonPath: 'py' })
   assert.equal(cropCommand.command, 'py')
@@ -173,7 +175,10 @@ try {
     croppedPdf,
   ], { encoding: 'utf8' })
   assert.equal(inspectResult.status, 0, inspectResult.stderr)
-  assert.deepEqual(inspectResult.stdout.trim().split(/\s+/).map(Number), [1, 320, 360])
+  const croppedDimensions = inspectResult.stdout.trim().split(/\s+/).map(Number)
+  assert.equal(croppedDimensions[0], 1)
+  assert.ok(Math.abs(croppedDimensions[1] - 323.2) < 1e-6)
+  assert.ok(Math.abs(croppedDimensions[2] - 364.8) < 1e-6)
 
   console.log(JSON.stringify({ status: 'passed', checks: 31 }))
 } finally {

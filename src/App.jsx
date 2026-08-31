@@ -33,7 +33,7 @@ import { COURSE_STAGE_ORDER } from './data/stages'
 import { usePaperCatalog } from './hooks/usePaperCatalog'
 import { useSyllabusInventory } from './hooks/useSyllabusInventory'
 import { loadState, makeAttemptId, normalizeState, saveState } from './lib/storage'
-import { questionMatchesSyllabusTopic, supportsSyllabusPracticeRoute, syllabusPracticeComponentsForRoute, syllabusTopicScopeIdsForRoute } from './lib/syllabusPracticeRoutes'
+import { questionMatchesSyllabusTopicMembership, supportsSyllabusPracticeRoute, syllabusPracticeComponentsForRoute, syllabusTopicScopeIdsForRoute } from './lib/syllabusPracticeRoutes'
 import { attemptedSourceQuestionIds, buildAttemptReviewQueue, buildProvisionalAttemptEvidence, hasAttemptResponse, hasCurrentSourceBindingForAttempt, isPendingSelfMarkAttempt, isProvisionalAttempt, isScoredAttempt, isStudyOnlyAttempt, isStudyOnlyPracticeUnit, prepareLearningExport, sourceBindingSnapshotForUnit } from './lib/attemptAudit'
 import { mergeNotebookNote, notebookNoteRequest } from './lib/privateNotes'
 import { stripSourceVisualPlaceholders } from './lib/questionText'
@@ -49,7 +49,7 @@ import {
 import { latestBphoSpcPaper } from './lib/coachIntent'
 import { buildCompletionByUnit, buildLearningProgress, latestSubmittedActivity, recommendForRoute } from './lib/learningProgress'
 import { stableSorted } from './lib/arrayOrder'
-import { accountRefreshFailureState, accountRefreshRetryDelay, professionalTermsUrl, requestNativeAccountReadiness, requestSharedAccount, requestSyllabusPracticeRebind, requestSyllabusPracticeSet, sharedAccountRequest, signInSharedAccount, signOutSharedAccount } from './lib/sharedAccount'
+import { accountRefreshFailureState, accountRefreshRetryDelay, professionalTermsUrl, requestNativeAccountReadiness, requestSharedAccount, requestSyllabusPracticeRebind, requestSyllabusPracticeSet, requestTopicPdf, sharedAccountRequest, signInSharedAccount, signOutSharedAccount } from './lib/sharedAccount'
 import { requestMarkingCapabilities } from './lib/markingCapabilityClient'
 import { applyServerResultAuthority, persistStudentAttempt, projectServerResultAuthority, readStudentAttempts, sourceMarkingPartsForUnit } from './lib/attemptPersistence'
 import { getPaperEvidence } from './lib/evidenceStorage'
@@ -2096,6 +2096,37 @@ function App() {
     setCoachOpenRequest((value) => value + 1)
   }
 
+  const openTopicPdf = useCallback(async ({ routeId, topicId } = {}) => {
+    if (!sharedAccount.token) throw new Error('Sign in to STEM before generating a topic PDF.')
+    let popup = null
+    try {
+      // Reserve the tab in the click handler so a long render is not blocked
+      // by popup protection. The binary URL is revoked after the new tab has
+      // had time to load; it is never written to app state or local storage.
+      popup = window.open('about:blank', '_blank')
+      if (popup) popup.opener = null
+    } catch {
+      popup = null
+    }
+    try {
+      const blob = await requestTopicPdf(sharedAccount.token, { routeId, topicId })
+      const objectUrl = URL.createObjectURL(blob)
+      if (popup && !popup.closed) {
+        popup.location.href = objectUrl
+      } else {
+        const link = document.createElement('a')
+        link.href = objectUrl
+        link.target = '_blank'
+        link.rel = 'noopener noreferrer'
+        link.click()
+      }
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 5 * 60 * 1000)
+    } catch (error) {
+      if (popup && !popup.closed) popup.close()
+      throw error
+    }
+  }, [sharedAccount.token])
+
   return (
     <main className={`app-shell app-shell--${view}`}>
       {view !== 'practice' && view !== 'paper' && <TopNav view={view} activeTab={activeTab} activeRoute={activeRoute} setView={setView} profile={appState.profile} sharedAccount={sharedAccount} onDisconnectSharedAccount={disconnectSharedAccount} onOpenAccount={setAccountDialogMode} onAccountPopoverChange={setAccountPopoverOpen} openNotebook={() => setView('notebook')} openPractice={() => { setActiveTab('recommended'); setView('library') }} openPapers={() => { setActiveTab('papers'); setView('library') }} />}
@@ -2207,6 +2238,7 @@ function App() {
           mistakes={mistakes}
           startPractice={startPractice}
           startKnowledgeDrill={generateSyllabusPractice}
+          onOpenTopicPdf={openTopicPdf}
           onBack={() => { setTopicBuilderRequested(false); setActiveTab('topics'); setView('library') }}
           onOpenCoach={openCoach}
           favoriteUnitIds={appState.favoriteUnitIds || []}
@@ -3012,13 +3044,8 @@ function masteryLabel(mastery) {
   return 'Weak'
 }
 
-function baseTopicId(topicId) {
-  return String(topicId || '').split('@')[0]
-}
-
 function topicQuestionMatches(question, routeId, topicId) {
-  const questionTopic = baseTopicId(question.knowledgeGroupId || question.topicId)
-  return question.routeId === routeId && questionMatchesSyllabusTopic(routeId, questionTopic, topicId)
+  return questionMatchesSyllabusTopicMembership(routeId, question, topicId)
 }
 
 function sourceQuestionPreview(question) {
@@ -3180,8 +3207,9 @@ function PracticeTopicDirectory({ activeRoute, activeRouteId, practiceOptions, v
   )
 }
 
-function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen = false, practiceOptions, syllabusInventory, learningProgress, mistakes, practiceUnits, practiceQuestionGroups = [], studyQuestionRuntimeStatus = 'idle', studyQuestionRuntimeError = '', onOpenPastPaperQuestions = () => {}, verifiedQuestionGroups = [], completionByUnit, startPractice, startKnowledgeDrill, onBack, onOpenCoach, favoriteUnitIds, onToggleFavorite }) {
+function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen = false, practiceOptions, syllabusInventory, learningProgress, mistakes, practiceUnits, practiceQuestionGroups = [], studyQuestionRuntimeStatus = 'idle', studyQuestionRuntimeError = '', onOpenPastPaperQuestions = () => {}, verifiedQuestionGroups = [], completionByUnit, startPractice, startKnowledgeDrill, onBack, onOpenCoach, onOpenTopicPdf = async () => { throw new Error('Topic PDF rendering is unavailable.') }, favoriteUnitIds, onToggleFavorite }) {
   const [startError, setStartError] = useState('')
+  const [topicPdfState, setTopicPdfState] = useState({ status: 'idle', error: '' })
   const [detailTab, setDetailTab] = useState('overview')
   const [builderOpen, setBuilderOpen] = useState(initialBuilderOpen)
   const [selectedTopicIds, setSelectedTopicIds] = useState([topicId])
@@ -3349,6 +3377,7 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen =
   useEffect(() => {
     setQuestionSearch('')
     setSelectedQuestionIds([])
+    setTopicPdfState({ status: 'idle', error: '' })
   }, [activeRouteId, topicId])
 
   useEffect(() => {
@@ -3381,6 +3410,17 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen =
       })
     } catch (error) {
       setStartError(error.message || 'This topic is still being indexed.')
+    }
+  }
+
+  async function generateTopicPdf() {
+    if (topicPdfState.status === 'loading') return
+    setTopicPdfState({ status: 'loading', error: '' })
+    try {
+      await onOpenTopicPdf({ routeId: activeRouteId, topicId })
+      setTopicPdfState({ status: 'ready', error: '' })
+    } catch (error) {
+      setTopicPdfState({ status: 'error', error: error.message || 'The topic PDF could not be generated.' })
     }
   }
 
@@ -3497,7 +3537,7 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen =
           <section className="topic-detail__source" hidden={detailTab !== 'overview'}><FileText size={20} /><div><strong>Official question evidence</strong><p>Every question opens with its complete source page and linked marking guidance. You will see how each answer part is checked before starting.</p></div><span>{available} available</span></section>
         </main>
         <aside className="topic-detail__rail" aria-label="Start a topic session">
-          <section className="topic-detail__start"><div className="topic-detail__start-heading"><div><p className="section-label">Start this session</p><h2>{sessionQuestionCount} official question{sessionQuestionCount === 1 ? '' : 's'}</h2></div>{nextPracticeUnit && <SavePracticeButton unit={nextPracticeUnit} favorite={favoriteUnitIds.includes(nextPracticeUnit.id)} onToggleFavorite={onToggleFavorite} />}</div><p className="topic-detail__start-copy">Open the official question page, work in your preferred mode, then review against the linked mark scheme after submission.</p><ul><li>{inventorySummary}</li><li>{answerPartSummary}</li><li>{readinessSummary}</li></ul>{practiceReady || sampleReady ? <button type="button" className="primary-action" onClick={startTopicPractice}><PlayIcon />{practiceReady ? dynamicSyllabusRoute ? `Practice ${questionCount}` : nextPracticeUnit ? `Start set ${nextPracticeUnit.sourceSetIndex}` : `Practice ${questionCount}` : 'Start checked sample'}</button> : <button type="button" className="primary-action" disabled>{available ? `${available} official questions · more coming` : 'Questions not ready yet'}</button>}{topicPracticeUnits.length > 1 && <div className="topic-detail__set-list" aria-label="Past-paper practice sets">{topicPracticeUnits.map((unit) => { const unitMetrics = practiceUnitMetrics(unit); return <button type="button" key={unit.id} data-completed={Boolean(completionByUnit[unit.id]?.completed)} onClick={() => startPractice(unit)}><span>Set {unit.sourceSetIndex}</span><small>{unitMetrics.sourceQuestionCount} official questions · {unitMetrics.answerPartCount} answer parts · {unitMetrics.paperCount} papers · {unitMetrics.totalMarks} marks</small></button> })}</div>}<button type="button" className="topic-detail__ai" onClick={onOpenCoach}><Sparkles size={16} />Ask AI Tutor about this topic</button>{startError && <p className="topic-detail__error" role="alert">{startError}</p>}</section>
+          <section className="topic-detail__start"><div className="topic-detail__start-heading"><div><p className="section-label">Start this session</p><h2>{sessionQuestionCount} official question{sessionQuestionCount === 1 ? '' : 's'}</h2></div>{nextPracticeUnit && <SavePracticeButton unit={nextPracticeUnit} favorite={favoriteUnitIds.includes(nextPracticeUnit.id)} onToggleFavorite={onToggleFavorite} />}</div><p className="topic-detail__start-copy">Open the official question page, work in your preferred mode, then review against the linked mark scheme after submission.</p><ul><li>{inventorySummary}</li><li>{answerPartSummary}</li><li>{readinessSummary}</li></ul>{practiceReady || sampleReady ? <button type="button" className="primary-action" onClick={startTopicPractice}><PlayIcon />{practiceReady ? dynamicSyllabusRoute ? `Practice ${questionCount}` : nextPracticeUnit ? `Start set ${nextPracticeUnit.sourceSetIndex}` : `Practice ${questionCount}` : 'Start checked sample'}</button> : <button type="button" className="primary-action" disabled>{available ? `${available} official questions · more coming` : 'Questions not ready yet'}</button>}{topicPracticeUnits.length > 1 && <div className="topic-detail__set-list" aria-label="Past-paper practice sets">{topicPracticeUnits.map((unit) => { const unitMetrics = practiceUnitMetrics(unit); return <button type="button" key={unit.id} data-completed={Boolean(completionByUnit[unit.id]?.completed)} onClick={() => startPractice(unit)}><span>Set {unit.sourceSetIndex}</span><small>{unitMetrics.sourceQuestionCount} official questions · {unitMetrics.answerPartCount} answer parts · {unitMetrics.paperCount} papers · {unitMetrics.totalMarks} marks</small></button> })}</div>}<button type="button" className="topic-detail__ai" onClick={onOpenCoach}><Sparkles size={16} />Ask AI Tutor about this topic</button>{dynamicSyllabusRoute && <><button type="button" className="topic-detail__pdf" onClick={generateTopicPdf} disabled={topicPdfState.status === 'loading'}><FileText size={16} />{topicPdfState.status === 'loading' ? 'Rendering topic PDF...' : topicPdfState.status === 'ready' ? 'Open topic PDF again' : 'Open syllabus topic PDF'}</button>{topicPdfState.error && <p className="topic-detail__error" role="alert">{topicPdfState.error}</p>}</>}{startError && <p className="topic-detail__error" role="alert">{startError}</p>}</section>
           {dynamicSyllabusRoute && <details className="topic-detail__set-controls" open={builderOpen} onToggle={(event) => setBuilderOpen(event.currentTarget.open)}>
             <summary><span><strong>Customize this set</strong><small>{selectedTopics.map((item) => item.label.replace(/^\d+\s+/, '')).join(' + ')} · {selectedQuestionCount} questions · {componentLabel}</small></span><ChevronRight size={17} /></summary>
             <div className="topic-detail__set-controls-body" aria-label="Syllabus practice set controls">

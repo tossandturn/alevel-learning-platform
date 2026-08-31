@@ -15,7 +15,15 @@ import {
 } from './release-content-policy.mjs'
 
 const prepareScript = path.resolve(import.meta.dirname, 'prepare-stem-release.mjs')
+const repositoryRoot = path.resolve(import.meta.dirname, '..')
 const packageManifest = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, '..', 'package.json'), 'utf8'))
+const gitignore = fs.readFileSync(path.join(repositoryRoot, '.gitignore'), 'utf8')
+
+assert.match(
+  gitignore,
+  /^public\/data\/papers\/$/m,
+  'generated subject paper catalogs must stay outside Git and enter only through the governed content release',
+)
 
 assert.match(
   packageManifest.scripts?.preview || '',

@@ -46,7 +46,10 @@ try {
   writeFileSync(questionPdf, Buffer.from('%PDF-fixture', 'utf8'))
   writeFileSync(markSchemePdf, Buffer.from('%PDF-fixture', 'utf8'))
 
-  for (const subject of ['0580', '0625']) {
+  for (const [subject, routeId] of [
+    ['0580', 'cie-0580-igcse-mathematics'],
+    ['0625', 'cie-0625-igcse-physics'],
+  ]) {
     const ingestionOptions = parseIngestionArgs([
       '--paper-id', `cie-${subject}-fixture`,
       '--question-pdf', questionPdf,
@@ -55,15 +58,17 @@ try {
       '--dry-run',
     ], { cwd: temporaryRoot, env: { OPENAI_API_KEY: 'test-key' } })
     assert.equal(ingestionOptions.subject, subject)
-    assert.equal(parseTopicPackArgs(['--subject', subject, '--dry-run'], { cwd: temporaryRoot }).subject, subject)
+    const topicPackOptions = parseTopicPackArgs(['--route-id', routeId, '--subject', subject, '--dry-run'], { cwd: temporaryRoot })
+    assert.equal(topicPackOptions.subject, subject)
+    assert.equal(topicPackOptions.routeId, routeId)
   }
 
   assert.throws(
-    () => parseTopicPackArgs(['--subject', '0580', '--topic-id', '0580-igcse-topic-99'], { cwd: temporaryRoot }),
+    () => parseTopicPackArgs(['--route-id', 'cie-0580-igcse-mathematics', '--topic-id', '0580-igcse-topic-99', '--dry-run'], { cwd: temporaryRoot }),
     error => error?.code === 'OFFICIAL_TOPIC_INVALID',
   )
   assert.throws(
-    () => parseTopicPackArgs(['--subject', '0625', '--topic-id', '0625-igcse-topic-99'], { cwd: temporaryRoot }),
+    () => parseTopicPackArgs(['--route-id', 'cie-0625-igcse-physics', '--topic-id', '0625-igcse-topic-99', '--dry-run'], { cwd: temporaryRoot }),
     error => error?.code === 'OFFICIAL_TOPIC_INVALID',
   )
 

@@ -66,6 +66,43 @@ function sendJson(response, statusCode, body) {
   response.end(JSON.stringify(body))
 }
 
+function sendTopicPdf(response, result, { routeId, topicId }) {
+  const pdf = result?.pdf
+  const manifest = result?.manifest
+  if (!Buffer.isBuffer(pdf) || pdf.length < 5 || pdf.subarray(0, 5).toString('ascii') !== '%PDF-'
+    || !manifest || manifest.routeId !== routeId || manifest.topic?.id !== topicId) {
+    throw Object.assign(new Error('The generated topic PDF failed its output contract.'), {
+      statusCode: 502,
+      code: 'topic_pdf_output_invalid',
+    })
+  }
+  response.statusCode = 200
+  response.setHeader('Content-Type', 'application/pdf')
+  response.setHeader('Content-Disposition', `inline; filename="topic-${topicId}.pdf"`)
+  response.setHeader('Cache-Control', 'private, no-store')
+  response.setHeader('Content-Length', String(pdf.length))
+  if (Number.isInteger(manifest.questionCount) && manifest.questionCount >= 0) {
+    response.setHeader('X-STEM-Topic-PDF-Question-Count', String(manifest.questionCount))
+  }
+  response.end(pdf)
+}
+
+function topicPdfRequestPayload(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw Object.assign(new Error('Topic PDF requests must contain routeId and topicId.'), { statusCode: 400, code: 'topic_pdf_request_invalid' })
+  }
+  const keys = Object.keys(payload).sort()
+  if (keys.length !== 2 || keys[0] !== 'routeId' || keys[1] !== 'topicId') {
+    throw Object.assign(new Error('Only routeId and topicId are accepted for topic PDF rendering.'), { statusCode: 400, code: 'topic_pdf_request_invalid' })
+  }
+  const routeId = asText(payload.routeId, 120).toLowerCase()
+  const topicId = asText(payload.topicId, 240)
+  if (!routeId || !topicId) {
+    throw Object.assign(new Error('A routeId and exact official topicId are required.'), { statusCode: 400, code: 'topic_pdf_request_invalid' })
+  }
+  return { routeId, topicId }
+}
+
 function readJson(request, maxBytes = MAX_BODY_BYTES) {
   return new Promise((resolve, reject) => {
     const chunks = []
@@ -1935,7 +1972,7 @@ function eventPayload(value) {
   }
 }
 
-export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQuestionBankProvider = null, fetchImpl = fetch, libraryRoot = null }) {
+export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQuestionBankProvider = null, fetchImpl = fetch, libraryRoot = null, topicPdfRenderer = null }) {
   // A single shared server key is sufficient for both the internal account
   // request and the short-lived STEM API token. The legacy identity key is a
   // migration fallback only, so every active path uses the same canonical key.
@@ -2148,6 +2185,15 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
         return
       }
       const user = identityFromRequest(request, signingKey)
+      if (request.method === 'POST' && url.pathname === '/api/stem/topic-pdfs') {
+        if (typeof topicPdfRenderer !== 'function') {
+          throw Object.assign(new Error('Topic PDF rendering is not available on this server.'), { statusCode: 503, code: 'topic_pdf_unavailable' })
+        }
+        const renderRequest = topicPdfRequestPayload(await readJson(request, 16 * 1024))
+        const rendered = await topicPdfRenderer(renderRequest)
+        sendTopicPdf(response, rendered, renderRequest)
+        return
+      }
       if (url.pathname === '/api/stem/coach/conversations' && ['GET', 'PUT', 'POST'].includes(request.method)) {
         const payload = request.method === 'GET' ? {} : await readJson(request, 8 * 1024 * 1024)
         const result = request.method === 'GET'

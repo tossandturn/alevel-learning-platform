@@ -71,6 +71,37 @@ function compose(...middlewares) {
   })
 }
 
+function providerCoachContext(body) {
+  const contentItems = [
+    ...(Array.isArray(body?.messages) ? body.messages : []).flatMap((message) => (
+      Array.isArray(message?.content)
+        ? message.content
+        : [{ type: 'text', text: message?.content }]
+    )),
+    ...(Array.isArray(body?.input) ? body.input : []).flatMap((message) => (
+      Array.isArray(message?.content)
+        ? message.content
+        : [{ type: 'input_text', text: message?.content }]
+    )),
+  ]
+  for (const item of contentItems) {
+    const text = typeof item === 'string' ? item : item?.text
+    if (!text) continue
+    try {
+      const parsed = JSON.parse(text)
+      if (parsed && typeof parsed === 'object' && (parsed.attemptId || parsed.paper || parsed.question || parsed.part)) return parsed
+    } catch {
+      // System prompts and ordinary history are not JSON context.
+    }
+  }
+  const metadataContext = body?.metadata?.stemCoachContext
+  if (metadataContext && typeof metadataContext === 'object') return metadataContext
+  if (typeof metadataContext === 'string') {
+    try { return JSON.parse(metadataContext) } catch { return null }
+  }
+  return null
+}
+
 async function request(baseUrl, pathname, { token, body }) {
   const response = await fetch(`${baseUrl}${pathname}`, {
     method: 'POST',
@@ -173,10 +204,10 @@ try {
   })
   assert.equal(unansweredPractice.response.status, 200, unansweredPractice.text)
   assert.match(unansweredPractice.text, /Bound Coach response/)
-  const practiceProviderText = JSON.stringify(providerBodies.at(-1))
-  assert.match(practiceProviderText, /"responseStatus":"unanswered"/, 'the provider context must explicitly state that the current question is unanswered')
-  assert.match(practiceProviderText, /"submissionStatus":"draft"/, 'the provider context must use the authoritative draft status')
-  assert.match(practiceProviderText, new RegExp(`"part":\\{"id":"${firstQuestionPart.partId}"`), 'the provider context must retain the current answer-part binding')
+  const practiceProviderContext = providerCoachContext(providerBodies.at(-1))
+  assert.equal(practiceProviderContext?.responseStatus, 'unanswered', 'the provider context must explicitly state that the current question is unanswered')
+  assert.equal(practiceProviderContext?.submissionStatus, 'draft', 'the provider context must use the authoritative draft status')
+  assert.equal(practiceProviderContext?.part?.id, firstQuestionPart.partId, 'the provider context must retain the current answer-part binding')
 
   const substitutedSourceDetails = await request(appBase, '/api/ai/coach/stream', {
     token: ownerToken,
@@ -196,10 +227,10 @@ try {
     }),
   })
   assert.equal(substitutedSourceDetails.response.status, 200, substitutedSourceDetails.text)
-  const canonicalProviderText = JSON.stringify(providerBodies.at(-1))
-  assert.match(canonicalProviderText, /"questionFile":"9702_m25_qp_22\.pdf"/, 'the provider context must use the persisted QP file')
-  assert.match(canonicalProviderText, /"markSchemeFile":"9702_m25_ms_22\.pdf"/, 'the provider context must use the persisted MS file')
-  assert.doesNotMatch(canonicalProviderText, /ATTACKER-SUPPLIED/, 'client question text must not replace canonical source context')
+  const canonicalProviderContext = providerCoachContext(providerBodies.at(-1))
+  assert.equal(canonicalProviderContext?.paper?.questionFile, '9702_m25_qp_22.pdf', 'the provider context must use the persisted QP file')
+  assert.equal(canonicalProviderContext?.paper?.markSchemeFile, '9702_m25_ms_22.pdf', 'the provider context must use the persisted MS file')
+  assert.doesNotMatch(JSON.stringify(canonicalProviderContext), /ATTACKER-SUPPLIED/, 'client question text must not replace canonical source context')
 
   const topicDraftCoach = await request(appBase, '/api/ai/coach/stream', {
     token: ownerToken,
@@ -304,7 +335,7 @@ try {
     body: coachBody(simulationAttemptId, { paperStudyMode: 'exam-simulation', submitted: true }),
   })
   assert.equal(allowedSimulationReview.response.status, 200, allowedSimulationReview.text)
-  assert.match(JSON.stringify(providerBodies.at(-1)), /"submissionStatus":"submitted"/)
+  assert.equal(providerCoachContext(providerBodies.at(-1))?.submissionStatus, 'submitted')
 } finally {
   await Promise.all([close(appServer), close(providerServer)])
   closeStemDatabaseForTests()

@@ -14,6 +14,7 @@ const popplerTools = Object.freeze({
 const sourceHashPattern = /^(?:sha256:)?([a-fA-F0-9]{64})$/
 const safePathSegmentPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/
 const maxRenderDpi = 300
+const cropRenderMargin = 0.004
 const cropHelperPath = fileURLToPath(new URL('./crop_pdf.py', import.meta.url))
 
 export function resolvePopplerExecutable(kind, { env = process.env, existsSync = fs.existsSync } = {}) {
@@ -143,7 +144,8 @@ function buildCropEntry({ region, regionIndex, pageSizes, outputDirectory }) {
   if (!Number.isInteger(region.page) || region.page < 1) {
     throw new RangeError('Each crop region page must be a positive integer.')
   }
-  const normalizedRegion = normalizeRegion(region)
+  const sourceRegion = normalizeRegion(region)
+  const normalizedRegion = expandRenderRegion(sourceRegion)
   const pageSize = resolvePageSize(pageSizes, region.page)
   const pixelBounds = {
     x0: Math.floor(normalizedRegion.x0 * pageSize.width),
@@ -156,10 +158,20 @@ function buildCropEntry({ region, regionIndex, pageSizes, outputDirectory }) {
   assertWithinRoot(outputDirectory, outputPath)
   return {
     page: region.page,
+    sourceRegion,
     normalizedRegion,
     pageSize,
     pixelBounds,
     outputPath,
+  }
+}
+
+function expandRenderRegion(region) {
+  return {
+    x0: Math.max(0, region.x0 - cropRenderMargin),
+    y0: Math.max(0, region.y0 - cropRenderMargin),
+    x1: Math.min(1, region.x1 + cropRenderMargin),
+    y1: Math.min(1, region.y1 + cropRenderMargin),
   }
 }
 

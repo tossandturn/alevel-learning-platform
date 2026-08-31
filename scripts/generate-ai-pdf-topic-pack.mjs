@@ -4,18 +4,20 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawn } from 'node:child_process'
 
-import { CAMBRIDGE_9702_AS_SYLLABUS } from '../src/data/syllabus/cambridge-9702-as-2025-2027.js'
-import { CAMBRIDGE_0580_IGCSE_SYLLABUS } from '../src/data/syllabus/cambridge-0580-igcse-2025-2027.js'
-import { CAMBRIDGE_0625_IGCSE_SYLLABUS } from '../src/data/syllabus/cambridge-0625-igcse-2026-2028.js'
-import { CAMBRIDGE_9709_AS_P1_S1_SYLLABUS } from '../src/data/syllabus/cambridge-9709-as-p1-s1-2026-2027.js'
-import { AI_PDF_INGESTION_SCHEMA_VERSION } from './ai-pdf-ingestion/contract.mjs'
+import { routeById } from '../src/data/routeRegistry.js'
+import { syllabusPracticeComponentsForRoute, supportsSyllabusPracticeRoute } from '../src/lib/syllabusPracticeRoutes.js'
+import {
+  AI_PDF_INGESTION_SCHEMA_VERSION,
+  hasValidAiStudentStudyRelease,
+  resolveArtifactSourcePdfPath,
+} from './ai-pdf-ingestion/contract.mjs'
 import {
   buildCropCommand,
   buildCropManifest,
   imageSha256,
 } from './ai-pdf-ingestion/render.mjs'
 
-export const AI_PDF_TOPIC_PACK_SCHEMA_VERSION = 'ai-pdf-topic-pack.v1'
+export const AI_PDF_TOPIC_PACK_SCHEMA_VERSION = 'ai-pdf-topic-pack.v2'
 
 const SAFE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/
 const DEFAULT_ARTIFACT_ROOT = 'data/ai-pdf-ingestion'
@@ -34,17 +36,10 @@ const PDF_MERGE_PROGRAM = [
   '    writer.write(stream)',
 ].join('\n')
 
-const syllabuses = Object.freeze({
-  '0580': CAMBRIDGE_0580_IGCSE_SYLLABUS,
-  '0625': CAMBRIDGE_0625_IGCSE_SYLLABUS,
-  '9702': CAMBRIDGE_9702_AS_SYLLABUS,
-  '9709': CAMBRIDGE_9709_AS_P1_S1_SYLLABUS,
-})
-
 export function parseArgs(argv, { cwd = process.cwd(), env = process.env } = {}) {
   const values = {}
   const flags = new Set(['--dry-run'])
-  const options = new Set(['--artifact-root', '--output-root', '--subject', '--topic-id'])
+  const options = new Set(['--artifact-root', '--library-root', '--output-root', '--route-id', '--subject', '--topic-id'])
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index]
@@ -61,17 +56,29 @@ export function parseArgs(argv, { cwd = process.cwd(), env = process.env } = {})
     index += 1
   }
 
-  const subject = values['--subject'] || '9702'
-  if (!SAFE_SEGMENT.test(subject) || !syllabuses[subject]) throw codedError('UNSUPPORTED_SUBJECT')
+  const routeId = values['--route-id'] || ''
+  if (!routeId) throw codedError('ROUTE_ID_REQUIRED')
+  if (!SAFE_SEGMENT.test(routeId) || !supportsSyllabusPracticeRoute(routeId)) throw codedError('UNSUPPORTED_ROUTE')
+  const route = routeById(routeId)
+  if (!route?.subjectCode || !Array.isArray(route?.syllabus?.topics)) throw codedError('UNSUPPORTED_ROUTE')
+  const subject = values['--subject'] || route.subjectCode
+  if (!SAFE_SEGMENT.test(subject)) throw codedError('UNSUPPORTED_SUBJECT')
+  if (subject !== route.subjectCode) throw codedError('ROUTE_SUBJECT_MISMATCH')
   const topicId = values['--topic-id'] || ''
-  if (topicId && !officialTopicById(subject).has(topicId)) throw codedError('OFFICIAL_TOPIC_INVALID')
+  if (topicId && !officialTopicById(route).has(topicId)) throw codedError('OFFICIAL_TOPIC_INVALID')
+  const dryRun = values['--dry-run'] === true
+  if (!dryRun && !topicId) throw codedError('TOPIC_ID_REQUIRED')
 
   return Object.freeze({
     artifactRoot: path.resolve(cwd, values['--artifact-root'] ?? env.AI_PDF_INGESTION_ROOT ?? DEFAULT_ARTIFACT_ROOT),
+    libraryRoot: values['--library-root'] || env.CIE_LIBRARY_ROOT
+      ? path.resolve(cwd, values['--library-root'] ?? env.CIE_LIBRARY_ROOT)
+      : null,
     outputRoot: path.resolve(cwd, values['--output-root'] ?? env.AI_PDF_TOPIC_PACK_ROOT ?? DEFAULT_OUTPUT_ROOT),
+    routeId,
     subject,
     topicId,
-    dryRun: values['--dry-run'] === true,
+    dryRun,
   })
 }
 
@@ -81,10 +88,14 @@ export async function runTopicPack(options, {
   mergePdfs = mergePdfFiles,
   writeJson = writeJsonSafely,
 } = {}) {
-  const officialTopics = officialTopicById(options.subject)
+  const route = routeById(options.routeId)
+  if (!route || route.subjectCode !== options.subject || !supportsSyllabusPracticeRoute(route.routeId)) throw codedError('UNSUPPORTED_ROUTE')
+  const officialTopics = officialTopicById(route)
   const topicGroups = new Map([...officialTopics.keys()].map(topicId => [topicId, []]))
   const skipped = []
 
+  const artifactRecords = []
+  const selectedArtifacts = new Map()
   for (const artifactPath of artifactPaths(options.artifactRoot)) {
     let artifact
     try {
@@ -93,11 +104,35 @@ export async function runTopicPack(options, {
       skipped.push({ artifactPath, reason: 'artifact-json-invalid' })
       continue
     }
-    for (const result of entriesForArtifact({ artifact, artifactPath, officialTopics, options })) {
+    const dedupeKey = eligibleArtifactDedupeKey(artifact, options, route)
+    if (!dedupeKey) {
+      artifactRecords.push({ artifactPath, artifact })
+      continue
+    }
+    const current = selectedArtifacts.get(dedupeKey)
+    const candidate = { artifactPath, artifact }
+    if (!current || compareArtifactRecords(candidate, current, route.routeId) > 0) {
+      if (current) skipped.push({
+        artifactPath: current.artifactPath,
+        artifactId: current.artifact.artifactId,
+        reason: 'duplicate-artifact-superseded',
+      })
+      selectedArtifacts.set(dedupeKey, candidate)
+    } else {
+      skipped.push({ artifactPath, artifactId: artifact.artifactId, reason: 'duplicate-artifact-superseded' })
+    }
+  }
+
+  artifactRecords.push(...selectedArtifacts.values())
+  for (const { artifactPath, artifact } of artifactRecords) {
+    for (const result of entriesForArtifact({ artifact, artifactPath, officialTopics, options, route })) {
       if (result.skip) {
         skipped.push(result.skip)
       } else {
-        topicGroups.get(result.entry.topicId).push(result.entry)
+        for (const topicId of result.entry.topicIds || [result.entry.topicId]) {
+          if (!topicGroups.has(topicId)) continue
+          topicGroups.get(topicId).push({ ...result.entry, topicId })
+        }
       }
     }
   }
@@ -110,7 +145,7 @@ export async function runTopicPack(options, {
       || naturalQuestionNumber(left.questionNumber) - naturalQuestionNumber(right.questionNumber)
       || left.questionId.localeCompare(right.questionId))
     const topic = officialTopics.get(topicId)
-    const topicDirectory = path.join(options.outputRoot, options.subject, topicId)
+    const topicDirectory = path.join(options.outputRoot, options.routeId, topicId)
     const questionOutputRoot = path.join(topicDirectory, 'questions')
     const questionPdfs = []
     const questions = []
@@ -156,6 +191,7 @@ export async function runTopicPack(options, {
     const manifestPath = path.join(topicDirectory, 'manifest.json')
     const manifest = {
       schemaVersion: AI_PDF_TOPIC_PACK_SCHEMA_VERSION,
+      routeId: options.routeId,
       subject: options.subject,
       topic: {
         id: topic.id,
@@ -164,8 +200,9 @@ export async function runTopicPack(options, {
         order: topic.order,
         syllabusVersion: topic.syllabusVersion,
         officialPage: topic.officialPage,
-        officialUrl: syllabuses[options.subject].officialUrl,
+        officialUrl: route.syllabus.url,
       },
+      renderMode: 'on-demand-coordinate-only',
       generatedAt: new Date().toISOString(),
       questionCount: questions.length,
       topicPdfPath,
@@ -190,68 +227,275 @@ export async function runTopicPack(options, {
 
   return {
     schemaVersion: AI_PDF_TOPIC_PACK_SCHEMA_VERSION,
+    routeId: options.routeId,
     subject: options.subject,
     officialSyllabus: {
-      routeId: syllabuses[options.subject].routeId,
-      version: syllabuses[options.subject].syllabusVersion,
-      officialUrl: syllabuses[options.subject].officialUrl,
+      routeId: route.routeId,
+      version: route.syllabus.version,
+      officialUrl: route.syllabus.url,
     },
     packs,
     skipped,
   }
 }
 
-function* entriesForArtifact({ artifact, artifactPath, officialTopics, options }) {
-  if (artifact?.schemaVersion !== AI_PDF_INGESTION_SCHEMA_VERSION || artifact?.status !== 'ai-verified') return
+function eligibleArtifactDedupeKey(artifact, options, route) {
+  if (artifact?.schemaVersion !== AI_PDF_INGESTION_SCHEMA_VERSION
+    || artifact?.status !== 'ai-verified'
+    || artifact?.storageMode !== 'coordinate-only'
+    || !hasValidAiStudentStudyRelease(artifact)
+    || artifact.subject !== options.subject
+    || artifact.syllabusRouteId !== options.routeId
+    || String(artifact.stage || '').toUpperCase() !== route.stage
+    || typeof artifact.paperId !== 'string'
+    || !artifact.paperId.trim()) return null
+  return `${artifact.paperId.trim()}::${artifact.syllabusRouteId}`
+}
+
+function compareArtifactRecords(left, right, routeId) {
+  const leftGeneratedAt = validTimestamp(left.artifact.generatedAt)
+  const rightGeneratedAt = validTimestamp(right.artifact.generatedAt)
+  if (leftGeneratedAt !== rightGeneratedAt) return leftGeneratedAt - rightGeneratedAt
+
+  const leftQuestionCount = Array.isArray(left.artifact.candidate?.questions)
+    ? left.artifact.candidate.questions.length : 0
+  const rightQuestionCount = Array.isArray(right.artifact.candidate?.questions)
+    ? right.artifact.candidate.questions.length : 0
+  if (leftQuestionCount !== rightQuestionCount) return leftQuestionCount - rightQuestionCount
+
+  const routeSuffix = `--route-${routeId}.json`
+  const leftRouteSpecific = left.artifactPath.endsWith(routeSuffix) ? 1 : 0
+  const rightRouteSpecific = right.artifactPath.endsWith(routeSuffix) ? 1 : 0
+  if (leftRouteSpecific !== rightRouteSpecific) return leftRouteSpecific - rightRouteSpecific
+  return left.artifactPath.localeCompare(right.artifactPath)
+}
+
+function validTimestamp(value) {
+  const parsed = Date.parse(typeof value === 'string' ? value : '')
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function* entriesForArtifact({ artifact, artifactPath, officialTopics, options, route }) {
+  if (artifact?.schemaVersion !== AI_PDF_INGESTION_SCHEMA_VERSION
+    || artifact?.status !== 'ai-verified'
+    || artifact?.storageMode !== 'coordinate-only') {
+    yield { skip: { artifactPath, artifactId: artifact?.artifactId, reason: 'artifact-not-coordinate-verified' } }
+    return
+  }
+  if (!hasValidAiStudentStudyRelease(artifact)) {
+    yield { skip: { artifactPath, artifactId: artifact.artifactId, reason: 'student-release-invalid' } }
+    return
+  }
   if (artifact.subject !== options.subject) {
     yield { skip: { artifactPath, artifactId: artifact.artifactId, reason: 'subject-mismatch' } }
     return
   }
+  if (artifact.syllabusRouteId !== options.routeId || String(artifact.stage || '').toUpperCase() !== route.stage) {
+    yield { skip: { artifactPath, artifactId: artifact.artifactId, reason: 'route-mismatch' } }
+    return
+  }
   const source = artifact.source || {}
-  if (!source.questionPdfPath || !source.questionPdfSha256 || !source.markSchemePdfSha256 || !source.pageSizes) {
+  const questionPdfPath = resolveArtifactSourcePdfPath({
+    source,
+    absoluteField: 'questionPdfPath',
+    relativeField: 'questionPdfRelativePath',
+    libraryRoot: options.libraryRoot,
+    subjectCode: options.subject,
+  })
+  const markSchemePdfPath = resolveArtifactSourcePdfPath({
+    source,
+    absoluteField: 'markSchemePdfPath',
+    relativeField: 'markSchemePdfRelativePath',
+    libraryRoot: options.libraryRoot,
+    subjectCode: options.subject,
+  })
+  if (!questionPdfPath || !markSchemePdfPath || !source.questionPdfSha256 || !source.markSchemePdfSha256
+    || !source.pageSizes || !source.markSchemePageSizes) {
     yield { skip: { artifactPath, artifactId: artifact.artifactId, reason: 'missing-rerender-metadata' } }
     return
   }
-  if (!fs.statSync(source.questionPdfPath, { throwIfNoEntry: false })?.isFile()) {
+  if (!fs.statSync(questionPdfPath, { throwIfNoEntry: false })?.isFile()) {
     yield { skip: { artifactPath, artifactId: artifact.artifactId, reason: 'source-question-pdf-missing' } }
     return
   }
-  if (normalizeSha256(source.questionPdfSha256) !== fileSha256(source.questionPdfPath)) {
+  if (!fs.statSync(markSchemePdfPath, { throwIfNoEntry: false })?.isFile()) {
+    yield { skip: { artifactPath, artifactId: artifact.artifactId, reason: 'source-mark-scheme-pdf-missing' } }
+    return
+  }
+  if (normalizeSha256(source.questionPdfSha256) !== fileSha256(questionPdfPath)) {
     yield { skip: { artifactPath, artifactId: artifact.artifactId, reason: 'source-question-pdf-hash-mismatch' } }
     return
   }
+  if (normalizeSha256(source.markSchemePdfSha256) !== fileSha256(markSchemePdfPath)) {
+    yield { skip: { artifactPath, artifactId: artifact.artifactId, reason: 'source-mark-scheme-pdf-hash-mismatch' } }
+    return
+  }
+  const paper = pairedPaperMetadata(questionPdfPath, markSchemePdfPath)
+  if (!paper || paper.subject !== options.subject || paper.paperId !== artifact.paperId
+    || !syllabusPracticeComponentsForRoute(options.routeId).includes(paper.component)) {
+    yield { skip: { artifactPath, artifactId: artifact.artifactId, reason: 'paper-component-mismatch' } }
+    return
+  }
 
+  const verificationByNumber = new Map((artifact.verification?.questions || [])
+    .map(question => [String(question?.questionNumber || ''), question]))
   for (const question of artifact.candidate?.questions || []) {
-    const topicId = question?.tags?.primaryTopicId
+    const questionNumber = String(question?.questionNumber || '')
+    const topicId = String(question?.tags?.primaryTopicId || '')
     if (!officialTopics.has(topicId)) {
       yield { skip: { artifactPath, artifactId: artifact.artifactId, questionNumber: question?.questionNumber, reason: 'official-topic-missing' } }
       continue
     }
-    if (options.topicId && topicId !== options.topicId) continue
-    const regions = [...(question.regions || []), ...(question.diagramRegions || [])]
+    const topic = officialTopics.get(topicId)
+    const secondaryTopicIds = sortedStrings(question?.tags?.secondaryTopicIds)
+    const taggedTopicIds = [topicId, ...secondaryTopicIds]
+    if (options.topicId && !taggedTopicIds.includes(options.topicId)) continue
+    const regions = renderRegionsForQuestion(question).filter(region => validRegion(region, source.pageSizes))
     if (!regions.length) {
       yield { skip: { artifactPath, artifactId: artifact.artifactId, questionNumber: question?.questionNumber, reason: 'regions-missing' } }
+      continue
+    }
+    if (Number.isInteger(Number(topic.component)) && Number(topic.component) !== paper.component) {
+      yield { skip: { artifactPath, artifactId: artifact.artifactId, questionNumber, reason: 'topic-component-mismatch' } }
+      continue
+    }
+    if (new Set(taggedTopicIds).size !== taggedTopicIds.length
+      || secondaryTopicIds.some((secondaryTopicId) => !officialTopics.has(secondaryTopicId))) {
+      yield { skip: { artifactPath, artifactId: artifact.artifactId, questionNumber, reason: 'official-topic-binding-invalid' } }
+      continue
+    }
+    if (secondaryTopicIds.some((secondaryTopicId) => {
+      const secondaryTopic = officialTopics.get(secondaryTopicId)
+      return Number.isInteger(Number(secondaryTopic?.component)) && Number(secondaryTopic.component) !== paper.component
+    })) {
+      yield { skip: { artifactPath, artifactId: artifact.artifactId, questionNumber, reason: 'topic-component-mismatch' } }
+      continue
+    }
+    if (!validOfficialPointBinding(question?.tags?.syllabusPointIds, taggedTopicIds, officialTopics)) {
+      yield { skip: { artifactPath, artifactId: artifact.artifactId, questionNumber, reason: 'official-point-missing' } }
+      continue
+    }
+    const verification = verificationByNumber.get(questionNumber)
+    if (!sameQuestionReview(question, verification, regions, source.markSchemePageSizes)) {
+      yield { skip: { artifactPath, artifactId: artifact.artifactId, questionNumber, reason: 'review-binding-mismatch' } }
       continue
     }
     yield {
       entry: {
         artifactId: artifact.artifactId,
         paperId: artifact.paperId,
-        questionId: `${artifact.paperId}:q${question.questionNumber}`,
-        questionNumber: question.questionNumber,
-        topicId,
-        tags: question.tags,
+         questionId: `${artifact.paperId}:q${questionNumber}`,
+         questionNumber,
+         topicId,
+         topicIds: taggedTopicIds,
+         tags: question.tags,
         parts: (question.parts || []).map(part => ({ label: part.label, marks: part.marks, math: part.math || [] })),
         regions,
         diagramRegions: question.diagramRegions || [],
         markSchemeEvidence: question.markSchemeEvidence || [],
         pageSizes: source.pageSizes,
-        sourceQuestionPdfPath: source.questionPdfPath,
+        sourceQuestionPdfPath: questionPdfPath,
         sourceQuestionPdfSha256: normalizeSha256(source.questionPdfSha256),
+        sourceMarkSchemePdfPath: markSchemePdfPath,
         sourceMarkSchemePdfSha256: normalizeSha256(source.markSchemePdfSha256),
       },
     }
   }
+}
+
+function pairedPaperMetadata(questionPdfPath, markSchemePdfPath) {
+  const questionFile = path.basename(questionPdfPath)
+  const markSchemeFile = path.basename(markSchemePdfPath)
+  const match = /^(\d{4})_([msw])(\d{2})_qp_([1-6])(\d)\.pdf$/i.exec(questionFile)
+  if (!match || markSchemeFile.toLowerCase() !== questionFile.replace(/_qp_/i, '_ms_').toLowerCase()) return null
+  return Object.freeze({
+    subject: match[1],
+    component: Number(match[4]),
+    paperId: `cie-${match[1]}-${questionFile.replace(/\.pdf$/i, '')}`,
+  })
+}
+
+function validRegion(region, pageSizes) {
+  const page = Number(region?.page)
+  const size = pageSizes?.[page]
+  const coordinates = ['x0', 'y0', 'x1', 'y1'].map(field => Number(region?.[field]))
+  if (!Number.isInteger(page) || page < 1 || !size || !normalizeSha256(region?.pageImageSha256)) return false
+  if (!Number.isFinite(Number(size.width)) || !Number.isFinite(Number(size.height))) return false
+  const [x0, y0, x1, y1] = coordinates
+  return coordinates.every(Number.isFinite) && x0 >= 0 && y0 >= 0 && x1 <= 1 && y1 <= 1 && x0 < x1 && y0 < y1
+}
+
+function sameRegion(left, right) {
+  return Number(left?.page) === Number(right?.page)
+    && ['x0', 'y0', 'x1', 'y1'].every(field => Number(left?.[field]) === Number(right?.[field]))
+}
+
+function regionContains(outer, inner) {
+  return Number(outer?.page) === Number(inner?.page)
+    && Number(outer?.x0) <= Number(inner?.x0)
+    && Number(outer?.y0) <= Number(inner?.y0)
+    && Number(outer?.x1) >= Number(inner?.x1)
+    && Number(outer?.y1) >= Number(inner?.y1)
+}
+
+function renderRegionsForQuestion(question) {
+  const questionRegions = Array.isArray(question?.regions) ? question.regions.filter(Boolean) : []
+  const diagramRegions = Array.isArray(question?.diagramRegions) ? question.diagramRegions.filter(Boolean) : []
+  const result = [...questionRegions]
+  for (const diagram of diagramRegions) {
+    if (questionRegions.some(region => regionContains(region, diagram))) continue
+    if (!result.some(region => sameRegion(region, diagram))) result.push(diagram)
+  }
+  return result
+}
+
+function normalizedEvidence(value, pageSizes) {
+  if (!Array.isArray(value) || !value.length) return null
+  const normalized = value.map((entry) => {
+    const page = Number(entry?.page)
+    const pageImageSha256 = normalizeSha256(entry?.pageImageSha256)
+    if (!Number.isInteger(page) || page < 1 || !pageSizes?.[page] || !pageImageSha256) return null
+    return { page, pageImageSha256 }
+  })
+  return normalized.every(Boolean) ? normalized : null
+}
+
+function normalizedParts(value) {
+  if (!Array.isArray(value) || !value.length) return null
+  const parts = value.map(part => ({ label: String(part?.label || '').trim(), marks: Number(part?.marks) }))
+  return parts.every(part => part.label && Number.isInteger(part.marks) && part.marks > 0) ? parts : null
+}
+
+function sortedStrings(value) {
+  return Array.isArray(value) ? [...new Set(value.map(item => String(item || '').trim()).filter(Boolean))].sort() : []
+}
+
+function sameQuestionReview(candidate, verification, regions, markSchemePageSizes) {
+  if (!verification || String(candidate?.questionNumber || '') !== String(verification?.questionNumber || '')) return false
+  const candidateParts = normalizedParts(candidate?.parts)
+  const verifiedParts = normalizedParts(verification?.parts)
+  if (!candidateParts || !verifiedParts || JSON.stringify(candidateParts) !== JSON.stringify(verifiedParts)) return false
+  if (String(candidate?.tags?.primaryTopicId || '') !== String(verification?.tags?.primaryTopicId || '')) return false
+  for (const field of ['secondaryTopicIds', 'syllabusPointIds']) {
+    if (JSON.stringify(sortedStrings(candidate?.tags?.[field])) !== JSON.stringify(sortedStrings(verification?.tags?.[field]))) return false
+  }
+  const candidateEvidence = normalizedEvidence(candidate?.markSchemeEvidence, markSchemePageSizes)
+  const verifiedEvidence = normalizedEvidence(verification?.markSchemeEvidence, markSchemePageSizes)
+  if (!candidateEvidence || !verifiedEvidence || JSON.stringify(candidateEvidence) !== JSON.stringify(verifiedEvidence)) return false
+  const expectedPages = [...new Set(regions.map(region => Number(region.page)))].sort((left, right) => left - right)
+  const verifiedPages = [...new Set((verification?.pages || []).map(Number))].sort((left, right) => left - right)
+  return JSON.stringify(expectedPages) === JSON.stringify(verifiedPages)
+}
+
+function validOfficialPointBinding(pointIds, topicIds, officialTopics) {
+  const officialPointIds = new Set(topicIds
+    .map(topicId => officialTopics.get(topicId))
+    .flatMap(topic => topic?.points || [])
+    .map(point => String(point?.id || ''))
+    .filter(Boolean))
+  const selectedPointIds = sortedStrings(pointIds)
+  if (!officialPointIds.size) return selectedPointIds.length === 0
+  return selectedPointIds.length > 0 && selectedPointIds.every(pointId => officialPointIds.has(pointId))
 }
 
 function discoverArtifactPaths(root) {
@@ -301,8 +545,8 @@ function writeJsonSafely(outputPath, value, root) {
   fs.renameSync(temporaryPath, target)
 }
 
-function officialTopicById(subject) {
-  return new Map(syllabuses[subject].topics.map(topic => [topic.id, topic]))
+function officialTopicById(route) {
+  return new Map((route?.syllabus?.topics || []).map(topic => [topic.id, topic]))
 }
 
 function naturalQuestionNumber(value) {

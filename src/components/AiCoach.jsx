@@ -13,7 +13,7 @@ import {
   serializeCoachConversation,
 } from '../lib/coachHistory'
 import { parseCoachMessage } from '../lib/coachMessage'
-import { createCoachStreamParser } from '../lib/coachStream'
+import { coachStreamFailureState, createCoachStreamParser } from '../lib/coachStream'
 import { MIN_VERIFIED_GROUPS_FOR_PRACTICE } from '../lib/practiceConstants'
 import { sharedAccountRequest } from '../lib/sharedAccount'
 import {
@@ -682,23 +682,26 @@ export function AiCoach({
       setImageDataUrls([])
       if (/hint|提示|下一步|截图|手写/i.test(clean)) setHintLevel((current) => Math.min(5, current + 1))
     } catch (requestError) {
-      if (requestError?.name === 'AbortError' && requestAbortRef.current !== controller) return
-      const partialAnswer = streamedAnswer.trim()
-      const failureMessage = partialAnswer || (requestError?.name === 'AbortError'
-        ? 'The response was cancelled before it completed.'
-        : 'AI Coach is temporarily unavailable.')
-      updateAssistant({
-        content: failureMessage,
-        mode: partialAnswer ? 'interrupted' : 'offline',
-        status: partialAnswer ? 'interrupted' : 'failed',
-        hintLevel: level,
-        warning: requestError.message || retryWarning,
+      const failure = coachStreamFailureState({
+        error: requestError,
+        streamedAnswer,
+        requestAborted: controller.signal.aborted,
+        requestSuperseded: requestAbortRef.current !== controller,
+        streamCompleted,
       })
-      if (requestError?.name !== 'AbortError') {
+      if (failure.ignored) return
+      updateAssistant({
+        content: failure.content,
+        mode: failure.mode,
+        status: failure.status,
+        hintLevel: level,
+        warning: failure.warning || retryWarning,
+      })
+      if (failure.retryable) {
         setRetryRequest({ assistantId, message: studentMessage.content, level, attachments, previous, intent, unavailableAttachmentCount: 0 })
-        setError(partialAnswer
+        setError(failure.status === 'interrupted'
           ? 'The connection was interrupted. The partial response was kept; retry to continue.'
-          : requestError.message || 'AI Coach is temporarily unavailable.')
+          : failure.warning || 'AI Coach is temporarily unavailable.')
       }
     } finally {
       if (requestAbortRef.current === controller) {
