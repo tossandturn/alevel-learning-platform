@@ -51,6 +51,7 @@ const distRoot = path.join(releaseRoot, 'dist')
 const auditScript = path.join(releaseRoot, 'scripts', 'audit-question-bank.mjs')
 const paperAuditScript = path.join(releaseRoot, 'scripts', 'audit-paper-catalog.mjs')
 const syllabusCoverageScript = path.join(releaseRoot, 'scripts', 'verify-9702-syllabus-coverage.mjs')
+const allSyllabusCoverageScript = path.join(releaseRoot, 'scripts', 'verify-all-syllabus-coverage.mjs')
 const manifestPath = path.join(releaseRoot, 'src', 'data', 'sourceContentManifest.json')
 const identityPath = path.join(releaseRoot, 'src', 'data', 'sourceContentIdentity.js')
 const nodeModulesRoot = path.join(releaseRoot, 'node_modules')
@@ -93,6 +94,7 @@ assert.ok(fs.existsSync(path.join(nodeModulesRoot, '.package-lock.json')), 'Rele
 assert.ok(fs.existsSync(auditScript), `Release audit script is missing: ${auditScript}`)
 assert.ok(fs.existsSync(paperAuditScript), `Release paper catalog audit script is missing: ${paperAuditScript}`)
 assert.ok(fs.existsSync(syllabusCoverageScript), `Release 9702 syllabus coverage gate is missing: ${syllabusCoverageScript}`)
+assert.ok(fs.existsSync(allSyllabusCoverageScript), `Release all-syllabus coverage gate is missing: ${allSyllabusCoverageScript}`)
 assert.ok(fs.existsSync(assetRoot) && fs.statSync(assetRoot).isDirectory(), 'Release is missing public/question-assets')
 if (fs.lstatSync(assetRoot).isSymbolicLink()) {
   assert.ok(immutableAssetsRoot, 'Pass --immutable-assets-root <path> when public/question-assets is externally linked')
@@ -156,6 +158,13 @@ const syllabusCoverage = spawnSync(process.execPath, [syllabusCoverageScript], {
   maxBuffer: 32 * 1024 * 1024,
 })
 assert.equal(syllabusCoverage.status, 0, `Release 9702 syllabus coverage gate failed:\n${syllabusCoverage.stdout}\n${syllabusCoverage.stderr}`)
+const allSyllabusCoverage = spawnSync(process.execPath, [allSyllabusCoverageScript], {
+  cwd: releaseRoot,
+  env,
+  encoding: 'utf8',
+  maxBuffer: 32 * 1024 * 1024,
+})
+assert.equal(allSyllabusCoverage.status, 0, `Release all-syllabus coverage gate failed:\n${allSyllabusCoverage.stdout}\n${allSyllabusCoverage.stderr}`)
 
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
 const identity = fs.readFileSync(identityPath, 'utf8')

@@ -133,7 +133,23 @@ function runReleaseVerification(releaseRoot) {
     encoding: 'utf8',
     maxBuffer: 32 * 1024 * 1024,
   })
-  assert.equal(result.status, 0, `git archive release verification must pass:\n${result.stdout}\n${result.stderr}`)
+  const coverage = spawnSync(process.execPath, [
+    path.join(releaseRoot, 'scripts', 'verify-all-syllabus-coverage.mjs'),
+    '--report-only',
+  ], {
+    cwd: releaseRoot,
+    env: { ...process.env },
+    encoding: 'utf8',
+    maxBuffer: 32 * 1024 * 1024,
+  })
+  assert.equal(coverage.status, 0, `git archive coverage report must be readable:\n${coverage.stdout}\n${coverage.stderr}`)
+  const coverageReport = JSON.parse(coverage.stdout)
+  if (coverageReport.routeReady) {
+    assert.equal(result.status, 0, `git archive release verification must pass:\n${result.stdout}\n${result.stderr}`)
+  } else {
+    assert.notEqual(result.status, 0, 'an incomplete all-syllabus release must be rejected')
+    assert.match(`${result.stdout}\n${result.stderr}`, /all-syllabus coverage gate failed|9702 syllabus coverage gate failed/i)
+  }
 }
 
 try {
