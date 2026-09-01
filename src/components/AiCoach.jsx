@@ -1004,8 +1004,8 @@ export function AiCoach({
 
         <footer>
           <div className="ai-coach__photo-actions" aria-label="Photograph or upload a question">
-            <button type="button" disabled={preparingImages || loading || imageDataUrls.length >= MAX_COACH_IMAGE_ATTACHMENTS} onClick={() => cameraInputRef.current?.click()}><Camera size={16} />Take photo</button>
-            <button type="button" disabled={preparingImages || loading || imageDataUrls.length >= MAX_COACH_IMAGE_ATTACHMENTS} onClick={() => screenshotInputRef.current?.click()}><Upload size={16} />Upload photo</button>
+            <button type="button" data-camera-intent="true" disabled={preparingImages || loading || imageDataUrls.length >= MAX_COACH_IMAGE_ATTACHMENTS} onClick={() => cameraInputRef.current?.click()}><Camera size={16} />Take photo</button>
+            <button type="button" data-upload-intent="true" disabled={preparingImages || loading || imageDataUrls.length >= MAX_COACH_IMAGE_ATTACHMENTS} onClick={() => screenshotInputRef.current?.click()}><Upload size={16} />Upload photo</button>
             {hasImageAttachments && <button type="button" className="ai-coach__analyze-photo" disabled={preparingImages || loading} onClick={() => ask('Analyze this photographed question. Read the full question and diagrams, identify what it asks, list the relevant concepts and known values, then explain the next step without inventing missing text.', 3)}><Sparkles size={16} />Analyze question</button>}
           </div>
           {hasImageAttachmentTray && <div className="ai-coach__attachments" role="status" aria-live="polite">
@@ -1026,8 +1026,8 @@ export function AiCoach({
           {error && <p className="ai-coach__error" role="alert">{error}</p>}
           <form className="ai-coach__composer" onSubmit={submitComposer}>
             <button type="button" className="ai-coach__composer-attach" title="Add photos" aria-label="Add photos" disabled={preparingImages || imageDataUrls.length >= MAX_COACH_IMAGE_ATTACHMENTS} onClick={() => screenshotInputRef.current?.click()}><ImagePlus size={18} /></button>
-            <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" hidden onChange={attachImage} />
-            <input ref={screenshotInputRef} type="file" accept="image/*" multiple hidden onChange={attachImage} />
+            <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" data-camera-input="true" hidden onChange={attachImage} />
+            <input ref={screenshotInputRef} type="file" accept="image/*" multiple data-upload-input="true" hidden onChange={attachImage} />
             <textarea rows="2" value={draft} placeholder="Ask about a concept or your next step..." onChange={(event) => setDraft(event.target.value)} onPaste={attachClipboardImages} onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault()

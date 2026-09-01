@@ -43,6 +43,7 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, evidenceStor
   const movedRef = useRef(false)
   const lastPointRef = useRef(null)
   const activePointerIdRef = useRef(null)
+  const rawPenInputRef = useRef(false)
   const initializedRef = useRef(false)
   const latestInkRef = useRef(ink?.inkDataUrl || '')
   const inkMetricsRef = useRef(createInkMetrics())
@@ -324,6 +325,7 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, evidenceStor
       return
     }
     if (readOnly || !ready || drawingRef.current || event.isPrimary === false) return
+    if (event.pointerType === 'pen') rawPenInputRef.current = false
     event.preventDefault()
     event.stopPropagation()
     const canvas = canvasRef.current
@@ -346,6 +348,7 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, evidenceStor
       continueTouchGesture(event)
       return
     }
+    if (event.pointerType === 'pen' && rawPenInputRef.current) return
     if (!drawingRef.current || event.pointerId !== activePointerIdRef.current) return
     event.preventDefault()
     event.stopPropagation()
@@ -362,6 +365,7 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, evidenceStor
     event.stopPropagation()
     appendSamples(event)
     drawingRef.current = false
+    rawPenInputRef.current = false
     const canvas = canvasRef.current
     if (!movedRef.current && lastPointRef.current) {
       drawDot(canvas.getContext('2d'), lastPointRef.current, brushFor(lastPointRef.current))
@@ -378,8 +382,26 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, evidenceStor
     scheduleEmit()
   }
 
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || readOnly || panMode || typeof canvas.addEventListener !== 'function') return undefined
+    const handleRawPenUpdate = (event) => {
+      if (event.pointerType !== 'pen' || !drawingRef.current) return
+      rawPenInputRef.current = true
+      event.preventDefault()
+      event.stopPropagation()
+      appendSamples(event)
+    }
+    if (!('onpointerrawupdate' in canvas)) return undefined
+    canvas.addEventListener('pointerrawupdate', handleRawPenUpdate, { passive: false })
+    return () => canvas.removeEventListener('pointerrawupdate', handleRawPenUpdate)
+    // The listener reads current drawing refs; it only needs replacement when
+    // the active tool or the canvas interaction mode changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panMode, readOnly, tool])
+
   const inert = readOnly || panMode
-  return <canvas ref={canvasRef} className={`pdf-ink-layer ${readOnly ? 'read-only' : ''} ${panMode ? 'pdf-pan-mode' : ''}`} aria-label={`Handwriting layer for PDF page ${pageNumber}`} data-stroke-count={inkMetricsRef.current.strokes} data-segment-count={inkMetricsRef.current.segments} onPointerDown={inert ? undefined : startStroke} onPointerMove={inert ? undefined : continueStroke} onPointerUp={inert ? undefined : finishStroke} onPointerCancel={inert ? undefined : finishStroke} onLostPointerCapture={inert ? undefined : finishStroke} onDragStart={(event) => event.preventDefault()} onContextMenu={(event) => event.preventDefault()} />
+  return <canvas ref={canvasRef} className={`pdf-ink-layer ${readOnly ? 'read-only' : ''} ${panMode ? 'pdf-pan-mode' : ''}`} data-ink-surface="pdf" aria-label={`Handwriting layer for PDF page ${pageNumber}`} data-stroke-count={inkMetricsRef.current.strokes} data-segment-count={inkMetricsRef.current.segments} onPointerDown={inert ? undefined : startStroke} onPointerMove={inert ? undefined : continueStroke} onPointerUp={inert ? undefined : finishStroke} onPointerCancel={inert ? undefined : finishStroke} onLostPointerCapture={inert ? undefined : finishStroke} onDragStart={(event) => event.preventDefault()} onContextMenu={(event) => event.preventDefault()} />
 }
 
 export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage = {}, inkTool = 'pen', questionNumber = 1, evidenceStorageKey = '', onInkChange, registerInkFlush }) {
@@ -559,7 +581,11 @@ export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage 
         <button type="button" onClick={() => setZoom((value) => Math.min(2, value + 0.15))} aria-label="Zoom in"><ZoomIn size={17} /></button>
         <a href={file.localUrl} download={file.file} aria-label="Download PDF"><Download size={17} /></a>
       </div>
-      <div className="pdf-canvas-scroll" ref={scrollRef}>
+      <div
+        className={`pdf-canvas-scroll ${annotate ? 'pdf-canvas-scroll--annotating' : ''}`}
+        ref={scrollRef}
+        onContextMenu={annotate ? (event) => event.preventDefault() : undefined}
+      >
         {status === 'loading' && <div className="pdf-loading"><span className="loading-line" />Rendering verified PDF...</div>}
         {status === 'error' && <div className="pdf-loading error">Could not render this PDF. <a href={file.localUrl} target="_blank" rel="noreferrer">Open it directly</a><small>{error}</small></div>}
         {document && <div className="pdf-page-stack" data-virtualized-pages="true">

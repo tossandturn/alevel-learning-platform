@@ -113,6 +113,7 @@ export function HandwritingPad({
   const movedRef = useRef(false)
   const lastPointRef = useRef(null)
   const activePointerIdRef = useRef(null)
+  const rawPenInputRef = useRef(false)
   const inkMetricsRef = useRef(createInkMetrics())
   const historyRef = useRef([])
   const redoRef = useRef([])
@@ -418,6 +419,7 @@ export function HandwritingPad({
       return
     }
     if (disabled || mode !== 'handwrite' || drawingRef.current || event.isPrimary === false) return
+    if (event.pointerType === 'pen') rawPenInputRef.current = false
     event.preventDefault()
     event.stopPropagation()
     const canvas = canvasRef.current
@@ -440,6 +442,7 @@ export function HandwritingPad({
       continueTouchScroll(event)
       return
     }
+    if (event.pointerType === 'pen' && rawPenInputRef.current) return
     if (!drawingRef.current || disabled || event.pointerId !== activePointerIdRef.current) return
     event.preventDefault()
     event.stopPropagation()
@@ -457,6 +460,7 @@ export function HandwritingPad({
     const canvas = canvasRef.current
     appendSamples(event)
     drawingRef.current = false
+    rawPenInputRef.current = false
     if (!movedRef.current && lastPointRef.current) {
       const context = canvas.getContext('2d')
       drawDot(context, lastPointRef.current, brushFor(lastPointRef.current))
@@ -472,6 +476,24 @@ export function HandwritingPad({
     snapshot(canvas)
     scheduleEmit(canvas)
   }
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || mode !== 'handwrite' || typeof canvas.addEventListener !== 'function') return undefined
+    const handleRawPenUpdate = (event) => {
+      if (event.pointerType !== 'pen' || !drawingRef.current) return
+      rawPenInputRef.current = true
+      event.preventDefault()
+      event.stopPropagation()
+      appendSamples(event)
+    }
+    if (!('onpointerrawupdate' in canvas)) return undefined
+    canvas.addEventListener('pointerrawupdate', handleRawPenUpdate, { passive: false })
+    return () => canvas.removeEventListener('pointerrawupdate', handleRawPenUpdate)
+    // The listener reads current drawing refs; it only needs replacement when
+    // the handwriting canvas is remounted for a mode change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode])
 
   function preventSelection(event) {
     event.preventDefault()
@@ -557,13 +579,13 @@ export function HandwritingPad({
       <header className="handwriting-pad__header">
         <div><strong id={`${instanceId}-label`}>{label}</strong><span>{mode === 'type' ? 'Type the complete method, substitutions, units and final answer.' : 'Write with Apple Pencil, upload a clear photo, or use the camera, then submit for review.'}</span></div>
         <div className="handwriting-pad__modes" role="group" aria-label="Answer input mode">
-          <button type="button" className="handwriting-pad__capture" disabled={disabled} onClick={() => uploadInputRef.current?.click()}><Upload size={15} />Upload photo</button>
-          <button type="button" className="handwriting-pad__capture" disabled={disabled} onClick={() => cameraInputRef.current?.click()}><Camera size={15} />Take photo</button>
+          <button type="button" className="handwriting-pad__capture" data-upload-intent="true" disabled={disabled} onClick={() => uploadInputRef.current?.click()}><Upload size={15} />Upload photo</button>
+          <button type="button" className="handwriting-pad__capture" data-camera-intent="true" disabled={disabled} onClick={() => cameraInputRef.current?.click()}><Camera size={15} />Take photo</button>
           <button type="button" className={mode === 'handwrite' ? 'active' : ''} onClick={() => switchMode('handwrite')}><PenTool size={16} />Handwrite</button>
           <button type="button" className={mode === 'type' ? 'active' : ''} onClick={() => switchMode('type')}><Keyboard size={16} />Type</button>
         </div>
-        <input ref={uploadInputRef} type="file" accept="image/*" hidden onChange={importImage} />
-        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" hidden onChange={importImage} />
+        <input ref={uploadInputRef} type="file" accept="image/*" data-upload-input="true" hidden onChange={importImage} />
+        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" data-camera-input="true" hidden onChange={importImage} />
       </header>
 
       {mode === 'handwrite' ? (
@@ -580,6 +602,7 @@ export function HandwritingPad({
           <canvas
             ref={canvasRef}
             className={`handwriting-pad__canvas ${pencilOnly ? 'pencil-only' : ''}`}
+            data-ink-surface="handwriting"
             style={{ height: `${CANVAS_HEIGHT * pageCount}px` }}
             aria-label={`${label} handwriting canvas`}
             onPointerDown={startStroke}
