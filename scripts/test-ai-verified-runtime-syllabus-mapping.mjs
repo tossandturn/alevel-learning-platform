@@ -112,6 +112,8 @@ function buildArtifact({
         questionNumber,
         questionStartPage,
         pages: [...new Set([...questionRegionPages, ...diagramRegionPages])],
+        regions,
+        diagramRegions,
         parts: [{ label: 'a', marks: 4 }],
         diagramRegionCount: diagramRegions.length,
         tags: verificationTags,

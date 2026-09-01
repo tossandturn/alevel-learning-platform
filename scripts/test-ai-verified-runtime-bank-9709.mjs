@@ -65,6 +65,8 @@ const artifact = {
       questionNumber: '2',
       questionStartPage: 3,
       pages: [3],
+      regions: [{ page: 3, pageImageSha256: 'd'.repeat(64), x0: 0.1, y0: 0.2, x1: 0.9, y1: 0.8 }],
+      diagramRegions: [],
       parts: [{ label: 'a', marks: 4 }],
       diagramRegionCount: 0,
       tags: { primaryTopicId: '9709-p1-topic-01', secondaryTopicIds: [], syllabusPointIds: [] },
@@ -119,7 +121,7 @@ try {
     const p1Topic = inventory.topics.find((topic) => topic.id === '9709-p1-topic-01')
     assert.ok(p1Topic)
     const releasedSourceQuestionIds = p1Topic.questionIdsByComponent?.[1]?.studyQuestionIds || []
-    assert.deepEqual(releasedSourceQuestionIds, [loaded.groups[0].sourceQuestionId], 'a released P1 artifact must enter its route-specific Topic Drill list')
+    assert.deepEqual(releasedSourceQuestionIds, [loaded.groups[0].sourceQuestionId], 'a released P1 artifact must enter its route-specific inventory without claiming Topic Drill readiness')
 
     const practiceResponse = await fetch(`${origin}/api/stem/practice-sets`, {
       method: 'POST',
@@ -128,16 +130,14 @@ try {
         routeId: 'cie-9709-as-p1-p5',
         syllabusTopicIds: ['9709-p1-topic-01'],
         components: [1],
-        questionCount: 1,
+        questionCount: 6,
         sourceQuestionIds: releasedSourceQuestionIds,
         excludeAttempted: false,
       }),
     })
-    assert.equal(practiceResponse.status, 201)
+    assert.equal(practiceResponse.status, 409, 'one released study group must not start a six-question Topic Drill')
     const practice = await practiceResponse.json()
-    assert.equal(practice.practiceMode, 'study-only')
-    assert.equal(practice.questionGroups[0].studentStudyEligible, true)
-    assert.equal(practice.questionGroups[0].formalProgressEligible, false)
+    assert.equal(practice.code, 'insufficient_verified_questions')
   } finally {
     await new Promise((resolve) => server.close(resolve))
     closeStemDatabaseForTests()

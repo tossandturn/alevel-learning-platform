@@ -48,6 +48,8 @@ function makeArtifact({ index, subjectCode = '9702', routeId = 'cie-9702-a2-phys
     questionStarts: [{ questionNumber: '1', questionStartPage: 1 }],
     questions: [{
       questionNumber: '1', questionStartPage: 1, pages: [1],
+      regions: candidate.regions,
+      diagramRegions: [],
       parts: [{ label: 'a', marks: 2 }], diagramRegionCount: 0,
       tags: candidate.tags, markSchemeEvidence: candidate.markSchemeEvidence,
     }],
@@ -61,8 +63,11 @@ function makeArtifact({ index, subjectCode = '9702', routeId = 'cie-9702-a2-phys
     source: {
       questionPdfPath: questionPath, markSchemePdfPath: markSchemePath,
       questionPdfSha256: questionHash, markSchemePdfSha256: markSchemeHash,
-      renderDpi: 180, pageSizes: { 1: { width: 1200, height: 1600 } },
+      renderDpi: 180,
+      pageSizes: { 1: { width: 1200, height: 1600 } },
+      pageImageHashes: { 1: 'a'.repeat(64) },
       markSchemePageSizes: { 1: { width: 1200, height: 1600 } },
+      markSchemePageHashes: { 1: 'b'.repeat(64) },
     },
     candidate: { questions: [candidate] }, verification,
   }

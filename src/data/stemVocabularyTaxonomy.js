@@ -10,10 +10,28 @@ const VOCABULARY_FAMILIES = Object.freeze(['exam', 'competition', 'admissions'])
 const VOCABULARY_SOURCE_STATUSES = Object.freeze(['taxonomy-mapped', 'source-backed', 'pending'])
 const VOCABULARY_INVENTORY_STATUSES = Object.freeze(['not-imported', 'imported', 'pending'])
 
+const MATH_9709_PURE_TERM_IDS = Object.freeze([
+  'stem.math.algebra',
+  'stem.math.algebra-graphs',
+  'stem.math.powers-roots',
+  'stem.math.functions',
+  'stem.math.trigonometry',
+  'stem.math.calculus',
+  'stem.math.sequences-series',
+])
+const MATH_9709_MECHANICS_TERM_IDS = Object.freeze(['stem.math.mechanics'])
+const MATH_9709_STATISTICS_TERM_IDS = Object.freeze(['stem.math.statistics', 'stem.math.probability'])
+
 const MAPPED_TERM_IDS_BY_ROUTE = Object.freeze({
   'cie-9702-as-physics': ['stem.physics.dynamics', 'stem.physics.electricity', 'stem.physics.waves'],
   'cie-9702-a2-physics': ['stem.physics.electric-fields', 'stem.physics.gravitational-fields', 'stem.physics.waves'],
   'cie-0580-igcse-mathematics': ['stem.math.number', 'stem.math.algebra', 'stem.math.algebra-graphs'],
+  'cie-9709-as-p1-p2': [...MATH_9709_PURE_TERM_IDS],
+  'cie-9709-as-p1-p4': [...MATH_9709_PURE_TERM_IDS, ...MATH_9709_MECHANICS_TERM_IDS],
+  'cie-9709-as-p1-p5': [...MATH_9709_PURE_TERM_IDS, ...MATH_9709_STATISTICS_TERM_IDS],
+  'cie-9709-a2-after-p1-p5-p3-p4': [...MATH_9709_PURE_TERM_IDS, ...MATH_9709_MECHANICS_TERM_IDS],
+  'cie-9709-a2-after-p1-p5-p3-p6': [...MATH_9709_PURE_TERM_IDS, ...MATH_9709_STATISTICS_TERM_IDS],
+  'cie-9709-a2-after-p1-p4-p3-p5': [...MATH_9709_PURE_TERM_IDS, ...MATH_9709_STATISTICS_TERM_IDS],
   'bpho-admissions-physics': ['stem.physics.mechanics', 'stem.physics.dynamics', 'stem.physics.waves'],
   'maa-amc12-admissions-mathematics': ['stem.math.algebra', 'stem.math.number'],
   'uatuk-esat-admissions': ['stem.physics.mechanics', 'stem.math.algebra'],

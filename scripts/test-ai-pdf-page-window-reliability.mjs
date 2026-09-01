@@ -70,6 +70,8 @@ function verification(questionNumber, page) {
     questionNumber,
     questionStartPage: page,
     pages: [page],
+    regions: [{ page, pageImageSha256: questionPageHashes[page], x0: 0.1, y0: 0.1, x1: 0.9, y1: 0.8 }],
+    diagramRegions: [],
     parts: [{ label: 'a', marks: 2 }],
     diagramRegionCount: 0,
     tags,

@@ -43,7 +43,7 @@ export function validateCandidate({ candidate, verification, source } = {}) {
   }
 
   validateCandidateSource(candidateData?.source, sourceData, reasonCodes)
-  validateVerification(identities, verificationData, sourceHashes.markSchemePageHashes, reasonCodes)
+  validateVerification(identities, verificationData, sourceHashes, reasonCodes)
 
   const ok = reasonCodes.size === 0
   const status = ok
@@ -146,6 +146,8 @@ function validateQuestion(question, sourceHashes, controlledTags, reasonCodes) {
   return {
     questionNumber,
     pages: [...new Set([...regions, ...diagramRegions].map(region => region.page))].sort((left, right) => left - right),
+    regions,
+    diagramRegions,
     parts,
     diagramRegionCount: diagramRegions.length,
     markSchemeEvidence,
@@ -195,8 +197,8 @@ function validateRegions(value, pageImageHashes, reasonCodes, prefix, required =
       continue
     }
     try {
-      normalizeRegion(data)
-      validRegions.push({ page })
+      const normalized = normalizeRegion(data)
+      validRegions.push({ page, pageImageSha256: sourceHash, ...normalized })
     } catch {
       reasonCodes.add(`${prefix}_GEOMETRY_INVALID`)
     }
@@ -247,7 +249,7 @@ function validateTags(value, controlledTags, reasonCodes) {
   }
 }
 
-function validateVerification(identities, verification, markSchemePageHashes, reasonCodes) {
+function validateVerification(identities, verification, sourceHashes, reasonCodes) {
   const verifiedQuestions = Array.isArray(verification?.questions) ? verification.questions : null
   if (!verifiedQuestions || verifiedQuestions.length !== identities.length) {
     reasonCodes.add('VERIFICATION_IDENTITY_DISAGREEMENT')
@@ -262,13 +264,15 @@ function validateVerification(identities, verification, markSchemePageHashes, re
       reasonCodes.add('VERIFICATION_IDENTITY_DISAGREEMENT')
       return
     }
+    const regions = validateRegions(data?.regions, sourceHashes.pageImageHashes, reasonCodes, 'VERIFICATION_REGION')
+    const diagramRegions = validateRegions(data?.diagramRegions, sourceHashes.pageImageHashes, reasonCodes, 'VERIFICATION_DIAGRAM_REGION', false)
     const markSchemeEvidence = validateMarkSchemeEvidence(
       data?.markSchemeEvidence,
-      markSchemePageHashes,
+      sourceHashes.markSchemePageHashes,
       'VERIFICATION',
       reasonCodes,
     )
-    verificationByQuestionNumber.set(questionNumber, { ...data, markSchemeEvidence })
+    verificationByQuestionNumber.set(questionNumber, { ...data, regions, diagramRegions, markSchemeEvidence })
   }
 
   for (const identity of identities) {
@@ -278,6 +282,14 @@ function validateVerification(identities, verification, markSchemePageHashes, re
       || !sameParts(verified.parts, identity.parts)
       || !sameDiagramPresence(verified.diagramRegionCount, identity.diagramRegionCount)) {
       reasonCodes.add('VERIFICATION_IDENTITY_DISAGREEMENT')
+      return
+    }
+    if (!sameRegionCollection(verified.regions, identity.regions)) {
+      reasonCodes.add('VERIFICATION_REGION_DISAGREEMENT')
+      return
+    }
+    if (!sameRegionCollection(verified.diagramRegions, identity.diagramRegions)) {
+      reasonCodes.add('VERIFICATION_DIAGRAM_REGION_DISAGREEMENT')
       return
     }
     if (!sameMarkSchemeEvidence(verified.markSchemeEvidence, identity.markSchemeEvidence)) {
@@ -369,6 +381,21 @@ function sameMarkSchemeEvidence(left, right) {
       && evidence.pageImageSha256 === right[index].pageImageSha256)
 }
 
+function sameRegionCollection(left, right) {
+  if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false
+  const normalize = (region) => ({
+    page: region?.page,
+    pageImageSha256: region?.pageImageSha256,
+    x0: region?.x0,
+    y0: region?.y0,
+    x1: region?.x1,
+    y1: region?.y1,
+  })
+  const leftKeys = left.map((region) => JSON.stringify(normalize(region))).sort()
+  const rightKeys = right.map((region) => JSON.stringify(normalize(region))).sort()
+  return leftKeys.every((value, index) => value === rightKeys[index])
+}
+
 function emptyIdentity() {
-  return { questionNumber: null, pages: [], parts: [], diagramRegionCount: 0, markSchemeEvidence: [] }
+  return { questionNumber: null, pages: [], regions: [], diagramRegions: [], parts: [], diagramRegionCount: 0, markSchemeEvidence: [] }
 }

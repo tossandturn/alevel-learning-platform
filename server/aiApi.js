@@ -1118,6 +1118,10 @@ async function callCompatibleAi(provider, { messages, temperature = 0.2, json = 
       schemaStatus = 'invalid'
       throw aiResponseSchemaError(error)
     }
+    if (isResponsesProvider(provider) && payload?.status !== 'completed') {
+      schemaStatus = 'invalid'
+      throw aiResponseSchemaError('AI Responses provider did not complete the response.')
+    }
     const answer = isResponsesProvider(provider)
       ? responseOutputText(payload)
       : String(payload?.choices?.[0]?.message?.content || '').trim()
@@ -1426,6 +1430,10 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, m
         schemaStatus = 'invalid'
         throw aiResponseSchemaError(error)
       }
+      if (isResponsesProvider(provider) && payload?.status !== 'completed') {
+        schemaStatus = 'invalid'
+        throw aiResponseSchemaError('AI Responses provider did not complete the response.')
+      }
       answer = responseOutputText(payload)
       if ((!isResponsesProvider(provider) && !Array.isArray(payload?.choices)) || !answer) {
         schemaStatus = 'invalid'
@@ -1475,6 +1483,9 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, m
         throw aiResponseSchemaError('AI provider stream ended incompletely.')
       }
       if (responseEventType === 'response.completed' || responseEventType === 'response.done') {
+        if (isResponsesProvider(provider) && payload?.status && payload.status !== 'completed') {
+          throw aiResponseSchemaError('AI provider stream reported a non-completed response.')
+        }
         if (!answer) {
           const completedText = responseOutputText(payload)
           if (completedText) {

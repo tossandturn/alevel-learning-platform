@@ -82,6 +82,7 @@ async function startServer() {
       ...process.env,
       BROWSER: 'none',
       NODE_ENV: 'test',
+      STEM_QA_DISABLE_HMR: '1',
       STEM_ENABLE_STUDY_ONLY_TOPIC_DRILL: '1',
       STEM_DB_PATH: path.join(databaseDir, 'stem.sqlite'),
       STEM_SESSION_SECURE: '0',
@@ -177,7 +178,6 @@ async function runViewport(page, server, viewport) {
   )
   const gravitationalTopic = a2Inventory.topics.find((topic) => topic.id === 'physics-9702-topic-13')
   const a2AvailableCount = Number(gravitationalTopic?.availableQuestionCount)
-  const a2RequestedCount = Math.min(10, a2AvailableCount)
   assert.ok(Number.isInteger(a2AvailableCount) && a2AvailableCount > 0, 'Gravitational fields must expose a canonical available question count')
   const a2TopicRows = page.locator('.topic-directory__row')
   assert.equal(await a2TopicRows.count(), 14, 'A2 Physics must show every official syllabus topic, including topics still awaiting source-backed practice')
@@ -188,17 +188,11 @@ async function runViewport(page, server, viewport) {
   await a2QuestionSearch.fill('gravitational potential')
   assert.ok(await page.locator('.topic-detail__question-item').count() > 0, 'A2 topic search must expose study-only source questions through the canonical syllabus mapping')
   await a2QuestionSearch.fill('')
-  const a2Start = page.getByRole('button', { name: new RegExp(`Practice ${a2RequestedCount}`) }).first()
+  const a2Start = page.locator('.topic-detail__start .primary-action').first()
   await a2Start.waitFor({ state: 'visible' })
-  const a2PracticeResponse = page.waitForResponse((response) => response.url().includes('/api/stem/practice-sets') && response.request().method() === 'POST')
-  await a2Start.click()
-  const a2Response = await a2PracticeResponse
-  const a2Payload = await a2Response.json()
-  assert.equal(a2Response.status(), 201)
-  assert.equal(a2Payload.routeId, 'cie-9702-a2-physics')
-  assert.deepEqual(a2Payload.syllabusTopicIds, ['physics-9702-topic-13'])
-  assert.equal(a2Payload.questionCount, a2RequestedCount)
-  assert.ok(a2Payload.questionGroups.every((group) => group.studyOnly === true && group.paperComponent === 4), 'A2 source-backed expansion must stay self-mark only and inside P4')
+  assert.equal(await a2Start.isDisabled(), true, 'A2 study-only inventory must not start a formal Topic Drill')
+  const a2Detail = (await page.locator('.topic-detail__start').innerText()).replace(/\s+/g, ' ')
+  assert.match(a2Detail, /At least (?:12 reviewed source-backed question groups|6 official .* questions) are required before a Topic Drill can start/i)
 
   const unavailableUrl = `${server.url}practice?routeId=cie-9701-a2-chemistry&stage=A2&course=9701&tab=topics`
   await openCleanRoute(page, unavailableUrl)
@@ -223,20 +217,20 @@ async function runViewport(page, server, viewport) {
   await page.screenshot({ path: path.join(ARTIFACT_DIR, `qa-student-hierarchy-as-directory-${viewport.name}.png`), fullPage: false })
 
   const topicFocus = page.getByLabel('Topic focus')
-  await topicFocus.selectOption({ label: 'Kinematics' })
+  await topicFocus.selectOption({ label: 'Waves' })
   const selectedTopicValue = await topicFocus.inputValue()
-  assert.match(selectedTopicValue, /topic-02$/, 'Topic focus must store the canonical topic ID, not its display label')
+  assert.match(selectedTopicValue, /topic-07$/, 'Topic focus must store the canonical topic ID, not its display label')
   await page.getByRole('button', { name: /^Recommended$/ }).click()
   const recommendedText = (await page.locator('.practice-overview').innerText()).replace(/\s+/g, ' ')
-  assert.match(recommendedText, /Kinematics/i, 'Topic 2 selection must refresh the Recommended title and CTA')
-  assert.doesNotMatch(recommendedText, /Physical quantities and units|topic-01/i, 'Topic 1 must not leak into a Topic 2 recommendation')
+  assert.match(recommendedText, /Waves/i, 'Topic focus must refresh the Recommended title and CTA')
+  assert.doesNotMatch(recommendedText, /Kinematics|topic-02/i, 'the previous topic must not leak into a new recommendation')
   await page.screenshot({ path: path.join(ARTIFACT_DIR, `qa-student-hierarchy-topic-focus-${viewport.name}.png`), fullPage: false })
 
   await page.getByRole('button', { name: /^AI Practice$/ }).click()
   await page.locator('.ai-practice-builder').waitFor({ state: 'visible' })
   const aiTopicRows = page.locator('.ai-practice-builder__topics label')
-  assert.equal(await aiTopicRows.filter({ hasText: 'Kinematics' }).locator('input').isChecked(), true, 'AI Practice must inherit the selected Topic focus')
-  assert.equal(await aiTopicRows.filter({ hasText: 'Physical quantities and units' }).locator('input').isChecked(), false, 'AI Practice must not reset to Topic 1 after a Topic 2 focus')
+  assert.equal(await aiTopicRows.filter({ hasText: 'Waves' }).locator('input').isChecked(), true, 'AI Practice must inherit the selected Topic focus')
+  assert.equal(await aiTopicRows.filter({ hasText: 'Kinematics' }).locator('input').isChecked(), false, 'AI Practice must not reset to the previous topic after a new focus')
   const aiComponentOptions = await page.locator('.ai-practice-builder__settings select').nth(1).locator('option').allTextContents()
   assert.deepEqual(aiComponentOptions, ['P1 + P2 mixed', 'P1', 'P2'], '9702 AS AI Practice must keep practical P3 outside the theory builder')
   assert.match((await page.locator('.ai-practice-builder').innerText()).replace(/\s+/g, ' '), /source questions.*ready for formal progress/i, 'AI Practice must distinguish source inventory from formal progress readiness')

@@ -12,6 +12,7 @@ import { routeById } from '../data/routeRegistry.js'
 import { canonicalAiMarkingProvenance, canonicalSourcePracticeProvenance } from './sourceContentContract.js'
 import { canonicalSyllabusTopicIdForRoute, syllabusTopicScopeIdsForRoute } from './syllabusPracticeRoutes.js'
 import { practiceUnitMetrics, withPracticePresentation } from './practicePresentation.js'
+import { MIN_QUESTION_GROUPS_PER_TEST, MIN_VERIFIED_GROUPS_FOR_PRACTICE, selectedTopicPracticeEligibility, topicPracticeEligibility } from './practiceConstants.js'
 
 export { supportsSyllabusPracticeRoute } from './syllabusPracticeRoutes.js'
 
@@ -21,7 +22,14 @@ export const SYLLABUS_MAPPING_SCHEMA_VERSION = 'question-syllabus-mapping-v1'
 const SUPPORTED_9702_COMPONENTS = Object.freeze([1, 2])
 const SUPPORTED_9702_A2_COMPONENTS = Object.freeze([4])
 const SUPPORTED_0625_COMPONENTS = Object.freeze([2])
-const SET_SIZES = Object.freeze([5, 10, 15])
+
+function availableSourceQuestionGap(count) {
+  return `${count} complete source question${count === 1 ? '' : 's'} ${count === 1 ? 'is' : 'are'} currently available.`
+}
+
+function reviewedSourceQuestionGap(count) {
+  return `${count} reviewed source question group${count === 1 ? '' : 's'} ${count === 1 ? 'is' : 'are'} currently available.`
+}
 
 function routeSyllabus(routeId, supportedComponents) {
   const route = routeById(routeId)
@@ -617,7 +625,7 @@ function topicRowsForRoute(routeId, questionBank, { includeStudyOnly = true } = 
     }))
     const indexedQuestionCount = topicRecords.length
     const pendingReviewCount = topicRecords.filter((record) => !record.eligible).length
-    const ready = verifiedQuestionCount >= 10
+    const eligibility = topicPracticeEligibility({ verifiedQuestionCount, availableQuestionCount })
     return {
       ...topic,
       verifiedQuestionCount,
@@ -627,15 +635,19 @@ function topicRowsForRoute(routeId, questionBank, { includeStudyOnly = true } = 
       questionIdsByComponent,
       indexedQuestionCount,
       pendingReviewCount,
-      availableSetSizes: SET_SIZES.filter((size) => size <= availableQuestionCount),
-      ready,
-      studyReady: availableQuestionCount > 0,
-      ctaPolicy: ready ? 'start' : availableQuestionCount > 0 ? 'start-study' : 'hidden',
-      sourceGap: ready
+      availableSetSizes: eligibility.availableSetSizes,
+      ready: eligibility.ready,
+      studyReady: eligibility.studyReady,
+      ctaPolicy: eligibility.ctaPolicy,
+      sourceGap: eligibility.ready
         ? null
-        : availableQuestionCount > 0
+        : eligibility.studyReady
           ? `Available for study: ${availableQuestionCount} complete source question${availableQuestionCount === 1 ? '' : 's'}; ${studyQuestionCount} stay outside formal mastery while source review is pending. Source-complete QP/MS items are AI-marked automatically.`
-          : `Official QP/MS candidates indexed: ${indexedQuestionCount}; no complete source-backed question is available for this topic yet.`,
+          : verifiedQuestionCount > 0
+            ? `At least ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} reviewed source question groups are required before a Topic Drill can start; ${reviewedSourceQuestionGap(verifiedQuestionCount)}`
+            : availableQuestionCount > 0
+            ? `At least ${MIN_QUESTION_GROUPS_PER_TEST} complete source questions are required before a Topic Drill can start; ${availableSourceQuestionGap(availableQuestionCount)}`
+            : `Official QP/MS candidates indexed: ${indexedQuestionCount}; no complete source-backed question is available for this topic yet.`,
     }
   })
 }
@@ -659,6 +671,13 @@ export function syllabusTopicsInventory({ routeId, questionBank = unifiedQuestio
   return {
     schemaVersion: SYLLABUS_CATALOG_SCHEMA_VERSION,
     routeId,
+    qualification: route.qualification,
+    qualificationId: route.qualificationId,
+    subject: route.subject,
+    subjectId: route.subjectId,
+    subjectCode: config?.subjectCode || route.subjectCode,
+    stage: config?.stage || route.stage,
+    paperComponents: [...(config?.components || route.paperComponents)],
     syllabusVersion: config
       ? config.syllabus.syllabusVersion
       : route.syllabus.version,
@@ -672,7 +691,7 @@ export function syllabusTopicsInventory({ routeId, questionBank = unifiedQuestio
       ? config.syllabus.assessmentComponents.filter((item) => config.components.includes(Number(item.component)))
       : [],
     topics,
-    ready: topics.some((topic) => topic.ready),
+    ready: topics.length > 0 && topics.every((topic) => topic.ready),
     officialPaperCount: firstBatchPapers.length,
     officialPairedPaperCount: firstBatchPapers.filter((paper) => Boolean(paper.markSchemeId)).length,
     indexedQuestionGroupCount: config ? effectiveRecords.length : topics.reduce((sum, topic) => sum + topic.indexedQuestionCount, 0),
@@ -843,8 +862,9 @@ function sourceQuestionDisplayLabel(question, part) {
   return paperLabel ? `${paperLabel} · ${questionPartLabel}` : questionPartLabel
 }
 
-function publicQuestionGroup(record) {
+function publicQuestionGroup(record, { forceStudyOnly = false } = {}) {
   const question = record.question
+  const studyOnly = Boolean(forceStudyOnly || record.studyOnly)
   return {
     id: record.sourceQuestionId,
     questionGroupId: record.questionGroupId,
@@ -885,14 +905,17 @@ function publicQuestionGroup(record) {
     sourceRef: question.sourceRef,
     answerRef: question.answerRef,
     reviewStatus: question.answerBinding?.verificationStatus || 'machine-indexed',
-    studyOnly: record.studyOnly,
+    studyOnly,
     studentStudyEligible: Boolean(record.releasedStudyEligible || record.eligible),
-    formalProgressEligible: Boolean(record.eligible && question.formalProgressEligible !== false),
+    // A Topic Drill is a single scoring boundary. If the selected pool is
+    // below the formal review floor, every group is study-only even when
+    // some individual groups were already human-reviewed.
+    formalProgressEligible: Boolean(!studyOnly && record.eligible && question.formalProgressEligible !== false),
     sourceContent: {
       complete: question.sourceContent?.complete === true,
       fileComplete: question.sourceContent?.fileComplete === true,
       semanticStatus: question.sourceContent?.semanticStatus || 'unreviewed',
-      studyOnly: record.studyOnly,
+      studyOnly,
       pages: question.sourceContent?.sourcePages || [],
       assetUrls: question.sourceContent?.assetUrls || question.sourceRef?.assetUrls || [],
       bindingSignature: question.sourceContent?.bindingSignature || '',
@@ -926,6 +949,38 @@ function samePracticeBinding(left, right) {
     && left.sourceManifestChecksum === right.sourceManifestChecksum)
 }
 
+function authoritativeFocusedParentPart(unit, parent, config) {
+  const parentUnitId = String(parent?.unitId || '').trim()
+  const parentRouteId = String(parent?.routeId || '').trim()
+  const parentStage = String(parent?.stage || '').trim()
+  const parentParts = Array.isArray(parent?.parts) ? parent.parts : []
+  const persistedPart = Array.isArray(unit?.parts) ? unit.parts[0] : null
+  const parentSourceQuestionCount = new Set(parentParts
+    .map((part) => String(part?.sourceQuestionId || '').trim())
+    .filter(Boolean)).size
+  if (
+    !parentUnitId
+    || parentRouteId !== config.syllabus.routeId
+    || parentStage !== config.stage
+    || parent?.mode !== 'topic'
+    || parentSourceQuestionCount < MIN_QUESTION_GROUPS_PER_TEST
+    || !persistedPart
+  ) return null
+
+  const parentPart = parentParts.find((part) => (
+    String(part?.unitPartId || '') === String(persistedPart.id || '')
+    && String(part?.sourceQuestionId || '') === String(persistedPart.sourceQuestionId || '')
+    && String(part?.questionPartId || '') === String(persistedPart.questionPartId || persistedPart.partId || '')
+    && samePracticeBinding(
+      part?.provenance,
+      persistedPart.sourceBindingProvenance || persistedPart.markingProvenance,
+    )
+  ))
+  if (!parentPart || String(unit.focusedRetestOf || '') !== parentUnitId) return null
+  if (String(unit.id || '') !== `${parentUnitId}:focused:${parentPart.unitPartId}`) return null
+  return parentPart
+}
+
 function syllabusTopicsForPersistedUnit(unit, config) {
   const candidates = String(unit?.syllabusTopic || unit?.knowledgeGroupId || '')
     .split(',')
@@ -936,12 +991,45 @@ function syllabusTopicsForPersistedUnit(unit, config) {
   return topicIds.length && topicIds.every((topicId) => validTopicIds.has(topicId)) ? topicIds : []
 }
 
+function selectedTopicQuestionCounts(records, topicIds) {
+  const count = (items) => new Set(items.map((record) => record.sourceQuestionId).filter(Boolean)).size
+  const entries = topicIds.map((topicId) => {
+    const topicRecords = records.filter((record) => record.mapping.topicIds?.includes(topicId))
+    return [topicId, {
+      verifiedQuestionCount: count(topicRecords.filter((record) => record.eligible)),
+      availableQuestionCount: count(topicRecords),
+    }]
+  })
+  return Object.freeze(Object.fromEntries(entries))
+}
+
+function selectedTopicPracticeReadiness(records, topicIds) {
+  const counts = selectedTopicQuestionCounts(records, topicIds)
+  const verifiedQuestionCountByTopic = Object.fromEntries(topicIds.map((topicId) => [topicId, counts[topicId].verifiedQuestionCount]))
+  const availableQuestionCountByTopic = Object.fromEntries(topicIds.map((topicId) => [topicId, counts[topicId].availableQuestionCount]))
+  return Object.freeze({
+    counts,
+    verifiedQuestionCountByTopic: Object.freeze(verifiedQuestionCountByTopic),
+    availableQuestionCountByTopic: Object.freeze(availableQuestionCountByTopic),
+    eligibility: selectedTopicPracticeEligibility({
+      topicIds,
+      verifiedQuestionCountByTopic,
+      availableQuestionCountByTopic,
+    }),
+  })
+}
+
 /**
  * Persisted server syllabus units are convenience references, not authority.
  * Rebuild the exact part scope from the current study pool and require every
  * persisted source identity to match before restoring a session or history.
  */
-export function rebindSyllabusPracticeUnit(unit, { questionBank = studyQuestionBank, includeStudyOnly = true } = {}) {
+export function rebindSyllabusPracticeUnit(unit, {
+  questionBank = studyQuestionBank,
+  includeStudyOnly = true,
+  parentUnit = null,
+  focusedRetestParent = null,
+} = {}) {
   if (!unit || unit.sourceAuthority !== 'server-syllabus' || unit.sourceGateVersion !== 'server-syllabus-catalog-v2') return null
   const route = routeById(unit.routeId)
   const config = route && syllabusConfig(route.routeId)
@@ -953,14 +1041,45 @@ export function rebindSyllabusPracticeUnit(unit, { questionBank = studyQuestionB
     .filter((value) => config.components.includes(value)))]
   const persistedParts = Array.isArray(unit.parts) ? unit.parts : []
   if (!topicIds.length || !selectedComponents.length || !persistedParts.length || persistedParts.length > 500) return null
+  const persistedSourceQuestionCount = new Set(persistedParts
+    .map((part) => String(part?.sourceQuestionId || '').trim())
+    .filter(Boolean)).size
+  let reboundFocusedParent = null
+  if (unit.focusedRetestOf) {
+    if (persistedSourceQuestionCount !== 1 || persistedParts.length !== 1) return null
+    if (focusedRetestParent) {
+      reboundFocusedParent = authoritativeFocusedParentPart(unit, focusedRetestParent, config)
+    } else {
+      if (!parentUnit || parentUnit.focusedRetestOf || String(parentUnit.id || '') !== String(unit.focusedRetestOf)) return null
+      const reboundParent = rebindSyllabusPracticeUnit(parentUnit, { questionBank, includeStudyOnly })
+      if (!reboundParent || reboundParent.questionGroupCount < MIN_QUESTION_GROUPS_PER_TEST) return null
+      const persistedPart = persistedParts[0]
+      reboundFocusedParent = reboundParent.parts.find((part) => (
+        part.id === persistedPart.id
+        && part.sourceQuestionId === persistedPart.sourceQuestionId
+        && part.questionPartId === (persistedPart.questionPartId || persistedPart.partId)
+        && samePracticeBinding(
+          part.sourceBindingProvenance,
+          persistedPart.sourceBindingProvenance || persistedPart.markingProvenance,
+        )
+      )) || null
+      if (!reboundFocusedParent || String(unit.id || '') !== `${parentUnit.id}:focused:${reboundFocusedParent.id}`) return null
+    }
+    if (!reboundFocusedParent) return null
+  } else if (persistedSourceQuestionCount < MIN_QUESTION_GROUPS_PER_TEST) {
+    return null
+  }
 
-  const recordsByQuestionId = new Map(effectiveQuestionRecords(questionBank, config)
+  const candidateRecords = effectiveQuestionRecords(questionBank, config)
     .filter((record) => recordPracticeAvailable(record, includeStudyOnly)
       && topicIds.some((topicId) => record.mapping.topicIds?.includes(topicId))
       && selectedComponents.includes(record.paperComponent))
-    .map((record) => [record.sourceQuestionId, record]))
+  const topicReadiness = selectedTopicPracticeReadiness(candidateRecords, topicIds)
+  const forceStudyOnly = !topicReadiness.eligibility.ready
+  const recordsByQuestionId = new Map(candidateRecords.map((record) => [record.sourceQuestionId, record]))
   const uniquePartKeys = new Set()
   const reboundParts = []
+  let hasSelectedStudyOnlyRecord = false
 
   for (const persistedPart of persistedParts) {
     const sourceQuestionId = String(persistedPart?.sourceQuestionId || '').trim()
@@ -970,10 +1089,11 @@ export function rebindSyllabusPracticeUnit(unit, { questionBank = studyQuestionB
     uniquePartKeys.add(key)
 
     const record = recordsByQuestionId.get(sourceQuestionId)
-    const group = record && publicQuestionGroup(record)
+    const group = record && publicQuestionGroup(record, { forceStudyOnly })
     const currentPart = group?.parts.find((part) => part.partId === questionPartId)
     const persistedBinding = persistedPart?.sourceBindingProvenance || persistedPart?.markingProvenance
     if (!record || !group || !currentPart || !samePracticeBinding(persistedBinding, currentPart.sourceBindingProvenance)) return null
+    hasSelectedStudyOnlyRecord ||= record.studyOnly === true
 
     reboundParts.push(Object.freeze({
       ...currentPart,
@@ -1007,6 +1127,10 @@ export function rebindSyllabusPracticeUnit(unit, { questionBank = studyQuestionB
   }
 
   if (reboundParts.some((part) => !part.id)) return null
+  // A reviewed-only source set below the formal per-topic floor must not be
+  // restored by changing a client-side practiceMode flag. The study path is
+  // reserved for source-study records that separately passed that gate.
+  if (!topicReadiness.eligibility.ready && !hasSelectedStudyOnlyRecord) return null
   const paperById = new Map()
   for (const part of reboundParts) {
     const source = part.sourceRef || {}
@@ -1053,6 +1177,11 @@ export function rebindSyllabusPracticeUnit(unit, { questionBank = studyQuestionB
     questionGroupCount: new Set(reboundParts.map((part) => part.sourceQuestionId)).size,
     referencePapers: Object.freeze([...paperById.values()]),
     practiceMode: hasStudyOnlyPart ? 'study-only' : 'verified',
+    formalProgressEligible: !hasStudyOnlyPart && topicReadiness.eligibility.ready,
+    verifiedAvailableCountByTopic: topicReadiness.verifiedQuestionCountByTopic,
+    focusedRetestOf: unit.focusedRetestOf || null,
+    focusedRetestParentAttemptId: focusedRetestParent?.attemptId || unit.focusedRetestParentAttemptId || null,
+    focusedRetestValidated: Boolean(reboundFocusedParent),
     sourceGateVersion: 'server-syllabus-catalog-v2',
     sourceGateStatus: 'current',
   }))
@@ -1087,6 +1216,9 @@ export function buildSyllabusPracticeSet({
     error.statusCode = 400
     throw error
   }
+  // The pure builder is also used to create bounded source-study slices and
+  // to rehydrate lower-level fixtures. The HTTP Topic Drill boundary applies
+  // the student-facing minimum before returning a startable set.
   const requestedCount = Math.min(15, Math.max(1, Number(questionCount) || 10))
   const requestedComponents = components === undefined
     ? [...config.components]
@@ -1114,6 +1246,11 @@ export function buildSyllabusPracticeSet({
     recordPracticeAvailable(record, includeStudyOnly)
     && topicIds.some((topicId) => record.mapping.topicIds?.includes(topicId))
   ))
+  const topicReadiness = selectedTopicPracticeReadiness(availableRecords, topicIds)
+  const verifiedAvailableCount = new Set(availableRecords
+    .filter((record) => record.eligible)
+    .map((record) => record.sourceQuestionId)
+    .filter(Boolean)).size
   const effectiveRequestedCount = explicitSourceQuestionIds.length || requestedCount
   const selected = explicitSourceQuestionIds.length
     ? selectExplicitQuestions(records, explicitSourceQuestionIds, topicIds, selectedComponents, includeStudyOnly)
@@ -1134,7 +1271,19 @@ export function buildSyllabusPracticeSet({
     error.indexedCount = records.filter((record) => topicIds.some((topicId) => record.mapping.topicIds?.includes(topicId))).length
     throw error
   }
-  const metrics = questionGroupSetMetrics(selected.map(publicQuestionGroup))
+  const formalProgressEligible = topicReadiness.eligibility.ready
+  const selectedStudyOnly = selected.some((record) => record.studyOnly)
+  // A reviewed-only pool below the formal two-test floor must not be
+  // relabelled as study-only. Study mode is valid only when the selected set
+  // actually contains source-backed study records that passed that gate.
+  const practiceMode = selectedStudyOnly
+    ? 'study-only'
+    : formalProgressEligible
+      ? 'verified'
+      : 'unavailable'
+  const forceStudyOnly = practiceMode === 'study-only'
+  const questionGroups = selected.map((record) => publicQuestionGroup(record, { forceStudyOnly }))
+  const metrics = questionGroupSetMetrics(questionGroups)
   return {
     schemaVersion: 'syllabus-practice-set-v1',
     routeId,
@@ -1148,6 +1297,8 @@ export function buildSyllabusPracticeSet({
     components: selectedComponents,
     requestedCount: effectiveRequestedCount,
     availableCount: availableRecords.length,
+    verifiedAvailableCount,
+    verifiedAvailableCountByTopic: topicReadiness.verifiedQuestionCountByTopic,
     sourceQuestionCount: metrics.sourceQuestionCount,
     answerPartCount: metrics.answerPartCount,
     paperCount: metrics.paperCount,
@@ -1156,11 +1307,12 @@ export function buildSyllabusPracticeSet({
     selfMarkPartCount: metrics.selfMarkPartCount,
     semanticReviewedPartCount: metrics.semanticReviewedPartCount,
     questionCount: metrics.sourceQuestionCount,
-    practiceMode: selected.some((record) => record.studyOnly) ? 'study-only' : 'verified',
+    practiceMode,
+    formalProgressEligible,
     partial: selected.length < effectiveRequestedCount,
     seed: Number(seed) >>> 0,
     sourceQuestionIds: selected.map((record) => record.sourceQuestionId),
-    questionGroups: selected.map(publicQuestionGroup),
+    questionGroups,
   }
 }
 
@@ -1383,7 +1535,20 @@ export function seedSyllabusTables(database, questionBank = []) {
     const question = record.question
     const answerRef = question.answerRef || {}
     const mapping = record.mapping
-    if (record.verificationStatus === 'ai-verified') activeAiVerifiedQuestionGroupIds.add(`${record.routeId}\u0000${record.questionGroupId}`)
+    // The effective record set is the current bank authority. Raw catalog
+    // rows are retained as indexed context, but must not keep their former
+    // reviewed status when they are absent from the supplied/current bank.
+    // Otherwise the SQLite inventory can promote stale rows past the same
+    // eligibility predicate used by the pure builder.
+    const storedVerificationStatus = record.eligible
+      ? record.verificationStatus
+      : record.releasedStudyEligible && record.verificationStatus === 'ai-verified'
+        ? 'ai-verified'
+        : 'machine-indexed'
+    const storedMappingReviewStatus = record.eligible && mapping.reviewStatus === 'reviewed'
+      ? 'reviewed'
+      : 'pending'
+    if (storedVerificationStatus === 'ai-verified') activeAiVerifiedQuestionGroupIds.add(`${record.routeId}\u0000${record.questionGroupId}`)
     insertQuestion.run(
       record.routeId,
       record.questionGroupId,
@@ -1398,7 +1563,7 @@ export function seedSyllabusTables(database, questionBank = []) {
       record.sourceContentComplete ? 1 : 0,
       record.studyEligible ? 1 : 0,
       record.releasedStudyEligible ? 1 : 0,
-      record.verificationStatus,
+      storedVerificationStatus,
       JSON.stringify(question.sourceRef || {}),
       JSON.stringify(answerRef),
       JSON.stringify(question.parts || []),
@@ -1412,7 +1577,7 @@ export function seedSyllabusTables(database, questionBank = []) {
       JSON.stringify(mapping.syllabusPointIds || []),
       Number(mapping.confidence || 0),
       mapping.mappingMethod,
-      mapping.reviewStatus,
+      storedMappingReviewStatus,
       mapping.reviewedBy || null,
       mapping.reviewedAt || null,
       JSON.stringify({ reason: mapping.reviewReason || null, officialUrl: config.syllabus.officialUrl }),
@@ -1491,7 +1656,7 @@ export function syllabusDatabaseInventory(database, routeId, { includeStudyOnly 
     const availableQuestionCount = verifiedQuestionCount + studyQuestionCount
     const indexedQuestionCount = Number(topic.indexedQuestionCount) || 0
     const pendingReviewCount = Number(topic.pendingReviewCount) || 0
-    const ready = verifiedQuestionCount >= 10
+    const eligibility = topicPracticeEligibility({ verifiedQuestionCount, availableQuestionCount })
     return {
       ...topic,
       verifiedQuestionCount,
@@ -1499,15 +1664,19 @@ export function syllabusDatabaseInventory(database, routeId, { includeStudyOnly 
       availableQuestionCount,
       indexedQuestionCount,
       pendingReviewCount,
-      availableSetSizes: SET_SIZES.filter((size) => size <= availableQuestionCount),
-      ready,
-      studyReady: availableQuestionCount > 0,
-      ctaPolicy: ready ? 'start' : availableQuestionCount > 0 ? 'start-study' : 'hidden',
-      sourceGap: ready
+      availableSetSizes: eligibility.availableSetSizes,
+      ready: eligibility.ready,
+      studyReady: eligibility.studyReady,
+      ctaPolicy: eligibility.ctaPolicy,
+      sourceGap: eligibility.ready
         ? null
-        : availableQuestionCount > 0
+        : eligibility.studyReady
           ? `Available for study: ${availableQuestionCount} complete source question${availableQuestionCount === 1 ? '' : 's'}; ${studyQuestionCount} stay outside formal mastery while source review is pending.`
-          : `Official QP/MS candidates indexed: ${indexedQuestionCount}; semantic-reviewed and mapped: ${verifiedQuestionCount}. ${pendingReviewCount} item(s) remain in review.`,
+          : verifiedQuestionCount > 0
+            ? `At least ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} reviewed source question groups are required before a Topic Drill can start; ${reviewedSourceQuestionGap(verifiedQuestionCount)}`
+            : availableQuestionCount > 0
+            ? `At least ${MIN_QUESTION_GROUPS_PER_TEST} complete source questions are required before a Topic Drill can start; ${availableSourceQuestionGap(availableQuestionCount)}`
+            : `Official QP/MS candidates indexed: ${indexedQuestionCount}; semantic-reviewed and mapped: ${verifiedQuestionCount}. ${pendingReviewCount} item(s) remain in review.`,
     }
   })
 }

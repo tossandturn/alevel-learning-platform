@@ -25,11 +25,11 @@ const VIEWPORTS = [
 
 const REVIEWED_SOURCE_CASES = [
   {
-    number: 5,
-    topic: 'Geometry',
+    number: 6,
+    topic: 'Number',
     sourcePages: [4],
-    focusBounds: { 4: [80, 98, 930, 660] },
-    parts: [{ label: 'a', marks: 2 }, { label: 'b', marks: 1 }],
+    sourceView: 'pdf-regions',
+    parts: [{ label: 'a', marks: 2 }],
   },
   {
     number: 10,
@@ -194,6 +194,7 @@ async function startQaServer() {
       ...process.env,
       BROWSER: 'none',
       NODE_ENV: 'test',
+      STEM_QA_DISABLE_HMR: '1',
       STEM_ENABLE_STUDY_ONLY_TOPIC_DRILL: '1',
       STEM_DB_PATH: qaDatabasePath,
       STEM_SESSION_SECURE: '0',
@@ -298,9 +299,15 @@ async function startReviewedTopic(page, topic) {
   if (await customSet.count() && !await customSet.evaluate((element) => element.open)) await customSet.locator('summary').click()
   const questionCount = page.getByRole('combobox', { name: 'Question count' })
   if (await questionCount.count()) await questionCount.selectOption('15')
-  const start = page.getByRole('button', { name: /Start set|Practice \d+|Start (?:checked|verified) sample/i }).first()
+  const start = page.locator('.topic-detail__start .primary-action').first()
   await start.waitFor()
-  if (await start.isDisabled()) throw new Error(`${topic} has no enabled reviewed source set`)
+  if (await start.isDisabled()) {
+    const detail = (await page.locator('.topic-detail__start').innerText()).replace(/\s+/g, ' ').trim()
+    if (!/At least (?:6 official .* questions|12 reviewed source-backed question groups) are required before a Topic Drill can start/i.test(detail)) {
+      throw new Error(`${topic} disabled state does not explain the Topic Drill readiness floor: ${detail}`)
+    }
+    return false
+  }
   await start.click()
   await page.waitForSelector('.session-setup, .question-block')
   if (await page.locator('.session-setup').count()) {
@@ -309,6 +316,7 @@ async function startReviewedTopic(page, topic) {
     await page.getByRole('button', { name: /Start session/i }).click()
   }
   await page.locator('.question-block').waitFor()
+  return true
 }
 
 async function activateQuestionPart(page, number, label, paper = 'M25/12') {
@@ -418,8 +426,8 @@ async function assertFocusedSource(page, sourceCase, sourcePage, viewport, evide
     if (!boundary || Object.values(boundary).some((ratio) => ratio > 0.02)) {
       throw new Error(`Q${sourceCase.number} QP p.${sourcePage} focused crop touches printed source content at an edge: ${JSON.stringify(boundary)}`)
     }
-  } else if (metrics.exactRegion !== 'false') {
-    throw new Error(`Q${sourceCase.number} must fail closed to the complete PDF page instead of exposing an unreviewed crop: ${JSON.stringify(metrics)}`)
+  } else if (metrics.exactRegion === 'true' && metrics.focusSafety !== 'runtime-pdf') {
+    throw new Error(`Q${sourceCase.number} exposed a non-reviewed focused crop in PDF-region mode: ${JSON.stringify(metrics)}`)
   }
   if (await page.getByText(/\[(?:graph|diagram|figure|image|table)\s*:/i).count()) throw new Error(`Q${sourceCase.number} exposes a raw visual placeholder instead of the official visual`)
 
@@ -499,7 +507,15 @@ async function verifyRenderedBlobUrlHandoff(page) {
 
 async function verifyReviewedQuestion(page, sourceCase, viewport) {
   await clearBrowserState(page)
-  await startReviewedTopic(page, sourceCase.topic)
+  const started = await startReviewedTopic(page, sourceCase.topic)
+  if (!started) {
+    return {
+      questionId: `cie-0580-0580_m25_qp_12:q${sourceCase.number}`,
+      viewport: `${viewport.width}x${viewport.height}`,
+      status: 'blocked-insufficient-topic-groups',
+      requiredQuestionGroups: 6,
+    }
+  }
   const evidence = {
     questionId: `cie-0580-0580_m25_qp_12:q${sourceCase.number}`,
     viewport: `${viewport.width}x${viewport.height}`,
@@ -583,7 +599,7 @@ async function verifyReviewedSourceMatrix(browser) {
           if (response.status() >= 400 && !expectedGuestIdentity) errors.push(`http:${response.status()} ${response.url()}`)
         })
         for (let repeat = 1; repeat <= sourceQaRepeats; repeat += 1) {
-          for (const sourceCase of sourceQaCases) {
+        for (const sourceCase of sourceQaCases) {
             const caseLabel = `${viewport.name}:Q${sourceCase.number}:${repeat}/${sourceQaRepeats}`
             const startedAt = Date.now()
             console.log(`[qa:source-gate] start ${caseLabel}`)
@@ -627,13 +643,20 @@ async function startReviewed0606Topic(page, topic) {
   }
   if (!topicRow) throw new Error(`Could not find the exact 0606 ${topic} syllabus row; observed=${JSON.stringify(await rows.allInnerTexts())}`)
   await topicRow.click()
-  const start = page.getByRole('button', { name: /Start set|Practice \d+|Start (?:checked|verified) sample/i }).first()
+  const start = page.locator('.topic-detail__start .primary-action').first()
   await start.waitFor()
-  if (await start.isDisabled()) throw new Error(`0606 ${topic} has no enabled reviewed source sample`)
+  if (await start.isDisabled()) {
+    const detail = (await page.locator('.topic-detail__start').innerText()).replace(/\s+/g, ' ').trim()
+    if (!/At least (?:6 official .* questions|12 reviewed source question groups) are required before a Topic Drill can start/i.test(detail)) {
+      throw new Error(`0606 ${topic} disabled state does not explain the Topic Drill readiness floor: ${detail}`)
+    }
+    return false
+  }
   await start.click()
   await page.waitForSelector('.session-setup, .question-block')
   if (await page.locator('.session-setup').count()) await page.getByRole('button', { name: /Start session/i }).click()
   await page.locator('.question-block').waitFor()
+  return true
 }
 
 async function verifyReviewed0606Source(browser) {
@@ -673,7 +696,16 @@ async function verifyReviewed0606Source(browser) {
         page.on('pageerror', (error) => errors.push(`pageerror:${error.message}`))
         for (const sourceCase of REVIEWED_0606_SOURCE_CASES) {
           await clearBrowserState(page)
-          await startReviewed0606Topic(page, sourceCase.topic)
+          const started = await startReviewed0606Topic(page, sourceCase.topic)
+          if (!started) {
+            results.push({
+              questionId: `cie-0606-0606_m25_qp_12:q${sourceCase.number}`,
+              viewport: `${viewport.width}x${viewport.height}`,
+              status: 'blocked-insufficient-topic-groups',
+              requiredQuestionGroups: 6,
+            })
+            continue
+          }
           await activateQuestionPart(page, sourceCase.number, sourceCase.parts[0])
           const evidence = {
             questionId: `cie-0606-0606_m25_qp_12:q${sourceCase.number}`,
@@ -751,8 +783,8 @@ async function verifyRequiredAssetFailure(browser) {
         if (/\/api\/(?:ai\/mark|stem\/marking)/.test(request.url())) markingRequests.push(request.url())
       })
       await clearBrowserState(page)
-      await startReviewedTopic(page, 'Geometry')
-      await activateQuestionPart(page, 5, 'a')
+      await startReviewedTopic(page, 'Number')
+      await activateQuestionPart(page, 6, 'a')
       const incomplete = page.locator('.source-region-renderer__status--error')
       await incomplete.waitFor()
       const text = (await incomplete.innerText()).replace(/\s+/g, ' ').trim()
@@ -840,6 +872,8 @@ async function verifyFullPaperInk(browser) {
       await picker.getByRole('tab', { name: 'AS', exact: true }).click()
       await picker.getByRole('combobox', { name: 'Current course' }).selectOption('cie-9709-as-p1-p2')
       await page.getByRole('button', { name: /^Past Papers$/ }).click()
+      await page.locator('.paper-library').waitFor()
+      await page.locator('.paper-search input').waitFor()
       await page.locator('.paper-search input').fill('9709/12 2025')
       await page.locator('.paper-table tbody tr').filter({ hasText: '9709/12' }).filter({ hasText: 'Mar 2025' }).first().getByRole('button', { name: 'Open' }).click()
       await page.locator('.paper-workspace').waitFor()

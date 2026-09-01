@@ -69,6 +69,8 @@ assert.match(appSource, /onOpenPastPaperQuestions=\{openPastPaperQuestions\}/, '
 assert.match(appSource, /if \(detailTab === 'papers'\) onOpenPastPaperQuestions\(\)/, 'opening a topic must not load the full study question index before the source-question tab is opened')
 assert.match(appSource, /studyQuestionRuntimeStatus === 'loading' \|\| studyQuestionRuntimeStatus === 'idle'/, 'source-question loading must have an explicit non-blank state')
 assert.match(appSource, /supportsSyllabusPracticeRoute\(activeRouteId\) && \(view === 'library' \|\| view === 'topic'\)/, 'syllabus topic pages must use lightweight inventory data before loading the full catalog')
+assert.match(appSource, /AI-provisional question evidence/, 'dynamic topic pages must label AI-derived source evidence as provisional')
+assert.match(appSource, /study-only topic PDF/i, 'dynamic topic PDF actions must be labelled study-only')
 assert.match(appSource, /syllabusPracticeFallbackOptions/, 'syllabus topic pages must have a lightweight route option fallback')
 assert.doesNotMatch(appSource, /\.toSorted\(/, 'the App must not depend on Array.prototype.toSorted at render time')
 assert.doesNotMatch(bootRecoverySource, /\.toSorted\(/, 'boot recovery must not depend on Array.prototype.toSorted at startup')

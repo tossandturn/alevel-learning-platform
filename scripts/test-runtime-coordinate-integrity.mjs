@@ -46,6 +46,8 @@ function fixture({ sourcePageHashes = true, verificationQuestionNumber = '1', ca
     questionNumber: verificationQuestionNumber,
     questionStartPage: 2,
     pages: [2],
+    regions: [structuredClone(candidateRegion)],
+    diagramRegions: [],
     parts: [{ label: 'a', marks: 4 }],
     diagramRegionCount: includeDiagram ? 1 : 0,
     tags: { primaryTopicId: topic.id, secondaryTopicIds: [], syllabusPointIds: [topic.points[0].id] },

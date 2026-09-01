@@ -210,19 +210,21 @@ assert.equal(officialFirstBatch.length, 46, 'the official 2023-2025 first batch 
 assert.ok(new Set(candidates.map((candidate) => candidate.questionPaperId)).size < officialFirstBatch.length, 'the index must expose the real gap between official papers and indexed groups')
 assert.ok(candidates.every((candidate) => candidate.markSchemeId), 'every candidate must retain its paired mark scheme')
 
-const localInventory = syllabusTopicsInventory({ routeId })
+const localInventory = syllabusTopicsInventory({ routeId, includeStudyOnly: false })
 assert.equal(localInventory.topics.length, 11)
 assert.equal(localInventory.topics.reduce((sum, topic) => sum + topic.indexedQuestionCount, 0), 147)
 assert.equal(localInventory.indexedQuestionGroupCount, 147)
 assert.equal(localInventory.unmappedQuestionGroupCount, 0)
 assert.equal(localInventory.topics.reduce((sum, topic) => sum + topic.verifiedQuestionCount, 0), 112)
-assert.ok(localInventory.topics.every((topic) => topic.verifiedQuestionCount >= 10), 'every official AS theory topic needs at least ten reviewed groups before release')
-assert.equal(localInventory.topics.filter((topic) => topic.ctaPolicy === 'start').length, 11, 'all eleven topics may start only after reaching the ten-group threshold')
-assert.equal(localInventory.topics.filter((topic) => topic.ctaPolicy === 'limited-indexing').length, 0)
+assert.ok(localInventory.topics.every((topic) => topic.verifiedQuestionCount >= 10), 'every official AS theory topic must retain its reviewed source inventory')
+assert.equal(localInventory.ready, false, 'the AS route must remain unavailable while ten official topics lack two six-question tests')
+assert.equal(localInventory.topics.filter((topic) => topic.ctaPolicy === 'start').length, 1, 'only the current twelve-group Waves topic may claim formal readiness')
+assert.equal(localInventory.topics.filter((topic) => topic.ctaPolicy === 'hidden').length, 10, 'under-floor reviewed topics must not become study-mode fallbacks')
 
 const api = createStemApi({
   env: { STEM_IDENTITY_SIGNING_KEY: signingKey, STEM_DB_PATH: ':memory:' },
 })
+const ownerToken = identityToken()
 const server = http.createServer((request, response) => api(request, response, () => {
   response.statusCode = 404
   response.end()
@@ -241,6 +243,9 @@ try {
   assert.equal(inventory.unmappedQuestionGroupCount, 0)
   assert.equal(inventory.topics.reduce((sum, topic) => sum + topic.verifiedQuestionCount, 0), 112)
   assert.ok(inventory.topics.every((topic) => topic.verifiedQuestionCount >= 10), 'API inventory must use the current canonical reviewed bank')
+  assert.equal(inventory.ready, false, 'API inventory must retain the two-test readiness gate')
+  assert.equal(inventory.topics.filter((topic) => topic.ctaPolicy === 'start').length, 1, 'API formal readiness must expose only the current twelve-group topic')
+  assert.equal(inventory.topics.filter((topic) => topic.ctaPolicy === 'hidden').length, 10, 'API must not relabel under-floor reviewed topics as study practice')
   assert.equal(inventory.officialPaperCount, 46)
   assert.equal(inventory.officialPairedPaperCount, 46)
   assert.ok(inventory.topics.every((topic) => topic.points.length > 0), 'API must return official syllabus points')
@@ -251,16 +256,16 @@ try {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       routeId,
-      syllabusTopicIds: ['physics-9702-topic-02'],
-      questionCount: 5,
+      syllabusTopicIds: ['physics-9702-topic-07'],
+      questionCount: 6,
       components: [1, 2],
     }),
   })
-  assert.equal(unauthenticatedSet.status, 201, 'a guest may create a local source-backed practice set without accessing private workspace data')
+  assert.equal(unauthenticatedSet.status, 201, 'a guest may create a six-question local source-backed practice set without accessing private workspace data')
   const unauthenticatedPayload = await unauthenticatedSet.json()
   assert.equal(unauthenticatedPayload.ownerId, null)
-  assert.equal(unauthenticatedPayload.questionCount, 5)
-  assert.equal(unauthenticatedPayload.sourceQuestionCount, 5)
+  assert.equal(unauthenticatedPayload.questionCount, 6)
+  assert.equal(unauthenticatedPayload.sourceQuestionCount, 6)
   assert.equal(unauthenticatedPayload.answerPartCount, unauthenticatedPayload.questionGroups.reduce((sum, group) => sum + group.parts.length, 0))
   assert.equal(unauthenticatedPayload.paperCount, new Set(unauthenticatedPayload.questionGroups.map((group) => group.sourceRef?.paperId).filter(Boolean)).size)
   assert.equal(unauthenticatedPayload.totalMarks, unauthenticatedPayload.questionGroups.reduce((sum, group) => sum + group.parts.reduce((partSum, part) => partSum + Number(part.marks || 0), 0), 0))
@@ -269,25 +274,25 @@ try {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${identityToken()}`,
+      'Authorization': `Bearer ${ownerToken}`,
     },
     body: JSON.stringify({
       routeId,
-      syllabusTopicIds: ['physics-9702-topic-02'],
-      questionCount: 5,
-      components: [1],
+      syllabusTopicIds: ['physics-9702-topic-07'],
+      questionCount: 6,
+      components: [1, 2],
       seed: 20260814,
     }),
   })
   assert.equal(verifiedSet.status, 201, 'a reviewed topic must create a real practice set through the API')
   const verifiedSetPayload = await verifiedSet.json()
-  assert.equal(verifiedSetPayload.questionCount, 5)
-  assert.equal(verifiedSetPayload.sourceQuestionCount, 5)
+  assert.equal(verifiedSetPayload.questionCount, 6)
+  assert.equal(verifiedSetPayload.sourceQuestionCount, 6)
   assert.equal(verifiedSetPayload.answerPartCount, verifiedSetPayload.questionGroups.reduce((sum, group) => sum + group.parts.length, 0))
   assert.equal(verifiedSetPayload.paperCount, new Set(verifiedSetPayload.questionGroups.map((group) => group.sourceRef?.paperId).filter(Boolean)).size)
   assert.equal(verifiedSetPayload.totalMarks, verifiedSetPayload.questionGroups.reduce((sum, group) => sum + group.parts.reduce((partSum, part) => partSum + Number(part.marks || 0), 0), 0))
-  assert.equal(verifiedSetPayload.availableCount, 5)
-  assert.ok(verifiedSetPayload.questionGroups.every((question) => question.paperComponent === 1), 'P1 selection must remain component-isolated')
+  assert.equal(verifiedSetPayload.availableCount, 12)
+  assert.ok(verifiedSetPayload.questionGroups.every((question) => [1, 2].includes(question.paperComponent)), 'the positive Topic Drill must remain inside the selected official theory components')
 
   const persistedUnit = {
     id: 'syllabus-set:http-rebind-fixture',
@@ -297,6 +302,7 @@ try {
     sourceAuthority: 'server-syllabus',
     sourceGateVersion: 'server-syllabus-catalog-v2',
     routeId,
+    stage: 'AS',
     syllabusTopic: verifiedSetPayload.syllabusTopicIds.join(','),
     knowledgeGroupId: verifiedSetPayload.syllabusTopicIds[0],
     paperComponent: verifiedSetPayload.components,
@@ -326,6 +332,62 @@ try {
   assert.notEqual(reboundPayload.unit.parts[0].prompt, persistedUnit.parts[0].prompt, 'arbitrary client part prompt data must not be echoed by rebind')
   assert.notEqual(reboundPayload.unit.parts[0].sourceRef?.localUrl, persistedUnit.parts[0].sourceRef.localUrl, 'part source references must come from the canonical bank')
 
+  const focusedPart = persistedUnit.parts[0]
+  const parentAttemptId = 'att-syllabus-parent-0001'
+  const persistedParentResponse = await fetch(`${origin}/api/stem/attempts`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${ownerToken}`,
+    },
+    body: JSON.stringify({
+      attemptId: parentAttemptId,
+      mode: 'topic',
+      routeId,
+      stage: 'AS',
+      unitId: persistedUnit.id,
+      submittedAt: new Date().toISOString(),
+      markingParts: persistedUnit.parts.map((part) => ({
+        unitPartId: part.id,
+        provenance: { routeId, ...part.sourceBindingProvenance },
+      })),
+      attempt: {
+        id: parentAttemptId,
+        unitId: persistedUnit.id,
+        routeId,
+        stage: 'AS',
+        attemptStatus: 'result',
+      },
+    }),
+  })
+  assert.equal(persistedParentResponse.status, 201, 'a focused retest parent must be a server-owned submitted topic attempt')
+  const focusedUnit = {
+    ...persistedUnit,
+    id: `${persistedUnit.id}:focused:${focusedPart.id}`,
+    focusedRetestOf: persistedUnit.id,
+    focusedRetestParentAttemptId: parentAttemptId,
+    parts: [focusedPart],
+  }
+  const focusedRebindResponse = await fetch(`${origin}/api/stem/practice-sets/rebind`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ownerToken}` },
+    body: JSON.stringify({ unit: focusedUnit }),
+  })
+  assert.equal(focusedRebindResponse.status, 200, 'a focused retest must be revalidated together with its six-question parent')
+  const focusedRebindPayload = await focusedRebindResponse.json()
+  assert.equal(focusedRebindPayload.unit.focusedRetestOf, persistedUnit.id)
+  assert.equal(focusedRebindPayload.unit.focusedRetestValidated, true)
+  assert.equal(focusedRebindPayload.unit.questionGroupCount, 1)
+  assert.equal(focusedRebindPayload.unit.parts[0].id, focusedPart.id)
+
+  const parentlessFocusedResponse = await fetch(`${origin}/api/stem/practice-sets/rebind`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ownerToken}` },
+    body: JSON.stringify({ unit: { ...focusedUnit, focusedRetestParentAttemptId: '' } }),
+  })
+  assert.equal(parentlessFocusedResponse.status, 409, 'a client-declared focused retest without a server-issued parent attempt must fail closed')
+  assert.equal((await parentlessFocusedResponse.json()).code, 'focused_retest_parent_unavailable')
+
   const forgedUnit = structuredClone(persistedUnit)
   forgedUnit.parts[0].sourceBindingProvenance.bindingSignature = 'fnv1a64:0000000000000000'
   const forgedRebindResponse = await fetch(`${origin}/api/stem/practice-sets/rebind`, {
@@ -345,8 +407,8 @@ try {
     },
     body: JSON.stringify({
       routeId,
-      syllabusTopicIds: ['physics-9702-topic-02'],
-      questionCount: 5,
+      syllabusTopicIds: ['physics-9702-topic-07'],
+      questionCount: 6,
       components: [1, 3],
     }),
   })

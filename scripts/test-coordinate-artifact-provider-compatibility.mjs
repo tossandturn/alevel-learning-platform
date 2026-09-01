@@ -69,6 +69,8 @@ function buildArtifact() {
       questions: [{
         questionNumber: '1',
         pages: [2],
+        regions: [{ page: 2, pageImageSha256: 'a'.repeat(64), x0: 0.08, y0: 0.12, x1: 0.92, y1: 0.84 }],
+        diagramRegions: [],
         parts: [{ label: 'a', marks: 3 }],
         tags: { primaryTopicId: 'physics-9702-topic-13', secondaryTopicIds: [], syllabusPointIds: [] },
         markSchemeEvidence: [{ page: 4, pageImageSha256: 'b'.repeat(64) }],

@@ -164,14 +164,33 @@ async function main() {
     const studyManifest = await fetch(`${baseUrl}/data/study-question-index/manifest.json`)
     assert.equal(studyManifest.status, 200)
     assert.match(studyManifest.headers.get('content-type') || '', /application\/json/i)
+    const studyManifestBytes = fs.statSync(path.join(root, 'public', 'data', 'study-question-index', 'manifest.json')).size
+    assert.equal(Number(studyManifest.headers.get('content-length')), studyManifestBytes, 'public JSON assets must expose an exact Content-Length for proxy framing')
     const manifest = await studyManifest.json()
     assert.ok(Array.isArray(manifest.routes) && manifest.routes.length > 0, 'study-question-index manifest must be served from the public data route')
+
+    const papersPath = path.join(root, 'public', 'data', 'papers.json')
+    const papersBytes = fs.statSync(papersPath).size
+    const papers = await fetch(`${baseUrl}/data/papers.json`)
+    assert.equal(papers.status, 200)
+    assert.match(papers.headers.get('content-type') || '', /application\/json/i)
+    assert.equal(Number(papers.headers.get('content-length')), papersBytes, 'the full paper catalog must expose an exact origin body length')
+    const papersBody = new Uint8Array(await papers.arrayBuffer())
+    assert.equal(papersBody.byteLength, papersBytes, 'the full paper catalog response must complete without truncation')
+    const parsedPapers = JSON.parse(Buffer.from(papersBody).toString('utf8'))
+    assert.ok(Array.isArray(parsedPapers.items) && parsedPapers.items.length > 0, 'the full paper catalog must remain valid JSON')
+    const papersHead = await fetch(`${baseUrl}/data/papers.json`, { method: 'HEAD' })
+    assert.equal(papersHead.status, 200)
+    assert.equal(Number(papersHead.headers.get('content-length')), papersBytes, 'HEAD must report the same paper catalog length')
+    assert.equal((await papersHead.arrayBuffer()).byteLength, 0, 'HEAD must not stream a paper catalog body')
 
     const questionAsset = await fetch(`${baseUrl}/question-assets/cie-0580-0580_m25_qp_12/qp-03.jpg`)
     assert.equal(questionAsset.status, 200)
     assert.match(questionAsset.headers.get('content-type') || '', /image\/jpeg/i)
     assert.equal(questionAsset.headers.get('cache-control'), 'public, max-age=31536000, immutable')
-    assert.ok((await questionAsset.arrayBuffer()).byteLength > 0)
+    const questionAssetBytes = fs.statSync(path.join(root, 'public', 'question-assets', 'cie-0580-0580_m25_qp_12', 'qp-03.jpg')).size
+    assert.equal(Number(questionAsset.headers.get('content-length')), questionAssetBytes, 'public image assets must expose an exact Content-Length for proxy framing')
+    assert.equal((await questionAsset.arrayBuffer()).byteLength, questionAssetBytes)
 
     const sourcePdfResponse = await fetch(`${baseUrl}/local-pdf/9702/9702_m25_qp_42.pdf`)
     assert.equal(sourcePdfResponse.status, 200)

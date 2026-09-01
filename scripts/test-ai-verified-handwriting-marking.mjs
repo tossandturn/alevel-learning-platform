@@ -244,6 +244,8 @@ const artifact = {
     questions: [{
       questionNumber: '1',
       pages: [1],
+      regions: [{ page: 1, pageImageSha256: questionPageImageSha256, x0: questionRegion[0], y0: questionRegion[1], x1: questionRegion[2], y1: questionRegion[3] }],
+      diagramRegions: [{ page: 1, pageImageSha256: questionPageImageSha256, x0: 0.7, y0: 0.7, x1: 0.9, y1: 0.9 }],
       parts: [{ label: 'a', marks: 2 }],
       diagramRegionCount: 1,
       markSchemeEvidence: [{ page: 1, pageImageSha256: markSchemePageImageSha256 }],

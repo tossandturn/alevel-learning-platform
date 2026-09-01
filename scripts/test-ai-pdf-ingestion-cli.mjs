@@ -382,7 +382,7 @@ try {
   const pageHashes = { 1: 'c'.repeat(64), 2: 'd'.repeat(64) }
   const markSchemePageHashes = { 1: 'e'.repeat(64) }
   const extraction = validExtraction({ plan, pageHashes, markSchemePageHashes })
-  const verification = validVerification(markSchemePageHashes)
+  const verification = validVerification(pageHashes, markSchemePageHashes)
   const cropCalls = []
   const cropValidationCalls = []
   const structuredInputs = []
@@ -440,6 +440,10 @@ try {
   const coordinateOutputRoot = path.join(temporaryRoot, 'coordinate-artifacts')
   const coordinateOptions = { ...liveOptions, outputRoot: coordinateOutputRoot, coordinateOnly: true }
   const coordinatePlan = buildDryRunPlan(coordinateOptions)
+  const coordinateLibraryRoot = path.join(temporaryRoot, 'coordinate-library')
+  mkdirSync(path.join(coordinateLibraryRoot, '9702'), { recursive: true })
+  writeFileSync(path.join(coordinateLibraryRoot, '9702', 'question.pdf'), readFileSync(questionPdf))
+  writeFileSync(path.join(coordinateLibraryRoot, '9702', 'mark-scheme.pdf'), readFileSync(markSchemePdf))
   structuredCalls = 0
   const coordinateResult = await runCli(coordinateOptions, {
     env: { OPENAI_API_KEY: fakeApiKey },
@@ -522,9 +526,9 @@ try {
         return response
       }
       const question = windowedQuestions[windowedVerificationIndex++]
-      const response = windowedVerification({ markSchemePageHashes: windowedMarkSchemePageHashes, ...question })
+      const response = windowedVerification({ pageHashes: windowedPageHashes, markSchemePageHashes: windowedMarkSchemePageHashes, ...question })
       if (question.questionNumber === '1') {
-        response.questions.push(windowedVerification({ markSchemePageHashes: windowedMarkSchemePageHashes, ...windowedQuestions[1] }).questions[0])
+        response.questions.push(windowedVerification({ pageHashes: windowedPageHashes, markSchemePageHashes: windowedMarkSchemePageHashes, ...windowedQuestions[1] }).questions[0])
       }
       return response
     },
@@ -565,12 +569,14 @@ try {
   })
   boundaryQuestion.questions[0].regions.push({ page: 9, pageImageSha256: boundaryPageHashes[9], x0: 0.1, y0: 0.1, x1: 0.9, y1: 0.9 })
   const boundaryVerification = windowedVerification({
+    pageHashes: boundaryPageHashes,
     markSchemePageHashes: boundaryMarkSchemePageHashes,
     questionNumber: '1',
     page: 4,
     markSchemePage: 1,
   })
   boundaryVerification.questions[0].pages.push(9)
+  boundaryVerification.questions[0].regions.push({ page: 9, pageImageSha256: boundaryPageHashes[9], x0: 0.1, y0: 0.1, x1: 0.9, y1: 0.9 })
   const boundaryRequests = []
   const boundaryResult = await runCli(boundaryOptions, {
     env: { OPENAI_API_KEY: fakeApiKey },
@@ -614,11 +620,11 @@ try {
       }
       unresolvedVerificationCalls += 1
       if (owned.has(1)) {
-        const response = windowedVerification({ markSchemePageHashes: windowedMarkSchemePageHashes, ...windowedQuestions[0] })
+        const response = windowedVerification({ pageHashes: windowedPageHashes, markSchemePageHashes: windowedMarkSchemePageHashes, ...windowedQuestions[0] })
         response.questionStarts.push({ questionNumber: '2', questionStartPage: 5 })
         return response
       }
-      if (owned.has(9)) return windowedVerification({ markSchemePageHashes: windowedMarkSchemePageHashes, ...windowedQuestions[2] })
+      if (owned.has(9)) return windowedVerification({ pageHashes: windowedPageHashes, markSchemePageHashes: windowedMarkSchemePageHashes, ...windowedQuestions[2] })
       return { questionStarts: [], questions: [] }
     },
   })
@@ -651,7 +657,7 @@ try {
         provider: providers[0],
         value: sharedWorkerCalls++ === 0
           ? validExtraction({ plan: sharedWorkerPlan, pageHashes, markSchemePageHashes })
-          : validVerification(markSchemePageHashes),
+          : validVerification(pageHashes, markSchemePageHashes),
       }
     },
     runCropCommand: async () => { throw new Error('shared-worker coordinate-only ingestion must not crop question PDFs') },
@@ -671,7 +677,7 @@ try {
     parts: question.parts.map(part => ({ ...part, label: '' })),
     markSchemeEvidence: [],
   }))
-  const mcqVerification = validVerification(markSchemePageHashes)
+  const mcqVerification = validVerification(pageHashes, markSchemePageHashes)
   mcqVerification.questions = mcqVerification.questions.map(question => ({
     ...question,
     parts: question.parts.map(part => ({ ...part, label: '' })),
@@ -743,7 +749,7 @@ try {
   assert.equal(JSON.parse(readFileSync(failurePlan.outputArtifactPath, 'utf8')).status, 'auto-quarantined')
   assert.equal(JSON.stringify(quarantinedResult).includes('sensitive crop failure'), false)
 
-  const coordinateListing = listAiPdfIngestionCandidates({ root: coordinateOutputRoot })
+  const coordinateListing = listAiPdfIngestionCandidates({ root: coordinateOutputRoot, libraryRoot: coordinateLibraryRoot })
   assert.equal(coordinateListing.candidates.length, 1)
   assert.equal(coordinateListing.candidates[0].status, 'ai-verified', 'coordinate-only artifacts must not require cropped PDF assets')
   assert.equal(coordinateListing.candidates[0].studentEligibility, 'study-released', 'a valid checksum-bound AI release must be reported as student study-ready')
@@ -833,7 +839,7 @@ function validExtraction({ plan, pageHashes, markSchemePageHashes }) {
   }
 }
 
-function validVerification(markSchemePageHashes) {
+function validVerification(pageHashes, markSchemePageHashes) {
   const tags = {
     primaryTopicId: 'physics-9702-topic-01',
     secondaryTopicIds: [],
@@ -845,8 +851,16 @@ function validVerification(markSchemePageHashes) {
       { questionNumber: '2', questionStartPage: 2 },
     ],
     questions: [
-       { questionNumber: '1', questionStartPage: 1, pages: [1, 2], parts: [{ label: 'a', marks: 2 }], diagramRegionCount: 2, tags, markSchemeEvidence: [{ page: 1, pageImageSha256: markSchemePageHashes[1] }] },
-      { questionNumber: '2', questionStartPage: 2, pages: [2], parts: [{ label: 'a', marks: 2 }], diagramRegionCount: 0, tags, markSchemeEvidence: [{ page: 1, pageImageSha256: markSchemePageHashes[1] }] },
+       { questionNumber: '1', questionStartPage: 1, pages: [1, 2], regions: [
+         { page: 2, pageImageSha256: pageHashes[2], x0: 0.1, y0: 0.05, x1: 0.9, y1: 0.4 },
+         { page: 1, pageImageSha256: pageHashes[1], x0: 0.1, y0: 0.2, x1: 0.9, y1: 0.95 },
+       ], diagramRegions: [
+         { page: 1, pageImageSha256: pageHashes[1], x0: 0.1, y0: 0.2, x1: 0.9, y1: 0.95 },
+         { page: 1, pageImageSha256: pageHashes[1], x0: 0.2, y0: 0.3, x1: 0.8, y1: 0.5 },
+       ], parts: [{ label: 'a', marks: 2 }], diagramRegionCount: 2, tags, markSchemeEvidence: [{ page: 1, pageImageSha256: markSchemePageHashes[1] }] },
+      { questionNumber: '2', questionStartPage: 2, pages: [2], regions: [
+        { page: 2, pageImageSha256: pageHashes[2], x0: 0.1, y0: 0.45, x1: 0.9, y1: 0.9 },
+      ], diagramRegions: [], parts: [{ label: 'a', marks: 2 }], diagramRegionCount: 0, tags, markSchemeEvidence: [{ page: 1, pageImageSha256: markSchemePageHashes[1] }] },
     ],
   }
 }
@@ -873,13 +887,15 @@ function windowedExtraction({ plan, pageHashes, markSchemePageHashes, questionNu
   }
 }
 
-function windowedVerification({ markSchemePageHashes, questionNumber, page, markSchemePage }) {
+function windowedVerification({ pageHashes, markSchemePageHashes, questionNumber, page, markSchemePage }) {
   return {
     questionStarts: [{ questionNumber, questionStartPage: page }],
     questions: [{
       questionNumber,
       questionStartPage: page,
       pages: [page],
+      regions: [{ page, pageImageSha256: pageHashes[page], x0: 0.1, y0: 0.1, x1: 0.9, y1: 0.9 }],
+      diagramRegions: [],
       parts: [{ label: 'a', marks: 2 }],
       diagramRegionCount: 0,
       tags: {

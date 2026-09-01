@@ -9,6 +9,7 @@ import {
   assertWithinLimit,
   findEscapingSymlinks,
   findForbiddenFiles,
+  findForbiddenSensitiveFiles,
   findUnexpectedReleaseEntries,
   physicalTreeBytes,
   pathsOverlap,
@@ -112,6 +113,29 @@ try {
     '{"items":[{"subject":"9709"}]}',
     'prepare must materialise the 9709 subject-scoped paper catalog beside papers.json',
   )
+
+  const sensitiveFixtures = [
+    'server/.env',
+    'server/private.pem',
+    'public/cache.sqlite',
+    'public/ocr-staging/answer.json',
+    'src/student.dump',
+    'scripts/export.sql',
+  ]
+  for (const relativePath of sensitiveFixtures) {
+    const fixturePath = path.join(releaseRoot, relativePath)
+    fs.mkdirSync(path.dirname(fixturePath), { recursive: true })
+    fs.writeFileSync(fixturePath, 'sensitive fixture')
+  }
+  fs.writeFileSync(path.join(releaseRoot, 'server', '.env.example'), 'safe example')
+  assert.deepEqual(
+    findForbiddenSensitiveFiles(releaseRoot),
+    sensitiveFixtures.sort(),
+    'the release policy must recursively reject nested secrets, databases, dumps and OCR staging while allowing .env.example',
+  )
+  const sensitivePrepare = runPrepare(releaseRoot, sourceAssetsRoot, sourceCatalogPath, pdfLibraryRoot)
+  assert.notEqual(sensitivePrepare.status, 0, 'prepare must reject sensitive files anywhere below the release root')
+  assert.match(`${sensitivePrepare.stdout}\n${sensitivePrepare.stderr}`, /sensitive|secret|database|OCR staging/i)
 
   assert.equal(physicalTreeBytes(releaseRoot) > 0, true, 'physical release size must include regular files')
   assert.throws(

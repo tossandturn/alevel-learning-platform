@@ -19,6 +19,8 @@ export const TOPIC_PDF_RENDER_SCHEMA_VERSION = 'stem-topic-pdf-render.v1'
 const SHA256 = /^[a-f0-9]{64}$/i
 const SAFE_ROUTE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const MAX_ARTIFACTS = 4000
+const MAX_TOPIC_QUESTIONS = 100
+const MAX_TOPIC_PDF_BYTES = 50 * 1024 * 1024
 const MIN_YEAR = 2021
 const MAX_YEAR = 2025
 const DEFAULT_TIMEOUT_MS = 45_000
@@ -593,12 +595,13 @@ function assertPdfOutput(filePath, code) {
   if (!stat?.isFile() || stat.size < 5 || !fileIsPdf(filePath)) throw codedError(code)
 }
 
-function bounded(operation, timeoutMs, timeoutCode, failureCode) {
+function bounded(operation, timeoutMs, timeoutCode, failureCode, { onTimeout = null } = {}) {
   return new Promise((resolve, reject) => {
     let settled = false
     const timer = setTimeout(() => {
       if (settled) return
       settled = true
+      try { onTimeout?.() } catch { /* Cancellation is best effort. */ }
       reject(codedError(timeoutCode))
     }, timeoutMs)
     Promise.resolve()
@@ -618,38 +621,49 @@ function bounded(operation, timeoutMs, timeoutCode, failureCode) {
   })
 }
 
-function runProcess(command, args, { timeoutMs, code = 'topic_pdf_render_failed' } = {}) {
+function runProcess(command, args, { timeoutMs, code = 'topic_pdf_render_failed', signal = null } = {}) {
   return new Promise((resolve, reject) => {
     let settled = false
+    let timer = null
+    const abortHandler = () => {
+      try { child.kill() } catch { /* The process may already have exited. */ }
+      finish(codedError('topic_pdf_timeout'))
+    }
     const child = spawn(command, args, { stdio: 'ignore', windowsHide: true })
     const finish = (error) => {
       if (settled) return
       settled = true
-      clearTimeout(timer)
+      if (timer) clearTimeout(timer)
+      signal?.removeEventListener?.('abort', abortHandler)
       if (error) reject(error)
       else resolve()
     }
-    const timer = setTimeout(() => {
+    timer = setTimeout(() => {
       try { child.kill() } catch { /* The process may already have exited. */ }
       finish(codedError('topic_pdf_timeout'))
     }, timeoutMs)
+    if (signal?.aborted) {
+      abortHandler()
+      return
+    }
+    signal?.addEventListener?.('abort', abortHandler, { once: true })
     child.once('error', () => finish(codedError(code)))
     child.once('exit', (exitCode) => finish(exitCode === 0 ? null : codedError(code)))
   })
 }
 
-async function runCropProcess(command, manifest, timeoutMs) {
+async function runCropProcess(command, manifest, { timeoutMs, signal } = {}) {
   fs.mkdirSync(manifest.outputDirectory, { recursive: true })
-  await runProcess(command.command, command.args, { timeoutMs })
+  await runProcess(command.command, command.args, { timeoutMs, signal })
 }
 
-async function mergePdfFiles(outputPath, inputPaths, timeoutMs) {
+async function mergePdfFiles(outputPath, inputPaths, { timeoutMs, signal } = {}) {
   if (!inputPaths.length) throw codedError('topic_pdf_empty')
   const executable = process.platform === 'win32' ? 'py' : 'python3'
   const args = process.platform === 'win32'
     ? ['-3.12', '-c', PDF_MERGE_PROGRAM, outputPath, ...inputPaths]
     : ['-c', PDF_MERGE_PROGRAM, outputPath, ...inputPaths]
-  await runProcess(executable, args, { timeoutMs, code: 'topic_pdf_merge_failed' })
+  await runProcess(executable, args, { timeoutMs, code: 'topic_pdf_merge_failed', signal })
 }
 
 function resolveTimeout(value) {
@@ -667,8 +681,8 @@ export function createTopicPdfRenderer({
   artifactRoot,
   libraryRoot,
   artifactPaths = discoverArtifactPaths,
-  runCropCommand = (command, manifest, options) => runCropProcess(command, manifest, options?.timeoutMs || DEFAULT_TIMEOUT_MS),
-  mergePdfs = (outputPath, inputPaths, options) => mergePdfFiles(outputPath, inputPaths, options?.timeoutMs || DEFAULT_TIMEOUT_MS),
+  runCropCommand = (command, manifest, options) => runCropProcess(command, manifest, options || { timeoutMs: DEFAULT_TIMEOUT_MS }),
+  mergePdfs = (outputPath, inputPaths, options) => mergePdfFiles(outputPath, inputPaths, options || { timeoutMs: DEFAULT_TIMEOUT_MS }),
   timeoutMs = DEFAULT_TIMEOUT_MS,
   pythonPath,
   pythonArgs,
@@ -747,7 +761,15 @@ export function createTopicPdfRenderer({
       if (comparable !== previous) throw codedError('topic_pdf_binding_mismatch', 'Duplicate source questions have conflicting bindings.', 409)
     }
     const orderedEntries = [...byQuestion.values()].sort(questionSort)
+    if (orderedEntries.length > MAX_TOPIC_QUESTIONS) throw codedError('topic_pdf_too_large', 'This topic contains too many questions for one PDF request.', 413)
     const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'stem-topic-pdf-'))
+    const requestController = new AbortController()
+    const requestDeadlineAt = Date.now() + boundedTimeoutMs
+    const remainingRequestMs = () => {
+      const remaining = Math.floor(requestDeadlineAt - Date.now())
+      if (remaining <= 0) throw codedError('topic_pdf_timeout')
+      return remaining
+    }
     try {
       const questionPdfs = []
       for (const entry of orderedEntries) {
@@ -761,11 +783,13 @@ export function createTopicPdfRenderer({
           outputRoot: temporaryRoot,
         })
         const command = buildCropCommand(cropManifest, { pythonPath, pythonArgs })
+        const operationTimeoutMs = remainingRequestMs()
         const result = await bounded(
-          () => runCropCommand(command, cropManifest, { timeoutMs: boundedTimeoutMs }),
-          boundedTimeoutMs,
+          () => runCropCommand(command, cropManifest, { timeoutMs: operationTimeoutMs, signal: requestController.signal, deadlineAt: requestDeadlineAt }),
+          operationTimeoutMs,
           'topic_pdf_timeout',
           'topic_pdf_render_failed',
+          { onTimeout: () => requestController.abort() },
         )
         if (Buffer.isBuffer(result)) {
           fs.mkdirSync(path.dirname(cropManifest.questionPdfPath), { recursive: true })
@@ -778,21 +802,27 @@ export function createTopicPdfRenderer({
         questionPdfs.push(cropManifest.questionPdfPath)
       }
       const outputPath = path.join(temporaryRoot, 'topic.pdf')
+      const mergeTimeoutMs = remainingRequestMs()
       const mergeResult = await bounded(
-        () => mergePdfs(outputPath, questionPdfs, { timeoutMs: boundedTimeoutMs }),
-        boundedTimeoutMs,
+        () => mergePdfs(outputPath, questionPdfs, { timeoutMs: mergeTimeoutMs, signal: requestController.signal, deadlineAt: requestDeadlineAt }),
+        mergeTimeoutMs,
         'topic_pdf_timeout',
         'topic_pdf_merge_failed',
+        { onTimeout: () => requestController.abort() },
       )
       if (Buffer.isBuffer(mergeResult)) fs.writeFileSync(outputPath, mergeResult)
       assertPdfOutput(outputPath, 'topic_pdf_merge_failed')
       const pdf = fs.readFileSync(outputPath)
+      if (pdf.length > MAX_TOPIC_PDF_BYTES) throw codedError('topic_pdf_too_large', 'The generated topic PDF exceeds the output size limit.', 413)
       const manifest = {
         schemaVersion: TOPIC_PDF_RENDER_SCHEMA_VERSION,
         routeId: route.routeId,
         subject: route.subjectCode,
         stage: route.stage,
         renderMode: 'on-demand-coordinate-only',
+        authority: 'ai-provisional',
+        studentStudyEligible: true,
+        formalProgressEligible: false,
         generatedAt: new Date().toISOString(),
         topic: {
           id: topic.id,
@@ -809,6 +839,7 @@ export function createTopicPdfRenderer({
       }
       return Object.freeze({ pdf, manifest: Object.freeze(manifest), contentType: 'application/pdf' })
     } finally {
+      requestController.abort()
       fs.rmSync(temporaryRoot, { recursive: true, force: true })
     }
   }

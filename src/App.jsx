@@ -62,7 +62,7 @@ import { buildStemVocabularyContext, vocabularyCoverageForRoute } from './data/s
 import { topicLearningContent } from './data/topicLearningContent'
 import { SOURCE_LIBRARY_SUMMARY } from './data/sourceLibrarySummary'
 import { aggregateTopicPracticeInventory, evidencePresent, filterQuestionGroupsByPracticeInventory, practiceAttemptMetrics, practiceMetricsSummary, practiceUnitMetrics, topicDisplayNames, topicPracticeInventory, withPracticePresentation } from './lib/practicePresentation'
-import { MIN_VERIFIED_GROUPS_FOR_PRACTICE } from './lib/practiceConstants'
+import { isStartableTopicPracticeUnit, MIN_QUESTION_GROUPS_PER_TEST, MIN_VERIFIED_GROUPS_FOR_PRACTICE } from './lib/practiceConstants'
 import './App.css'
 import './StudentV2.css'
 import './TabletNavFix.css'
@@ -247,7 +247,7 @@ function mergeServerStudentAttempts(state, records = []) {
   }
 }
 
-function focusedRetestUnit(unit, partId) {
+function focusedRetestUnit(unit, partId, parentAttemptId = '') {
   if (!partId || unit.parts.length === 1) return unit
   const part = unit.parts.find((item) => item.id === partId)
   if (!part) return unit
@@ -257,6 +257,10 @@ function focusedRetestUnit(unit, partId) {
     title: `${unit.title} · ${displayPartLabel(part)}`,
     parts: [part],
     focusedRetestOf: unit.id,
+    focusedRetestParentAttemptId: String(parentAttemptId || '').trim(),
+    // This is deliberately false until the server has looked up the owning,
+    // submitted parent attempt and rebound the focused source part.
+    focusedRetestValidated: false,
   })
 }
 
@@ -611,7 +615,10 @@ function App() {
     setCoachMounted(true)
   }, [coachMounted, initialCoachOpen, view])
   const practiceRuntime = practiceRuntimeState.module
-  const verifiedCatalogUnits = useMemo(() => practiceRuntime?.buildVerifiedPracticeCatalog() || [], [practiceRuntime])
+  const verifiedCatalogUnits = useMemo(
+    () => (practiceRuntime?.buildVerifiedPracticeCatalog() || []).filter((unit) => isStartableTopicPracticeUnit(unit)),
+    [practiceRuntime],
+  )
   const persistedSyllabusUnits = useMemo(() => (
     (appState.generatedUnits || []).filter((unit) => unit?.sourceAuthority === 'server-syllabus')
   ), [appState.generatedUnits])
@@ -1200,11 +1207,21 @@ function App() {
     const sourceAttempt = options.retestOf
       ? appState.attempts.find((attempt) => attempt.id === options.retestOf)
       : null
+    if (options.retestOf && !sourceAttempt) {
+      throw new Error('The source attempt for this retest is no longer available.')
+    }
     if (sourceAttempt && !hasCurrentSourceBindingForAttempt(sourceAttempt, currentBoundUnit)) {
       throw new Error('This saved attempt is linked to an older source review and is available only as read-only history.')
     }
+    const restoredFocusedRetest = currentBoundUnit.focusedRetestValidated === true
+    if (!isStartableTopicPracticeUnit(currentBoundUnit, { allowFocusedRetest: restoredFocusedRetest })) {
+      throw new Error(`At least ${MIN_QUESTION_GROUPS_PER_TEST} distinct source questions are required before this Topic Drill can start.`)
+    }
+    if (options.onlyPartId && !sourceAttempt) {
+      throw new Error('A focused retest must be linked to its source attempt.')
+    }
     selectRoute(currentBoundUnit.routeId)
-    const sessionUnit = focusedRetestUnit(currentBoundUnit, options.onlyPartId)
+    const sessionUnit = focusedRetestUnit(currentBoundUnit, options.onlyPartId, sourceAttempt?.id)
     if (!options.confirmed) {
       setPendingSession({
         unit: sessionUnit,
@@ -2833,6 +2850,15 @@ function StudentDashboard({ activeRoute, routeOptions, selectRoute, profile, att
         </div>
       </section>
 
+      <nav className="study-paths" aria-label="Quick study paths">
+        <div><p className="section-label">Choose a path</p><h2>Work by topic, paper, or review.</h2></div>
+        <div className="study-paths__grid">
+          <button type="button" aria-label="Topic Drill" data-student-path="topic-drill" onClick={() => openPractice({ tab: 'topics' })}><span className="action-icon"><Dumbbell size={18} /></span><strong>Topic Drill</strong><small>Practise one syllabus topic</small><em>Open <ChevronRight size={14} /></em></button>
+          <button type="button" aria-label="Past Papers" data-student-path="past-papers" onClick={() => openPractice({ tab: 'papers' })}><span className="action-icon"><FileText size={18} /></span><strong>Past Papers</strong><small>Work through complete papers</small><em>Open <ChevronRight size={14} /></em></button>
+          <button type="button" aria-label="Mistakes" data-student-path="mistakes" onClick={() => openPractice({ tab: 'mistakes' })}><span className="action-icon"><RefreshCcw size={18} /></span><strong>Mistakes</strong><small>Review what needs another look</small><em>Review <ChevronRight size={14} /></em></button>
+        </div>
+      </nav>
+
       <section className="week-progress-strip" aria-label="Weekly progress">
         <div><p className="section-label">This week</p><h2>{goalComplete ? 'Weekly goal complete' : `${Math.max(0, learningProgress.week.targetQuestions - learningProgress.week.completedQuestions)} questions to reach your goal`}</h2><span>{learningProgress.streak ? `${learningProgress.streak}-day study streak` : 'Your study streak starts with the next question.'}</span></div>
         <div className="week-progress-strip__progress"><strong>{Math.min(learningProgress.week.completedQuestions, learningProgress.week.targetQuestions)} / {learningProgress.week.targetQuestions}</strong><div className="progress-track"><span style={{ width: `${weeklyPercent}%` }} /></div></div>
@@ -2970,6 +2996,14 @@ function AiPracticeLanding({ activeRoute, selectedTopicId, practiceOptions, star
   const selectedTopics = topics.filter((topic) => selectedTopicIds.includes(topic.id))
   const selectedInventory = aggregateTopicPracticeInventory(selectedTopics, selectedComponents)
   const available = selectedInventory.availableQuestionCount
+  const formalReady = selectedTopics.length > 0
+    && selectedTopics.every((topic) => (
+      topicPracticeInventory(topic, selectedComponents).verifiedQuestionCount >= MIN_VERIFIED_GROUPS_FOR_PRACTICE
+    ))
+  const canBuildPractice = selectedTopicIds.length > 0
+    && selectedComponents.length > 0
+    && available >= MIN_QUESTION_GROUPS_PER_TEST
+    && formalReady
 
   useEffect(() => {
     setSelectedTopicIds(preferredTopicId ? [preferredTopicId] : [])
@@ -2978,7 +3012,7 @@ function AiPracticeLanding({ activeRoute, selectedTopicId, practiceOptions, star
   }, [activeRoute.routeId, defaultComponentKey, preferredTopicId])
 
   async function buildPractice() {
-    if (!selectedTopicIds.length || !selectedComponents.length) return
+    if (!canBuildPractice) return
     try {
       setStartError('')
       await startKnowledgeDrill({
@@ -3013,10 +3047,10 @@ function AiPracticeLanding({ activeRoute, selectedTopicId, practiceOptions, star
           })}</div>
         </fieldset>
         <div className="ai-practice-builder__settings">
-          <label><span>Question count</span><select value={questionCount} onChange={(event) => setQuestionCount(Number(event.target.value))}><option value={5}>5 official questions</option><option value={10}>10 official questions</option><option value={15}>15 official questions</option></select></label>
+          <label><span>Question count</span><select value={questionCount} onChange={(event) => setQuestionCount(Number(event.target.value))}><option value={6}>6 official questions</option><option value={10}>10 official questions</option><option value={15}>15 official questions</option></select></label>
           <label><span>Paper component</span><select value={componentKey} onChange={(event) => setComponentKey(event.target.value)}>{defaultComponents.length > 1 && <option value={defaultComponents.join(',')}>{formatRouteComponents(defaultComponents, activeRoute)} mixed</option>}{defaultComponents.map((component) => <option value={String(component)} key={component}>{formatRouteComponents([component], activeRoute)}{activeRoute.subjectCode === '9702' && Number(component) === 3 ? ' practical' : ''}</option>)}</select></label>
         </div>
-        <div className="ai-practice-builder__footer" role="status" data-available-source-questions={available} data-requested-source-questions={questionCount}><span><strong>{selectedTopics.map((topic) => topic.label.replace(/^\d+\s+/, '')).join(' + ') || 'Choose a topic'}</strong><small>{available} matching source questions · {questionCount} requested{available < questionCount ? ` · set will contain up to ${available}` : ''}</small>{selectedInventory.verifiedQuestionCount < available && <small>{selectedInventory.verifiedQuestionCount} ready for formal progress · {selectedInventory.studyQuestionCount} available for study only</small>}{selectedInventory.pendingReviewCount > 0 && <small>{selectedInventory.pendingReviewCount} more indexed questions are still being checked</small>}</span><button type="button" className="primary-action" disabled={!selectedTopicIds.length || !selectedComponents.length || available === 0} onClick={buildPractice}><PlayIcon />Build practice</button></div>
+        <div className="ai-practice-builder__footer" role="status" data-available-source-questions={available} data-requested-source-questions={questionCount}><span><strong>{selectedTopics.map((topic) => topic.label.replace(/^\d+\s+/, '')).join(' + ') || 'Choose a topic'}</strong><small>{available} matching source questions · {questionCount} requested{available < questionCount ? ` · set will contain up to ${available}` : ''}</small>{selectedInventory.verifiedQuestionCount < available && <small>{selectedInventory.verifiedQuestionCount} ready for formal progress · {selectedInventory.studyQuestionCount} available for study only</small>}{selectedInventory.pendingReviewCount > 0 && <small>{selectedInventory.pendingReviewCount} more indexed questions are still being checked</small>}</span><button type="button" className="primary-action" disabled={!canBuildPractice} onClick={buildPractice}><PlayIcon />{available < MIN_QUESTION_GROUPS_PER_TEST ? `Need ${MIN_QUESTION_GROUPS_PER_TEST} questions` : !formalReady ? `Need ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} reviewed groups` : 'Build practice'}</button></div>
         {selectedInventory.studyQuestionCount > 0 && <p className="ai-practice-builder__notice" role="status">This selection may include source questions still outside formal review. Complete checksum-bound QP/MS items are AI-marked automatically, while their study scores remain outside mastery and formal progress.</p>}
         {startError && <p className="topic-detail__error" role="alert">{startError}</p>}
       </div>
@@ -3059,6 +3093,8 @@ function sourceQuestionPreview(question) {
 
 function sourcePaperLabel(question) {
   const source = question.sourceRef || {}
+  const paperMatch = String(source.paper || '').match(/(?:^|[_-])([msw]\d{2})[_-]qp[_-]?(\d{1,2})(?:$|[_.-])/i)
+  if (paperMatch) return `${paperMatch[1].toUpperCase()}/${paperMatch[2]}`
   const season = source.season ? `${source.season} ` : ''
   return `${season}${source.year || ''} · ${source.paper || 'Verified question paper'}`.trim()
 }
@@ -3233,12 +3269,8 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen =
   const componentLabel = formatRouteComponents(selectedComponents, activeRoute) || 'theory'
   const serverTopicById = new Map((syllabusInventory?.data?.topics || []).map((candidate) => [candidate.id, candidate]))
   const inventoryTopic = serverTopicById.get(topicId)
-  const componentInventoryByTopic = new Map((routeOption?.topics || []).map((candidate) => {
-    const serverTopic = serverTopicById.get(candidate.id)
-    const componentCounts = serverTopic?.componentCounts || {}
-    const available = selectedComponents.reduce((sum, component) => sum + Number(componentCounts[component]?.availableQuestionCount || 0), 0)
-    return [candidate.id, available || (selectedComponents.length === 2 ? Number(serverTopic?.availableQuestionCount || candidate.inventory || 0) : 0)]
-  }))
+  const topicInventoryFor = (candidate) => topicPracticeInventory(serverTopicById.get(candidate.id) || candidate, selectedComponents)
+  const componentInventoryByTopic = new Map((routeOption?.topics || []).map((candidate) => [candidate.id, topicInventoryFor(candidate).availableQuestionCount]))
   const metadata = topicMetadata(topicId)
   const guide = topicLearningContent(metadata || {
     id: topicId,
@@ -3249,20 +3281,37 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen =
   })
   const progress = learningProgress.topicProgress.find((item) => item.id === topicId || String(item.id || '').split('@')[0] === String(topicId).split('@')[0])
   const mastery = progress?.mastery ?? null
+  const selectedTopicInventories = selectedTopics.map(topicInventoryFor)
+  const selectedInventory = aggregateTopicPracticeInventory(
+    selectedTopics.map((candidate) => serverTopicById.get(candidate.id) || candidate),
+    selectedComponents,
+  )
+  const selectedTopicsMeetFormalFloor = selectedTopicInventories.length > 0
+    && selectedTopicInventories.every((inventory) => inventory.verifiedQuestionCount >= MIN_VERIFIED_GROUPS_FOR_PRACTICE)
+  const authoritativeTopicCtaPolicy = dynamicSyllabusRoute && selectedTopicIds.length === 1
+    ? selectedTopicsMeetFormalFloor ? 'start' : 'hidden'
+    : null
+  const authoritativeTopicSourceGap = dynamicSyllabusRoute && selectedTopicIds.length === 1 && authoritativeTopicCtaPolicy === 'hidden'
+    ? (selectedInventory.availableQuestionCount >= MIN_QUESTION_GROUPS_PER_TEST
+      ? `At least ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} reviewed source-backed question groups are required before a Topic Drill can start.`
+      : `At least ${MIN_QUESTION_GROUPS_PER_TEST} official ${componentLabel} questions are required before a Topic Drill can start.`)
+    : ''
   const totalAvailable = selectedTopics.reduce((sum, item) => sum + (item.inventory || 0), 0)
   const available = dynamicSyllabusRoute
-    ? selectedTopicIds.reduce((sum, selectedTopicId) => sum + Number(componentInventoryByTopic.get(selectedTopicId) || 0), 0)
+    ? selectedInventory.availableQuestionCount
     : totalAvailable
   const questionCount = Math.min(selectedQuestionCount, available)
-  const selectedTopicsMeetReviewFloor = selectedTopics.length > 0 && selectedTopics.every((item) => (item.inventory || 0) > 0)
   const practiceReady = dynamicSyllabusRoute
-    ? selectedTopicsMeetReviewFloor && available > 0
+    ? selectedTopicsMeetFormalFloor
+      && selectedInventory.availableQuestionCount >= MIN_QUESTION_GROUPS_PER_TEST
+      && (!authoritativeTopicCtaPolicy || authoritativeTopicCtaPolicy === 'start')
     : available >= MIN_VERIFIED_GROUPS_FOR_PRACTICE
   const topicPracticeUnits = stableSorted(
     (dynamicSyllabusRoute ? [] : practiceUnits).filter((unit) => unit.knowledgeGroupId === topicId),
     (left, right) => (left.sourceSetIndex || 0) - (right.sourceSetIndex || 0),
   )
   const sampleReady = !practiceReady && available > 0 && topicPracticeUnits.length > 0
+  const topicCtaPolicy = authoritativeTopicCtaPolicy || (practiceReady || sampleReady ? 'start' : 'hidden')
   const markingCapabilityCounts = topicPracticeUnits.reduce((counts, unit) => {
     for (const part of unit.parts || []) {
       counts.practice += 1
@@ -3316,7 +3365,9 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen =
     ? 'Each official question stays together with every answer part and required page'
     : `${markingCapabilityCounts.practice} answer parts: ${markingCapabilityCounts.deterministic} Auto-scored, ${markingCapabilityCounts.selfMark} Self-mark, ${markingCapabilityCounts.aiAssisted} Semantic-reviewed`
   const readinessSummary = dynamicSyllabusRoute
-    ? questionCount < selectedQuestionCount
+    ? !practiceReady
+      ? authoritativeTopicSourceGap || `At least ${MIN_QUESTION_GROUPS_PER_TEST} official ${componentLabel} questions are required before a Topic Drill can start.`
+      : questionCount < selectedQuestionCount
       ? `A shorter ${questionCount}-question set will be generated because only ${available} official ${componentLabel} questions are available.`
       : `Ready to generate a ${questionCount}-question ${componentLabel} set.`
     : topicMistakes
@@ -3336,7 +3387,10 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen =
     [questionSourceGroups, selectedQuestionIdsSet],
   )
   const selectedQuestionIdsForBuild = selectedTopicQuestions.map((question) => question.sourceQuestionId)
-  const canBuildSelectedQuestions = selectedQuestionIdsForBuild.length > 0 && selectedQuestionIdsForBuild.length <= 15
+  const selectedQuestionHasStudyOnly = selectedTopicQuestions.some((question) => question.studyOnly === true)
+  const canBuildSelectedQuestions = selectedQuestionIdsForBuild.length >= MIN_QUESTION_GROUPS_PER_TEST
+    && selectedQuestionIdsForBuild.length <= 15
+    && (practiceReady || selectedQuestionHasStudyOnly)
 
   function toggleSelectedQuestion(questionId) {
     setSelectedQuestionIds((current) => {
@@ -3392,12 +3446,12 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen =
         return
       }
       if (!practiceReady) {
-        if (dynamicSyllabusRoute && selectedTopicsMeetReviewFloor && available === 0) {
+        if (dynamicSyllabusRoute && available === 0) {
           throw new Error(`No reviewed ${componentLabel} questions are available for this topic selection. Choose another paper component.`)
         }
         throw new Error(
           available > 0
-            ? `${selectedTopicIds.length > 1 ? 'These syllabus topics have' : topic.label + ' has'} ${available} official questions available. ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} are required before a Topic Drill can start; more are being prepared.`
+            ? `${selectedTopicIds.length > 1 ? 'These syllabus topics have' : topic.label + ' has'} ${available} official questions available. ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} reviewed groups are required before a Topic Drill can start.`
             : topic?.sourceGap || 'This topic has no official questions ready yet. More are being prepared.',
         )
       }
@@ -3534,10 +3588,10 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen =
             {topicPaperGroups.length ? <div className="topic-detail__paper-groups">{topicPaperGroups.map((paperQuestions) => { const first = paperQuestions[0]; const source = first.sourceRef || {}; return <article className="topic-detail__paper-group" key={source.paperId || source.paper}><header><div><strong>{sourcePaperLabel(first)}</strong><span>{source.component ? `Component ${source.component}` : 'Official source'} · {paperQuestions.length} linked question{paperQuestions.length === 1 ? '' : 's'}</span></div><div><a href={`${source.localUrl}#page=${source.pageStart || 1}`} target="_blank" rel="noreferrer">Open QP</a><a href={`${first.answerRef?.localUrl || '#'}#page=${first.answerRef?.pageStart || 1}`} target="_blank" rel="noreferrer">Open MS</a></div></header><div>{paperQuestions.map((question) => <div className="topic-detail__question-row" key={question.questionGroupId || question.bankId}><span>{question.sourceRef?.question || 'Question'}</span><p>{sourceQuestionPreview(question) || 'Indexed question text is available in the source paper.'}</p><small>{question.totalMarks || question.marks || 1} mark{(question.totalMarks || question.marks || 1) === 1 ? '' : 's'} · QP p.{question.sourceRef?.pageStart || '?'} · MS p.{question.answerRef?.pageStart || '?'}</small></div>)}</div></article> })}</div> : <div className="topic-detail__empty-source"><FileText size={20} /><strong>No question-level source records yet</strong><p>This topic is in the syllabus map, but its verified paper index has not been attached to this route.</p></div>}
           </section>
           </details>
-          <section className="topic-detail__source" hidden={detailTab !== 'overview'}><FileText size={20} /><div><strong>Official question evidence</strong><p>Every question opens with its complete source page and linked marking guidance. You will see how each answer part is checked before starting.</p></div><span>{available} available</span></section>
+          <section className="topic-detail__source" hidden={detailTab !== 'overview'} data-topic-pdf-authority={dynamicSyllabusRoute ? 'ai-provisional' : 'official'}><FileText size={20} /><div><strong>{dynamicSyllabusRoute ? 'AI-provisional question evidence (study-only)' : 'Official question evidence'}</strong><p>{dynamicSyllabusRoute ? 'This on-demand source PDF is AI-provisional study material. It is excluded from formal progress and official grades.' : 'Every question opens with its complete source page and linked marking guidance. You will see how each answer part is checked before starting.'}</p></div><span>{available} available</span></section>
         </main>
         <aside className="topic-detail__rail" aria-label="Start a topic session">
-          <section className="topic-detail__start"><div className="topic-detail__start-heading"><div><p className="section-label">Start this session</p><h2>{sessionQuestionCount} official question{sessionQuestionCount === 1 ? '' : 's'}</h2></div>{nextPracticeUnit && <SavePracticeButton unit={nextPracticeUnit} favorite={favoriteUnitIds.includes(nextPracticeUnit.id)} onToggleFavorite={onToggleFavorite} />}</div><p className="topic-detail__start-copy">Open the official question page, work in your preferred mode, then review against the linked mark scheme after submission.</p><ul><li>{inventorySummary}</li><li>{answerPartSummary}</li><li>{readinessSummary}</li></ul>{practiceReady || sampleReady ? <button type="button" className="primary-action" onClick={startTopicPractice}><PlayIcon />{practiceReady ? dynamicSyllabusRoute ? `Practice ${questionCount}` : nextPracticeUnit ? `Start set ${nextPracticeUnit.sourceSetIndex}` : `Practice ${questionCount}` : 'Start checked sample'}</button> : <button type="button" className="primary-action" disabled>{available ? `${available} official questions · more coming` : 'Questions not ready yet'}</button>}{topicPracticeUnits.length > 1 && <div className="topic-detail__set-list" aria-label="Past-paper practice sets">{topicPracticeUnits.map((unit) => { const unitMetrics = practiceUnitMetrics(unit); return <button type="button" key={unit.id} data-completed={Boolean(completionByUnit[unit.id]?.completed)} onClick={() => startPractice(unit)}><span>Set {unit.sourceSetIndex}</span><small>{unitMetrics.sourceQuestionCount} official questions · {unitMetrics.answerPartCount} answer parts · {unitMetrics.paperCount} papers · {unitMetrics.totalMarks} marks</small></button> })}</div>}<button type="button" className="topic-detail__ai" onClick={onOpenCoach}><Sparkles size={16} />Ask AI Tutor about this topic</button>{dynamicSyllabusRoute && <><button type="button" className="topic-detail__pdf" onClick={generateTopicPdf} disabled={topicPdfState.status === 'loading'}><FileText size={16} />{topicPdfState.status === 'loading' ? 'Rendering topic PDF...' : topicPdfState.status === 'ready' ? 'Open topic PDF again' : 'Open syllabus topic PDF'}</button>{topicPdfState.error && <p className="topic-detail__error" role="alert">{topicPdfState.error}</p>}</>}{startError && <p className="topic-detail__error" role="alert">{startError}</p>}</section>
+          <section className="topic-detail__start"><div className="topic-detail__start-heading"><div><p className="section-label">Start this session</p><h2>{sessionQuestionCount} official question{sessionQuestionCount === 1 ? '' : 's'}</h2></div>{nextPracticeUnit && <SavePracticeButton unit={nextPracticeUnit} favorite={favoriteUnitIds.includes(nextPracticeUnit.id)} onToggleFavorite={onToggleFavorite} />}</div><p className="topic-detail__start-copy">Open the official question page, work in your preferred mode, then review against the linked mark scheme after submission.</p><ul><li>{inventorySummary}</li><li>{answerPartSummary}</li><li>{readinessSummary}</li></ul>{practiceReady || sampleReady ? <button type="button" className="primary-action" data-topic-practice-cta={topicCtaPolicy} onClick={startTopicPractice}><PlayIcon />{practiceReady ? dynamicSyllabusRoute ? `Practice ${questionCount}` : nextPracticeUnit ? `Start set ${nextPracticeUnit.sourceSetIndex}` : `Practice ${questionCount}` : 'Start checked sample'}</button> : <button type="button" className="primary-action" data-topic-practice-cta={topicCtaPolicy} disabled>{available ? `${available} official questions · more coming` : 'Questions not ready yet'}</button>}{topicPracticeUnits.length > 1 && <div className="topic-detail__set-list" aria-label="Past-paper practice sets">{topicPracticeUnits.map((unit) => { const unitMetrics = practiceUnitMetrics(unit); return <button type="button" key={unit.id} data-completed={Boolean(completionByUnit[unit.id]?.completed)} onClick={() => startPractice(unit)}><span>Set {unit.sourceSetIndex}</span><small>{unitMetrics.sourceQuestionCount} official questions · {unitMetrics.answerPartCount} answer parts · {unitMetrics.paperCount} papers · {unitMetrics.totalMarks} marks</small></button> })}</div>}<button type="button" className="topic-detail__ai" onClick={onOpenCoach}><Sparkles size={16} />Ask AI Tutor about this topic</button>{dynamicSyllabusRoute && <><button type="button" className="topic-detail__pdf" onClick={generateTopicPdf} disabled={topicPdfState.status === 'loading'}>{topicPdfState.status === 'loading' ? 'Rendering study-only topic PDF...' : topicPdfState.status === 'ready' ? 'Open study-only topic PDF again' : 'Open study-only topic PDF'}</button><p className="topic-detail__pdf-provenance">AI-provisional source · study-only · excluded from formal progress</p>{topicPdfState.error && <p className="topic-detail__error" role="alert">{topicPdfState.error}</p>}</>}{startError && <p className="topic-detail__error" role="alert">{startError}</p>}</section>
           {dynamicSyllabusRoute && <details className="topic-detail__set-controls" open={builderOpen} onToggle={(event) => setBuilderOpen(event.currentTarget.open)}>
             <summary><span><strong>Customize this set</strong><small>{selectedTopics.map((item) => item.label.replace(/^\d+\s+/, '')).join(' + ')} · {selectedQuestionCount} questions · {componentLabel}</small></span><ChevronRight size={17} /></summary>
             <div className="topic-detail__set-controls-body" aria-label="Syllabus practice set controls">
@@ -3547,7 +3601,7 @@ function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen =
               const componentCount = componentInventoryByTopic.get(candidate.id) || 0
               return <label className={`topic-detail__topic-option ${selected ? 'is-selected' : ''}`} key={candidate.id}><input type="checkbox" checked={selected} onChange={(event) => setSelectedTopicIds((current) => event.target.checked ? [...new Set([...current, candidate.id])] : current.filter((id) => id !== candidate.id))} /><span><strong>{candidate.label}</strong><small>{componentCount} {componentLabel} question{componentCount === 1 ? '' : 's'} · {candidate.inventory || 0} total</small></span></label>
             })}</div></fieldset>
-            <label><span>Question count</span><select value={selectedQuestionCount} onChange={(event) => setSelectedQuestionCount(Number(event.target.value))}><option value={5}>5 questions</option><option value={10}>10 questions</option><option value={15}>15 questions</option></select></label>
+            <label><span>Question count</span><select value={selectedQuestionCount} onChange={(event) => setSelectedQuestionCount(Number(event.target.value))}><option value={6}>6 questions</option><option value={10}>10 questions</option><option value={15}>15 questions</option></select></label>
             <label><span>Paper components</span><select value={componentMode} onChange={(event) => setComponentMode(event.target.value)}><option value="mixed">{formatRouteComponents(routeComponents, activeRoute) || 'Theory mixed'}</option><option value="p1">{formatRouteComponents([routeComponents[0] || 1], activeRoute)} only</option><option value="p2" disabled={!routeComponents[1]}>{formatRouteComponents([routeComponents[1] || 2], activeRoute)} only</option></select></label>
             </div>
           </details>}

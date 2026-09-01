@@ -23,7 +23,12 @@ try {
     calls.push({ url, options })
     return new Response(Buffer.from('%PDF-1.4 topic fixture', 'ascii'), {
       status: 200,
-      headers: { 'Content-Type': 'application/pdf' },
+      headers: {
+        'Content-Type': 'application/pdf',
+        'X-STEM-Topic-PDF-Authority': 'ai-provisional',
+        'X-STEM-Topic-PDF-Student-Study-Eligible': 'true',
+        'X-STEM-Topic-PDF-Formal-Progress-Eligible': 'false',
+      },
     })
   }
   const blob = await requestTopicPdf('short-lived-test-token', {
@@ -39,6 +44,16 @@ try {
     topicId: 'physics-9702-topic-13',
   })
 
+  globalThis.fetch = async () => new Response(Buffer.from('%PDF-1.4 missing provenance', 'ascii'), {
+    status: 200,
+    headers: { 'Content-Type': 'application/pdf' },
+  })
+  await assert.rejects(
+    () => requestTopicPdf('short-lived-test-token', { routeId: 'cie-9702-a2-physics', topicId: 'physics-9702-topic-13' }),
+    (error) => error instanceof SharedAccountError && error.code === 'topic_pdf_provenance_missing',
+    'a topic PDF without explicit provisional metadata must not be opened in the student UI',
+  )
+
   globalThis.fetch = async () => new Response(JSON.stringify({
     code: 'topic_pdf_empty',
     error: 'No released questions',
@@ -50,7 +65,14 @@ try {
       && error.statusCode === 404,
   )
 
-  globalThis.fetch = async () => new Response('not a pdf', { status: 200 })
+  globalThis.fetch = async () => new Response('not a pdf', {
+    status: 200,
+    headers: {
+      'X-STEM-Topic-PDF-Authority': 'ai-provisional',
+      'X-STEM-Topic-PDF-Student-Study-Eligible': 'true',
+      'X-STEM-Topic-PDF-Formal-Progress-Eligible': 'false',
+    },
+  })
   await assert.rejects(
     () => requestTopicPdf('short-lived-test-token', { routeId: 'cie-9702-a2-physics', topicId: 'physics-9702-topic-13' }),
     (error) => error instanceof SharedAccountError && error.code === 'topic_pdf_invalid_output',

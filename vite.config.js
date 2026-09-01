@@ -25,6 +25,7 @@ import {
 const ALLOWED_SUBJECTS = new Set(['0580', '0606', '0610', '0625', '9231', '9700', '9701', '9702', '9708', '9709', 'bpho', 'amc12', 'esat', 'tmua'])
 const PUBLIC_ROOT = path.resolve(process.cwd(), 'public')
 const PUBLIC_METADATA_FILES = ['favicon.svg', 'icons.svg', 'robots.txt', 'sitemap.xml']
+const QA_DISABLE_HMR = process.env.NODE_ENV === 'test' && process.env.STEM_QA_DISABLE_HMR === '1'
 let paperCatalogCache = { path: '', modifiedAtMs: -1, byFile: new Map() }
 const pdfIntegrityCache = new Map()
 
@@ -235,7 +236,8 @@ function sendPublicAsset(request, response, next) {
     return
   }
 
-  if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+  const stat = fs.existsSync(filePath) ? fs.statSync(filePath) : null
+  if (!stat || stat.isDirectory()) {
     response.statusCode = 404
     response.setHeader('Cache-Control', 'no-store')
     response.end('Public asset not found')
@@ -247,6 +249,15 @@ function sendPublicAsset(request, response, next) {
     response.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
   } else {
     response.setHeader('Cache-Control', 'no-cache')
+  }
+  // Explicit framing is required for large catalog files when this origin is
+  // behind Nginx/Cloudflare/Tunnel. The proxy may still apply compression and
+  // will adjust the representation headers, but the uncompressed origin body
+  // must never be an unknown-length chunked stream.
+  response.setHeader('Content-Length', String(stat.size))
+  if (request.method === 'HEAD') {
+    response.end()
+    return
   }
   fs.createReadStream(filePath).pipe(response)
 }
@@ -523,6 +534,7 @@ export default defineConfig(({ mode }) => {
     env: { ...process.env, ...loadEnv(mode, process.cwd(), '') },
   })
   return {
+    server: QA_DISABLE_HMR ? { hmr: false } : undefined,
     preview: {
       allowedHosts: ['stem.ieltsist.com'],
     },

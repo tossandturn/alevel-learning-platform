@@ -6,7 +6,7 @@ import { canonicalSourceMarkingProvenance, canonicalSourceQuestionId } from './s
 import { reviewedSourceFocusBinding, sourceContentStatus, stripSourceVisualPlaceholders } from './questionContent.js'
 import { SOURCE_CONTENT_MANIFEST_CHECKSUM, SOURCE_INDEX_SHA256 } from '../data/sourceContentIdentity.js'
 import { withPracticePresentation } from './practicePresentation.js'
-import { MIN_VERIFIED_GROUPS_FOR_PRACTICE } from './practiceConstants.js'
+import { MIN_QUESTION_GROUPS_PER_TEST, MIN_VERIFIED_GROUPS_FOR_PRACTICE, practiceCatalogSlices } from './practiceConstants.js'
 import { stableSorted } from './arrayOrder.js'
 
 export { MIN_VERIFIED_GROUPS_FOR_PRACTICE }
@@ -387,6 +387,21 @@ export function rebindVerifiedPracticeUnit(unit) {
   if (references.some((reference) => !reference)) return null
   const uniquePartKeys = new Set(references.map((reference) => `${reference.sourceQuestionId}\u0000${reference.questionPartId}`))
   if (uniquePartKeys.size !== references.length) return null
+  const sourceQuestionCount = new Set(references.map((reference) => reference.sourceQuestionId)).size
+  let focusedParentPart = null
+  if (unit.focusedRetestOf) {
+    if (sourceQuestionCount !== 1 || suppliedParts.length !== 1) return null
+    const parent = buildVerifiedPracticeCatalog().find((candidate) => candidate.id === unit.focusedRetestOf)
+    if (!parent || parent.questionGroupCount < MIN_QUESTION_GROUPS_PER_TEST) return null
+    focusedParentPart = parent.parts.find((part) => (
+      part.id === suppliedParts[0].id
+      && canonicalSourceQuestionId(part.sourceQuestionId) === references[0].sourceQuestionId
+      && String(part.questionPartId || part.partId || '') === references[0].questionPartId
+    ))
+    if (!focusedParentPart || String(unit.id || '') !== `${parent.id}:focused:${focusedParentPart.id}`) return null
+  } else if (sourceQuestionCount < MIN_QUESTION_GROUPS_PER_TEST) {
+    return null
+  }
   const canonicalById = new Map(groupsForRoute(route.routeId).map((group) => [group.sourceQuestionId, group]))
   const orderedGroups = [...new Set(references.map((reference) => reference.sourceQuestionId))]
     .map((sourceQuestionId) => canonicalById.get(sourceQuestionId))
@@ -404,6 +419,7 @@ export function rebindVerifiedPracticeUnit(unit) {
   const canonicalParts = new Map(rebuilt.parts.map((part) => [`${part.sourceQuestionId}\u0000${part.questionPartId}`, part]))
   const parts = references.map((reference) => canonicalParts.get(`${reference.sourceQuestionId}\u0000${reference.questionPartId}`))
   if (parts.some((part) => !part)) return null
+  if (focusedParentPart) parts[0] = { ...parts[0], id: focusedParentPart.id }
   const totalMarks = parts.reduce((sum, part) => sum + Number(part.marks || 0), 0)
   const ratio = parts.length / Math.max(1, rebuilt.parts.length)
   return withPracticePresentation({
@@ -413,6 +429,7 @@ export function rebindVerifiedPracticeUnit(unit) {
     durationSec: Math.max(300, Math.ceil(Number(rebuilt.durationSec || 600) * ratio)),
     estimatedMinutes: Math.max(5, Math.ceil(Number(rebuilt.estimatedMinutes || 10) * ratio)),
     questionGroupCount: new Set(references.map((reference) => reference.sourceQuestionId)).size,
+    focusedRetestValidated: Boolean(focusedParentPart),
   })
 }
 
@@ -421,17 +438,18 @@ function stableCatalogUnitId(routeId, topicId, setNumber) {
 }
 
 export function buildVerifiedPracticeCatalog({ chunkSize = 10 } = {}) {
-  const size = Math.min(30, Math.max(5, Math.floor(Number(chunkSize) || 10)))
+  const size = Math.min(15, Math.max(MIN_QUESTION_GROUPS_PER_TEST, Math.floor(Number(chunkSize) || 10)))
   const units = []
   for (const option of coachPracticeOptions()) {
     for (const topic of option.topics) {
-      for (let offset = 0; offset < topic.inventory; offset += size) {
-        const setNumber = Math.floor(offset / size) + 1
+      const slices = practiceCatalogSlices(topic.inventory, size, { includeBelowFloor: true })
+      for (const [sliceIndex, slice] of slices.entries()) {
+        const setNumber = sliceIndex + 1
         const unit = buildCoachPractice({
           routeId: option.routeId,
           knowledgeGroupId: topic.id,
-          questionCount: Math.min(size, topic.inventory - offset),
-          questionOffset: offset,
+          questionCount: slice.count,
+          questionOffset: slice.offset,
           allowPartial: true,
           unitId: stableCatalogUnitId(option.routeId, topic.id, setNumber),
         })
@@ -439,7 +457,8 @@ export function buildVerifiedPracticeCatalog({ chunkSize = 10 } = {}) {
           ...unit,
           agentGenerated: false,
           sourceSetIndex: setNumber,
-          sourceSetCount: Math.ceil(topic.inventory / size),
+          sourceSetCount: slices.length,
+          startable: slice.startable !== false,
           title: `${option.stage} ${routeById(option.routeId)?.subject} · ${topic.label} · Set ${setNumber}`,
           priority: setNumber === 1 ? 'Start here' : 'Past paper set',
         })

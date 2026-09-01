@@ -7,6 +7,7 @@ import {
   assertWithinLimit,
   findEscapingSymlinks,
   findForbiddenFiles,
+  findForbiddenSensitiveFiles,
   findUnexpectedReleaseEntries,
   MAX_DIST_BYTES,
   MAX_RELEASE_BYTES,
@@ -81,6 +82,8 @@ assert.equal(actualReleaseTree.bytes, releaseManifest.releaseTree?.bytes, 'Relea
 
 const unexpectedReleaseEntries = findUnexpectedReleaseEntries(releaseRoot)
 assert.equal(unexpectedReleaseEntries.length, 0, `Release root contains files outside the runtime allowlist: ${unexpectedReleaseEntries.slice(0, 10).join(', ')}`)
+const forbiddenSensitiveFiles = findForbiddenSensitiveFiles(releaseRoot)
+assert.equal(forbiddenSensitiveFiles.length, 0, `Release contains nested secrets, keys, databases, dumps, caches or OCR staging files: ${forbiddenSensitiveFiles.slice(0, 10).join(', ')}`)
 const escapingSymlinks = findEscapingSymlinks(releaseRoot, ['public/question-assets', 'dist/question-assets'])
 assert.equal(escapingSymlinks.length, 0, `Release contains external symlinks outside the immutable asset exception: ${escapingSymlinks.slice(0, 10).join(', ')}`)
 assert.ok(fs.existsSync(nodeModulesRoot), 'Release is missing node_modules; install dependencies inside this release')

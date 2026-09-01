@@ -55,7 +55,14 @@ const renderer = async (input) => {
   calls.push(input)
   return {
     pdf: Buffer.from('%PDF-1.4 topic fixture', 'ascii'),
-    manifest: { questionCount: 2, routeId: input.routeId, topic: { id: input.topicId } },
+    manifest: {
+      questionCount: 2,
+      routeId: input.routeId,
+      topic: { id: input.topicId },
+      authority: 'ai-provisional',
+      studentStudyEligible: true,
+      formalProgressEligible: false,
+    },
   }
 }
 
@@ -73,6 +80,9 @@ try {
   const success = await call(api, { token: identityToken(), body: { routeId, topicId } })
   assert.equal(success.statusCode, 200, success.buffer.toString('utf8'))
   assert.equal(success.headers['content-type'], 'application/pdf')
+  assert.equal(success.headers['x-stem-topic-pdf-authority'], 'ai-provisional')
+  assert.equal(success.headers['x-stem-topic-pdf-student-study-eligible'], 'true')
+  assert.equal(success.headers['x-stem-topic-pdf-formal-progress-eligible'], 'false')
   assert.equal(success.buffer.subarray(0, 5).toString('ascii'), '%PDF-')
   assert.deepEqual(calls, [{ routeId, topicId }])
 

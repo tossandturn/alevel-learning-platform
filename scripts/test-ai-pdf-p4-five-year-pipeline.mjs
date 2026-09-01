@@ -228,11 +228,14 @@ const artifact = {
     questionPdfSha256: sha,
     markSchemePdfSha256: markSha,
     pageSizes: { 3: { width: 1200, height: 1600 } },
+    pageImageHashes: { 3: 'd'.repeat(64) },
     markSchemePageSizes: { 5: { width: 1200, height: 1600 } },
+    markSchemePageHashes: { 5: 'e'.repeat(64) },
   },
   candidate: {
     questions: [{
       questionNumber: '2',
+      questionStartPage: 3,
       regions: [{ page: 3, pageImageSha256: 'd'.repeat(64), x0: 0.1, y0: 0.2, x1: 0.9, y1: 0.8 }],
       diagramRegions: [],
       parts: [{ label: 'a', marks: 4, ocrText: 'State the answer.', math: [], diagramAssociations: [] }],
@@ -241,7 +244,17 @@ const artifact = {
     }],
   },
   verification: {
-    questions: [{ questionNumber: '2', pages: [3], parts: [{ label: 'a', marks: 4 }], diagramRegionCount: 0, markSchemeEvidence: [{ page: 5, pageImageSha256: 'e'.repeat(64) }] }],
+    questions: [{
+      questionNumber: '2',
+      questionStartPage: 3,
+      pages: [3],
+      regions: [{ page: 3, pageImageSha256: 'd'.repeat(64), x0: 0.1, y0: 0.2, x1: 0.9, y1: 0.8 }],
+      diagramRegions: [],
+      parts: [{ label: 'a', marks: 4 }],
+      diagramRegionCount: 0,
+      tags: { primaryTopicId: 'physics-9702-topic-13', secondaryTopicIds: [], syllabusPointIds: [] },
+      markSchemeEvidence: [{ page: 5, pageImageSha256: 'e'.repeat(64) }],
+    }],
   },
 }
 artifact.studentRelease = buildAiStudentStudyRelease({
@@ -272,8 +285,7 @@ assert.equal(isStudentReleasedAiStudyItem(tamperedReleaseGroups[0]), false, 'a r
 const tamperedTopicArtifact = structuredClone(artifact)
 tamperedTopicArtifact.candidate.questions[0].tags.primaryTopicId = 'physics-9702-topic-14'
 const tamperedTopicGroups = questionGroupsFromAiArtifacts([tamperedTopicArtifact], { libraryRoot: '/library/pdf/9702' })
-assert.equal(tamperedTopicGroups.length, 1)
-assert.equal(isStudentReleasedAiStudyItem(tamperedTopicGroups[0]), false, 'changing a released syllabus topic must invalidate the content binding')
+assert.equal(tamperedTopicGroups.length, 0, 'changing a released syllabus topic must quarantine the mismatched coordinate binding')
 
 const groups = questionGroupsFromAiArtifacts([artifact], { libraryRoot: '/library/pdf/9702' })
 assert.equal(groups.length, 1)

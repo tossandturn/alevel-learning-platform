@@ -14,15 +14,27 @@ const VIEWPORTS = [
   { name: 'ipad-portrait', width: 820, height: 1180, isMobile: true, hasTouch: true },
   { name: 'mobile', width: 390, height: 844, isMobile: true, hasTouch: true },
 ]
-const CASES = [
-  { topic: 'Dynamics', question: 'Q3', paper: 'M25/12', page: 3, visual: 'graph', componentMode: 'p1' },
-  // Q7's shared stem starts above its diagram. Keep an explicit upper bound
-  // so a visually clean crop cannot silently drop the question number/stem.
-  { topic: 'Dynamics', question: 'Q7', paper: 'M25/12', page: 4, visual: 'diagram', focusTopAtMost: 570, componentMode: 'p1' },
-  { topic: 'Physical quantities and units', question: 'Q2', paper: 'S25/11', page: 3, visual: 'table', componentMode: 'p1' },
-  { topic: 'Work, energy and power', question: 'Q18', paper: 'S25/11', page: 9, visual: 'diagram', componentMode: 'p1' },
-  { topic: 'Forces, density and pressure', question: 'Q2', paper: 'M25/22', pages: [4, 5, 6], visual: 'multi-page diagram and graph', componentMode: 'p2', requestedCount: 5, expectedAvailableCount: 10, expectedGroupCount: 5, expectedComponent: 2, expectedParts: 5, expectedMarks: 10 },
+const WAVES_FORMAL_SOURCE_SELECTION = [
+  'M25/12 · Q22',
+  'M25/12 · Q23',
+  'M25/12 · Q24',
+  'M25/12 · Q25',
+  'M25/12 · Q26',
+  'M25/22 · Q5',
 ]
+const WAVES_FORMAL_SOURCE_IDS = [
+  'cie-9702-9702_m25_qp_12:q22',
+  'cie-9702-9702_m25_qp_12:q23',
+  'cie-9702-9702_m25_qp_12:q24',
+  'cie-9702-9702_m25_qp_12:q25',
+  'cie-9702-9702_m25_qp_12:q26',
+  'cie-9702-9702_m25_qp_22:q5',
+]
+const CASES = [
+  { topic: 'Waves', question: 'Q24', paper: 'M25/12', page: 11, visual: 'Doppler diagram', sourceSelection: WAVES_FORMAL_SOURCE_SELECTION, sourceQuestionIds: WAVES_FORMAL_SOURCE_IDS, componentMode: 'mixed', requestedCount: 6, expectedGroupCount: 6 },
+  { topic: 'Waves', question: 'Q5', paper: 'M25/22', pages: [12], visual: 'wave calculation', sourceSelection: WAVES_FORMAL_SOURCE_SELECTION, sourceQuestionIds: WAVES_FORMAL_SOURCE_IDS, componentMode: 'mixed', requestedCount: 6, expectedGroupCount: 6, expectedParts: 2, expectedMarks: 5 },
+]
+const NEGATIVE_CASE = { topic: 'Dynamics', componentMode: 'p1', expectBlocked: true }
 const CASE_TIMEOUT = 45_000
 const SERVER_TIMEOUT = 30_000
 const CLEANUP_TIMEOUT = 10_000
@@ -121,6 +133,7 @@ async function startServer() {
       ...process.env,
       BROWSER: 'none',
       NODE_ENV: 'test',
+      STEM_QA_DISABLE_HMR: '1',
       STEM_ENABLE_STUDY_ONLY_TOPIC_DRILL: '1',
       STEM_DB_PATH: databasePath,
       STEM_SESSION_SECURE: '0',
@@ -245,45 +258,76 @@ async function openTopic(page, testCase) {
     await countSelect.selectOption(String(testCase.requestedCount))
     if (Number(await countSelect.inputValue()) !== testCase.requestedCount) throw new Error(`${topic} did not retain the requested ${testCase.requestedCount}-question set size`)
   }
-  if (testCase.expectedGroupCount) {
+  if (testCase.expectedComponent && testCase.expectedGroupCount) {
     const summary = (await page.locator('.topic-detail__start').innerText()).replace(/\s+/g, ' ')
     const expectedAvailableCount = testCase.expectedAvailableCount || testCase.expectedGroupCount
     if (!summary.includes(`${expectedAvailableCount} official P2 questions`)) throw new Error(`${topic} component-aware summary is stale: ${summary}`)
   }
-  const start = page.locator('.topic-detail__start .primary-action').first()
-  await start.waitFor({ state: 'visible' })
-  if (await start.isDisabled()) throw new Error(`9702 ${topic} practice CTA is disabled despite reviewed inventory`)
-  const startHitTarget = await start.evaluate((button) => {
-    button.scrollIntoView({ block: 'center', inline: 'nearest' })
-    const rect = button.getBoundingClientRect()
-    const target = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
-    const serializeRect = (element) => element ? (() => {
-      const bounds = element.getBoundingClientRect()
-      return { top: Math.round(bounds.top), bottom: Math.round(bounds.bottom), left: Math.round(bounds.left), right: Math.round(bounds.right) }
-    })() : null
-    return {
-      reachable: target === button || target?.closest('button') === button,
-      target: target ? `${target.tagName.toLowerCase()}.${target.className || ''}` : 'none',
-      buttonRect: serializeRect(button),
-      railRect: serializeRect(button.closest('.topic-detail__rail')),
-      mainRect: serializeRect(document.querySelector('.topic-detail__layout > main')),
-      targetRect: serializeRect(target),
+  const waitForPracticeResponse = () => page.waitForResponse((response) => (
+    response.url().includes('/api/stem/practice-sets') && response.request().method() === 'POST'
+  ), { timeout: CASE_TIMEOUT })
+  let practiceResponsePromise
+  if (Array.isArray(testCase.sourceSelection)) {
+    await page.getByRole('tab', { name: 'Past-paper questions' }).click()
+    const questionList = page.locator('.topic-detail__question-list')
+    await questionList.waitFor({ state: 'visible' })
+    for (const sourceLabel of testCase.sourceSelection) {
+      const item = questionList.locator('.topic-detail__question-item').filter({ hasText: sourceLabel }).first()
+      await item.waitFor({ state: 'visible' })
+      const checkbox = item.getByRole('checkbox')
+      if (!await checkbox.isChecked()) await checkbox.check()
     }
-  })
-  if (!startHitTarget.reachable) throw new Error(`9702 ${topic} start CTA is visually obstructed: ${JSON.stringify(startHitTarget)}`)
-  const practiceResponsePromise = testCase.expectedComponent
-    ? page.waitForResponse((response) => response.url().includes('/api/stem/practice-sets') && response.request().method() === 'POST')
-    : null
-  await start.click()
-  if (practiceResponsePromise) {
-    const practiceResponse = await practiceResponsePromise
-    const requestBody = practiceResponse.request().postDataJSON()
-    const responseBody = await practiceResponse.json()
+    const selectedCount = Number((await page.locator('.topic-detail__question-picker-summary').innerText()).match(/(\d+)\s+selected/i)?.[1] || 0)
+    if (selectedCount !== testCase.sourceSelection.length) {
+      throw new Error(`${topic} selected ${selectedCount} source groups instead of ${testCase.sourceSelection.length}`)
+    }
+    const build = page.getByRole('button', { name: 'Build selected set' })
+    await build.scrollIntoViewIfNeeded()
+    if (await build.isDisabled()) throw new Error(`${topic} source-selected set is unexpectedly disabled`)
+    practiceResponsePromise = waitForPracticeResponse()
+    await build.click()
+  } else {
+    const start = page.locator('.topic-detail__start .primary-action').first()
+    await start.waitFor({ state: 'visible' })
+    if (await start.isDisabled()) throw new Error(`9702 ${topic} practice CTA is disabled despite reviewed inventory`)
+    const startHitTarget = await start.evaluate((button) => {
+      button.scrollIntoView({ block: 'center', inline: 'nearest' })
+      const rect = button.getBoundingClientRect()
+      const target = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
+      return target === button || target?.closest('button') === button
+    })
+    if (!startHitTarget) throw new Error(`9702 ${topic} start CTA is visually obstructed`)
+    practiceResponsePromise = waitForPracticeResponse()
+    await start.click()
+  }
+  const practiceResponse = await practiceResponsePromise
+  const requestBody = practiceResponse.request().postDataJSON()
+  const responseBody = await practiceResponse.json()
+  if (practiceResponse.status() !== 201) {
+    throw new Error(`${topic} practice request failed: ${JSON.stringify({ status: practiceResponse.status(), responseBody })}`)
+  }
+  if (Array.isArray(testCase.sourceSelection)) {
+    if (requestBody.sourceQuestionIds?.length !== testCase.sourceSelection.length
+      || responseBody.questionCount !== testCase.sourceSelection.length
+      || responseBody.practiceMode !== 'verified'
+      || responseBody.formalProgressEligible !== true
+      || responseBody.questionGroups?.some((group) => group.reviewStatus !== 'reviewed' || group.studyOnly === true)) {
+      throw new Error(`${topic} formal reviewed selection drifted: ${JSON.stringify({ requestBody, responseBody })}`)
+    }
+  }
+  if (testCase.expectedComponent) {
     if (requestBody.questionCount !== testCase.requestedCount || requestBody.components?.length !== 1 || requestBody.components[0] !== testCase.expectedComponent) {
       throw new Error(`${topic} discarded the requested practice filters: ${JSON.stringify(requestBody)}`)
     }
     if (responseBody.questionCount !== testCase.expectedGroupCount || responseBody.questionGroups?.some((group) => group.paperComponent !== testCase.expectedComponent)) {
       throw new Error(`${topic} API returned a mixed or incorrectly sized set: ${JSON.stringify({ questionCount: responseBody.questionCount, components: responseBody.questionGroups?.map((group) => group.paperComponent) })}`)
+    }
+  }
+  if (Array.isArray(testCase.sourceQuestionIds)) {
+    const requestedIds = new Set(requestBody.sourceQuestionIds || [])
+    const expectedIds = new Set(testCase.sourceQuestionIds)
+    if (requestedIds.size !== expectedIds.size || [...expectedIds].some((id) => !requestedIds.has(id))) {
+      throw new Error(`${topic} did not preserve the explicitly selected source question IDs: ${JSON.stringify(requestBody.sourceQuestionIds)}`)
     }
   }
   try {
@@ -297,6 +341,57 @@ async function openTopic(page, testCase) {
     const workspaceSummary = (await page.locator('.qp-header__title span').innerText()).replace(/\s+/g, ' ')
     const workspaceQuestionCount = Number(workspaceSummary.match(/^(\d+) official questions\b/)?.[1])
     if (workspaceQuestionCount !== testCase.expectedGroupCount) throw new Error(`${topic} workspace started the wrong set: ${workspaceSummary}`)
+  }
+}
+
+async function verifyNegativeGates(browser, server) {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+  try {
+    const page = await context.newPage()
+    page.setDefaultTimeout(15_000)
+    await page.route('**/api/auth/status', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue()
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(qaAuthStatus()) })
+    })
+    await mockCoachHistory(page)
+    await resetPage(page, server.url)
+    const picker = page.locator('.student-home-guided .student-route-picker')
+    await picker.getByRole('tab', { name: 'AS', exact: true }).click()
+    await picker.getByRole('combobox', { name: 'Current course' }).selectOption('cie-9702-as-physics')
+    await page.getByRole('button', { name: 'Choose another topic' }).click()
+    const row = page.locator('.topic-directory__row').filter({ hasText: 'Dynamics' }).first()
+    await row.waitFor({ state: 'visible' })
+    await row.click()
+    const customSet = page.locator('details.topic-detail__set-controls')
+    if (await customSet.count() && !await customSet.evaluate((element) => element.open)) await customSet.locator('summary').click()
+    await page.getByRole('combobox', { name: 'Paper components' }).selectOption(NEGATIVE_CASE.componentMode)
+    const start = page.locator('.topic-detail__start .primary-action').first()
+    await start.waitFor({ state: 'visible' })
+    if (!await start.isDisabled()) throw new Error('9702 Dynamics P1 exposed an enabled CTA below the formal review floor')
+    const detail = (await page.locator('.topic-detail__start').innerText()).replace(/\s+/g, ' ').trim()
+    if (!/At least 12 reviewed source-backed question groups are required before a Topic Drill can start/i.test(detail)) {
+      throw new Error(`9702 Dynamics P1 disabled state omitted the formal review floor: ${detail}`)
+    }
+    const p5 = await page.evaluate(async () => {
+      const response = await fetch('/api/stem/practice-sets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          routeId: 'cie-9702-a2-physics',
+          syllabusTopicIds: ['physics-9702-topic-13'],
+          components: [5],
+          questionCount: 6,
+          excludeAttempted: false,
+        }),
+      })
+      return { status: response.status, body: await response.json() }
+    })
+    if (p5.status !== 400 || p5.body.code !== 'invalid_paper_component') {
+      throw new Error(`9702 A2 P5 was not rejected from Topic Drill: ${JSON.stringify(p5)}`)
+    }
+    return { dynamicsP1: 'blocked-below-formal-floor', a2P5: 'rejected' }
+  } finally {
+    await context.close()
   }
 }
 
@@ -467,6 +562,7 @@ async function run() {
   const results = []
   try {
     browser = await withDeadline('Chrome launch', () => chromium.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true }), 30_000)
+    const negative = await verifyNegativeGates(browser, server)
     for (const viewport of VIEWPORTS) {
       const context = await browser.newContext({ viewport: { width: viewport.width, height: viewport.height }, isMobile: viewport.isMobile, hasTouch: viewport.hasTouch, deviceScaleFactor: viewport.hasTouch ? 2 : 1 })
       const page = await context.newPage()
@@ -504,7 +600,7 @@ async function run() {
       if (errors.length) throw new Error(`${viewport.name} browser errors: ${errors.join(' | ')}`)
       await closeWithDeadline(context, `context ${viewport.name}`)
     }
-    console.log(JSON.stringify({ ok: true, cases: results }, null, 2))
+    console.log(JSON.stringify({ ok: true, negative, cases: results }, null, 2))
   } finally {
     await closeWithDeadline(browser, 'browser')
     await server.cleanup()

@@ -267,12 +267,8 @@ function questionFromArtifact(artifact, candidate, verification, metadata, route
   const diagramRegions = candidateDiagrams
   const markSchemeEvidence = normalizedEvidence(candidate?.markSchemeEvidence, source.markSchemePageSizes, source.markSchemePageHashes)
   const verifiedEvidence = normalizedEvidence(verification?.markSchemeEvidence, source.markSchemePageSizes, source.markSchemePageHashes)
-  const verificationRegions = Object.hasOwn(verification || {}, 'regions')
-    ? normalizedRegions(verification.regions, source.pageSizes, source.pageImageHashes, { required: true })
-    : null
-  const verificationDiagrams = Object.hasOwn(verification || {}, 'diagramRegions')
-    ? normalizedRegions(verification.diagramRegions, source.pageSizes, source.pageImageHashes)
-    : null
+  const verificationRegions = normalizedRegions(verification?.regions, source.pageSizes, source.pageImageHashes, { required: true })
+  const verificationDiagrams = normalizedRegions(verification?.diagramRegions, source.pageSizes, source.pageImageHashes)
   const candidateQuestionStartPage = Number(candidate?.questionStartPage)
   const verifiedQuestionStartPage = Number(verification?.questionStartPage)
   const verifiedNumber = canonicalQuestionNumber(verification?.questionNumber)
@@ -314,8 +310,10 @@ function questionFromArtifact(artifact, candidate, verification, metadata, route
     || !markSchemeEvidence?.length
     || !renderDpi
     || !samePartMarks(candidate?.parts, verification?.parts)
-    || (Object.hasOwn(verification || {}, 'regions') && (!verificationRegions || !sameRegionCollection(candidateRegions, verificationRegions)))
-    || (Object.hasOwn(verification || {}, 'diagramRegions') && (!verificationDiagrams || !sameRegionCollection(diagramRegions, verificationDiagrams)))) return null
+    || !verificationRegions
+    || !verificationDiagrams
+    || !sameRegionCollection(candidateRegions, verificationRegions)
+    || !sameRegionCollection(diagramRegions, verificationDiagrams)) return null
   if (!verifiedEvidence || JSON.stringify(markSchemeEvidence) !== JSON.stringify(verifiedEvidence)) return null
   if (JSON.stringify(questionPages) !== JSON.stringify(verificationPages)) return null
   const questionId = `${metadata.paperId}:q${number}`
@@ -458,7 +456,8 @@ function questionFromArtifact(artifact, candidate, verification, metadata, route
 
 export function questionGroupsFromAiArtifacts(artifacts = [], { libraryRoot } = {}) {
   const groups = []
-  const seen = new Set()
+  const seen = new Map()
+  const conflicted = new Set()
   for (const artifact of Array.isArray(artifacts) ? artifacts : []) {
     if (artifact?.schemaVersion !== 'ai-pdf-ingestion.v1' || artifact?.status !== 'ai-verified' || artifact?.storageMode !== 'coordinate-only') continue
     const source = artifact.source || {}
@@ -500,12 +499,34 @@ export function questionGroupsFromAiArtifacts(artifacts = [], { libraryRoot } = 
     if (invalidArtifact) continue
     for (const group of artifactGroups) {
       const deduplicationKey = `${group.routeId}:${group.sourceQuestionId}`
-      if (seen.has(deduplicationKey)) continue
-      seen.add(deduplicationKey)
+      if (conflicted.has(deduplicationKey)) continue
+      const fingerprint = JSON.stringify({
+        artifactId: group.artifactId,
+        sourceQuestionId: group.sourceQuestionId,
+        pages: group.pages,
+        regions: group.regions,
+        diagramRegions: group.diagramRegions,
+        parts: group.parts,
+        tags: group.tags,
+        markSchemeEvidence: group.markSchemeEvidence,
+        sourceRef: group.sourceRef,
+        answerRef: group.answerRef,
+        bindingSignature: group.bindingSignature,
+      })
+      const existing = seen.get(deduplicationKey)
+      if (existing) {
+        if (existing.fingerprint !== fingerprint) {
+          groups[existing.index] = null
+          seen.delete(deduplicationKey)
+          conflicted.add(deduplicationKey)
+        }
+        continue
+      }
+      seen.set(deduplicationKey, { fingerprint, index: groups.length })
       groups.push(group)
     }
   }
-  return Object.freeze(groups.sort((left, right) => left.sourceRef.year - right.sourceRef.year
+  return Object.freeze(groups.filter(Boolean).sort((left, right) => left.sourceRef.year - right.sourceRef.year
     || left.sourceRef.paper.localeCompare(right.sourceRef.paper)
     || left.sourceRef.question.localeCompare(right.sourceRef.question, undefined, { numeric: true })))
 }

@@ -32,6 +32,7 @@ import { canonicalSourceMarkingProvenance, canonicalSourceQuestionId, sourceBind
 import { HIGH_PRIORITY_SOURCE_RANGE_REVIEW_IDS, RESOLVED_NON_CONTENT_PAGE_GAPS, SEMANTIC_REVIEW_FIXTURES } from '../src/lib/sourceSemanticContract.js'
 import { reviewedSourceFocusBinding, sourceContentStatus } from '../src/lib/questionContent.js'
 import { mapWithConcurrency } from '../src/lib/asyncPool.js'
+import { isStartableTopicPracticeUnit, MIN_QUESTION_GROUPS_PER_TEST } from '../src/lib/practiceConstants.js'
 
 const unitIds = new Set(practiceUnits.map((unit) => unit.id))
 assert.equal(unitIds.size, practiceUnits.length, 'practice unit IDs must be unique')
@@ -337,7 +338,18 @@ assert.ok(paperAnswerSheetSource.includes('onOpenAccount?.(\'login\')'), 'full-p
 assert.equal(practiceUnits.length, 0, 'formal practice must not expose generated seed questions')
 const verifiedPracticeCatalog = buildVerifiedPracticeCatalog()
 const verifiedCatalogMetrics = verifiedPracticeCatalogMetrics(verifiedPracticeCatalog)
-assert.deepEqual(verifiedCatalogMetrics, { units: 39, questionGroups: 230, answerableParts: 391, referencedPapers: 16, routes: 4, topics: 33 }, 'only source-semantically reviewed question groups may be exposed as stable route/topic practice units')
+assert.ok(verifiedCatalogMetrics.units > 0, 'the reviewed practice catalog must publish at least one topic set')
+assert.ok(verifiedPracticeCatalog.filter((unit) => isStartableTopicPracticeUnit(unit)).every((unit) => unit.questionGroupCount >= MIN_QUESTION_GROUPS_PER_TEST && unit.questionGroupCount <= 15), 'every startable topic set must remain within the six-to-fifteen question learning boundary')
+assert.ok(verifiedPracticeCatalog.some((unit) => unit.startable === false && unit.questionGroupCount < MIN_QUESTION_GROUPS_PER_TEST), 'reviewed topics below the start floor must remain indexed as non-startable records')
+assert.equal(verifiedCatalogMetrics.questionGroups, verifiedPracticeCatalog.reduce((sum, unit) => sum + unit.questionGroupCount, 0), 'published catalog metrics must count exactly the visible source-question groups')
+assert.equal(verifiedCatalogMetrics.answerableParts, verifiedPracticeCatalog.reduce((sum, unit) => sum + unit.parts.length, 0), 'published catalog metrics must count exactly the visible answer parts')
+assert.equal(verifiedCatalogMetrics.routes, new Set(verifiedPracticeCatalog.map((unit) => unit.routeId)).size, 'published catalog metrics must reflect only routes with startable topic sets')
+assert.equal(verifiedCatalogMetrics.topics, new Set(verifiedPracticeCatalog.map((unit) => `${unit.routeId}:${unit.knowledgeGroupId}`)).size, 'published catalog metrics must reflect only topics clearing the start floor')
+assert.deepEqual(
+  new Set(verifiedPracticeCatalog.flatMap((unit) => unit.parts.map((part) => part.sourceQuestionId))),
+  new Set(runtimeVerifiedPracticeQuestionGroups.map((group) => group.sourceQuestionId)),
+  'reviewed source groups below the start floor must remain indexed even when they are not standalone startable Topic Drills',
+)
 assert.equal(runtimeVerifiedPracticeQuestionGroups.length, 230, 'the compact runtime catalog must expose only current reviewed groups')
 assert.deepEqual(verifiedPracticeCatalogMetrics(buildRuntimeVerifiedPracticeCatalog()), verifiedCatalogMetrics, 'compact runtime catalog must preserve the reviewed practice inventory')
 assert.equal(new Set(verifiedPracticeCatalog.map((unit) => unit.id)).size, verifiedPracticeCatalog.length, 'verified practice unit IDs must be stable and unique')

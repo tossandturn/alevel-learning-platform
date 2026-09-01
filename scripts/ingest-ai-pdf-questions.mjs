@@ -123,9 +123,11 @@ const verifierSchema = {
     questions: {
       type: 'array', items: {
         type: 'object', additionalProperties: false,
-        required: ['questionNumber', 'questionStartPage', 'pages', 'parts', 'diagramRegionCount', 'tags', 'markSchemeEvidence'], properties: {
-          questionNumber: { type: 'string' }, questionStartPage: { type: 'integer', minimum: 1 },
-          pages: { type: 'array', items: { type: 'integer', minimum: 1 } },
+         required: ['questionNumber', 'questionStartPage', 'pages', 'regions', 'diagramRegions', 'parts', 'diagramRegionCount', 'tags', 'markSchemeEvidence'], properties: {
+           questionNumber: { type: 'string' }, questionStartPage: { type: 'integer', minimum: 1 },
+           pages: { type: 'array', items: { type: 'integer', minimum: 1 } },
+           regions: { type: 'array', minItems: 1, items: regionSchema() },
+           diagramRegions: { type: 'array', items: regionSchema() },
           parts: {
             type: 'array', items: {
               type: 'object', additionalProperties: false, required: ['label', 'marks'], properties: {

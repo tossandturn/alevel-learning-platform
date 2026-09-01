@@ -6,6 +6,8 @@ import { canonicalAiMarkingProvenance, canonicalSourcePracticeProvenance } from 
 import { listAiPdfIngestionCandidates, resolveAiPdfIngestionRoot } from './aiPdfIngestionCandidates.js'
 import { issueMarkingCapabilities } from './markingCapability.js'
 import { buildSyllabusPracticeSet, rebindSyllabusPracticeUnit, seedSyllabusTables, syllabusDatabaseInventory, syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
+import { MIN_QUESTION_GROUPS_PER_TEST, MIN_VERIFIED_GROUPS_FOR_PRACTICE } from '../src/lib/practiceConstants.js'
+import { PAPER_STUDY_MODES } from '../src/lib/paperStudyMode.js'
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024
 const REBIND_BODY_BYTES = 256 * 1024
@@ -20,6 +22,8 @@ const NATIVE_AUTH_PROBE_USERNAME = 'stem_bridge_probe'
 const NATIVE_AUTH_PROBE_PASSWORD = 'not-a-real-password'
 const LEGACY_SCOPE = 'legacy-unscoped'
 const MAX_COACH_HISTORY_MESSAGES = 80
+const FOCUSED_RETEST_PARENT_TTL_MS = 30 * 24 * 60 * 60 * 1000
+const VALID_PAPER_STUDY_MODES = new Set(Object.values(PAPER_STUDY_MODES))
 const ROUTE_STAGES = new Map([
   ['igcse', 'IGCSE'],
   ['as', 'AS'],
@@ -56,7 +60,8 @@ const REGISTERED_ROUTES = new Map(Object.entries({
   'uatuk-tmua-admissions': ['Admissions', 'tmua'],
 }))
 let database = null
-let databaseQuestionBankSignature = ''
+const databaseQuestionBankSignatures = new WeakMap()
+const questionBankSignatureCache = new WeakMap()
 const coachHistoryWriteQueues = new Map()
 
 function sendJson(response, statusCode, body) {
@@ -70,7 +75,10 @@ function sendTopicPdf(response, result, { routeId, topicId }) {
   const pdf = result?.pdf
   const manifest = result?.manifest
   if (!Buffer.isBuffer(pdf) || pdf.length < 5 || pdf.subarray(0, 5).toString('ascii') !== '%PDF-'
-    || !manifest || manifest.routeId !== routeId || manifest.topic?.id !== topicId) {
+    || !manifest || manifest.routeId !== routeId || manifest.topic?.id !== topicId
+    || manifest.authority !== 'ai-provisional'
+    || manifest.studentStudyEligible !== true
+    || manifest.formalProgressEligible !== false) {
     throw Object.assign(new Error('The generated topic PDF failed its output contract.'), {
       statusCode: 502,
       code: 'topic_pdf_output_invalid',
@@ -81,6 +89,9 @@ function sendTopicPdf(response, result, { routeId, topicId }) {
   response.setHeader('Content-Disposition', `inline; filename="topic-${topicId}.pdf"`)
   response.setHeader('Cache-Control', 'private, no-store')
   response.setHeader('Content-Length', String(pdf.length))
+  response.setHeader('X-STEM-Topic-PDF-Authority', manifest.authority)
+  response.setHeader('X-STEM-Topic-PDF-Student-Study-Eligible', String(manifest.studentStudyEligible))
+  response.setHeader('X-STEM-Topic-PDF-Formal-Progress-Eligible', String(manifest.formalProgressEligible))
   if (Number.isInteger(manifest.questionCount) && manifest.questionCount >= 0) {
     response.setHeader('X-STEM-Topic-PDF-Question-Count', String(manifest.questionCount))
   }
@@ -101,6 +112,47 @@ function topicPdfRequestPayload(payload) {
     throw Object.assign(new Error('A routeId and exact official topicId are required.'), { statusCode: 400, code: 'topic_pdf_request_invalid' })
   }
   return { routeId, topicId }
+}
+
+function validateTopicPracticeQuestionCount(payload) {
+  const rawQuestionCount = payload?.questionCount
+  const questionCount = rawQuestionCount === undefined ? 10 : Number(rawQuestionCount)
+  if (!Number.isInteger(questionCount) || questionCount < MIN_QUESTION_GROUPS_PER_TEST || questionCount > 15) {
+    throw Object.assign(new Error(`Topic Drill sets must contain between ${MIN_QUESTION_GROUPS_PER_TEST} and 15 distinct question groups.`), {
+      statusCode: 400,
+      code: 'invalid_question_count',
+    })
+  }
+}
+
+function requireStartableTopicPracticeSet(result) {
+  const selectedQuestionCount = new Set(result?.sourceQuestionIds || []).size
+  const availableVerifiedCount = Number(result?.verifiedAvailableCount) || 0
+  if (selectedQuestionCount < MIN_QUESTION_GROUPS_PER_TEST) {
+    throw Object.assign(new Error(`At least ${MIN_QUESTION_GROUPS_PER_TEST} distinct source-backed question groups are required to start a Topic Drill.`), {
+      statusCode: 409,
+      code: 'insufficient_verified_questions',
+      availableCount: Number(result?.availableCount) || 0,
+      verifiedAvailableCount: availableVerifiedCount,
+    })
+  }
+  // A complete source-backed study set may be exposed before human review is
+  // finished (or from an explicitly released AI-study artifact). It is
+  // explicitly marked study-only by the builder and cannot contribute to
+  // formal mastery or grades. The builder has already enforced the source
+  // eligibility/release gate before this check, so the API does not need to
+  // infer provenance from the caller's environment flag.
+  if (result?.practiceMode === 'study-only') return
+  if (result?.formalProgressEligible === true) return
+  const errorMessage = availableVerifiedCount < MIN_VERIFIED_GROUPS_FOR_PRACTICE
+    ? `At least ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} reviewed source-backed question groups are required before a Topic Drill can start.`
+    : `At least ${MIN_QUESTION_GROUPS_PER_TEST} distinct source-backed question groups are required to start a Topic Drill.`
+  throw Object.assign(new Error(errorMessage), {
+    statusCode: 409,
+    code: 'insufficient_verified_questions',
+    availableCount: Number(result?.availableCount) || 0,
+    verifiedAvailableCount: availableVerifiedCount,
+  })
 }
 
 function readJson(request, maxBytes = MAX_BODY_BYTES) {
@@ -289,7 +341,7 @@ function compactAttemptValue(value, key = '', depth = 0) {
   return result
 }
 
-function compactStudentAttemptSnapshot(payload, { attemptId, routeId, stage, paperId, submittedAt }) {
+function compactStudentAttemptSnapshot(payload, { attemptId, routeId, stage, paperId, paperStudyMode, submittedAt }) {
   const source = payload?.attempt && typeof payload.attempt === 'object' ? payload.attempt : {}
   const suppliedScoreResult = source.scoreResult ?? source.result ?? payload.scoreResult ?? payload.result
   const hasClientReportedResult = suppliedScoreResult && typeof suppliedScoreResult === 'object' && !Array.isArray(suppliedScoreResult)
@@ -311,7 +363,9 @@ function compactStudentAttemptSnapshot(payload, { attemptId, routeId, stage, pap
     questionCount: Number.isFinite(Number(source.questionCount)) ? Math.max(0, Number(source.questionCount)) : undefined,
     partial: typeof source.partial === 'boolean' ? source.partial : undefined,
     markingMode: asText(source.markingMode || payload.markingMode, 60),
-    paperStudyMode: asText(source.paperStudyMode || payload.paperStudyMode, 60),
+    // The mode is taken from the server-canonical binding, never from a
+    // nested client snapshot that could be changed independently.
+    paperStudyMode: asText(paperStudyMode, 60),
     pairKey: asText(source.pairKey || payload.pairKey, 240),
     paperRef: source.paperRef || payload.paperRef,
     profile: source.profile || payload.profile,
@@ -379,6 +433,90 @@ function publicStudentAttempt(row) {
       submittedAt: parsed.submittedAt,
     },
   }
+}
+
+function sameFocusedRetestBinding(left, right) {
+  return Boolean(left && right
+    && left.sourceQuestionId === right.sourceQuestionId
+    && left.questionPartId === right.questionPartId
+    && left.bindingSignature === right.bindingSignature
+    && left.reviewVersion === right.reviewVersion
+    && left.sourceDocumentSha256 === right.sourceDocumentSha256
+    && left.answerDocumentSha256 === right.answerDocumentSha256
+    && left.sourceIndexSha256 === right.sourceIndexSha256
+    && left.sourceManifestChecksum === right.sourceManifestChecksum)
+}
+
+function focusedRetestParentUnavailable() {
+  return Object.assign(new Error('A current submitted parent attempt is required before this focused retest can be restored.'), {
+    statusCode: 409,
+    code: 'focused_retest_parent_unavailable',
+  })
+}
+
+function authoritativeFocusedRetestParent(database, user, unit) {
+  const parentAttemptId = asText(unit?.focusedRetestParentAttemptId, 120)
+  const childParts = Array.isArray(unit?.parts) ? unit.parts : []
+  const childPart = childParts[0]
+  if (
+    !/^[A-Za-z0-9._:-]{8,120}$/.test(parentAttemptId)
+    || childParts.length !== 1
+    || !childPart
+  ) throw focusedRetestParentUnavailable()
+
+  const row = database.prepare(`
+    SELECT user_id, attempt_id, mode, route_id, stage, paper_id, binding_json, attempt_json, submission_status, submitted_at, created_at, updated_at
+    FROM student_attempts
+    WHERE user_id = ? AND attempt_id = ?
+  `).get(user.id, parentAttemptId)
+  if (!row) throw focusedRetestParentUnavailable()
+
+  const parent = parseStudentAttemptRow(row)
+  const binding = parent.binding
+  const snapshot = parent.snapshot
+  const parentUnitId = asText(snapshot?.unitId, 200)
+  const parentParts = Array.isArray(binding?.parts) ? binding.parts : []
+  const parentSourceQuestionCount = new Set(parentParts
+    .map((part) => String(part?.sourceQuestionId || '').trim())
+    .filter(Boolean)).size
+  const submittedAtMs = Date.parse(parent.submittedAt || '')
+  const now = Date.now()
+  const childRouteId = asText(unit?.routeId, 120).toLowerCase()
+  const childStage = asText(unit?.stage, 40)
+  if (
+    parent.submissionStatus !== 'submitted'
+    || !Number.isFinite(submittedAtMs)
+    || submittedAtMs > now + 5 * 60 * 1000
+    || now - submittedAtMs > FOCUSED_RETEST_PARENT_TTL_MS
+    || binding?.mode !== 'topic'
+    || !parentUnitId
+    || parentUnitId !== String(unit?.focusedRetestOf || '')
+    || !childRouteId
+    || binding?.routeId !== childRouteId
+    || binding?.stage !== stageForRoute(childRouteId)
+    || (childStage && binding?.stage !== childStage)
+    || parentSourceQuestionCount < MIN_QUESTION_GROUPS_PER_TEST
+  ) throw focusedRetestParentUnavailable()
+
+  const childBinding = childPart?.sourceBindingProvenance || childPart?.markingProvenance
+  const parentPart = parentParts.find((part) => (
+    String(part?.unitPartId || '') === String(childPart?.id || '')
+    && String(part?.sourceQuestionId || '') === String(childPart?.sourceQuestionId || '')
+    && String(part?.questionPartId || '') === String(childPart?.questionPartId || childPart?.partId || '')
+    && sameFocusedRetestBinding(part?.provenance, childBinding)
+  ))
+  if (!parentPart || String(unit?.id || '') !== `${parentUnitId}:focused:${parentPart.unitPartId}`) {
+    throw focusedRetestParentUnavailable()
+  }
+
+  return Object.freeze({
+    attemptId: parentAttemptId,
+    unitId: parentUnitId,
+    mode: binding.mode,
+    routeId: binding.routeId,
+    stage: binding.stage,
+    parts: parentParts,
+  })
 }
 
 function coachAuthorizationError(statusCode, code, message) {
@@ -591,7 +729,15 @@ export function createCoachAttemptAuthorizer({ env = process.env, questionBank =
       throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'This paper attempt has no authoritative source part bindings.')
     }
 
-    const persistedStudyMode = parsed.snapshot?.paperStudyMode === 'exam-simulation' ? 'exam-simulation' : 'past-paper-practice'
+    const boundStudyMode = asText(binding.paperStudyMode, 60)
+    const snapshotStudyMode = asText(parsed.snapshot?.paperStudyMode, 60)
+    if (boundStudyMode && !VALID_PAPER_STUDY_MODES.has(boundStudyMode)) {
+      throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'The persisted Coach study mode is invalid.')
+    }
+    if (boundStudyMode && snapshotStudyMode && VALID_PAPER_STUDY_MODES.has(snapshotStudyMode) && boundStudyMode !== snapshotStudyMode) {
+      throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'The persisted Coach study mode is inconsistent.')
+    }
+    const persistedStudyMode = boundStudyMode || (snapshotStudyMode === PAPER_STUDY_MODES.SIMULATION ? PAPER_STUDY_MODES.SIMULATION : PAPER_STUDY_MODES.PRACTICE)
     const requestedStudyMode = asText(context.paperStudyMode, 60)
     if (requestedStudyMode && requestedStudyMode !== persistedStudyMode) {
       throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'The Coach study mode does not match the persisted attempt.')
@@ -696,6 +842,23 @@ function canonicalStudentAttemptBinding(payload, questionBank) {
   if (mode === 'full-paper' && !paperId) {
     throw Object.assign(new Error('A full-paper attempt requires paperId.'), { statusCode: 400, code: 'paper_context_missing' })
   }
+  const suppliedPaperStudyMode = asText(payload.paperStudyMode, 60)
+  const nestedPaperStudyMode = asText(attempt.paperStudyMode, 60)
+  if (suppliedPaperStudyMode && nestedPaperStudyMode && suppliedPaperStudyMode !== nestedPaperStudyMode) {
+    throw Object.assign(new Error('The supplied paper study modes do not match.'), {
+      statusCode: 409,
+      code: 'attempt_binding_mismatch',
+    })
+  }
+  const paperStudyMode = mode === 'full-paper'
+    ? suppliedPaperStudyMode || nestedPaperStudyMode || PAPER_STUDY_MODES.PRACTICE
+    : ''
+  if (mode === 'full-paper' && !VALID_PAPER_STUDY_MODES.has(paperStudyMode)) {
+    throw Object.assign(new Error('A full-paper attempt has an invalid study mode.'), {
+      statusCode: 400,
+      code: 'paper_study_mode_invalid',
+    })
+  }
 
   const markingParts = Array.isArray(payload.markingParts)
     ? payload.markingParts
@@ -705,6 +868,7 @@ function canonicalStudentAttemptBinding(payload, questionBank) {
     const seen = new Set()
     parts = markingParts.map((requestPart) => {
       const provenance = requestPart?.provenance && typeof requestPart.provenance === 'object' ? requestPart.provenance : requestPart
+      const unitPartId = asText(requestPart?.unitPartId || requestPart?.partId, 512)
       const sourceQuestionId = asText(provenance.sourceQuestionId, 320)
       const questionPartId = asText(provenance.questionPartId, 360)
       const routeId = asText(provenance.routeId, 160)
@@ -737,6 +901,7 @@ function canonicalStudentAttemptBinding(payload, questionBank) {
         sourceQuestionId: canonical.sourceQuestionId,
         questionPartId: canonical.questionPartId,
         provenance: canonical,
+        ...(unitPartId ? { unitPartId } : {}),
       }
     }).sort((left, right) => (
       `${left.sourceQuestionId}\u0000${left.questionPartId}`.localeCompare(`${right.sourceQuestionId}\u0000${right.questionPartId}`)
@@ -749,12 +914,79 @@ function canonicalStudentAttemptBinding(payload, questionBank) {
     routeId: scope.routeId,
     stage: scope.stage,
     paperId: mode === 'full-paper' ? paperId : '',
+    paperStudyMode,
     parts,
   }
 }
 
 function sameCanonicalBinding(left, right) {
-  return JSON.stringify(left || null) === JSON.stringify(right || null)
+  const normalize = (value) => {
+    if (!value || typeof value !== 'object') return value || null
+    if (value.mode === 'full-paper' && !value.paperStudyMode) {
+      return { ...value, paperStudyMode: PAPER_STUDY_MODES.PRACTICE }
+    }
+    if (value.mode !== 'full-paper' && !Object.hasOwn(value, 'paperStudyMode')) {
+      return { ...value, paperStudyMode: '' }
+    }
+    return value
+  }
+  return JSON.stringify(normalize(left)) === JSON.stringify(normalize(right))
+}
+
+const MUTABLE_SUBMITTED_SNAPSHOT_KEYS = new Set([
+  'attemptStatus',
+  'markingMode',
+  'selfMarks',
+  'maxMarksByQuestion',
+  'aiMarks',
+  'lastSavedReview',
+  'scoreResult',
+  'formalResult',
+  'resultAuthority',
+])
+
+function canonicalJson(value) {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`
+  }
+  return JSON.stringify(value)
+}
+
+function immutableSubmittedSnapshot(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  return Object.fromEntries(Object.entries(value).filter(([key]) => !MUTABLE_SUBMITTED_SNAPSHOT_KEYS.has(key)))
+}
+
+function mergeSubmittedAttemptSnapshot(existingSnapshot, incomingSnapshot) {
+  const existing = existingSnapshot && typeof existingSnapshot === 'object' && !Array.isArray(existingSnapshot)
+    ? existingSnapshot
+    : {}
+  const incoming = incomingSnapshot && typeof incomingSnapshot === 'object' && !Array.isArray(incomingSnapshot)
+    ? incomingSnapshot
+    : {}
+  const existingImmutable = immutableSubmittedSnapshot(existing)
+  const incomingImmutable = immutableSubmittedSnapshot(incoming)
+  for (const key of new Set([...Object.keys(existingImmutable), ...Object.keys(incomingImmutable)])) {
+    if (Object.hasOwn(incomingImmutable, key) && Object.hasOwn(existingImmutable, key)
+      && canonicalJson(incomingImmutable[key]) !== canonicalJson(existingImmutable[key])) {
+      throw Object.assign(new Error('A submitted attempt answer snapshot is immutable.'), {
+        statusCode: 409,
+        code: 'attempt_submitted_immutable',
+      })
+    }
+    if (!Object.hasOwn(existingImmutable, key) && Object.hasOwn(incomingImmutable, key)) {
+      throw Object.assign(new Error('A submitted attempt answer snapshot is immutable.'), {
+        statusCode: 409,
+        code: 'attempt_submitted_immutable',
+      })
+    }
+  }
+  return {
+    ...existing,
+    ...incoming,
+    ...existingImmutable,
+  }
 }
 
 function ensureColumn(database, table, column, definition) {
@@ -860,6 +1092,17 @@ function migrateSubmissionIdempotency(database) {
 }
 
 function questionBankSeedSignature(questionBank = []) {
+  if (Array.isArray(questionBank) && Object.isFrozen(questionBank)) {
+    const cached = questionBankSignatureCache.get(questionBank)
+    if (cached) return cached
+    const signature = questionBankSeedSignatureUncached(questionBank)
+    questionBankSignatureCache.set(questionBank, signature)
+    return signature
+  }
+  return questionBankSeedSignatureUncached(questionBank)
+}
+
+function questionBankSeedSignatureUncached(questionBank = []) {
   const records = (Array.isArray(questionBank) ? questionBank : []).map((question) => [
     String(question?.routeId || ''),
     String(question?.sourceQuestionId || question?.questionGroupId || ''),
@@ -876,9 +1119,9 @@ function questionBankSeedSignature(questionBank = []) {
 
 function seedCurrentQuestionBank(databaseHandle, questionBank) {
   const signature = questionBankSeedSignature(questionBank)
-  if (signature === databaseQuestionBankSignature) return
+  if (signature === databaseQuestionBankSignatures.get(databaseHandle)) return
   seedSyllabusTables(databaseHandle, questionBank)
-  databaseQuestionBankSignature = signature
+  databaseQuestionBankSignatures.set(databaseHandle, signature)
 }
 
 function appDatabase(env, questionBank = unifiedQuestionBank) {
@@ -1001,7 +1244,6 @@ function appDatabase(env, questionBank = unifiedQuestionBank) {
   migrateRouteScope(database)
   migrateRegisteredRouteStages(database)
   migrateSubmissionIdempotency(database)
-  databaseQuestionBankSignature = ''
   seedCurrentQuestionBank(database, questionBank)
   return database
 }
@@ -1990,6 +2232,20 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
   const baseTopicPracticeQuestionBank = questionBank === unifiedQuestionBank ? studyQuestionBank : questionBank
   const includeStudyOnly = questionBank === unifiedQuestionBank
   let nativeBridgeProbe = null
+  let runtimeTopicPracticeSnapshot = null
+  let runtimeTopicPracticeQuestionBank = null
+  const immutableTopicPracticeBanks = new WeakSet()
+  const syllabusInventoryByQuestionBank = new WeakMap()
+
+  function immutableQuestionBankSnapshot(value) {
+    return Array.isArray(value)
+      && Object.isFrozen(value)
+      && value.every((question) => question && typeof question === 'object' && Object.isFrozen(question))
+  }
+
+  if (immutableQuestionBankSnapshot(baseTopicPracticeQuestionBank)) {
+    immutableTopicPracticeBanks.add(baseTopicPracticeQuestionBank)
+  }
 
   function includeStudyOnlyForRoute() {
     // Runtime AI records are marked studentStudyEligible=false below until
@@ -2004,15 +2260,50 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
     if (typeof topicQuestionBankProvider !== 'function') return baseTopicPracticeQuestionBank
     try {
       const runtimeQuestionBank = topicQuestionBankProvider()
+      if (runtimeQuestionBank === runtimeTopicPracticeSnapshot && runtimeTopicPracticeQuestionBank) {
+        return runtimeTopicPracticeQuestionBank
+      }
+      const immutableRuntimeSnapshot = immutableQuestionBankSnapshot(runtimeQuestionBank)
       const guardedRuntimeQuestionBank = (Array.isArray(runtimeQuestionBank) ? runtimeQuestionBank : [])
         .map((question) => isStudentReleasedAiStudyItem(question)
           ? question
-          : { ...question, studentStudyEligible: false })
-      return mergeTopicPracticeQuestionBanks(baseTopicPracticeQuestionBank, guardedRuntimeQuestionBank)
+          : Object.freeze({ ...question, studentStudyEligible: false }))
+      const mergedQuestionBank = mergeTopicPracticeQuestionBanks(baseTopicPracticeQuestionBank, guardedRuntimeQuestionBank)
+      if (immutableRuntimeSnapshot && immutableTopicPracticeBanks.has(baseTopicPracticeQuestionBank)) {
+        runtimeTopicPracticeSnapshot = runtimeQuestionBank
+        runtimeTopicPracticeQuestionBank = mergedQuestionBank
+        immutableTopicPracticeBanks.add(mergedQuestionBank)
+      } else {
+        runtimeTopicPracticeSnapshot = null
+        runtimeTopicPracticeQuestionBank = null
+      }
+      return mergedQuestionBank
     } catch {
       // An invalid runtime artifact must fail closed to the established static study bank.
+      runtimeTopicPracticeSnapshot = null
+      runtimeTopicPracticeQuestionBank = null
       return baseTopicPracticeQuestionBank
     }
+  }
+
+  function currentSyllabusTopicsInventory(routeId, questionBankSnapshot, includeStudyOnlyQuestions) {
+    if (!immutableTopicPracticeBanks.has(questionBankSnapshot)) {
+      return syllabusTopicsInventory({ routeId, questionBank: questionBankSnapshot, includeStudyOnly: includeStudyOnlyQuestions })
+    }
+    let inventoryByRoute = syllabusInventoryByQuestionBank.get(questionBankSnapshot)
+    if (!inventoryByRoute) {
+      inventoryByRoute = new Map()
+      syllabusInventoryByQuestionBank.set(questionBankSnapshot, inventoryByRoute)
+    }
+    const cacheKey = `${routeId}\u0000${includeStudyOnlyQuestions ? 'study' : 'released'}`
+    if (!inventoryByRoute.has(cacheKey)) {
+      inventoryByRoute.set(cacheKey, syllabusTopicsInventory({
+        routeId,
+        questionBank: questionBankSnapshot,
+        includeStudyOnly: includeStudyOnlyQuestions,
+      }))
+    }
+    return inventoryByRoute.get(cacheKey)
   }
 
   async function nativeAccountReadiness() {
@@ -2084,14 +2375,24 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
         })
         return
       }
-      const topicPracticeQuestionBank = currentTopicPracticeQuestionBank()
-      const db = appDatabase(env, topicPracticeQuestionBank)
+      // Keep the runtime provider behind the routes that actually need it.
+      // Focused-retake authority is checked from the owner's persisted attempt
+      // before a runtime bank is consulted, so a forged parent cannot trigger
+      // source loading or reveal provider behavior.
+      const db = appDatabase(env, baseTopicPracticeQuestionBank)
+      let runtimeTopicPracticeQuestionBank = null
+      function currentRuntimeTopicPracticeQuestionBank() {
+        runtimeTopicPracticeQuestionBank ||= currentTopicPracticeQuestionBank()
+        return runtimeTopicPracticeQuestionBank
+      }
       const syllabusRouteMatch = url.pathname.match(/^\/api\/stem\/routes\/([^/]+)\/syllabus-topics$/)
       if (request.method === 'GET' && syllabusRouteMatch) {
         const routeId = decodeURIComponent(syllabusRouteMatch[1])
         const routeIncludesStudyOnly = includeStudyOnlyForRoute()
-        const staticInventory = syllabusTopicsInventory({ routeId, questionBank: topicPracticeQuestionBank, includeStudyOnly: routeIncludesStudyOnly })
-        const databaseRows = syllabusDatabaseInventory(db, routeId, { includeStudyOnly: routeIncludesStudyOnly })
+        const topicPracticeQuestionBank = currentRuntimeTopicPracticeQuestionBank()
+        const runtimeDb = appDatabase(env, topicPracticeQuestionBank)
+        const staticInventory = currentSyllabusTopicsInventory(routeId, topicPracticeQuestionBank, routeIncludesStudyOnly)
+        const databaseRows = syllabusDatabaseInventory(runtimeDb, routeId, { includeStudyOnly: routeIncludesStudyOnly })
         const databaseById = new Map(databaseRows.map((topic) => [topic.id, topic]))
         // The database is the authority for live inventory counts. Static
         // data supplies only the official syllabus shape and labels; merging
@@ -2104,7 +2405,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
         sendJson(response, 200, {
           ...staticInventory,
           topics,
-          ready: topics.some((topic) => topic.ready),
+          ready: topics.length > 0 && topics.every((topic) => topic.ready),
           aggregation: 'sqlite-question-groups-and-syllabus-mappings',
         })
         return
@@ -2146,8 +2447,10 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
       }
       if (request.method === 'POST' && url.pathname === '/api/stem/practice-sets') {
         const payload = await readJson(request)
+        validateTopicPracticeQuestionCount(payload)
         const user = request.headers.authorization ? identityFromRequest(request, signingKey) : null
         const routeIncludesStudyOnly = includeStudyOnlyForRoute()
+        const topicPracticeQuestionBank = currentRuntimeTopicPracticeQuestionBank()
         const result = buildSyllabusPracticeSet({
           routeId: payload.routeId,
           syllabusTopicIds: payload.syllabusTopicIds,
@@ -2160,6 +2463,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
           questionBank: topicPracticeQuestionBank,
           includeStudyOnly: routeIncludesStudyOnly,
         })
+        requireStartableTopicPracticeSet(result)
         sendJson(response, 201, { ...result, ownerId: user?.id || null })
         return
       }
@@ -2171,9 +2475,13 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
             code: 'invalid_syllabus_practice_set',
           })
         }
+        const focusedRetestParent = payload.unit.focusedRetestOf
+          ? authoritativeFocusedRetestParent(db, identityFromRequest(request, signingKey), payload.unit)
+          : null
         const unit = rebindSyllabusPracticeUnit(payload.unit, {
-          questionBank: topicPracticeQuestionBank,
+          questionBank: currentRuntimeTopicPracticeQuestionBank(),
           includeStudyOnly: includeStudyOnlyForRoute(),
+          focusedRetestParent,
         })
         if (!unit) {
           throw Object.assign(new Error('This saved syllabus set no longer matches the current source catalog.'), {
@@ -2234,7 +2542,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
       }
       if (request.method === 'POST' && url.pathname === '/api/stem/attempts') {
         const payload = await readJson(request, 8 * 1024 * 1024)
-        const binding = canonicalStudentAttemptBinding(payload, topicPracticeQuestionBank)
+        const binding = canonicalStudentAttemptBinding(payload, currentRuntimeTopicPracticeQuestionBank())
         const existingRow = db.prepare(`
           SELECT user_id, attempt_id, mode, route_id, stage, paper_id, binding_json, attempt_json, submission_status, submitted_at, created_at, updated_at
           FROM student_attempts
@@ -2267,9 +2575,13 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
           routeId: binding.routeId,
           stage: binding.stage,
           paperId: binding.paperId,
+          paperStudyMode: binding.paperStudyMode,
           submittedAt,
         })
-        const attemptJson = JSON.stringify(attemptSnapshot)
+        const persistedSnapshot = existing?.submissionStatus === 'submitted' && submissionStatus === 'submitted'
+          ? mergeSubmittedAttemptSnapshot(existing?.snapshot, attemptSnapshot)
+          : attemptSnapshot
+        const attemptJson = JSON.stringify(persistedSnapshot)
         if (existingRow) {
           db.prepare(`
             UPDATE student_attempts
@@ -2330,7 +2642,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
         const issued = issueMarkingCapabilities({
           userId: user.id,
           payload,
-          questionBank: topicPracticeQuestionBank,
+          questionBank: currentRuntimeTopicPracticeQuestionBank(),
           signingKey: markingCapabilitySigningKey,
           persistedAttempt: parseStudentAttemptRow(persistedAttemptRow),
         })
@@ -2647,5 +2959,4 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
 export function closeStemDatabaseForTests() {
   database?.close()
   database = null
-  databaseQuestionBankSignature = ''
 }

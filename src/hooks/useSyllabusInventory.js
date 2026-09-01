@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { routeById } from '../data/routeRegistry.js'
 
 function isPlainObject(value) {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value))
@@ -9,10 +10,28 @@ function finiteNumberOrNull(value) {
   return Number.isFinite(number) ? number : null
 }
 
-export function validateSyllabusInventoryPayload(payload) {
+export function validateSyllabusInventoryPayload(payload, expectedRouteId = '') {
   if (!isPlainObject(payload)) throw new Error('Syllabus inventory returned an invalid response.')
   if (!Array.isArray(payload.topics)) throw new Error('Syllabus inventory returned an invalid topic list.')
   if (!Array.isArray(payload.assessmentComponents)) throw new Error('Syllabus inventory returned invalid assessment components.')
+
+  const expectedRoute = expectedRouteId ? routeById(String(expectedRouteId)) : null
+  if (expectedRouteId && !expectedRoute) throw new Error('Syllabus inventory routeId is not registered.')
+  if (expectedRoute && String(payload.routeId || '').trim() !== expectedRoute.routeId) {
+    throw new Error('Syllabus inventory routeId does not match the selected course.')
+  }
+  if (expectedRoute) {
+    if (String(payload.qualification || '').trim() !== expectedRoute.qualification) throw new Error('Syllabus inventory qualification does not match the selected course.')
+    if (String(payload.subject || '').trim() !== expectedRoute.subject) throw new Error('Syllabus inventory subject does not match the selected course.')
+    if (String(payload.subjectId || '').trim() !== expectedRoute.subjectId) throw new Error('Syllabus inventory subjectId does not match the selected course.')
+    if (String(payload.subjectCode || '').trim() !== expectedRoute.subjectCode) throw new Error('Syllabus inventory subjectCode does not match the selected course.')
+    if (String(payload.stage || '').trim() !== expectedRoute.stage) throw new Error('Syllabus inventory stage does not match the selected course.')
+    const paperComponents = Array.isArray(payload.paperComponents) ? payload.paperComponents.map(Number) : []
+    if (paperComponents.length !== expectedRoute.paperComponents.length
+      || paperComponents.some((component, index) => component !== Number(expectedRoute.paperComponents[index]))) {
+      throw new Error('Syllabus inventory paper components do not match the selected course.')
+    }
+  }
 
   const topics = payload.topics.map((topic, index) => {
     if (!isPlainObject(topic)) throw new Error(`Syllabus inventory topic ${index + 1} is invalid.`)
@@ -20,12 +39,16 @@ export function validateSyllabusInventoryPayload(payload) {
     const code = String(topic.code || '').trim()
     const name = String(topic.name || topic.title || '').trim()
     if (!id || !code || !name) throw new Error(`Syllabus inventory topic ${index + 1} is missing id, code, or name.`)
+    const routeId = String(topic.routeId || payload.routeId || '').trim()
+    if (expectedRoute && routeId !== expectedRoute.routeId) {
+      throw new Error(`Syllabus inventory topic ${index + 1} routeId does not match the selected course.`)
+    }
     return {
       ...topic,
       id,
       code,
       name,
-      routeId: String(topic.routeId || payload.routeId || '').trim(),
+      routeId,
       points: Array.isArray(topic.points) ? topic.points : [],
       officialNotes: Array.isArray(topic.officialNotes) ? topic.officialNotes : [],
       componentScope: isPlainObject(topic.componentScope)
@@ -47,6 +70,14 @@ export function validateSyllabusInventoryPayload(payload) {
     const componentNumber = finiteNumberOrNull(component.component)
     const label = String(component.label || '').trim()
     if (componentNumber == null || !label) throw new Error(`Syllabus inventory assessment component ${index + 1} is missing component or label.`)
+    if (expectedRoute) {
+      if (String(component.stage || '').trim() !== expectedRoute.stage) {
+        throw new Error(`Syllabus inventory assessment component ${index + 1} stage does not match the selected course.`)
+      }
+      if (!expectedRoute.paperComponents.includes(componentNumber)) {
+        throw new Error(`Syllabus inventory assessment component ${index + 1} is outside the selected course.`)
+      }
+    }
     return {
       ...component,
       component: componentNumber,
@@ -80,7 +111,7 @@ export function useSyllabusInventory(routeId, { enabled = true } = {}) {
       .then(async (response) => {
         const payload = await response.json().catch(() => ({}))
         if (!response.ok) throw new Error(payload.error || `Syllabus inventory failed (${response.status}).`)
-        return validateSyllabusInventoryPayload(payload)
+        return validateSyllabusInventoryPayload(payload, routeId)
       })
       .then((data) => setState({ routeId, status: 'ready', data, error: '' }))
       .catch((error) => {
