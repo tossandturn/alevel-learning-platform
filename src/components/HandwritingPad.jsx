@@ -442,10 +442,12 @@ export function HandwritingPad({
       continueTouchScroll(event)
       return
     }
-    if (event.pointerType === 'pen' && rawPenInputRef.current) return
     if (!drawingRef.current || disabled || event.pointerId !== activePointerIdRef.current) return
     event.preventDefault()
     event.stopPropagation()
+    // WKWebView can expose pointerrawupdate intermittently. Never gate the
+    // normal pointer stream on it: pointerSamples() de-duplicates the latest
+    // coalesced point, while pointermove remains the lossless fallback.
     appendSamples(event)
   }
 

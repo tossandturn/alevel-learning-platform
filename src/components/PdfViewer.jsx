@@ -348,10 +348,12 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, evidenceStor
       continueTouchGesture(event)
       return
     }
-    if (event.pointerType === 'pen' && rawPenInputRef.current) return
     if (!drawingRef.current || event.pointerId !== activePointerIdRef.current) return
     event.preventDefault()
     event.stopPropagation()
+    // WKWebView may deliver pointerrawupdate in bursts rather than as a
+    // complete stream. Keep pointermove as the lossless fallback; the shared
+    // sampler removes duplicate coalesced points.
     appendSamples(event)
   }
 

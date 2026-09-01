@@ -14,6 +14,7 @@ assert.match(handwriting, /data-camera-input/, 'handwriting camera input must ex
 assert.match(handwriting, /capture="environment"/, 'handwriting camera input must request the rear camera')
 assert.match(handwriting, /data-ink-surface="handwriting"/, 'handwriting canvas must identify its ink surface')
 assert.match(handwriting, /pointerrawupdate/, 'handwriting must consume the hardware-rate pointer stream when available')
+assert.doesNotMatch(handwriting, /pointerType\s*===\s*['"]pen['"]\s*&&\s*rawPenInputRef\.current\)\s*return/, 'handwriting must not drop pointermove after an intermittent raw pen event')
 assert.doesNotMatch(handwriting, /onSelectStart=/, 'React must not receive the unsupported onSelectStart prop')
 
 assert.match(coach, /data-camera-intent/, 'Coach Take photo must expose a camera intent marker')
@@ -23,6 +24,7 @@ assert.match(coach, /capture="environment"/, 'Coach camera input must request th
 assert.match(pdfViewer, /pdf-canvas-scroll--annotating/, 'annotating PDF containers must expose a selection-safe state')
 assert.match(pdfViewer, /data-ink-surface="pdf"/, 'PDF ink canvas must identify its ink surface')
 assert.match(pdfViewer, /pointerrawupdate/, 'PDF ink must consume the hardware-rate pointer stream when available')
+assert.doesNotMatch(pdfViewer, /pointerType\s*===\s*['"]pen['"]\s*&&\s*rawPenInputRef\.current\)\s*return/, 'PDF ink must not drop pointermove after an intermittent raw pen event')
 assert.doesNotMatch(pdfViewer, /onSelectStart=/, 'React must not receive the unsupported onSelectStart prop')
 
 assert.match(app, /selectableQuestionCounts/, 'practice builder must derive question options from real inventory')
