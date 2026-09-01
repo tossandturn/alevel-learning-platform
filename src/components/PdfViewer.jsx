@@ -319,6 +319,49 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, evidenceStor
     exposeInkMetrics(canvas, inkMetricsRef.current)
   }
 
+  function applyNativePencilStroke(detail) {
+    const canvas = canvasRef.current
+    if (!canvas || readOnly || panMode) return
+    if (!detail || detail.surfaceId !== `pdf:${String(evidenceStorageKey || 'document')}:page:${pageNumber}`) return
+    const points = Array.isArray(detail.points) ? detail.points : []
+    if (!points.length) return
+    const rect = canvas.getBoundingClientRect()
+    if (!rect.width || !rect.height) return
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    const nativeTool = detail.tool === 'eraser' ? 'eraser' : 'pen'
+    const context = canvas.getContext('2d')
+    const mapped = points
+      .map((point) => ({
+        x: (Number(point.x) - rect.left) * scaleX,
+        y: (Number(point.y) - rect.top) * scaleY,
+        pressure: Number(point.pressure) > 0 ? Number(point.pressure) : 0.5,
+      }))
+      .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
+    if (!mapped.length) return
+    const brush = (point) => ({
+      color: '#14243a',
+      composite: nativeTool === 'eraser' ? 'destination-out' : 'source-over',
+      width: (nativeTool === 'eraser' ? 22 : 1.15 + point.pressure * 2.35) * scaleX,
+    })
+    let previous = mapped[0]
+    for (const next of mapped.slice(1)) {
+      if (pointDistance(previous, next) < 0.01) continue
+      drawSegment(context, previous, next, brush(next))
+      inkMetricsRef.current.segments += 1
+      previous = next
+    }
+    if (mapped.length === 1 || pointDistance(mapped[0], previous) < 0.01) {
+      drawDot(context, mapped[0], brush(mapped[0]))
+      inkMetricsRef.current.dots += 1
+    }
+    inkMetricsRef.current.strokes += 1
+    dirtyRevisionRef.current += 1
+    changedAtRef.current = Date.now()
+    exposeInkMetrics(canvas, inkMetricsRef.current)
+    scheduleEmit()
+  }
+
   function startStroke(event) {
     if (event.pointerType === 'touch') {
       startTouchGesture(event)
@@ -402,8 +445,18 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, evidenceStor
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [panMode, readOnly, tool])
 
+  useEffect(() => {
+    if (readOnly || panMode) return undefined
+    const handleNativeStroke = (event) => applyNativePencilStroke(event.detail)
+    window.addEventListener('stemist-native-pencil-stroke', handleNativeStroke)
+    return () => window.removeEventListener('stemist-native-pencil-stroke', handleNativeStroke)
+    // The native bridge targets this page's stable surface id; keep the
+    // handler attached while the virtualized page remains mounted.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageNumber, readOnly, panMode, evidenceStorageKey])
+
   const inert = readOnly || panMode
-  return <canvas ref={canvasRef} className={`pdf-ink-layer ${readOnly ? 'read-only' : ''} ${panMode ? 'pdf-pan-mode' : ''}`} data-ink-surface="pdf" aria-label={`Handwriting layer for PDF page ${pageNumber}`} data-stroke-count={inkMetricsRef.current.strokes} data-segment-count={inkMetricsRef.current.segments} onPointerDown={inert ? undefined : startStroke} onPointerMove={inert ? undefined : continueStroke} onPointerUp={inert ? undefined : finishStroke} onPointerCancel={inert ? undefined : finishStroke} onLostPointerCapture={inert ? undefined : finishStroke} onDragStart={(event) => event.preventDefault()} onContextMenu={(event) => event.preventDefault()} />
+  return <canvas ref={canvasRef} className={`pdf-ink-layer ${readOnly ? 'read-only' : ''} ${panMode ? 'pdf-pan-mode' : ''}`} data-ink-surface="pdf" data-ink-surface-id={`pdf:${String(evidenceStorageKey || 'document')}:page:${pageNumber}`} data-ink-interactive={inert ? 'false' : 'true'} data-ink-tool={tool} aria-label={`Handwriting layer for PDF page ${pageNumber}`} data-stroke-count={inkMetricsRef.current.strokes} data-segment-count={inkMetricsRef.current.segments} onPointerDown={inert ? undefined : startStroke} onPointerMove={inert ? undefined : continueStroke} onPointerUp={inert ? undefined : finishStroke} onPointerCancel={inert ? undefined : finishStroke} onLostPointerCapture={inert ? undefined : finishStroke} onDragStart={(event) => event.preventDefault()} onContextMenu={(event) => event.preventDefault()} />
 }
 
 export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage = {}, inkTool = 'pen', questionNumber = 1, evidenceStorageKey = '', onInkChange, registerInkFlush }) {

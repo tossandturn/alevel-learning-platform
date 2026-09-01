@@ -413,6 +413,51 @@ export function HandwritingPad({
     exposeInkMetrics(canvas, inkMetricsRef.current)
   }
 
+  function applyNativePencilStroke(detail) {
+    const canvas = canvasRef.current
+    if (!canvas || disabled || mode !== 'handwrite') return
+    if (!detail || detail.surfaceId !== instanceId) return
+    const points = Array.isArray(detail.points) ? detail.points : []
+    if (!points.length) return
+    const rect = canvas.getBoundingClientRect()
+    if (!rect.width || !rect.height) return
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    const nativeTool = detail.tool === 'eraser' ? 'eraser' : 'pen'
+    const context = canvas.getContext('2d')
+    const mapped = points
+      .map((point) => ({
+        x: (Number(point.x) - rect.left) * scaleX,
+        y: (Number(point.y) - rect.top) * scaleY,
+        pressure: Number(point.pressure) > 0 ? Number(point.pressure) : 0.5,
+      }))
+      .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
+    if (!mapped.length) return
+    const brush = (point) => ({
+      color: '#172033',
+      composite: nativeTool === 'eraser' ? 'destination-out' : 'source-over',
+      width: nativeTool === 'eraser' ? ERASER_WIDTH * scaleX : (PEN_MIN_WIDTH + point.pressure * PEN_PRESSURE_WIDTH) * scaleX,
+    })
+    let previous = mapped[0]
+    for (const next of mapped.slice(1)) {
+      if (pointDistance(previous, next) < 0.01) continue
+      drawSegment(context, previous, next, brush(next))
+      inkMetricsRef.current.segments += 1
+      inkMetricsRef.current.maxSegmentGap = Math.max(inkMetricsRef.current.maxSegmentGap, 0)
+      previous = next
+    }
+    if (mapped.length === 1 || pointDistance(mapped[0], previous) < 0.01) {
+      drawDot(context, mapped[0], brush(mapped[0]))
+      inkMetricsRef.current.dots += 1
+    }
+    inkMetricsRef.current.strokes += 1
+    hasVisualResponseRef.current = true
+    exposeInkMetrics(canvas, inkMetricsRef.current)
+    snapshot(canvas)
+    scheduleEmit(canvas)
+    setStatus('Apple Pencil active')
+  }
+
   function startStroke(event) {
     if (pencilOnly && event.pointerType === 'touch') {
       startTouchScroll(event)
@@ -494,6 +539,16 @@ export function HandwritingPad({
     return () => canvas.removeEventListener('pointerrawupdate', handleRawPenUpdate)
     // The listener reads current drawing refs; it only needs replacement when
     // the handwriting canvas is remounted for a mode change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode])
+
+  useEffect(() => {
+    if (mode !== 'handwrite') return undefined
+    const handleNativeStroke = (event) => applyNativePencilStroke(event.detail)
+    window.addEventListener('stemist-native-pencil-stroke', handleNativeStroke)
+    return () => window.removeEventListener('stemist-native-pencil-stroke', handleNativeStroke)
+    // The listener deliberately reads current refs/state from this mounted
+    // pad; the native bridge targets the canvas by its stable surface id.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode])
 
@@ -605,6 +660,9 @@ export function HandwritingPad({
             ref={canvasRef}
             className={`handwriting-pad__canvas ${pencilOnly ? 'pencil-only' : ''}`}
             data-ink-surface="handwriting"
+            data-ink-surface-id={instanceId}
+            data-ink-interactive={disabled ? 'false' : 'true'}
+            data-ink-tool={tool}
             style={{ height: `${CANVAS_HEIGHT * pageCount}px` }}
             aria-label={`${label} handwriting canvas`}
             onPointerDown={startStroke}
