@@ -41,6 +41,7 @@ assert.ok(routeQuestions.every((question) => route.paperComponents.includes(Numb
 
 const vocabulary = vocabularyCoverageForRoute(route)
 assert.equal(vocabulary.taxonomyId, 'exam.9709.as')
+assert.equal(vocabulary.subject, 'Mathematics')
 assert.equal(vocabulary.subjectCode, '9709')
 assert.equal(vocabulary.stage, 'AS')
 assert.ok(vocabulary.mappedTermIds.length > 0, '9709 must have Mathematics vocabulary mappings')
