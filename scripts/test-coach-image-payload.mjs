@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
 
 import { COACH_IMAGE_LIMITS } from '../server/aiApi.js'
 import {
@@ -37,5 +38,9 @@ assert.ok(
   Buffer.byteLength(maximumJsonBody) <= COACH_IMAGE_LIMITS.maxBodyBytes,
   'the largest client-approved multi-image request must fit the server JSON body limit after base64 encoding',
 )
+
+const screenshotSource = fs.readFileSync(new URL('../src/lib/coachScreenshot.js', import.meta.url), 'utf8')
+assert.match(screenshotSource, /createImageBitmap/, 'iPad HEIC/HEIF uploads need a native bitmap decode fallback before JPEG compression')
+assert.match(screenshotSource, /looksLikeImage/, 'image uploads must accept camera formats even when the browser omits a MIME type')
 
 console.log('Coach image payload limits are consistent across client and server.')
