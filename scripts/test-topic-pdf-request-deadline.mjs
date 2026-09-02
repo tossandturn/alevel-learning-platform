@@ -55,7 +55,7 @@ function buildArtifact(root, questionNumber) {
   const source = {
     board: 'Cambridge International',
     paperId: 'cie-9702-9702_m21_qp_42',
-    specificationId: 'cambridge-9702-2025-2027',
+    specificationId: 'cambridge-9702-2028-2030',
     stage: 'A2',
     rightsStatus: 'official-personal-study',
     accessPolicyId: 'private-study-library',

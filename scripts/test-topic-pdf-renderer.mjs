@@ -73,7 +73,7 @@ function fixture({ component = 4, released = true, mismatch = false, legacySourc
   const source = {
     board: legacySource ? 'CIE' : 'Cambridge International',
     paperId: `cie-9702-9702_m21_qp_${component}2`,
-    specificationId: legacySource ? route.routeId : 'cambridge-9702-2025-2027',
+    specificationId: legacySource ? route.routeId : 'cambridge-9702-2028-2030',
     stage: 'A2',
     rightsStatus: 'official-personal-study',
     accessPolicyId: 'private-study-library',

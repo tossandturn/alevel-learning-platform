@@ -10,7 +10,7 @@ import { CAMBRIDGE_0580_P1_M25_SYLLABUS_REVIEW_BY_QUESTION_ID } from '../data/re
 import { isAiMarkablePastPaperItem, isHumanReviewedPastPaperItem, isStudentReleasedAiStudyItem, isStudyOnlyPastPaperItem, normalizeImportedQuestion, studyQuestionBank, unifiedQuestionBank } from '../data/questionBank.js'
 import { routeById } from '../data/routeRegistry.js'
 import { canonicalAiMarkingProvenance, canonicalSourcePracticeProvenance } from './sourceContentContract.js'
-import { canonicalSyllabusTopicIdForRoute, syllabusTopicScopeIdsForRoute } from './syllabusPracticeRoutes.js'
+import { canonicalSyllabusTopicIdForRoute, syllabusPracticeComponentsForRoute, syllabusTopicScopeIdsForRoute, SYLLABUS_PRACTICE_ROUTE_IDS } from './syllabusPracticeRoutes.js'
 import { practiceUnitMetrics, withPracticePresentation } from './practicePresentation.js'
 import { MIN_QUESTION_GROUPS_PER_TEST, MIN_VERIFIED_GROUPS_FOR_PRACTICE, selectedTopicPracticeEligibility, topicPracticeEligibility } from './practiceConstants.js'
 
@@ -142,8 +142,43 @@ const SYLLABUS_CONFIGS = Object.freeze({
   'cie-9709-a2-after-p1-p4-p3-p5': math9709Config('cie-9709-a2-after-p1-p4-p3-p5', { 3: '9709-p3-topic-01', 5: '9709-s1-topic-01' }),
 })
 
+const GENERATED_CONFIG_CACHE = new Map()
+
+function theoryComponentsForRoute(route) {
+  const components = (route?.syllabus?.assessmentComponents || [])
+    .filter((item) => item.track !== 'practical')
+    .map((item) => Number(item.component))
+    .filter(Number.isInteger)
+  return components.length ? components : (route?.paperComponents || []).map(Number).filter(Number.isInteger)
+}
+
+function generatedSyllabusConfig(routeId) {
+  const normalizedRouteId = String(routeId || '')
+  if (GENERATED_CONFIG_CACHE.has(normalizedRouteId)) return GENERATED_CONFIG_CACHE.get(normalizedRouteId)
+  const route = routeById(normalizedRouteId)
+  if (!route || !['IGCSE', 'A-Level'].includes(route.qualification) || !route.syllabus?.topics?.length) return null
+  const components = syllabusPracticeComponentsForRoute(normalizedRouteId).length
+    ? syllabusPracticeComponentsForRoute(normalizedRouteId)
+    : theoryComponentsForRoute(route)
+  if (!components.length) return null
+  const config = Object.freeze({
+    syllabus: routeSyllabus(normalizedRouteId, components),
+    subjectCode: route.subjectCode,
+    stage: route.stage,
+    components: Object.freeze(components),
+  })
+  GENERATED_CONFIG_CACHE.set(normalizedRouteId, config)
+  return config
+}
+
 function syllabusConfig(routeId) {
-  return SYLLABUS_CONFIGS[routeId] || null
+  return generatedSyllabusConfig(routeId) || SYLLABUS_CONFIGS[routeId] || null
+}
+
+function allSyllabusConfigs() {
+  return [...new Set([...Object.keys(SYLLABUS_CONFIGS), ...SYLLABUS_PRACTICE_ROUTE_IDS])]
+    .map((routeId) => syllabusConfig(routeId))
+    .filter(Boolean)
 }
 
 const MATH_9709_COMPONENT_DOMAIN = Object.freeze({
@@ -684,6 +719,8 @@ export function syllabusTopicsInventory({ routeId, questionBank = unifiedQuestio
     syllabusUrl: config
       ? config.syllabus.officialUrl
       : route.syllabus.url,
+    syllabusSourceSha256: config?.syllabus.sourceSha256 || route.syllabus.sourceSha256 || null,
+    syllabusExtraction: config?.syllabus.extraction || route.syllabus.extraction || null,
     componentScope: config
       ? config.syllabus.componentScope || []
       : route.syllabus.componentScope || [],
@@ -1478,7 +1515,7 @@ export function seedSyllabusTables(database, questionBank = []) {
       official_text = excluded.official_text,
       updated_at = excluded.updated_at
   `)
-  for (const config of Object.values(SYLLABUS_CONFIGS)) {
+  for (const config of allSyllabusConfigs()) {
     for (const topic of config.syllabus.topics) {
       insertTopic.run(config.syllabus.routeId, topic.id, topic.syllabusVersion, topic.code, topic.name, topic.order, topic.officialPage, config.syllabus.officialUrl, now)
       for (const syllabusPoint of topic.points) {
@@ -1529,7 +1566,7 @@ export function seedSyllabusTables(database, questionBank = []) {
       updated_at = excluded.updated_at
   `)
   const activeAiVerifiedQuestionGroupIds = new Set()
-  for (const config of Object.values(SYLLABUS_CONFIGS)) {
+  for (const config of allSyllabusConfigs()) {
     const records = effectiveQuestionRecords(questionBank, config)
     for (const record of records) {
     const question = record.question

@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "cambridge-latest-syllabus-source-manifest.v1",
+  "retrievedAt": "2026-09-02",
+  "sources": {
+    "0580": {
+      "version": "2028-2030",
+      "url": "https://www.cambridgeinternational.org/Images/745681-2028-2030-syllabus.pdf",
+      "sha256": "26BFEBD820210D0147FDC8A6001443556178C046F543E71379501A33046BE695"
+    },
+    "0606": {
+      "version": "2028-2030",
+      "url": "https://www.cambridgeinternational.org/Images/745683-2028-2030-syllabus.pdf",
+      "sha256": "A2CC6095CCE5E1BA45A4D461535808479F53246367A24DD63A3EEE4238CF265C"
+    },
+    "0610": {
+      "version": "2026-2028",
+      "url": "https://www.cambridgeinternational.org/Images/697203-2026-2028-syllabus.pdf",
+      "sha256": "CE4310300CFAB16ED3BA2224896983B7A725A9052900A0EEE394DD126B694098"
+    },
+    "0625": {
+      "version": "2026-2028",
+      "url": "https://www.cambridgeinternational.org/Images/697209-2026-2028-syllabus.pdf",
+      "sha256": "BAAF59F84543BEB133EA87CBF8CFB0E8BF105A360CCE5009CF57D3AE0A357075"
+    },
+    "9231": {
+      "version": "2028-2030",
+      "url": "https://www.cambridgeinternational.org/Images/744603-2028-2030-syllabus.pdf",
+      "sha256": "15224814C4B3265DA9E7B35707BF58F2C2F826A536D7B6B40939FBCB0EACF517"
+    },
+    "9700": {
+      "version": "2028-2030",
+      "url": "https://www.cambridgeinternational.org/Images/744622-2028-2030-syllabus.pdf",
+      "sha256": "81A421CEEB4B9C747385592326A67967C9E24DF4AABCCA6A24CEBC2F024E07CC"
+    },
+    "9701": {
+      "version": "2028-2030",
+      "url": "https://www.cambridgeinternational.org/Images/744624-2028-2030-syllabus.pdf",
+      "sha256": "1A1284ECD41EAACE3FE8C1C277DD9DCC0D61399BE161672D57DA8FF1D6F372DC"
+    },
+    "9702": {
+      "version": "2028-2030",
+      "url": "https://www.cambridgeinternational.org/Images/744626-2028-2030-syllabus.pdf",
+      "sha256": "468F4A01B9459701E5B21A010FDE12538AA16413A25496C311F7CE6FDD585E8C"
+    },
+    "9708": {
+      "version": "2026-2028",
+      "url": "https://www.cambridgeinternational.org/Images/697423-2026-2028-syllabus.pdf",
+      "sha256": "0F02E7EFDC1175B58B165665F08A54C0C4A82226A3B79492EA9C681DCA7DB0D8"
+    },
+    "9709": {
+      "version": "2028-2030",
+      "url": "https://www.cambridgeinternational.org/Images/744634-2028-2030-syllabus.pdf",
+      "sha256": "5E2BCB5E72870931A6758E26B3D929F2B659EBBCEF274BCB12E5009572B0BF03"
+    }
+  }
+}
