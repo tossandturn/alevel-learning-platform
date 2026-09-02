@@ -6,6 +6,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
+import { brotliCompressSync, constants as zlibConstants, gzipSync } from 'node:zlib'
 import { createAiApi } from './server/aiApi.js'
 import { createAiVerifiedQuestionBankLoader } from './server/aiVerifiedQuestionBank.js'
 import { resolveAiPdfIngestionRoot } from './server/aiPdfIngestionCandidates.js'
@@ -28,6 +29,57 @@ const PUBLIC_METADATA_FILES = ['favicon.svg', 'icons.svg', 'robots.txt', 'sitema
 const QA_DISABLE_HMR = process.env.NODE_ENV === 'test' && process.env.STEM_QA_DISABLE_HMR === '1'
 let paperCatalogCache = { path: '', modifiedAtMs: -1, byFile: new Map() }
 const pdfIntegrityCache = new Map()
+const publicAssetCompressionCache = new Map()
+const MAX_PUBLIC_ASSET_COMPRESSION_CACHE_ENTRIES = 32
+
+function encodingQuality(header, encoding) {
+  let wildcardQuality = null
+  for (const token of String(header || '').toLowerCase().split(',')) {
+    const [name, ...parameters] = token.trim().split(';')
+    if (!name) continue
+    let quality = 1
+    for (const parameter of parameters) {
+      const [key, value] = parameter.trim().split('=')
+      if (key === 'q' && value != null) {
+        const parsed = Number(value)
+        quality = Number.isFinite(parsed) ? Math.max(0, Math.min(1, parsed)) : 0
+      }
+    }
+    if (name === encoding) return quality
+    if (name === '*') wildcardQuality = quality
+  }
+  return wildcardQuality ?? 0
+}
+
+function preferredPublicAssetEncoding(request) {
+  const header = request.headers['accept-encoding']
+  if (!header) return ''
+  const candidates = [
+    { name: 'br', quality: encodingQuality(header, 'br') },
+    { name: 'gzip', quality: encodingQuality(header, 'gzip') },
+  ]
+  candidates.sort((left, right) => right.quality - left.quality || (left.name === 'br' ? -1 : 1))
+  return candidates[0]?.quality > 0 ? candidates[0].name : ''
+}
+
+function compressedPublicAsset(filePath, stat, encoding) {
+  const key = `${filePath}:${stat.size}:${stat.mtimeMs}:${encoding}`
+  const cached = publicAssetCompressionCache.get(key)
+  if (cached) return cached
+  const source = fs.readFileSync(filePath)
+  const body = encoding === 'br'
+    ? brotliCompressSync(source, {
+      params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 5 },
+    })
+    : gzipSync(source, { level: 6 })
+  publicAssetCompressionCache.set(key, body)
+  while (publicAssetCompressionCache.size > MAX_PUBLIC_ASSET_COMPRESSION_CACHE_ENTRIES) {
+    const oldest = publicAssetCompressionCache.keys().next().value
+    if (oldest == null) break
+    publicAssetCompressionCache.delete(oldest)
+  }
+  return body
+}
 
 function paperCatalogIndex() {
   const root = process.cwd()
@@ -244,12 +296,34 @@ function sendPublicAsset(request, response, next) {
     return
   }
 
-  response.setHeader('Content-Type', contentTypeForPublicPath(filePath))
   if (pathname.startsWith('/question-assets/')) {
     response.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
   } else {
     response.setHeader('Cache-Control', 'no-cache')
   }
+  const contentType = contentTypeForPublicPath(filePath)
+  const canCompress = contentType.startsWith('application/json')
+  const encoding = canCompress ? preferredPublicAssetEncoding(request) : ''
+  if (encoding) {
+    try {
+      const body = compressedPublicAsset(filePath, stat, encoding)
+      response.setHeader('Content-Type', contentType)
+      response.setHeader('Content-Encoding', encoding)
+      response.setHeader('Vary', 'Accept-Encoding')
+      response.setHeader('Content-Length', String(body.length))
+      if (request.method === 'HEAD') {
+        response.end()
+      } else {
+        response.end(body)
+      }
+      return
+    } catch {
+      // Fall through to the framed identity representation if compression is
+      // unavailable; public catalog delivery must remain deterministic.
+    }
+  }
+  response.setHeader('Content-Type', contentType)
+  if (canCompress) response.setHeader('Vary', 'Accept-Encoding')
   // Explicit framing is required for large catalog files when this origin is
   // behind Nginx/Cloudflare/Tunnel. The proxy may still apply compression and
   // will adjust the representation headers, but the uncompressed origin body

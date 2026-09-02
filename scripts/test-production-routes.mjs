@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
+import http from 'node:http'
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
+import { brotliDecompressSync, gunzipSync } from 'node:zlib'
 
 import { resolveLibraryRoot } from '../server/pdfLibrary.js'
 import { releaseBuildIdentity } from '../vite.config.js'
@@ -38,6 +40,22 @@ async function waitFor(url, child) {
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
   throw new Error(`Vite did not become ready: ${url}`)
+}
+
+function rawGet(url, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const request = http.get(url, { headers }, (response) => {
+      const chunks = []
+      response.on('data', (chunk) => chunks.push(chunk))
+      response.on('end', () => resolve({
+        statusCode: response.statusCode,
+        headers: response.headers,
+        body: Buffer.concat(chunks),
+      }))
+      response.on('error', reject)
+    })
+    request.on('error', reject)
+  })
 }
 
 async function main() {
@@ -161,7 +179,8 @@ async function main() {
     assert.match(sitemap.headers.get('content-type') || '', /xml/i)
     assert.match(await sitemap.text(), /<urlset/)
 
-    const studyManifest = await fetch(`${baseUrl}/data/study-question-index/manifest.json`)
+    const identityHeaders = { 'Accept-Encoding': 'identity' }
+    const studyManifest = await fetch(`${baseUrl}/data/study-question-index/manifest.json`, { headers: identityHeaders })
     assert.equal(studyManifest.status, 200)
     assert.match(studyManifest.headers.get('content-type') || '', /application\/json/i)
     const studyManifestBytes = fs.statSync(path.join(root, 'public', 'data', 'study-question-index', 'manifest.json')).size
@@ -171,7 +190,7 @@ async function main() {
 
     const papersPath = path.join(root, 'public', 'data', 'papers.json')
     const papersBytes = fs.statSync(papersPath).size
-    const papers = await fetch(`${baseUrl}/data/papers.json`)
+    const papers = await fetch(`${baseUrl}/data/papers.json`, { headers: identityHeaders })
     assert.equal(papers.status, 200)
     assert.match(papers.headers.get('content-type') || '', /application\/json/i)
     assert.equal(Number(papers.headers.get('content-length')), papersBytes, 'the full paper catalog must expose an exact origin body length')
@@ -179,7 +198,21 @@ async function main() {
     assert.equal(papersBody.byteLength, papersBytes, 'the full paper catalog response must complete without truncation')
     const parsedPapers = JSON.parse(Buffer.from(papersBody).toString('utf8'))
     assert.ok(Array.isArray(parsedPapers.items) && parsedPapers.items.length > 0, 'the full paper catalog must remain valid JSON')
-    const papersHead = await fetch(`${baseUrl}/data/papers.json`, { method: 'HEAD' })
+    const compressedPapers = await rawGet(`${baseUrl}/data/papers.json`, { 'Accept-Encoding': 'br' })
+    assert.equal(compressedPapers.statusCode, 200)
+    assert.equal(compressedPapers.headers['content-encoding'], 'br', 'JSON assets must negotiate Brotli when the client supports it')
+    assert.match(compressedPapers.headers.vary || '', /Accept-Encoding/i)
+    assert.equal(Number(compressedPapers.headers['content-length']), compressedPapers.body.byteLength, 'compressed JSON must expose its representation length')
+    assert.ok(compressedPapers.body.byteLength < papersBytes, 'compressed JSON must be smaller than the identity representation')
+    assert.deepEqual(JSON.parse(brotliDecompressSync(compressedPapers.body).toString('utf8')), parsedPapers)
+
+    const gzipPapers = await rawGet(`${baseUrl}/data/papers.json`, { 'Accept-Encoding': 'gzip' })
+    assert.equal(gzipPapers.statusCode, 200)
+    assert.equal(gzipPapers.headers['content-encoding'], 'gzip', 'JSON assets must retain gzip compatibility for older WebViews')
+    assert.equal(Number(gzipPapers.headers['content-length']), gzipPapers.body.byteLength)
+    assert.deepEqual(JSON.parse(gunzipSync(gzipPapers.body).toString('utf8')), parsedPapers)
+
+    const papersHead = await fetch(`${baseUrl}/data/papers.json`, { method: 'HEAD', headers: identityHeaders })
     assert.equal(papersHead.status, 200)
     assert.equal(Number(papersHead.headers.get('content-length')), papersBytes, 'HEAD must report the same paper catalog length')
     assert.equal((await papersHead.arrayBuffer()).byteLength, 0, 'HEAD must not stream a paper catalog body')
