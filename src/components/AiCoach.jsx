@@ -26,6 +26,8 @@ import {
 } from '../lib/coachScreenshot'
 
 const EMPTY_PRACTICE_OPTIONS = Object.freeze([])
+const AUTO_COACH_RETRY_DELAY_MS = 350
+const MAX_AUTO_COACH_RETRIES = 1
 
 function createImageAttachment(dataUrl = '', { name = 'Attached image', status = 'ready', source = 'upload', mimeType = 'image/*', errorMessage = '' } = {}) {
   return {
@@ -195,6 +197,7 @@ export function AiCoach({
   const cameraInputRef = useRef(null)
   const screenshotInputRef = useRef(null)
   const requestAbortRef = useRef(null)
+  const autoRetryTimerRef = useRef(null)
   const historySyncTimerRef = useRef(null)
   const historyRequestVersionRef = useRef(0)
   const historyReadyScopeRef = useRef('')
@@ -331,6 +334,8 @@ export function AiCoach({
     const ownerChanged = hydratedStorageOwnerRef.current !== storageOwnerId
     requestAbortRef.current?.abort()
     requestAbortRef.current = null
+    window.clearTimeout(autoRetryTimerRef.current)
+    autoRetryTimerRef.current = null
     if (historySyncTimerRef.current) window.clearTimeout(historySyncTimerRef.current)
     hydratedStorageKeyRef.current = storageKey
     hydratedStorageOwnerRef.current = storageOwnerId
@@ -442,6 +447,8 @@ export function AiCoach({
 
   useEffect(() => () => {
     requestAbortRef.current?.abort()
+    window.clearTimeout(autoRetryTimerRef.current)
+    autoRetryTimerRef.current = null
     if (historySyncTimerRef.current) window.clearTimeout(historySyncTimerRef.current)
     historyRequestVersionRef.current += 1
     captureFrameRef.current = null
@@ -523,6 +530,7 @@ export function AiCoach({
     const attachments = attachmentItems.map(attachmentDataUrl).filter(Boolean)
     const retryAssistantId = String(options.retryAssistantId || '')
     const retryWarning = String(options.retryWarning || '')
+    const autoRetryAttempt = Math.max(0, Number(options.autoRetryAttempt) || 0)
     if ((!clean && !attachments.length) || loading) return
     const studentMessage = {
       id: `coach-user-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
@@ -577,6 +585,39 @@ export function AiCoach({
     requestAbortRef.current = controller
     let streamedAnswer = ''
     let streamCompleted = false
+    const scheduleAutomaticRetry = (warning = '') => {
+      if (autoRetryAttempt >= MAX_AUTO_COACH_RETRIES || controller.signal.aborted || requestAbortRef.current !== controller) return false
+      const retryStorageKey = storageKey
+      const retryAttachments = attachments
+      const retryHistory = previous
+      const retryIntent = intent
+      const retryAssistant = assistantId
+      window.clearTimeout(autoRetryTimerRef.current)
+      updateAssistant({
+        content: streamedAnswer.trim() || 'Reconnecting Coach...',
+        mode: streamedAnswer.trim() ? 'interrupted' : 'streaming',
+        status: 'retrying',
+        hintLevel: level,
+        warning: warning || 'The connection was interrupted. Reconnecting automatically.',
+      })
+      setRetryRequest({ assistantId: retryAssistant, message: studentMessage.content, level, attachments: retryAttachments, previous: retryHistory, intent: retryIntent, unavailableAttachmentCount: 0 })
+      setError(warning || 'The connection was interrupted. Reconnecting automatically.')
+      requestAbortRef.current = null
+      setLoading(false)
+      autoRetryTimerRef.current = window.setTimeout(() => {
+        autoRetryTimerRef.current = null
+        if (disabled || requestAbortRef.current || messageStorageKeyRef.current !== retryStorageKey) return
+        void ask(studentMessage.content, level, {
+          attachments: retryAttachments,
+          history: retryHistory,
+          intent: retryIntent,
+          retryAssistantId: retryAssistant,
+          retryWarning: 'Automatic reconnect retained the attached photos.',
+          autoRetryAttempt: autoRetryAttempt + 1,
+        })
+      }, AUTO_COACH_RETRY_DELAY_MS)
+      return true
+    }
     try {
       if (intent && onAgentAction) {
         const action = await onAgentAction(intent)
@@ -622,10 +663,15 @@ export function AiCoach({
           warning: payload.warning || '',
         })
         if (retryable) {
-          setRetryRequest({ assistantId, message: studentMessage.content, level, attachments, previous, intent, unavailableAttachmentCount: 0 })
-          setError(payload.warning || (partial
-            ? 'The connection was interrupted. The partial response was kept; retry to continue.'
-            : 'AI Coach is temporarily unavailable. Retry to continue.'))
+          const autoRetried = payload.providerStatus === 'error' && scheduleAutomaticRetry(payload.warning || (partial
+            ? 'The connection was interrupted. Reconnecting automatically.'
+            : 'AI Coach is temporarily unavailable. Reconnecting automatically.'))
+          if (!autoRetried) {
+            setRetryRequest({ assistantId, message: studentMessage.content, level, attachments, previous, intent, unavailableAttachmentCount: 0 })
+            setError(payload.warning || (partial
+              ? 'The connection was interrupted. The partial response was kept; retry to continue.'
+              : 'AI Coach is temporarily unavailable. Retry to continue.'))
+          }
         }
         streamCompleted = true
         if (payload.mode === 'offline') setError(payload.warning || 'AI Coach is offline. This response is only a controlled offline hint.')
@@ -659,10 +705,15 @@ export function AiCoach({
               warning: payload.warning || retryWarning,
             })
             if (retryable) {
-              setRetryRequest({ assistantId, message: studentMessage.content, level, attachments, previous, intent, unavailableAttachmentCount: 0 })
-              setError(payload.warning || (partial
-                ? 'The connection was interrupted. The partial response was kept; retry to continue.'
-                : 'AI Coach is temporarily unavailable. Retry to continue.'))
+              const autoRetried = payload.providerStatus === 'error' && scheduleAutomaticRetry(payload.warning || (partial
+                ? 'The connection was interrupted. Reconnecting automatically.'
+                : 'AI Coach is temporarily unavailable. Reconnecting automatically.'))
+              if (!autoRetried) {
+                setRetryRequest({ assistantId, message: studentMessage.content, level, attachments, previous, intent, unavailableAttachmentCount: 0 })
+                setError(payload.warning || (partial
+                  ? 'The connection was interrupted. The partial response was kept; retry to continue.'
+                  : 'AI Coach is temporarily unavailable. Retry to continue.'))
+              }
             }
             if (payload.mode === 'offline') setError(payload.warning || 'AI Coach is offline. This response is only a controlled offline hint.')
           }
@@ -690,6 +741,7 @@ export function AiCoach({
         streamCompleted,
       })
       if (failure.ignored) return
+      if (scheduleAutomaticRetry(failure.warning || (failure.status === 'interrupted' ? 'The connection was interrupted. Reconnecting automatically.' : 'AI Coach is temporarily unavailable. Reconnecting automatically.'))) return
       updateAssistant({
         content: failure.content,
         mode: failure.mode,

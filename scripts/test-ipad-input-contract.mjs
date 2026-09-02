@@ -36,5 +36,7 @@ assert.match(app, /No complete set available/, 'practice builder must show a tru
 assert.match(app, /source questions\{count <= selectedInventory\.verifiedQuestionCount/, 'practice builder must distinguish reviewed and study-only options')
 assert.match(styles, /\.handwriting-pad__surface:has\(\.handwriting-pad__canvas\)/, 'handwriting surfaces must suppress selection only while writing')
 assert.match(styles, /\.pdf-canvas-scroll--annotating/, 'annotating PDF surfaces must suppress selection and callouts')
+assert.match(styles, /\.paper-workspace-header[\s\S]{0,620}user-select: none/, 'paper workspace chrome must suppress accidental long-press selection')
+assert.doesNotMatch(styles, /\.paper-workspace,\s*\.paper-workspace :where\(\*\)/, 'paper workspace must not disable selection globally')
 
 console.log('iPad Pencil, camera intent, drawing-container and inventory contract passed.')

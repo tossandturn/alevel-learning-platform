@@ -4633,6 +4633,28 @@ button:disabled {
   background: #dce3eb;
 }
 
+/* Keep paper controls and drawing surfaces out of WebKit's long-press
+ * selection UI while leaving question text and answer fields selectable. */
+.paper-workspace-header,
+.paper-workspace-actions,
+.paper-document-tabs,
+.paper-annotation-tools,
+.paper-pane-switch,
+.paper-splitter,
+.paper-answer-sheet__index,
+.handwriting-pad__surface:has(.handwriting-pad__canvas),
+.pdf-canvas-scroll--annotating {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.paper-workspace :where(input, textarea, [contenteditable="true"]) {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
 .paper-workspace-header {
   min-height: 68px;
   display: grid;

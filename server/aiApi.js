@@ -18,7 +18,7 @@ import {
 } from '../src/lib/sourceContentContract.js'
 import { validHmacJwt, verifyMarkingCapability } from './markingCapability.js'
 
-const IMAGE_PATTERN = /^data:image\/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=]+)$/
+const IMAGE_PATTERN = /^data:image\/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=\r\n\t ]+)$/i
 const MAX_BODY_BYTES = 16 * 1024 * 1024
 const MAX_IMAGE_BYTES = 12 * 1024 * 1024
 const MAX_COACH_IMAGE_COUNT = 4
@@ -162,10 +162,17 @@ function applyCoachAuthorization(context, authorization) {
   }
 }
 
+function parseImageDataUrl(dataUrl, message = 'Attached image must be PNG, JPEG or WebP.') {
+  const match = String(dataUrl || '').trim().match(IMAGE_PATTERN)
+  if (!match) throw Object.assign(new Error(message), { statusCode: 400, code: 'AI_IMAGE_FORMAT_INVALID' })
+  const base64 = match[2].replace(/\s+/g, '')
+  const mime = match[1].toLowerCase() === 'jpg' ? 'jpeg' : match[1].toLowerCase()
+  return { mime, base64, dataUrl: `data:image/${mime};base64,${base64}` }
+}
+
 function imageBytes(dataUrl) {
-  const match = String(dataUrl || '').match(IMAGE_PATTERN)
-  if (!match) throw Object.assign(new Error('Attached image must be PNG, JPEG or WebP.'), { statusCode: 400 })
-  const bytes = Buffer.byteLength(match[2], 'base64')
+  const parsed = parseImageDataUrl(dataUrl)
+  const bytes = Buffer.byteLength(parsed.base64, 'base64')
   if (!bytes || bytes > MAX_IMAGE_BYTES) throw Object.assign(new Error('Attached image is empty or too large.'), { statusCode: 400 })
   return bytes
 }
@@ -176,7 +183,10 @@ function coachImageDataUrls(payload) {
     : payload?.imageDataUrl
       ? [payload.imageDataUrl]
       : []
-  const images = source.map((value) => String(value || '').trim()).filter(Boolean)
+  const images = source
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .map((value) => parseImageDataUrl(value).dataUrl)
   if (images.length > MAX_COACH_IMAGE_COUNT) {
     throw Object.assign(new Error(`Attach no more than ${MAX_COACH_IMAGE_COUNT} images.`), { statusCode: 400 })
   }
@@ -204,17 +214,16 @@ function cleanupTemporaryImages() {
 }
 
 async function temporaryImageUrl(dataUrl, publicBaseUrl) {
-  if (!publicBaseUrl) return { url: dataUrl, cleanup: () => {} }
-  const match = String(dataUrl || '').match(IMAGE_PATTERN)
-  if (!match) throw Object.assign(new Error('Handwriting image must be PNG, JPEG or WebP.'), { statusCode: 400 })
+  const parsed = parseImageDataUrl(dataUrl)
+  if (!publicBaseUrl) return { url: parsed.dataUrl, cleanup: () => {} }
   cleanupTemporaryImages()
-  const extension = match[1] === 'jpeg' ? 'jpg' : match[1]
-  const mime = `image/${match[1] === 'jpg' ? 'jpeg' : match[1]}`
+  const extension = parsed.mime === 'jpeg' ? 'jpg' : parsed.mime
+  const mime = `image/${parsed.mime}`
   const token = crypto.randomUUID()
   const directory = path.join(os.tmpdir(), 'alevel-physics-ai-images')
   const filePath = path.join(directory, `${token}.${extension}`)
   await fs.promises.mkdir(directory, { recursive: true, mode: 0o700 })
-  await fs.promises.writeFile(filePath, Buffer.from(match[2], 'base64'), { mode: 0o600 })
+  await fs.promises.writeFile(filePath, Buffer.from(parsed.base64, 'base64'), { mode: 0o600 })
   temporaryImages.set(token, { filePath, mime, expiresAt: Date.now() + TEMP_IMAGE_TTL_MS })
   return {
     url: `${publicBaseUrl.replace(/\/+$/, '')}/api/ai/image/${token}`,
@@ -697,16 +706,19 @@ export function providerConfig(env = {}) {
     : 'https://dashscope.aliyuncs.com/compatible-mode/v1'
   const compatibleBaseUrl = normalizeCompatibleBaseUrl(env.DASHSCOPE_COMPAT_BASE_URL || dashscopeBase)
   const dashscopeKey = env.DASHSCOPE_API_KEY || env.QWEN_API_KEY || ''
-  const sharedKey = env.PHYSICS_AI_API_KEY || dashscopeKey
-  const sharedBaseUrl = (env.PHYSICS_AI_BASE_URL || compatibleBaseUrl).replace(/\/+$/, '')
+  // A gateway installation can have a legacy generic Physics alias alongside
+  // an explicit Qwen fallback. Prefer DashScope/Qwen for that fallback; keep
+  // the generic aliases only for an explicitly selected direct Qwen install.
+  const qwenKey = dashscopeKey || (selectedProvider === 'qwen' ? env.PHYSICS_AI_API_KEY || '' : '')
+  const qwenBaseUrl = (env.DASHSCOPE_COMPAT_BASE_URL || (selectedProvider === 'qwen' ? env.PHYSICS_AI_BASE_URL : '') || compatibleBaseUrl).replace(/\/+$/, '')
   const publicBaseUrl = env.PHYSICS_PUBLIC_BASE_URL || env.PUBLIC_BASE_URL || ''
   const imageMode = env.PHYSICS_AI_IMAGE_MODE === 'url' ? 'url' : 'data-url'
   const qwenCoach = {
     name: 'qwen',
     label: 'Qwen',
     protocol: 'chat-completions',
-    apiKey: env.COACH_AI_API_KEY || env.QWEN_COACH_API_KEY || sharedKey,
-    baseUrl: normalizeCompatibleBaseUrl(env.COACH_AI_BASE_URL || env.QWEN_COACH_BASE_URL || sharedBaseUrl),
+    apiKey: env.COACH_AI_API_KEY || env.QWEN_COACH_API_KEY || qwenKey,
+    baseUrl: normalizeCompatibleBaseUrl(env.COACH_AI_BASE_URL || env.QWEN_COACH_BASE_URL || qwenBaseUrl),
     model: env.COACH_AI_MODEL || env.QWEN_COACH_MODEL || env.PHYSICS_COACH_MODEL || 'qwen3.7-max',
     publicBaseUrl,
     imageMode,
@@ -715,8 +727,8 @@ export function providerConfig(env = {}) {
     name: 'qwen',
     label: 'Qwen',
     protocol: 'chat-completions',
-    apiKey: env.VISION_AI_API_KEY || env.QWEN_VISION_API_KEY || sharedKey,
-    baseUrl: normalizeCompatibleBaseUrl(env.VISION_AI_BASE_URL || env.QWEN_VISION_BASE_URL || sharedBaseUrl),
+    apiKey: env.VISION_AI_API_KEY || env.QWEN_VISION_API_KEY || qwenKey,
+    baseUrl: normalizeCompatibleBaseUrl(env.VISION_AI_BASE_URL || env.QWEN_VISION_BASE_URL || qwenBaseUrl),
     model: env.VISION_AI_MODEL || env.QWEN_VISION_MODEL || env.PHYSICS_VISION_MODEL || 'qwen3-vl-plus',
     publicBaseUrl,
     imageMode,

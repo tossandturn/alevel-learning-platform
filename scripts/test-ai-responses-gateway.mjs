@@ -100,6 +100,7 @@ assert.equal(legacyProductionProvider.coach.fallback.name, 'qwen')
 
 const requests = []
 const image = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
+const imageWithFormattingNoise = 'data:image/PNG;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=\n'
 const gatewayServer = http.createServer(async (request, response) => {
   const body = await readBody(request)
   requests.push({ path: request.url, body })
@@ -163,13 +164,14 @@ try {
   assert.equal(textResponse.response.status, 200, textResponse.text)
   assert.match(textResponse.text, /gradient of the graph/)
 
-  const photoResponse = await post('/api/ai/coach/stream', coachPayload('Read this photographed working and identify the next step.', [image, image]))
+  const photoResponse = await post('/api/ai/coach/stream', coachPayload('Read this photographed working and identify the next step.', [imageWithFormattingNoise, image]))
   assert.equal(photoResponse.response.status, 200, photoResponse.text)
   assert.match(photoResponse.text, /The photographed method is consistent/)
   assert.equal(requests.length, 2)
   const responseInput = requests[1].body.input
   const inputParts = responseInput.flatMap((item) => Array.isArray(item.content) ? item.content : [])
   assert.equal(inputParts.filter((item) => item.type === 'input_image').length, 2, 'every attached photo must reach the Responses API')
+  assert.ok(inputParts.filter((item) => item.type === 'input_image').every((item) => /^data:image\/(?:png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(item.image_url)), 'image data URLs must be canonical before they reach the gateway')
 } finally {
   await Promise.all([close(appServer), close(gatewayServer)])
   fs.rmSync(tempRoot, { recursive: true, force: true })
