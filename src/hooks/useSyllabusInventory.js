@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { routeById } from '../data/routeRegistry.js'
+import { syllabusPracticeComponentsForRoute } from '../lib/syllabusPracticeRoutes.js'
 
 function isPlainObject(value) {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value))
@@ -27,8 +28,10 @@ export function validateSyllabusInventoryPayload(payload, expectedRouteId = '') 
     if (String(payload.subjectCode || '').trim() !== expectedRoute.subjectCode) throw new Error('Syllabus inventory subjectCode does not match the selected course.')
     if (String(payload.stage || '').trim() !== expectedRoute.stage) throw new Error('Syllabus inventory stage does not match the selected course.')
     const paperComponents = Array.isArray(payload.paperComponents) ? payload.paperComponents.map(Number) : []
-    if (paperComponents.length !== expectedRoute.paperComponents.length
-      || paperComponents.some((component, index) => component !== Number(expectedRoute.paperComponents[index]))) {
+    const expectedPaperComponents = syllabusPracticeComponentsForRoute(expectedRoute.routeId)
+    const scopedPaperComponents = expectedPaperComponents.length ? expectedPaperComponents : expectedRoute.paperComponents
+    if (paperComponents.length !== scopedPaperComponents.length
+      || paperComponents.some((component, index) => component !== Number(scopedPaperComponents[index]))) {
       throw new Error('Syllabus inventory paper components do not match the selected course.')
     }
   }

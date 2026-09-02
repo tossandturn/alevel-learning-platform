@@ -9,6 +9,7 @@ import paperCatalog from '../public/data/papers.json' with { type: 'json' }
 import { closeStemDatabaseForTests, createStemApi } from '../server/stemApi.js'
 import { attemptedSourceQuestionIds } from '../src/lib/attemptAudit.js'
 import { buildSyllabusPracticeSet, syllabusMappingCandidates, syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
+import { validateSyllabusInventoryPayload } from '../src/hooks/useSyllabusInventory.js'
 
 const routeId = 'cie-9702-as-physics'
 const igcsePhysicsRouteId = 'cie-0625-igcse-physics'
@@ -244,6 +245,8 @@ try {
   const inventoryResponse = await fetch(`${origin}/api/stem/routes/${routeId}/syllabus-topics`)
   assert.equal(inventoryResponse.status, 200)
   const inventory = await inventoryResponse.json()
+  const validatedInventory = validateSyllabusInventoryPayload(inventory, routeId)
+  assert.deepEqual(validatedInventory.paperComponents, [1, 2], 'the client must validate the Topic Drill theory scope, not the separate AS practical component')
   assert.equal(inventory.aggregation, 'sqlite-question-groups-and-syllabus-mappings')
   assert.deepEqual(inventory.assessmentComponents.map((item) => item.component), [1, 2], '9702 Topic Drill must keep P3 practical work in its separate route')
   assert.equal(inventory.topics.length, 11)
