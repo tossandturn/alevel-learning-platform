@@ -36,9 +36,9 @@ try {
   const asInventory = syllabusTopicsInventory({ routeId: 'cie-9702-as-physics', questionBank: unifiedQuestionBank })
   assert.equal(MIN_VERIFIED_GROUPS_FOR_PRACTICE, MIN_QUESTION_GROUPS_PER_TEST * MIN_TESTS_PER_TOPIC)
   assert.equal(asInventory.ready, false, 'the route must remain unavailable while any official topic cannot supply two six-question tests')
-  const tenGroupTopic = asInventory.topics.find((topic) => topic.id === 'physics-9702-topic-05')
+  const tenGroupTopic = asInventory.topics.find((topic) => topic.id === 'physics-9702-topic-06')
   assert.ok(tenGroupTopic, 'the official 9702 AS topic must remain present')
-  assert.equal(tenGroupTopic.verifiedQuestionCount, 10, 'the fixture must expose exactly ten reviewed groups')
+  assert.equal(tenGroupTopic.verifiedQuestionCount, 10, 'the under-floor fixture must expose exactly ten reviewed groups')
   assert.equal(tenGroupTopic.ready, false, 'ten reviewed groups cannot supply two disjoint six-question tests')
   assert.equal(tenGroupTopic.ctaPolicy, 'hidden', 'an under-floor reviewed topic must not expose a misleading study CTA')
   assert.deepEqual(tenGroupTopic.availableSetSizes, [], 'an under-floor reviewed topic must not advertise a startable set')
@@ -76,10 +76,10 @@ try {
 
   const twelveGroupTopic = asInventory.topics.find((topic) => topic.id === 'physics-9702-topic-07')
   assert.ok(twelveGroupTopic, 'the reviewed Waves fixture must remain present')
-  assert.equal(twelveGroupTopic.verifiedQuestionCount, 12, 'the positive fixture must expose two six-question tests')
+  assert.equal(twelveGroupTopic.verifiedQuestionCount, 18, 'the positive fixture must include the newly reviewed superposition mappings')
   assert.equal(twelveGroupTopic.ready, true)
   assert.equal(twelveGroupTopic.ctaPolicy, 'start')
-  assert.deepEqual(twelveGroupTopic.availableSetSizes, [6, 10])
+  assert.deepEqual(twelveGroupTopic.availableSetSizes, [6, 10, 15])
 
   const sixQuestionAttempt = await call(verifiedApi, {
     method: 'POST',

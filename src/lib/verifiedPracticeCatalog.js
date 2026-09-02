@@ -8,6 +8,7 @@ import { SOURCE_CONTENT_MANIFEST_CHECKSUM, SOURCE_INDEX_SHA256 } from '../data/s
 import { withPracticePresentation } from './practicePresentation.js'
 import { MIN_QUESTION_GROUPS_PER_TEST, MIN_VERIFIED_GROUPS_FOR_PRACTICE, practiceCatalogSlices } from './practiceConstants.js'
 import { stableSorted } from './arrayOrder.js'
+import { questionBelongsToTopic, questionTopicMembershipIds } from './questionTopicMembership.js'
 
 export { MIN_VERIFIED_GROUPS_FOR_PRACTICE }
 
@@ -102,7 +103,7 @@ function groupsForRoute(routeId) {
 function planGroupsFor(subject) {
   if (!subject) return []
   const routeQuestions = groupsForRoute(subject.routeId)
-  const questionTopicIds = [...new Set(routeQuestions.map((question) => question.knowledgeGroupId).filter(Boolean))]
+  const questionTopicIds = [...new Set(routeQuestions.flatMap(questionTopicMembershipIds).filter(Boolean))]
   const routePlanGroups = learningPlan.knowledgeGroups.filter((group) => group.routeId === subject.routeId && !group.hidden)
   const externalGroups = [subject.subjectId, subject.planSubjectId]
     .flatMap((subjectId) => EXTERNAL_GROUPS[subjectId] || [])
@@ -133,7 +134,7 @@ export function questionInventory({ routeId, qualificationId, subjectId, stage, 
     (!qualificationId || question.qualificationId === qualificationId)
     && (!subjectId || question.subjectId === subjectId)
     && (!stage || question.stage === stage)
-    && (!knowledgeGroupId || question.knowledgeGroupId === knowledgeGroupId)
+    && questionBelongsToTopic(question, knowledgeGroupId)
   )).length
 }
 
@@ -196,7 +197,7 @@ function selectedQuestions({ routeId, qualificationId, subjectId, stage, knowled
     (!qualificationId || question.qualificationId === qualificationId)
     && (!subjectId || question.subjectId === subjectId)
     && (!stage || question.stage === stage)
-    && question.knowledgeGroupId === knowledgeGroupId
+    && questionBelongsToTopic(question, knowledgeGroupId)
   ))).slice(questionOffset, questionOffset + questionCount)
 }
 
@@ -406,8 +407,8 @@ export function rebindVerifiedPracticeUnit(unit) {
   const orderedGroups = [...new Set(references.map((reference) => reference.sourceQuestionId))]
     .map((sourceQuestionId) => canonicalById.get(sourceQuestionId))
   if (orderedGroups.some((group) => !group)) return null
-  const knowledgeGroupId = orderedGroups[0]?.knowledgeGroupId
-  if (!knowledgeGroupId || orderedGroups.some((group) => group.knowledgeGroupId !== knowledgeGroupId)) return null
+  const knowledgeGroupId = baseTopicId(unit?.knowledgeGroupId || unit?.topicId || orderedGroups[0]?.knowledgeGroupId)
+  if (!knowledgeGroupId || orderedGroups.some((group) => !questionBelongsToTopic(group, knowledgeGroupId))) return null
   const subject = coachPracticeSubjects.find((item) => item.routeId === route.routeId)
   const rebuilt = buildUnit({
     stableUnitId: String(unit.id || `verified-set-${Date.now()}`),

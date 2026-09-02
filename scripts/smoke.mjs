@@ -350,7 +350,7 @@ assert.deepEqual(
   new Set(runtimeVerifiedPracticeQuestionGroups.map((group) => group.sourceQuestionId)),
   'reviewed source groups below the start floor must remain indexed even when they are not standalone startable Topic Drills',
 )
-assert.equal(runtimeVerifiedPracticeQuestionGroups.length, 230, 'the compact runtime catalog must expose only current reviewed groups')
+assert.equal(runtimeVerifiedPracticeQuestionGroups.length, 236, 'the compact runtime catalog must expose only current reviewed groups')
 assert.deepEqual(verifiedPracticeCatalogMetrics(buildRuntimeVerifiedPracticeCatalog()), verifiedCatalogMetrics, 'compact runtime catalog must preserve the reviewed practice inventory')
 assert.equal(new Set(verifiedPracticeCatalog.map((unit) => unit.id)).size, verifiedPracticeCatalog.length, 'verified practice unit IDs must be stable and unique')
 assert.ok(verifiedPracticeCatalog.every((unit) => unit.parts.every((part) => part.routeId === unit.routeId && part.stage === unit.stage && part.sourceRef?.sha256 && part.answerRef?.sha256)), 'catalog practice units must preserve route, stage and independent QP/MS provenance')
@@ -602,7 +602,7 @@ assert.deepEqual(mergeNotebookNote({ body: 'stale offline note', updatedAt: '202
 assert.ok(learningPlan.knowledgeGroups.length >= 10, 'learning plan should expose a usable subject knowledge map')
 assert.ok(learningPlan.practiceModes.some((mode) => mode.id === 'mock-exam'), 'learning plan should expose mock exam mode')
 assert.deepEqual(new Set(learningPlan.subjects.map((subject) => subject.code)), new Set(['0580', '0606', '0610', '0625', '9231', '9700', '9701', '9702', '9708', '9709']), 'knowledge map must expose all requested Cambridge subjects')
-assert.equal(unifiedQuestionBank.length, 230, 'question-level index must expose only the currently reviewed source-complete question groups')
+assert.equal(unifiedQuestionBank.length, 236, 'question-level index must expose only the currently reviewed source-complete question groups')
 assert.ok(unifiedQuestionBank.every(isVerifiedPastPaperItem), 'formal topic drills must contain only QP/MS-bound items')
 assert.ok(unifiedQuestionBank.every((item) => item.sourceRef.sha256 !== item.answerRef.sha256), 'question and answer documents must remain independently bound')
 
@@ -616,7 +616,11 @@ const reviewedPhysicsDrill = selectTaggedQuestions({
 assert.equal(reviewedPhysicsDrill.length, 10, 'the reviewed Dynamics inventory must provide a complete ten-question AS source set without substituting pending work')
 assert.ok(reviewedPhysicsDrill.every((item) => [1, 2].includes(item.sourceRef?.component) && item.answerBinding?.verificationStatus === 'reviewed'), 'AS Physics Topic Drill must remain limited to reviewed AS QP/MS bindings')
 const reviewedPhysicsUnit = buildCoachPractice({ routeId: 'cie-9702-as-physics', knowledgeGroupId: 'physics-9702-topic-03', questionCount: 10, allowPartial: true })
-assert.equal(reviewedPhysicsUnit.parts.length, 17, 'a complete Dynamics set must retain every reviewed part across its ten coherent question groups')
+assert.equal(
+  reviewedPhysicsUnit.parts.length,
+  reviewedPhysicsDrill.reduce((sum, item) => sum + item.parts.length, 0),
+  'a complete Dynamics set must retain every reviewed part across its ten coherent question groups, including explicit secondary memberships',
+)
 assert.equal(reviewedPhysicsUnit.inventoryStatus, 'verified-source-inventory', 'a topic meeting the reviewed ten-question release threshold must expose a verified inventory status')
 assert.ok(reviewedPhysicsUnit.parts.every((part) => [1, 2].includes(part.sourceRef?.component) && part.answerBinding?.verificationStatus === 'reviewed'), 'generated AS practice must not mix in unreviewed AS source groups')
 const mixedPhysicsDrill = selectTaggedQuestions({

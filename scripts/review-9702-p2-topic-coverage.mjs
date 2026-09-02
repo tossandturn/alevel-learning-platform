@@ -88,6 +88,8 @@ function reviewQuestion({ question, answer, binding, review, paperSource }) {
   assert.equal(question.sourceRef?.sha256, paperSource.questionPaper.sha256, `${question.questionId}: QP checksum mismatch`)
   assert.equal(answer.answerRef?.sha256, paperSource.markScheme.sha256, `${question.questionId}: MS checksum mismatch`)
   assert.equal(review.parts.reduce((sum, part) => sum + part.marks, 0), review.totalMarks, `${question.questionId}: reviewed marks do not close`)
+  const reviewedAt = review.reviewedAt || paperSource.reviewedAt
+  const reviewedBy = review.reviewedBy || paperSource.reviewedBy
 
   const questionAssetsByPage = new Map(review.questionPages.map((page) => [
     page,
@@ -167,14 +169,15 @@ function reviewQuestion({ question, answer, binding, review, paperSource }) {
       ...(question.syllabusMapping || {}),
       schemaVersion: 'question-syllabus-mapping-v1',
       specificationId: 'cambridge-9702-2025-2027',
+      knowledgeGroupId: review.primaryTopicId,
       primaryTopicId: review.primaryTopicId,
       secondaryTopicIds: [...review.secondaryTopicIds],
       syllabusPointIds: [...review.syllabusPointIds],
       confidence: review.mappingConfidence,
       mappingMethod: review.mappingMethod,
       reviewStatus: 'reviewed',
-      reviewedBy: paperSource.reviewedBy,
-      reviewedAt: paperSource.reviewedAt,
+      reviewedBy,
+      reviewedAt,
       reviewEvidence: {
         method: paperSource.reviewMethod,
         questionPaperId: paperSource.questionPaper.id,
@@ -221,8 +224,8 @@ function reviewQuestion({ question, answer, binding, review, paperSource }) {
     verificationStatus: 'reviewed',
     questionDocumentSha256: nextQuestion.sourceRef.sha256,
     answerDocumentSha256: nextAnswer.answerRef.sha256,
-    reviewedAt: paperSource.reviewedAt,
-    reviewedBy: paperSource.reviewedBy,
+    reviewedAt,
+    reviewedBy,
     reviewEvidence: {
       method: paperSource.reviewMethod,
       reviewProtocolVersion: CAMBRIDGE_9702_P2_TOPIC_COVERAGE_REVIEW_SCHEMA_VERSION,

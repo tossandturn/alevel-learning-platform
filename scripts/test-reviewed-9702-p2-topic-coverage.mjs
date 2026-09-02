@@ -33,6 +33,14 @@ const exactReviewedMarkPoints = new Map([
   ['cie-9702-9702_w25_qp_24:q1:part-a(iv)', ['straight diagonal line from t = 0 to t = 3.2 s, starting at positive velocity and crossing the time axis', 'line starts at v = 16 m s^-1 and ends at v = -16 m s^-1', 'line passes through v = 0 at t = 1.6 s']],
   ['cie-9702-9702_w25_qp_24:q3:part-d', ['all gravitational potential energy has been converted to, or is equal to, elastic potential energy, so there is no kinetic energy', 'kinetic energy is zero, so speed is zero']],
 ])
+const newlyReviewedGroups = new Map([
+  ['cie-9702-9702_s25_qp_22:q1', { totalMarks: 17, primaryTopicId: 'physics-9702-topic-05', secondaryTopicIds: ['physics-9702-topic-01'], reviewedAt: '2026-09-02T17:41:59+08:00' }],
+  ['cie-9702-9702_m24_qp_22:q2', { totalMarks: 11, primaryTopicId: 'physics-9702-topic-02', secondaryTopicIds: ['physics-9702-topic-04'], reviewedAt: '2026-09-02T17:41:59+08:00' }],
+  ['cie-9702-9702_s25_qp_21:q4', { totalMarks: 8, primaryTopicId: 'physics-9702-topic-08', secondaryTopicIds: ['physics-9702-topic-07'], reviewedAt: '2026-09-02T17:41:59+08:00' }],
+  ['cie-9702-9702_s25_qp_23:q6', { totalMarks: 8, primaryTopicId: 'physics-9702-topic-08', secondaryTopicIds: ['physics-9702-topic-07'], reviewedAt: '2026-09-02T17:41:59+08:00' }],
+  ['cie-9702-9702_m24_qp_22:q4', { totalMarks: 6, primaryTopicId: 'physics-9702-topic-11', secondaryTopicIds: [], reviewedAt: '2026-09-02T17:41:59+08:00' }],
+  ['cie-9702-9702_m24_qp_22:q8', { totalMarks: 6, primaryTopicId: 'physics-9702-topic-11', secondaryTopicIds: [], reviewedAt: '2026-09-02T17:41:59+08:00' }],
+])
 const reviewedIds = []
 
 function assetFile(url) {
@@ -49,7 +57,7 @@ function actualAssetSha256(url) {
 
 assert.equal(CAMBRIDGE_9702_P2_TOPIC_COVERAGE_REVIEW_SCHEMA_VERSION, 'cambridge-9702-p2-topic-coverage-review.v1')
 assert.equal(CAMBRIDGE_9702_P2_TOPIC_COVERAGE_REVIEW_LEDGERS.length, 9)
-assert.equal(CAMBRIDGE_9702_P2_TOPIC_COVERAGE_REVIEW_LEDGERS.reduce((sum, paper) => sum + paper.questions.length, 0), 25)
+assert.equal(CAMBRIDGE_9702_P2_TOPIC_COVERAGE_REVIEW_LEDGERS.reduce((sum, paper) => sum + paper.questions.length, 0), 31)
 
 for (const paperReview of CAMBRIDGE_9702_P2_TOPIC_COVERAGE_REVIEW_LEDGERS) {
   assert.equal(paperReview.component, 2, `${paperReview.paperId}: supplemental Topic coverage must remain Paper 2 theory`)
@@ -83,6 +91,15 @@ for (const paperReview of CAMBRIDGE_9702_P2_TOPIC_COVERAGE_REVIEW_LEDGERS) {
     assert.equal(question.syllabusMapping.reviewStatus, 'reviewed')
     assert.equal(question.syllabusMapping.primaryTopicId, reviewedQuestion.primaryTopicId)
     assert.deepEqual(question.syllabusMapping.syllabusPointIds, reviewedQuestion.syllabusPointIds)
+    const newlyReviewed = newlyReviewedGroups.get(questionId)
+    if (newlyReviewed) {
+      assert.equal(question.totalMarks, newlyReviewed.totalMarks, `${questionId}: official QP total marks must override the incomplete machine segmentation`)
+      assert.equal(question.topicId, newlyReviewed.primaryTopicId, `${questionId}: top-level topic must match the reviewed primary topic`)
+      assert.equal(question.knowledgeGroupId, newlyReviewed.primaryTopicId, `${questionId}: knowledge-group topic must match the reviewed primary topic`)
+      assert.equal(question.syllabusMapping.knowledgeGroupId, newlyReviewed.primaryTopicId, `${questionId}: mapping knowledge-group topic must match the reviewed primary topic`)
+      assert.deepEqual(question.syllabusMapping.secondaryTopicIds, newlyReviewed.secondaryTopicIds, `${questionId}: secondary topic memberships must remain explicit`)
+      assert.equal(question.syllabusMapping.reviewedAt, newlyReviewed.reviewedAt, `${questionId}: review timestamp must reflect the current visual review`)
+    }
     assert.deepEqual(
       question.sourceRef.assetUrls.map((url) => Number(url.match(/qp-(\d+)\./)?.[1])),
       reviewedQuestion.questionPages,
@@ -124,19 +141,19 @@ for (const paperReview of CAMBRIDGE_9702_P2_TOPIC_COVERAGE_REVIEW_LEDGERS) {
   }
 }
 
-assert.equal(new Set(reviewedIds).size, 25, 'supplemental review IDs must be unique')
-assert.equal(unifiedQuestionBank.filter((question) => reviewedIds.includes(question.sourceQuestionId)).length, 25, 'every supplemental group must enter the canonical gated bank')
+assert.equal(new Set(reviewedIds).size, 31, 'supplemental review IDs must be unique')
+assert.equal(unifiedQuestionBank.filter((question) => reviewedIds.includes(question.sourceQuestionId)).length, 31, 'every supplemental group must enter the canonical gated bank')
 
 const inventory = syllabusTopicsInventory({ routeId: 'cie-9702-as-physics', questionBank: unifiedQuestionBank })
-assert.equal(inventory.verifiedQuestionGroupCount, 112)
-assert.deepEqual(inventory.topics.map((topic) => topic.verifiedQuestionCount), [10, 10, 10, 10, 10, 10, 12, 10, 10, 10, 10])
-assert.equal(inventory.topics.filter((topic) => topic.ready && topic.ctaPolicy === 'start').length, 1)
-assert.equal(inventory.topics.filter((topic) => !topic.ready && topic.ctaPolicy === 'hidden').length, 10)
+assert.equal(inventory.verifiedQuestionGroupCount, 118)
+assert.deepEqual(inventory.topics.map((topic) => topic.verifiedQuestionCount), [12, 12, 13, 13, 17, 10, 18, 12, 15, 12, 12])
+assert.equal(inventory.topics.filter((topic) => topic.ready && topic.ctaPolicy === 'start').length, 10)
+assert.equal(inventory.topics.filter((topic) => !topic.ready && topic.ctaPolicy === 'hidden').length, 1)
 assert.equal(inventory.ready, false, 'a route remains unavailable until every official topic can supply two six-question tests')
 assert.deepEqual(
   inventory.topics.find((topic) => topic.id === 'physics-9702-topic-07')?.availableSetSizes,
-  [6, 10],
-  'only the current twelve-group positive fixture may advertise startable test sizes',
+  [6, 10, 15],
+  'every topic with at least twelve reviewed groups may advertise its available formal set sizes',
 )
 
 for (const topic of inventory.topics) {

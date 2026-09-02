@@ -4,6 +4,7 @@ import { normaliseQuestionGroup } from './questionParts.js'
 import { hasCompleteSourceContent, hasRequiredSourceVisual, reviewedSourceFocusBinding, sourceContentStatus } from '../lib/questionContent.js'
 import { canonicalAiMarkingProvenance, canonicalSourceMarkingProvenance } from '../lib/sourceContentContract.js'
 import { stableSorted } from '../lib/arrayOrder.js'
+import { questionBelongsToTopic } from '../lib/questionTopicMembership.js'
 
 const REQUIRED_SOURCE_FIELDS = ['paperId', 'paper', 'question', 'localUrl', 'pageStart', 'sha256']
 const REQUIRED_ANSWER_FIELDS = ['documentId', 'file', 'localUrl', 'pageStart', 'sha256']
@@ -281,7 +282,7 @@ export function selectTaggedQuestions({
     question.routeId === routeId
     && (!qualificationId || question.qualificationId === qualificationId)
     && (!subjectId || question.subjectId === subjectId)
-    && question.knowledgeGroupId === knowledgeGroupId
+    && questionBelongsToTopic(question, knowledgeGroupId)
     && (!stage || question.stage === stage)
     && isVerifiedPastPaperItem(question)
   ))
@@ -349,7 +350,7 @@ export function questionInventory({ routeId, qualificationId, subjectId, stage, 
     && (!qualificationId || question.qualificationId === qualificationId)
     && (!subjectId || question.subjectId === subjectId)
     && (!stage || question.stage === stage)
-    && (!knowledgeGroupId || question.knowledgeGroupId === knowledgeGroupId)
+    && questionBelongsToTopic(question, knowledgeGroupId)
     && isVerifiedPastPaperItem(question)
   )).length
 }

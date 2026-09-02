@@ -49,9 +49,15 @@ const sourceAdditionalQuarantined = Object.values(manifestItems).filter((item) =
 )).length
 function topicIdsForItem(item, routeId) {
   const mapping = item.syllabusMapping || {}
-  const suppliedTopicIds = Array.isArray(mapping.topicIds) && mapping.topicIds.length
+  const reviewed = String(mapping.reviewStatus || '').toLowerCase() === 'reviewed'
+  const suppliedSecondaryTopicIds = reviewed && Array.isArray(mapping.secondaryTopicIds)
+    ? mapping.secondaryTopicIds
+    : []
+  const primaryTopicId = mapping.primaryTopicId || mapping.knowledgeGroupId || item.knowledgeGroupId || item.topicId
+  const suppliedExplicitTopicIds = reviewed && Array.isArray(mapping.topicIds)
     ? mapping.topicIds
-    : [mapping.primaryTopicId || mapping.knowledgeGroupId || item.knowledgeGroupId || item.topicId]
+    : []
+  const suppliedTopicIds = [primaryTopicId, ...suppliedExplicitTopicIds, ...suppliedSecondaryTopicIds]
   return distinct(suppliedTopicIds
     .map((topicId) => canonicalSyllabusTopicIdForRoute(routeId, topicId)))
 }

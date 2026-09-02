@@ -478,20 +478,33 @@ function candidateMappingFor(question, syllabus, config = {}) {
   const topicId = canonicalSyllabusTopicIdForRoute(syllabus.routeId, mappedTopicId)
   const topic = syllabus.topics.find((item) => item.id === topicId)
   if (!topic) return null
-  const suppliedStatus = String(question.syllabusMapping?.reviewStatus || '').toLowerCase()
+  const suppliedMapping = question.syllabusMapping || {}
+  const suppliedStatus = String(suppliedMapping.reviewStatus || '').toLowerCase()
   const reviewed = suppliedStatus === 'reviewed'
+  const validTopicIds = new Set(syllabus.topics.map((item) => item.id))
+  const suppliedSecondaryTopicIds = Array.isArray(suppliedMapping.secondaryTopicIds)
+    ? suppliedMapping.secondaryTopicIds.map((value) => canonicalSyllabusTopicIdForRoute(syllabus.routeId, String(value || '').trim())).filter(Boolean)
+    : []
+  // Reviewed ledgers may bind one question to more than one official topic.
+  // Keep those explicit secondary memberships for inventory and practice, but
+  // fail closed if a reviewed record points outside this route's syllabus.
+  if (reviewed && suppliedSecondaryTopicIds.some((secondaryTopicId) => !validTopicIds.has(secondaryTopicId))) return null
+  const secondaryTopicIds = reviewed
+    ? [...new Set(suppliedSecondaryTopicIds)].filter((secondaryTopicId) => secondaryTopicId !== topic.id)
+    : []
+  const topicIds = Object.freeze([topic.id, ...secondaryTopicIds])
   return Object.freeze({
     schemaVersion: SYLLABUS_MAPPING_SCHEMA_VERSION,
     questionGroupId: question.sourceQuestionId || question.questionGroupId,
     primaryTopicId: topic.id,
-    secondaryTopicIds: Object.freeze([]),
-    topicIds: Object.freeze([topic.id]),
-    syllabusPointIds: Object.freeze(question.syllabusMapping?.syllabusPointIds || []),
-    confidence: reviewed ? Number(question.syllabusMapping?.confidence || 1) : 0.5,
+    secondaryTopicIds: Object.freeze(secondaryTopicIds),
+    topicIds,
+    syllabusPointIds: Object.freeze(suppliedMapping.syllabusPointIds || []),
+    confidence: reviewed ? Number(suppliedMapping.confidence || 1) : 0.5,
     mappingMethod: reviewed ? 'manual' : 'rule',
     reviewStatus: reviewed ? 'reviewed' : 'pending',
-    reviewedBy: reviewed ? question.syllabusMapping.reviewedBy || null : null,
-    reviewedAt: reviewed ? question.syllabusMapping.reviewedAt || null : null,
+    reviewedBy: reviewed ? suppliedMapping.reviewedBy || null : null,
+    reviewedAt: reviewed ? suppliedMapping.reviewedAt || null : null,
     reviewReason: reviewed ? null : 'Machine-indexed topic tag is a review candidate, not publishable evidence.',
   })
 }

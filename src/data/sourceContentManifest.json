@@ -1,6 +1,6 @@
 {
   "schemaVersion": "source-content-audit-v3",
-  "sourceIndexSha256": "b8876300572521a0d835e6ddffdede4f47b5190e138b68d4a144176e9b79fb08",
+  "sourceIndexSha256": "9d7d9351c90435eda2ab6c52c9a93e9255935e8c4304387c6dfb28170b698020",
   "items": {
     "amc12-amc12-2025A-exam:q1": {
       "complete": false,
@@ -18387,14 +18387,11 @@
       ]
     },
     "cie-9702-9702_m24_qp_22:q2": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "semantic-quarantined",
-      "reasons": [
-        "human-semantic-review-required",
-        "source-range-ends-before-next-question:7<9"
-      ],
-      "bindingSignature": "fnv1a64:89d9be730bc3a21b",
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:ea4518393cc51a50",
       "questionAssets": [
         {
           "page": 6,
@@ -18421,13 +18418,11 @@
       ]
     },
     "cie-9702-9702_m24_qp_22:q4": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:5cf91b17a9a6cab6",
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:5ad1af4a3d6c4c4f",
       "questionAssets": [
         {
           "page": 10,
@@ -18521,13 +18516,11 @@
       ]
     },
     "cie-9702-9702_m24_qp_22:q8": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:b8c32ad8ce70e6f7",
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:5a572b994259bc1e",
       "questionAssets": [
         {
           "page": 16,
@@ -21727,13 +21720,11 @@
       ]
     },
     "cie-9702-9702_s25_qp_21:q4": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:e645c7b4454b0ef3",
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:d1e96d27da52336f",
       "questionAssets": [
         {
           "page": 10,
@@ -21842,13 +21833,11 @@
       ]
     },
     "cie-9702-9702_s25_qp_22:q1": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:778c1d202b2f5640",
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:06f7967a96be0b47",
       "questionAssets": [
         {
           "page": 4,
@@ -22203,13 +22192,11 @@
       ]
     },
     "cie-9702-9702_s25_qp_23:q6": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:3cdf08f2b7844a54",
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:0945b4ed61ab156c",
       "questionAssets": [
         {
           "page": 14,
@@ -36194,5 +36181,5 @@
       ]
     }
   },
-  "checksum": "3ba6d695b66e3aa7f925503881dd4dc96c1f4f9aa30dce2766a1c86984b20ead"
+  "checksum": "790ce8d48e4baee0982b50e42be35d5bd8505a2c8c9c1535a0811c4ff1219cf4"
 }

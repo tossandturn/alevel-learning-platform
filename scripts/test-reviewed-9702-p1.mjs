@@ -94,7 +94,7 @@ assert.equal(
 )
 
 const inventory = syllabusTopicsInventory({ routeId, questionBank: unifiedQuestionBank })
-assert.equal(inventory.verifiedQuestionGroupCount, 112, '9702 AS inventory must expose the reviewed P1 and P2 source batches')
+assert.equal(inventory.verifiedQuestionGroupCount, 118, '9702 AS inventory must expose the reviewed P1 and P2 source batches')
 assert.ok(inventory.topics.every((topic) => topic.verifiedQuestionCount >= 10), 'every official 9702 AS topic requires at least ten reviewed groups before release')
 
 for (const topic of inventory.topics) {

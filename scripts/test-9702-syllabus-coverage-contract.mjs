@@ -44,10 +44,10 @@ assert.equal(
 const report = JSON.parse(result.stdout)
 assert.equal(report.status, 'partial', 'partial inventory must be reported truthfully rather than as full coverage')
 assert.equal(report.formalReadiness.routeReady, false, 'the route must remain unavailable while any official topic is under the formal floor')
-assert.equal(report.formalReadiness.underFloorTopicCount, 10, 'the fixture must retain ten under-floor official topics')
+assert.equal(report.formalReadiness.underFloorTopicCount, 1, 'the fixture must retain one under-floor official topic after reviewed mappings are added')
 
 const underFloorTopics = report.topics.filter((topic) => topic.verifiedQuestionCount < MIN_VERIFIED_GROUPS_FOR_PRACTICE)
-assert.equal(underFloorTopics.length, 10)
+assert.equal(underFloorTopics.length, 1)
 assert.ok(
   underFloorTopics.every((topic) => (
     topic.ready === false
@@ -60,6 +60,7 @@ assert.ok(
 
 const readyTopics = report.topics.filter((topic) => topic.verifiedQuestionCount >= MIN_VERIFIED_GROUPS_FOR_PRACTICE)
 assert.ok(readyTopics.length > 0, 'the fixture must retain a qualifying topic')
+assert.equal(readyTopics.length, 10, 'reviewed mappings must raise the ready-topic count to ten')
 assert.ok(
   readyTopics.every((topic) => topic.ready === true && topic.ctaPolicy === 'start'),
   'topics at or above the formal floor must remain startable',

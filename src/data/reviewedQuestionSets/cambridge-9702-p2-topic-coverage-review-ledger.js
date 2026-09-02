@@ -1,6 +1,7 @@
 /*
  * Manual source-semantic review ledger for the 9702 AS Paper 2 question
- * groups used to bring every official syllabus topic to ten reviewed groups.
+ * groups used to bring every official syllabus topic to at least twelve
+ * reviewed groups.
  *
  * Each entry was checked against every listed QP page and the paired MS page.
  * The generated student record shows the official page images; imported OCR is
@@ -11,6 +12,7 @@ export const CAMBRIDGE_9702_P2_TOPIC_COVERAGE_REVIEW_SCHEMA_VERSION = 'cambridge
 
 const REVIEWED_AT = '2026-08-15T18:30:00+08:00'
 const REVIEWED_BY = 'Codex manual QP/MS visual review / 9702-P2-topic-coverage'
+const ADDITIONAL_REVIEWED_AT = '2026-09-02T17:41:59+08:00'
 
 function topicId(code) {
   return `physics-9702-topic-${String(code).padStart(2, '0')}`
@@ -40,6 +42,8 @@ function question({
   questionNumber,
   primaryTopicCode,
   secondaryTopicCodes = [],
+  reviewedAt = null,
+  reviewedBy = null,
   syllabusPoints,
   questionPages,
   markSchemePages,
@@ -59,6 +63,8 @@ function question({
     syllabusPointIds: Object.freeze(syllabusPoints.map(([sectionCode, outcomeNumber]) => syllabusPointId(sectionCode, outcomeNumber))),
     mappingMethod: 'manual',
     mappingConfidence: 1,
+    ...(reviewedAt ? { reviewedAt } : {}),
+    ...(reviewedBy ? { reviewedBy } : {}),
     questionPages: Object.freeze([...questionPages]),
     markSchemePages: Object.freeze([...markSchemePages]),
     totalMarks,
@@ -118,6 +124,76 @@ export const CAMBRIDGE_9702_P2_TOPIC_COVERAGE_REVIEW_LEDGERS = Object.freeze([
           part('b(i)', 1, 13, 11), part('b(ii)', 1, 13, 11), part('b(iii)', 1, 13, 11),
         ],
       }),
+      question({
+        questionNumber: 2,
+        primaryTopicCode: 2,
+        secondaryTopicCodes: [4],
+        reviewedAt: ADDITIONAL_REVIEWED_AT,
+        syllabusPoints: [['2.1', 1], ['2.1', 6], ['2.1', 7], ['2.1', 9], ['4.3', 5], ['4.3', 6]],
+        questionPages: [6, 7],
+        markSchemePages: [7, 8],
+        parts: [
+          part('a', 1, 6, 7, [
+            'rate of change of velocity',
+          ]),
+          part('b', 3, 6, 7, [
+            '½ m(Δ)v² = mg(Δ)h',
+            'v² = 5.9² + 2 × 9.81 × 7.8; v² = 188',
+            'v = 14 m s⁻¹ OR by resolving components: v² = u² + 2as; vᵥ = 13.4; vₕ = 2.95; resultant velocity = √(13.4² + 2.95²) = 14 m s⁻¹',
+          ]),
+          part('c(i)', 2, 7, 7, [
+            '(As the diver moves down their) speed decreases',
+            '(So) viscous force / drag (force) decreases',
+          ]),
+          part('c(ii)', 1, 7, 7, [
+            '(F = ) ρgV = 1000 × 9.81 × 7.5 × 10⁻² = 740 (N)',
+          ]),
+          part('c(iii)', 4, 7, 8, [
+            'resultant force = 740 + 950 − (78 × 9.81) = 925',
+            'acceleration = F / m',
+            '= 925 / 78 = 12 m s⁻²',
+            '(vertically) upwards',
+          ]),
+        ],
+      }),
+      question({
+        questionNumber: 4,
+        primaryTopicCode: 11,
+        syllabusPoints: [['11.1', 3], ['11.1', 5], ['11.1', 6], ['11.1', 11]],
+        reviewedAt: ADDITIONAL_REVIEWED_AT,
+        questionPages: [10],
+        markSchemePages: [10],
+        parts: [
+          part('a', 2, 10, 10, [
+            '⁴₂α',
+            '²¹¹₈₂Q',
+          ]),
+          part('b(i)', 2, 10, 10, [
+            'sum / total momentum (of a system of bodies) is constant or sum / total momentum before = sum / total momentum after',
+            'for an isolated system / no (resultant) external force',
+          ]),
+          part('b(ii)', 2, 10, 10, [
+            'pα = pP − pQ; 4(u)v = 215(u) × 3.2 × 10⁵ (− 0)',
+            'v = 215(u) × 3.2 × 10⁵ / 4(u) = 1.7 × 10⁷ m s⁻¹',
+          ]),
+        ],
+      }),
+      question({
+        questionNumber: 8,
+        primaryTopicCode: 11,
+        syllabusPoints: [['11.1', 3], ['11.1', 7], ['11.2', 1], ['11.2', 2], ['11.2', 4], ['11.2', 6]],
+        reviewedAt: ADDITIONAL_REVIEWED_AT,
+        questionPages: [16],
+        markSchemePages: [13],
+        parts: [
+          part('a', 1, 16, 13, ['lepton(s)']),
+          part('b(i)', 1, 16, 13, ['up or top or charm']),
+          part('b(ii)', 1, 16, 13, ['meson(s)']),
+          part('c(i)', 1, 16, 13, ['β⁻ (particle) or electron']),
+          part('c(ii)', 1, 16, 13, ['equal']),
+          part('c(iii)', 1, 16, 13, ['(the charge of) R is greater (than Q)']),
+        ],
+      }),
     ],
   }),
   paper({
@@ -142,6 +218,31 @@ export const CAMBRIDGE_9702_P2_TOPIC_COVERAGE_REVIEW_LEDGERS = Object.freeze([
         markSchemePages: [13],
         parts: [part('a(i)', 1, 14, 13), part('a(ii)', 2, 14, 13), part('a(iii)', 3, 14, 13), part('b(i)', 2, 15, 13), part('b(ii)', 1, 15, 13)],
       }),
+      question({
+        questionNumber: 4,
+        primaryTopicCode: 8,
+        secondaryTopicCodes: [7],
+        reviewedAt: ADDITIONAL_REVIEWED_AT,
+        syllabusPoints: [['7.1', 5], ['8.1', 1], ['8.3', 1], ['8.3', 3], ['8.3', 4]],
+        questionPages: [10, 11],
+        markSchemePages: [11, 12],
+        parts: [
+          part('a', 2, 10, 11, [
+            '(when two or more) waves meet/overlap (at a point)',
+            '(resultant) displacement is sum of the individual displacements',
+          ]),
+          part('b(i)', 3, 11, 11, [
+            'Fringe width, x = 3.2 × 10⁻² / 8 = 4.0 × 10⁻³ (m)',
+            'D = ax / λ = (4.0 × 10⁻³ × 0.16 × 10⁻³) / 7.2 × 10⁻⁷',
+            '= 0.89 m',
+          ]),
+          part('b(ii)', 3, 11, 12, [
+            'Curved line with a negative gradient of decreasing magnitude throughout, from slit separation 0.04 mm to 0.16 mm',
+            'Line of negative gradient ending at (0.16, 0.4), from slit separation 0.04 mm',
+            'Line of negative gradient passing through (0.08, 0.8) and (0.04, 1.6)',
+          ]),
+        ],
+      }),
     ],
   }),
   paper({
@@ -149,6 +250,44 @@ export const CAMBRIDGE_9702_P2_TOPIC_COVERAGE_REVIEW_LEDGERS = Object.freeze([
     questionPaperFile: '9702_s25_qp_22.pdf',
     markSchemeFile: '9702_s25_ms_22.pdf',
     questions: [
+      question({
+        questionNumber: 1,
+        primaryTopicCode: 5,
+        secondaryTopicCodes: [1],
+        reviewedAt: ADDITIONAL_REVIEWED_AT,
+        syllabusPoints: [['1.4', 1], ['5.1', 1], ['5.1', 5], ['5.1', 6], ['5.2', 3], ['5.2', 4]],
+        questionPages: [4, 5],
+        markSchemePages: [8, 9],
+        parts: [
+          part('a', 2, 4, 8, [
+            'acceleration and displacement identified as vectors (and no others)',
+            'speed, temperature and gravitational potential energy identified as scalars (and no others)',
+          ]),
+          part('b(i)', 10, 4, 8, [
+            'W = Fs or W = mas',
+            's = v² / 2a or a = v² / 2s or as = v² / 2',
+            'W = ma(v² / 2a) or W = m(v² / 2s)s or W = m(v² / 2) and (so E_K )= ½mv²',
+            'OR',
+            'F = mv / t and s = ½vt',
+            'W = mv / t × ½vt and (so E_K )= ½mv²',
+            'a = v / t and s = ½vt',
+            'W = m(v / t)(½vt) and (so E_K )= ½mv²',
+            'a = v / t and s = ½at²',
+            'W = m(v / t)(½ × (v / t) × t²) and (so E_K )= ½mv²',
+          ]),
+          part('b(ii)', 1, 4, 9, [
+            'kinetic energy = ½ mv² = ½ × 920 × 17² = 1.3 × 10⁵ J',
+          ]),
+          part('b(iii)', 3, 5, 9, [
+            'P = W / t',
+            '= (4.7 × 10⁴ + 1.3 × 10⁵) / 5.8',
+            '= 3.1 × 10⁴ W',
+          ]),
+          part('b(iv)', 1, 5, 9, [
+            '(at/after t = 5.8 s) the kinetic energy of the car does not change / work is done only against resistive forces / no work is done to accelerate the car, so power output is less',
+          ]),
+        ],
+      }),
       question({
         questionNumber: 4,
         primaryTopicCode: 3,
@@ -172,14 +311,43 @@ export const CAMBRIDGE_9702_P2_TOPIC_COVERAGE_REVIEW_LEDGERS = Object.freeze([
     paperId: 'cie-9702-9702_s25_qp_23',
     questionPaperFile: '9702_s25_qp_23.pdf',
     markSchemeFile: '9702_s25_ms_23.pdf',
-    questions: [question({
-      questionNumber: 1,
-      primaryTopicCode: 2,
-      syllabusPoints: [['2.1', 1], ['2.1', 7], ['2.1', 9]],
-      questionPages: [4, 5],
-      markSchemePages: [8],
-      parts: [part('a', 1, 4, 8), part('b', 3, 4, 8), part('c(i)', 2, 5, 8), part('c(ii)', 2, 5, 8)],
-    })],
+    questions: [
+      question({
+        questionNumber: 1,
+        primaryTopicCode: 2,
+        syllabusPoints: [['2.1', 1], ['2.1', 7], ['2.1', 9]],
+        questionPages: [4, 5],
+        markSchemePages: [8],
+        parts: [part('a', 1, 4, 8), part('b', 3, 4, 8), part('c(i)', 2, 5, 8), part('c(ii)', 2, 5, 8)],
+      }),
+      question({
+        questionNumber: 6,
+        primaryTopicCode: 8,
+        secondaryTopicCodes: [7],
+        reviewedAt: ADDITIONAL_REVIEWED_AT,
+        syllabusPoints: [['7.1', 5], ['8.2', 1], ['8.4', 1], ['8.4', 2]],
+        questionPages: [14, 15],
+        markSchemePages: [12],
+        parts: [
+          part('a', 1, 14, 12, [
+            'wave passes (through) an aperture and spreads or wave passes (by / through / around) an edge and spreads',
+          ]),
+          part('b(i)', 2, 14, 12, [
+            'v = fλ',
+            'f = 3.00 × 10⁸ / 720 × 10⁻⁹ = 4.2 × 10¹⁴ Hz',
+          ]),
+          part('b(ii)', 3, 15, 12, [
+            'd = nλ / sin θ',
+            'd = (2 × 720 × 10⁻⁹) / sin 26',
+            'number of lines per m = 1 / (3.3 × 10⁻⁶) = 3.0 × 10⁵ m⁻¹',
+          ]),
+          part('b(iii)', 2, 15, 12, [
+            'λ × 3 = 720 × 2 or 1 / (3.0 × 10⁵) sin 26 = 3λ',
+            'λ = 480 nm',
+          ]),
+        ],
+      }),
+    ],
   }),
   paper({
     paperId: 'cie-9702-9702_s25_qp_24',

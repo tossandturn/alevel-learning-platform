@@ -85,8 +85,8 @@ const p2OnlyPhysicsSet = buildSyllabusPracticeSet({
   components: [2],
   seed: 20260815,
 })
-assert.equal(p2OnlyPhysicsSet.availableCount, 2, 'the current Forces inventory must disclose its exact reviewed P2-only capacity')
-assert.equal(p2OnlyPhysicsSet.questionCount, 2, 'a P2-only request must return a shorter honest set when fewer than ten reviewed groups exist')
+assert.equal(p2OnlyPhysicsSet.availableCount, 5, 'the Forces inventory must include reviewed secondary mappings without duplicating groups')
+assert.equal(p2OnlyPhysicsSet.questionCount, 5, 'a P2-only request must return the exact available reviewed set when fewer than ten groups exist')
 assert.ok(p2OnlyPhysicsSet.questionGroups.every((question) => question.paperComponent === 2), 'P2-only Topic Drill must not fall back to P1 MCQs')
 assert.ok(p2OnlyPhysicsSet.questionGroups.some((question) => question.id === 'cie-9702-9702_m25_qp_22:q2' && question.parts.length === 5 && question.totalMarks === 10), 'P2 Topic Drill must preserve the complete three-page M25/22 Q2 group')
 assert.ok(p2OnlyPhysicsSet.questionGroups.every((question) => question.parts.every((part) => (
@@ -143,8 +143,8 @@ assert.throws(
 
 const candidates = syllabusMappingCandidates()
 assert.equal(candidates.length, 147, 'the current 2023-2025 P1/P2 index must expose its real candidate count')
-assert.equal(candidates.filter((candidate) => candidate.reviewStatus === 'reviewed').length, 112, 'only the manually reviewed P1/P2 source batches may enter the reviewed inventory')
-assert.equal(candidates.filter((candidate) => candidate.reviewStatus === 'pending').length, 35, 'machine-indexed P2 groups must remain pending until source-semantic review')
+assert.equal(candidates.filter((candidate) => candidate.reviewStatus === 'reviewed').length, 118, 'only the manually reviewed P1/P2 source batches may enter the reviewed inventory')
+assert.equal(candidates.filter((candidate) => candidate.reviewStatus === 'pending').length, 29, 'machine-indexed P2 groups must remain pending until source-semantic review')
 assert.equal(candidates.filter((candidate) => candidate.reviewStatus === 'rejected').length, 0, 'the reviewed P2 reconstruction must resolve the former false rejection')
 const reviewedP2Groups = candidates.filter((candidate) => candidate.questionPaperId === 'cie-9702-9702_m25_qp_22')
 assert.equal(reviewedP2Groups.length, 7, 'M25/22 must retain exactly seven question groups')
@@ -210,16 +210,25 @@ assert.equal(officialFirstBatch.length, 46, 'the official 2023-2025 first batch 
 assert.ok(new Set(candidates.map((candidate) => candidate.questionPaperId)).size < officialFirstBatch.length, 'the index must expose the real gap between official papers and indexed groups')
 assert.ok(candidates.every((candidate) => candidate.markSchemeId), 'every candidate must retain its paired mark scheme')
 
+const uniqueIndexedQuestionIds = (topics) => new Set(
+  topics.flatMap((topic) => Object.values(topic.questionIdsByComponent || {})
+    .flatMap((component) => component.indexedQuestionIds || [])),
+)
+const uniqueVerifiedQuestionIds = (topics) => new Set(
+  topics.flatMap((topic) => Object.values(topic.questionIdsByComponent || {})
+    .flatMap((component) => component.verifiedQuestionIds || [])),
+)
+
 const localInventory = syllabusTopicsInventory({ routeId, includeStudyOnly: false })
 assert.equal(localInventory.topics.length, 11)
-assert.equal(localInventory.topics.reduce((sum, topic) => sum + topic.indexedQuestionCount, 0), 147)
+assert.equal(uniqueIndexedQuestionIds(localInventory.topics).size, 147, 'secondary topic memberships must not duplicate unique indexed sourceQuestionIds')
 assert.equal(localInventory.indexedQuestionGroupCount, 147)
 assert.equal(localInventory.unmappedQuestionGroupCount, 0)
-assert.equal(localInventory.topics.reduce((sum, topic) => sum + topic.verifiedQuestionCount, 0), 112)
+assert.equal(uniqueVerifiedQuestionIds(localInventory.topics).size, 118, 'secondary topic memberships must not duplicate unique reviewed sourceQuestionIds')
 assert.ok(localInventory.topics.every((topic) => topic.verifiedQuestionCount >= 10), 'every official AS theory topic must retain its reviewed source inventory')
-assert.equal(localInventory.ready, false, 'the AS route must remain unavailable while ten official topics lack two six-question tests')
-assert.equal(localInventory.topics.filter((topic) => topic.ctaPolicy === 'start').length, 1, 'only the current twelve-group Waves topic may claim formal readiness')
-assert.equal(localInventory.topics.filter((topic) => topic.ctaPolicy === 'hidden').length, 10, 'under-floor reviewed topics must not become study-mode fallbacks')
+assert.equal(localInventory.ready, false, 'the AS route must remain unavailable while an official topic lacks two six-question tests')
+assert.equal(localInventory.topics.filter((topic) => topic.ctaPolicy === 'start').length, 10, 'reviewed mappings must raise the qualifying topic count')
+assert.equal(localInventory.topics.filter((topic) => topic.ctaPolicy === 'hidden').length, 1, 'under-floor reviewed topics must not become study-mode fallbacks')
 
 const api = createStemApi({
   env: { STEM_IDENTITY_SIGNING_KEY: signingKey, STEM_DB_PATH: ':memory:' },
@@ -238,14 +247,14 @@ try {
   assert.equal(inventory.aggregation, 'sqlite-question-groups-and-syllabus-mappings')
   assert.deepEqual(inventory.assessmentComponents.map((item) => item.component), [1, 2], '9702 Topic Drill must keep P3 practical work in its separate route')
   assert.equal(inventory.topics.length, 11)
-  assert.equal(inventory.topics.reduce((sum, topic) => sum + topic.indexedQuestionCount, 0), 147)
+  assert.equal(uniqueIndexedQuestionIds(inventory.topics).size, 147, 'API inventory must deduplicate secondary memberships by sourceQuestionId')
   assert.equal(inventory.indexedQuestionGroupCount, 147)
   assert.equal(inventory.unmappedQuestionGroupCount, 0)
-  assert.equal(inventory.topics.reduce((sum, topic) => sum + topic.verifiedQuestionCount, 0), 112)
+  assert.equal(uniqueVerifiedQuestionIds(inventory.topics).size, 118, 'API inventory must deduplicate reviewed secondary memberships by sourceQuestionId')
   assert.ok(inventory.topics.every((topic) => topic.verifiedQuestionCount >= 10), 'API inventory must use the current canonical reviewed bank')
   assert.equal(inventory.ready, false, 'API inventory must retain the two-test readiness gate')
-  assert.equal(inventory.topics.filter((topic) => topic.ctaPolicy === 'start').length, 1, 'API formal readiness must expose only the current twelve-group topic')
-  assert.equal(inventory.topics.filter((topic) => topic.ctaPolicy === 'hidden').length, 10, 'API must not relabel under-floor reviewed topics as study practice')
+  assert.equal(inventory.topics.filter((topic) => topic.ctaPolicy === 'start').length, 10, 'API formal readiness must expose every topic reaching the reviewed floor')
+  assert.equal(inventory.topics.filter((topic) => topic.ctaPolicy === 'hidden').length, 1, 'API must not relabel under-floor reviewed topics as study practice')
   assert.equal(inventory.officialPaperCount, 46)
   assert.equal(inventory.officialPairedPaperCount, 46)
   assert.ok(inventory.topics.every((topic) => topic.points.length > 0), 'API must return official syllabus points')
@@ -291,7 +300,11 @@ try {
   assert.equal(verifiedSetPayload.answerPartCount, verifiedSetPayload.questionGroups.reduce((sum, group) => sum + group.parts.length, 0))
   assert.equal(verifiedSetPayload.paperCount, new Set(verifiedSetPayload.questionGroups.map((group) => group.sourceRef?.paperId).filter(Boolean)).size)
   assert.equal(verifiedSetPayload.totalMarks, verifiedSetPayload.questionGroups.reduce((sum, group) => sum + group.parts.reduce((partSum, part) => partSum + Number(part.marks || 0), 0), 0))
-  assert.equal(verifiedSetPayload.availableCount, 12)
+  assert.equal(
+    verifiedSetPayload.availableCount,
+    localInventory.topics.find((topic) => topic.id === 'physics-9702-topic-07')?.availableQuestionCount,
+    'practice-set capacity must match the reviewed topic inventory including secondary memberships',
+  )
   assert.ok(verifiedSetPayload.questionGroups.every((question) => [1, 2].includes(question.paperComponent)), 'the positive Topic Drill must remain inside the selected official theory components')
 
   const persistedUnit = {
@@ -437,5 +450,5 @@ console.log(JSON.stringify({
   topics: CAMBRIDGE_9702_AS_SYLLABUS.topics.length,
   points: CAMBRIDGE_9702_AS_SYLLABUS.points.length,
   indexedQuestionGroups: candidates.length,
-  reviewedQuestionGroups: 112,
+  reviewedQuestionGroups: candidates.filter((candidate) => candidate.reviewStatus === 'reviewed').length,
 }))

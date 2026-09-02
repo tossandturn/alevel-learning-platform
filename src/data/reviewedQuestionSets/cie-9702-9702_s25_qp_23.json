@@ -2,12 +2,12 @@
   "schemaVersion": "reviewed-question-set.v1",
   "generatedAt": "2026-08-15T18:30:00+08:00",
   "paperId": "cie-9702-9702_s25_qp_23",
-  "questionCount": 1,
-  "totalMarks": 8,
+  "questionCount": 2,
+  "totalMarks": 16,
   "sourceFragments": [
     {
       "file": "cambridge-9702-p2-topic-coverage-review-ledger.js",
-      "sha256": "80a18ddc778eb09c6442730aa348f11440813979b7c37469a934194e0508f88c"
+      "sha256": "be68a493d936eaa1f124bbd61bbd492d8085283fdaa66df8259e6216201aa82c"
     }
   ],
   "sourceMaterials": {
@@ -220,6 +220,177 @@
       },
       "questionId": "cie-9702-9702_s25_qp_23:q1",
       "answerId": "cie-9702-9702_s25_qp_23:q1:answer"
+    },
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-9702",
+      "specificationId": "cambridge-9702-2025-2027",
+      "subjectId": "physics",
+      "subjectCode": "9702",
+      "knowledgeGroupId": "physics-9702-topic-08",
+      "topicId": "physics-9702-topic-08",
+      "stageTags": [
+        "AS"
+      ],
+      "componentTags": [
+        2
+      ],
+      "topicTags": [
+        "physics-9702-topic-08",
+        "physics-9702-topic-07",
+        "progressive waves",
+        "diffraction"
+      ],
+      "skillTags": [
+        "recall",
+        "definition"
+      ],
+      "answerType": "structured",
+      "prompt": "(a) State what is meant by diffraction.\n\n(b(i)) Light of wavelength 720 nm in a vacuum is incident normally on a diffraction grating as shown in Fig. 6.1.\nCalculate the frequency of the light.\n\n(b(ii)) Calculate the number of lines per unit length in the diffraction grating.\n\n(b(iii)) The light in Fig. 6.1 is now replaced with light of a different wavelength λ. It is observed that the third-order maxima of this light are at the same positions as the second-order maxima of the light in Fig. 6.1.\n\nCalculate, in nm, the wavelength λ.",
+      "questionGroupId": "cie-9702-9702_s25_qp_23:q6",
+      "questionGroupStatus": "verified",
+      "totalMarks": 8,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_s25_qp_23:q6:part-a",
+          "label": "a",
+          "promptFragment": "State what is meant by diffraction.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 14,
+          "sourceEvidence": [
+            {
+              "documentSha256": "102d8dba65d2465573273c93292a1a20cbae2614dd1def31e6146e8b307a49d8",
+              "page": 14,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/qp-14.jpg",
+              "assetSha256": "98b524bfcc401c94903ec77fb60d1e809ba6f0451b26c6370bfe662e02ff2cc3"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_23:q6:part-b(i)",
+          "label": "b(i)",
+          "promptFragment": "Light of wavelength 720 nm in a vacuum is incident normally on a diffraction grating as shown in Fig. 6.1.\nCalculate the frequency of the light.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 14,
+          "sourceEvidence": [
+            {
+              "documentSha256": "102d8dba65d2465573273c93292a1a20cbae2614dd1def31e6146e8b307a49d8",
+              "page": 14,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/qp-14.jpg",
+              "assetSha256": "98b524bfcc401c94903ec77fb60d1e809ba6f0451b26c6370bfe662e02ff2cc3"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_23:q6:part-b(ii)",
+          "label": "b(ii)",
+          "promptFragment": "Calculate the number of lines per unit length in the diffraction grating.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 15,
+          "sourceEvidence": [
+            {
+              "documentSha256": "102d8dba65d2465573273c93292a1a20cbae2614dd1def31e6146e8b307a49d8",
+              "page": 15,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/qp-15.jpg",
+              "assetSha256": "d30a4c5a35b98c566fe6d3b38b67d34057bd24796cba32bcf565527e8a049975"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_23:q6:part-b(iii)",
+          "label": "b(iii)",
+          "promptFragment": "The light in Fig. 6.1 is now replaced with light of a different wavelength λ. It is observed that the third-order maxima of this light are at the same positions as the second-order maxima of the light in Fig. 6.1.\n\nCalculate, in nm, the wavelength λ.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 15,
+          "sourceEvidence": [
+            {
+              "documentSha256": "102d8dba65d2465573273c93292a1a20cbae2614dd1def31e6146e8b307a49d8",
+              "page": 15,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/qp-15.jpg",
+              "assetSha256": "d30a4c5a35b98c566fe6d3b38b67d34057bd24796cba32bcf565527e8a049975"
+            }
+          ]
+        }
+      ],
+      "marks": 8,
+      "sourceRef": {
+        "paperId": "cie-9702-9702_s25_qp_23",
+        "paper": "9702_s25_qp_23.pdf",
+        "question": "Q6",
+        "localUrl": "/local-pdf/9702/9702_s25_qp_23.pdf",
+        "pageStart": 14,
+        "pageEnd": 15,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_s25_qp_23/qp-14.jpg",
+          "/question-assets/cie-9702-9702_s25_qp_23/qp-15.jpg"
+        ],
+        "year": 2025,
+        "season": "Jun",
+        "component": 2,
+        "sha256": "102d8dba65d2465573273c93292a1a20cbae2614dd1def31e6146e8b307a49d8"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-15T05:28:13.139Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-topic-coverage-review.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-9702-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "physics-9702-topic-08",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-08",
+        "secondaryTopicIds": [
+          "physics-9702-topic-07"
+        ],
+        "syllabusPointIds": [
+          "physics-9702-point-7-1-05",
+          "physics-9702-point-8-2-01",
+          "physics-9702-point-8-4-01",
+          "physics-9702-point-8-4-02"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+        "reviewedAt": "2026-09-02T17:41:59+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_s25_qp_23",
+          "markSchemeId": "cie-9702-9702_s25_ms_23",
+          "questionPages": [
+            14,
+            15
+          ],
+          "markSchemePages": [
+            12
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s25_qp_23.pdf",
+          "studentPromptPolicy": "official-source-image",
+          "privateTextPolicy": "hidden-indexing-and-marking-context"
+        }
+      },
+      "questionId": "cie-9702-9702_s25_qp_23:q6",
+      "answerId": "cie-9702-9702_s25_qp_23:q6:answer"
     }
   ],
   "answers": [
@@ -363,6 +534,147 @@
           ]
         }
       ]
+    },
+    {
+      "answerId": "cie-9702-9702_s25_qp_23:q6:answer",
+      "answer": null,
+      "answerKey": null,
+      "markPoints": [
+        "wave passes (through) an aperture and spreads or wave passes (by / through / around) an edge and spreads",
+        "v = fλ",
+        "f = 3.00 × 10⁸ / 720 × 10⁻⁹ = 4.2 × 10¹⁴ Hz",
+        "d = nλ / sin θ",
+        "d = (2 × 720 × 10⁻⁹) / sin 26",
+        "number of lines per m = 1 / (3.3 × 10⁻⁶) = 3.0 × 10⁵ m⁻¹",
+        "λ × 3 = 720 × 2 or 1 / (3.0 × 10⁵) sin 26 = 3λ",
+        "λ = 480 nm"
+      ],
+      "exactAnswer": "(a) wave passes (through) an aperture and spreads or wave passes (by / through / around) an edge and spreads\n\n(b(i)) v = fλ\nf = 3.00 × 10⁸ / 720 × 10⁻⁹ = 4.2 × 10¹⁴ Hz\n\n(b(ii)) d = nλ / sin θ\nd = (2 × 720 × 10⁻⁹) / sin 26\nnumber of lines per m = 1 / (3.3 × 10⁻⁶) = 3.0 × 10⁵ m⁻¹\n\n(b(iii)) λ × 3 = 720 × 2 or 1 / (3.0 × 10⁵) sin 26 = 3λ\nλ = 480 nm",
+      "answerRef": {
+        "documentId": "cie-9702-9702_s25_ms_23",
+        "file": "9702_s25_ms_23.pdf",
+        "localUrl": "/local-pdf/9702/9702_s25_ms_23.pdf",
+        "pageStart": 12,
+        "pageEnd": 12,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_s25_qp_23/ms-12.jpg"
+        ],
+        "sha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_s25_qp_23:q6:part-a",
+          "label": "a",
+          "marks": 1,
+          "markSchemePoints": [
+            "wave passes (through) an aperture and spreads or wave passes (by / through / around) an edge and spreads"
+          ],
+          "answerKey": null,
+          "answerText": "wave passes (through) an aperture and spreads or wave passes (by / through / around) an edge and spreads",
+          "sourcePage": 12,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/ms-12.jpg",
+              "assetSha256": "d03b297814e5d995bab3c9e66431776b28cc8584bea7fae5ddd483bd15fa9408",
+              "text": "wave passes (through) an aperture and spreads or wave passes (by / through / around) an edge and spreads"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_23:q6:part-b(i)",
+          "label": "b(i)",
+          "marks": 2,
+          "markSchemePoints": [
+            "v = fλ",
+            "f = 3.00 × 10⁸ / 720 × 10⁻⁹ = 4.2 × 10¹⁴ Hz"
+          ],
+          "answerKey": null,
+          "answerText": "v = fλ\nf = 3.00 × 10⁸ / 720 × 10⁻⁹ = 4.2 × 10¹⁴ Hz",
+          "sourcePage": 12,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/ms-12.jpg",
+              "assetSha256": "d03b297814e5d995bab3c9e66431776b28cc8584bea7fae5ddd483bd15fa9408",
+              "text": "v = fλ"
+            },
+            {
+              "documentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/ms-12.jpg",
+              "assetSha256": "d03b297814e5d995bab3c9e66431776b28cc8584bea7fae5ddd483bd15fa9408",
+              "text": "f = 3.00 × 10⁸ / 720 × 10⁻⁹ = 4.2 × 10¹⁴ Hz"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_23:q6:part-b(ii)",
+          "label": "b(ii)",
+          "marks": 3,
+          "markSchemePoints": [
+            "d = nλ / sin θ",
+            "d = (2 × 720 × 10⁻⁹) / sin 26",
+            "number of lines per m = 1 / (3.3 × 10⁻⁶) = 3.0 × 10⁵ m⁻¹"
+          ],
+          "answerKey": null,
+          "answerText": "d = nλ / sin θ\nd = (2 × 720 × 10⁻⁹) / sin 26\nnumber of lines per m = 1 / (3.3 × 10⁻⁶) = 3.0 × 10⁵ m⁻¹",
+          "sourcePage": 12,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/ms-12.jpg",
+              "assetSha256": "d03b297814e5d995bab3c9e66431776b28cc8584bea7fae5ddd483bd15fa9408",
+              "text": "d = nλ / sin θ"
+            },
+            {
+              "documentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/ms-12.jpg",
+              "assetSha256": "d03b297814e5d995bab3c9e66431776b28cc8584bea7fae5ddd483bd15fa9408",
+              "text": "d = (2 × 720 × 10⁻⁹) / sin 26"
+            },
+            {
+              "documentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/ms-12.jpg",
+              "assetSha256": "d03b297814e5d995bab3c9e66431776b28cc8584bea7fae5ddd483bd15fa9408",
+              "text": "number of lines per m = 1 / (3.3 × 10⁻⁶) = 3.0 × 10⁵ m⁻¹"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_23:q6:part-b(iii)",
+          "label": "b(iii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "λ × 3 = 720 × 2 or 1 / (3.0 × 10⁵) sin 26 = 3λ",
+            "λ = 480 nm"
+          ],
+          "answerKey": null,
+          "answerText": "λ × 3 = 720 × 2 or 1 / (3.0 × 10⁵) sin 26 = 3λ\nλ = 480 nm",
+          "sourcePage": 12,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/ms-12.jpg",
+              "assetSha256": "d03b297814e5d995bab3c9e66431776b28cc8584bea7fae5ddd483bd15fa9408",
+              "text": "λ × 3 = 720 × 2 or 1 / (3.0 × 10⁵) sin 26 = 3λ"
+            },
+            {
+              "documentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/ms-12.jpg",
+              "assetSha256": "d03b297814e5d995bab3c9e66431776b28cc8584bea7fae5ddd483bd15fa9408",
+              "text": "λ = 480 nm"
+            }
+          ]
+        }
+      ]
     }
   ],
   "bindings": [
@@ -483,6 +795,128 @@
             "markSchemeEvidence": [
               "The (total) initial energy is greater (than in part (1b))",
               "change in gravitational potential energy is same, so speed is greater"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-9702-9702_s25_qp_23:q6",
+      "answerId": "cie-9702-9702_s25_qp_23:q6:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "102d8dba65d2465573273c93292a1a20cbae2614dd1def31e6146e8b307a49d8",
+      "answerDocumentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+      "reviewedAt": "2026-09-02T17:41:59+08:00",
+      "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "reviewProtocolVersion": "cambridge-9702-p2-topic-coverage-review.v1",
+        "sourcePolicy": "personal-study-restricted",
+        "manualVisualReview": true,
+        "studentPromptPolicy": "official-source-image",
+        "privateTextPolicy": "hidden-indexing-and-marking-context",
+        "completeQuestionPageReview": true,
+        "questionPaper": {
+          "file": "9702_s25_qp_23.pdf",
+          "sha256": "102d8dba65d2465573273c93292a1a20cbae2614dd1def31e6146e8b307a49d8",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s25_qp_23.pdf"
+        },
+        "markScheme": {
+          "file": "9702_s25_ms_23.pdf",
+          "sha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s25_ms_23.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_s25_qp_23:q6:part-a",
+            "marks": 1,
+            "questionPage": 14,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 12,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "wave passes (through) an aperture and spreads or wave passes (by / through / around) an edge and spreads"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_s25_qp_23:q6:part-b(i)",
+            "marks": 2,
+            "questionPage": 14,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 12,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "v = fλ",
+              "f = 3.00 × 10⁸ / 720 × 10⁻⁹ = 4.2 × 10¹⁴ Hz"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_s25_qp_23:q6:part-b(ii)",
+            "marks": 3,
+            "questionPage": 15,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 12,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 3,
+            "markSchemeEvidence": [
+              "d = nλ / sin θ",
+              "d = (2 × 720 × 10⁻⁹) / sin 26",
+              "number of lines per m = 1 / (3.3 × 10⁻⁶) = 3.0 × 10⁵ m⁻¹"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_s25_qp_23:q6:part-b(iii)",
+            "marks": 2,
+            "questionPage": 15,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 12,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "λ × 3 = 720 × 2 or 1 / (3.0 × 10⁵) sin 26 = 3λ",
+              "λ = 480 nm"
             ]
           }
         ]

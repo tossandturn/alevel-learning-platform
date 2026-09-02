@@ -396,6 +396,17 @@ function reviewedPartEvidenceErrors(question, answer, binding, label) {
   return reviewErrors
 }
 
+function auditedTopicIds(question, binding) {
+  const mapping = question?.syllabusMapping || {}
+  const primaryTopicId = String(mapping.primaryTopicId || question?.knowledgeGroupId || question?.topicId || '').trim()
+  const reviewed = binding?.verificationStatus === 'reviewed'
+    && String(mapping.reviewStatus || '').toLowerCase() === 'reviewed'
+  const secondaryTopicIds = reviewed && Array.isArray(question?.syllabusMapping?.secondaryTopicIds)
+    ? mapping.secondaryTopicIds.map((value) => String(value || '').trim()).filter(Boolean)
+    : []
+  return [...new Set([primaryTopicId, ...secondaryTopicIds].filter(Boolean))]
+}
+
 for (const binding of index.bindings) {
   if (seenBindings.has(binding.questionId)) duplicateBindings.add(binding.questionId)
   seenBindings.add(binding.questionId)
@@ -419,8 +430,10 @@ for (const question of index.questions) {
   if (binding?.verificationStatus !== 'quarantined' && normaliseQuestionGroup(question, answer).status !== 'verified') errors.push(`${label}: question parts do not reconcile with total marks`)
   if (binding) errors.push(...reviewedPartEvidenceErrors(question, answer, binding, label))
   if (binding?.verificationStatus !== 'quarantined' && sourceContent.complete) {
-    const key = [question.qualificationId, question.stageTags.join('+'), question.knowledgeGroupId].join(' | ')
-    inventory.set(key, (inventory.get(key) || 0) + 1)
+    for (const topicId of auditedTopicIds(question, binding)) {
+      const key = [question.qualificationId, question.stageTags.join('+'), topicId].join(' | ')
+      inventory.set(key, (inventory.get(key) || 0) + 1)
+    }
   }
 }
 
@@ -554,6 +567,7 @@ if (errors.length) {
     sourceContentReport: writeReport ? path.relative(root, reportPath).replaceAll('\\', '/') : null,
     drillReadyTopics: ready,
     topicsNeedingMoreIndexedItems: short,
+    inventoryTopicMembershipPolicy: 'reviewed-primary-and-explicit-secondary',
     inventory: Object.fromEntries([...inventory.entries()].sort()),
   }, null, 2))
 }

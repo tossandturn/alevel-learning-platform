@@ -6,6 +6,7 @@ import { requiresSourceVisual, stripSourceVisualPlaceholders } from './questionC
 import { canonicalSourceMarkingProvenance, canonicalSourceQuestionId } from './sourceContentContract.js'
 import { withPracticePresentation } from './practicePresentation.js'
 import { MIN_QUESTION_GROUPS_PER_TEST, practiceCatalogSlices } from './practiceConstants.js'
+import { questionBelongsToTopic, questionTopicMembershipIds } from './questionTopicMembership.js'
 
 const EXTERNAL_GROUPS = Object.freeze({
   bpho: [
@@ -74,7 +75,7 @@ function baseTopicId(topicId) {
 function planGroupsFor(subject) {
   if (!subject) return []
   const routeQuestions = selectTaggedQuestionsForRoute(subject.routeId)
-  const questionTopicIds = [...new Set(routeQuestions.map((question) => question.knowledgeGroupId).filter(Boolean))]
+  const questionTopicIds = [...new Set(routeQuestions.flatMap(questionTopicMembershipIds).filter(Boolean))]
   const routePlanGroups = learningPlan.knowledgeGroups.filter((group) => group.routeId === subject.routeId && !group.hidden)
   const groupIds = [...new Set([...routePlanGroups.map((group) => group.id), ...questionTopicIds])]
   return groupIds.map((id) => {
@@ -173,7 +174,7 @@ export function buildCoachPractice({ routeId, subjectId, stage, knowledgeGroupId
   const bank = assignedSourceIds
     ? (() => {
       const available = new Map(selectTaggedQuestionsForRoute(subject.routeId)
-        .filter((question) => question.knowledgeGroupId === group.id)
+        .filter((question) => questionBelongsToTopic(question, group.id))
         .map((question) => [question.bankId, question]))
       const missing = assignedSourceIds.filter((id) => !available.has(id))
       if (missing.length) throw new Error('This assignment references question IDs that are no longer available in its selected topic.')
@@ -341,8 +342,8 @@ export function rebindVerifiedPracticeUnit(unit, { questionBank = unifiedQuestio
     .map((question) => [question.sourceQuestionId, question]))
   const groups = references.map((reference) => canonicalGroups.get(reference.sourceQuestionId))
   if (groups.some((group) => !group)) return null
-  const knowledgeGroupId = groups[0]?.knowledgeGroupId
-  if (!knowledgeGroupId || groups.some((group) => group.knowledgeGroupId !== knowledgeGroupId)) return null
+  const knowledgeGroupId = baseTopicId(unit?.knowledgeGroupId || unit?.topicId || groups[0]?.knowledgeGroupId)
+  if (!knowledgeGroupId || groups.some((group) => !questionBelongsToTopic(group, knowledgeGroupId))) return null
 
   let rebuilt
   try {

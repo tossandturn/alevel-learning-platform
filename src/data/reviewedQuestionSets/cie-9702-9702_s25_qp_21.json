@@ -2,12 +2,12 @@
   "schemaVersion": "reviewed-question-set.v1",
   "generatedAt": "2026-08-15T18:30:00+08:00",
   "paperId": "cie-9702-9702_s25_qp_21",
-  "questionCount": 2,
-  "totalMarks": 18,
+  "questionCount": 3,
+  "totalMarks": 26,
   "sourceFragments": [
     {
       "file": "cambridge-9702-p2-topic-coverage-review-ledger.js",
-      "sha256": "80a18ddc778eb09c6442730aa348f11440813979b7c37469a934194e0508f88c"
+      "sha256": "be68a493d936eaa1f124bbd61bbd492d8085283fdaa66df8259e6216201aa82c"
     }
   ],
   "sourceMaterials": {
@@ -430,6 +430,160 @@
       },
       "questionId": "cie-9702-9702_s25_qp_21:q6",
       "answerId": "cie-9702-9702_s25_qp_21:q6:answer"
+    },
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-9702",
+      "specificationId": "cambridge-9702-2025-2027",
+      "subjectId": "physics",
+      "subjectCode": "9702",
+      "knowledgeGroupId": "physics-9702-topic-08",
+      "topicId": "physics-9702-topic-08",
+      "stageTags": [
+        "AS"
+      ],
+      "componentTags": [
+        2
+      ],
+      "topicTags": [
+        "physics-9702-topic-08",
+        "physics-9702-topic-07",
+        "superposition",
+        "interference"
+      ],
+      "skillTags": [
+        "recall",
+        "definition"
+      ],
+      "answerType": "structured",
+      "prompt": "(a) State the principle of superposition.\n\n(b(i)) Light of wavelength 7.2 × 10⁻⁷ m is incident normally on a double slit, as shown in Fig. 4.1.\nCalculate D.\n\n(b(ii)) The slit separation is now gradually decreased from 0.16 mm to 0.04 mm. The distance between the centres of adjacent dark fringes is x.\n\nOn Fig. 4.3, sketch the variation of x with slit separation.",
+      "questionGroupId": "cie-9702-9702_s25_qp_21:q4",
+      "questionGroupStatus": "verified",
+      "totalMarks": 8,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_s25_qp_21:q4:part-a",
+          "label": "a",
+          "promptFragment": "State the principle of superposition.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 10,
+          "sourceEvidence": [
+            {
+              "documentSha256": "a2deceb4bc366358427f1aa97a095c356800cd8c90590ac7f64c2239b93f1b8c",
+              "page": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/qp-10.jpg",
+              "assetSha256": "457c13879dbba8b2705c82200580c3f8728a232ccdd8cff6847c96ee04ef6f8a"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_21:q4:part-b(i)",
+          "label": "b(i)",
+          "promptFragment": "Light of wavelength 7.2 × 10⁻⁷ m is incident normally on a double slit, as shown in Fig. 4.1.\nCalculate D.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 11,
+          "sourceEvidence": [
+            {
+              "documentSha256": "a2deceb4bc366358427f1aa97a095c356800cd8c90590ac7f64c2239b93f1b8c",
+              "page": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/qp-11.jpg",
+              "assetSha256": "d30bb4ef856593d3b4fc9a066f172fc70d1636d888e39c3d58d4b8f9bef77c27"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_21:q4:part-b(ii)",
+          "label": "b(ii)",
+          "promptFragment": "The slit separation is now gradually decreased from 0.16 mm to 0.04 mm. The distance between the centres of adjacent dark fringes is x.\n\nOn Fig. 4.3, sketch the variation of x with slit separation.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 11,
+          "sourceEvidence": [
+            {
+              "documentSha256": "a2deceb4bc366358427f1aa97a095c356800cd8c90590ac7f64c2239b93f1b8c",
+              "page": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/qp-11.jpg",
+              "assetSha256": "d30bb4ef856593d3b4fc9a066f172fc70d1636d888e39c3d58d4b8f9bef77c27"
+            }
+          ]
+        }
+      ],
+      "marks": 8,
+      "sourceRef": {
+        "paperId": "cie-9702-9702_s25_qp_21",
+        "paper": "9702_s25_qp_21.pdf",
+        "question": "Q4",
+        "localUrl": "/local-pdf/9702/9702_s25_qp_21.pdf",
+        "pageStart": 10,
+        "pageEnd": 11,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_s25_qp_21/qp-10.jpg",
+          "/question-assets/cie-9702-9702_s25_qp_21/qp-11.jpg"
+        ],
+        "year": 2025,
+        "season": "Jun",
+        "component": 2,
+        "sha256": "a2deceb4bc366358427f1aa97a095c356800cd8c90590ac7f64c2239b93f1b8c"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-15T05:32:05.551Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-topic-coverage-review.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-9702-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "physics-9702-topic-08",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-08",
+        "secondaryTopicIds": [
+          "physics-9702-topic-07"
+        ],
+        "syllabusPointIds": [
+          "physics-9702-point-7-1-05",
+          "physics-9702-point-8-1-01",
+          "physics-9702-point-8-3-01",
+          "physics-9702-point-8-3-03",
+          "physics-9702-point-8-3-04"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+        "reviewedAt": "2026-09-02T17:41:59+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_s25_qp_21",
+          "markSchemeId": "cie-9702-9702_s25_ms_21",
+          "questionPages": [
+            10,
+            11
+          ],
+          "markSchemePages": [
+            11,
+            12
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s25_qp_21.pdf",
+          "studentPromptPolicy": "official-source-image",
+          "privateTextPolicy": "hidden-indexing-and-marking-context"
+        }
+      },
+      "questionId": "cie-9702-9702_s25_qp_21:q4",
+      "answerId": "cie-9702-9702_s25_qp_21:q4:answer"
     }
   ],
   "answers": [
@@ -757,6 +911,136 @@
           ]
         }
       ]
+    },
+    {
+      "answerId": "cie-9702-9702_s25_qp_21:q4:answer",
+      "answer": null,
+      "answerKey": null,
+      "markPoints": [
+        "(when two or more) waves meet/overlap (at a point)",
+        "(resultant) displacement is sum of the individual displacements",
+        "Fringe width, x = 3.2 × 10⁻² / 8 = 4.0 × 10⁻³ (m)",
+        "D = ax / λ = (4.0 × 10⁻³ × 0.16 × 10⁻³) / 7.2 × 10⁻⁷",
+        "= 0.89 m",
+        "Curved line with a negative gradient of decreasing magnitude throughout, from slit separation 0.04 mm to 0.16 mm",
+        "Line of negative gradient ending at (0.16, 0.4), from slit separation 0.04 mm",
+        "Line of negative gradient passing through (0.08, 0.8) and (0.04, 1.6)"
+      ],
+      "exactAnswer": "(a) (when two or more) waves meet/overlap (at a point)\n(resultant) displacement is sum of the individual displacements\n\n(b(i)) Fringe width, x = 3.2 × 10⁻² / 8 = 4.0 × 10⁻³ (m)\nD = ax / λ = (4.0 × 10⁻³ × 0.16 × 10⁻³) / 7.2 × 10⁻⁷\n= 0.89 m\n\n(b(ii)) Curved line with a negative gradient of decreasing magnitude throughout, from slit separation 0.04 mm to 0.16 mm\nLine of negative gradient ending at (0.16, 0.4), from slit separation 0.04 mm\nLine of negative gradient passing through (0.08, 0.8) and (0.04, 1.6)",
+      "answerRef": {
+        "documentId": "cie-9702-9702_s25_ms_21",
+        "file": "9702_s25_ms_21.pdf",
+        "localUrl": "/local-pdf/9702/9702_s25_ms_21.pdf",
+        "pageStart": 11,
+        "pageEnd": 12,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_s25_qp_21/ms-11.jpg",
+          "/question-assets/cie-9702-9702_s25_qp_21/ms-12.jpg"
+        ],
+        "sha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_s25_qp_21:q4:part-a",
+          "label": "a",
+          "marks": 2,
+          "markSchemePoints": [
+            "(when two or more) waves meet/overlap (at a point)",
+            "(resultant) displacement is sum of the individual displacements"
+          ],
+          "answerKey": null,
+          "answerText": "(when two or more) waves meet/overlap (at a point)\n(resultant) displacement is sum of the individual displacements",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/ms-11.jpg",
+              "assetSha256": "743aaa651c948168ffa00fe1fd27415f76c591a81ddc09681ee81034fab6c983",
+              "text": "(when two or more) waves meet/overlap (at a point)"
+            },
+            {
+              "documentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/ms-11.jpg",
+              "assetSha256": "743aaa651c948168ffa00fe1fd27415f76c591a81ddc09681ee81034fab6c983",
+              "text": "(resultant) displacement is sum of the individual displacements"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_21:q4:part-b(i)",
+          "label": "b(i)",
+          "marks": 3,
+          "markSchemePoints": [
+            "Fringe width, x = 3.2 × 10⁻² / 8 = 4.0 × 10⁻³ (m)",
+            "D = ax / λ = (4.0 × 10⁻³ × 0.16 × 10⁻³) / 7.2 × 10⁻⁷",
+            "= 0.89 m"
+          ],
+          "answerKey": null,
+          "answerText": "Fringe width, x = 3.2 × 10⁻² / 8 = 4.0 × 10⁻³ (m)\nD = ax / λ = (4.0 × 10⁻³ × 0.16 × 10⁻³) / 7.2 × 10⁻⁷\n= 0.89 m",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/ms-11.jpg",
+              "assetSha256": "743aaa651c948168ffa00fe1fd27415f76c591a81ddc09681ee81034fab6c983",
+              "text": "Fringe width, x = 3.2 × 10⁻² / 8 = 4.0 × 10⁻³ (m)"
+            },
+            {
+              "documentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/ms-11.jpg",
+              "assetSha256": "743aaa651c948168ffa00fe1fd27415f76c591a81ddc09681ee81034fab6c983",
+              "text": "D = ax / λ = (4.0 × 10⁻³ × 0.16 × 10⁻³) / 7.2 × 10⁻⁷"
+            },
+            {
+              "documentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/ms-11.jpg",
+              "assetSha256": "743aaa651c948168ffa00fe1fd27415f76c591a81ddc09681ee81034fab6c983",
+              "text": "= 0.89 m"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_21:q4:part-b(ii)",
+          "label": "b(ii)",
+          "marks": 3,
+          "markSchemePoints": [
+            "Curved line with a negative gradient of decreasing magnitude throughout, from slit separation 0.04 mm to 0.16 mm",
+            "Line of negative gradient ending at (0.16, 0.4), from slit separation 0.04 mm",
+            "Line of negative gradient passing through (0.08, 0.8) and (0.04, 1.6)"
+          ],
+          "answerKey": null,
+          "answerText": "Curved line with a negative gradient of decreasing magnitude throughout, from slit separation 0.04 mm to 0.16 mm\nLine of negative gradient ending at (0.16, 0.4), from slit separation 0.04 mm\nLine of negative gradient passing through (0.08, 0.8) and (0.04, 1.6)",
+          "sourcePage": 12,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/ms-12.jpg",
+              "assetSha256": "392c30759c6976606522f7667331fc717dc2f256058bcaf09c352d8c4f343a3c",
+              "text": "Curved line with a negative gradient of decreasing magnitude throughout, from slit separation 0.04 mm to 0.16 mm"
+            },
+            {
+              "documentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/ms-12.jpg",
+              "assetSha256": "392c30759c6976606522f7667331fc717dc2f256058bcaf09c352d8c4f343a3c",
+              "text": "Line of negative gradient ending at (0.16, 0.4), from slit separation 0.04 mm"
+            },
+            {
+              "documentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_21/ms-12.jpg",
+              "assetSha256": "392c30759c6976606522f7667331fc717dc2f256058bcaf09c352d8c4f343a3c",
+              "text": "Line of negative gradient passing through (0.08, 0.8) and (0.04, 1.6)"
+            }
+          ]
+        }
+      ]
     }
   ],
   "bindings": [
@@ -1043,6 +1327,107 @@
             "markPointCount": 1,
             "markSchemeEvidence": [
               "B1"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-9702-9702_s25_qp_21:q4",
+      "answerId": "cie-9702-9702_s25_qp_21:q4:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "a2deceb4bc366358427f1aa97a095c356800cd8c90590ac7f64c2239b93f1b8c",
+      "answerDocumentSha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+      "reviewedAt": "2026-09-02T17:41:59+08:00",
+      "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "reviewProtocolVersion": "cambridge-9702-p2-topic-coverage-review.v1",
+        "sourcePolicy": "personal-study-restricted",
+        "manualVisualReview": true,
+        "studentPromptPolicy": "official-source-image",
+        "privateTextPolicy": "hidden-indexing-and-marking-context",
+        "completeQuestionPageReview": true,
+        "questionPaper": {
+          "file": "9702_s25_qp_21.pdf",
+          "sha256": "a2deceb4bc366358427f1aa97a095c356800cd8c90590ac7f64c2239b93f1b8c",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s25_qp_21.pdf"
+        },
+        "markScheme": {
+          "file": "9702_s25_ms_21.pdf",
+          "sha256": "bd2c6ed004f9a6a9b715505605294e30cf8137af504e8890afa8c1c249d89373",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s25_ms_21.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_s25_qp_21:q4:part-a",
+            "marks": 2,
+            "questionPage": 10,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "(when two or more) waves meet/overlap (at a point)",
+              "(resultant) displacement is sum of the individual displacements"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_s25_qp_21:q4:part-b(i)",
+            "marks": 3,
+            "questionPage": 11,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 3,
+            "markSchemeEvidence": [
+              "Fringe width, x = 3.2 × 10⁻² / 8 = 4.0 × 10⁻³ (m)",
+              "D = ax / λ = (4.0 × 10⁻³ × 0.16 × 10⁻³) / 7.2 × 10⁻⁷",
+              "= 0.89 m"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_s25_qp_21:q4:part-b(ii)",
+            "marks": 3,
+            "questionPage": 11,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 12,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 3,
+            "markSchemeEvidence": [
+              "Curved line with a negative gradient of decreasing magnitude throughout, from slit separation 0.04 mm to 0.16 mm",
+              "Line of negative gradient ending at (0.16, 0.4), from slit separation 0.04 mm",
+              "Line of negative gradient passing through (0.08, 0.8) and (0.04, 1.6)"
             ]
           }
         ]
