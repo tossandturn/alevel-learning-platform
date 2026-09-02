@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "pretest": "npm run test:remediation-contracts && npm run test:remediation-runtime",
-    "test:remediation-contracts": "node scripts/test-latest-syllabus-catalog.mjs && node scripts/test-9702-syllabus-coverage-contract.mjs && node scripts/test-all-syllabus-coverage-contract.mjs && node scripts/test-topic-drill-readiness-floor.mjs && node scripts/test-full-paper-attempt-binding.mjs && node scripts/test-stem-syllabus-runtime-cache.mjs && node scripts/test-topic-pdf-request-deadline.mjs && node scripts/test-stem-9709-route-consistency.mjs",
+    "test:remediation-contracts": "node scripts/test-latest-syllabus-catalog.mjs && node scripts/test-ipad-input-contract.mjs && node scripts/test-9702-syllabus-coverage-contract.mjs && node scripts/test-all-syllabus-coverage-contract.mjs && node scripts/test-topic-drill-readiness-floor.mjs && node scripts/test-full-paper-attempt-binding.mjs && node scripts/test-stem-syllabus-runtime-cache.mjs && node scripts/test-topic-pdf-request-deadline.mjs && node scripts/test-stem-9709-route-consistency.mjs",
     "test:remediation-runtime": "node scripts/test-full-paper-attempt-binding.mjs && node scripts/test-stem-syllabus-runtime-cache.mjs",
     "test:9702-syllabus-coverage-contract": "node scripts/test-9702-syllabus-coverage-contract.mjs",
     "catalog": "node scripts/generate-paper-catalog.mjs",
@@ -42,6 +42,7 @@
     "test:question-group-integrity": "node scripts/test-question-group-integrity.mjs",
     "test:syllabus": "node scripts/test-syllabus-practice.mjs",
     "test:latest-syllabus-catalog": "node scripts/test-latest-syllabus-catalog.mjs",
+    "test:ipad-input": "node scripts/test-ipad-input-contract.mjs",
     "test:question-index-fragments": "node scripts/test-question-index-fragment-reconciliation.mjs",
     "test:question-index-page-anchors": "node scripts/test-question-index-page-anchors.mjs",
     "test:9709-topic-tagging": "node scripts/test-9709-topic-tagging.mjs",

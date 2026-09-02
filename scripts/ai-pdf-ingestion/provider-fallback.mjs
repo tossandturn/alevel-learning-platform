@@ -40,8 +40,24 @@ function openAiStructuredTransport(baseUrl, env) {
 
 export function providersFromEnvironment(env = {}, { model = 'gpt-5.6', baseUrl = '' } = {}) {
   const providers = []
+  const explicitProvider = nonempty(env.AI_PROVIDER || env.AI_PDF_PROVIDER).toLowerCase()
+  const savedGatewayKey = nonempty(env.AI_GATEWAY_API_KEY || env.THRID_AI_KEY || env.THIRD_AI_KEY || env.thridkey)
+  const gatewayRequested = explicitProvider === 'gateway' || explicitProvider === 'openai-gateway'
+  const gatewayEnabled = Boolean(savedGatewayKey) && (gatewayRequested || !explicitProvider)
+  if (gatewayEnabled) {
+    const gatewayBaseUrl = nonempty(baseUrl || env.AI_GATEWAY_BASE_URL) || 'https://ai.ieltsist.com/v1'
+    providers.push(Object.freeze({
+      name: 'openai-gateway',
+      apiKey: savedGatewayKey,
+      model: nonempty(env.AI_GATEWAY_MODEL) || 'gpt-5.5',
+      baseUrl: gatewayBaseUrl,
+      transport: 'responses',
+      ...configuredProviderTimeout(env.AI_PDF_OPENAI_PROVIDER_TIMEOUT_MS),
+    }))
+  }
+
   const openAiKey = nonempty(env.OPENAI_API_KEY || env.OPENAI_VISION_API_KEY)
-  if (openAiKey) {
+  if (openAiKey && (explicitProvider === 'openai' || !explicitProvider)) {
     const openAiBaseUrl = nonempty(baseUrl || env.OPENAI_VISION_BASE_URL || env.OPENAI_BASE_URL)
     providers.push(Object.freeze({
       name: 'openai',
@@ -88,7 +104,7 @@ export async function callStructuredWithFallback({
       const providerRequest = provider.timeoutMs
         ? { ...request, timeoutMs: provider.timeoutMs }
         : request
-      const value = await callProviderWithDeadline(provider, providerRequest, (signal) => provider.name === 'openai'
+      const value = await callProviderWithDeadline(provider, providerRequest, (signal) => provider.name === 'openai' || provider.transport === 'responses'
         ? callOpenAi({ ...providerRequest, signal, apiKey: provider.apiKey, model: provider.model, baseUrl: provider.baseUrl || undefined, transport: provider.transport || providerRequest?.transport })
         : callCompatible({ ...providerRequest, signal, apiKey: provider.apiKey, model: provider.model, baseUrl: provider.baseUrl }))
       attempts.push(providerAttempt({ provider, timeoutMs, startedAt, providerStatus: 'success', schemaStatus: 'parsed' }))

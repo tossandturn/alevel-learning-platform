@@ -43,7 +43,7 @@ const MAX_AI_PROVIDER_TIMEOUT_MS = 45_000
 const MAX_AI_REQUEST_DEADLINE_MS = 55_000
 const pdfTextCache = new Map()
 const coachContextCache = new Map()
-const CIE_SUBJECTS = new Set(['0580', '0606', '0625', '9231', '9701', '9702', '9708', '9709'])
+export const CIE_SUBJECTS = new Set(['0580', '0606', '0610', '0625', '9231', '9700', '9701', '9702', '9708', '9709'])
 const DEFAULT_SOURCE_ASSET_ROOT = path.resolve(import.meta.dirname, '..', 'public', 'question-assets')
 let extraSourceCache = null
 const temporaryImages = new Map()
@@ -670,10 +670,13 @@ export function canonicalHandwritingMarkingContext(payload = {}, { questionBank 
 export function providerConfig(env = {}) {
   const explicitProvider = String(env.AI_PROVIDER || env.COACH_AI_PROVIDER || env.PHYSICS_AI_PROVIDER || '').trim().toLowerCase()
   const openAiKey = env.OPENAI_API_KEY || env.OPENAI_COACH_API_KEY || ''
+  // Shared account gateway alias. The value is server-only and must never be
+  // copied into browser storage or provider telemetry.
+  const savedGatewayKey = env.AI_GATEWAY_API_KEY || env.THRID_AI_KEY || env.THIRD_AI_KEY || env.thridkey || ''
   const legacyOpenAiBaseUrl = env.OPENAI_CHAT_BASE_URL || env.OPENAI_BASE_URL || ''
   const legacyOpenAiProtocol = normalizedProviderProtocol(env.OPENAI_API_PROTOCOL || env.OPENAI_API_STYLE, legacyOpenAiBaseUrl)
   const gatewayBaseConfigured = Boolean(String(env.AI_GATEWAY_BASE_URL || '').trim())
-    || Boolean(String(env.AI_GATEWAY_API_KEY || '').trim())
+    || Boolean(String(savedGatewayKey).trim())
     || explicitProvider === 'gateway'
     || explicitProvider === 'openai-gateway'
     || (legacyOpenAiProtocol === 'responses' && Boolean(String(openAiKey).trim()))
@@ -681,7 +684,7 @@ export function providerConfig(env = {}) {
   // OPENAI_API_KEY. Only reuse it when gateway routing was explicitly opted in
   // (by a gateway setting or provider selection); never silently redirect a
   // normal direct-OpenAI installation.
-  const gatewayKey = env.AI_GATEWAY_API_KEY || (gatewayBaseConfigured ? openAiKey : '')
+  const gatewayKey = savedGatewayKey || (gatewayBaseConfigured ? openAiKey : '')
   const gatewayRequested = explicitProvider === 'gateway' || explicitProvider === 'openai-gateway'
   const selectedProvider = explicitProvider === 'qwen'
     ? 'qwen'

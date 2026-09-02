@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
-import { createAiApi, providerConfig } from '../server/aiApi.js'
+import { CIE_SUBJECTS, createAiApi, providerConfig } from '../server/aiApi.js'
 import { parseCoachMessage } from '../src/lib/coachMessage.js'
 import { PracticeInventoryError, buildCoachPractice, coachPracticeOptions } from '../src/lib/verifiedPracticeCatalog.js'
 
@@ -23,6 +23,18 @@ const implicitDefaultProvider = providerConfig({
 assert.equal(implicitDefaultProvider.provider, 'openai', 'Coach must prefer OpenAI when no provider override is set and an OpenAI key is configured')
 assert.equal(implicitDefaultProvider.coach.name, 'openai', 'Coach default routing must select OpenAI')
 assert.equal(implicitDefaultProvider.coach.fallback.name, 'qwen', 'Implicit OpenAI routing must retain Qwen fallback')
+
+const savedThirdPartyKeyProvider = providerConfig({
+  THRID_AI_KEY: 'saved-third-party-key',
+  DASHSCOPE_API_KEY: 'test-qwen-key',
+})
+assert.equal(savedThirdPartyKeyProvider.provider, 'openai-gateway', 'the saved THRID_AI_KEY must activate the GPT gateway by default')
+assert.equal(savedThirdPartyKeyProvider.coach.apiKey, 'saved-third-party-key', 'the saved third-party key must stay server-side in the gateway provider')
+assert.equal(savedThirdPartyKeyProvider.coach.model, 'gpt-5.5', 'the saved-key default must use GPT-5.5')
+assert.equal(savedThirdPartyKeyProvider.coach.fallback.name, 'qwen', 'the saved-key gateway must retain Qwen fallback')
+for (const subjectCode of ['0580', '0606', '0610', '0625', '9231', '9700', '9701', '9702', '9708', '9709']) {
+  assert.equal(CIE_SUBJECTS.has(subjectCode), true, `AI source resolution must allow existing CIE subject ${subjectCode}`)
+}
 
 const explicitOpenAiProvider = providerConfig({
   AI_PROVIDER: 'openai',

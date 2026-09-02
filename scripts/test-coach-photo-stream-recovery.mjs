@@ -108,6 +108,9 @@ assert.match(
   /coachStreamFailureState\(\{[\s\S]{0,500}requestAborted:\s*controller\.signal\.aborted[\s\S]{0,300}requestSuperseded:\s*requestAbortRef\.current !== controller/s,
   'the Coach UI must distinguish its own local abort controller from a transport AbortError',
 )
+assert.match(coachSource, /scheduleAutomaticRetry/, 'a transport failure must schedule one automatic Coach reconnect')
+assert.match(coachSource, /autoRetryAttempt >= MAX_AUTO_COACH_RETRIES/, 'automatic Coach reconnects must be bounded')
+assert.match(coachSource, /retryAttachments/, 'automatic Coach reconnects must retain the attached photos')
 
 let receivedVisionRequest = null
 const providerServer = http.createServer(async (request, response) => {

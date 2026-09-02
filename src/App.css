@@ -3054,6 +3054,13 @@ textarea:focus-visible {
   position: relative;
   min-width: 0;
   background: #fff;
+  overscroll-behavior: contain;
+}
+
+.handwriting-pad__surface:has(.handwriting-pad__canvas) {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .handwriting-pad__toolbar {
@@ -4626,6 +4633,19 @@ button:disabled {
   background: #dce3eb;
 }
 
+.paper-workspace,
+.paper-workspace :where(*) {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.paper-workspace :where(input, textarea, [contenteditable="true"]) {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
 .paper-workspace-header {
   min-height: 68px;
   display: grid;
@@ -4908,6 +4928,15 @@ button:disabled {
   padding: 20px;
   text-align: center;
   background: #4c5661;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y pinch-zoom;
+  overscroll-behavior: contain;
+}
+
+.pdf-canvas-scroll--annotating {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .pdf-canvas-scroll canvas:not(.pdf-ink-layer) {

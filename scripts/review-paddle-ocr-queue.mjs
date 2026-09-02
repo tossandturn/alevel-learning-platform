@@ -19,7 +19,7 @@ const TERMINAL_ARTIFACT_STATUSES = new Set(['ai-verified', 'auto-quarantined'])
 const SHA256_ID = /^sha256:[a-f0-9]{64}$/
 
 export function openAiOnlyProviders(env = {}, options = {}) {
-  return Object.freeze(providersFromEnvironment(env, options).filter((provider) => provider.name === 'openai'))
+  return Object.freeze(providersFromEnvironment(env, options).filter((provider) => provider.name === 'openai' || provider.name === 'openai-gateway'))
 }
 
 export async function consumePaddleReviewQueue({

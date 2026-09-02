@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, Download, ZoomIn, ZoomOut } from 'lucide-react'
 import * as pdfjs from 'pdfjs-dist'
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
-import { canvasPoint, createInkMetrics, drawDot, drawSegment, exposeInkMetrics, pointDistance, pointerSamples } from '../lib/inkStroke'
+import { applyNativePencilStroke, canvasPoint, createInkMetrics, drawDot, drawSegment, exposeInkMetrics, NATIVE_PENCIL_STROKE_EVENT, pointDistance, pointerSamples } from '../lib/inkStroke'
 import { deletePaperEvidence, getPaperEvidence, putPaperEvidence } from '../lib/evidenceStorage'
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker
@@ -37,7 +37,7 @@ function cloneCanvas(canvas) {
   return clone
 }
 
-function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, evidenceStorageKey = '', questionNumber, tool = 'pen', onChange, onTouchZoom, registerInkFlush, readOnly = false, panMode = false }) {
+function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, evidenceStorageKey = '', surfaceIdPrefix = 'document', questionNumber, tool = 'pen', onChange, onTouchZoom, registerInkFlush, readOnly = false, panMode = false }) {
   const canvasRef = useRef(null)
   const drawingRef = useRef(false)
   const movedRef = useRef(false)
@@ -55,6 +55,7 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, evidenceStor
   const touchPointersRef = useRef(new Map())
   const pinchDistanceRef = useRef(0)
   const storedPreviewUrlRef = useRef('')
+  const inkSurfaceId = useMemo(() => `pdf:${surfaceIdPrefix}:${evidenceStorageKey || 'document'}:page:${pageNumber}`, [evidenceStorageKey, pageNumber, surfaceIdPrefix])
   const [ready, setReady] = useState(false)
 
   const evidenceIds = useMemo(() => {
@@ -378,8 +379,32 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, evidenceStor
     scheduleEmit()
   }
 
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || readOnly || panMode || !ready || typeof window === 'undefined') return undefined
+    const handleNativePencilStroke = (event) => {
+      const detail = event.detail
+      if (!detail || detail.surfaceId !== inkSurfaceId) return
+      const applied = applyNativePencilStroke(canvas, detail, (point) => brushFor(point))
+      if (!applied) return
+      inkMetricsRef.current.strokes += 1
+      inkMetricsRef.current.segments += applied.segments
+      inkMetricsRef.current.dots += applied.dots
+      dirtyQuestionNumberRef.current = questionNumber
+      dirtyRevisionRef.current += 1
+      changedAtRef.current = Date.now()
+      exposeInkMetrics(canvas, inkMetricsRef.current)
+      scheduleEmit()
+    }
+    window.addEventListener(NATIVE_PENCIL_STROKE_EVENT, handleNativePencilStroke)
+    return () => window.removeEventListener(NATIVE_PENCIL_STROKE_EVENT, handleNativePencilStroke)
+    // Rebind when the page/tool/ready state changes so native strokes retain
+    // the same authoritative page binding as web pointer input.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inkSurfaceId, panMode, questionNumber, readOnly, ready, tool])
+
   const inert = readOnly || panMode
-  return <canvas ref={canvasRef} className={`pdf-ink-layer ${readOnly ? 'read-only' : ''} ${panMode ? 'pdf-pan-mode' : ''}`} aria-label={`Handwriting layer for PDF page ${pageNumber}`} data-stroke-count={inkMetricsRef.current.strokes} data-segment-count={inkMetricsRef.current.segments} onPointerDown={inert ? undefined : startStroke} onPointerMove={inert ? undefined : continueStroke} onPointerUp={inert ? undefined : finishStroke} onPointerCancel={inert ? undefined : finishStroke} onLostPointerCapture={inert ? undefined : finishStroke} onDragStart={(event) => event.preventDefault()} onContextMenu={(event) => event.preventDefault()} />
+  return <canvas ref={canvasRef} className={`pdf-ink-layer ${readOnly ? 'read-only' : ''} ${panMode ? 'pdf-pan-mode' : ''}`} data-ink-surface="pdf" data-ink-surface-id={inkSurfaceId} data-ink-interactive={!inert && ready ? 'true' : 'false'} data-ink-tool={tool === 'eraser' ? 'eraser' : 'pen'} aria-label={`Handwriting layer for PDF page ${pageNumber}`} data-stroke-count={inkMetricsRef.current.strokes} data-segment-count={inkMetricsRef.current.segments} onPointerDown={inert ? undefined : startStroke} onPointerMove={inert ? undefined : continueStroke} onPointerUp={inert ? undefined : finishStroke} onPointerCancel={inert ? undefined : finishStroke} onLostPointerCapture={inert ? undefined : finishStroke} onDragStart={(event) => event.preventDefault()} onContextMenu={(event) => event.preventDefault()} />
 }
 
 export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage = {}, inkTool = 'pen', questionNumber = 1, evidenceStorageKey = '', onInkChange, registerInkFlush }) {
@@ -559,7 +584,7 @@ export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage 
         <button type="button" onClick={() => setZoom((value) => Math.min(2, value + 0.15))} aria-label="Zoom in"><ZoomIn size={17} /></button>
         <a href={file.localUrl} download={file.file} aria-label="Download PDF"><Download size={17} /></a>
       </div>
-      <div className="pdf-canvas-scroll" ref={scrollRef}>
+      <div className="pdf-canvas-scroll" ref={scrollRef} data-pdf-scroll="true">
         {status === 'loading' && <div className="pdf-loading"><span className="loading-line" />Rendering verified PDF...</div>}
         {status === 'error' && <div className="pdf-loading error">Could not render this PDF. <a href={file.localUrl} target="_blank" rel="noreferrer">Open it directly</a><small>{error}</small></div>}
         {document && <div className="pdf-page-stack" data-virtualized-pages="true">
@@ -574,7 +599,7 @@ export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage 
             <div className="pdf-page-layer" style={placeholderStyle}>
               <canvas ref={(canvas) => { if (canvas) canvasRefs.current.set(pageNumber, canvas); else canvasRefs.current.delete(pageNumber) }} aria-label={`${file.file}, page ${pageNumber}`} />
               {!size && <span className="pdf-page-placeholder">Scroll to render this page</span>}
-              {annotate && size && <PdfInkCanvas pageNumber={pageNumber} baseCanvas={canvasRefs.current.get(pageNumber)} width={size.width} height={size.height} ink={inkByPage[pageNumber]} evidenceStorageKey={evidenceStorageKey} tool={inkTool} questionNumber={questionNumber} onChange={onInkChange} onTouchZoom={zoomFromTouch} registerInkFlush={registerInkFlush} readOnly={readOnly} panMode={inkTool === 'hand'} />}
+              {annotate && size && <PdfInkCanvas pageNumber={pageNumber} baseCanvas={canvasRefs.current.get(pageNumber)} width={size.width} height={size.height} ink={inkByPage[pageNumber]} evidenceStorageKey={evidenceStorageKey} surfaceIdPrefix={file?.id || file?.file || 'document'} tool={inkTool} questionNumber={questionNumber} onChange={onInkChange} onTouchZoom={zoomFromTouch} registerInkFlush={registerInkFlush} readOnly={readOnly} panMode={inkTool === 'hand'} />}
             </div>
           </figure>
           })}

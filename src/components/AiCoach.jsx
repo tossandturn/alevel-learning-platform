@@ -26,6 +26,8 @@ import {
 } from '../lib/coachScreenshot'
 
 const EMPTY_PRACTICE_OPTIONS = Object.freeze([])
+const AUTO_COACH_RETRY_DELAY_MS = 350
+const MAX_AUTO_COACH_RETRIES = 1
 
 function createImageAttachment(dataUrl = '', { name = 'Attached image', status = 'ready', source = 'upload', mimeType = 'image/*', errorMessage = '' } = {}) {
   return {
@@ -195,6 +197,7 @@ export function AiCoach({
   const cameraInputRef = useRef(null)
   const screenshotInputRef = useRef(null)
   const requestAbortRef = useRef(null)
+  const autoRetryTimerRef = useRef(null)
   const historySyncTimerRef = useRef(null)
   const historyRequestVersionRef = useRef(0)
   const historyReadyScopeRef = useRef('')
@@ -331,6 +334,8 @@ export function AiCoach({
     const ownerChanged = hydratedStorageOwnerRef.current !== storageOwnerId
     requestAbortRef.current?.abort()
     requestAbortRef.current = null
+    window.clearTimeout(autoRetryTimerRef.current)
+    autoRetryTimerRef.current = null
     if (historySyncTimerRef.current) window.clearTimeout(historySyncTimerRef.current)
     hydratedStorageKeyRef.current = storageKey
     hydratedStorageOwnerRef.current = storageOwnerId
@@ -442,6 +447,8 @@ export function AiCoach({
 
   useEffect(() => () => {
     requestAbortRef.current?.abort()
+    window.clearTimeout(autoRetryTimerRef.current)
+    autoRetryTimerRef.current = null
     if (historySyncTimerRef.current) window.clearTimeout(historySyncTimerRef.current)
     historyRequestVersionRef.current += 1
     captureFrameRef.current = null
@@ -523,6 +530,7 @@ export function AiCoach({
     const attachments = attachmentItems.map(attachmentDataUrl).filter(Boolean)
     const retryAssistantId = String(options.retryAssistantId || '')
     const retryWarning = String(options.retryWarning || '')
+    const autoRetryAttempt = Math.max(0, Number(options.autoRetryAttempt) || 0)
     if ((!clean && !attachments.length) || loading) return
     const studentMessage = {
       id: `coach-user-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
@@ -577,6 +585,39 @@ export function AiCoach({
     requestAbortRef.current = controller
     let streamedAnswer = ''
     let streamCompleted = false
+    const scheduleAutomaticRetry = (warning = '') => {
+      if (autoRetryAttempt >= MAX_AUTO_COACH_RETRIES || controller.signal.aborted || requestAbortRef.current !== controller) return false
+      const retryStorageKey = storageKey
+      const retryAttachments = attachments
+      const retryHistory = previous
+      const retryIntent = intent
+      const retryAssistant = assistantId
+      window.clearTimeout(autoRetryTimerRef.current)
+      updateAssistant({
+        content: streamedAnswer.trim() || 'Reconnecting Coach...',
+        mode: streamedAnswer.trim() ? 'interrupted' : 'streaming',
+        status: 'retrying',
+        hintLevel: level,
+        warning: warning || 'The connection was interrupted. Reconnecting automatically.',
+      })
+      setRetryRequest({ assistantId: retryAssistant, message: studentMessage.content, level, attachments: retryAttachments, previous: retryHistory, intent: retryIntent, unavailableAttachmentCount: 0 })
+      setError(warning || 'The connection was interrupted. Reconnecting automatically.')
+      requestAbortRef.current = null
+      setLoading(false)
+      autoRetryTimerRef.current = window.setTimeout(() => {
+        autoRetryTimerRef.current = null
+        if (disabled || requestAbortRef.current || messageStorageKeyRef.current !== retryStorageKey) return
+        void ask(studentMessage.content, level, {
+          attachments: retryAttachments,
+          history: retryHistory,
+          intent: retryIntent,
+          retryAssistantId: retryAssistant,
+          retryWarning: 'Automatic reconnect retained the attached photos.',
+          autoRetryAttempt: autoRetryAttempt + 1,
+        })
+      }, AUTO_COACH_RETRY_DELAY_MS)
+      return true
+    }
     try {
       if (intent && onAgentAction) {
         const action = await onAgentAction(intent)
@@ -690,6 +731,7 @@ export function AiCoach({
         streamCompleted,
       })
       if (failure.ignored) return
+      if (scheduleAutomaticRetry(failure.warning || (failure.status === 'interrupted' ? 'The connection was interrupted. Reconnecting automatically.' : 'AI Coach is temporarily unavailable. Reconnecting automatically.'))) return
       updateAssistant({
         content: failure.content,
         mode: failure.mode,
@@ -966,7 +1008,7 @@ export function AiCoach({
           <div className="ai-coach__quick-actions">
             {onGeneratePractice && <button type="button" className={builderOpen ? 'active' : ''} onClick={() => setBuilderOpen((value) => !value)}><Sparkles size={13} />Build practice</button>}
             <button ref={captureButtonRef} type="button" className="ai-coach__screenshot" aria-label="Capture question area" disabled={capturing} onClick={captureCurrentPage}><MonitorUp size={13} />{capturing ? 'Capturing...' : 'Capture question area'}</button>
-            <button type="button" className="ai-coach__screenshot" aria-label="Provide screenshot or upload photo" disabled={preparingImages || imageDataUrls.length >= MAX_COACH_IMAGE_ATTACHMENTS} onClick={() => screenshotInputRef.current?.click()}><Upload size={13} />{preparingImages ? 'Preparing...' : `Upload photo (${imageDataUrls.length}/${MAX_COACH_IMAGE_ATTACHMENTS})`}</button>
+            <button type="button" className="ai-coach__screenshot" data-upload-intent="true" aria-label="Provide screenshot or upload photo" disabled={preparingImages || imageDataUrls.length >= MAX_COACH_IMAGE_ATTACHMENTS} onClick={() => screenshotInputRef.current?.click()}><Upload size={13} />{preparingImages ? 'Preparing...' : `Upload photo (${imageDataUrls.length}/${MAX_COACH_IMAGE_ATTACHMENTS})`}</button>
             {canOpenBphoSpc && <button type="button" onClick={() => ask('打开最新的 BPhO SPC 真题，带答案。')}><FileText size={13} />Latest BPhO SPC</button>}
             <button type="button" onClick={() => ask('Give me a hint for the next step.', hintLevel)}>Hint {hintLevel}/5</button>
             <button type="button" onClick={() => ask('Check my method and identify the first issue.', 3)}>Check method</button>
@@ -1007,8 +1049,8 @@ export function AiCoach({
 
         <footer>
           <div className="ai-coach__photo-actions" aria-label="Photograph or upload a question">
-            <button type="button" disabled={preparingImages || loading || imageDataUrls.length >= MAX_COACH_IMAGE_ATTACHMENTS} onClick={() => cameraInputRef.current?.click()}><Camera size={16} />Take photo</button>
-            <button type="button" disabled={preparingImages || loading || imageDataUrls.length >= MAX_COACH_IMAGE_ATTACHMENTS} onClick={() => screenshotInputRef.current?.click()}><Upload size={16} />Upload photo</button>
+            <button type="button" data-camera-intent="true" disabled={preparingImages || loading || imageDataUrls.length >= MAX_COACH_IMAGE_ATTACHMENTS} onClick={() => cameraInputRef.current?.click()}><Camera size={16} />Take photo</button>
+            <button type="button" data-upload-intent="true" disabled={preparingImages || loading || imageDataUrls.length >= MAX_COACH_IMAGE_ATTACHMENTS} onClick={() => screenshotInputRef.current?.click()}><Upload size={16} />Upload photo</button>
             {hasImageAttachments && <button type="button" className="ai-coach__analyze-photo" disabled={preparingImages || loading} onClick={() => ask('Analyze this photographed question. Read the full question and diagrams, identify what it asks, list the relevant concepts and known values, then explain the next step without inventing missing text.', 3)}><Sparkles size={16} />Analyze question</button>}
           </div>
           {hasImageAttachmentTray && <div className="ai-coach__attachments" role="status" aria-live="polite">
@@ -1029,8 +1071,8 @@ export function AiCoach({
           {error && <p className="ai-coach__error" role="alert">{error}</p>}
           <form className="ai-coach__composer" onSubmit={submitComposer}>
             <button type="button" className="ai-coach__composer-attach" title="Add photos" aria-label="Add photos" disabled={preparingImages || imageDataUrls.length >= MAX_COACH_IMAGE_ATTACHMENTS} onClick={() => screenshotInputRef.current?.click()}><ImagePlus size={18} /></button>
-            <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" hidden onChange={attachImage} />
-            <input ref={screenshotInputRef} type="file" accept="image/*" multiple hidden onChange={attachImage} />
+            <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" data-camera-input="true" hidden onChange={attachImage} />
+            <input ref={screenshotInputRef} type="file" accept="image/*" multiple data-upload-input="true" hidden onChange={attachImage} />
             <textarea rows="2" value={draft} placeholder="Ask about a concept or your next step..." onChange={(event) => setDraft(event.target.value)} onPaste={attachClipboardImages} onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault()

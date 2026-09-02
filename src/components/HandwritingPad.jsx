@@ -1,6 +1,6 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Camera, Eraser, FilePlus2, Hand, Keyboard, PenTool, Redo2, Trash2, Undo2, Upload } from 'lucide-react'
-import { canvasPoint, createInkMetrics, drawDot, drawSegment, exposeInkMetrics, pointDistance, pointerSamples } from '../lib/inkStroke'
+import { applyNativePencilStroke, canvasPoint, createInkMetrics, drawDot, drawSegment, exposeInkMetrics, NATIVE_PENCIL_STROKE_EVENT, pointDistance, pointerSamples } from '../lib/inkStroke'
 import { deletePaperEvidence, getPaperEvidence, putPaperEvidence } from '../lib/evidenceStorage'
 import { HANDWRITING_HISTORY_MAX_BYTES, HANDWRITING_HISTORY_MAX_ENTRIES, handwritingHistorySize, trimHandwritingHistory } from '../lib/inkHistory'
 
@@ -108,11 +108,13 @@ export function HandwritingPad({
   text = '',
 }) {
   const instanceId = useId()
+  const inkSurfaceId = useMemo(() => `handwriting:${answerId || evidenceId || instanceId}`, [answerId, evidenceId, instanceId])
   const canvasRef = useRef(null)
   const drawingRef = useRef(false)
   const movedRef = useRef(false)
   const lastPointRef = useRef(null)
   const activePointerIdRef = useRef(null)
+  const rawPenInputRef = useRef(false)
   const inkMetricsRef = useRef(createInkMetrics())
   const historyRef = useRef([])
   const redoRef = useRef([])
@@ -418,6 +420,7 @@ export function HandwritingPad({
       return
     }
     if (disabled || mode !== 'handwrite' || drawingRef.current || event.isPrimary === false) return
+    if (event.pointerType === 'pen') rawPenInputRef.current = false
     event.preventDefault()
     event.stopPropagation()
     const canvas = canvasRef.current
@@ -440,6 +443,7 @@ export function HandwritingPad({
       continueTouchScroll(event)
       return
     }
+    if (event.pointerType === 'pen' && rawPenInputRef.current) return
     if (!drawingRef.current || disabled || event.pointerId !== activePointerIdRef.current) return
     event.preventDefault()
     event.stopPropagation()
@@ -457,6 +461,7 @@ export function HandwritingPad({
     const canvas = canvasRef.current
     appendSamples(event)
     drawingRef.current = false
+    rawPenInputRef.current = false
     if (!movedRef.current && lastPointRef.current) {
       const context = canvas.getContext('2d')
       drawDot(context, lastPointRef.current, brushFor(lastPointRef.current))
@@ -500,6 +505,48 @@ export function HandwritingPad({
     updateHistoryControls()
     scheduleEmit(canvasRef.current)
   }
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || mode !== 'handwrite' || typeof canvas.addEventListener !== 'function') return undefined
+    const handleRawPenUpdate = (event) => {
+      if (event.pointerType !== 'pen' || !drawingRef.current) return
+      rawPenInputRef.current = true
+      event.preventDefault()
+      event.stopPropagation()
+      appendSamples(event)
+    }
+    if (!('onpointerrawupdate' in canvas)) return undefined
+    canvas.addEventListener('pointerrawupdate', handleRawPenUpdate, { passive: false })
+    return () => canvas.removeEventListener('pointerrawupdate', handleRawPenUpdate)
+    // Hardware-rate samples are used only while a handwriting canvas is active.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, tool])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || disabled || mode !== 'handwrite' || typeof window === 'undefined') return undefined
+
+    const handleNativePencilStroke = (event) => {
+      const detail = event.detail
+      if (!detail || detail.surfaceId !== inkSurfaceId) return
+      const applied = applyNativePencilStroke(canvas, detail, (point) => brushFor(point))
+      if (!applied) return
+      inkMetricsRef.current.strokes += 1
+      inkMetricsRef.current.segments += applied.segments
+      inkMetricsRef.current.dots += applied.dots
+      hasVisualResponseRef.current = true
+      exposeInkMetrics(canvas, inkMetricsRef.current)
+      snapshot(canvas)
+      setStatus('Apple Pencil active')
+      scheduleEmit(canvas)
+    }
+
+    window.addEventListener(NATIVE_PENCIL_STROKE_EVENT, handleNativePencilStroke)
+    return () => window.removeEventListener(NATIVE_PENCIL_STROKE_EVENT, handleNativePencilStroke)
+    // Keep native and web brush state aligned when the tool or surface changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [disabled, inkSurfaceId, mode, tool])
 
   async function redo() {
     if (disabled || !redoRef.current.length) return
@@ -557,13 +604,13 @@ export function HandwritingPad({
       <header className="handwriting-pad__header">
         <div><strong id={`${instanceId}-label`}>{label}</strong><span>{mode === 'type' ? 'Type the complete method, substitutions, units and final answer.' : 'Write with Apple Pencil, upload a clear photo, or use the camera, then submit for review.'}</span></div>
         <div className="handwriting-pad__modes" role="group" aria-label="Answer input mode">
-          <button type="button" className="handwriting-pad__capture" disabled={disabled} onClick={() => uploadInputRef.current?.click()}><Upload size={15} />Upload photo</button>
-          <button type="button" className="handwriting-pad__capture" disabled={disabled} onClick={() => cameraInputRef.current?.click()}><Camera size={15} />Take photo</button>
+          <button type="button" className="handwriting-pad__capture" data-upload-intent="true" disabled={disabled} onClick={() => uploadInputRef.current?.click()}><Upload size={15} />Upload photo</button>
+          <button type="button" className="handwriting-pad__capture" data-camera-intent="true" disabled={disabled} onClick={() => cameraInputRef.current?.click()}><Camera size={15} />Take photo</button>
           <button type="button" className={mode === 'handwrite' ? 'active' : ''} onClick={() => switchMode('handwrite')}><PenTool size={16} />Handwrite</button>
           <button type="button" className={mode === 'type' ? 'active' : ''} onClick={() => switchMode('type')}><Keyboard size={16} />Type</button>
         </div>
-        <input ref={uploadInputRef} type="file" accept="image/*" hidden onChange={importImage} />
-        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" hidden onChange={importImage} />
+        <input ref={uploadInputRef} type="file" accept="image/*" data-upload-input="true" hidden onChange={importImage} />
+        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" data-camera-input="true" hidden onChange={importImage} />
       </header>
 
       {mode === 'handwrite' ? (
@@ -580,6 +627,10 @@ export function HandwritingPad({
           <canvas
             ref={canvasRef}
             className={`handwriting-pad__canvas ${pencilOnly ? 'pencil-only' : ''}`}
+            data-ink-surface="handwriting"
+            data-ink-surface-id={inkSurfaceId}
+            data-ink-interactive={!disabled && mode === 'handwrite' ? 'true' : 'false'}
+            data-ink-tool={tool}
             style={{ height: `${CANVAS_HEIGHT * pageCount}px` }}
             aria-label={`${label} handwriting canvas`}
             onPointerDown={startStroke}
