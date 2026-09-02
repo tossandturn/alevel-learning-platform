@@ -18,7 +18,11 @@ const persistedUnit = {
   agentGenerated: true,
   sourceAuthority: 'server-syllabus',
   sourceGateVersion: 'server-syllabus-catalog-v2',
+  practiceMode: 'verified',
+  focusedRetestOf: 'syllabus-set:parent-fixture',
+  focusedRetestParentAttemptId: 'att-parent-fixture-0001',
   routeId: 'cie-9702-as-physics',
+  stage: 'AS',
   syllabusTopic: 'physics-9702-topic-02',
   knowledgeGroupId: 'physics-9702-topic-02',
   paperComponent: [1, 2],
@@ -43,6 +47,10 @@ const encoded = JSON.stringify({ unit: payload })
 assert.ok(encoded.length < 10_000, `rebind payload must remain compact; got ${encoded.length} bytes`)
 assert.equal(payload.id, persistedUnit.id)
 assert.equal(payload.sourceAuthority, 'server-syllabus')
+assert.equal(payload.practiceMode, 'verified')
+assert.equal(payload.focusedRetestOf, persistedUnit.focusedRetestOf)
+assert.equal(payload.focusedRetestParentAttemptId, persistedUnit.focusedRetestParentAttemptId)
+assert.equal(payload.stage, persistedUnit.stage)
 assert.deepEqual(payload.paperComponent, [1, 2])
 assert.equal(payload.parts.length, 1)
 assert.deepEqual(payload.parts[0].sourceBindingProvenance, binding)

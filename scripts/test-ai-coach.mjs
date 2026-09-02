@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
-import { createAiApi, providerConfig } from '../server/aiApi.js'
+import { CIE_SUBJECTS, createAiApi, providerConfig } from '../server/aiApi.js'
 import { parseCoachMessage } from '../src/lib/coachMessage.js'
 import { PracticeInventoryError, buildCoachPractice, coachPracticeOptions } from '../src/lib/verifiedPracticeCatalog.js'
 
@@ -23,6 +23,18 @@ const implicitDefaultProvider = providerConfig({
 assert.equal(implicitDefaultProvider.provider, 'openai', 'Coach must prefer OpenAI when no provider override is set and an OpenAI key is configured')
 assert.equal(implicitDefaultProvider.coach.name, 'openai', 'Coach default routing must select OpenAI')
 assert.equal(implicitDefaultProvider.coach.fallback.name, 'qwen', 'Implicit OpenAI routing must retain Qwen fallback')
+
+const savedThirdPartyKeyProvider = providerConfig({
+  THRID_AI_KEY: 'saved-third-party-key',
+  DASHSCOPE_API_KEY: 'test-qwen-key',
+})
+assert.equal(savedThirdPartyKeyProvider.provider, 'openai-gateway', 'the saved THRID_AI_KEY must activate the GPT gateway by default')
+assert.equal(savedThirdPartyKeyProvider.coach.apiKey, 'saved-third-party-key', 'the saved third-party key must stay server-side in the gateway provider')
+assert.equal(savedThirdPartyKeyProvider.coach.model, 'gpt-5.5', 'the saved-key default must use GPT-5.5')
+assert.equal(savedThirdPartyKeyProvider.coach.fallback.name, 'qwen', 'the saved-key gateway must retain Qwen fallback')
+for (const subjectCode of ['0580', '0606', '0610', '0625', '9231', '9700', '9701', '9702', '9708', '9709']) {
+  assert.equal(CIE_SUBJECTS.has(subjectCode), true, `AI source resolution must allow existing CIE subject ${subjectCode}`)
+}
 
 const explicitOpenAiProvider = providerConfig({
   AI_PROVIDER: 'openai',
@@ -54,6 +66,24 @@ assert.equal(gatewayProvider.coach.reasoningEffort, 'high', 'GPT gateway request
 assert.equal(gatewayProvider.coach.fallback.name, 'qwen', 'the GPT gateway must retain Qwen as its configured fallback')
 assert.equal(gatewayProvider.vision.name, 'openai-gateway', 'handwriting and photo Coach requests must use the GPT gateway too')
 assert.equal(gatewayProvider.vision.fallback.name, 'qwen', 'vision gateway requests must retain Qwen fallback')
+
+const separatedQwenFallback = providerConfig({
+  AI_GATEWAY_API_KEY: 'test-gateway-key',
+  PHYSICS_AI_API_KEY: 'legacy-generic-key',
+  PHYSICS_AI_BASE_URL: 'https://legacy-generic.example/v1',
+  DASHSCOPE_API_KEY: 'separate-qwen-key',
+  DASHSCOPE_COMPAT_BASE_URL: 'https://dashscope.example/v1',
+})
+assert.equal(separatedQwenFallback.vision.fallback.apiKey, 'separate-qwen-key', 'a gateway vision fallback must prefer the explicit Qwen key over a generic legacy key')
+assert.equal(separatedQwenFallback.vision.fallback.baseUrl, 'https://dashscope.example/v1', 'a gateway vision fallback must prefer the explicit Qwen base URL')
+
+const directLegacyQwen = providerConfig({
+  AI_PROVIDER: 'qwen',
+  PHYSICS_AI_API_KEY: 'legacy-qwen-key',
+  PHYSICS_AI_BASE_URL: 'https://legacy-qwen.example/v1',
+})
+assert.equal(directLegacyQwen.vision.apiKey, 'legacy-qwen-key', 'an explicitly selected legacy Qwen installation must retain its generic key alias')
+assert.equal(directLegacyQwen.vision.baseUrl, 'https://legacy-qwen.example/v1', 'an explicitly selected legacy Qwen installation must retain its generic base URL alias')
 
 const FETCH_BLOCKED_PORTS = new Set([
   1, 7, 9, 11, 13, 15, 17, 19, 20, 21, 22, 23, 25, 37, 42, 43, 53, 69, 77, 79, 87, 95, 101, 102, 103, 104, 109, 110, 111,
@@ -647,6 +677,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   const gatewayBodies = []
   let gatewayRequests = 0
   let gatewayQwenRequests = 0
+  let gatewayQwenAuthorization = ''
   const gatewayServer = http.createServer(async (request, response) => {
     const chunks = []
     for await (const chunk of request) chunks.push(chunk)
@@ -660,6 +691,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
     const chunks = []
     for await (const chunk of request) chunks.push(chunk)
     gatewayQwenRequests += 1
+    gatewayQwenAuthorization = String(request.headers.authorization || '')
     response.statusCode = 200
     response.setHeader('Content-Type', 'text/event-stream')
     response.end('data: {"choices":[{"delta":{"content":"qwen gateway recovery"}}]}\n\ndata: [DONE]\n\n')
@@ -672,6 +704,8 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
       AI_GATEWAY_BASE_URL: gatewayBase,
       AI_GATEWAY_MODEL: 'gpt-5.5-test',
       AI_GATEWAY_REASONING_EFFORT: 'high',
+      PHYSICS_AI_API_KEY: 'test-legacy-generic-key',
+      PHYSICS_AI_BASE_URL: gatewayBase,
       DASHSCOPE_API_KEY: 'test-gateway-qwen-key',
       DASHSCOPE_COMPAT_BASE_URL: gatewayQwenBase,
       COACH_AI_MODEL: 'qwen-gateway-recovery',
@@ -702,6 +736,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
     assert.match(gatewayText, /"provider":"qwen"/)
     assert.equal(gatewayRequests, 1, 'the configured GPT gateway must be attempted before Qwen')
     assert.equal(gatewayQwenRequests, 1, 'Qwen must recover a failed GPT gateway request')
+    assert.equal(gatewayQwenAuthorization, 'Bearer test-gateway-qwen-key', 'gateway fallback must use the independent Qwen credential')
     assert.equal(gatewayBodies[0].path, '/v1/responses', 'gateway base URLs must normalize to the versioned Responses endpoint')
     assert.deepEqual(gatewayBodies[0].body.reasoning, { effort: 'high' }, 'GPT gateway requests must send the configured reasoning effort')
     assert.equal(Object.hasOwn(gatewayBodies[0].body, 'temperature'), false, 'GPT-5 gateway requests must not send sampling temperature')
@@ -725,6 +760,70 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
     assert.equal(gatewayPhotoInput.filter((item) => item.type === 'input_image').length, 2, 'the gateway attempt must receive every attached photo')
   } finally {
     await Promise.all([close(gatewayAppServer), close(gatewayServer), close(gatewayQwenServer)])
+  }
+
+  let slowGatewayFallbackRequests = 0
+  let slowQwenFallbackRequests = 0
+  const slowGatewayFallbackTelemetry = []
+  const slowGatewayFallbackServer = http.createServer(async (request, response) => {
+    for await (const _chunk of request) {}
+    slowGatewayFallbackRequests += 1
+    setTimeout(() => {
+      if (response.destroyed || response.writableEnded) return
+      response.statusCode = 503
+      response.setHeader('Content-Type', 'application/json')
+      response.end(JSON.stringify({ error: { message: 'slow gateway fixture' } }))
+    }, 1_000)
+  })
+  const slowQwenFallbackServer = http.createServer(async (request, response) => {
+    for await (const _chunk of request) {}
+    slowQwenFallbackRequests += 1
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    if (response.destroyed || response.writableEnded) return
+    response.statusCode = 200
+    response.setHeader('Content-Type', 'text/event-stream')
+    response.end('data: {"choices":[{"delta":{"content":"slow vision fallback"}}]}\n\ndata: [DONE]\n\n')
+  })
+  const slowGatewayFallbackBase = await listen(slowGatewayFallbackServer)
+  const slowQwenFallbackBase = await listen(slowQwenFallbackServer)
+  const slowGatewayFallbackApi = createAiApi({
+    env: {
+      AI_GATEWAY_API_KEY: 'test-slow-gateway-key',
+      AI_GATEWAY_BASE_URL: slowGatewayFallbackBase,
+      AI_GATEWAY_MODEL: 'gpt-5.5-slow-vision-test',
+      DASHSCOPE_API_KEY: 'test-slow-qwen-key',
+      DASHSCOPE_COMPAT_BASE_URL: slowQwenFallbackBase,
+      VISION_AI_MODEL: 'qwen3-vl-slow-test',
+      STEM_AI_VISION_PROVIDER_TIMEOUT_MS: '600',
+      STEM_AI_VISION_REQUEST_DEADLINE_MS: '800',
+      STEM_INTERNAL_AUTH_KEY: identitySigningKey,
+    },
+    libraryRoot: path.join(tempRoot, 'library'),
+    allowedSubjects: new Set(['0580']),
+    telemetry: (event) => slowGatewayFallbackTelemetry.push(event),
+  })
+  const slowGatewayFallbackAppServer = requestHandler(slowGatewayFallbackApi)
+  const slowGatewayFallbackAppBase = await listen(slowGatewayFallbackAppServer)
+  try {
+    const slowGatewayFallbackResponse = await fetch(`${slowGatewayFallbackAppBase}/api/ai/coach/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${signedIdentityToken}` },
+      body: JSON.stringify({
+        message: 'Read the attached work and identify the first issue.',
+        hintLevel: 3,
+        imageDataUrls: [attachedImages[0]],
+        context: { stage: 'AS', topic: 'Mechanics', question: { prompt: 'Slow gateway vision fallback fixture.', number: 11 } },
+      }),
+    })
+    const slowGatewayFallbackText = await slowGatewayFallbackResponse.text()
+    assert.equal(slowGatewayFallbackResponse.status, 200)
+    assert.match(slowGatewayFallbackText, /slow vision fallback/, 'vision fallback must still run when the primary consumes its fair timeout share')
+    assert.equal(slowGatewayFallbackRequests, 1)
+    assert.equal(slowQwenFallbackRequests, 1)
+    assert.ok(slowGatewayFallbackTelemetry[0]?.timeoutMs <= 450, 'a slow primary must be capped to leave the fallback a usable deadline')
+    assert.equal(slowGatewayFallbackTelemetry.at(-1)?.finalState, 'connected')
+  } finally {
+    await Promise.all([close(slowGatewayFallbackAppServer), close(slowGatewayFallbackServer), close(slowQwenFallbackServer)])
   }
 
   let openAiFallbackRequests = 0

@@ -56,7 +56,7 @@ const additionalMath = syllabusTopicsInventory({
 })
 assert.equal(additionalMath.availableQuestionGroupCount, 21)
 assert.equal(additionalMath.topics.find((topic) => topic.id === 'math-0606-functions')?.availableQuestionCount, 1)
-assert.equal(additionalMath.topics.find((topic) => topic.id === 'math-0606-functions')?.ctaPolicy, 'start-study', 'a complete one-question topic must remain usable as a shorter study set')
+assert.equal(additionalMath.topics.find((topic) => topic.id === 'math-0606-functions')?.ctaPolicy, 'hidden', 'a topic with fewer than six groups must not expose a Topic Drill start CTA')
 
 const igcsePhysics = syllabusTopicsInventory({
   routeId: 'cie-0625-igcse-physics',
@@ -71,7 +71,7 @@ assert.deepEqual(
   'all source-backed 0625 questions must map into the six official syllabus topics',
 )
 assert.equal(igcsePhysics.topics.find((topic) => topic.id === '0625-igcse-topic-06')?.availableQuestionCount, 8)
-assert.equal(igcsePhysics.topics.find((topic) => topic.id === '0625-igcse-topic-06')?.ctaPolicy, 'start-study', 'a complete five-question physics topic must not be locked behind a ten-question floor')
+assert.equal(igcsePhysics.topics.find((topic) => topic.id === '0625-igcse-topic-06')?.ctaPolicy, 'start-study', 'a complete eight-question physics topic must clear the six-question start floor')
 
 const a2Physics = syllabusTopicsInventory({
   routeId: 'cie-9702-a2-physics',

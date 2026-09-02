@@ -37,6 +37,76 @@ async function openVerifiedStarter(page) {
   if ((await page.locator('.question-block').count()) !== 1) throw new Error('Workspace must render one focused question')
 }
 
+async function assertDashboardStudentPaths(browser, errors, shots) {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+  const page = await context.newPage()
+  page.on('pageerror', (error) => errors.push(`dashboard study paths: ${error.message}`))
+  try {
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' })
+    await page.evaluate(() => localStorage.clear())
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await page.locator('.student-home-guided .recommended-session').waitFor()
+    const dashboardPaths = page.getByRole('navigation', { name: 'Quick study paths' })
+    if (await dashboardPaths.count() !== 1) throw new Error('Dashboard direct study paths are missing')
+    for (const pathName of ['Topic Drill', 'Past Papers', 'Mistakes']) {
+      if (await dashboardPaths.getByRole('button', { name: pathName, exact: true }).count() !== 1) {
+        throw new Error(`Dashboard direct ${pathName} path is missing`)
+      }
+    }
+    await dashboardPaths.getByRole('button', { name: 'Topic Drill', exact: true }).click()
+    await page.locator('.practice-hub').waitFor()
+    if (!(await page.getByRole('button', { name: 'Topic Drill', exact: true }).evaluate((button) => button.classList.contains('active')))) throw new Error('Dashboard Topic Drill path did not open the topic route')
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Today', exact: true }).click()
+    await page.locator('.student-home-guided').waitFor()
+    await dashboardPaths.getByRole('button', { name: 'Past Papers', exact: true }).click()
+    await page.locator('.practice-hub').waitFor()
+    if (!(await page.getByRole('button', { name: 'Past Papers', exact: true }).evaluate((button) => button.classList.contains('active')))) throw new Error('Dashboard Past Papers path did not open the paper route')
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Today', exact: true }).click()
+    await page.locator('.student-home-guided').waitFor()
+    await dashboardPaths.getByRole('button', { name: 'Mistakes', exact: true }).click()
+    await page.locator('.practice-hub').waitFor()
+    if (!(await page.getByRole('button', { name: 'Mistakes', exact: true }).evaluate((button) => button.classList.contains('active')))) throw new Error('Dashboard Mistakes path did not open the review route')
+    const shot = path.join(ARTIFACT_DIR, 'dashboard-study-paths-desktop.png')
+    shots.push(shot)
+    await page.screenshot({ path: shot, fullPage: false })
+  } finally {
+    await context.close()
+  }
+}
+
+async function assertUnderFloor9702TopicCta(browser, errors, shots) {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+  const page = await context.newPage()
+  page.on('pageerror', (error) => errors.push(`9702 Topic Drill CTA: ${error.message}`))
+  try {
+    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' })
+    await page.evaluate(() => localStorage.clear())
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Practice', exact: true }).click()
+    const routePicker = page.locator('.practice-hub .student-route-picker')
+    await routePicker.getByRole('tab', { name: 'AS', exact: true }).click()
+    await routePicker.getByRole('combobox', { name: 'Current course' }).selectOption('cie-9702-as-physics')
+    await page.getByRole('button', { name: 'Topic Drill', exact: true }).click()
+    await page.locator('.topic-directory__row').filter({ hasText: 'Physical quantities and units' }).first().click()
+
+    const topicStart = page.locator('.topic-detail__start')
+    await topicStart.waitFor()
+    const startCta = topicStart.locator('[data-topic-practice-cta]')
+    if (await startCta.count() !== 1) throw new Error('Topic Drill CTA does not expose its server eligibility policy')
+    if (await startCta.getAttribute('data-topic-practice-cta') !== 'hidden') throw new Error('A ten-reviewed-group 9702 topic exposed a startable Topic Drill CTA')
+    if (!await startCta.isDisabled()) throw new Error('A ten-reviewed-group 9702 topic left its unavailable Topic Drill CTA enabled')
+    if (await topicStart.getByRole('button', { name: 'Study 10', exact: true }).count()) throw new Error('A ten-reviewed-group 9702 topic still claims Study 10')
+
+    await page.getByRole('tab', { name: 'Past-paper questions', exact: true }).click()
+    await page.locator('.topic-detail__past-papers').waitFor()
+    const shot = path.join(ARTIFACT_DIR, '9702-under-floor-topic-cta.png')
+    shots.push(shot)
+    await page.screenshot({ path: shot, fullPage: false })
+  } finally {
+    await context.close()
+  }
+}
+
 async function assertVisibleSourceMaterial(page, label) {
   const viewer = page.locator('.qp-question-asset').first()
   await viewer.waitFor({ state: 'visible' })
@@ -820,7 +890,6 @@ async function run() {
     if (await page.locator('.student-home-guided .recommended-session').count() !== 1) throw new Error('Dashboard must show exactly one recommended session')
     if (await page.locator('.student-home-guided .student-primary-start').count() !== 1) throw new Error('Dashboard primary start action is missing')
     if (await page.locator('.student-home-guided .study-rail').count()) throw new Error('Dashboard still contains duplicate student navigation')
-    if (await page.locator('.student-home-guided .study-paths__grid > button').count() !== 3) throw new Error('Dashboard alternative study paths are unclear')
     if (await page.locator('.student-home-guided').getByText(/QP\/MS|source-backed|verified question set/i).count()) throw new Error('Dashboard exposes internal content terminology')
     const desktopStartBox = await page.locator('.student-primary-start').boundingBox()
     if (!desktopStartBox || desktopStartBox.y + desktopStartBox.height > 900) throw new Error(`Dashboard start action is outside the desktop first viewport: ${JSON.stringify(desktopStartBox)}`)
@@ -1062,6 +1131,9 @@ async function run() {
     shots.push(path.join(ARTIFACT_DIR, 'continuous-pdf-desktop.png'))
     await page.screenshot({ path: shots.at(-1), fullPage: false })
     await context.close()
+
+    await assertDashboardStudentPaths(browser, errors, shots)
+    await assertUnderFloor9702TopicCta(browser, errors, shots)
 
     const guestMarking = await browser.newContext({ viewport: { width: 1440, height: 900 } })
     const guestMarkingPage = await guestMarking.newPage()

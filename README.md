@@ -10,7 +10,7 @@ A local-first Cambridge STEM, Economics and admissions-test practice platform bu
 - PDF.js study desk with continuous long-document scrolling, zoom, download, timer, quiet autosave, a draggable desktop split and side-by-side continuous question/mark-scheme review.
 - Continuous student answer sheet: A-D multiple choice, unified handwriting/typed calculation responses, written responses and unanswered-submit guard.
 - On phone and iPad, a Paper / Answer sheet control switches between two independently scrollable panes, so the PDF position and current response are retained.
-- Official-only topic practice with at least ten independently indexed questions, guided/practice modes, refresh-safe answers, Apple Pencil/image evidence and deterministic plus Qwen Vision marking.
+- Official-only topic practice with at least two independent six-question tests (12 reviewed source groups per syllabus topic), guided/practice modes, refresh-safe answers, Apple Pencil/image evidence and deterministic plus Qwen Vision marking.
 - Syllabus knowledge maps for IGCSE Mathematics 0580, Additional Mathematics 0606, Physics 0625, A-Level Chemistry 9701, Physics 9702, Economics 9708, Mathematics 9709 and Further Mathematics 9231.
 - Every unlocked drill is assembled from question-level QP entities bound to separate answer/MS entities. Insufficient inventory stays locked instead of being filled with generated questions.
 - Append-only results, mistake review, linked chapter and PDF retests, and combined practice/PDF history. PDF blanks, pending self-marks and marks below the recorded maximum enter the Mistakes view after a self-mark review is saved.
@@ -164,7 +164,7 @@ The smoke test validates the decoupled question/answer/binding schema, determini
 ## Boundaries
 
 - Student practice drafts and attempts are local-first. Authenticated class submissions and private route notes use the STEM shared-workspace database; drafts, handwriting evidence and Coach chats remain private to the browser unless an explicit assignment summary is submitted.
-- A topic unlocks only after at least ten QP/MS-bound questions are indexed for that qualification, stage and syllabus group.
+- A Topic Drill unlocks only after at least two independent six-question tests are backed by reviewed QP/MS-bound source groups for that qualification, stage and official syllabus topic.
 - Notebook images are compressed and stored locally as visual evidence. Automatic handwriting OCR/vision marking requires a configured vision provider; the product never claims that an image was recognized when no provider is configured.
 - Notebook image blobs are stored in IndexedDB and are not included in the JSON state export. Structured PDF answer slots represent whole printed question numbers; subparts and mark allocations are not extracted automatically.
 - Vision marks are assisted decisions with confidence and review status, not official Cambridge grades.

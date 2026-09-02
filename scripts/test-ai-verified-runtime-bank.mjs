@@ -21,6 +21,10 @@ const markSchemePdfSha256 = crypto.createHash('sha256').update(markSchemeBytes).
 const paperId = 'cie-9702-9702_m21_qp_42'
 const artifactIdentity = artifactId({ paperId, questionPdfSha256, markSchemePdfSha256 })
 
+function clone(value) {
+  return JSON.parse(JSON.stringify(value))
+}
+
 fs.mkdirSync(libraryRoot, { recursive: true })
 fs.writeFileSync(path.join(libraryRoot, questionFile), questionBytes)
 fs.writeFileSync(path.join(libraryRoot, markSchemeFile), markSchemeBytes)
@@ -61,6 +65,8 @@ const verifiedArtifact = {
     questions: [{
       questionNumber: '2',
       pages: [3],
+      regions: [{ page: 3, pageImageSha256: 'd'.repeat(64), x0: 0.1, y0: 0.2, x1: 0.9, y1: 0.8 }],
+      diagramRegions: [],
       parts: [{ label: 'a', marks: 4 }],
       diagramRegionCount: 0,
       markSchemeEvidence: [{ page: 5, pageImageSha256: 'e'.repeat(64) }],
@@ -115,9 +121,10 @@ const p5Artifact = {
   },
 }
 
-const artifactDirectory = path.join(artifactRoot, paperId)
-fs.mkdirSync(artifactDirectory, { recursive: true })
-fs.writeFileSync(path.join(artifactDirectory, `${artifactIdentity.slice('sha256:'.length)}.json`), JSON.stringify(verifiedArtifact), 'utf8')
+  const artifactDirectory = path.join(artifactRoot, paperId)
+  fs.mkdirSync(artifactDirectory, { recursive: true })
+  const verifiedArtifactPath = path.join(artifactDirectory, `${artifactIdentity.slice('sha256:'.length)}.json`)
+  fs.writeFileSync(verifiedArtifactPath, JSON.stringify(verifiedArtifact), 'utf8')
 fs.writeFileSync(path.join(artifactDirectory, 'p5.json'), JSON.stringify(p5Artifact), 'utf8')
 
 try {
@@ -172,7 +179,7 @@ try {
       Number(runtimeTopic.verifiedQuestionCount) + initialStudyQuestionCount + 1,
       'student count must include the released AI study record without treating it as formally reviewed',
     )
-    assert.equal(runtimeTopic.questionIdsByComponent?.[4]?.studyQuestionIds?.includes(`${paperId}:q2`), true, 'count and start list must expose the same released study ID')
+    assert.equal(runtimeTopic.questionIdsByComponent?.[4]?.studyQuestionIds?.includes(`${paperId}:q2`), true, 'inventory must expose the released study ID without treating it as formal readiness')
     assert.ok(
       Number(runtimeTopic?.indexedQuestionCount) > Number(initialTopic.indexedQuestionCount),
       'inventory must refresh SQLite counts after a new verified coordinate artifact appears',
@@ -185,16 +192,13 @@ try {
         routeId: 'cie-9702-a2-physics',
         syllabusTopicIds: ['9702-a2-topic-02'],
         components: [4],
-        questionCount: 1,
+        questionCount: 6,
         sourceQuestionIds: [`${paperId}:q2`],
       }),
     })
-    assert.equal(practiceResponse.status, 201, 'student practice must start an explicitly released coordinate-bound AI study record')
+    assert.equal(practiceResponse.status, 409, 'a single released coordinate-bound AI study record must not start a six-question Topic Drill')
     const practice = await practiceResponse.json()
-    assert.equal(practice.practiceMode, 'study-only')
-    assert.equal(practice.questionCount, 1)
-    assert.equal(practice.questionGroups[0].formalProgressEligible, false)
-    assert.equal(practice.questionGroups[0].studentStudyEligible, true)
+    assert.equal(practice.code, 'insufficient_verified_questions')
 
     runtimeGroups = []
     const removedInventoryResponse = await fetch(`${origin}/api/stem/routes/cie-9702-a2-physics/syllabus-topics`)
@@ -205,6 +209,50 @@ try {
       Number(removedTopic?.indexedQuestionCount),
       Number(initialTopic.indexedQuestionCount),
       'SQLite inventory must evict a coordinate record once its runtime source binding disappears',
+    )
+
+    const conflictingArtifact = clone(verifiedArtifact)
+    conflictingArtifact.candidate.questions[0].regions[0].x0 = 0.2
+    conflictingArtifact.verification.questions[0].regions[0].x0 = 0.2
+    conflictingArtifact.studentRelease = buildAiStudentStudyRelease({
+      artifactId: conflictingArtifact.artifactId,
+      routeId: conflictingArtifact.syllabusRouteId,
+      status: conflictingArtifact.status,
+      source: conflictingArtifact.source,
+      extractor: conflictingArtifact.extractor,
+      verifier: conflictingArtifact.verifier,
+      candidate: conflictingArtifact.candidate,
+      verification: conflictingArtifact.verification,
+    })
+    const conflictingPath = path.join(artifactDirectory, 'conflicting-review.json')
+    fs.writeFileSync(conflictingPath, JSON.stringify(conflictingArtifact), 'utf8')
+    const conflictLoad = load({ refresh: true })
+    assert.equal(
+      conflictLoad.groups.length,
+      0,
+      'conflicting released reviews for the same source question must be quarantined instead of selected by filename order',
+    )
+    fs.rmSync(conflictingPath)
+
+    const missingVerifierCoordinates = clone(verifiedArtifact)
+    delete missingVerifierCoordinates.verification.questions[0].regions
+    delete missingVerifierCoordinates.verification.questions[0].diagramRegions
+    missingVerifierCoordinates.studentRelease = buildAiStudentStudyRelease({
+      artifactId: missingVerifierCoordinates.artifactId,
+      routeId: missingVerifierCoordinates.syllabusRouteId,
+      status: missingVerifierCoordinates.status,
+      source: missingVerifierCoordinates.source,
+      extractor: missingVerifierCoordinates.extractor,
+      verifier: missingVerifierCoordinates.verifier,
+      candidate: missingVerifierCoordinates.candidate,
+      verification: missingVerifierCoordinates.verification,
+    })
+    fs.writeFileSync(verifiedArtifactPath, JSON.stringify(missingVerifierCoordinates), 'utf8')
+    const missingVerifierCoordinatesLoad = load({ refresh: true })
+    assert.equal(
+      missingVerifierCoordinatesLoad.groups.length,
+      0,
+      'a verifier payload without explicit question/diagram coordinates must be quarantined before runtime admission',
     )
   } finally {
     await new Promise((resolve) => server.close(resolve))

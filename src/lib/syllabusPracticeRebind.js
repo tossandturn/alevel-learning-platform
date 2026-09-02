@@ -40,13 +40,17 @@ function compactComponents(value) {
 export function syllabusPracticeRebindPayload(unit) {
   if (!unit || typeof unit !== 'object') return null
   return {
-    id: boundedString(unit.id, 256),
+    id: boundedString(unit.id, 1024),
     sourceAuthority: boundedString(unit.sourceAuthority, 64),
     sourceGateVersion: boundedString(unit.sourceGateVersion, 128),
     routeId: boundedString(unit.routeId, 160),
+    stage: boundedString(unit.stage, 40),
     syllabusTopic: boundedString(unit.syllabusTopic || unit.knowledgeGroupId || unit.topicId, 1024),
     knowledgeGroupId: boundedString(unit.knowledgeGroupId || unit.syllabusTopic || unit.topicId, 512),
     paperComponent: compactComponents(unit.paperComponent),
+    practiceMode: boundedString(unit.practiceMode, 32),
+    focusedRetestOf: boundedString(unit.focusedRetestOf, 1024),
+    focusedRetestParentAttemptId: boundedString(unit.focusedRetestParentAttemptId, 120),
     parts: (Array.isArray(unit.parts) ? unit.parts : []).map((part) => ({
       id: boundedString(part?.id, 512),
       sourceQuestionId: boundedString(part?.sourceQuestionId, 512),

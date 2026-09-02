@@ -147,6 +147,20 @@ assert.equal(providerResult.provider.name, 'openai')
 assert.deepEqual(providerResult.value, { questionNumber: '20' })
 assert.equal(providerRequests[0].transport, 'chat-completions')
 assert.equal(providersFromEnvironment({ OPENAI_API_KEY: 'test-openai-key' }, { model: 'gpt-5.6' })[0].transport, 'responses')
+const savedGatewayProviders = providersFromEnvironment({
+  THRID_AI_KEY: 'saved-third-party-key',
+  DASHSCOPE_API_KEY: 'test-qwen-key',
+})
+assert.deepEqual(savedGatewayProviders.map((provider) => provider.name), ['openai-gateway', 'qwen'], 'OCR review must use the saved GPT gateway before Qwen fallback')
+assert.equal(savedGatewayProviders[0].model, 'gpt-5.5')
+assert.equal(savedGatewayProviders[0].baseUrl, 'https://ai.ieltsist.com/v1')
+assert.equal(savedGatewayProviders[0].transport, 'responses')
+const forcedQwenProviders = providersFromEnvironment({
+  AI_PROVIDER: 'qwen',
+  THRID_AI_KEY: 'saved-third-party-key',
+  DASHSCOPE_API_KEY: 'test-qwen-key',
+})
+assert.deepEqual(forcedQwenProviders.map((provider) => provider.name), ['qwen'], 'an explicit Qwen override must remain isolated from the gateway')
 assert.equal(JSON.parse(customBaseRequests[0].init.body).store, false)
 
 const compatibleRealJsonResponse = await callCompatibleStructured({
@@ -400,7 +414,6 @@ await assert.rejects(
 assert.ok(compatibleTimeoutSignal.aborted)
 
 let compatibleStreamTimeoutSignal
-let compatibleStreamReaderCancelled = false
 await assert.rejects(
   () => callCompatibleStructured({
     apiKey: 'fake-secret-do-not-log',
@@ -415,12 +428,7 @@ await assert.rejects(
       return {
         ok: true,
         status: 200,
-        body: {
-          getReader: () => ({
-            read: () => new Promise(() => {}),
-            cancel: async () => { compatibleStreamReaderCancelled = true },
-          }),
-        },
+        json: () => new Promise(() => {}),
       }
     },
   }),
@@ -430,7 +438,6 @@ await assert.rejects(
   },
 )
 assert.ok(compatibleStreamTimeoutSignal.aborted)
-assert.equal(compatibleStreamReaderCancelled, true)
 
 let expiredDeadlineAttempts = 0
 await assert.rejects(

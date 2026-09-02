@@ -3,7 +3,7 @@ import { Readable } from 'node:stream'
 
 import { closeStemDatabaseForTests, createStemApi } from '../server/stemApi.js'
 import { studyQuestionBank } from '../src/data/questionBank.js'
-import { buildSyllabusPracticeSet } from '../src/lib/syllabusPractice.js'
+import { MIN_VERIFIED_GROUPS_FOR_PRACTICE } from '../src/lib/practiceConstants.js'
 
 function call(api, { method, url, body }) {
   return new Promise((resolve, reject) => {
@@ -32,32 +32,39 @@ try {
   assert.equal(topic.availableQuestionCount, topic.verifiedQuestionCount, 'production availability must exclude study-only source records')
   assert.equal(topic.studyQuestionCount, 0, 'production Topic Drill must not expose unreviewed study records')
 
-  const studyOnlySet = buildSyllabusPracticeSet({
-    routeId: 'cie-9702-a2-physics',
-    syllabusTopicIds: ['9702-a2-topic-02'],
-    components: [4],
-    sourceQuestionIds: ['cie-9702-9702_m24_qp_42:q1'],
-    questionBank: studyQuestionBank,
-    includeStudyOnly: true,
-    seed: 9702,
+  const studyOnlyQuestion = studyQuestionBank.find((question) => question.sourceQuestionId === 'cie-9702-9702_m24_qp_42:q1')
+  assert.ok(studyOnlyQuestion, 'the source-backed A2 study-only fixture must exist')
+  const studyOnlyPart = studyOnlyQuestion.parts[0]
+  assert.ok(studyOnlyPart, 'the source-backed A2 study-only fixture must contain a part')
+  const rejectedStudyOnlyStart = await call(api, {
+    method: 'POST',
+    url: '/api/stem/practice-sets',
+    body: {
+      routeId: 'cie-9702-a2-physics',
+      syllabusTopicIds: ['9702-a2-topic-02'],
+      components: [4],
+      questionCount: 6,
+      sourceQuestionIds: [studyOnlyQuestion.sourceQuestionId],
+      seed: 9702,
+    },
   })
-  assert.equal(studyOnlySet.practiceMode, 'study-only', 'the regression fixture must remain outside the production eligibility gate')
+  assert.equal(rejectedStudyOnlyStart.statusCode, 409, 'production Topic Drill must reject study-only source records before it can start')
   const persistedStudyOnlyUnit = {
     id: 'syllabus-set:production-study-only-rebind-regression',
     type: 'topic',
     sourceAuthority: 'server-syllabus',
     sourceGateVersion: 'server-syllabus-catalog-v2',
-    routeId: studyOnlySet.routeId,
-    knowledgeGroupId: studyOnlySet.syllabusTopicIds[0],
-    syllabusTopic: studyOnlySet.syllabusTopicIds.join(','),
-    paperComponent: studyOnlySet.components,
+    routeId: studyOnlyQuestion.routeId,
+    knowledgeGroupId: 'physics-9702-topic-13',
+    syllabusTopic: 'physics-9702-topic-13',
+    paperComponent: [4],
     practiceMode: 'study-only',
-    parts: studyOnlySet.questionGroups.flatMap((group) => group.parts.map((part, index) => ({
-      id: `production-study-only:${group.id}:${part.partId}:${index}`,
-      sourceQuestionId: group.id,
-      questionPartId: part.partId,
-      sourceBindingProvenance: part.sourceBindingProvenance,
-    }))),
+    parts: [{
+      id: `production-study-only:${studyOnlyQuestion.sourceQuestionId}:${studyOnlyPart.partId}`,
+      sourceQuestionId: studyOnlyQuestion.sourceQuestionId,
+      questionPartId: studyOnlyPart.partId,
+      sourceBindingProvenance: studyOnlyPart.sourceBindingProvenance,
+    }],
   }
   const rejectedStudyOnlyRebind = await call(api, {
     method: 'POST',
@@ -70,7 +77,7 @@ try {
     'production rebind must enforce the same practice-ready gate as count, list, and start',
   )
 
-  if (topic.verifiedQuestionCount > 0) {
+  if (topic.verifiedQuestionCount >= MIN_VERIFIED_GROUPS_FOR_PRACTICE) {
     const practice = await call(api, {
       method: 'POST',
       url: '/api/stem/practice-sets',
@@ -78,12 +85,13 @@ try {
         routeId: 'cie-9702-a2-physics',
         syllabusTopicIds: [topic.id],
         components: [4],
-        questionCount: 1,
+        questionCount: 6,
         seed: 9702,
       },
     })
     assert.equal(practice.statusCode, 201, practice.payload.error)
     assert.equal(practice.payload.practiceMode, 'verified')
+    assert.equal(practice.payload.questionCount, 6)
     assert.ok(practice.payload.questionGroups.every((group) => group.reviewStatus === 'reviewed' && group.studyOnly !== true))
   }
 } finally {

@@ -130,7 +130,14 @@ assert.equal(unifiedQuestionBank.filter((question) => reviewedIds.includes(quest
 const inventory = syllabusTopicsInventory({ routeId: 'cie-9702-as-physics', questionBank: unifiedQuestionBank })
 assert.equal(inventory.verifiedQuestionGroupCount, 112)
 assert.deepEqual(inventory.topics.map((topic) => topic.verifiedQuestionCount), [10, 10, 10, 10, 10, 10, 12, 10, 10, 10, 10])
-assert.ok(inventory.topics.every((topic) => topic.ready && topic.ctaPolicy === 'start' && topic.availableSetSizes.includes(10)))
+assert.equal(inventory.topics.filter((topic) => topic.ready && topic.ctaPolicy === 'start').length, 1)
+assert.equal(inventory.topics.filter((topic) => !topic.ready && topic.ctaPolicy === 'hidden').length, 10)
+assert.equal(inventory.ready, false, 'a route remains unavailable until every official topic can supply two six-question tests')
+assert.deepEqual(
+  inventory.topics.find((topic) => topic.id === 'physics-9702-topic-07')?.availableSetSizes,
+  [6, 10],
+  'only the current twelve-group positive fixture may advertise startable test sizes',
+)
 
 for (const topic of inventory.topics) {
   const set = buildSyllabusPracticeSet({

@@ -9,6 +9,8 @@ import {
   validateReviewFromWorkRoot,
   validateSyllabusBindings,
 } from './validate-syllabus-bindings.mjs'
+import { PADDLE_ELIGIBLE_ROUTE_IDS, routePolicyForRoute } from './route-policy.mjs'
+import { routeById } from '../../src/data/routeRegistry.js'
 
 const SCRIPT_PATH = fileURLToPath(new URL('./validate-syllabus-bindings.mjs', import.meta.url))
 const REVIEW_ID = `sha256:${'a'.repeat(64)}`
@@ -135,6 +137,28 @@ function expectBlocked(input, errorCode) {
       pointIds: [pointId],
     }))
     assert.equal(result.status, 'PASS', `${routeId} P${component} should be eligible`)
+  }
+}
+
+for (const routeId of PADDLE_ELIGIBLE_ROUTE_IDS) {
+  const route = routeById(routeId)
+  const policy = routePolicyForRoute(routeId)
+  assert.ok(route && policy, `${routeId} must have a route and Paddle policy`)
+  for (const component of policy.components) {
+    const topic = route.syllabus.topics.find((candidate) => (
+      candidate?.component === component
+      || candidate?.components?.includes(component)
+    ))
+    const point = topic?.points?.[0]
+    assert.ok(topic && point, `${routeId} P${component} must expose a latest syllabus topic and point`)
+    const result = validateSyllabusBindings(validationInput({
+      routeId,
+      subjectCode: route.syllabus.code,
+      component,
+      topicId: topic.id,
+      pointIds: [point.id],
+    }))
+    assert.equal(result.status, 'PASS', `${routeId} P${component} must bind to the latest syllabus`)
   }
 }
 

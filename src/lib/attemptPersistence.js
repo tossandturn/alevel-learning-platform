@@ -24,8 +24,12 @@ function compactAttemptValue(value, key = '', depth = 0) {
 export function sourceMarkingPartsForUnit(unit = {}) {
   return (unit.parts || []).flatMap((part) => {
     const provenance = part?.markingProvenance || part?.sourceBindingProvenance
-    if (!provenance?.sourceQuestionId || !provenance?.questionPartId) return []
-    return [{ provenance: { routeId: unit.routeId || part.routeId || provenance.routeId || '', ...provenance } }]
+    const unitPartId = String(part?.id || '').trim()
+    if (!unitPartId || !provenance?.sourceQuestionId || !provenance?.questionPartId) return []
+    return [{
+      unitPartId,
+      provenance: { routeId: unit.routeId || part.routeId || provenance.routeId || '', ...provenance },
+    }]
   })
 }
 

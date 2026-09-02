@@ -1,4 +1,6 @@
-const SYLLABUS_PRACTICE_ROUTE_IDS = Object.freeze([
+import { courseRoutes } from '../data/routeRegistry.js'
+
+const EXPLICIT_SYLLABUS_PRACTICE_ROUTE_IDS = [
   'cie-0580-igcse-mathematics',
   'cie-0606-igcse-additional-mathematics',
   'cie-0625-igcse-physics',
@@ -10,9 +12,14 @@ const SYLLABUS_PRACTICE_ROUTE_IDS = Object.freeze([
   'cie-9709-a2-after-p1-p5-p3-p4',
   'cie-9709-a2-after-p1-p5-p3-p6',
   'cie-9709-a2-after-p1-p4-p3-p5',
+]
+
+const CIE_SYLLABUS_ROUTES = courseRoutes.filter((route) => route.qualification === 'IGCSE' || route.qualification === 'A-Level')
+const SYLLABUS_PRACTICE_ROUTE_IDS = Object.freeze([
+  ...new Set([...EXPLICIT_SYLLABUS_PRACTICE_ROUTE_IDS, ...CIE_SYLLABUS_ROUTES.map((route) => route.routeId)]),
 ])
 
-const COMPONENTS_BY_ROUTE = Object.freeze({
+const EXPLICIT_COMPONENTS_BY_ROUTE = {
   'cie-0580-igcse-mathematics': Object.freeze([1, 2, 3, 4]),
   'cie-0606-igcse-additional-mathematics': Object.freeze([1, 2]),
   'cie-0625-igcse-physics': Object.freeze([2]),
@@ -24,6 +31,19 @@ const COMPONENTS_BY_ROUTE = Object.freeze({
   'cie-9709-a2-after-p1-p5-p3-p4': Object.freeze([3, 4]),
   'cie-9709-a2-after-p1-p5-p3-p6': Object.freeze([3, 6]),
   'cie-9709-a2-after-p1-p4-p3-p5': Object.freeze([3, 5]),
+}
+
+const COMPONENTS_BY_ROUTE = Object.freeze({
+  ...EXPLICIT_COMPONENTS_BY_ROUTE,
+  ...Object.fromEntries(CIE_SYLLABUS_ROUTES
+    .filter((route) => !Object.hasOwn(EXPLICIT_COMPONENTS_BY_ROUTE, route.routeId))
+    .map((route) => [
+      route.routeId,
+      Object.freeze((route.syllabus.assessmentComponents || route.paperComponents || [])
+        .filter((component) => component.track !== 'practical')
+        .map((component) => Number(component.component))
+        .filter(Number.isInteger)),
+    ])),
 })
 
 const LEGACY_TOPIC_BY_ROUTE = Object.freeze({
@@ -37,6 +57,9 @@ const LEGACY_TOPIC_BY_ROUTE = Object.freeze({
     'math-0580-transformations': '0580-igcse-topic-07',
     'math-0580-probability': '0580-igcse-topic-08',
     'math-0580-statistics': '0580-igcse-topic-09',
+  }),
+  'cie-0606-igcse-additional-mathematics': Object.freeze({
+    'math-0606-indices': 'math-0606-logarithmic',
   }),
   'cie-0625-igcse-physics': Object.freeze({
     'physics-0625-forces': '0625-igcse-topic-01',

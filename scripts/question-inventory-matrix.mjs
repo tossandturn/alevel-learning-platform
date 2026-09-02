@@ -6,7 +6,8 @@ import importedIndex from '../src/data/importedQuestionIndex.json' with { type: 
 import sourceManifest from '../src/data/sourceContentManifest.json' with { type: 'json' }
 import { courseRoutes } from '../src/data/routeRegistry.js'
 import { unifiedQuestionBank } from '../src/data/questionBank.js'
-import { MIN_VERIFIED_GROUPS_FOR_PRACTICE } from '../src/lib/verifiedPracticeCatalog.js'
+import { MIN_VERIFIED_GROUPS_FOR_PRACTICE, topicPracticeEligibility } from '../src/lib/practiceConstants.js'
+import { canonicalSyllabusTopicIdForRoute } from '../src/lib/syllabusPracticeRoutes.js'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const indexItems = Array.isArray(importedIndex.items) ? importedIndex.items : importedIndex.questions || []
@@ -46,30 +47,46 @@ const indexQuarantined = Object.values(manifestItems).filter((item) => (
 const sourceAdditionalQuarantined = Object.values(manifestItems).filter((item) => (
   item.fileComplete === false && !(item.reasons || []).includes('index-quarantined')
 )).length
-function topicMatrixForRoute(routeId) {
-  const topics = new Map()
-  for (const item of unifiedQuestionBank.filter((question) => question.routeId === routeId)) {
-    const topicId = item.knowledgeGroupId || 'unmapped'
-    const current = topics.get(topicId) || { topicId, practiceAvailable: 0, papers: new Set() }
-    current.practiceAvailable += 1
-    if (item.sourceRef?.paperId) current.papers.add(item.sourceRef.paperId)
-    topics.set(topicId, current)
+function topicIdsForItem(item, routeId) {
+  const mapping = item.syllabusMapping || {}
+  const suppliedTopicIds = Array.isArray(mapping.topicIds) && mapping.topicIds.length
+    ? mapping.topicIds
+    : [mapping.primaryTopicId || mapping.knowledgeGroupId || item.knowledgeGroupId || item.topicId]
+  return distinct(suppliedTopicIds
+    .map((topicId) => canonicalSyllabusTopicIdForRoute(routeId, topicId)))
+}
+
+function topicMatrixForRoute(route) {
+  const topics = new Map((route.syllabus?.topics || []).map((topic) => [topic.id, {
+    topicId: topic.id,
+    practiceAvailable: 0,
+    papers: new Set(),
+  }]))
+  for (const item of unifiedQuestionBank.filter((question) => question.routeId === route.routeId)) {
+    for (const topicId of topicIdsForItem(item, route.routeId)) {
+      const current = topics.get(topicId)
+      if (!current) continue
+      current.practiceAvailable += 1
+      if (item.sourceRef?.paperId) current.papers.add(item.sourceRef.paperId)
+    }
   }
   return [...topics.values()]
-    .map((topic) => ({
-      topicId: topic.topicId,
-      practiceAvailableQuestionGroups: topic.practiceAvailable,
-      referencedPapers: topic.papers.size,
-      ready: topic.practiceAvailable >= MIN_VERIFIED_GROUPS_FOR_PRACTICE,
-      ctaPolicy: topic.practiceAvailable >= MIN_VERIFIED_GROUPS_FOR_PRACTICE
-        ? 'start'
-        : topic.practiceAvailable > 0
-          ? 'limited-indexing'
-          : 'hidden',
-      sourceGap: topic.practiceAvailable >= MIN_VERIFIED_GROUPS_FOR_PRACTICE
-        ? null
-        : `Only ${topic.practiceAvailable} verified question group${topic.practiceAvailable === 1 ? '' : 's'}; ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} required before practice or assignment opens.`,
-    }))
+    .map((topic) => {
+      const eligibility = topicPracticeEligibility({
+        verifiedQuestionCount: topic.practiceAvailable,
+        availableQuestionCount: topic.practiceAvailable,
+      })
+      return {
+        topicId: topic.topicId,
+        practiceAvailableQuestionGroups: topic.practiceAvailable,
+        referencedPapers: topic.papers.size,
+        ready: eligibility.ready,
+        ctaPolicy: eligibility.ctaPolicy,
+        sourceGap: eligibility.ready
+          ? null
+          : `Only ${topic.practiceAvailable} verified question group${topic.practiceAvailable === 1 ? '' : 's'}; ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} required before formal readiness.`,
+      }
+    })
     .sort((left, right) => left.topicId.localeCompare(right.topicId))
 }
 const routes = courseRoutes.map((route) => {
@@ -80,7 +97,9 @@ const routes = courseRoutes.map((route) => {
   const semanticVerified = questionIds.filter((id) => manifestItems[id]?.semanticStatus === 'verified-complete').length
   const practiceAvailable = unifiedQuestionBank.filter((item) => item.routeId === route.routeId).length
   const catalogForRoute = catalogItems.filter((item) => item.examProfile?.courseRouteId === route.routeId)
-  const topicMatrix = topicMatrixForRoute(route.routeId)
+  const topicMatrix = topicMatrixForRoute(route)
+  const ready = topicMatrix.length > 0 && topicMatrix.every((topic) => topic.ready)
+  const studyReady = topicMatrix.some((topic) => topic.ctaPolicy === 'start' || topic.ctaPolicy === 'start-study')
   return {
     routeId: route.routeId,
     qualification: route.qualification,
@@ -95,17 +114,15 @@ const routes = courseRoutes.map((route) => {
     practiceAvailableQuestionGroups: practiceAvailable,
     readyTopics: topicMatrix.filter((topic) => topic.ready).length,
     topicMatrix,
-    sourceGap: practiceAvailable >= MIN_VERIFIED_GROUPS_FOR_PRACTICE
+    sourceGap: ready
       ? null
-      : practiceAvailable > 0
-        ? `Only ${practiceAvailable} verified question groups are available; ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} required before a route can open practice.`
+      : studyReady
+        ? `${topicMatrix.filter((topic) => topic.ready).length}/${topicMatrix.length} official topics meet the ${MIN_VERIFIED_GROUPS_FOR_PRACTICE}-group formal readiness floor.`
+        : practiceAvailable > 0
+          ? `No official topic has the six reviewed question groups required to start a Topic Drill.`
         : 'No semantic-reviewed source question is currently available for practice.',
-    ready: practiceAvailable >= MIN_VERIFIED_GROUPS_FOR_PRACTICE,
-    ctaPolicy: practiceAvailable >= MIN_VERIFIED_GROUPS_FOR_PRACTICE
-      ? 'start'
-      : practiceAvailable > 0
-        ? 'limited-indexing'
-        : 'hidden',
+    ready,
+    ctaPolicy: ready ? 'start' : studyReady ? 'start-study' : 'hidden',
   }
 })
 

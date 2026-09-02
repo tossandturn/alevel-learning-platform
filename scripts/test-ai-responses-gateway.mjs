@@ -100,6 +100,7 @@ assert.equal(legacyProductionProvider.coach.fallback.name, 'qwen')
 
 const requests = []
 const image = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
+const imageWithFormattingNoise = 'data:image/PNG;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=\n'
 const gatewayServer = http.createServer(async (request, response) => {
   const body = await readBody(request)
   requests.push({ path: request.url, body })
@@ -107,6 +108,18 @@ const gatewayServer = http.createServer(async (request, response) => {
   assert.equal(body.model, 'gpt-5.5-test')
   assert.deepEqual(body.reasoning, { effort: 'high' })
   assert.equal(Object.hasOwn(body, 'temperature'), false)
+  const serializedBody = JSON.stringify(body)
+  if (serializedBody.includes('INCOMPLETE_SYNC_FIXTURE') || serializedBody.includes('INCOMPLETE_STREAM_FIXTURE')) {
+    response.statusCode = 200
+    response.setHeader('Content-Type', 'application/json')
+    response.end(JSON.stringify({
+      id: 'resp_incomplete_fixture',
+      status: 'incomplete',
+      output_text: 'partial gateway answer',
+      output: [{ type: 'message', content: [{ type: 'output_text', text: 'partial gateway answer' }] }],
+    }))
+    return
+  }
   if (body.stream) {
     response.statusCode = 200
     response.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
@@ -127,6 +140,7 @@ const gatewayServer = http.createServer(async (request, response) => {
   response.setHeader('Content-Type', 'application/json')
   response.end(JSON.stringify({
     id: 'resp_test_1',
+    status: 'completed',
     output_text: 'Use the gradient of the graph to find the acceleration.',
     output: [{ type: 'message', content: [{ type: 'output_text', text: 'Use the gradient of the graph to find the acceleration.' }] }],
   }))
@@ -163,13 +177,25 @@ try {
   assert.equal(textResponse.response.status, 200, textResponse.text)
   assert.match(textResponse.text, /gradient of the graph/)
 
-  const photoResponse = await post('/api/ai/coach/stream', coachPayload('Read this photographed working and identify the next step.', [image, image]))
+  const incompleteSyncResponse = await post('/api/ai/coach', coachPayload('INCOMPLETE_SYNC_FIXTURE'))
+  assert.equal(incompleteSyncResponse.response.status, 200, incompleteSyncResponse.text)
+  assert.doesNotMatch(incompleteSyncResponse.text, /partial gateway answer/)
+  assert.match(incompleteSyncResponse.text, /"mode":"offline"/)
+  assert.match(incompleteSyncResponse.text, /"providerStatus":"error"/)
+
+  const incompleteStreamResponse = await post('/api/ai/coach/stream', coachPayload('INCOMPLETE_STREAM_FIXTURE'))
+  assert.equal(incompleteStreamResponse.response.status, 200, incompleteStreamResponse.text)
+  assert.doesNotMatch(incompleteStreamResponse.text, /partial gateway answer/)
+  assert.doesNotMatch(incompleteStreamResponse.text, /providerStatus":"connected"/)
+
+  const photoResponse = await post('/api/ai/coach/stream', coachPayload('Read this photographed working and identify the next step.', [imageWithFormattingNoise, image]))
   assert.equal(photoResponse.response.status, 200, photoResponse.text)
   assert.match(photoResponse.text, /The photographed method is consistent/)
-  assert.equal(requests.length, 2)
-  const responseInput = requests[1].body.input
+  assert.equal(requests.length, 4)
+  const responseInput = requests[3].body.input
   const inputParts = responseInput.flatMap((item) => Array.isArray(item.content) ? item.content : [])
   assert.equal(inputParts.filter((item) => item.type === 'input_image').length, 2, 'every attached photo must reach the Responses API')
+  assert.ok(inputParts.filter((item) => item.type === 'input_image').every((item) => /^data:image\/(?:png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(item.image_url)), 'image data URLs must be canonical before they reach the gateway')
 } finally {
   await Promise.all([close(appServer), close(gatewayServer)])
   fs.rmSync(tempRoot, { recursive: true, force: true })

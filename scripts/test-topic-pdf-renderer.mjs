@@ -73,7 +73,7 @@ function fixture({ component = 4, released = true, mismatch = false, legacySourc
   const source = {
     board: legacySource ? 'CIE' : 'Cambridge International',
     paperId: `cie-9702-9702_m21_qp_${component}2`,
-    specificationId: legacySource ? route.routeId : 'cambridge-9702-2025-2027',
+    specificationId: legacySource ? route.routeId : 'cambridge-9702-2028-2030',
     stage: 'A2',
     rightsStatus: 'official-personal-study',
     accessPolicyId: 'private-study-library',
@@ -161,6 +161,9 @@ try {
   assert.ok(Buffer.isBuffer(result.pdf), 'renderer must return a PDF buffer')
   assert.equal(result.pdf.subarray(0, 5).toString('ascii'), '%PDF-', 'renderer output must be a PDF')
   assert.equal(result.manifest.questionCount, 1, 'a cross-page question must remain one question entry')
+  assert.equal(result.manifest.authority, 'ai-provisional', 'AI-derived topic PDFs must expose provisional authority')
+  assert.equal(result.manifest.studentStudyEligible, true, 'AI-derived topic PDFs may be used for study only')
+  assert.equal(result.manifest.formalProgressEligible, false, 'AI-derived topic PDFs must stay outside formal progress')
   assert.deepEqual(result.manifest.questions[0].pages, [2, 3], 'all source pages must be retained')
   assert.equal(adapters.crops.length, 1, 'one complete source question must use one crop manifest')
   assert.equal(adapters.crops[0].crops.length, 2, 'a diagram inside the question region must not add a duplicate crop')

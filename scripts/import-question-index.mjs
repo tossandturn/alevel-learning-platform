@@ -102,8 +102,10 @@ function providerConfig(args) {
     ? `https://${workspaceId}.${region}.maas.aliyuncs.com/compatible-mode/v1`
     : 'https://dashscope.aliyuncs.com/compatible-mode/v1'
   return {
-    apiKey: env.VISION_AI_API_KEY || env.QWEN_VISION_API_KEY || env.PHYSICS_AI_API_KEY || env.DASHSCOPE_API_KEY || env.QWEN_API_KEY || '',
-    baseUrl: (env.VISION_AI_BASE_URL || env.QWEN_VISION_BASE_URL || env.PHYSICS_AI_BASE_URL || env.DASHSCOPE_COMPAT_BASE_URL || defaultBase).replace(/\/+$/, ''),
+    // Explicit Qwen/DashScope credentials must win over the legacy generic
+    // alias; the latter may point at the GPT gateway during migration.
+    apiKey: env.VISION_AI_API_KEY || env.QWEN_VISION_API_KEY || env.DASHSCOPE_API_KEY || env.QWEN_API_KEY || env.PHYSICS_AI_API_KEY || '',
+    baseUrl: (env.VISION_AI_BASE_URL || env.QWEN_VISION_BASE_URL || env.DASHSCOPE_COMPAT_BASE_URL || env.PHYSICS_AI_BASE_URL || defaultBase).replace(/\/+$/, ''),
     model: args.model || env.VISION_AI_MODEL || env.QWEN_VISION_MODEL || env.PHYSICS_VISION_MODEL || 'qwen3-vl-plus',
   }
 }

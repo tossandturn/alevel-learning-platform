@@ -12,6 +12,7 @@ import {
   sourceQuestionId,
 } from '../src/lib/sourceContentContract.js'
 import { HIGH_PRIORITY_SOURCE_RANGE_REVIEW_IDS, RESOLVED_NON_CONTENT_PAGE_GAPS, resolvedNonContentPageGapIssues, sourceRangeReviewCandidates, sourceSemanticVerificationStatus, sourceStructuralConsistencyIssues } from '../src/lib/sourceSemanticContract.js'
+import { MIN_VERIFIED_GROUPS_FOR_PRACTICE } from '../src/lib/practiceConstants.js'
 import { canonicalTextSha256, canonicalTextFileSha256, canonicalUtf8LfText } from './canonical-text.mjs'
 
 const root = path.resolve(process.env.SOURCE_AUDIT_ROOT || path.join(import.meta.dirname, '..'))
@@ -523,8 +524,8 @@ if (errors.length) {
     .filter((item) => !item.fileComplete)
     .flatMap((item) => item.fileReasons)
     .reduce((result, reason) => ({ ...result, [reason]: (result[reason] || 0) + 1 }), {})
-  const ready = [...inventory.entries()].filter(([, count]) => count >= 10).length
-  const short = [...inventory.entries()].filter(([, count]) => count < 10).length
+  const ready = [...inventory.entries()].filter(([, count]) => count >= MIN_VERIFIED_GROUPS_FOR_PRACTICE).length
+  const short = [...inventory.entries()].filter(([, count]) => count < MIN_VERIFIED_GROUPS_FOR_PRACTICE).length
   console.log(JSON.stringify({
     schemaVersion: index.schemaVersion,
     questions: index.questions.length,

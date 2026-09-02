@@ -7,6 +7,7 @@ import {
   assertWithinLimit,
   findEscapingSymlinks,
   findForbiddenFiles,
+  findForbiddenSensitiveFiles,
   findUnexpectedReleaseEntries,
   MAX_DIST_BYTES,
   MAX_RELEASE_BYTES,
@@ -50,6 +51,7 @@ const distRoot = path.join(releaseRoot, 'dist')
 const auditScript = path.join(releaseRoot, 'scripts', 'audit-question-bank.mjs')
 const paperAuditScript = path.join(releaseRoot, 'scripts', 'audit-paper-catalog.mjs')
 const syllabusCoverageScript = path.join(releaseRoot, 'scripts', 'verify-9702-syllabus-coverage.mjs')
+const allSyllabusCoverageScript = path.join(releaseRoot, 'scripts', 'verify-all-syllabus-coverage.mjs')
 const manifestPath = path.join(releaseRoot, 'src', 'data', 'sourceContentManifest.json')
 const identityPath = path.join(releaseRoot, 'src', 'data', 'sourceContentIdentity.js')
 const nodeModulesRoot = path.join(releaseRoot, 'node_modules')
@@ -81,6 +83,8 @@ assert.equal(actualReleaseTree.bytes, releaseManifest.releaseTree?.bytes, 'Relea
 
 const unexpectedReleaseEntries = findUnexpectedReleaseEntries(releaseRoot)
 assert.equal(unexpectedReleaseEntries.length, 0, `Release root contains files outside the runtime allowlist: ${unexpectedReleaseEntries.slice(0, 10).join(', ')}`)
+const forbiddenSensitiveFiles = findForbiddenSensitiveFiles(releaseRoot)
+assert.equal(forbiddenSensitiveFiles.length, 0, `Release contains nested secrets, keys, databases, dumps, caches or OCR staging files: ${forbiddenSensitiveFiles.slice(0, 10).join(', ')}`)
 const escapingSymlinks = findEscapingSymlinks(releaseRoot, ['public/question-assets', 'dist/question-assets'])
 assert.equal(escapingSymlinks.length, 0, `Release contains external symlinks outside the immutable asset exception: ${escapingSymlinks.slice(0, 10).join(', ')}`)
 assert.ok(fs.existsSync(nodeModulesRoot), 'Release is missing node_modules; install dependencies inside this release')
@@ -90,6 +94,7 @@ assert.ok(fs.existsSync(path.join(nodeModulesRoot, '.package-lock.json')), 'Rele
 assert.ok(fs.existsSync(auditScript), `Release audit script is missing: ${auditScript}`)
 assert.ok(fs.existsSync(paperAuditScript), `Release paper catalog audit script is missing: ${paperAuditScript}`)
 assert.ok(fs.existsSync(syllabusCoverageScript), `Release 9702 syllabus coverage gate is missing: ${syllabusCoverageScript}`)
+assert.ok(fs.existsSync(allSyllabusCoverageScript), `Release all-syllabus coverage gate is missing: ${allSyllabusCoverageScript}`)
 assert.ok(fs.existsSync(assetRoot) && fs.statSync(assetRoot).isDirectory(), 'Release is missing public/question-assets')
 if (fs.lstatSync(assetRoot).isSymbolicLink()) {
   assert.ok(immutableAssetsRoot, 'Pass --immutable-assets-root <path> when public/question-assets is externally linked')
@@ -104,7 +109,7 @@ assert.equal(actualImmutableAssets.bytes, releaseManifest.immutableAssets?.bytes
 assert.ok(hasRenderedAsset(assetRoot), 'Release public/question-assets contains no rendered source pages')
 assert.ok(fs.existsSync(catalogPath) && fs.statSync(catalogPath).size > 0, 'Release is missing public/data/papers.json')
 assert.ok(fs.existsSync(subjectCatalogRoot) && fs.statSync(subjectCatalogRoot).isDirectory(), 'Release is missing public/data/papers')
-for (const subject of ['0580', '0625', '9702', '9709']) {
+for (const subject of ['0580', '0606', '0610', '0625', '9231', '9700', '9701', '9702', '9708', '9709']) {
   const subjectCatalogPath = path.join(subjectCatalogRoot, `${subject}.json`)
   assert.ok(fs.existsSync(subjectCatalogPath) && fs.statSync(subjectCatalogPath).size > 0, `Release is missing public/data/papers/${subject}.json`)
 }
@@ -153,6 +158,13 @@ const syllabusCoverage = spawnSync(process.execPath, [syllabusCoverageScript], {
   maxBuffer: 32 * 1024 * 1024,
 })
 assert.equal(syllabusCoverage.status, 0, `Release 9702 syllabus coverage gate failed:\n${syllabusCoverage.stdout}\n${syllabusCoverage.stderr}`)
+const allSyllabusCoverage = spawnSync(process.execPath, [allSyllabusCoverageScript], {
+  cwd: releaseRoot,
+  env,
+  encoding: 'utf8',
+  maxBuffer: 32 * 1024 * 1024,
+})
+assert.equal(allSyllabusCoverage.status, 0, `Release all-syllabus coverage gate failed:\n${allSyllabusCoverage.stdout}\n${allSyllabusCoverage.stderr}`)
 
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
 const identity = fs.readFileSync(identityPath, 'utf8')

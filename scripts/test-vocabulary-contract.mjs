@@ -17,13 +17,14 @@ const context = buildStemVocabularyContext({
 })
 
 assert.deepEqual(Object.keys(context), [
-  'contractVersion', 'family', 'taxonomyId', 'routeId', 'subjectCode', 'stage',
+  'contractVersion', 'family', 'taxonomyId', 'routeId', 'subject', 'subjectCode', 'stage',
   'topicId', 'termIds', 'attemptId', 'returnTo', 'source', 'sourceStatus',
   'termInventoryStatus', 'availableCount',
 ])
 assert.equal(context.contractVersion, 'stem-vocabulary-context-v1')
 assert.equal(context.family, 'exam')
 assert.equal(context.taxonomyId, 'exam.9702.as')
+assert.equal(context.subject, 'Physics')
 assert.deepEqual(context.termIds, ['stem.physics.dynamics', 'stem.physics.electricity', 'stem.physics.waves'])
 assert.equal(context.sourceStatus, 'taxonomy-mapped')
 assert.equal(context.termInventoryStatus, 'not-imported')
@@ -51,6 +52,7 @@ const url = new URL(professionalTermsUrl({
 for (const [key, value] of Object.entries({
   from: 'stem', contractVersion: 'stem-vocabulary-context-v1', family: 'exam',
   taxonomyId: context.taxonomyId, routeId: route.routeId, subjectCode: route.subjectCode,
+  subject: route.subject,
   stage: route.stage, topicId: context.topicId, termIds: context.termIds.join(','),
   attemptId: context.attemptId, sourceStatus: 'taxonomy-mapped', termInventoryStatus: 'not-imported',
 })) assert.equal(url.searchParams.get(key), value, `${key} must use the canonical context`)

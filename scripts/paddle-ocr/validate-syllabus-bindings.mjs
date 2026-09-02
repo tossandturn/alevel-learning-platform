@@ -3,6 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { routeById } from '../../src/data/routeRegistry.js'
+import { PADDLE_ELIGIBLE_ROUTE_IDS, routePolicyForRoute } from './route-policy.mjs'
 
 const WHOLE_QUESTION_NUMBER = /^[1-9][0-9]*$/
 const ZERO_COUNTS = Object.freeze({ questions: 0, parts: 0, marks: 0, topics: 0, points: 0 })
@@ -13,19 +14,6 @@ const REQUIRED_REVIEW_CHECKS = Object.freeze([
   'diagram_region_integrity',
   'official_syllabus_topic_binding',
 ])
-const ELIGIBLE_ROUTE_COMPONENTS = Object.freeze({
-  'cie-9702-as-physics': Object.freeze([1, 2]),
-  'cie-9702-a2-physics': Object.freeze([4]),
-  'cie-9709-as-p1-p2': Object.freeze([1, 2]),
-  'cie-9709-as-p1-p4': Object.freeze([1, 4]),
-  'cie-9709-as-p1-p5': Object.freeze([1, 5]),
-  'cie-9709-a2-after-p1-p5-p3-p4': Object.freeze([3, 4]),
-  'cie-9709-a2-after-p1-p5-p3-p6': Object.freeze([3, 6]),
-  'cie-9709-a2-after-p1-p4-p3-p5': Object.freeze([3, 5]),
-  'cie-0580-igcse-mathematics': Object.freeze([1, 2, 3, 4]),
-  'cie-0625-igcse-physics': Object.freeze([2]),
-})
-
 export function validateSyllabusBindings({
   extraction,
   verification,
@@ -36,13 +24,14 @@ export function validateSyllabusBindings({
 } = {}) {
   const selectedRouteId = requiredString(routeId, 'REVIEW_ROUTE_INVALID')
   const route = routeById(selectedRouteId)
-  if (!route || !Object.hasOwn(ELIGIBLE_ROUTE_COMPONENTS, selectedRouteId)) {
+  const routePolicy = routePolicyForRoute(selectedRouteId)
+  if (!route || !routePolicy) {
     throw codedError('REVIEW_ROUTE_UNSUPPORTED')
   }
   const paperComponent = requiredPositiveInteger(component, 'PAPER_COMPONENT_INVALID')
   const sourceSubjectCode = requiredString(subjectCode, 'SUBJECT_CODE_INVALID')
   if (String(route.syllabus?.code || '') !== sourceSubjectCode) throw codedError('REVIEW_ROUTE_SUBJECT_MISMATCH')
-  if (!ELIGIBLE_ROUTE_COMPONENTS[selectedRouteId].includes(paperComponent)
+  if (!routePolicy.components.includes(paperComponent)
     || !route.paperComponents.includes(paperComponent)) {
     throw codedError('COMPONENT_ROUTE_NOT_ELIGIBLE')
   }
@@ -474,7 +463,7 @@ function validateTags(tags, topicProjection, pointProjection) {
 }
 
 function topicExistsOutsideProjection(topicId) {
-  for (const routeId of Object.keys(ELIGIBLE_ROUTE_COMPONENTS)) {
+  for (const routeId of PADDLE_ELIGIBLE_ROUTE_IDS) {
     const route = routeById(routeId)
     if (route?.syllabus?.topics?.some((topic) => topic.id === topicId)) return true
   }
@@ -482,7 +471,7 @@ function topicExistsOutsideProjection(topicId) {
 }
 
 function pointExistsOutsideProjection(pointId) {
-  for (const routeId of Object.keys(ELIGIBLE_ROUTE_COMPONENTS)) {
+  for (const routeId of PADDLE_ELIGIBLE_ROUTE_IDS) {
     const route = routeById(routeId)
     if (route?.syllabus?.topics?.some((topic) => topic.points?.some((point) => point.id === pointId))) return true
   }

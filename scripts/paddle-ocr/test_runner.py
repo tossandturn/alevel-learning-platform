@@ -35,16 +35,67 @@ class PaperSelectionTests(unittest.TestCase):
     def test_component_and_year_policy_is_exact(self) -> None:
         eligible = self.runner.is_eligible_paper
         self.assertTrue(eligible("9702", 2021, 4))
-        self.assertFalse(eligible("9702", 2021, 3))
-        self.assertFalse(eligible("9702", 2021, 5))
+        self.assertTrue(eligible("9702", 2021, 3))
+        self.assertTrue(eligible("9702", 2021, 5))
         self.assertTrue(eligible("9709", 2025, 6))
         self.assertFalse(eligible("9709", 2025, 7))
+        self.assertTrue(eligible("9702", 2017, 4))
+        self.assertFalse(eligible("9702", 2016, 4))
         self.assertTrue(eligible("0580", 2023, 1))
         self.assertTrue(eligible("0580", 2023, 4))
+        self.assertTrue(eligible("0606", 2021, 1))
+        self.assertTrue(eligible("0606", 2021, 2))
+        self.assertFalse(eligible("0606", 2021, 3))
         self.assertTrue(eligible("0625", 2024, 2))
-        self.assertFalse(eligible("0625", 2024, 4))
-        self.assertFalse(eligible("9702", 2020, 4))
+        self.assertTrue(eligible("0625", 2024, 4))
         self.assertFalse(eligible("9702", 2026, 4))
+
+    def test_all_registered_subjects_have_staging_component_routes(self) -> None:
+        expected = {
+            "0610": set(range(1, 7)),
+            "0625": set(range(1, 7)),
+            "0580": set(range(1, 5)),
+            "0606": set(range(1, 3)),
+            "9700": set(range(1, 6)),
+            "9701": set(range(1, 6)),
+            "9702": set(range(1, 6)),
+            "9708": set(range(1, 5)),
+            "9709": set(range(1, 7)),
+            "9231": set(range(1, 5)),
+        }
+        self.assertEqual(set(self.runner.SUBJECT_POLICY), set(expected))
+        for subject, components in expected.items():
+            self.assertEqual(set(self.runner.SUBJECT_POLICY[subject]), components)
+            for component in components:
+                self.assertTrue(self.runner.route_bindings(subject, component))
+
+    def test_explicit_historical_year_window_is_respected(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="stem-paddle-year-range-") as temporary:
+            root = Path(temporary)
+            (root / "9702").mkdir(parents=True)
+            for name in (
+                "9702_m19_qp_42.pdf",
+                "9702_m19_ms_42.pdf",
+                "9702_m21_qp_42.pdf",
+                "9702_m21_ms_42.pdf",
+            ):
+                (root / "9702" / name).write_bytes(name.encode("ascii"))
+
+            def inspect_pdf(path: Path) -> dict[str, object]:
+                return {
+                    "sha256": (path.name.encode("ascii").hex() + "0" * 64)[:64],
+                    "pageCount": 1,
+                    "bytes": path.stat().st_size,
+                }
+
+            result = self.runner.enumerate_paper_pairs(
+                root,
+                years=range(2019, 2020),
+                inspect_pdf=inspect_pdf,
+            )
+            self.assertEqual([job["year"] for job in result["jobs"]], [2019])
+            self.assertEqual(result["stats"]["pairedJobs"], 1)
+            self.assertEqual(result["exclusions"]["yearOutOfRange"], 1)
 
     def test_9709_shared_components_keep_multiple_route_bindings(self) -> None:
         bindings = self.runner.route_bindings("9709", 4)
@@ -93,6 +144,14 @@ class PaperSelectionTests(unittest.TestCase):
             for component in range(1, 7)
             for binding in self.runner.route_bindings("9709", component)
         ))
+        self.assertEqual(
+            {binding["paper"] for binding in self.runner.route_bindings("9709", 4)},
+            {"P4"},
+        )
+        self.assertEqual(
+            {binding["paper"] for binding in self.runner.route_bindings("9709", 5)},
+            {"P5"},
+        )
 
     def test_enumeration_requires_exact_qp_ms_filename_pair(self) -> None:
         with tempfile.TemporaryDirectory(prefix="stem-paddle-selection-") as temporary:
@@ -129,12 +188,13 @@ class PaperSelectionTests(unittest.TestCase):
                 [
                     "cie-0625-0625_s24_qp_21",
                     "cie-9702-9702_m21_qp_42",
+                    "cie-9702-9702_s22_qp_52",
                     "cie-9709-9709_w25_qp_41",
                 ],
             )
-            self.assertEqual(result["stats"]["pairedJobs"], 3)
-            self.assertEqual(result["stats"]["totalPages"], 15)
-            self.assertEqual(result["exclusions"]["ineligibleComponent"], 1)
+            self.assertEqual(result["stats"]["pairedJobs"], 4)
+            self.assertEqual(result["stats"]["totalPages"], 20)
+            self.assertEqual(result["exclusions"]["ineligibleComponent"], 0)
             self.assertEqual(result["exclusions"]["missingExactMarkScheme"], 1)
 
 
@@ -519,6 +579,11 @@ except RuntimeError as error:
         )
         self.assertIn("routeCandidateId", schema["$defs"]["routeBinding"]["required"])
         self.assertIn("studentStudyEligible", schema["$defs"]["stagingArtifact"]["required"])
+        self.assertEqual(
+            schema["$defs"]["job"]["properties"]["subject"]["enum"],
+            ["0580", "0606", "0610", "0625", "9231", "9700", "9701", "9702", "9708", "9709"],
+        )
+        self.assertEqual(schema["$defs"]["job"]["properties"]["year"]["minimum"], 2017)
 
     def test_structured_event_log_is_durable_jsonl(self) -> None:
         with tempfile.TemporaryDirectory(prefix="stem-paddle-events-") as temporary:

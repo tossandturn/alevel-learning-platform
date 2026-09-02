@@ -18,7 +18,7 @@ import {
 } from '../src/lib/sourceContentContract.js'
 import { validHmacJwt, verifyMarkingCapability } from './markingCapability.js'
 
-const IMAGE_PATTERN = /^data:image\/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=]+)$/
+const IMAGE_PATTERN = /^data:image\/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=\r\n\t ]+)$/i
 const MAX_BODY_BYTES = 16 * 1024 * 1024
 const MAX_IMAGE_BYTES = 12 * 1024 * 1024
 const MAX_COACH_IMAGE_COUNT = 4
@@ -43,7 +43,7 @@ const MAX_AI_PROVIDER_TIMEOUT_MS = 45_000
 const MAX_AI_REQUEST_DEADLINE_MS = 55_000
 const pdfTextCache = new Map()
 const coachContextCache = new Map()
-const CIE_SUBJECTS = new Set(['0580', '0606', '0625', '9231', '9701', '9702', '9708', '9709'])
+export const CIE_SUBJECTS = new Set(['0580', '0606', '0610', '0625', '9231', '9700', '9701', '9702', '9708', '9709'])
 const DEFAULT_SOURCE_ASSET_ROOT = path.resolve(import.meta.dirname, '..', 'public', 'question-assets')
 let extraSourceCache = null
 const temporaryImages = new Map()
@@ -162,10 +162,17 @@ function applyCoachAuthorization(context, authorization) {
   }
 }
 
+function parseImageDataUrl(dataUrl, message = 'Attached image must be PNG, JPEG or WebP.') {
+  const match = String(dataUrl || '').trim().match(IMAGE_PATTERN)
+  if (!match) throw Object.assign(new Error(message), { statusCode: 400, code: 'AI_IMAGE_FORMAT_INVALID' })
+  const base64 = match[2].replace(/\s+/g, '')
+  const mime = match[1].toLowerCase() === 'jpg' ? 'jpeg' : match[1].toLowerCase()
+  return { mime, base64, dataUrl: `data:image/${mime};base64,${base64}` }
+}
+
 function imageBytes(dataUrl) {
-  const match = String(dataUrl || '').match(IMAGE_PATTERN)
-  if (!match) throw Object.assign(new Error('Attached image must be PNG, JPEG or WebP.'), { statusCode: 400 })
-  const bytes = Buffer.byteLength(match[2], 'base64')
+  const parsed = parseImageDataUrl(dataUrl)
+  const bytes = Buffer.byteLength(parsed.base64, 'base64')
   if (!bytes || bytes > MAX_IMAGE_BYTES) throw Object.assign(new Error('Attached image is empty or too large.'), { statusCode: 400 })
   return bytes
 }
@@ -176,7 +183,10 @@ function coachImageDataUrls(payload) {
     : payload?.imageDataUrl
       ? [payload.imageDataUrl]
       : []
-  const images = source.map((value) => String(value || '').trim()).filter(Boolean)
+  const images = source
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .map((value) => parseImageDataUrl(value).dataUrl)
   if (images.length > MAX_COACH_IMAGE_COUNT) {
     throw Object.assign(new Error(`Attach no more than ${MAX_COACH_IMAGE_COUNT} images.`), { statusCode: 400 })
   }
@@ -204,17 +214,16 @@ function cleanupTemporaryImages() {
 }
 
 async function temporaryImageUrl(dataUrl, publicBaseUrl) {
-  if (!publicBaseUrl) return { url: dataUrl, cleanup: () => {} }
-  const match = String(dataUrl || '').match(IMAGE_PATTERN)
-  if (!match) throw Object.assign(new Error('Handwriting image must be PNG, JPEG or WebP.'), { statusCode: 400 })
+  const parsed = parseImageDataUrl(dataUrl)
+  if (!publicBaseUrl) return { url: parsed.dataUrl, cleanup: () => {} }
   cleanupTemporaryImages()
-  const extension = match[1] === 'jpeg' ? 'jpg' : match[1]
-  const mime = `image/${match[1] === 'jpg' ? 'jpeg' : match[1]}`
+  const extension = parsed.mime === 'jpeg' ? 'jpg' : parsed.mime
+  const mime = `image/${parsed.mime}`
   const token = crypto.randomUUID()
   const directory = path.join(os.tmpdir(), 'alevel-physics-ai-images')
   const filePath = path.join(directory, `${token}.${extension}`)
   await fs.promises.mkdir(directory, { recursive: true, mode: 0o700 })
-  await fs.promises.writeFile(filePath, Buffer.from(match[2], 'base64'), { mode: 0o600 })
+  await fs.promises.writeFile(filePath, Buffer.from(parsed.base64, 'base64'), { mode: 0o600 })
   temporaryImages.set(token, { filePath, mime, expiresAt: Date.now() + TEMP_IMAGE_TTL_MS })
   return {
     url: `${publicBaseUrl.replace(/\/+$/, '')}/api/ai/image/${token}`,
@@ -670,10 +679,13 @@ export function canonicalHandwritingMarkingContext(payload = {}, { questionBank 
 export function providerConfig(env = {}) {
   const explicitProvider = String(env.AI_PROVIDER || env.COACH_AI_PROVIDER || env.PHYSICS_AI_PROVIDER || '').trim().toLowerCase()
   const openAiKey = env.OPENAI_API_KEY || env.OPENAI_COACH_API_KEY || ''
+  // Shared account gateway alias. The value is server-only and must never be
+  // copied into browser storage or provider telemetry.
+  const savedGatewayKey = env.AI_GATEWAY_API_KEY || env.THRID_AI_KEY || env.THIRD_AI_KEY || env.thridkey || ''
   const legacyOpenAiBaseUrl = env.OPENAI_CHAT_BASE_URL || env.OPENAI_BASE_URL || ''
   const legacyOpenAiProtocol = normalizedProviderProtocol(env.OPENAI_API_PROTOCOL || env.OPENAI_API_STYLE, legacyOpenAiBaseUrl)
   const gatewayBaseConfigured = Boolean(String(env.AI_GATEWAY_BASE_URL || '').trim())
-    || Boolean(String(env.AI_GATEWAY_API_KEY || '').trim())
+    || Boolean(String(savedGatewayKey).trim())
     || explicitProvider === 'gateway'
     || explicitProvider === 'openai-gateway'
     || (legacyOpenAiProtocol === 'responses' && Boolean(String(openAiKey).trim()))
@@ -681,7 +693,7 @@ export function providerConfig(env = {}) {
   // OPENAI_API_KEY. Only reuse it when gateway routing was explicitly opted in
   // (by a gateway setting or provider selection); never silently redirect a
   // normal direct-OpenAI installation.
-  const gatewayKey = env.AI_GATEWAY_API_KEY || (gatewayBaseConfigured ? openAiKey : '')
+  const gatewayKey = savedGatewayKey || (gatewayBaseConfigured ? openAiKey : '')
   const gatewayRequested = explicitProvider === 'gateway' || explicitProvider === 'openai-gateway'
   const selectedProvider = explicitProvider === 'qwen'
     ? 'qwen'
@@ -697,16 +709,19 @@ export function providerConfig(env = {}) {
     : 'https://dashscope.aliyuncs.com/compatible-mode/v1'
   const compatibleBaseUrl = normalizeCompatibleBaseUrl(env.DASHSCOPE_COMPAT_BASE_URL || dashscopeBase)
   const dashscopeKey = env.DASHSCOPE_API_KEY || env.QWEN_API_KEY || ''
-  const sharedKey = env.PHYSICS_AI_API_KEY || dashscopeKey
-  const sharedBaseUrl = (env.PHYSICS_AI_BASE_URL || compatibleBaseUrl).replace(/\/+$/, '')
+  // Keep the legacy generic aliases usable for an explicitly selected Qwen
+  // installation, but never let them override a separately configured
+  // DashScope/Qwen fallback behind the GPT gateway.
+  const qwenKey = dashscopeKey || (selectedProvider === 'qwen' ? env.PHYSICS_AI_API_KEY || '' : '')
+  const qwenBaseUrl = (env.DASHSCOPE_COMPAT_BASE_URL || (selectedProvider === 'qwen' ? env.PHYSICS_AI_BASE_URL : '') || compatibleBaseUrl).replace(/\/+$/, '')
   const publicBaseUrl = env.PHYSICS_PUBLIC_BASE_URL || env.PUBLIC_BASE_URL || ''
   const imageMode = env.PHYSICS_AI_IMAGE_MODE === 'url' ? 'url' : 'data-url'
   const qwenCoach = {
     name: 'qwen',
     label: 'Qwen',
     protocol: 'chat-completions',
-    apiKey: env.COACH_AI_API_KEY || env.QWEN_COACH_API_KEY || sharedKey,
-    baseUrl: normalizeCompatibleBaseUrl(env.COACH_AI_BASE_URL || env.QWEN_COACH_BASE_URL || sharedBaseUrl),
+    apiKey: env.COACH_AI_API_KEY || env.QWEN_COACH_API_KEY || qwenKey,
+    baseUrl: normalizeCompatibleBaseUrl(env.COACH_AI_BASE_URL || env.QWEN_COACH_BASE_URL || qwenBaseUrl),
     model: env.COACH_AI_MODEL || env.QWEN_COACH_MODEL || env.PHYSICS_COACH_MODEL || 'qwen3.7-max',
     publicBaseUrl,
     imageMode,
@@ -715,8 +730,8 @@ export function providerConfig(env = {}) {
     name: 'qwen',
     label: 'Qwen',
     protocol: 'chat-completions',
-    apiKey: env.VISION_AI_API_KEY || env.QWEN_VISION_API_KEY || sharedKey,
-    baseUrl: normalizeCompatibleBaseUrl(env.VISION_AI_BASE_URL || env.QWEN_VISION_BASE_URL || sharedBaseUrl),
+    apiKey: env.VISION_AI_API_KEY || env.QWEN_VISION_API_KEY || qwenKey,
+    baseUrl: normalizeCompatibleBaseUrl(env.VISION_AI_BASE_URL || env.QWEN_VISION_BASE_URL || qwenBaseUrl),
     model: env.VISION_AI_MODEL || env.QWEN_VISION_MODEL || env.PHYSICS_VISION_MODEL || 'qwen3-vl-plus',
     publicBaseUrl,
     imageMode,
@@ -1041,6 +1056,17 @@ function effectiveAiTimeoutMs(timeoutMs, deadlineAt) {
   return Math.min(configuredTimeoutMs, remainingMs)
 }
 
+function fallbackAwareProviderTimeoutMs(timeoutMs, deadlineAt, remainingProviderCount = 1) {
+  const configuredTimeoutMs = boundedDuration(timeoutMs, DEFAULT_AI_PROVIDER_TIMEOUT_MS, 1, MAX_AI_PROVIDER_TIMEOUT_MS)
+  if (!Number.isFinite(deadlineAt) || remainingProviderCount <= 1) return configuredTimeoutMs
+  const remainingMs = Math.floor(deadlineAt - Date.now())
+  if (remainingMs <= 0) throw aiDeadlineError()
+  // A hung primary must not consume the entire request budget before Qwen can
+  // run. Recalculate this share for every attempt so fast HTTP failures do not
+  // unnecessarily shorten the fallback window.
+  return Math.min(configuredTimeoutMs, Math.max(1, Math.floor(remainingMs / remainingProviderCount)))
+}
+
 function emitProviderTelemetry(telemetry, event) {
   const safeEvent = {
     requestId: String(event.requestId || '').replace(/[^a-z0-9._:-]/gi, '').slice(0, 80) || null,
@@ -1117,6 +1143,10 @@ async function callCompatibleAi(provider, { messages, temperature = 0.2, json = 
     } catch (error) {
       schemaStatus = 'invalid'
       throw aiResponseSchemaError(error)
+    }
+    if (isResponsesProvider(provider) && payload?.status !== 'completed') {
+      schemaStatus = 'invalid'
+      throw aiResponseSchemaError('AI Responses provider did not complete the response.')
     }
     const answer = isResponsesProvider(provider)
       ? responseOutputText(payload)
@@ -1341,6 +1371,11 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   for (const [providerIndex, activeProvider] of activeProviders.entries()) {
     let providerImages = []
     try {
+      const attemptTimeoutMs = fallbackAwareProviderTimeoutMs(
+        requestBudget.providerTimeoutMs,
+        deadlineAt,
+        activeProviders.length - providerIndex,
+      )
       providerImages = await temporaryProviderImages(imageDataUrls, imagePublicBase(activeProvider, request))
       const content = providerMessageContent(userText, providerImages)
       const answer = await callCompatibleAi(activeProvider, {
@@ -1353,7 +1388,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
         fallbackPath: activeProviders.slice(0, providerIndex + 1).map((candidate) => candidate.name).join('>'),
         fallback: providerIndex > 0,
         telemetry,
-        timeoutMs: requestBudget.providerTimeoutMs,
+        timeoutMs: attemptTimeoutMs,
         totalDeadlineMs: requestBudget.totalDeadlineMs,
         deadlineAt,
       })
@@ -1426,6 +1461,10 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, m
         schemaStatus = 'invalid'
         throw aiResponseSchemaError(error)
       }
+      if (isResponsesProvider(provider) && payload?.status !== 'completed') {
+        schemaStatus = 'invalid'
+        throw aiResponseSchemaError('AI Responses provider did not complete the response.')
+      }
       answer = responseOutputText(payload)
       if ((!isResponsesProvider(provider) && !Array.isArray(payload?.choices)) || !answer) {
         schemaStatus = 'invalid'
@@ -1475,6 +1514,9 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, m
         throw aiResponseSchemaError('AI provider stream ended incompletely.')
       }
       if (responseEventType === 'response.completed' || responseEventType === 'response.done') {
+        if (isResponsesProvider(provider) && payload?.status && payload.status !== 'completed') {
+          throw aiResponseSchemaError('AI provider stream reported a non-completed response.')
+        }
         if (!answer) {
           const completedText = responseOutputText(payload)
           if (completedText) {
@@ -1627,6 +1669,11 @@ async function handleCoachStream(request, response, provider, visionProvider, li
       let providerImages = []
       let attemptAnswer = ''
       try {
+        const attemptTimeoutMs = fallbackAwareProviderTimeoutMs(
+          requestBudget.providerTimeoutMs,
+          deadlineAt,
+          activeProviders.length - providerIndex,
+        )
         providerImages = await temporaryProviderImages(imageDataUrls, imagePublicBase(activeProvider, request))
         const content = providerMessageContent(userText, providerImages)
         sendCoachEvent(response, 'meta', {
@@ -1645,7 +1692,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
           fallbackPath: activeProviders.slice(0, providerIndex + 1).map((candidate) => candidate.name).join('>'),
           fallback: providerIndex > 0,
           telemetry,
-          timeoutMs: requestBudget.providerTimeoutMs,
+          timeoutMs: attemptTimeoutMs,
           totalDeadlineMs: requestBudget.totalDeadlineMs,
           deadlineAt,
           onDelta: async (delta) => {
@@ -1787,6 +1834,11 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
     let studentImage = null
     let sourceImages = []
     try {
+      const attemptTimeoutMs = fallbackAwareProviderTimeoutMs(
+        timeoutConfig.visionProviderTimeoutMs,
+        deadlineAt,
+        activeProviders.length - providerIndex,
+      )
       const publicBase = imagePublicBase(activeProvider, request)
       const officialSourceImages = [...questionImages, ...markSchemeImages]
       ;[studentImage, ...sourceImages] = await Promise.all([
@@ -1819,7 +1871,7 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
         fallbackPath: activeProviders.slice(0, providerIndex + 1).map((candidate) => candidate.name).join('>'),
         fallback: providerIndex > 0,
         telemetry,
-        timeoutMs: timeoutConfig.visionProviderTimeoutMs,
+        timeoutMs: attemptTimeoutMs,
         totalDeadlineMs: timeoutConfig.visionTotalDeadlineMs,
         deadlineAt,
         validateResponse: (answer) => validateMarkAssessment(parseStructuredJson(answer), requestedMaxMarks),
@@ -1879,8 +1931,10 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
     try {
       if (request.method === 'GET' && requestUrl.pathname.startsWith('/api/ai/image/')) return handleTemporaryImage(requestUrl, response)
       if (request.method === 'GET' && requestUrl.pathname === '/api/ai/status') {
-        const coachProvider = providerCandidates(config.coach)[0]
-        const visionProvider = providerCandidates(config.vision)[0]
+        const coachProviders = providerCandidates(config.coach)
+        const visionProviders = providerCandidates(config.vision)
+        const coachProvider = coachProviders[0]
+        const visionProvider = visionProviders[0]
         return sendJson(response, 200, {
           provider: config.provider,
           coachEnabled: Boolean(coachProvider),
@@ -1889,6 +1943,10 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
           visionProvider: visionProvider?.name || null,
           coachModel: coachProvider?.model || null,
           visionModel: visionProvider?.model || null,
+          coachFallbackAvailable: coachProviders.length > 1,
+          visionFallbackAvailable: visionProviders.length > 1,
+          coachFallbackProviders: coachProviders.slice(1).map((candidate) => ({ name: candidate.name, model: candidate.model })),
+          visionFallbackProviders: visionProviders.slice(1).map((candidate) => ({ name: candidate.name, model: candidate.model })),
         })
       }
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach') return await handleCoach(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest)

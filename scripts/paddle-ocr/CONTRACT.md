@@ -14,6 +14,8 @@ $runner = 'D:\CodexWork\alevel-learning-platform\scripts\paddle-ocr\runner.py'
 
 & $python $runner manifest --pdf-root 'D:\CodexWork\cie-fraft-fetcher\output\pdf' --work-root 'D:\CodexWork\stem-ocr-work'
 & $python $runner dry-run --pdf-root 'D:\CodexWork\cie-fraft-fetcher\output\pdf' --work-root 'D:\CodexWork\stem-ocr-work'
+# Optional explicitly bounded historical window:
+& $python $runner manifest --pdf-root 'D:\CodexWork\cie-fraft-fetcher\output\pdf' --work-root 'D:\CodexWork\stem-ocr-work' --min-year 2017 --max-year 2025
 & $python $runner status --work-root 'D:\CodexWork\stem-ocr-work'
 & $python 'D:\CodexWork\alevel-learning-platform\scripts\paddle-ocr\worker.py' --work-root 'D:\CodexWork\stem-ocr-work' --device 'gpu:0'
 ```
@@ -23,19 +25,32 @@ without those limits resumes the same job from its per-page state.
 
 ## Selection contract
 
-Only 2021 through 2025 papers with an exact same-directory `_qp_` to `_ms_`
-filename substitution are queued.
+The default active window is 2017 through 2025. An exact same-directory
+`_qp_` to `_ms_` filename substitution is required. `manifest` and `dry-run`
+accept `--min-year` and `--max-year` for an explicitly bounded window; stable
+paper/hash identities preserve matching per-job state when a manifest is
+regenerated.
 
 | Subject | Components |
 | --- | --- |
-| 9702 | 1, 2, 4; components 3 and 5 are excluded |
-| 9709 | 1 through 6; candidate route IDs follow the registered combination routes |
+| 0610 | 1 through 6; practical components remain staging-only |
+| 0625 | 1 through 6 in staging; only P2 is theory/release eligible |
+| 9700 | 1 through 5; practical components remain staging-only |
+| 9701 | 1 through 5; practical components remain staging-only |
+| 9702 | 1 through 5; P3/P5 remain staging-only experimental components |
+| 9709 | 1 through 6; candidate route IDs follow registered combination routes |
 | 0580 | 1 through 4 |
-| 0625 | 2 only |
+| 0606 | 1, 2 |
+| 9231 | 1 through 4; candidate route IDs follow registered combination routes |
+| 9708 | 1 through 4 |
 
 Route bindings are candidate route scopes, not syllabus approval or release
-approval. Every route binding has `reviewStatus: pending_official_review` and
-`routeResolutionStatus: candidate_requires_adapter_validation`.
+approval. The `paper` field always uses canonical `P<component>` notation.
+Every route binding has `reviewStatus: pending_official_review` and
+`routeResolutionStatus: candidate_requires_adapter_validation`. The shared
+`scripts/paddle-ocr/route-policy.mjs` derives release candidates from the
+latest `courseRoutes`; staging records that have no eligible theory route fail
+closed before AI question ingestion.
 
 For 9709, the runner does not emit the old generic placeholders
 `cie-9709-as-mathematics` or `cie-9709-a2-mathematics`. It emits registered
@@ -46,11 +61,11 @@ candidate route IDs for the current route model:
 - P3: `cie-9709-a2-after-p1-p5-p3-p4`,
   `cie-9709-a2-after-p1-p5-p3-p6`,
   `cie-9709-a2-after-p1-p4-p3-p5`
-- M1/P4: `cie-9709-as-p1-p4`,
+- P4 (M1): `cie-9709-as-p1-p4`,
   `cie-9709-a2-after-p1-p5-p3-p4`
-- S1/P5: `cie-9709-as-p1-p5`,
+- P5 (S1): `cie-9709-as-p1-p5`,
   `cie-9709-a2-after-p1-p4-p3-p5`
-- S2/P6: `cie-9709-a2-after-p1-p5-p3-p6`
+- P6 (S2): `cie-9709-a2-after-p1-p5-p3-p6`
 
 The adapter still must validate those candidates against `routeRegistry` and
 the official syllabus before creating any runtime or released route binding.

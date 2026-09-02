@@ -277,6 +277,14 @@ export async function requestTopicPdf(token, { routeId, topicId } = {}) {
     error.statusCode = status
     throw error
   }
+  if (response.headers.get('X-STEM-Topic-PDF-Authority') !== 'ai-provisional'
+    || response.headers.get('X-STEM-Topic-PDF-Student-Study-Eligible') !== 'true'
+    || response.headers.get('X-STEM-Topic-PDF-Formal-Progress-Eligible') !== 'false') {
+    throw new SharedAccountError(
+      'topic_pdf_provenance_missing',
+      'The topic PDF did not include its provisional study-only provenance. No file was opened.',
+    )
+  }
   const blob = await response.blob()
   const header = new Uint8Array(await blob.slice(0, 5).arrayBuffer())
   if (header.length !== 5 || String.fromCharCode(...header) !== '%PDF-') {

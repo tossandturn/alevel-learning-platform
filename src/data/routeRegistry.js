@@ -9,6 +9,7 @@ import { CAMBRIDGE_9702_A2_TOPICS } from './syllabus/cambridge-9702-a2-2025-2027
 import { CAMBRIDGE_9702_A2_SYLLABUS } from './syllabus/cambridge-9702-a2-2025-2027.js'
 import { CAMBRIDGE_9709_AS_P1_S1_TOPICS } from './syllabus/cambridge-9709-as-p1-s1-2026-2027.js'
 import { cambridge9709SyllabusForRoute, cambridge9709TopicsForRoute } from './syllabus/cambridge-9709-2026-2027.js'
+import { latestSyllabusForRoute } from './syllabus/cambridge-latest-official.js'
 
 export const LEGACY_UNSCOPED_ROUTE_ID = 'legacy-unscoped'
 
@@ -54,16 +55,16 @@ const TOPICS = Object.freeze({
 })
 
 const SYLLABUS = Object.freeze({
-  '0580': ['2025-2027', 'https://www.cambridgeinternational.org/Images/662466-2025-2027-syllabus.pdf'],
-  '0606': ['2025-2027', 'https://www.cambridgeinternational.org/Images/662470-2025-2027-syllabus.pdf'],
+  '0580': ['2028-2030', 'https://www.cambridgeinternational.org/Images/745681-2028-2030-syllabus.pdf'],
+  '0606': ['2028-2030', 'https://www.cambridgeinternational.org/Images/745683-2028-2030-syllabus.pdf'],
   '0610': ['2026-2028', 'https://www.cambridgeinternational.org/Images/697203-2026-2028-syllabus.pdf'],
   '0625': ['2026-2028', 'https://www.cambridgeinternational.org/Images/697209-2026-2028-syllabus.pdf'],
-  '9700': ['2025-2027', 'https://www.cambridgeinternational.org/Images/664560-2025-2027-syllabus.pdf'],
-  '9701': ['2025-2027', 'https://www.cambridgeinternational.org/Images/664563-2025-2027-syllabus.pdf'],
-  '9702': ['2025-2027', 'https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf'],
+  '9700': ['2028-2030', 'https://www.cambridgeinternational.org/Images/744622-2028-2030-syllabus.pdf'],
+  '9701': ['2028-2030', 'https://www.cambridgeinternational.org/Images/744624-2028-2030-syllabus.pdf'],
+  '9702': ['2028-2030', 'https://www.cambridgeinternational.org/Images/744626-2028-2030-syllabus.pdf'],
   '9708': ['2026-2028', 'https://www.cambridgeinternational.org/Images/697423-2026-2028-syllabus.pdf'],
-  '9709': ['2026-2027', 'https://www.cambridgeinternational.org/Images/697427-2026-2027-syllabus.pdf'],
-  '9231': ['2026-2027', 'https://www.cambridgeinternational.org/Images/697357-2026-2027-syllabus.pdf'],
+  '9709': ['2028-2030', 'https://www.cambridgeinternational.org/Images/744634-2028-2030-syllabus.pdf'],
+  '9231': ['2028-2030', 'https://www.cambridgeinternational.org/Images/744603-2028-2030-syllabus.pdf'],
 })
 
 function freezeTopics(key) {
@@ -109,17 +110,22 @@ function cieRoute({ routeId, qualification, stage, subject, subjectId, code, pap
       code,
       version: officialSyllabus?.syllabusVersion || version,
       url: officialSyllabus?.officialUrl || url,
+      sourceSha256: officialSyllabus?.sourceSha256 || null,
+      extraction: officialSyllabus?.extraction || null,
       assessmentComponents: Object.freeze(assessmentComponents.map((item) => Object.freeze({ ...item }))),
       componentScope: Object.freeze((officialSyllabus?.componentScope || fallbackComponentScope).map((scope) => Object.freeze({
         ...scope,
         notes: Object.freeze(Array.isArray(scope.notes) ? [...scope.notes] : []),
       }))),
       topics: Object.freeze(syllabusTopics),
+      points: Object.freeze(syllabusTopics.flatMap((topic) => topic.points || []).map((point) => Object.freeze({ ...point }))),
     }),
   })
 }
 
 function officialSyllabusForRoute({ routeId, code, stage, paperComponents }) {
+  const latest = latestSyllabusForRoute({ routeId, code, stage, paperComponents })
+  if (latest) return latest
   if (code === '0580') return CAMBRIDGE_0580_IGCSE_SYLLABUS
   if (code === '0606') return CAMBRIDGE_0606_IGCSE_SYLLABUS
   if (code === '0625') return CAMBRIDGE_0625_IGCSE_SYLLABUS

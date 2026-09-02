@@ -271,20 +271,33 @@ function fileToDataUrl(file) {
 function loadUploadImage(file) {
   const objectUrl = window.URL.createObjectURL(file)
   return new Promise((resolve, reject) => {
-    const image = new window.Image()
-    image.onload = () => resolve({ image, objectUrl })
-    image.onerror = () => {
+    const fallbackToBitmap = async () => {
       window.URL.revokeObjectURL(objectUrl)
+      if (typeof window.createImageBitmap === 'function') {
+        try {
+          const bitmap = await window.createImageBitmap(file)
+          resolve({ image: bitmap, objectUrl: '', bitmap })
+          return
+        } catch {
+          // Use the same clear error for browsers without a usable decoder.
+        }
+      }
       reject(new Error('This photo format could not be prepared. Choose a JPEG, PNG or WebP image.'))
     }
+    const image = new window.Image()
+    image.onload = () => resolve({ image, objectUrl })
+    image.onerror = () => { void fallbackToBitmap() }
     image.src = objectUrl
   })
 }
 
 function uploadCanvas(image, scale) {
+  const width = Number(image.naturalWidth || image.width)
+  const height = Number(image.naturalHeight || image.height)
+  if (!width || !height) throw new Error('The browser could not determine the photo size.')
   const canvas = window.document.createElement('canvas')
-  canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
-  canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
+  canvas.width = Math.max(1, Math.round(width * scale))
+  canvas.height = Math.max(1, Math.round(height * scale))
   const context = canvas.getContext('2d')
   if (!context) throw new Error('The browser could not prepare this photo.')
   context.fillStyle = '#ffffff'
@@ -294,7 +307,10 @@ function uploadCanvas(image, scale) {
 }
 
 async function compressedUploadBlob(image) {
-  let scale = Math.min(1, MAX_UPLOAD_SIDE / Math.max(image.naturalWidth, image.naturalHeight))
+  const width = Number(image.naturalWidth || image.width)
+  const height = Number(image.naturalHeight || image.height)
+  if (!width || !height) throw new Error('The browser could not determine the photo size.')
+  let scale = Math.min(1, MAX_UPLOAD_SIDE / Math.max(width, height))
   for (let sizeAttempt = 0; sizeAttempt < 3; sizeAttempt += 1) {
     const canvas = uploadCanvas(image, scale)
     for (const quality of [0.9, 0.82, 0.74, 0.66]) {
@@ -306,8 +322,11 @@ async function compressedUploadBlob(image) {
   throw new Error('This photo is still too large after compression. Crop it or choose a smaller image.')
 }
 
-export async function imageFileToDataUrl(file) {
-  if (!file?.type?.startsWith('image/') || file.size > MAX_UPLOAD_SOURCE_BYTES) {
+export async function imageFileToDataUrl(file, { assumeImage = false } = {}) {
+  const imageType = String(file?.type || '')
+  const imageName = String(file?.name || '')
+  const looksLikeImage = imageType.startsWith('image/') || /\.(?:avif|heic|heif|jpe?g|png|webp)$/i.test(imageName)
+  if ((!assumeImage && !looksLikeImage) || file.size > MAX_UPLOAD_SOURCE_BYTES) {
     throw new Error('Choose an image under 24 MB.')
   }
   let loaded
@@ -322,5 +341,6 @@ export async function imageFileToDataUrl(file) {
     throw error
   } finally {
     if (loaded?.objectUrl) window.URL.revokeObjectURL(loaded.objectUrl)
+    loaded?.bitmap?.close?.()
   }
 }

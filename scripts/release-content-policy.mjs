@@ -18,6 +18,30 @@ export const RELEASE_TOP_LEVEL_ALLOWLIST = Object.freeze([
   'vite.config.js',
 ])
 
+const FORBIDDEN_CACHE_OR_STAGING_SEGMENT = /^(?:\.?cache|__pycache__|ocr[-_]?staging|review[-_]?staging|quarantine)$/i
+const FORBIDDEN_DATABASE_SUFFIX = /\.(?:db|sqlite|sqlite3)(?:[-.](?:wal|shm|journal))?$/i
+const FORBIDDEN_DUMP_SUFFIX = /\.(?:dump|sql|sql\.gz)$/i
+const FORBIDDEN_KEY_SUFFIX = /\.(?:pem|key|p12|pfx|jks)$/i
+
+function isForbiddenSensitiveRelativePath(relativePath) {
+  const normalized = String(relativePath).split(path.sep).join('/')
+  const segments = normalized.split('/').filter(Boolean)
+  const basename = segments.at(-1) || ''
+  const lowerBasename = basename.toLowerCase()
+  const isExampleEnv = lowerBasename === '.env.example'
+  const isSecretEnv = lowerBasename === '.env' || (lowerBasename.startsWith('.env.') && !isExampleEnv)
+  const isPrivateKeyName = /^(?:id_(?:rsa|dsa|ecdsa|ed25519)|.+private[-_]?key|.+secret)$/i.test(basename)
+  const isForbiddenDirectory = segments.slice(0, -1).some((segment) => FORBIDDEN_CACHE_OR_STAGING_SEGMENT.test(segment))
+  return Boolean(
+    isSecretEnv
+    || isPrivateKeyName
+    || FORBIDDEN_KEY_SUFFIX.test(lowerBasename)
+    || FORBIDDEN_DATABASE_SUFFIX.test(lowerBasename)
+    || FORBIDDEN_DUMP_SUFFIX.test(lowerBasename)
+    || isForbiddenDirectory
+  )
+}
+
 function comparablePath(value) {
   const resolved = path.resolve(value)
   return process.platform === 'win32' ? resolved.toLowerCase() : resolved
@@ -58,6 +82,21 @@ export function findForbiddenFiles(root, extensions) {
     if (!symbolicLink && stats.isFile() && [...forbidden].some((extension) => entryPath.toLowerCase().endsWith(extension))) {
       matches.push(relativePath)
     }
+  })
+  return matches.sort()
+}
+
+/**
+ * Reject sensitive material regardless of where it is nested in a release.
+ * `.env.example` is intentionally allowed because it is a non-secret template;
+ * all other environment files, keys, databases, dumps, caches and OCR staging
+ * records remain outside the student release.
+ */
+export function findForbiddenSensitiveFiles(root) {
+  const matches = []
+  walkPhysicalTree(root, ({ relativePath, stats, symbolicLink }) => {
+    if (symbolicLink || !stats.isFile()) return
+    if (isForbiddenSensitiveRelativePath(relativePath)) matches.push(relativePath.split(path.sep).join('/'))
   })
   return matches.sort()
 }

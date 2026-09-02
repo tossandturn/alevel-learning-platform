@@ -5,6 +5,7 @@ import path from 'node:path'
 
 import { CAMBRIDGE_0580_IGCSE_SYLLABUS } from '../src/data/syllabus/cambridge-0580-igcse-2025-2027.js'
 import { CAMBRIDGE_0625_IGCSE_SYLLABUS } from '../src/data/syllabus/cambridge-0625-igcse-2026-2028.js'
+import { CAMBRIDGE_LATEST_SYLLABUS_CATALOG } from '../src/data/syllabus/cambridge-latest-official.js'
 import { routeById } from '../src/data/routeRegistry.js'
 import { syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
 import { parseArgs as parseIngestionArgs } from './ingest-ai-pdf-questions.mjs'
@@ -29,7 +30,7 @@ try {
   assert.ok(CAMBRIDGE_0625_IGCSE_SYLLABUS.points.length >= 12)
 
   for (const [routeId, expectedSyllabus] of [
-    ['cie-0580-igcse-mathematics', CAMBRIDGE_0580_IGCSE_SYLLABUS],
+    ['cie-0580-igcse-mathematics', CAMBRIDGE_LATEST_SYLLABUS_CATALOG['0580']],
     ['cie-0625-igcse-physics', CAMBRIDGE_0625_IGCSE_SYLLABUS],
   ]) {
     const route = routeById(routeId)

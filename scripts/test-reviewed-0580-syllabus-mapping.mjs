@@ -24,7 +24,7 @@ assert.equal(inventory.unmappedQuestionGroupCount, 0, 'every reviewed 0580 group
 
 const numberTopic = inventory.topics.find((topic) => topic.id === '0580-igcse-topic-01')
 assert.ok(numberTopic, 'the official Number topic must exist')
-assert.ok(numberTopic.verifiedQuestionCount >= 10, 'the reviewed Number inventory must clear the production readiness threshold')
+assert.ok(numberTopic.verifiedQuestionCount >= 12, 'the reviewed Number inventory must clear the two-test production readiness threshold')
 assert.equal(numberTopic.ready, true)
 
 const practiceSet = buildSyllabusPracticeSet({

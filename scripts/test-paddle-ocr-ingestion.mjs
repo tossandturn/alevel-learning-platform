@@ -104,6 +104,37 @@ try {
     'a shared M1 paper must be reviewed against both official route contexts',
   )
 
+  const routeOnlyJob = (subject, component, routeIds) => ({
+    subject,
+    component,
+    routeBindings: routeIds.map((routeId) => ({
+      routeCandidateId: routeId,
+      routeResolutionStatus: 'candidate_requires_adapter_validation',
+      qualificationStage: routeId.includes('-a2-') ? 'A2' : routeId.includes('-as-') ? 'AS' : 'IGCSE',
+      paper: `P${component}`,
+      component,
+      reviewStatus: 'pending_official_review',
+    })),
+  })
+  const allSubjectRoutes = [
+    ['0606', 1, [['cie-0606-igcse-additional-mathematics', [1, 2]]]],
+    ['0610', 3, [['cie-0610-igcse-biology', [1, 2, 3, 4]]]],
+    ['9700', 1, [['cie-9700-as-biology', [1, 2]]]],
+    ['9700', 4, [['cie-9700-a2-biology', [4]]]],
+    ['9701', 2, [['cie-9701-as-chemistry', [1, 2]]]],
+    ['9701', 4, [['cie-9701-a2-chemistry', [4]]]],
+    ['9708', 3, [['cie-9708-a2-economics', [3, 4]]]],
+    ['9231', 1, [['cie-9231-as-p1-p3', [1, 3]], ['cie-9231-as-p1-p4', [1, 4]]]],
+    ['9231', 3, [['cie-9231-as-p1-p3', [1, 3]], ['cie-9231-a2-after-p1-p4-p2-p3', [2, 3]]]],
+  ]
+  for (const [subject, component, expectedRoutes] of allSubjectRoutes) {
+    const plans = routePlansForJob(routeOnlyJob(subject, component, expectedRoutes.map(([routeId]) => routeId)))
+    assert.deepEqual(plans.map((route) => [route.routeId, route.components]), expectedRoutes, `${subject} P${component} must resolve each registered route with its own theory scope`)
+  }
+  for (const [subject, component] of [['0610', 5], ['9700', 3], ['9701', 5], ['9702', 5], ['0625', 4], ['9709', 7]]) {
+    assert.throws(() => routePlansForJob(routeOnlyJob(subject, component, [])), /PADDLE_ROUTE_UNSUPPORTED/, `${subject} P${component} must remain isolated from Topic Drill ingestion`)
+  }
+
   assert.throws(
     () => routePlansForJob({
       ...job,

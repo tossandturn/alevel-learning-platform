@@ -2,9 +2,11 @@ import assert from 'node:assert/strict'
 import { Readable } from 'node:stream'
 
 import { closeStemDatabaseForTests, createStemApi } from '../server/stemApi.js'
-import { isStudentReleasedAiStudyItem, studyQuestionBank } from '../src/data/questionBank.js'
+import { isHumanReviewedPastPaperItem, isStudentReleasedAiStudyItem, studyQuestionBank } from '../src/data/questionBank.js'
+import { syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
 import { routeById } from '../src/data/routeRegistry.js'
 import { syllabusPracticeComponentsForRoute } from '../src/lib/syllabusPracticeRoutes.js'
+import { MIN_QUESTION_GROUPS_PER_TEST, MIN_VERIFIED_GROUPS_FOR_PRACTICE } from '../src/lib/practiceConstants.js'
 import { buildAiStudentStudyRelease } from './ai-pdf-ingestion/contract.mjs'
 
 const routeIds = [
@@ -126,17 +128,34 @@ function releasedAiShadowOfReviewedQuestion(question) {
 async function verifyReviewedSourcePrecedence() {
   const reviewedQuestion = studyQuestionBank.find((question) => (
     question.routeId === 'cie-0580-igcse-mathematics'
-    && question.sourceQuestionId === 'cie-0580-0580_m25_qp_12:q5'
+    && question.sourceQuestionId === 'cie-0580-0580_m25_qp_12:q1'
+    && isHumanReviewedPastPaperItem(question)
   ))
   assert.ok(reviewedQuestion, 'the reviewed 0580 M25/12 Q5 fixture must exist')
-  assert.ok(reviewedQuestion.parts.every((part) => part.sourceFocus?.pages?.length), 'the reviewed fixture must expose its approved focus bounds')
 
-  const aiShadow = releasedAiShadowOfReviewedQuestion(reviewedQuestion)
+  // Use twelve real manifest-bound groups from one canonical syllabus topic.
+  // A mixed-topic request must not satisfy one topic's floor with another
+  // topic's questions.
+  const numberTopic = syllabusTopicsInventory({
+    routeId: reviewedQuestion.routeId,
+    questionBank: studyQuestionBank,
+    includeStudyOnly: false,
+  }).topics.find((topic) => topic.id === '0580-igcse-topic-01')
+  const numberIds = numberTopic?.questionIdsByComponent?.['1']?.verifiedQuestionIds || []
+  const reviewedQuestions = [
+    ...numberIds
+      .map((sourceQuestionId) => studyQuestionBank.find((question) => question.sourceQuestionId === sourceQuestionId))
+      .filter((question) => question && isHumanReviewedPastPaperItem(question))
+      .slice(0, MIN_VERIFIED_GROUPS_FOR_PRACTICE),
+  ]
+  assert.equal(reviewedQuestions.length, MIN_VERIFIED_GROUPS_FOR_PRACTICE, 'the precedence fixture must contain twelve real reviewed question groups')
+
+  const aiShadow = releasedAiShadowOfReviewedQuestion(reviewedQuestions[0])
   assert.equal(isStudentReleasedAiStudyItem(aiShadow), true, 'the shadow must pass the runtime released-study gate')
 
   const api = createStemApi({
     env: { NODE_ENV: 'test', STEM_DB_PATH: ':memory:' },
-    questionBank: [reviewedQuestion],
+    questionBank: reviewedQuestions,
     topicQuestionBankProvider: () => [aiShadow],
   })
   try {
@@ -145,17 +164,21 @@ async function verifyReviewedSourcePrecedence() {
       url: '/api/stem/practice-sets',
       body: {
         routeId: reviewedQuestion.routeId,
-        syllabusTopicIds: ['math-0580-geometry'],
+        syllabusTopicIds: ['0580-igcse-topic-01'],
         components: [1],
-        questionCount: 1,
-        sourceQuestionIds: [reviewedQuestion.sourceQuestionId],
+        questionCount: 6,
+        sourceQuestionIds: reviewedQuestions.map((question) => question.sourceQuestionId),
         excludeAttempted: false,
       },
     })
     assert.equal(practice.statusCode, 201)
-    const questionGroup = practice.payload.questionGroups[0]
+    assert.equal(practice.payload.practiceMode, 'verified')
+    assert.equal(practice.payload.verifiedAvailableCount, MIN_VERIFIED_GROUPS_FOR_PRACTICE)
+    const questionGroup = practice.payload.questionGroups.find((group) => group.id === reviewedQuestion.sourceQuestionId)
+    assert.ok(questionGroup, 'the selected reviewed source group must be present')
     assert.equal(questionGroup.reviewStatus, 'reviewed', 'a coordinate-only release must not replace the matching human-reviewed question')
-    assert.ok(questionGroup.parts.every((part) => part.sourceFocus?.pages?.length), 'the student route must retain the human-reviewed source crop')
+    assert.equal(questionGroup.sourceRef.sha256, reviewedQuestion.sourceRef.sha256, 'the selected group must retain the reviewed QP binding')
+    assert.equal(questionGroup.answerRef.sha256, reviewedQuestion.answerRef.sha256, 'the selected group must retain the reviewed MS binding')
   } finally {
     closeStemDatabaseForTests()
   }
@@ -212,19 +235,37 @@ async function verifyStudyCountListStart() {
           routeId,
           syllabusTopicIds: [startCandidate.topic.id],
           components: [startCandidate.component],
-          questionCount: startCandidate.ids.length,
+          questionCount: MIN_QUESTION_GROUPS_PER_TEST,
           sourceQuestionIds: startCandidate.ids,
           excludeAttempted: false,
           seed: 9709,
         },
       })
-      assert.equal(practice.statusCode, 201, `${routeId} count/list evidence must start successfully`)
-      assert.equal(practice.payload.questionCount, startCandidate.ids.length)
-      assert.deepEqual(practice.payload.sourceQuestionIds, startCandidate.ids)
-      assert.ok(
-        practice.payload.questionGroups.every((group) => group.paperComponent === startCandidate.component),
-        `${routeId} start must use the same component predicate as inventory count/list`,
-      )
+      if (startCandidate.ids.length >= MIN_QUESTION_GROUPS_PER_TEST) {
+        assert.equal(practice.statusCode, 201, `${routeId} count/list evidence with six groups must start successfully`)
+        assert.equal(practice.payload.questionCount, MIN_QUESTION_GROUPS_PER_TEST)
+        assert.deepEqual(practice.payload.sourceQuestionIds, startCandidate.ids)
+        assert.ok(
+          practice.payload.questionGroups.every((group) => group.paperComponent === startCandidate.component),
+          `${routeId} start must use the same component predicate as inventory count/list`,
+        )
+        const componentCounts = startCandidate.topic.componentCounts?.[startCandidate.component] || {}
+        const componentVerifiedCount = Number(componentCounts.verifiedQuestionCount || 0)
+        const componentStudyCount = Number(componentCounts.studyQuestionCount || 0)
+        if (componentVerifiedCount < MIN_VERIFIED_GROUPS_FOR_PRACTICE && componentStudyCount > 0) {
+          assert.equal(practice.payload.practiceMode, 'study-only', `${routeId} limited source sets must be labelled study-only`)
+          assert.ok(
+            practice.payload.questionGroups.every((group) => group.formalProgressEligible === false),
+            `${routeId} study-only sets must not expose formal progress eligibility`,
+          )
+        } else if (componentVerifiedCount < MIN_VERIFIED_GROUPS_FOR_PRACTICE) {
+          assert.equal(practice.statusCode, 409, `${routeId} reviewed-only sets below the two-test floor must fail closed`)
+          assert.equal(practice.payload.code, 'insufficient_verified_questions')
+        }
+      } else {
+        assert.equal(practice.statusCode, 409, `${routeId} count/list evidence below six groups must not start`)
+        assert.equal(practice.payload.code, 'insufficient_verified_questions')
+      }
     }
 
     const p5Attempt = await call(api, {
@@ -234,7 +275,7 @@ async function verifyStudyCountListStart() {
         routeId: 'cie-9702-a2-physics',
         syllabusTopicIds: ['physics-9702-topic-13'],
         components: [5],
-        questionCount: 1,
+        questionCount: 6,
         excludeAttempted: false,
         seed: 9702,
       },

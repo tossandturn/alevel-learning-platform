@@ -184,14 +184,14 @@ async function runFlow(page) {
 
   await page.goto(route('/practice?routeId=cie-9702-as-physics&stage=AS&course=9702&tab=mistakes'), { waitUntil: 'domcontentloaded' })
   await page.getByRole('heading', { name: 'Choose your next study session.' }).waitFor()
-  await page.getByText('9702_m25_qp_12.pdf', { exact: false }).waitFor()
+  await page.getByText(/M25\/12|9702_m25_qp_12\.pdf/i).waitFor()
   await page.getByText('0/1', { exact: true }).waitFor()
   const mistakesText = await assertNotBlank(page, 'Practice Mistakes')
   await page.screenshot({ path: path.join(ARTIFACT_DIR, 'qa-mistakes-tab-legacy-zero.png'), fullPage: false })
 
   await page.goto(route('/notebook?routeId=cie-9702-as-physics&stage=AS&course=9702'), { waitUntil: 'domcontentloaded' })
   await page.getByRole('heading', { name: 'Turn mistakes into your next marks.' }).waitFor()
-  await page.getByText('9702_m25_qp_12.pdf', { exact: false }).waitFor()
+  await page.getByText(/M25\/12|9702_m25_qp_12\.pdf/i).waitFor()
   await page.getByText('0/1 marks', { exact: true }).waitFor()
   const notebookText = await assertNotBlank(page, 'Notebook')
   await page.screenshot({ path: path.join(ARTIFACT_DIR, 'qa-notebook-legacy-zero.png'), fullPage: false })

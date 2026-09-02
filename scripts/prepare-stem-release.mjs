@@ -4,6 +4,7 @@ import path from 'node:path'
 import {
   assertWithinLimit,
   findForbiddenFiles,
+  findForbiddenSensitiveFiles,
   findNestedSymlinks,
   findUnexpectedReleaseEntries,
   MAX_RELEASE_BYTES,
@@ -40,6 +41,8 @@ const verifier = path.join(releaseRoot, 'scripts', 'verify-stem-release.mjs')
 assert.ok(fs.existsSync(releaseRoot) && fs.statSync(releaseRoot).isDirectory(), `Release root is missing: ${releaseRoot}`)
 const unexpectedReleaseEntries = findUnexpectedReleaseEntries(releaseRoot)
 assert.equal(unexpectedReleaseEntries.length, 0, `Release root contains files outside the runtime allowlist: ${unexpectedReleaseEntries.slice(0, 10).join(', ')}`)
+const forbiddenReleaseSensitiveFiles = findForbiddenSensitiveFiles(releaseRoot)
+assert.equal(forbiddenReleaseSensitiveFiles.length, 0, `Release root contains nested sensitive files: ${forbiddenReleaseSensitiveFiles.slice(0, 10).join(', ')}`)
 assert.ok(fs.existsSync(sourceAssets) && fs.statSync(sourceAssets).isDirectory(), `Source assets are missing: ${sourceAssets}`)
 assert.ok(fs.existsSync(sourceCatalog) && fs.statSync(sourceCatalog).isFile(), `Source catalog is missing: ${sourceCatalog}`)
 assert.ok(fs.existsSync(sourceSubjectCatalogRoot) && fs.statSync(sourceSubjectCatalogRoot).isDirectory(), `Source subject catalog root is missing: ${sourceSubjectCatalogRoot}`)
@@ -51,6 +54,8 @@ const nestedSymlinks = findNestedSymlinks(sourceAssets)
 assert.equal(nestedSymlinks.length, 0, `Assets directory contains nested symlinks; materialise a self-contained rendered asset tree first: ${nestedSymlinks.slice(0, 5).join(', ')}`)
 const forbiddenSourceFiles = findForbiddenFiles(sourceAssets, ['.pdf', '.tgz', '.tar.gz', '.zip'])
 assert.equal(forbiddenSourceFiles.length, 0, `Assets directory contains non-rendered archive/PDF files: ${forbiddenSourceFiles.slice(0, 5).join(', ')}`)
+const forbiddenSourceSensitiveFiles = findForbiddenSensitiveFiles(sourceAssets)
+assert.equal(forbiddenSourceSensitiveFiles.length, 0, `Assets directory contains nested sensitive files: ${forbiddenSourceSensitiveFiles.slice(0, 5).join(', ')}`)
 assert.ok(targetInsideRelease(releaseRoot, targetAssets) && targetInsideRelease(releaseRoot, targetCatalog), 'Release content target escapes release root')
 assert.ok(targetInsideRelease(releaseRoot, targetSubjectCatalogRoot), 'Subject paper catalog target escapes release root')
 assert.ok(!fs.existsSync(targetAssets), `Release already has question-assets: ${targetAssets}`)

@@ -157,6 +157,11 @@ try {
     QWEN_API_KEY: 'qwen-test-key',
   }, { model: 'gpt-5.6' }).map((provider) => provider.name)
   assert.deepEqual(providerNames, ['openai'], 'the Paddle review consumer must never select Qwen even when a Qwen key exists')
+  const gatewayProviderNames = openAiOnlyProviders({
+    THRID_AI_KEY: 'saved-third-party-key',
+    QWEN_API_KEY: 'qwen-test-key',
+  }).map((provider) => provider.name)
+  assert.deepEqual(gatewayProviderNames, ['openai-gateway'], 'the Paddle review consumer must use the saved GPT gateway without falling back to Qwen review')
 
   const ingestCalls = []
   const loadCompletedJobImpl = ({ job }) => {
