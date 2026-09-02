@@ -85,6 +85,13 @@ function validVerification() {
     questions: [{
       questionNumber: '4',
       pages: [1, 2],
+      regions: [
+        { page: 1, pageImageSha256: hashes.pageOne, x0: 0.08, y0: 0.12, x1: 0.92, y1: 0.88 },
+        { page: 2, pageImageSha256: hashes.pageTwo, x0: 0.08, y0: 0.08, x1: 0.92, y1: 0.42 },
+      ],
+      diagramRegions: [
+        { page: 1, pageImageSha256: hashes.pageOne, x0: 0.58, y0: 0.23, x1: 0.88, y1: 0.51 },
+      ],
       parts: [
         { label: 'a', marks: 2 },
         { label: 'b', marks: 3 },
@@ -195,6 +202,7 @@ const noDiagramCandidate = validCandidate()
 noDiagramCandidate.questions[0].diagramRegions = []
 const noDiagramVerification = validVerification()
 noDiagramVerification.questions[0].diagramRegionCount = 0
+noDiagramVerification.questions[0].diagramRegions = []
 assert.equal(validateCandidate({
   candidate: noDiagramCandidate,
   verification: noDiagramVerification,

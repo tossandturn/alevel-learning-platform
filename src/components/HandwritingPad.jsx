@@ -114,7 +114,6 @@ export function HandwritingPad({
   const movedRef = useRef(false)
   const lastPointRef = useRef(null)
   const activePointerIdRef = useRef(null)
-  const rawPenInputRef = useRef(false)
   const inkMetricsRef = useRef(createInkMetrics())
   const historyRef = useRef([])
   const redoRef = useRef([])
@@ -338,13 +337,13 @@ export function HandwritingPad({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, pageCount])
 
-  function brushFor(point) {
+  function brushFor(point, toolOverride = tool) {
     const canvas = canvasRef.current
     const ratio = canvas.width / canvas.getBoundingClientRect().width
     return {
       color: '#172033',
-      composite: tool === 'eraser' ? 'destination-out' : 'source-over',
-      width: tool === 'eraser' ? ERASER_WIDTH * ratio : (PEN_MIN_WIDTH + point.pressure * PEN_PRESSURE_WIDTH) * ratio,
+      composite: toolOverride === 'eraser' ? 'destination-out' : 'source-over',
+      width: toolOverride === 'eraser' ? ERASER_WIDTH * ratio : (PEN_MIN_WIDTH + point.pressure * PEN_PRESSURE_WIDTH) * ratio,
     }
   }
 
@@ -420,7 +419,6 @@ export function HandwritingPad({
       return
     }
     if (disabled || mode !== 'handwrite' || drawingRef.current || event.isPrimary === false) return
-    if (event.pointerType === 'pen') rawPenInputRef.current = false
     event.preventDefault()
     event.stopPropagation()
     const canvas = canvasRef.current
@@ -443,10 +441,12 @@ export function HandwritingPad({
       continueTouchScroll(event)
       return
     }
-    if (event.pointerType === 'pen' && rawPenInputRef.current) return
     if (!drawingRef.current || disabled || event.pointerId !== activePointerIdRef.current) return
     event.preventDefault()
     event.stopPropagation()
+    // WKWebView can expose pointerrawupdate intermittently. Never gate the
+    // normal pointer stream on it: pointerSamples() de-duplicates the latest
+    // coalesced point, while pointermove remains the lossless fallback.
     appendSamples(event)
   }
 
@@ -461,7 +461,6 @@ export function HandwritingPad({
     const canvas = canvasRef.current
     appendSamples(event)
     drawingRef.current = false
-    rawPenInputRef.current = false
     if (!movedRef.current && lastPointRef.current) {
       const context = canvas.getContext('2d')
       drawDot(context, lastPointRef.current, brushFor(lastPointRef.current))
@@ -511,7 +510,6 @@ export function HandwritingPad({
     if (!canvas || mode !== 'handwrite' || typeof canvas.addEventListener !== 'function') return undefined
     const handleRawPenUpdate = (event) => {
       if (event.pointerType !== 'pen' || !drawingRef.current) return
-      rawPenInputRef.current = true
       event.preventDefault()
       event.stopPropagation()
       appendSamples(event)
@@ -530,7 +528,8 @@ export function HandwritingPad({
     const handleNativePencilStroke = (event) => {
       const detail = event.detail
       if (!detail || detail.surfaceId !== inkSurfaceId) return
-      const applied = applyNativePencilStroke(canvas, detail, (point) => brushFor(point))
+      const nativeTool = detail.tool === 'eraser' ? 'eraser' : 'pen'
+      const applied = applyNativePencilStroke(canvas, detail, (point) => brushFor(point, nativeTool))
       if (!applied) return
       inkMetricsRef.current.strokes += 1
       inkMetricsRef.current.segments += applied.segments

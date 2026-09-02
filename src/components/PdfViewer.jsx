@@ -236,13 +236,13 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, evidenceStor
     storedPreviewUrlRef.current = ''
   }, [emitInk])
 
-  function brushFor(point) {
+  function brushFor(point, toolOverride = tool) {
     const canvas = canvasRef.current
     const ratio = canvas.width / canvas.getBoundingClientRect().width
     return {
       color: '#14243a',
-      composite: tool === 'eraser' ? 'destination-out' : 'source-over',
-      width: (tool === 'eraser' ? 22 : 1.15 + point.pressure * 2.35) * ratio,
+      composite: toolOverride === 'eraser' ? 'destination-out' : 'source-over',
+      width: (toolOverride === 'eraser' ? 22 : 1.15 + point.pressure * 2.35) * ratio,
     }
   }
 
@@ -350,6 +350,9 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, evidenceStor
     if (!drawingRef.current || event.pointerId !== activePointerIdRef.current) return
     event.preventDefault()
     event.stopPropagation()
+    // WKWebView may deliver pointerrawupdate in bursts rather than as a
+    // complete stream. Keep pointermove as the lossless fallback; the shared
+    // sampler removes duplicate coalesced points.
     appendSamples(event)
   }
 
@@ -381,11 +384,29 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, evidenceStor
 
   useEffect(() => {
     const canvas = canvasRef.current
+    if (!canvas || readOnly || panMode || typeof canvas.addEventListener !== 'function') return undefined
+    const handleRawPenUpdate = (event) => {
+      if (event.pointerType !== 'pen' || !drawingRef.current) return
+      event.preventDefault()
+      event.stopPropagation()
+      appendSamples(event)
+    }
+    if (!('onpointerrawupdate' in canvas)) return undefined
+    canvas.addEventListener('pointerrawupdate', handleRawPenUpdate, { passive: false })
+    return () => canvas.removeEventListener('pointerrawupdate', handleRawPenUpdate)
+    // The listener reads current drawing refs; it only needs replacement when
+    // the active tool or the canvas interaction mode changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panMode, readOnly, tool])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
     if (!canvas || readOnly || panMode || !ready || typeof window === 'undefined') return undefined
     const handleNativePencilStroke = (event) => {
       const detail = event.detail
       if (!detail || detail.surfaceId !== inkSurfaceId) return
-      const applied = applyNativePencilStroke(canvas, detail, (point) => brushFor(point))
+      const nativeTool = detail.tool === 'eraser' ? 'eraser' : 'pen'
+      const applied = applyNativePencilStroke(canvas, detail, (point) => brushFor(point, nativeTool))
       if (!applied) return
       inkMetricsRef.current.strokes += 1
       inkMetricsRef.current.segments += applied.segments
@@ -399,7 +420,7 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, evidenceStor
     window.addEventListener(NATIVE_PENCIL_STROKE_EVENT, handleNativePencilStroke)
     return () => window.removeEventListener(NATIVE_PENCIL_STROKE_EVENT, handleNativePencilStroke)
     // Rebind when the page/tool/ready state changes so native strokes retain
-    // the same authoritative page binding as web pointer input.
+    // the same page binding as web pointer input.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inkSurfaceId, panMode, questionNumber, readOnly, ready, tool])
 
@@ -584,7 +605,12 @@ export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage 
         <button type="button" onClick={() => setZoom((value) => Math.min(2, value + 0.15))} aria-label="Zoom in"><ZoomIn size={17} /></button>
         <a href={file.localUrl} download={file.file} aria-label="Download PDF"><Download size={17} /></a>
       </div>
-      <div className="pdf-canvas-scroll" ref={scrollRef} data-pdf-scroll="true">
+      <div
+        className={`pdf-canvas-scroll ${annotate ? 'pdf-canvas-scroll--annotating' : ''}`}
+        ref={scrollRef}
+        data-pdf-scroll="true"
+        onContextMenu={annotate ? (event) => event.preventDefault() : undefined}
+      >
         {status === 'loading' && <div className="pdf-loading"><span className="loading-line" />Rendering verified PDF...</div>}
         {status === 'error' && <div className="pdf-loading error">Could not render this PDF. <a href={file.localUrl} target="_blank" rel="noreferrer">Open it directly</a><small>{error}</small></div>}
         {document && <div className="pdf-page-stack" data-virtualized-pages="true">

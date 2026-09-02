@@ -12,8 +12,15 @@ function samePoint(left, right) {
 
 export function pointerSamples(event) {
   const source = pointerSource(event)
-  const coalesced = source?.getCoalescedEvents?.()
-  const samples = Array.isArray(coalesced) ? coalesced.filter(Boolean) : []
+  let coalesced = []
+  try {
+    // WebKit exposes this as a FrozenArray in some iPadOS builds rather than
+    // a true Array. Array.from keeps the hardware-rate samples in both cases.
+    coalesced = source?.getCoalescedEvents?.() || []
+  } catch {
+    coalesced = []
+  }
+  const samples = Array.from(coalesced).filter(Boolean)
   if (!samples.length || !samePoint(samples.at(-1), source)) samples.push(source)
   return samples.filter(Boolean)
 }
@@ -32,7 +39,6 @@ export function pointDistance(left, right) {
 }
 
 export function drawSegment(context, from, to, { color, composite, width }) {
-  context.save()
   context.lineCap = 'round'
   context.lineJoin = 'round'
   context.globalCompositeOperation = composite
@@ -42,17 +48,14 @@ export function drawSegment(context, from, to, { color, composite, width }) {
   context.moveTo(from.x, from.y)
   context.lineTo(to.x, to.y)
   context.stroke()
-  context.restore()
 }
 
 export function drawDot(context, point, { color, composite, width }) {
-  context.save()
   context.globalCompositeOperation = composite
   context.fillStyle = color
   context.beginPath()
   context.arc(point.x, point.y, width / 2, 0, Math.PI * 2)
   context.fill()
-  context.restore()
 }
 
 export function createInkMetrics() {

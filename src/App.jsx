@@ -2996,6 +2996,14 @@ function AiPracticeLanding({ activeRoute, selectedTopicId, practiceOptions, star
   const selectedTopics = topics.filter((topic) => selectedTopicIds.includes(topic.id))
   const selectedInventory = aggregateTopicPracticeInventory(selectedTopics, selectedComponents)
   const available = selectedInventory.availableQuestionCount
+  const selectableQuestionCounts = [6, 10, 15].filter((count) => count <= available)
+
+  useEffect(() => {
+    const availableSizes = [6, 10, 15].filter((count) => count <= available)
+    const nextCount = availableSizes.at(-1) || 0
+    setQuestionCount((current) => availableSizes.includes(current) ? current : nextCount)
+  }, [available])
+
   const formalReady = selectedTopics.length > 0
     && selectedTopics.every((topic) => (
       topicPracticeInventory(topic, selectedComponents).verifiedQuestionCount >= MIN_VERIFIED_GROUPS_FOR_PRACTICE
@@ -3047,10 +3055,13 @@ function AiPracticeLanding({ activeRoute, selectedTopicId, practiceOptions, star
           })}</div>
         </fieldset>
         <div className="ai-practice-builder__settings">
-          <label><span>Question count</span><select value={questionCount} onChange={(event) => setQuestionCount(Number(event.target.value))}><option value={6}>6 official questions</option><option value={10}>10 official questions</option><option value={15}>15 official questions</option></select></label>
+          <label><span>Question count</span><select value={questionCount} onChange={(event) => setQuestionCount(Number(event.target.value))} disabled={!selectableQuestionCounts.length} aria-describedby="ai-practice-question-count-help">
+            {selectableQuestionCounts.map((count) => <option value={count} key={count}>{count} official questions{count <= selectedInventory.verifiedQuestionCount ? ' · reviewed' : ' · study only'}</option>)}
+            {!selectableQuestionCounts.length && <option value={0}>No complete set available</option>}
+          </select><small id="ai-practice-question-count-help">{available >= MIN_QUESTION_GROUPS_PER_TEST ? 'Set sizes never exceed the source-backed inventory.' : `Only ${available} complete source question${available === 1 ? '' : 's'} is currently indexed; a set needs at least ${MIN_QUESTION_GROUPS_PER_TEST}.`}</small></label>
           <label><span>Paper component</span><select value={componentKey} onChange={(event) => setComponentKey(event.target.value)}>{defaultComponents.length > 1 && <option value={defaultComponents.join(',')}>{formatRouteComponents(defaultComponents, activeRoute)} mixed</option>}{defaultComponents.map((component) => <option value={String(component)} key={component}>{formatRouteComponents([component], activeRoute)}{activeRoute.subjectCode === '9702' && Number(component) === 3 ? ' practical' : ''}</option>)}</select></label>
         </div>
-        <div className="ai-practice-builder__footer" role="status" data-available-source-questions={available} data-requested-source-questions={questionCount}><span><strong>{selectedTopics.map((topic) => topic.label.replace(/^\d+\s+/, '')).join(' + ') || 'Choose a topic'}</strong><small>{available} matching source questions · {questionCount} requested{available < questionCount ? ` · set will contain up to ${available}` : ''}</small>{selectedInventory.verifiedQuestionCount < available && <small>{selectedInventory.verifiedQuestionCount} ready for formal progress · {selectedInventory.studyQuestionCount} available for study only</small>}{selectedInventory.pendingReviewCount > 0 && <small>{selectedInventory.pendingReviewCount} more indexed questions are still being checked</small>}</span><button type="button" className="primary-action" disabled={!canBuildPractice} onClick={buildPractice}><PlayIcon />{available < MIN_QUESTION_GROUPS_PER_TEST ? `Need ${MIN_QUESTION_GROUPS_PER_TEST} questions` : !formalReady ? `Need ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} reviewed groups` : 'Build practice'}</button></div>
+        <div className="ai-practice-builder__footer" role="status" data-available-source-questions={available} data-requested-source-questions={questionCount}><span><strong>{selectedTopics.map((topic) => topic.label.replace(/^\d+\s+/, '')).join(' + ') || 'Choose a topic'}</strong><small>{available} matching source questions · {questionCount || 'no set size'} requested{questionCount > 0 && available < questionCount ? ` · set will contain up to ${available}` : ''}</small>{selectedInventory.verifiedQuestionCount < available && <small>{selectedInventory.verifiedQuestionCount} ready for formal progress · {selectedInventory.studyQuestionCount} available for study only</small>}{selectedInventory.pendingReviewCount > 0 && <small>{selectedInventory.pendingReviewCount} more indexed questions are still being checked</small>}</span><button type="button" className="primary-action" disabled={!canBuildPractice} onClick={buildPractice}><PlayIcon />{available < MIN_QUESTION_GROUPS_PER_TEST ? `Need ${MIN_QUESTION_GROUPS_PER_TEST} questions` : !formalReady ? `Need ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} reviewed groups` : 'Build practice'}</button></div>
         {selectedInventory.studyQuestionCount > 0 && <p className="ai-practice-builder__notice" role="status">This selection may include source questions still outside formal review. Complete checksum-bound QP/MS items are AI-marked automatically, while their study scores remain outside mastery and formal progress.</p>}
         {startError && <p className="topic-detail__error" role="alert">{startError}</p>}
       </div>
