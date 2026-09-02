@@ -322,11 +322,11 @@ async function compressedUploadBlob(image) {
   throw new Error('This photo is still too large after compression. Crop it or choose a smaller image.')
 }
 
-export async function imageFileToDataUrl(file) {
+export async function imageFileToDataUrl(file, { assumeImage = false } = {}) {
   const imageType = String(file?.type || '')
   const imageName = String(file?.name || '')
   const looksLikeImage = imageType.startsWith('image/') || /\.(?:avif|heic|heif|jpe?g|png|webp)$/i.test(imageName)
-  if (!looksLikeImage || file.size > MAX_UPLOAD_SOURCE_BYTES) {
+  if ((!assumeImage && !looksLikeImage) || file.size > MAX_UPLOAD_SOURCE_BYTES) {
     throw new Error('Choose an image under 24 MB.')
   }
   let loaded

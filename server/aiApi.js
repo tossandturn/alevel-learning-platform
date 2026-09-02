@@ -1056,6 +1056,17 @@ function effectiveAiTimeoutMs(timeoutMs, deadlineAt) {
   return Math.min(configuredTimeoutMs, remainingMs)
 }
 
+function fallbackAwareProviderTimeoutMs(timeoutMs, deadlineAt, remainingProviderCount = 1) {
+  const configuredTimeoutMs = boundedDuration(timeoutMs, DEFAULT_AI_PROVIDER_TIMEOUT_MS, 1, MAX_AI_PROVIDER_TIMEOUT_MS)
+  if (!Number.isFinite(deadlineAt) || remainingProviderCount <= 1) return configuredTimeoutMs
+  const remainingMs = Math.floor(deadlineAt - Date.now())
+  if (remainingMs <= 0) throw aiDeadlineError()
+  // A hung primary must not consume the entire request budget before Qwen can
+  // run. Recalculate this share for every attempt so fast HTTP failures do not
+  // unnecessarily shorten the fallback window.
+  return Math.min(configuredTimeoutMs, Math.max(1, Math.floor(remainingMs / remainingProviderCount)))
+}
+
 function emitProviderTelemetry(telemetry, event) {
   const safeEvent = {
     requestId: String(event.requestId || '').replace(/[^a-z0-9._:-]/gi, '').slice(0, 80) || null,
@@ -1360,6 +1371,11 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   for (const [providerIndex, activeProvider] of activeProviders.entries()) {
     let providerImages = []
     try {
+      const attemptTimeoutMs = fallbackAwareProviderTimeoutMs(
+        requestBudget.providerTimeoutMs,
+        deadlineAt,
+        activeProviders.length - providerIndex,
+      )
       providerImages = await temporaryProviderImages(imageDataUrls, imagePublicBase(activeProvider, request))
       const content = providerMessageContent(userText, providerImages)
       const answer = await callCompatibleAi(activeProvider, {
@@ -1372,7 +1388,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
         fallbackPath: activeProviders.slice(0, providerIndex + 1).map((candidate) => candidate.name).join('>'),
         fallback: providerIndex > 0,
         telemetry,
-        timeoutMs: requestBudget.providerTimeoutMs,
+        timeoutMs: attemptTimeoutMs,
         totalDeadlineMs: requestBudget.totalDeadlineMs,
         deadlineAt,
       })
@@ -1653,6 +1669,11 @@ async function handleCoachStream(request, response, provider, visionProvider, li
       let providerImages = []
       let attemptAnswer = ''
       try {
+        const attemptTimeoutMs = fallbackAwareProviderTimeoutMs(
+          requestBudget.providerTimeoutMs,
+          deadlineAt,
+          activeProviders.length - providerIndex,
+        )
         providerImages = await temporaryProviderImages(imageDataUrls, imagePublicBase(activeProvider, request))
         const content = providerMessageContent(userText, providerImages)
         sendCoachEvent(response, 'meta', {
@@ -1671,7 +1692,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
           fallbackPath: activeProviders.slice(0, providerIndex + 1).map((candidate) => candidate.name).join('>'),
           fallback: providerIndex > 0,
           telemetry,
-          timeoutMs: requestBudget.providerTimeoutMs,
+          timeoutMs: attemptTimeoutMs,
           totalDeadlineMs: requestBudget.totalDeadlineMs,
           deadlineAt,
           onDelta: async (delta) => {
@@ -1813,6 +1834,11 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
     let studentImage = null
     let sourceImages = []
     try {
+      const attemptTimeoutMs = fallbackAwareProviderTimeoutMs(
+        timeoutConfig.visionProviderTimeoutMs,
+        deadlineAt,
+        activeProviders.length - providerIndex,
+      )
       const publicBase = imagePublicBase(activeProvider, request)
       const officialSourceImages = [...questionImages, ...markSchemeImages]
       ;[studentImage, ...sourceImages] = await Promise.all([
@@ -1845,7 +1871,7 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
         fallbackPath: activeProviders.slice(0, providerIndex + 1).map((candidate) => candidate.name).join('>'),
         fallback: providerIndex > 0,
         telemetry,
-        timeoutMs: timeoutConfig.visionProviderTimeoutMs,
+        timeoutMs: attemptTimeoutMs,
         totalDeadlineMs: timeoutConfig.visionTotalDeadlineMs,
         deadlineAt,
         validateResponse: (answer) => validateMarkAssessment(parseStructuredJson(answer), requestedMaxMarks),

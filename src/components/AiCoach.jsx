@@ -29,6 +29,12 @@ const EMPTY_PRACTICE_OPTIONS = Object.freeze([])
 const AUTO_COACH_RETRY_DELAY_MS = 350
 const MAX_AUTO_COACH_RETRIES = 1
 
+function looksLikeImageFile(file) {
+  const fileType = String(file?.type || '').trim().toLowerCase()
+  const fileName = String(file?.name || '').trim()
+  return fileType.startsWith('image/') || /\.(?:avif|heic|heif|jpe?g|png|webp)$/i.test(fileName)
+}
+
 function createImageAttachment(dataUrl = '', { name = 'Attached image', status = 'ready', source = 'upload', mimeType = 'image/*', errorMessage = '' } = {}) {
   return {
     id: `coach-image-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
@@ -779,8 +785,8 @@ export function AiCoach({
     })
   }
 
-  async function attachFiles(files, { source = 'upload' } = {}) {
-    const imageFiles = files.filter((file) => file?.type?.startsWith('image/'))
+  async function attachFiles(files, { source = 'upload', assumeImage = false } = {}) {
+    const imageFiles = [...(files || [])].filter((file) => assumeImage || looksLikeImageFile(file))
     if (!imageFiles.length) return
     const available = MAX_COACH_IMAGE_ATTACHMENTS - imageDataUrls.length
     if (available <= 0) {
@@ -798,7 +804,7 @@ export function AiCoach({
     setPreparingImages(true)
     setError('')
     try {
-      const prepared = await Promise.allSettled(selected.map((file) => imageFileToDataUrl(file)))
+      const prepared = await Promise.allSettled(selected.map((file) => imageFileToDataUrl(file, { assumeImage })))
       setImageDataUrls((current) => current.map((attachment) => {
         const pendingIndex = pending.findIndex((item) => item.id === attachment.id)
         if (pendingIndex < 0) return attachment
@@ -822,18 +828,18 @@ export function AiCoach({
     }
   }
 
-  async function attachImage(event) {
+  async function attachImage(event, source = 'upload') {
     const files = [...(event.target.files || [])]
     event.target.value = ''
-    await attachFiles(files, { source: 'upload' })
+    await attachFiles(files, { source, assumeImage: source === 'camera' })
   }
 
   function attachClipboardImages(event) {
     const items = [...(event.clipboardData?.items || [])]
     const files = items
-      .filter((item) => item.kind === 'file' && item.type?.startsWith('image/'))
+      .filter((item) => item.kind === 'file')
       .map((item) => item.getAsFile?.())
-      .filter(Boolean)
+      .filter((file) => looksLikeImageFile(file))
     if (!files.length) return
     event.preventDefault()
     void attachFiles(files, { source: 'clipboard' })
@@ -1081,7 +1087,7 @@ export function AiCoach({
           {error && <p className="ai-coach__error" role="alert">{error}</p>}
           <form className="ai-coach__composer" onSubmit={submitComposer}>
             <button type="button" className="ai-coach__composer-attach" title="Add photos" aria-label="Add photos" disabled={preparingImages || imageDataUrls.length >= MAX_COACH_IMAGE_ATTACHMENTS} onClick={() => screenshotInputRef.current?.click()}><ImagePlus size={18} /></button>
-            <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" data-camera-input="true" hidden onChange={attachImage} />
+            <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" data-camera-input="true" hidden onChange={(event) => attachImage(event, 'camera')} />
             <input ref={screenshotInputRef} type="file" accept="image/*" multiple data-upload-input="true" hidden onChange={attachImage} />
             <textarea rows="2" value={draft} placeholder="Ask about a concept or your next step..." onChange={(event) => setDraft(event.target.value)} onPaste={attachClipboardImages} onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {

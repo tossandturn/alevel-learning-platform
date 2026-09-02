@@ -762,6 +762,70 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
     await Promise.all([close(gatewayAppServer), close(gatewayServer), close(gatewayQwenServer)])
   }
 
+  let slowGatewayFallbackRequests = 0
+  let slowQwenFallbackRequests = 0
+  const slowGatewayFallbackTelemetry = []
+  const slowGatewayFallbackServer = http.createServer(async (request, response) => {
+    for await (const _chunk of request) {}
+    slowGatewayFallbackRequests += 1
+    setTimeout(() => {
+      if (response.destroyed || response.writableEnded) return
+      response.statusCode = 503
+      response.setHeader('Content-Type', 'application/json')
+      response.end(JSON.stringify({ error: { message: 'slow gateway fixture' } }))
+    }, 1_000)
+  })
+  const slowQwenFallbackServer = http.createServer(async (request, response) => {
+    for await (const _chunk of request) {}
+    slowQwenFallbackRequests += 1
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    if (response.destroyed || response.writableEnded) return
+    response.statusCode = 200
+    response.setHeader('Content-Type', 'text/event-stream')
+    response.end('data: {"choices":[{"delta":{"content":"slow vision fallback"}}]}\n\ndata: [DONE]\n\n')
+  })
+  const slowGatewayFallbackBase = await listen(slowGatewayFallbackServer)
+  const slowQwenFallbackBase = await listen(slowQwenFallbackServer)
+  const slowGatewayFallbackApi = createAiApi({
+    env: {
+      AI_GATEWAY_API_KEY: 'test-slow-gateway-key',
+      AI_GATEWAY_BASE_URL: slowGatewayFallbackBase,
+      AI_GATEWAY_MODEL: 'gpt-5.5-slow-vision-test',
+      DASHSCOPE_API_KEY: 'test-slow-qwen-key',
+      DASHSCOPE_COMPAT_BASE_URL: slowQwenFallbackBase,
+      VISION_AI_MODEL: 'qwen3-vl-slow-test',
+      STEM_AI_VISION_PROVIDER_TIMEOUT_MS: '600',
+      STEM_AI_VISION_REQUEST_DEADLINE_MS: '800',
+      STEM_INTERNAL_AUTH_KEY: identitySigningKey,
+    },
+    libraryRoot: path.join(tempRoot, 'library'),
+    allowedSubjects: new Set(['0580']),
+    telemetry: (event) => slowGatewayFallbackTelemetry.push(event),
+  })
+  const slowGatewayFallbackAppServer = requestHandler(slowGatewayFallbackApi)
+  const slowGatewayFallbackAppBase = await listen(slowGatewayFallbackAppServer)
+  try {
+    const slowGatewayFallbackResponse = await fetch(`${slowGatewayFallbackAppBase}/api/ai/coach/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${signedIdentityToken}` },
+      body: JSON.stringify({
+        message: 'Read the attached work and identify the first issue.',
+        hintLevel: 3,
+        imageDataUrls: [attachedImages[0]],
+        context: { stage: 'AS', topic: 'Mechanics', question: { prompt: 'Slow gateway vision fallback fixture.', number: 11 } },
+      }),
+    })
+    const slowGatewayFallbackText = await slowGatewayFallbackResponse.text()
+    assert.equal(slowGatewayFallbackResponse.status, 200)
+    assert.match(slowGatewayFallbackText, /slow vision fallback/, 'vision fallback must still run when the primary consumes its fair timeout share')
+    assert.equal(slowGatewayFallbackRequests, 1)
+    assert.equal(slowQwenFallbackRequests, 1)
+    assert.ok(slowGatewayFallbackTelemetry[0]?.timeoutMs <= 450, 'a slow primary must be capped to leave the fallback a usable deadline')
+    assert.equal(slowGatewayFallbackTelemetry.at(-1)?.finalState, 'connected')
+  } finally {
+    await Promise.all([close(slowGatewayFallbackAppServer), close(slowGatewayFallbackServer), close(slowQwenFallbackServer)])
+  }
+
   let openAiFallbackRequests = 0
   let qwenFallbackRequests = 0
   const fallbackTelemetry = []
