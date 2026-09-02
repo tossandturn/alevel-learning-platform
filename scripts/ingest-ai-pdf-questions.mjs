@@ -5,12 +5,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawn } from 'node:child_process'
 
-import { CAMBRIDGE_9702_AS_SYLLABUS } from '../src/data/syllabus/cambridge-9702-as-2025-2027.js'
-import { CAMBRIDGE_9702_A2_SYLLABUS } from '../src/data/syllabus/cambridge-9702-a2-2025-2027.js'
-import { CAMBRIDGE_0580_IGCSE_SYLLABUS } from '../src/data/syllabus/cambridge-0580-igcse-2025-2027.js'
-import { CAMBRIDGE_0625_IGCSE_SYLLABUS } from '../src/data/syllabus/cambridge-0625-igcse-2026-2028.js'
-import { CAMBRIDGE_9709_AS_P1_S1_SYLLABUS } from '../src/data/syllabus/cambridge-9709-as-p1-s1-2026-2027.js'
-import { cambridge9709SyllabusForRoute } from '../src/data/syllabus/cambridge-9709-2026-2027.js'
+import { courseRoutes } from '../src/data/routeRegistry.js'
 import { mergeRuntimeEnv } from '../src/lib/runtimeEnv.js'
 import {
   AI_PDF_INGESTION_SCHEMA_VERSION,
@@ -42,38 +37,56 @@ const UNMAPPED_TOPIC_ID = '__unmapped__'
 const SAFE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/
 const SAFE_ARTIFACT_SUFFIX = /^[A-Za-z0-9][A-Za-z0-9._-]{0,96}$/
 const PDF_VALIDATION_PROGRAM = 'from pypdf import PdfReader; import sys; reader = PdfReader(sys.argv[1]); expected = int(sys.argv[2]); assert expected > 0 and len(reader.pages) == expected'
-function math9709Route(routeId, stage, components) {
+const CIE_SUBJECT_CODES = Object.freeze(['0580', '0606', '0610', '0625', '9231', '9700', '9701', '9702', '9708', '9709'])
+const CIE_SUBJECT_CODE_SET = new Set(CIE_SUBJECT_CODES)
+const CIE_INGESTION_ROUTES = Object.freeze(courseRoutes.filter((route) => CIE_SUBJECT_CODE_SET.has(String(route.subjectCode))))
+
+function ingestionSyllabusForRoute(route) {
+  const syllabus = route?.syllabus || {}
   return Object.freeze({
-    routeId,
-    stage,
-    components: Object.freeze([...components]),
-    syllabus: cambridge9709SyllabusForRoute(routeId, components),
+    ...syllabus,
+    routeId: route.routeId,
+    stage: route.stage,
+    version: syllabus.version || syllabus.syllabusVersion || 'current',
+    syllabusVersion: syllabus.syllabusVersion || syllabus.version || 'current',
+    url: syllabus.url || syllabus.officialUrl || '',
+    officialUrl: syllabus.officialUrl || syllabus.url || '',
+    paperComponents: Object.freeze([...route.paperComponents]),
+    topics: syllabus.topics || [],
+    points: syllabus.points || [],
   })
 }
 
-const CAMBRIDGE_9709_INGESTION_ROUTES = Object.freeze({
-  'cie-9709-as-p1-p2': math9709Route('cie-9709-as-p1-p2', 'AS', [1, 2]),
-  'cie-9709-as-p1-p4': math9709Route('cie-9709-as-p1-p4', 'AS', [1, 4]),
-  'cie-9709-as-p1-p5': math9709Route('cie-9709-as-p1-p5', 'AS', [1, 5]),
-  'cie-9709-a2-after-p1-p5-p3-p4': math9709Route('cie-9709-a2-after-p1-p5-p3-p4', 'A2', [3, 4]),
-  'cie-9709-a2-after-p1-p5-p3-p6': math9709Route('cie-9709-a2-after-p1-p5-p3-p6', 'A2', [3, 6]),
-  'cie-9709-a2-after-p1-p4-p3-p5': math9709Route('cie-9709-a2-after-p1-p4-p3-p5', 'A2', [3, 5]),
-})
+function routesForSubjectCode(subject) {
+  return CIE_INGESTION_ROUTES.filter((route) => String(route.subjectCode) === String(subject))
+}
+
+const DEFAULT_STAGE_BY_SUBJECT = Object.freeze(Object.fromEntries(CIE_SUBJECT_CODES.map((subject) => {
+  const routes = routesForSubjectCode(subject)
+  return [subject, routes.find((route) => route.stage === 'AS') ? 'AS' : 'IGCSE']
+})))
+
+const CAMBRIDGE_9709_INGESTION_ROUTES = Object.freeze(Object.fromEntries(
+  routesForSubjectCode('9709').map((route) => [route.routeId, Object.freeze({
+    routeId: route.routeId,
+    stage: route.stage,
+    components: Object.freeze([...route.paperComponents]),
+    syllabus: ingestionSyllabusForRoute(route),
+  })]),
+))
 
 const DEFAULT_9709_ROUTE_BY_STAGE_COMPONENT = Object.freeze({
   AS: Object.freeze({ 1: 'cie-9709-as-p1-p5', 2: 'cie-9709-as-p1-p2', 4: 'cie-9709-as-p1-p4', 5: 'cie-9709-as-p1-p5' }),
   A2: Object.freeze({ 3: 'cie-9709-a2-after-p1-p5-p3-p6', 4: 'cie-9709-a2-after-p1-p5-p3-p4', 5: 'cie-9709-a2-after-p1-p4-p3-p5', 6: 'cie-9709-a2-after-p1-p5-p3-p6' }),
 })
 
-const SUPPORTED_SYLLABUSES = Object.freeze({
-  '0580': Object.freeze({ IGCSE: CAMBRIDGE_0580_IGCSE_SYLLABUS }),
-  '0625': Object.freeze({ IGCSE: CAMBRIDGE_0625_IGCSE_SYLLABUS }),
-  '9702': Object.freeze({ AS: CAMBRIDGE_9702_AS_SYLLABUS, A2: CAMBRIDGE_9702_A2_SYLLABUS }),
-  '9709': Object.freeze({
-    AS: CAMBRIDGE_9709_AS_P1_S1_SYLLABUS,
-    A2: CAMBRIDGE_9709_INGESTION_ROUTES['cie-9709-a2-after-p1-p5-p3-p6'].syllabus,
-  }),
-})
+const SUPPORTED_SYLLABUSES = Object.freeze(Object.fromEntries(CIE_SUBJECT_CODES.map((subject) => {
+  const byStage = {}
+  for (const route of routesForSubjectCode(subject)) {
+    if (!byStage[route.stage]) byStage[route.stage] = ingestionSyllabusForRoute(route)
+  }
+  return [subject, Object.freeze(byStage)]
+})))
 
 function pageWindowSize(value, label, fallback) {
   const parsed = Number(value ?? fallback)
@@ -180,8 +193,8 @@ export function parseArgs(argv, { cwd = process.cwd(), env = process.env } = {})
   if (!SAFE_SEGMENT.test(values['--paper-id'])) throw new RangeError('--paper-id must be a single safe path segment.')
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(values['--subject'])) throw new RangeError('--subject must be a safe identifier.')
   if (!supportedSubject(values['--subject'])) throw codedError('UNSUPPORTED_SUBJECT')
-  const stage = normalizeStage(values['--subject'], values['--stage'])
   const paperComponent = paperComponentFromIdentity(values['--paper-id'], values['--question-pdf'])
+  const stage = normalizeStage(values['--subject'], values['--stage'], paperComponent, values['--route-id'])
   const routeId = syllabusRouteIdForOptions({
     subject: values['--subject'],
     stage,
@@ -1239,7 +1252,7 @@ function sourceMetadata(plan, options) {
   return source
 }
 
-function syllabusForOptions(options = {}) {
+export function syllabusForOptions(options = {}) {
   const subject = nonemptyString(options.subject)
   const stage = normalizeStage(subject, options.stage)
   if (subject === '9709') {
@@ -1254,6 +1267,9 @@ function syllabusForOptions(options = {}) {
   const syllabus = SUPPORTED_SYLLABUSES[subject]?.[stage]
   if (!syllabus) throw codedError('UNSUPPORTED_SYLLABUS_STAGE')
   if (options.routeId && options.routeId !== syllabus.routeId) throw codedError('UNSUPPORTED_SYLLABUS_ROUTE')
+  if (options.paperComponent != null && !syllabus.paperComponents.includes(Number(options.paperComponent))) {
+    throw codedError('PAPER_COMPONENT_NOT_IN_ROUTE')
+  }
   return syllabus
 }
 
@@ -1752,6 +1768,7 @@ function syllabusRouteIdForOptions({ subject, stage, paperComponent = null, rout
     const syllabus = SUPPORTED_SYLLABUSES[subject]?.[stage]
     if (!syllabus) throw codedError('UNSUPPORTED_SYLLABUS_STAGE')
     if (explicitRouteId && explicitRouteId !== syllabus.routeId) throw codedError('UNSUPPORTED_SYLLABUS_ROUTE')
+    if (paperComponent != null && !syllabus.paperComponents.includes(Number(paperComponent))) throw codedError('PAPER_COMPONENT_NOT_IN_ROUTE')
     return syllabus.routeId
   }
 
@@ -1768,9 +1785,16 @@ function syllabusRouteIdForOptions({ subject, stage, paperComponent = null, rout
     : 'cie-9709-as-p1-p5'
 }
 
-function normalizeStage(subject, value) {
+function normalizeStage(subject, value, paperComponent = null, routeId = null) {
   const configured = nonemptyString(value)
-  const stage = configured ? configured.toUpperCase() : subject === '9702' || subject === '9709' ? 'AS' : 'IGCSE'
+  const routeStage = nonemptyString(routeId)
+    ? CIE_INGESTION_ROUTES.find((route) => route.routeId === routeId)?.stage
+    : null
+  const inferredStages = routesForSubjectCode(subject)
+    .filter((route) => paperComponent == null || route.paperComponents.includes(Number(paperComponent)))
+    .map((route) => route.stage)
+  const inferredStage = routeStage || (new Set(inferredStages).size === 1 ? inferredStages[0] : DEFAULT_STAGE_BY_SUBJECT[subject])
+  const stage = configured ? configured.toUpperCase() : inferredStage
   if (!SUPPORTED_SYLLABUSES[subject]?.[stage]) throw codedError('UNSUPPORTED_SYLLABUS_STAGE')
   return stage
 }
