@@ -94,6 +94,7 @@ async function main() {
     'robots.txt',
     'sitemap.xml',
     'data/papers.json',
+    'data/papers/9709.json',
     'data/study-question-index/manifest.json',
     'question-assets/cie-0580-0580_m25_qp_12/qp-03.jpg',
   ]) copyPublicFile(relativePath)
@@ -211,6 +212,19 @@ async function main() {
     assert.equal(gzipPapers.headers['content-encoding'], 'gzip', 'JSON assets must retain gzip compatibility for older WebViews')
     assert.equal(Number(gzipPapers.headers['content-length']), gzipPapers.body.byteLength)
     assert.deepEqual(JSON.parse(gunzipSync(gzipPapers.body).toString('utf8')), parsedPapers)
+
+    const subjectPapers = await fetch(`${baseUrl}/data/papers/9709.json`, { headers: identityHeaders })
+    assert.equal(subjectPapers.status, 200)
+    const subjectPapersBytes = fs.statSync(path.join(root, 'public', 'data', 'papers', '9709.json')).size
+    assert.equal(Number(subjectPapers.headers.get('content-length')), subjectPapersBytes)
+    const parsedSubjectPapers = await subjectPapers.json()
+    assert.ok(parsedSubjectPapers.items.some((item) => item.subject === '9709'), 'subject catalog must remain scoped to its requested subject')
+
+    const compressedSubjectPapers = await rawGet(`${baseUrl}/data/papers/9709.json`, { 'Accept-Encoding': 'br' })
+    assert.equal(compressedSubjectPapers.statusCode, 200)
+    assert.equal(compressedSubjectPapers.headers['content-encoding'], 'br')
+    assert.ok(compressedSubjectPapers.body.byteLength < subjectPapersBytes, 'large subject catalogs must use the compressed representation')
+    assert.deepEqual(JSON.parse(brotliDecompressSync(compressedSubjectPapers.body).toString('utf8')), parsedSubjectPapers)
 
     const papersHead = await fetch(`${baseUrl}/data/papers.json`, { method: 'HEAD', headers: identityHeaders })
     assert.equal(papersHead.status, 200)
