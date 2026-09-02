@@ -663,10 +663,15 @@ export function AiCoach({
           warning: payload.warning || '',
         })
         if (retryable) {
-          setRetryRequest({ assistantId, message: studentMessage.content, level, attachments, previous, intent, unavailableAttachmentCount: 0 })
-          setError(payload.warning || (partial
-            ? 'The connection was interrupted. The partial response was kept; retry to continue.'
-            : 'AI Coach is temporarily unavailable. Retry to continue.'))
+          const autoRetried = payload.providerStatus === 'error' && scheduleAutomaticRetry(payload.warning || (partial
+            ? 'The connection was interrupted. Reconnecting automatically.'
+            : 'AI Coach is temporarily unavailable. Reconnecting automatically.'))
+          if (!autoRetried) {
+            setRetryRequest({ assistantId, message: studentMessage.content, level, attachments, previous, intent, unavailableAttachmentCount: 0 })
+            setError(payload.warning || (partial
+              ? 'The connection was interrupted. The partial response was kept; retry to continue.'
+              : 'AI Coach is temporarily unavailable. Retry to continue.'))
+          }
         }
         streamCompleted = true
         if (payload.mode === 'offline') setError(payload.warning || 'AI Coach is offline. This response is only a controlled offline hint.')
@@ -700,10 +705,15 @@ export function AiCoach({
               warning: payload.warning || retryWarning,
             })
             if (retryable) {
-              setRetryRequest({ assistantId, message: studentMessage.content, level, attachments, previous, intent, unavailableAttachmentCount: 0 })
-              setError(payload.warning || (partial
-                ? 'The connection was interrupted. The partial response was kept; retry to continue.'
-                : 'AI Coach is temporarily unavailable. Retry to continue.'))
+              const autoRetried = payload.providerStatus === 'error' && scheduleAutomaticRetry(payload.warning || (partial
+                ? 'The connection was interrupted. Reconnecting automatically.'
+                : 'AI Coach is temporarily unavailable. Reconnecting automatically.'))
+              if (!autoRetried) {
+                setRetryRequest({ assistantId, message: studentMessage.content, level, attachments, previous, intent, unavailableAttachmentCount: 0 })
+                setError(payload.warning || (partial
+                  ? 'The connection was interrupted. The partial response was kept; retry to continue.'
+                  : 'AI Coach is temporarily unavailable. Retry to continue.'))
+              }
             }
             if (payload.mode === 'offline') setError(payload.warning || 'AI Coach is offline. This response is only a controlled offline hint.')
           }

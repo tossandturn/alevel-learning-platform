@@ -67,6 +67,24 @@ assert.equal(gatewayProvider.coach.fallback.name, 'qwen', 'the GPT gateway must 
 assert.equal(gatewayProvider.vision.name, 'openai-gateway', 'handwriting and photo Coach requests must use the GPT gateway too')
 assert.equal(gatewayProvider.vision.fallback.name, 'qwen', 'vision gateway requests must retain Qwen fallback')
 
+const separatedQwenFallback = providerConfig({
+  AI_GATEWAY_API_KEY: 'test-gateway-key',
+  PHYSICS_AI_API_KEY: 'legacy-generic-key',
+  PHYSICS_AI_BASE_URL: 'https://legacy-generic.example/v1',
+  DASHSCOPE_API_KEY: 'separate-qwen-key',
+  DASHSCOPE_COMPAT_BASE_URL: 'https://dashscope.example/v1',
+})
+assert.equal(separatedQwenFallback.vision.fallback.apiKey, 'separate-qwen-key', 'a gateway vision fallback must prefer the explicit Qwen key over a generic legacy key')
+assert.equal(separatedQwenFallback.vision.fallback.baseUrl, 'https://dashscope.example/v1', 'a gateway vision fallback must prefer the explicit Qwen base URL')
+
+const directLegacyQwen = providerConfig({
+  AI_PROVIDER: 'qwen',
+  PHYSICS_AI_API_KEY: 'legacy-qwen-key',
+  PHYSICS_AI_BASE_URL: 'https://legacy-qwen.example/v1',
+})
+assert.equal(directLegacyQwen.vision.apiKey, 'legacy-qwen-key', 'an explicitly selected legacy Qwen installation must retain its generic key alias')
+assert.equal(directLegacyQwen.vision.baseUrl, 'https://legacy-qwen.example/v1', 'an explicitly selected legacy Qwen installation must retain its generic base URL alias')
+
 const FETCH_BLOCKED_PORTS = new Set([
   1, 7, 9, 11, 13, 15, 17, 19, 20, 21, 22, 23, 25, 37, 42, 43, 53, 69, 77, 79, 87, 95, 101, 102, 103, 104, 109, 110, 111,
   113, 115, 117, 119, 123, 135, 137, 139, 143, 161, 179, 389, 427, 465, 512, 513, 514, 515, 526, 530, 531, 532, 540, 548,
@@ -659,6 +677,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   const gatewayBodies = []
   let gatewayRequests = 0
   let gatewayQwenRequests = 0
+  let gatewayQwenAuthorization = ''
   const gatewayServer = http.createServer(async (request, response) => {
     const chunks = []
     for await (const chunk of request) chunks.push(chunk)
@@ -672,6 +691,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
     const chunks = []
     for await (const chunk of request) chunks.push(chunk)
     gatewayQwenRequests += 1
+    gatewayQwenAuthorization = String(request.headers.authorization || '')
     response.statusCode = 200
     response.setHeader('Content-Type', 'text/event-stream')
     response.end('data: {"choices":[{"delta":{"content":"qwen gateway recovery"}}]}\n\ndata: [DONE]\n\n')
@@ -684,6 +704,8 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
       AI_GATEWAY_BASE_URL: gatewayBase,
       AI_GATEWAY_MODEL: 'gpt-5.5-test',
       AI_GATEWAY_REASONING_EFFORT: 'high',
+      PHYSICS_AI_API_KEY: 'test-legacy-generic-key',
+      PHYSICS_AI_BASE_URL: gatewayBase,
       DASHSCOPE_API_KEY: 'test-gateway-qwen-key',
       DASHSCOPE_COMPAT_BASE_URL: gatewayQwenBase,
       COACH_AI_MODEL: 'qwen-gateway-recovery',
@@ -714,6 +736,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
     assert.match(gatewayText, /"provider":"qwen"/)
     assert.equal(gatewayRequests, 1, 'the configured GPT gateway must be attempted before Qwen')
     assert.equal(gatewayQwenRequests, 1, 'Qwen must recover a failed GPT gateway request')
+    assert.equal(gatewayQwenAuthorization, 'Bearer test-gateway-qwen-key', 'gateway fallback must use the independent Qwen credential')
     assert.equal(gatewayBodies[0].path, '/v1/responses', 'gateway base URLs must normalize to the versioned Responses endpoint')
     assert.deepEqual(gatewayBodies[0].body.reasoning, { effort: 'high' }, 'GPT gateway requests must send the configured reasoning effort')
     assert.equal(Object.hasOwn(gatewayBodies[0].body, 'temperature'), false, 'GPT-5 gateway requests must not send sampling temperature')

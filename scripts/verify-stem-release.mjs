@@ -109,7 +109,7 @@ assert.equal(actualImmutableAssets.bytes, releaseManifest.immutableAssets?.bytes
 assert.ok(hasRenderedAsset(assetRoot), 'Release public/question-assets contains no rendered source pages')
 assert.ok(fs.existsSync(catalogPath) && fs.statSync(catalogPath).size > 0, 'Release is missing public/data/papers.json')
 assert.ok(fs.existsSync(subjectCatalogRoot) && fs.statSync(subjectCatalogRoot).isDirectory(), 'Release is missing public/data/papers')
-for (const subject of ['0580', '0625', '9702', '9709']) {
+for (const subject of ['0580', '0606', '0610', '0625', '9231', '9700', '9701', '9702', '9708', '9709']) {
   const subjectCatalogPath = path.join(subjectCatalogRoot, `${subject}.json`)
   assert.ok(fs.existsSync(subjectCatalogPath) && fs.statSync(subjectCatalogPath).size > 0, `Release is missing public/data/papers/${subject}.json`)
 }

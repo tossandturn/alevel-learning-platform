@@ -76,7 +76,7 @@ assert.ok(paperCatalogHook.includes('if (enabled) void load()'), 'the paper cata
 assert.match(paperCatalogHook, /\/data\/papers\/\$\{encodeURIComponent\((?:subject|requestedSubject)\)\}\.json/, 'the paper catalog must load a lightweight subject-specific index when possible')
 assert.ok(paperCatalogHook.includes('Loading the verified paper catalog took too long. Retry.'), 'the paper catalog must expose a visible timeout state')
 assert.ok(fs.readFileSync(path.join(root, 'src', 'components', 'PaperLibrary.jsx'), 'utf8').includes('Retry'), 'the paper catalog error state must expose a retry action')
-for (const subject of ['0580', '0625', '9702', '9709']) {
+for (const subject of ['0580', '0606', '0610', '0625', '9231', '9700', '9701', '9702', '9708', '9709']) {
   const subjectCatalogPath = path.join(root, 'public', 'data', 'papers', `${subject}.json`)
   assert.ok(fs.existsSync(subjectCatalogPath), `the ${subject} subject catalog must be materialized for route-scoped paper browsing`)
   const subjectCatalog = JSON.parse(fs.readFileSync(subjectCatalogPath, 'utf8'))

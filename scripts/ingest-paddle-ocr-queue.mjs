@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { renderPdfPages as defaultRenderPdf, runCli as defaultRunCli } from './ingest-ai-pdf-questions.mjs'
+import { routePlansForJob as buildRoutePlans } from './paddle-ocr/route-policy.mjs'
 
 const PADDLE_ENGINE = 'PaddleOCR-VL-1.6'
 const PADDLE_PROVIDER = 'PaddleOCR official API'
@@ -10,65 +11,10 @@ const DEFAULT_RENDER_DPI = 180
 const SHA256 = /^[a-f0-9]{64}$/i
 const SAFE_SUFFIX = /^[A-Za-z0-9][A-Za-z0-9._-]{0,96}$/
 
-// Keep this list aligned with the queue runner. A shared 9709 component is
-// deliberately expanded into every registered route context so one route
-// cannot overwrite another route's reviewed artifact.
-const ROUTE_CANDIDATES = Object.freeze({
-  '0580:1': [['IGCSE', 'cie-0580-igcse-mathematics', [1, 2, 3, 4]]],
-  '0580:2': [['IGCSE', 'cie-0580-igcse-mathematics', [1, 2, 3, 4]]],
-  '0580:3': [['IGCSE', 'cie-0580-igcse-mathematics', [1, 2, 3, 4]]],
-  '0580:4': [['IGCSE', 'cie-0580-igcse-mathematics', [1, 2, 3, 4]]],
-  '0625:2': [['IGCSE', 'cie-0625-igcse-physics', [2]]],
-  '9702:1': [['AS', 'cie-9702-as-physics', [1, 2]]],
-  '9702:2': [['AS', 'cie-9702-as-physics', [1, 2]]],
-  '9702:4': [['A2', 'cie-9702-a2-physics', [4]]],
-  '9709:1': [
-    ['AS', 'cie-9709-as-p1-p2', [1, 2]],
-    ['AS', 'cie-9709-as-p1-p4', [1, 4]],
-    ['AS', 'cie-9709-as-p1-p5', [1, 5]],
-  ],
-  '9709:2': [['AS', 'cie-9709-as-p1-p2', [1, 2]]],
-  '9709:3': [
-    ['A2', 'cie-9709-a2-after-p1-p5-p3-p4', [3, 4]],
-    ['A2', 'cie-9709-a2-after-p1-p5-p3-p6', [3, 6]],
-    ['A2', 'cie-9709-a2-after-p1-p4-p3-p5', [3, 5]],
-  ],
-  '9709:4': [
-    ['AS', 'cie-9709-as-p1-p4', [1, 4]],
-    ['A2', 'cie-9709-a2-after-p1-p5-p3-p4', [3, 4]],
-  ],
-  '9709:5': [
-    ['AS', 'cie-9709-as-p1-p5', [1, 5]],
-    ['A2', 'cie-9709-a2-after-p1-p4-p3-p5', [3, 5]],
-  ],
-  '9709:6': [['A2', 'cie-9709-a2-after-p1-p5-p3-p6', [3, 6]]],
-})
-
 export function routePlansForJob(job) {
-  const subject = String(job?.subject || '').trim()
-  const component = Number(job?.component)
-  const candidates = ROUTE_CANDIDATES[`${subject}:${component}`]
-  if (!candidates) throw paddleError('PADDLE_ROUTE_UNSUPPORTED', `unsupported route ${subject}:${component}`)
-
-  const bindings = Array.isArray(job?.routeBindings) ? job.routeBindings : []
-  const declared = bindings
-    .map((binding) => String(binding?.routeCandidateId || binding?.routeHint || '').trim())
-    .filter(Boolean)
-  const expected = candidates.map(([, routeId]) => routeId)
-  if (bindings.length && (declared.length !== bindings.length
-    || new Set(declared).size !== declared.length
-    || declared.length !== expected.length
-    || declared.some((routeId) => !expected.includes(routeId)))) {
-    throw paddleError('PADDLE_ROUTE_BINDING_MISMATCH', `queue route bindings do not match ${subject}:${component}`)
-  }
-
-  return Object.freeze(candidates.map(([stage, routeId, components]) => Object.freeze({
-    routeId,
-    stage,
-    subject,
-    component,
-    components: Object.freeze([...components]),
-    artifactSuffix: artifactSuffixForRoute(routeId),
+  return Object.freeze(buildRoutePlans(job).map((route) => Object.freeze({
+    ...route,
+    artifactSuffix: artifactSuffixForRoute(route.routeId),
   })))
 }
 

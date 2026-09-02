@@ -111,6 +111,7 @@ assert.match(
 assert.match(coachSource, /scheduleAutomaticRetry/, 'a transport failure must schedule one automatic Coach reconnect')
 assert.match(coachSource, /autoRetryAttempt >= MAX_AUTO_COACH_RETRIES/, 'automatic Coach reconnects must be bounded')
 assert.match(coachSource, /retryAttachments/, 'automatic Coach reconnects must retain the attached photos')
+assert.match(coachSource, /payload\.providerStatus === 'error' && scheduleAutomaticRetry/, 'a provider error delivered as a valid SSE completion must also reconnect once')
 
 let receivedVisionRequest = null
 const providerServer = http.createServer(async (request, response) => {

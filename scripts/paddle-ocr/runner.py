@@ -24,7 +24,9 @@ ENGINE_NAME = "PaddleOCR-VL-1.6"
 DEFAULT_PDF_ROOT = Path(r"D:\CodexWork\cie-fraft-fetcher\output\pdf")
 DEFAULT_WORK_ROOT = Path(r"D:\CodexWork\stem-ocr-work")
 DEFAULT_DPI = 180
-TARGET_YEARS = range(2021, 2026)
+DEFAULT_MIN_YEAR = 2017
+DEFAULT_MAX_YEAR = 2025
+TARGET_YEARS = range(DEFAULT_MIN_YEAR, DEFAULT_MAX_YEAR + 1)
 
 PAPER_NAME_PATTERN = re.compile(
     r"^(?P<subject>\d{4})_(?P<session>[msw])(?P<year>\d{2})_qp_"
@@ -33,10 +35,54 @@ PAPER_NAME_PATTERN = re.compile(
 )
 
 SUBJECT_POLICY: dict[str, dict[int, list[tuple[str, str, str]]]] = {
+    "0610": {
+        component: [("IGCSE", "cie-0610-igcse-biology", f"P{component}")]
+        for component in range(1, 7)
+    },
+    "9700": {
+        1: [("AS", "cie-9700-as-biology", "P1")],
+        2: [("AS", "cie-9700-as-biology", "P2")],
+        3: [("AS", "cie-9700-as-biology", "P3")],
+        4: [("A2", "cie-9700-a2-biology", "P4")],
+        5: [("A2", "cie-9700-a2-biology", "P5")],
+    },
+    "9701": {
+        1: [("AS", "cie-9701-as-chemistry", "P1")],
+        2: [("AS", "cie-9701-as-chemistry", "P2")],
+        3: [("AS", "cie-9701-as-chemistry", "P3")],
+        4: [("A2", "cie-9701-a2-chemistry", "P4")],
+        5: [("A2", "cie-9701-a2-chemistry", "P5")],
+    },
+    "9708": {
+        1: [("AS", "cie-9708-as-economics", "P1")],
+        2: [("AS", "cie-9708-as-economics", "P2")],
+        3: [("A2", "cie-9708-a2-economics", "P3")],
+        4: [("A2", "cie-9708-a2-economics", "P4")],
+    },
+    "9231": {
+        1: [
+            ("AS", "cie-9231-as-p1-p3", "P1"),
+            ("AS", "cie-9231-as-p1-p4", "P1"),
+        ],
+        2: [
+            ("A2", "cie-9231-a2-after-p1-p3-p2-p4", "P2"),
+            ("A2", "cie-9231-a2-after-p1-p4-p2-p3", "P2"),
+        ],
+        3: [
+            ("AS", "cie-9231-as-p1-p3", "P3"),
+            ("A2", "cie-9231-a2-after-p1-p4-p2-p3", "P3"),
+        ],
+        4: [
+            ("AS", "cie-9231-as-p1-p4", "P4"),
+            ("A2", "cie-9231-a2-after-p1-p3-p2-p4", "P4"),
+        ],
+    },
     "9702": {
         1: [("AS", "cie-9702-as-physics", "P1")],
         2: [("AS", "cie-9702-as-physics", "P2")],
+        3: [("AS", "cie-9702-as-physics", "P3")],
         4: [("A2", "cie-9702-a2-physics", "P4")],
+        5: [("A2", "cie-9702-a2-physics", "P5")],
     },
     "9709": {
         1: [
@@ -51,21 +97,26 @@ SUBJECT_POLICY: dict[str, dict[int, list[tuple[str, str, str]]]] = {
             ("A2", "cie-9709-a2-after-p1-p4-p3-p5", "P3"),
         ],
         4: [
-            ("AS", "cie-9709-as-p1-p4", "M1"),
-            ("A2", "cie-9709-a2-after-p1-p5-p3-p4", "M1"),
+            ("AS", "cie-9709-as-p1-p4", "P4"),
+            ("A2", "cie-9709-a2-after-p1-p5-p3-p4", "P4"),
         ],
         5: [
-            ("AS", "cie-9709-as-p1-p5", "S1"),
-            ("A2", "cie-9709-a2-after-p1-p4-p3-p5", "S1"),
+            ("AS", "cie-9709-as-p1-p5", "P5"),
+            ("A2", "cie-9709-a2-after-p1-p4-p3-p5", "P5"),
         ],
-        6: [("A2", "cie-9709-a2-after-p1-p5-p3-p6", "S2")],
+        6: [("A2", "cie-9709-a2-after-p1-p5-p3-p6", "P6")],
     },
     "0580": {
         component: [("IGCSE", "cie-0580-igcse-mathematics", f"P{component}")]
         for component in range(1, 5)
     },
+    "0606": {
+        1: [("IGCSE", "cie-0606-igcse-additional-mathematics", "P1")],
+        2: [("IGCSE", "cie-0606-igcse-additional-mathematics", "P2")],
+    },
     "0625": {
-        2: [("IGCSE", "cie-0625-igcse-physics", "P2-theory")],
+        component: [("IGCSE", "cie-0625-igcse-physics", f"P{component}")]
+        for component in range(1, 7)
     },
 }
 
@@ -175,8 +226,20 @@ def parse_question_paper_name(name: str) -> dict[str, object] | None:
     }
 
 
-def is_eligible_paper(subject: str, year: int, component: int) -> bool:
-    return year in TARGET_YEARS and component in SUBJECT_POLICY.get(subject, {})
+def normalize_year_range(min_year: int, max_year: int) -> range:
+    if min_year < 2000 or max_year > 2099 or min_year > max_year:
+        raise ValueError("year range must be within 2000..2099 and min-year <= max-year")
+    return range(min_year, max_year + 1)
+
+
+def is_eligible_paper(
+    subject: str,
+    year: int,
+    component: int,
+    years: Iterable[int] | None = None,
+) -> bool:
+    allowed_years = TARGET_YEARS if years is None else years
+    return year in allowed_years and component in SUBJECT_POLICY.get(subject, {})
 
 
 def route_bindings(subject: str, component: int) -> list[dict[str, object]]:
@@ -217,8 +280,10 @@ def _relative_output_paths(paper_id: str, job_key: str) -> dict[str, str]:
 def enumerate_paper_pairs(
     pdf_root: Path,
     *,
+    years: Iterable[int] | None = None,
     inspect_pdf: Callable[[Path], dict[str, object]] = inspect_pdf,
 ) -> dict[str, object]:
+    selected_years = set(TARGET_YEARS if years is None else years)
     root = pdf_root.resolve()
     if not root.is_dir():
         raise FileNotFoundError(f"PDF root does not exist: {root}")
@@ -252,7 +317,7 @@ def enumerate_paper_pairs(
                 continue
             year = int(parsed["year"])
             component = int(parsed["component"])
-            if year not in TARGET_YEARS:
+            if year not in selected_years:
                 exclusions["yearOutOfRange"] += 1
                 continue
             if component not in SUBJECT_POLICY[subject]:
@@ -554,8 +619,14 @@ def _initialize_job_files(work_root: Path, job: dict[str, object]) -> None:
     atomic_write_json(artifact_path, build_staging_artifact(job, state))
 
 
-def build_manifest(pdf_root: Path, work_root: Path) -> dict[str, object]:
-    enumeration = enumerate_paper_pairs(pdf_root)
+def build_manifest(
+    pdf_root: Path,
+    work_root: Path,
+    *,
+    years: Iterable[int] | None = None,
+) -> dict[str, object]:
+    selected_years = sorted(set(TARGET_YEARS if years is None else years))
+    enumeration = enumerate_paper_pairs(pdf_root, years=selected_years)
     generated_at = utc_now()
     manifest = {
         "schemaVersion": MANIFEST_SCHEMA,
@@ -570,7 +641,7 @@ def build_manifest(pdf_root: Path, work_root: Path) -> dict[str, object]:
             "officialApiPagesConsumed": 0,
         },
         "selection": {
-            "years": list(TARGET_YEARS),
+            "years": selected_years,
             "subjects": {
                 subject: sorted(components)
                 for subject, components in SUBJECT_POLICY.items()
@@ -1133,6 +1204,8 @@ def build_parser() -> argparse.ArgumentParser:
         manifest = subparsers.add_parser(command, help=help_text)
         manifest.add_argument("--pdf-root", type=Path, default=DEFAULT_PDF_ROOT)
         manifest.add_argument("--work-root", type=Path, default=DEFAULT_WORK_ROOT)
+        manifest.add_argument("--min-year", type=int, default=DEFAULT_MIN_YEAR)
+        manifest.add_argument("--max-year", type=int, default=DEFAULT_MAX_YEAR)
 
     run = subparsers.add_parser("run", help="Run or resume local PaddleOCR-VL jobs")
     run.add_argument("--work-root", type=Path, default=DEFAULT_WORK_ROOT)
@@ -1154,7 +1227,9 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         if args.command in ("manifest", "dry-run"):
-            manifest = build_manifest(args.pdf_root, args.work_root)
+            years = normalize_year_range(args.min_year, args.max_year)
+            with WorkerLock(args.work_root / "locks" / "worker.lock"):
+                manifest = build_manifest(args.pdf_root, args.work_root, years=years)
             output = {
                 "status": "dry_run_ready" if args.command == "dry-run" else "manifest_ready",
                 "manifest": str((args.work_root / "manifest" / "manifest.json").resolve()),
