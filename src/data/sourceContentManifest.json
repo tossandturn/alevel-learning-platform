@@ -1,6 +1,6 @@
 {
   "schemaVersion": "source-content-audit-v3",
-  "sourceIndexSha256": "9d7d9351c90435eda2ab6c52c9a93e9255935e8c4304387c6dfb28170b698020",
+  "sourceIndexSha256": "f3894754e34e2fac93b67f1e09258031296b5cfd8f2c88d8e07c6bf5b2f0ddb9",
   "items": {
     "amc12-amc12-2025A-exam:q1": {
       "complete": false,
@@ -22074,13 +22074,11 @@
       ]
     },
     "cie-9702-9702_s25_qp_23:q2": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:f01be40c2865abb6",
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:cf2de470990405c2",
       "questionAssets": [
         {
           "page": 6,
@@ -23876,13 +23874,11 @@
       ]
     },
     "cie-9702-9702_w25_qp_22:q3": {
-      "complete": false,
+      "complete": true,
       "fileComplete": true,
-      "semanticStatus": "unreviewed",
-      "reasons": [
-        "human-semantic-review-required"
-      ],
-      "bindingSignature": "fnv1a64:b0d369a54cb4e44a",
+      "semanticStatus": "verified-complete",
+      "reasons": [],
+      "bindingSignature": "fnv1a64:1a77ae09f7d6fecf",
       "questionAssets": [
         {
           "page": 10,
@@ -36181,5 +36177,5 @@
       ]
     }
   },
-  "checksum": "790ce8d48e4baee0982b50e42be35d5bd8505a2c8c9c1535a0811c4ff1219cf4"
+  "checksum": "c7071d8a174518aab90a5bb95819117203c16cd877eb0022627279640a37c6b2"
 }

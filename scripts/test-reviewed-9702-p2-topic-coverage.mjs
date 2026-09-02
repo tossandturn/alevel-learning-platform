@@ -40,6 +40,8 @@ const newlyReviewedGroups = new Map([
   ['cie-9702-9702_s25_qp_23:q6', { totalMarks: 8, primaryTopicId: 'physics-9702-topic-08', secondaryTopicIds: ['physics-9702-topic-07'], reviewedAt: '2026-09-02T17:41:59+08:00' }],
   ['cie-9702-9702_m24_qp_22:q4', { totalMarks: 6, primaryTopicId: 'physics-9702-topic-11', secondaryTopicIds: [], reviewedAt: '2026-09-02T17:41:59+08:00' }],
   ['cie-9702-9702_m24_qp_22:q8', { totalMarks: 6, primaryTopicId: 'physics-9702-topic-11', secondaryTopicIds: [], reviewedAt: '2026-09-02T17:41:59+08:00' }],
+  ['cie-9702-9702_s25_qp_23:q2', { totalMarks: 9, primaryTopicId: 'physics-9702-topic-06', secondaryTopicIds: ['physics-9702-topic-04'], reviewedAt: '2026-09-02T19:03:24+08:00' }],
+  ['cie-9702-9702_w25_qp_22:q3', { totalMarks: 9, primaryTopicId: 'physics-9702-topic-06', secondaryTopicIds: ['physics-9702-topic-04', 'physics-9702-topic-05'], reviewedAt: '2026-09-02T19:03:24+08:00' }],
 ])
 const reviewedIds = []
 
@@ -57,7 +59,7 @@ function actualAssetSha256(url) {
 
 assert.equal(CAMBRIDGE_9702_P2_TOPIC_COVERAGE_REVIEW_SCHEMA_VERSION, 'cambridge-9702-p2-topic-coverage-review.v1')
 assert.equal(CAMBRIDGE_9702_P2_TOPIC_COVERAGE_REVIEW_LEDGERS.length, 9)
-assert.equal(CAMBRIDGE_9702_P2_TOPIC_COVERAGE_REVIEW_LEDGERS.reduce((sum, paper) => sum + paper.questions.length, 0), 31)
+assert.equal(CAMBRIDGE_9702_P2_TOPIC_COVERAGE_REVIEW_LEDGERS.reduce((sum, paper) => sum + paper.questions.length, 0), 33)
 
 for (const paperReview of CAMBRIDGE_9702_P2_TOPIC_COVERAGE_REVIEW_LEDGERS) {
   assert.equal(paperReview.component, 2, `${paperReview.paperId}: supplemental Topic coverage must remain Paper 2 theory`)
@@ -141,15 +143,15 @@ for (const paperReview of CAMBRIDGE_9702_P2_TOPIC_COVERAGE_REVIEW_LEDGERS) {
   }
 }
 
-assert.equal(new Set(reviewedIds).size, 31, 'supplemental review IDs must be unique')
-assert.equal(unifiedQuestionBank.filter((question) => reviewedIds.includes(question.sourceQuestionId)).length, 31, 'every supplemental group must enter the canonical gated bank')
+assert.equal(new Set(reviewedIds).size, 33, 'supplemental review IDs must be unique')
+assert.equal(unifiedQuestionBank.filter((question) => reviewedIds.includes(question.sourceQuestionId)).length, 33, 'every supplemental group must enter the canonical gated bank')
 
 const inventory = syllabusTopicsInventory({ routeId: 'cie-9702-as-physics', questionBank: unifiedQuestionBank })
-assert.equal(inventory.verifiedQuestionGroupCount, 118)
-assert.deepEqual(inventory.topics.map((topic) => topic.verifiedQuestionCount), [12, 12, 13, 13, 17, 10, 18, 12, 15, 12, 12])
-assert.equal(inventory.topics.filter((topic) => topic.ready && topic.ctaPolicy === 'start').length, 10)
-assert.equal(inventory.topics.filter((topic) => !topic.ready && topic.ctaPolicy === 'hidden').length, 1)
-assert.equal(inventory.ready, false, 'a route remains unavailable until every official topic can supply two six-question tests')
+assert.equal(inventory.verifiedQuestionGroupCount, 120)
+assert.deepEqual(inventory.topics.map((topic) => topic.verifiedQuestionCount), [12, 12, 13, 15, 18, 12, 18, 12, 15, 12, 12])
+assert.equal(inventory.topics.filter((topic) => topic.ready && topic.ctaPolicy === 'start').length, 11)
+assert.equal(inventory.topics.filter((topic) => !topic.ready && topic.ctaPolicy === 'hidden').length, 0)
+assert.equal(inventory.ready, true, 'the route must become ready only after every official topic can supply two six-question tests')
 assert.deepEqual(
   inventory.topics.find((topic) => topic.id === 'physics-9702-topic-07')?.availableSetSizes,
   [6, 10, 15],

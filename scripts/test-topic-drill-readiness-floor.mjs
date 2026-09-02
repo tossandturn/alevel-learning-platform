@@ -31,9 +31,17 @@ function call(api, { method, url, body }) {
   })
 }
 
-const verifiedApi = createStemApi({ env: { NODE_ENV: 'production', STEM_DB_PATH: ':memory:' } })
+const underFloorQuestionIds = new Set([
+  'cie-9702-9702_s25_qp_23:q2',
+  'cie-9702-9702_w25_qp_22:q3',
+])
+const underFloorQuestionBank = unifiedQuestionBank.filter((question) => !underFloorQuestionIds.has(question.sourceQuestionId))
+const verifiedApi = createStemApi({
+  env: { NODE_ENV: 'production', STEM_DB_PATH: ':memory:' },
+  questionBank: underFloorQuestionBank,
+})
 try {
-  const asInventory = syllabusTopicsInventory({ routeId: 'cie-9702-as-physics', questionBank: unifiedQuestionBank })
+  const asInventory = syllabusTopicsInventory({ routeId: 'cie-9702-as-physics', questionBank: underFloorQuestionBank })
   assert.equal(MIN_VERIFIED_GROUPS_FOR_PRACTICE, MIN_QUESTION_GROUPS_PER_TEST * MIN_TESTS_PER_TOPIC)
   assert.equal(asInventory.ready, false, 'the route must remain unavailable while any official topic cannot supply two six-question tests')
   const tenGroupTopic = asInventory.topics.find((topic) => topic.id === 'physics-9702-topic-06')

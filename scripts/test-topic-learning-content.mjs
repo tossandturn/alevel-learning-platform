@@ -46,7 +46,7 @@ for (const route of courseRoutes) {
 assert.ok(topicCount >= 60, `expected the registered learning map to expose at least 60 topics, got ${topicCount}`)
 assert.equal(
   verifiedPracticeQuestionGroups.length,
-  236,
+  238,
   'learning content must expose exactly the current canonical verified question inventory',
 )
 

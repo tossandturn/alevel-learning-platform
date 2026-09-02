@@ -80000,8 +80000,8 @@
       "specificationId": "cambridge-9702-2025-2027",
       "subjectId": "physics",
       "subjectCode": "9702",
-      "knowledgeGroupId": "physics-9702-topic-04",
-      "topicId": "physics-9702-topic-04",
+      "knowledgeGroupId": "physics-9702-topic-06",
+      "topicId": "physics-9702-topic-06",
       "stageTags": [
         "AS"
       ],
@@ -80009,6 +80009,7 @@
         2
       ],
       "topicTags": [
+        "physics-9702-topic-06",
         "physics-9702-topic-04",
         "moments",
         "equilibrium"
@@ -80018,7 +80019,7 @@
         "definition"
       ],
       "answerType": "structured",
-      "prompt": "Define the moment of a force about a pivot.\nThree objects A, B and C are placed on a horizontal beam. The beam is in equilibrium, as shown in Fig. 2.1.\nCalculate m.\nObject A is removed and replaced by a wire fixed to the end of the beam and to the ground, as shown in Fig. 2.2.\n\nAfter the change, the beam is again horizontal and in equilibrium. The positions of B and C are unchanged.\n\nThe wire has a diameter of 1.8 × 10⁻³ m and has a strain of 1.2 × 10⁻³.\nThe wire is not extended beyond its limit of proportionality.\n\nCalculate the Young modulus of the wire.\nObject B is now moved to a new position closer to the pivot without passing it. The beam is again horizontal and in equilibrium.\n\nState and explain the effect, if any, that this has on the strain in the wire.",
+      "prompt": "(a) Define the moment of a force about a pivot.\n\n(b(i)) Three objects A, B and C are placed on a horizontal beam. The beam is in equilibrium, as shown in Fig. 2.1.\nCalculate m.\n\n(b(ii)) Object A is removed and replaced by a wire fixed to the end of the beam and to the ground, as shown in Fig. 2.2.\n\nAfter the change, the beam is again horizontal and in equilibrium. The positions of B and C are unchanged.\n\nThe wire has a diameter of 1.8 × 10⁻³ m and has a strain of 1.2 × 10⁻³.\nThe wire is not extended beyond its limit of proportionality.\n\nCalculate the Young modulus of the wire.\n\n(b(iii)) Object B is now moved to a new position closer to the pivot without passing it. The beam is again horizontal and in equilibrium.\n\nState and explain the effect, if any, that this has on the strain in the wire.",
       "questionGroupId": "cie-9702-9702_s25_qp_23:q2",
       "questionGroupStatus": "verified",
       "totalMarks": 9,
@@ -80028,56 +80029,76 @@
           "label": "a",
           "promptFragment": "Define the moment of a force about a pivot.",
           "marks": 1,
-          "questionDeclaredMarks": 1,
-          "markSource": "paired-mark-scheme",
           "answerArea": {
-            "type": "handwritten"
+            "type": "handwritten",
+            "input": "handwriting"
           },
           "sourcePage": 6,
-          "sourceEvidence": [],
-          "sourceRegion": null
+          "sourceEvidence": [
+            {
+              "documentSha256": "102d8dba65d2465573273c93292a1a20cbae2614dd1def31e6146e8b307a49d8",
+              "page": 6,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/qp-06.jpg",
+              "assetSha256": "33a814087275e84bec7e9425dd90a914d47f4608e54ea59ccf073ce0eca4495d"
+            }
+          ]
         },
         {
           "partId": "cie-9702-9702_s25_qp_23:q2:part-b(i)",
           "label": "b(i)",
           "promptFragment": "Three objects A, B and C are placed on a horizontal beam. The beam is in equilibrium, as shown in Fig. 2.1.\nCalculate m.",
           "marks": 3,
-          "questionDeclaredMarks": 3,
-          "markSource": "paired-mark-scheme",
           "answerArea": {
-            "type": "handwritten"
+            "type": "handwritten",
+            "input": "handwriting"
           },
           "sourcePage": 6,
-          "sourceEvidence": [],
-          "sourceRegion": null
+          "sourceEvidence": [
+            {
+              "documentSha256": "102d8dba65d2465573273c93292a1a20cbae2614dd1def31e6146e8b307a49d8",
+              "page": 6,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/qp-06.jpg",
+              "assetSha256": "33a814087275e84bec7e9425dd90a914d47f4608e54ea59ccf073ce0eca4495d"
+            }
+          ]
         },
         {
           "partId": "cie-9702-9702_s25_qp_23:q2:part-b(ii)",
           "label": "b(ii)",
           "promptFragment": "Object A is removed and replaced by a wire fixed to the end of the beam and to the ground, as shown in Fig. 2.2.\n\nAfter the change, the beam is again horizontal and in equilibrium. The positions of B and C are unchanged.\n\nThe wire has a diameter of 1.8 × 10⁻³ m and has a strain of 1.2 × 10⁻³.\nThe wire is not extended beyond its limit of proportionality.\n\nCalculate the Young modulus of the wire.",
           "marks": 3,
-          "questionDeclaredMarks": 3,
-          "markSource": "paired-mark-scheme",
           "answerArea": {
-            "type": "handwritten"
+            "type": "handwritten",
+            "input": "handwriting"
           },
           "sourcePage": 7,
-          "sourceEvidence": [],
-          "sourceRegion": null
+          "sourceEvidence": [
+            {
+              "documentSha256": "102d8dba65d2465573273c93292a1a20cbae2614dd1def31e6146e8b307a49d8",
+              "page": 7,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/qp-07.jpg",
+              "assetSha256": "15bd7e8f33e055214bd48b6fee957dd52a4c9cb398bb52d9a27533cc3e127f2d"
+            }
+          ]
         },
         {
           "partId": "cie-9702-9702_s25_qp_23:q2:part-b(iii)",
           "label": "b(iii)",
           "promptFragment": "Object B is now moved to a new position closer to the pivot without passing it. The beam is again horizontal and in equilibrium.\n\nState and explain the effect, if any, that this has on the strain in the wire.",
           "marks": 2,
-          "questionDeclaredMarks": 2,
-          "markSource": "paired-mark-scheme",
           "answerArea": {
-            "type": "handwritten"
+            "type": "handwritten",
+            "input": "handwriting"
           },
           "sourcePage": 7,
-          "sourceEvidence": [],
-          "sourceRegion": null
+          "sourceEvidence": [
+            {
+              "documentSha256": "102d8dba65d2465573273c93292a1a20cbae2614dd1def31e6146e8b307a49d8",
+              "page": 7,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/qp-07.jpg",
+              "assetSha256": "15bd7e8f33e055214bd48b6fee957dd52a4c9cb398bb52d9a27533cc3e127f2d"
+            }
+          ]
         }
       ],
       "marks": 9,
@@ -80099,13 +80120,47 @@
       },
       "provenance": {
         "licenseStatus": "Official exam material; personal study library",
-        "indexedAt": "2026-08-15T05:28:13.138Z"
+        "indexedAt": "2026-08-15T05:28:13.138Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-topic-coverage-review.v1"
       },
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
         "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
-        "knowledgeGroupId": "physics-9702-topic-04",
-        "mappingStatus": "machine-indexed"
+        "knowledgeGroupId": "physics-9702-topic-06",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-06",
+        "secondaryTopicIds": [
+          "physics-9702-topic-04"
+        ],
+        "syllabusPointIds": [
+          "physics-9702-point-4-1-02",
+          "physics-9702-point-4-2-01",
+          "physics-9702-point-6-1-02",
+          "physics-9702-point-6-1-05"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+        "reviewedAt": "2026-09-02T19:03:24+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_s25_qp_23",
+          "markSchemeId": "cie-9702-9702_s25_ms_23",
+          "questionPages": [
+            6,
+            7
+          ],
+          "markSchemePages": [
+            9
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s25_qp_23.pdf",
+          "studentPromptPolicy": "official-source-image",
+          "privateTextPolicy": "hidden-indexing-and-marking-context"
+        }
       },
       "questionId": "cie-9702-9702_s25_qp_23:q2",
       "answerId": "cie-9702-9702_s25_qp_23:q2:answer"
@@ -86266,8 +86321,8 @@
       "specificationId": "cambridge-9702-2025-2027",
       "subjectId": "physics",
       "subjectCode": "9702",
-      "knowledgeGroupId": "physics-9702-topic-04",
-      "topicId": "physics-9702-topic-04",
+      "knowledgeGroupId": "physics-9702-topic-06",
+      "topicId": "physics-9702-topic-06",
       "stageTags": [
         "AS"
       ],
@@ -86275,7 +86330,9 @@
         2
       ],
       "topicTags": [
+        "physics-9702-topic-06",
         "physics-9702-topic-04",
+        "physics-9702-topic-05",
         "moments",
         "equilibrium"
       ],
@@ -86284,7 +86341,7 @@
         "force diagram"
       ],
       "answerType": "structured",
-      "prompt": "On Fig. 3.2, draw labelled arrows to show the directions of the forces acting on the pulley.\nThe force F is 110 N. Determine T.\nCalculate the extension of the spring.\nDetermine the extension of the springs.\nThe elastic potential energy stored in the spring in Fig. 3.1 is E₁. The total elastic potential energy stored in the two springs in Fig. 3.3 is E₂. Calculate the ratio E₁/E₂.",
+      "prompt": "(a) On Fig. 3.2, draw labelled arrows to show the directions of the forces acting on the pulley.\n\n(b(i)) The force F is 110 N. Determine T.\n\n(b(ii)) Calculate the extension of the spring.\n\n(c(i)) Determine the extension of the springs.\n\n(c(ii)) The elastic potential energy stored in the spring in Fig. 3.1 is E₁. The total elastic potential energy stored in the two springs in Fig. 3.3 is E₂. Calculate the ratio E₁/E₂.",
       "questionGroupId": "cie-9702-9702_w25_qp_22:q3",
       "questionGroupStatus": "verified",
       "totalMarks": 9,
@@ -86294,70 +86351,95 @@
           "label": "a",
           "promptFragment": "On Fig. 3.2, draw labelled arrows to show the directions of the forces acting on the pulley.",
           "marks": 2,
-          "questionDeclaredMarks": 2,
-          "markSource": "paired-mark-scheme",
           "answerArea": {
-            "type": "handwritten"
+            "type": "handwritten",
+            "input": "handwriting"
           },
           "sourcePage": 10,
-          "sourceEvidence": [],
-          "sourceRegion": null
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-10.jpg",
+              "assetSha256": "6f6733fe226c072bca8926e26f3aa9e76aabbd0ff483a518d49380569686547c"
+            }
+          ]
         },
         {
           "partId": "cie-9702-9702_w25_qp_22:q3:part-b(i)",
           "label": "b(i)",
           "promptFragment": "The force F is 110 N. Determine T.",
           "marks": 1,
-          "questionDeclaredMarks": 1,
-          "markSource": "paired-mark-scheme",
           "answerArea": {
-            "type": "handwritten"
+            "type": "handwritten",
+            "input": "handwriting"
           },
           "sourcePage": 10,
-          "sourceEvidence": [],
-          "sourceRegion": null
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-10.jpg",
+              "assetSha256": "6f6733fe226c072bca8926e26f3aa9e76aabbd0ff483a518d49380569686547c"
+            }
+          ]
         },
         {
           "partId": "cie-9702-9702_w25_qp_22:q3:part-b(ii)",
           "label": "b(ii)",
           "promptFragment": "Calculate the extension of the spring.",
           "marks": 2,
-          "questionDeclaredMarks": 2,
-          "markSource": "paired-mark-scheme",
           "answerArea": {
-            "type": "handwritten"
+            "type": "handwritten",
+            "input": "handwriting"
           },
           "sourcePage": 11,
-          "sourceEvidence": [],
-          "sourceRegion": null
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-11.jpg",
+              "assetSha256": "2fa796f0f27ad0c16c96343e230404b333ccb00950ea2dc4ea65bdc9859d72f2"
+            }
+          ]
         },
         {
           "partId": "cie-9702-9702_w25_qp_22:q3:part-c(i)",
           "label": "c(i)",
           "promptFragment": "Determine the extension of the springs.",
           "marks": 2,
-          "questionDeclaredMarks": 2,
-          "markSource": "paired-mark-scheme",
           "answerArea": {
-            "type": "handwritten"
+            "type": "handwritten",
+            "input": "handwriting"
           },
           "sourcePage": 11,
-          "sourceEvidence": [],
-          "sourceRegion": null
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-11.jpg",
+              "assetSha256": "2fa796f0f27ad0c16c96343e230404b333ccb00950ea2dc4ea65bdc9859d72f2"
+            }
+          ]
         },
         {
           "partId": "cie-9702-9702_w25_qp_22:q3:part-c(ii)",
           "label": "c(ii)",
           "promptFragment": "The elastic potential energy stored in the spring in Fig. 3.1 is E₁. The total elastic potential energy stored in the two springs in Fig. 3.3 is E₂. Calculate the ratio E₁/E₂.",
           "marks": 2,
-          "questionDeclaredMarks": 2,
-          "markSource": "paired-mark-scheme",
           "answerArea": {
-            "type": "handwritten"
+            "type": "handwritten",
+            "input": "handwriting"
           },
           "sourcePage": 11,
-          "sourceEvidence": [],
-          "sourceRegion": null
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-11.jpg",
+              "assetSha256": "2fa796f0f27ad0c16c96343e230404b333ccb00950ea2dc4ea65bdc9859d72f2"
+            }
+          ]
         }
       ],
       "marks": 9,
@@ -86379,13 +86461,48 @@
       },
       "provenance": {
         "licenseStatus": "Official exam material; personal study library",
-        "indexedAt": "2026-08-15T05:38:56.242Z"
+        "indexedAt": "2026-08-15T05:38:56.242Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-topic-coverage-review.v1"
       },
       "syllabusMapping": {
         "specificationId": "cambridge-9702-2025-2027",
         "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
-        "knowledgeGroupId": "physics-9702-topic-04",
-        "mappingStatus": "machine-indexed"
+        "knowledgeGroupId": "physics-9702-topic-06",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-06",
+        "secondaryTopicIds": [
+          "physics-9702-topic-04",
+          "physics-9702-topic-05"
+        ],
+        "syllabusPointIds": [
+          "physics-9702-point-4-2-02",
+          "physics-9702-point-6-1-03",
+          "physics-9702-point-6-1-04",
+          "physics-9702-point-6-2-04"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+        "reviewedAt": "2026-09-02T19:03:24+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_w25_qp_22",
+          "markSchemeId": "cie-9702-9702_w25_ms_22",
+          "questionPages": [
+            10,
+            11
+          ],
+          "markSchemePages": [
+            11
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_qp_22.pdf",
+          "studentPromptPolicy": "official-source-image",
+          "privateTextPolicy": "hidden-indexing-and-marking-context"
+        }
       },
       "questionId": "cie-9702-9702_w25_qp_22:q3",
       "answerId": "cie-9702-9702_w25_qp_22:q3:answer"
@@ -163175,14 +163292,17 @@
       "answer": null,
       "answerKey": null,
       "markPoints": [
-        "B1",
-        "C1",
-        "A1",
-        "C1",
-        "A1",
-        "B1"
+        "force × perpendicular distance (of line of action of force to / from the point)",
+        "150 × 9.81 × 4.5 or 90 × 9.81 × 4.5 or 3.0 × 9.81 × m",
+        "(150 × 9.81 × 4.5) = (90 × 9.81 × 4.5) + (3.0 × 9.81 × m)",
+        "m = 90 kg",
+        "Young modulus = σ / ε or F / Aε or FL / Ax",
+        "Area of wire = π × (1.8 × 10⁻³ / 2)² = 2.5 × 10⁻⁶ m²",
+        "So Young modulus = ((90 × 9.81) / (π × (9.0 × 10⁻⁴)²)) / 1.2 × 10⁻³ = 2.9 × 10¹¹ Pa",
+        "Moment provided by B will decrease / moment due to wire will increase",
+        "So force acting on wire will increase (Young’s modulus and area remain constant) and the strain will increase"
       ],
-      "exactAnswer": "force × perpendicular distance (of line of action of force to / from the point)\n150 × 9.81 × 4.5 or 90 × 9.81 × 4.5 or 3.0 × 9.81 × m\n(150 × 9.81 × 4.5) = (90 × 9.81 × 4.5) + (3.0 × 9.81 × m)\nm = 90 kg\nYoung modulus = σ / ε or F / Aε or FL / Ax\nArea of wire = π × (1.8 × 10⁻³/2)² = 2.5 × 10⁻⁶\nSo Young modulus = ((90 × 9.81) / π × (9.0×10⁻⁴)² ) / 1.2×10⁻³ = 2.9 × 10¹¹ Pa\nMoment provided by B will decrease / moment due to wire will increase\nSo force acting on wire will increase (Young’s modulus and area remain constant) and the strain will increase",
+      "exactAnswer": "(a) force × perpendicular distance (of line of action of force to / from the point)\n\n(b(i)) 150 × 9.81 × 4.5 or 90 × 9.81 × 4.5 or 3.0 × 9.81 × m\n(150 × 9.81 × 4.5) = (90 × 9.81 × 4.5) + (3.0 × 9.81 × m)\nm = 90 kg\n\n(b(ii)) Young modulus = σ / ε or F / Aε or FL / Ax\nArea of wire = π × (1.8 × 10⁻³ / 2)² = 2.5 × 10⁻⁶ m²\nSo Young modulus = ((90 × 9.81) / (π × (9.0 × 10⁻⁴)²)) / 1.2 × 10⁻³ = 2.9 × 10¹¹ Pa\n\n(b(iii)) Moment provided by B will decrease / moment due to wire will increase\nSo force acting on wire will increase (Young’s modulus and area remain constant) and the strain will increase",
       "answerRef": {
         "documentId": "cie-9702-9702_s25_ms_23",
         "file": "9702_s25_ms_23.pdf",
@@ -163200,50 +163320,120 @@
           "label": "a",
           "marks": 1,
           "markSchemePoints": [
-            "B1"
+            "force × perpendicular distance (of line of action of force to / from the point)"
           ],
           "answerKey": null,
           "answerText": "force × perpendicular distance (of line of action of force to / from the point)",
-          "sourcePage": null,
-          "markSchemeEvidence": []
+          "sourcePage": 9,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+              "sourcePage": 9,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/ms-09.jpg",
+              "assetSha256": "b2846dab5205887b563de38bafabfe5eedc1714a8b237734b862719373f6e461",
+              "text": "force × perpendicular distance (of line of action of force to / from the point)"
+            }
+          ]
         },
         {
           "partId": "cie-9702-9702_s25_qp_23:q2:part-b(i)",
           "label": "b(i)",
           "marks": 3,
           "markSchemePoints": [
-            "C1",
-            "A1"
+            "150 × 9.81 × 4.5 or 90 × 9.81 × 4.5 or 3.0 × 9.81 × m",
+            "(150 × 9.81 × 4.5) = (90 × 9.81 × 4.5) + (3.0 × 9.81 × m)",
+            "m = 90 kg"
           ],
           "answerKey": null,
           "answerText": "150 × 9.81 × 4.5 or 90 × 9.81 × 4.5 or 3.0 × 9.81 × m\n(150 × 9.81 × 4.5) = (90 × 9.81 × 4.5) + (3.0 × 9.81 × m)\nm = 90 kg",
-          "sourcePage": null,
-          "markSchemeEvidence": []
+          "sourcePage": 9,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+              "sourcePage": 9,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/ms-09.jpg",
+              "assetSha256": "b2846dab5205887b563de38bafabfe5eedc1714a8b237734b862719373f6e461",
+              "text": "150 × 9.81 × 4.5 or 90 × 9.81 × 4.5 or 3.0 × 9.81 × m"
+            },
+            {
+              "documentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+              "sourcePage": 9,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/ms-09.jpg",
+              "assetSha256": "b2846dab5205887b563de38bafabfe5eedc1714a8b237734b862719373f6e461",
+              "text": "(150 × 9.81 × 4.5) = (90 × 9.81 × 4.5) + (3.0 × 9.81 × m)"
+            },
+            {
+              "documentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+              "sourcePage": 9,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/ms-09.jpg",
+              "assetSha256": "b2846dab5205887b563de38bafabfe5eedc1714a8b237734b862719373f6e461",
+              "text": "m = 90 kg"
+            }
+          ]
         },
         {
           "partId": "cie-9702-9702_s25_qp_23:q2:part-b(ii)",
           "label": "b(ii)",
           "marks": 3,
           "markSchemePoints": [
-            "C1",
-            "A1"
+            "Young modulus = σ / ε or F / Aε or FL / Ax",
+            "Area of wire = π × (1.8 × 10⁻³ / 2)² = 2.5 × 10⁻⁶ m²",
+            "So Young modulus = ((90 × 9.81) / (π × (9.0 × 10⁻⁴)²)) / 1.2 × 10⁻³ = 2.9 × 10¹¹ Pa"
           ],
           "answerKey": null,
-          "answerText": "Young modulus = σ / ε or F / Aε or FL / Ax\nArea of wire = π × (1.8 × 10⁻³/2)² = 2.5 × 10⁻⁶\nSo Young modulus = ((90 × 9.81) / π × (9.0×10⁻⁴)² ) / 1.2×10⁻³ = 2.9 × 10¹¹ Pa",
-          "sourcePage": null,
-          "markSchemeEvidence": []
+          "answerText": "Young modulus = σ / ε or F / Aε or FL / Ax\nArea of wire = π × (1.8 × 10⁻³ / 2)² = 2.5 × 10⁻⁶ m²\nSo Young modulus = ((90 × 9.81) / (π × (9.0 × 10⁻⁴)²)) / 1.2 × 10⁻³ = 2.9 × 10¹¹ Pa",
+          "sourcePage": 9,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+              "sourcePage": 9,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/ms-09.jpg",
+              "assetSha256": "b2846dab5205887b563de38bafabfe5eedc1714a8b237734b862719373f6e461",
+              "text": "Young modulus = σ / ε or F / Aε or FL / Ax"
+            },
+            {
+              "documentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+              "sourcePage": 9,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/ms-09.jpg",
+              "assetSha256": "b2846dab5205887b563de38bafabfe5eedc1714a8b237734b862719373f6e461",
+              "text": "Area of wire = π × (1.8 × 10⁻³ / 2)² = 2.5 × 10⁻⁶ m²"
+            },
+            {
+              "documentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+              "sourcePage": 9,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/ms-09.jpg",
+              "assetSha256": "b2846dab5205887b563de38bafabfe5eedc1714a8b237734b862719373f6e461",
+              "text": "So Young modulus = ((90 × 9.81) / (π × (9.0 × 10⁻⁴)²)) / 1.2 × 10⁻³ = 2.9 × 10¹¹ Pa"
+            }
+          ]
         },
         {
           "partId": "cie-9702-9702_s25_qp_23:q2:part-b(iii)",
           "label": "b(iii)",
           "marks": 2,
           "markSchemePoints": [
-            "B1"
+            "Moment provided by B will decrease / moment due to wire will increase",
+            "So force acting on wire will increase (Young’s modulus and area remain constant) and the strain will increase"
           ],
           "answerKey": null,
           "answerText": "Moment provided by B will decrease / moment due to wire will increase\nSo force acting on wire will increase (Young’s modulus and area remain constant) and the strain will increase",
-          "sourcePage": null,
-          "markSchemeEvidence": []
+          "sourcePage": 9,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+              "sourcePage": 9,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/ms-09.jpg",
+              "assetSha256": "b2846dab5205887b563de38bafabfe5eedc1714a8b237734b862719373f6e461",
+              "text": "Moment provided by B will decrease / moment due to wire will increase"
+            },
+            {
+              "documentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+              "sourcePage": 9,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_23/ms-09.jpg",
+              "assetSha256": "b2846dab5205887b563de38bafabfe5eedc1714a8b237734b862719373f6e461",
+              "text": "So force acting on wire will increase (Young’s modulus and area remain constant) and the strain will increase"
+            }
+          ]
         }
       ]
     },
@@ -167598,16 +167788,17 @@
       "answer": null,
       "answerKey": null,
       "markPoints": [
-        "B1",
-        "A1",
-        "C1",
-        "A1",
-        "C1",
-        "A1",
-        "C1",
-        "A1"
+        "an arrow horizontally on the page to the left labelled F",
+        "two arrows horizontally on the page to the right each labelled T",
+        "T = 110 / 2 = 55 N",
+        "x = F / k",
+        "= 110 / 250 = 0.44 m",
+        "extension = 55 / 250 or 110 / (2 × 250)",
+        "extension = 0.22 m",
+        "E = ½ Fx or E = ½ kx² or E = ½ F² / k",
+        "E₁ / E₂ = (½ × 110 × 0.44) / (2 × (½ × 55 × 0.22)) = 2.0"
       ],
-      "exactAnswer": "an arrow horizontally on the page to the left labelled F\ntwo arrows horizontally on the page to the right each labelled T\nT = 110 / 2\n= 55 N\nx = F / k\n= 110 / 250\n= 0.44 m\nextension = 55 / 250 or 110 / (2 × 250)\nextension = 0.22 m\nE = ½ Fx or E = ½ kx² or E = ½ F² / k\nE₁ / E₂ = (½ × 110 × 0.44) / (2 × (½ × 55 × 10.22))\nor\nE₁ / E₂ = (½ k × 0.44²) / (2 × (½ k × 0.22²))\nor\nE₁ / E₂ = (½ × 110² / k) / (2 × (½ × 55² / k))\nE₁ / E₂ = 2.0 (no ECF from 3(b)(ii) and 3(c)(i))",
+      "exactAnswer": "(a) an arrow horizontally on the page to the left labelled F\ntwo arrows horizontally on the page to the right each labelled T\n\n(b(i)) T = 110 / 2 = 55 N\n\n(b(ii)) x = F / k\n= 110 / 250 = 0.44 m\n\n(c(i)) extension = 55 / 250 or 110 / (2 × 250)\nextension = 0.22 m\n\n(c(ii)) E = ½ Fx or E = ½ kx² or E = ½ F² / k\nE₁ / E₂ = (½ × 110 × 0.44) / (2 × (½ × 55 × 0.22)) = 2.0",
       "answerRef": {
         "documentId": "cie-9702-9702_w25_ms_22",
         "file": "9702_w25_ms_22.pdf",
@@ -167625,63 +167816,132 @@
           "label": "a",
           "marks": 2,
           "markSchemePoints": [
-            "B1"
+            "an arrow horizontally on the page to the left labelled F",
+            "two arrows horizontally on the page to the right each labelled T"
           ],
           "answerKey": null,
           "answerText": "an arrow horizontally on the page to the left labelled F\ntwo arrows horizontally on the page to the right each labelled T",
-          "sourcePage": null,
-          "markSchemeEvidence": []
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg",
+              "assetSha256": "7964857de4c476987d219feac3a7c471c22537bfe02bff7a5bf1789717d14ff5",
+              "text": "an arrow horizontally on the page to the left labelled F"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg",
+              "assetSha256": "7964857de4c476987d219feac3a7c471c22537bfe02bff7a5bf1789717d14ff5",
+              "text": "two arrows horizontally on the page to the right each labelled T"
+            }
+          ]
         },
         {
           "partId": "cie-9702-9702_w25_qp_22:q3:part-b(i)",
           "label": "b(i)",
           "marks": 1,
           "markSchemePoints": [
-            "A1"
+            "T = 110 / 2 = 55 N"
           ],
           "answerKey": null,
-          "answerText": "T = 110 / 2\n= 55 N",
-          "sourcePage": null,
-          "markSchemeEvidence": []
+          "answerText": "T = 110 / 2 = 55 N",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg",
+              "assetSha256": "7964857de4c476987d219feac3a7c471c22537bfe02bff7a5bf1789717d14ff5",
+              "text": "T = 110 / 2 = 55 N"
+            }
+          ]
         },
         {
           "partId": "cie-9702-9702_w25_qp_22:q3:part-b(ii)",
           "label": "b(ii)",
           "marks": 2,
           "markSchemePoints": [
-            "C1",
-            "A1"
+            "x = F / k",
+            "= 110 / 250 = 0.44 m"
           ],
           "answerKey": null,
-          "answerText": "x = F / k\n= 110 / 250\n= 0.44 m",
-          "sourcePage": null,
-          "markSchemeEvidence": []
+          "answerText": "x = F / k\n= 110 / 250 = 0.44 m",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg",
+              "assetSha256": "7964857de4c476987d219feac3a7c471c22537bfe02bff7a5bf1789717d14ff5",
+              "text": "x = F / k"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg",
+              "assetSha256": "7964857de4c476987d219feac3a7c471c22537bfe02bff7a5bf1789717d14ff5",
+              "text": "= 110 / 250 = 0.44 m"
+            }
+          ]
         },
         {
           "partId": "cie-9702-9702_w25_qp_22:q3:part-c(i)",
           "label": "c(i)",
           "marks": 2,
           "markSchemePoints": [
-            "C1",
-            "A1"
+            "extension = 55 / 250 or 110 / (2 × 250)",
+            "extension = 0.22 m"
           ],
           "answerKey": null,
           "answerText": "extension = 55 / 250 or 110 / (2 × 250)\nextension = 0.22 m",
-          "sourcePage": null,
-          "markSchemeEvidence": []
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg",
+              "assetSha256": "7964857de4c476987d219feac3a7c471c22537bfe02bff7a5bf1789717d14ff5",
+              "text": "extension = 55 / 250 or 110 / (2 × 250)"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg",
+              "assetSha256": "7964857de4c476987d219feac3a7c471c22537bfe02bff7a5bf1789717d14ff5",
+              "text": "extension = 0.22 m"
+            }
+          ]
         },
         {
           "partId": "cie-9702-9702_w25_qp_22:q3:part-c(ii)",
           "label": "c(ii)",
           "marks": 2,
           "markSchemePoints": [
-            "C1",
-            "A1"
+            "E = ½ Fx or E = ½ kx² or E = ½ F² / k",
+            "E₁ / E₂ = (½ × 110 × 0.44) / (2 × (½ × 55 × 0.22)) = 2.0"
           ],
           "answerKey": null,
-          "answerText": "E = ½ Fx or E = ½ kx² or E = ½ F² / k\nE₁ / E₂ = (½ × 110 × 0.44) / (2 × (½ × 55 × 10.22))\nor\nE₁ / E₂ = (½ k × 0.44²) / (2 × (½ k × 0.22²))\nor\nE₁ / E₂ = (½ × 110² / k) / (2 × (½ × 55² / k))\nE₁ / E₂ = 2.0 (no ECF from 3(b)(ii) and 3(c)(i))",
-          "sourcePage": null,
-          "markSchemeEvidence": []
+          "answerText": "E = ½ Fx or E = ½ kx² or E = ½ F² / k\nE₁ / E₂ = (½ × 110 × 0.44) / (2 × (½ × 55 × 0.22)) = 2.0",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg",
+              "assetSha256": "7964857de4c476987d219feac3a7c471c22537bfe02bff7a5bf1789717d14ff5",
+              "text": "E = ½ Fx or E = ½ kx² or E = ½ F² / k"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg",
+              "assetSha256": "7964857de4c476987d219feac3a7c471c22537bfe02bff7a5bf1789717d14ff5",
+              "text": "E₁ / E₂ = (½ × 110 × 0.44) / (2 × (½ × 55 × 0.22)) = 2.0"
+            }
+          ]
         }
       ]
     },
@@ -206056,9 +206316,125 @@
     {
       "questionId": "cie-9702-9702_s25_qp_23:q2",
       "answerId": "cie-9702-9702_s25_qp_23:q2:answer",
-      "verificationStatus": "machine-indexed",
+      "verificationStatus": "reviewed",
       "questionDocumentSha256": "102d8dba65d2465573273c93292a1a20cbae2614dd1def31e6146e8b307a49d8",
-      "answerDocumentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc"
+      "answerDocumentSha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+      "reviewedAt": "2026-09-02T19:03:24+08:00",
+      "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "reviewProtocolVersion": "cambridge-9702-p2-topic-coverage-review.v1",
+        "sourcePolicy": "personal-study-restricted",
+        "manualVisualReview": true,
+        "studentPromptPolicy": "official-source-image",
+        "privateTextPolicy": "hidden-indexing-and-marking-context",
+        "completeQuestionPageReview": true,
+        "questionPaper": {
+          "file": "9702_s25_qp_23.pdf",
+          "sha256": "102d8dba65d2465573273c93292a1a20cbae2614dd1def31e6146e8b307a49d8",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s25_qp_23.pdf"
+        },
+        "markScheme": {
+          "file": "9702_s25_ms_23.pdf",
+          "sha256": "bc0bd0f5e165a34ade9b0a31c66290e87526eb41b7b4fb3655eef6eead3daafc",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s25_ms_23.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_s25_qp_23:q2:part-a",
+            "marks": 1,
+            "questionPage": 6,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 9,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "force × perpendicular distance (of line of action of force to / from the point)"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_s25_qp_23:q2:part-b(i)",
+            "marks": 3,
+            "questionPage": 6,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 9,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 3,
+            "markSchemeEvidence": [
+              "150 × 9.81 × 4.5 or 90 × 9.81 × 4.5 or 3.0 × 9.81 × m",
+              "(150 × 9.81 × 4.5) = (90 × 9.81 × 4.5) + (3.0 × 9.81 × m)",
+              "m = 90 kg"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_s25_qp_23:q2:part-b(ii)",
+            "marks": 3,
+            "questionPage": 7,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 9,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 3,
+            "markSchemeEvidence": [
+              "Young modulus = σ / ε or F / Aε or FL / Ax",
+              "Area of wire = π × (1.8 × 10⁻³ / 2)² = 2.5 × 10⁻⁶ m²",
+              "So Young modulus = ((90 × 9.81) / (π × (9.0 × 10⁻⁴)²)) / 1.2 × 10⁻³ = 2.9 × 10¹¹ Pa"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_s25_qp_23:q2:part-b(iii)",
+            "marks": 2,
+            "questionPage": 7,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 9,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "Moment provided by B will decrease / moment due to wire will increase",
+              "So force acting on wire will increase (Young’s modulus and area remain constant) and the strain will increase"
+            ]
+          }
+        ]
+      }
     },
     {
       "questionId": "cie-9702-9702_s25_qp_23:q3",
@@ -207778,9 +208154,146 @@
     {
       "questionId": "cie-9702-9702_w25_qp_22:q3",
       "answerId": "cie-9702-9702_w25_qp_22:q3:answer",
-      "verificationStatus": "machine-indexed",
+      "verificationStatus": "reviewed",
       "questionDocumentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
-      "answerDocumentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4"
+      "answerDocumentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+      "reviewedAt": "2026-09-02T19:03:24+08:00",
+      "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "reviewProtocolVersion": "cambridge-9702-p2-topic-coverage-review.v1",
+        "sourcePolicy": "personal-study-restricted",
+        "manualVisualReview": true,
+        "studentPromptPolicy": "official-source-image",
+        "privateTextPolicy": "hidden-indexing-and-marking-context",
+        "completeQuestionPageReview": true,
+        "questionPaper": {
+          "file": "9702_w25_qp_22.pdf",
+          "sha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_qp_22.pdf"
+        },
+        "markScheme": {
+          "file": "9702_w25_ms_22.pdf",
+          "sha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_ms_22.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q3:part-a",
+            "marks": 2,
+            "questionPage": 10,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "an arrow horizontally on the page to the left labelled F",
+              "two arrows horizontally on the page to the right each labelled T"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q3:part-b(i)",
+            "marks": 1,
+            "questionPage": 10,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "T = 110 / 2 = 55 N"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q3:part-b(ii)",
+            "marks": 2,
+            "questionPage": 11,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "x = F / k",
+              "= 110 / 250 = 0.44 m"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q3:part-c(i)",
+            "marks": 2,
+            "questionPage": 11,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "extension = 55 / 250 or 110 / (2 × 250)",
+              "extension = 0.22 m"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q3:part-c(ii)",
+            "marks": 2,
+            "questionPage": 11,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "E = ½ Fx or E = ½ kx² or E = ½ F² / k",
+              "E₁ / E₂ = (½ × 110 × 0.44) / (2 × (½ × 55 × 0.22)) = 2.0"
+            ]
+          }
+        ]
+      }
     },
     {
       "questionId": "cie-9702-9702_w25_qp_22:q4",

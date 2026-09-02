@@ -2,12 +2,12 @@
   "schemaVersion": "reviewed-question-set.v1",
   "generatedAt": "2026-08-15T18:30:00+08:00",
   "paperId": "cie-9702-9702_w25_qp_22",
-  "questionCount": 3,
-  "totalMarks": 31,
+  "questionCount": 4,
+  "totalMarks": 40,
   "sourceFragments": [
     {
       "file": "cambridge-9702-p2-topic-coverage-review-ledger.js",
-      "sha256": "be68a493d936eaa1f124bbd61bbd492d8085283fdaa66df8259e6216201aa82c"
+      "sha256": "3f608d2e5f05c286428cb83cb33d19d6e3fb4da6da9b388132e6995cf4b024fb"
     }
   ],
   "sourceMaterials": {
@@ -244,6 +244,198 @@
       },
       "questionId": "cie-9702-9702_w25_qp_22:q1",
       "answerId": "cie-9702-9702_w25_qp_22:q1:answer"
+    },
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-9702",
+      "specificationId": "cambridge-9702-2025-2027",
+      "subjectId": "physics",
+      "subjectCode": "9702",
+      "knowledgeGroupId": "physics-9702-topic-06",
+      "topicId": "physics-9702-topic-06",
+      "stageTags": [
+        "AS"
+      ],
+      "componentTags": [
+        2
+      ],
+      "topicTags": [
+        "physics-9702-topic-06",
+        "physics-9702-topic-04",
+        "physics-9702-topic-05",
+        "moments",
+        "equilibrium"
+      ],
+      "skillTags": [
+        "diagram interpretation",
+        "force diagram"
+      ],
+      "answerType": "structured",
+      "prompt": "(a) On Fig. 3.2, draw labelled arrows to show the directions of the forces acting on the pulley.\n\n(b(i)) The force F is 110 N. Determine T.\n\n(b(ii)) Calculate the extension of the spring.\n\n(c(i)) Determine the extension of the springs.\n\n(c(ii)) The elastic potential energy stored in the spring in Fig. 3.1 is E₁. The total elastic potential energy stored in the two springs in Fig. 3.3 is E₂. Calculate the ratio E₁/E₂.",
+      "questionGroupId": "cie-9702-9702_w25_qp_22:q3",
+      "questionGroupStatus": "verified",
+      "totalMarks": 9,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q3:part-a",
+          "label": "a",
+          "promptFragment": "On Fig. 3.2, draw labelled arrows to show the directions of the forces acting on the pulley.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 10,
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-10.jpg",
+              "assetSha256": "6f6733fe226c072bca8926e26f3aa9e76aabbd0ff483a518d49380569686547c"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q3:part-b(i)",
+          "label": "b(i)",
+          "promptFragment": "The force F is 110 N. Determine T.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 10,
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-10.jpg",
+              "assetSha256": "6f6733fe226c072bca8926e26f3aa9e76aabbd0ff483a518d49380569686547c"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q3:part-b(ii)",
+          "label": "b(ii)",
+          "promptFragment": "Calculate the extension of the spring.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 11,
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-11.jpg",
+              "assetSha256": "2fa796f0f27ad0c16c96343e230404b333ccb00950ea2dc4ea65bdc9859d72f2"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q3:part-c(i)",
+          "label": "c(i)",
+          "promptFragment": "Determine the extension of the springs.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 11,
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-11.jpg",
+              "assetSha256": "2fa796f0f27ad0c16c96343e230404b333ccb00950ea2dc4ea65bdc9859d72f2"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q3:part-c(ii)",
+          "label": "c(ii)",
+          "promptFragment": "The elastic potential energy stored in the spring in Fig. 3.1 is E₁. The total elastic potential energy stored in the two springs in Fig. 3.3 is E₂. Calculate the ratio E₁/E₂.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 11,
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-11.jpg",
+              "assetSha256": "2fa796f0f27ad0c16c96343e230404b333ccb00950ea2dc4ea65bdc9859d72f2"
+            }
+          ]
+        }
+      ],
+      "marks": 9,
+      "sourceRef": {
+        "paperId": "cie-9702-9702_w25_qp_22",
+        "paper": "9702_w25_qp_22.pdf",
+        "question": "Q3",
+        "localUrl": "/local-pdf/9702/9702_w25_qp_22.pdf",
+        "pageStart": 10,
+        "pageEnd": 11,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_w25_qp_22/qp-10.jpg",
+          "/question-assets/cie-9702-9702_w25_qp_22/qp-11.jpg"
+        ],
+        "year": 2025,
+        "season": "Nov",
+        "component": 2,
+        "sha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-15T05:38:56.242Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-topic-coverage-review.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-9702-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "physics-9702-topic-06",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-06",
+        "secondaryTopicIds": [
+          "physics-9702-topic-04",
+          "physics-9702-topic-05"
+        ],
+        "syllabusPointIds": [
+          "physics-9702-point-4-2-02",
+          "physics-9702-point-6-1-03",
+          "physics-9702-point-6-1-04",
+          "physics-9702-point-6-2-04"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+        "reviewedAt": "2026-09-02T19:03:24+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_w25_qp_22",
+          "markSchemeId": "cie-9702-9702_w25_ms_22",
+          "questionPages": [
+            10,
+            11
+          ],
+          "markSchemePages": [
+            11
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_qp_22.pdf",
+          "studentPromptPolicy": "official-source-image",
+          "privateTextPolicy": "hidden-indexing-and-marking-context"
+        }
+      },
+      "questionId": "cie-9702-9702_w25_qp_22:q3",
+      "answerId": "cie-9702-9702_w25_qp_22:q3:answer"
     },
     {
       "examFamilyId": "cambridge",
@@ -805,6 +997,168 @@
       ]
     },
     {
+      "answerId": "cie-9702-9702_w25_qp_22:q3:answer",
+      "answer": null,
+      "answerKey": null,
+      "markPoints": [
+        "an arrow horizontally on the page to the left labelled F",
+        "two arrows horizontally on the page to the right each labelled T",
+        "T = 110 / 2 = 55 N",
+        "x = F / k",
+        "= 110 / 250 = 0.44 m",
+        "extension = 55 / 250 or 110 / (2 × 250)",
+        "extension = 0.22 m",
+        "E = ½ Fx or E = ½ kx² or E = ½ F² / k",
+        "E₁ / E₂ = (½ × 110 × 0.44) / (2 × (½ × 55 × 0.22)) = 2.0"
+      ],
+      "exactAnswer": "(a) an arrow horizontally on the page to the left labelled F\ntwo arrows horizontally on the page to the right each labelled T\n\n(b(i)) T = 110 / 2 = 55 N\n\n(b(ii)) x = F / k\n= 110 / 250 = 0.44 m\n\n(c(i)) extension = 55 / 250 or 110 / (2 × 250)\nextension = 0.22 m\n\n(c(ii)) E = ½ Fx or E = ½ kx² or E = ½ F² / k\nE₁ / E₂ = (½ × 110 × 0.44) / (2 × (½ × 55 × 0.22)) = 2.0",
+      "answerRef": {
+        "documentId": "cie-9702-9702_w25_ms_22",
+        "file": "9702_w25_ms_22.pdf",
+        "localUrl": "/local-pdf/9702/9702_w25_ms_22.pdf",
+        "pageStart": 11,
+        "pageEnd": 11,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg"
+        ],
+        "sha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q3:part-a",
+          "label": "a",
+          "marks": 2,
+          "markSchemePoints": [
+            "an arrow horizontally on the page to the left labelled F",
+            "two arrows horizontally on the page to the right each labelled T"
+          ],
+          "answerKey": null,
+          "answerText": "an arrow horizontally on the page to the left labelled F\ntwo arrows horizontally on the page to the right each labelled T",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg",
+              "assetSha256": "7964857de4c476987d219feac3a7c471c22537bfe02bff7a5bf1789717d14ff5",
+              "text": "an arrow horizontally on the page to the left labelled F"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg",
+              "assetSha256": "7964857de4c476987d219feac3a7c471c22537bfe02bff7a5bf1789717d14ff5",
+              "text": "two arrows horizontally on the page to the right each labelled T"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q3:part-b(i)",
+          "label": "b(i)",
+          "marks": 1,
+          "markSchemePoints": [
+            "T = 110 / 2 = 55 N"
+          ],
+          "answerKey": null,
+          "answerText": "T = 110 / 2 = 55 N",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg",
+              "assetSha256": "7964857de4c476987d219feac3a7c471c22537bfe02bff7a5bf1789717d14ff5",
+              "text": "T = 110 / 2 = 55 N"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q3:part-b(ii)",
+          "label": "b(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "x = F / k",
+            "= 110 / 250 = 0.44 m"
+          ],
+          "answerKey": null,
+          "answerText": "x = F / k\n= 110 / 250 = 0.44 m",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg",
+              "assetSha256": "7964857de4c476987d219feac3a7c471c22537bfe02bff7a5bf1789717d14ff5",
+              "text": "x = F / k"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg",
+              "assetSha256": "7964857de4c476987d219feac3a7c471c22537bfe02bff7a5bf1789717d14ff5",
+              "text": "= 110 / 250 = 0.44 m"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q3:part-c(i)",
+          "label": "c(i)",
+          "marks": 2,
+          "markSchemePoints": [
+            "extension = 55 / 250 or 110 / (2 × 250)",
+            "extension = 0.22 m"
+          ],
+          "answerKey": null,
+          "answerText": "extension = 55 / 250 or 110 / (2 × 250)\nextension = 0.22 m",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg",
+              "assetSha256": "7964857de4c476987d219feac3a7c471c22537bfe02bff7a5bf1789717d14ff5",
+              "text": "extension = 55 / 250 or 110 / (2 × 250)"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg",
+              "assetSha256": "7964857de4c476987d219feac3a7c471c22537bfe02bff7a5bf1789717d14ff5",
+              "text": "extension = 0.22 m"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q3:part-c(ii)",
+          "label": "c(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "E = ½ Fx or E = ½ kx² or E = ½ F² / k",
+            "E₁ / E₂ = (½ × 110 × 0.44) / (2 × (½ × 55 × 0.22)) = 2.0"
+          ],
+          "answerKey": null,
+          "answerText": "E = ½ Fx or E = ½ kx² or E = ½ F² / k\nE₁ / E₂ = (½ × 110 × 0.44) / (2 × (½ × 55 × 0.22)) = 2.0",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg",
+              "assetSha256": "7964857de4c476987d219feac3a7c471c22537bfe02bff7a5bf1789717d14ff5",
+              "text": "E = ½ Fx or E = ½ kx² or E = ½ F² / k"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg",
+              "assetSha256": "7964857de4c476987d219feac3a7c471c22537bfe02bff7a5bf1789717d14ff5",
+              "text": "E₁ / E₂ = (½ × 110 × 0.44) / (2 × (½ × 55 × 0.22)) = 2.0"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "answerId": "cie-9702-9702_w25_qp_22:q5:answer",
       "answer": null,
       "answerKey": null,
@@ -1290,6 +1644,150 @@
             "markSchemeEvidence": [
               "C1",
               "A1"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-9702-9702_w25_qp_22:q3",
+      "answerId": "cie-9702-9702_w25_qp_22:q3:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+      "answerDocumentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+      "reviewedAt": "2026-09-02T19:03:24+08:00",
+      "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "reviewProtocolVersion": "cambridge-9702-p2-topic-coverage-review.v1",
+        "sourcePolicy": "personal-study-restricted",
+        "manualVisualReview": true,
+        "studentPromptPolicy": "official-source-image",
+        "privateTextPolicy": "hidden-indexing-and-marking-context",
+        "completeQuestionPageReview": true,
+        "questionPaper": {
+          "file": "9702_w25_qp_22.pdf",
+          "sha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_qp_22.pdf"
+        },
+        "markScheme": {
+          "file": "9702_w25_ms_22.pdf",
+          "sha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_ms_22.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q3:part-a",
+            "marks": 2,
+            "questionPage": 10,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "an arrow horizontally on the page to the left labelled F",
+              "two arrows horizontally on the page to the right each labelled T"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q3:part-b(i)",
+            "marks": 1,
+            "questionPage": 10,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "T = 110 / 2 = 55 N"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q3:part-b(ii)",
+            "marks": 2,
+            "questionPage": 11,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "x = F / k",
+              "= 110 / 250 = 0.44 m"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q3:part-c(i)",
+            "marks": 2,
+            "questionPage": 11,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "extension = 55 / 250 or 110 / (2 × 250)",
+              "extension = 0.22 m"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q3:part-c(ii)",
+            "marks": 2,
+            "questionPage": 11,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "E = ½ Fx or E = ½ kx² or E = ½ F² / k",
+              "E₁ / E₂ = (½ × 110 × 0.44) / (2 × (½ × 55 × 0.22)) = 2.0"
             ]
           }
         ]

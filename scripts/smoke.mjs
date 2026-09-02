@@ -350,7 +350,7 @@ assert.deepEqual(
   new Set(runtimeVerifiedPracticeQuestionGroups.map((group) => group.sourceQuestionId)),
   'reviewed source groups below the start floor must remain indexed even when they are not standalone startable Topic Drills',
 )
-assert.equal(runtimeVerifiedPracticeQuestionGroups.length, 236, 'the compact runtime catalog must expose only current reviewed groups')
+assert.equal(runtimeVerifiedPracticeQuestionGroups.length, 238, 'the compact runtime catalog must expose only current reviewed groups')
 assert.deepEqual(verifiedPracticeCatalogMetrics(buildRuntimeVerifiedPracticeCatalog()), verifiedCatalogMetrics, 'compact runtime catalog must preserve the reviewed practice inventory')
 assert.equal(new Set(verifiedPracticeCatalog.map((unit) => unit.id)).size, verifiedPracticeCatalog.length, 'verified practice unit IDs must be stable and unique')
 assert.ok(verifiedPracticeCatalog.every((unit) => unit.parts.every((part) => part.routeId === unit.routeId && part.stage === unit.stage && part.sourceRef?.sha256 && part.answerRef?.sha256)), 'catalog practice units must preserve route, stage and independent QP/MS provenance')
@@ -602,7 +602,7 @@ assert.deepEqual(mergeNotebookNote({ body: 'stale offline note', updatedAt: '202
 assert.ok(learningPlan.knowledgeGroups.length >= 10, 'learning plan should expose a usable subject knowledge map')
 assert.ok(learningPlan.practiceModes.some((mode) => mode.id === 'mock-exam'), 'learning plan should expose mock exam mode')
 assert.deepEqual(new Set(learningPlan.subjects.map((subject) => subject.code)), new Set(['0580', '0606', '0610', '0625', '9231', '9700', '9701', '9702', '9708', '9709']), 'knowledge map must expose all requested Cambridge subjects')
-assert.equal(unifiedQuestionBank.length, 236, 'question-level index must expose only the currently reviewed source-complete question groups')
+assert.equal(unifiedQuestionBank.length, 238, 'question-level index must expose only the currently reviewed source-complete question groups')
 assert.ok(unifiedQuestionBank.every(isVerifiedPastPaperItem), 'formal topic drills must contain only QP/MS-bound items')
 assert.ok(unifiedQuestionBank.every((item) => item.sourceRef.sha256 !== item.answerRef.sha256), 'question and answer documents must remain independently bound')
 

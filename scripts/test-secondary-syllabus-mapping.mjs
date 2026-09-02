@@ -8,14 +8,15 @@ const routeId = 'cie-9702-as-physics'
 const inventory = syllabusTopicsInventory({ routeId, questionBank: unifiedQuestionBank })
 const count = (topicId) => inventory.topics.find((topic) => topic.id === topicId)?.verifiedQuestionCount
 
-assert.equal(inventory.verifiedQuestionGroupCount, 118, 'secondary mappings must not duplicate route-level reviewed groups')
+assert.equal(inventory.verifiedQuestionGroupCount, 120, 'secondary mappings must not duplicate route-level reviewed groups')
 assert.equal(count('physics-9702-topic-03'), 13, 'reviewed secondary mechanics mappings must count toward Dynamics')
-assert.equal(count('physics-9702-topic-04'), 13, 'reviewed secondary pressure mappings must count toward Forces, density and pressure')
-assert.equal(count('physics-9702-topic-05'), 17, 'reviewed secondary energy mappings must count toward Work, energy and power')
+assert.equal(count('physics-9702-topic-04'), 15, 'reviewed secondary pressure mappings must count toward Forces, density and pressure')
+assert.equal(count('physics-9702-topic-05'), 18, 'reviewed secondary energy mappings must count toward Work, energy and power')
+assert.equal(count('physics-9702-topic-06'), 12, 'reviewed deformation mappings must close the final 9702 AS topic floor')
 assert.equal(count('physics-9702-topic-09'), 15, 'reviewed secondary circuit mappings must count toward Electricity')
 assert.equal(count('physics-9702-topic-10'), 12, 'reviewed secondary circuit mappings must count toward D.C. circuits')
-assert.equal(inventory.topics.filter((topic) => topic.ready).length, 10, 'reviewed mappings should raise the ready-topic count without lowering the formal floor')
-assert.equal(inventory.topics.filter((topic) => topic.ctaPolicy === 'start').length, 10)
+assert.equal(inventory.topics.filter((topic) => topic.ready).length, 11, 'reviewed mappings should raise the ready-topic count to every official 9702 AS topic')
+assert.equal(inventory.topics.filter((topic) => topic.ctaPolicy === 'start').length, 11)
 
 const legacyPhysicsOption = coachPracticeOptions().find((option) => option.routeId === routeId)
 assert.ok(legacyPhysicsOption, 'AI Practice must retain the exact 9702 AS route')

@@ -13,6 +13,7 @@ export const CAMBRIDGE_9702_P2_TOPIC_COVERAGE_REVIEW_SCHEMA_VERSION = 'cambridge
 const REVIEWED_AT = '2026-08-15T18:30:00+08:00'
 const REVIEWED_BY = 'Codex manual QP/MS visual review / 9702-P2-topic-coverage'
 const ADDITIONAL_REVIEWED_AT = '2026-09-02T17:41:59+08:00'
+const SECOND_PASS_REVIEWED_AT = '2026-09-02T19:03:24+08:00'
 
 function topicId(code) {
   return `physics-9702-topic-${String(code).padStart(2, '0')}`
@@ -321,6 +322,34 @@ export const CAMBRIDGE_9702_P2_TOPIC_COVERAGE_REVIEW_LEDGERS = Object.freeze([
         parts: [part('a', 1, 4, 8), part('b', 3, 4, 8), part('c(i)', 2, 5, 8), part('c(ii)', 2, 5, 8)],
       }),
       question({
+        questionNumber: 2,
+        primaryTopicCode: 6,
+        secondaryTopicCodes: [4],
+        reviewedAt: SECOND_PASS_REVIEWED_AT,
+        syllabusPoints: [['4.1', 2], ['4.2', 1], ['6.1', 2], ['6.1', 5]],
+        questionPages: [6, 7],
+        markSchemePages: [9],
+        parts: [
+          part('a', 1, 6, 9, [
+            'force × perpendicular distance (of line of action of force to / from the point)',
+          ]),
+          part('b(i)', 3, 6, 9, [
+            '150 × 9.81 × 4.5 or 90 × 9.81 × 4.5 or 3.0 × 9.81 × m',
+            '(150 × 9.81 × 4.5) = (90 × 9.81 × 4.5) + (3.0 × 9.81 × m)',
+            'm = 90 kg',
+          ]),
+          part('b(ii)', 3, 7, 9, [
+            'Young modulus = σ / ε or F / Aε or FL / Ax',
+            'Area of wire = π × (1.8 × 10⁻³ / 2)² = 2.5 × 10⁻⁶ m²',
+            'So Young modulus = ((90 × 9.81) / (π × (9.0 × 10⁻⁴)²)) / 1.2 × 10⁻³ = 2.9 × 10¹¹ Pa',
+          ]),
+          part('b(iii)', 2, 7, 9, [
+            'Moment provided by B will decrease / moment due to wire will increase',
+            'So force acting on wire will increase (Young’s modulus and area remain constant) and the strain will increase',
+          ]),
+        ],
+      }),
+      question({
         questionNumber: 6,
         primaryTopicCode: 8,
         secondaryTopicCodes: [7],
@@ -474,6 +503,36 @@ export const CAMBRIDGE_9702_P2_TOPIC_COVERAGE_REVIEW_LEDGERS = Object.freeze([
           part('b(ii)', 2, 4, 8),
           part('b(iii)', 3, 5, 8),
           part('c', 2, 5, 8),
+        ],
+      }),
+      question({
+        questionNumber: 3,
+        primaryTopicCode: 6,
+        secondaryTopicCodes: [4, 5],
+        reviewedAt: SECOND_PASS_REVIEWED_AT,
+        syllabusPoints: [['4.2', 2], ['6.1', 3], ['6.1', 4], ['6.2', 4]],
+        questionPages: [10, 11],
+        markSchemePages: [11],
+        parts: [
+          part('a', 2, 10, 11, [
+            'an arrow horizontally on the page to the left labelled F',
+            'two arrows horizontally on the page to the right each labelled T',
+          ]),
+          part('b(i)', 1, 10, 11, [
+            'T = 110 / 2 = 55 N',
+          ]),
+          part('b(ii)', 2, 11, 11, [
+            'x = F / k',
+            '= 110 / 250 = 0.44 m',
+          ]),
+          part('c(i)', 2, 11, 11, [
+            'extension = 55 / 250 or 110 / (2 × 250)',
+            'extension = 0.22 m',
+          ]),
+          part('c(ii)', 2, 11, 11, [
+            'E = ½ Fx or E = ½ kx² or E = ½ F² / k',
+            'E₁ / E₂ = (½ × 110 × 0.44) / (2 × (½ × 55 × 0.22)) = 2.0',
+          ]),
         ],
       }),
       question({

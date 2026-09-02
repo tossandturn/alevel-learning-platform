@@ -378,7 +378,7 @@ const physics = syllabusTopicsInventory({
   routeId: 'cie-9702-as-physics',
   questionBank: studyQuestionBank,
 })
-assert.equal(physics.verifiedQuestionGroupCount, 118)
+assert.equal(physics.verifiedQuestionGroupCount, 120)
 assert.ok(physics.availableQuestionGroupCount > physics.verifiedQuestionGroupCount)
 assert.ok(physics.topics.every((topic) => topic.verifiedQuestionCount >= 10))
 

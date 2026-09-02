@@ -25,11 +25,16 @@ const strictResult = spawnSync(process.execPath, [coveragePath], {
   cwd: projectRoot,
   encoding: 'utf8',
 })
-assert.notEqual(
+assert.equal(
   strictResult.status,
   0,
-  `the production coverage command must block when official topics are below the formal floor.\nstdout:\n${strictResult.stdout}\nstderr:\n${strictResult.stderr}`,
+  `the production coverage command must pass once every official 9702 AS topic reaches the formal floor.\nstdout:\n${strictResult.stdout}\nstderr:\n${strictResult.stderr}`,
 )
+const strictReport = JSON.parse(strictResult.stdout)
+assert.equal(strictReport.status, 'ready')
+assert.equal(strictReport.formalReadiness.routeReady, true)
+assert.equal(strictReport.formalReadiness.readyTopicCount, 11)
+assert.equal(strictReport.formalReadiness.underFloorTopicCount, 0)
 
 const result = spawnSync(process.execPath, [coveragePath, '--report-only'], {
   cwd: projectRoot,
@@ -38,16 +43,16 @@ const result = spawnSync(process.execPath, [coveragePath, '--report-only'], {
 assert.equal(
   result.status,
   0,
-  `9702 coverage verification must validate partial inventory instead of rejecting it.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
+  `9702 coverage verification must validate the complete reviewed inventory.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
 )
 
 const report = JSON.parse(result.stdout)
-assert.equal(report.status, 'partial', 'partial inventory must be reported truthfully rather than as full coverage')
-assert.equal(report.formalReadiness.routeReady, false, 'the route must remain unavailable while any official topic is under the formal floor')
-assert.equal(report.formalReadiness.underFloorTopicCount, 1, 'the fixture must retain one under-floor official topic after reviewed mappings are added')
+assert.equal(report.status, 'ready', 'the route should report full coverage once every official topic reaches the formal floor')
+assert.equal(report.formalReadiness.routeReady, true)
+assert.equal(report.formalReadiness.underFloorTopicCount, 0)
 
 const underFloorTopics = report.topics.filter((topic) => topic.verifiedQuestionCount < MIN_VERIFIED_GROUPS_FOR_PRACTICE)
-assert.equal(underFloorTopics.length, 1)
+assert.equal(underFloorTopics.length, 0)
 assert.ok(
   underFloorTopics.every((topic) => (
     topic.ready === false
@@ -60,7 +65,7 @@ assert.ok(
 
 const readyTopics = report.topics.filter((topic) => topic.verifiedQuestionCount >= MIN_VERIFIED_GROUPS_FOR_PRACTICE)
 assert.ok(readyTopics.length > 0, 'the fixture must retain a qualifying topic')
-assert.equal(readyTopics.length, 10, 'reviewed mappings must raise the ready-topic count to ten')
+assert.equal(readyTopics.length, 11, 'reviewed mappings must raise the ready-topic count to all eleven topics')
 assert.ok(
   readyTopics.every((topic) => topic.ready === true && topic.ctaPolicy === 'start'),
   'topics at or above the formal floor must remain startable',

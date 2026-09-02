@@ -16,4 +16,8 @@ assert.equal(report.routeReady, false, 'the current fixture must remain blocked 
 assert.ok(report.blockers.length > 0)
 assert.ok(report.blockers.every((blocker) => blocker.verifiedQuestionCount < 12 && blocker.requiredReviewedGroups === 12))
 assert.ok(report.routes.every((route) => route.topicCount > 0 && route.topics.every((topic) => topic.ready === (topic.verifiedQuestionCount >= 12))))
+const physicsRoute = report.routes.find((route) => route.routeId === 'cie-9702-as-physics')
+assert.ok(physicsRoute, 'the all-syllabus report must include the 9702 AS Physics route')
+assert.equal(physicsRoute.routeReady, true, 'the completed 9702 AS route must pass its own formal syllabus gate')
+assert.equal(physicsRoute.readyTopicCount, 11, 'all eleven 9702 AS topics must be ready after the second review pass')
 console.log(JSON.stringify({ status: 'passed', routeCount: report.routeCount, readyRouteCount: report.readyRouteCount, blockerCount: report.blockerCount }))
