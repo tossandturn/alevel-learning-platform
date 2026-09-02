@@ -52,3 +52,33 @@ export function createCoachStreamParser() {
     return parsed
   }
 }
+
+/**
+ * Classifies an interrupted browser SSE read without treating an upstream
+ * transport abort as a student-initiated cancellation.
+ */
+export function coachStreamFailureState({
+  error,
+  streamedAnswer = '',
+  requestAborted = false,
+  requestSuperseded = false,
+  streamCompleted = false,
+} = {}) {
+  if (requestAborted || requestSuperseded || streamCompleted) {
+    return { ignored: true, retryable: false }
+  }
+
+  const partialAnswer = String(streamedAnswer || '').trim()
+  const warning = String(error?.message || '').trim()
+  const interrupted = error?.name === 'AbortError'
+  return {
+    ignored: false,
+    retryable: true,
+    content: partialAnswer || (interrupted
+      ? 'The response stream was interrupted before it completed.'
+      : 'AI Coach is temporarily unavailable.'),
+    mode: partialAnswer ? 'interrupted' : 'offline',
+    status: partialAnswer ? 'interrupted' : 'failed',
+    warning,
+  }
+}

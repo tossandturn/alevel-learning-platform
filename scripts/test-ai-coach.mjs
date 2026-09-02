@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
-import { createAiApi, providerConfig } from '../server/aiApi.js'
+import { CIE_SUBJECTS, createAiApi, providerConfig } from '../server/aiApi.js'
 import { parseCoachMessage } from '../src/lib/coachMessage.js'
 import { PracticeInventoryError, buildCoachPractice, coachPracticeOptions } from '../src/lib/verifiedPracticeCatalog.js'
 
@@ -16,12 +16,25 @@ assert.throws(
   'an external Admissions topic with no reviewed questions must fail closed instead of throwing an undefined-group error',
 )
 
-const qwenDefaultProvider = providerConfig({
-  OPENAI_API_KEY: 'configured-but-not-the-coach-default',
+const implicitDefaultProvider = providerConfig({
+  OPENAI_API_KEY: 'configured-openai-key',
   DASHSCOPE_API_KEY: 'test-qwen-key',
 })
-assert.equal(qwenDefaultProvider.provider, 'qwen', 'Coach must prefer Qwen by default even when an OpenAI key is configured for a separate entry')
-assert.equal(qwenDefaultProvider.coach.name, 'qwen', 'Coach default routing must select Qwen directly')
+assert.equal(implicitDefaultProvider.provider, 'openai', 'Coach must prefer OpenAI when no provider override is set and an OpenAI key is configured')
+assert.equal(implicitDefaultProvider.coach.name, 'openai', 'Coach default routing must select OpenAI')
+assert.equal(implicitDefaultProvider.coach.fallback.name, 'qwen', 'Implicit OpenAI routing must retain Qwen fallback')
+
+const savedThirdPartyKeyProvider = providerConfig({
+  THRID_AI_KEY: 'saved-third-party-key',
+  DASHSCOPE_API_KEY: 'test-qwen-key',
+})
+assert.equal(savedThirdPartyKeyProvider.provider, 'openai-gateway', 'the saved THRID_AI_KEY must activate the GPT gateway by default')
+assert.equal(savedThirdPartyKeyProvider.coach.apiKey, 'saved-third-party-key', 'the saved third-party key must stay server-side in the gateway provider')
+assert.equal(savedThirdPartyKeyProvider.coach.model, 'gpt-5.5', 'the saved-key default must use GPT-5.5')
+assert.equal(savedThirdPartyKeyProvider.coach.fallback.name, 'qwen', 'the saved-key gateway must retain Qwen fallback')
+for (const subjectCode of ['0580', '0606', '0610', '0625', '9231', '9700', '9701', '9702', '9708', '9709']) {
+  assert.equal(CIE_SUBJECTS.has(subjectCode), true, `AI source resolution must allow existing CIE subject ${subjectCode}`)
+}
 
 const explicitOpenAiProvider = providerConfig({
   AI_PROVIDER: 'openai',
@@ -30,12 +43,79 @@ const explicitOpenAiProvider = providerConfig({
 })
 assert.equal(explicitOpenAiProvider.provider, 'openai', 'an explicit OpenAI entry may still opt in to OpenAI routing')
 
-function listen(server) {
+const explicitQwenProvider = providerConfig({
+  AI_PROVIDER: 'qwen',
+  OPENAI_API_KEY: 'configured-openai-key',
+  DASHSCOPE_API_KEY: 'test-qwen-key',
+})
+assert.equal(explicitQwenProvider.provider, 'qwen', 'an explicit Qwen override must remain supported')
+
+const gatewayProvider = providerConfig({
+  AI_GATEWAY_API_KEY: 'test-gateway-key',
+  AI_GATEWAY_BASE_URL: 'https://gateway.example.test/v1',
+  AI_GATEWAY_MODEL: 'gpt-5.5-test',
+  AI_GATEWAY_REASONING_EFFORT: 'high',
+  OPENAI_API_KEY: 'legacy-openai-key',
+  DASHSCOPE_API_KEY: 'test-qwen-key',
+})
+assert.equal(gatewayProvider.provider, 'openai-gateway', 'the configured AI gateway must be the default GPT channel')
+assert.equal(gatewayProvider.coach.name, 'openai-gateway', 'Coach must use the configured GPT gateway before legacy providers')
+assert.equal(gatewayProvider.coach.baseUrl, 'https://gateway.example.test/v1', 'the gateway base URL must be normalized as an OpenAI-compatible endpoint')
+assert.equal(gatewayProvider.coach.model, 'gpt-5.5-test', 'Coach must use the gateway model')
+assert.equal(gatewayProvider.coach.reasoningEffort, 'high', 'GPT gateway requests must retain the configured reasoning effort')
+assert.equal(gatewayProvider.coach.fallback.name, 'qwen', 'the GPT gateway must retain Qwen as its configured fallback')
+assert.equal(gatewayProvider.vision.name, 'openai-gateway', 'handwriting and photo Coach requests must use the GPT gateway too')
+assert.equal(gatewayProvider.vision.fallback.name, 'qwen', 'vision gateway requests must retain Qwen fallback')
+
+const separatedQwenFallback = providerConfig({
+  AI_GATEWAY_API_KEY: 'test-gateway-key',
+  PHYSICS_AI_API_KEY: 'legacy-generic-key',
+  PHYSICS_AI_BASE_URL: 'https://legacy-generic.example/v1',
+  DASHSCOPE_API_KEY: 'separate-qwen-key',
+  DASHSCOPE_COMPAT_BASE_URL: 'https://dashscope.example/v1',
+})
+assert.equal(separatedQwenFallback.vision.fallback.apiKey, 'separate-qwen-key', 'a gateway vision fallback must prefer the explicit Qwen key over a generic legacy key')
+assert.equal(separatedQwenFallback.vision.fallback.baseUrl, 'https://dashscope.example/v1', 'a gateway vision fallback must prefer the explicit Qwen base URL')
+
+const directLegacyQwen = providerConfig({
+  AI_PROVIDER: 'qwen',
+  PHYSICS_AI_API_KEY: 'legacy-qwen-key',
+  PHYSICS_AI_BASE_URL: 'https://legacy-qwen.example/v1',
+})
+assert.equal(directLegacyQwen.vision.apiKey, 'legacy-qwen-key', 'an explicitly selected legacy Qwen installation must retain its generic key alias')
+assert.equal(directLegacyQwen.vision.baseUrl, 'https://legacy-qwen.example/v1', 'an explicitly selected legacy Qwen installation must retain its generic base URL alias')
+
+const FETCH_BLOCKED_PORTS = new Set([
+  1, 7, 9, 11, 13, 15, 17, 19, 20, 21, 22, 23, 25, 37, 42, 43, 53, 69, 77, 79, 87, 95, 101, 102, 103, 104, 109, 110, 111,
+  113, 115, 117, 119, 123, 135, 137, 139, 143, 161, 179, 389, 427, 465, 512, 513, 514, 515, 526, 530, 531, 532, 540, 548,
+  554, 556, 563, 587, 601, 636, 989, 990, 993, 995, 1719, 1720, 1723, 2049, 3659, 4045, 4190, 5060, 5061, 6000, 6566,
+  6665, 6666, 6667, 6668, 6669, 6697, 10080,
+])
+
+function isFetchBlockedPort(port) {
+  return FETCH_BLOCKED_PORTS.has(Number(port))
+}
+
+assert.equal(isFetchBlockedPort(6667), true, 'test HTTP fixtures must avoid ports rejected by Fetch before a request is sent')
+
+function listen(server, remainingAttempts = 12) {
   return new Promise((resolve, reject) => {
-    server.once('error', reject)
+    const onError = (error) => {
+      server.off('error', onError)
+      reject(error)
+    }
+    server.once('error', onError)
     server.listen(0, '127.0.0.1', () => {
-      server.off('error', reject)
-      resolve(`http://127.0.0.1:${server.address().port}`)
+      const port = server.address().port
+      server.off('error', onError)
+      if (isFetchBlockedPort(port)) {
+        server.close(() => {
+          if (remainingAttempts <= 1) reject(new Error(`Could not allocate a Fetch-safe loopback port; last port was ${port}`))
+          else listen(server, remainingAttempts - 1).then(resolve, reject)
+        })
+        return
+      }
+      resolve(`http://127.0.0.1:${port}`)
     })
   })
 }
@@ -594,6 +674,89 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
     await Promise.all([...routingAppServers.map(close), close(openAiRoutingServer)])
   }
 
+  const gatewayBodies = []
+  let gatewayRequests = 0
+  let gatewayQwenRequests = 0
+  const gatewayServer = http.createServer(async (request, response) => {
+    const chunks = []
+    for await (const chunk of request) chunks.push(chunk)
+    gatewayRequests += 1
+    gatewayBodies.push({ path: request.url, body: JSON.parse(Buffer.concat(chunks).toString('utf8')) })
+    response.statusCode = 503
+    response.setHeader('Content-Type', 'application/json')
+    response.end(JSON.stringify({ error: { code: 'gateway_unavailable', message: 'gateway detail must stay server-side' } }))
+  })
+  const gatewayQwenServer = http.createServer(async (request, response) => {
+    const chunks = []
+    for await (const chunk of request) chunks.push(chunk)
+    gatewayQwenRequests += 1
+    response.statusCode = 200
+    response.setHeader('Content-Type', 'text/event-stream')
+    response.end('data: {"choices":[{"delta":{"content":"qwen gateway recovery"}}]}\n\ndata: [DONE]\n\n')
+  })
+  const gatewayBase = await listen(gatewayServer)
+  const gatewayQwenBase = await listen(gatewayQwenServer)
+  const gatewayApi = createAiApi({
+    env: {
+      AI_GATEWAY_API_KEY: 'test-gateway-key',
+      AI_GATEWAY_BASE_URL: gatewayBase,
+      AI_GATEWAY_MODEL: 'gpt-5.5-test',
+      AI_GATEWAY_REASONING_EFFORT: 'high',
+      DASHSCOPE_API_KEY: 'test-gateway-qwen-key',
+      DASHSCOPE_COMPAT_BASE_URL: gatewayQwenBase,
+      COACH_AI_MODEL: 'qwen-gateway-recovery',
+      STEM_AI_PROVIDER_TIMEOUT_MS: '1000',
+      STEM_AI_REQUEST_DEADLINE_MS: '3000',
+      STEM_AI_VISION_PROVIDER_TIMEOUT_MS: '1000',
+      STEM_AI_VISION_REQUEST_DEADLINE_MS: '3000',
+      STEM_INTERNAL_AUTH_KEY: identitySigningKey,
+    },
+    libraryRoot: path.join(tempRoot, 'library'),
+    allowedSubjects: new Set(['0580']),
+  })
+  const gatewayAppServer = requestHandler(gatewayApi)
+  const gatewayAppBase = await listen(gatewayAppServer)
+  try {
+    const gatewayTextResponse = await fetch(`${gatewayAppBase}/api/ai/coach/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${signedIdentityToken}` },
+      body: JSON.stringify({
+        message: 'Explain the method and check the units in detail.',
+        hintLevel: 3,
+        context: { stage: 'AS', topic: 'Mechanics', question: { prompt: 'Gateway fallback text fixture.', number: 9 } },
+      }),
+    })
+    const gatewayText = await gatewayTextResponse.text()
+    assert.equal(gatewayTextResponse.status, 200)
+    assert.match(gatewayText, /qwen gateway recovery/)
+    assert.match(gatewayText, /"provider":"qwen"/)
+    assert.equal(gatewayRequests, 1, 'the configured GPT gateway must be attempted before Qwen')
+    assert.equal(gatewayQwenRequests, 1, 'Qwen must recover a failed GPT gateway request')
+    assert.equal(gatewayBodies[0].path, '/v1/responses', 'gateway base URLs must normalize to the versioned Responses endpoint')
+    assert.deepEqual(gatewayBodies[0].body.reasoning, { effort: 'high' }, 'GPT gateway requests must send the configured reasoning effort')
+    assert.equal(Object.hasOwn(gatewayBodies[0].body, 'temperature'), false, 'GPT-5 gateway requests must not send sampling temperature')
+
+    const gatewayPhotoResponse = await fetch(`${gatewayAppBase}/api/ai/coach/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${signedIdentityToken}` },
+      body: JSON.stringify({
+        message: 'Read the attached work and identify the first issue.',
+        hintLevel: 3,
+        imageDataUrls: [attachedImages[0], attachedImages[1]],
+        context: { stage: 'AS', topic: 'Mechanics', question: { prompt: 'Gateway fallback photo fixture.', number: 10 } },
+      }),
+    })
+    const gatewayPhoto = await gatewayPhotoResponse.text()
+    assert.equal(gatewayPhotoResponse.status, 200)
+    assert.match(gatewayPhoto, /qwen gateway recovery/)
+    assert.equal(gatewayRequests, 2, 'photo Coach requests must use the GPT gateway first')
+    assert.equal(gatewayQwenRequests, 2, 'photo Coach requests must fall back to Qwen after gateway failure')
+    const gatewayPhotoInput = gatewayBodies[1].body.input.flatMap((item) => Array.isArray(item.content) ? item.content : [])
+    assert.equal(gatewayPhotoInput.filter((item) => item.type === 'input_image').length, 2, 'the gateway attempt must receive every attached photo')
+  } finally {
+    await Promise.all([close(gatewayAppServer), close(gatewayServer), close(gatewayQwenServer)])
+  }
+
   let openAiFallbackRequests = 0
   let qwenFallbackRequests = 0
   const fallbackTelemetry = []
@@ -757,6 +920,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   const paperAnswerSheetSource = fs.readFileSync(path.join(root, 'src', 'components', 'PaperAnswerSheet.jsx'), 'utf8')
   const viteSource = fs.readFileSync(path.join(root, 'vite.config.js'), 'utf8')
   const handwritingSource = fs.readFileSync(path.join(root, 'src', 'components', 'HandwritingPad.jsx'), 'utf8')
+  const pdfViewerSource = fs.readFileSync(path.join(root, 'src', 'components', 'PdfViewer.jsx'), 'utf8')
   const practiceWorkspaceSource = fs.readFileSync(path.join(root, 'src', 'components', 'PracticeWorkspace.jsx'), 'utf8')
   assert.match(coachSource, /\/api\/ai\/coach\/stream/)
   assert.match(coachSource, /text\/event-stream/)
@@ -788,6 +952,8 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   assert.match(coachSource, /cropVisiblePageVisuals/, 'Coach must fall back to visible official question or handwriting visuals when browser capture is unavailable')
   assert.match(coachSource, /Provide screenshot/, 'Coach must also let a student provide an existing screenshot')
   assert.match(coachSource, /capture="environment"/, 'Coach must expose a native camera capture input for photographing a question')
+  assert.match(coachSource, /data-camera-intent/, 'Coach Take photo must expose an explicit native camera intent marker')
+  assert.match(coachSource, /data-camera-input/, 'Coach camera input must expose an explicit native camera input marker')
   assert.match(coachSource, /Take photo/, 'Coach must expose a clearly labelled take-photo action')
   assert.match(coachSource, /Upload photo/, 'Coach must expose a clearly labelled upload-photo action')
   assert.match(coachSource, /Analyze (?:this )?question/, 'Coach must expose a visible action to analyze an attached question photo')
@@ -808,7 +974,12 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   assert.match(paperWorkspaceSource, /part:\s*\{[^}]*answer-slot-/, 'full-paper Coach context must bind the current answer part')
   assert.match(handwritingSource, /Upload photo/, 'paper responses need a normal photo upload action')
   assert.match(handwritingSource, /Take photo/, 'paper responses need a camera capture action distinct from upload')
+  assert.match(handwritingSource, /data-camera-intent/, 'paper Take photo must expose an explicit native camera intent marker')
+  assert.match(handwritingSource, /data-camera-input/, 'paper camera input must expose an explicit native camera input marker')
   assert.match(handwritingSource, /cameraInputRef/, 'camera capture must use its own input instead of silently forcing capture mode for uploads')
+  assert.match(handwritingSource, /function preventSelection\(event\)[\s\S]{0,80}?event\.preventDefault\(\)/, 'handwriting mode must retain a native selection prevention helper')
+  assert.match(pdfViewerSource, /pdf-canvas-scroll--annotating/, 'annotating PDF containers must expose a selection-safe state')
+  assert.match(pdfViewerSource, /data-ink-surface="pdf"/, 'PDF ink layers must identify themselves as drawing surfaces')
 } finally {
   await Promise.all([close(appServer), close(providerServer)])
   fs.rmSync(tempRoot, { recursive: true, force: true })

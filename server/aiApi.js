@@ -18,7 +18,7 @@ import {
 } from '../src/lib/sourceContentContract.js'
 import { validHmacJwt, verifyMarkingCapability } from './markingCapability.js'
 
-const IMAGE_PATTERN = /^data:image\/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=]+)$/
+const IMAGE_PATTERN = /^data:image\/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=\r\n\t ]+)$/i
 const MAX_BODY_BYTES = 16 * 1024 * 1024
 const MAX_IMAGE_BYTES = 12 * 1024 * 1024
 const MAX_COACH_IMAGE_COUNT = 4
@@ -43,7 +43,7 @@ const MAX_AI_PROVIDER_TIMEOUT_MS = 45_000
 const MAX_AI_REQUEST_DEADLINE_MS = 55_000
 const pdfTextCache = new Map()
 const coachContextCache = new Map()
-const CIE_SUBJECTS = new Set(['0580', '0606', '0625', '9231', '9701', '9702', '9708', '9709'])
+export const CIE_SUBJECTS = new Set(['0580', '0606', '0610', '0625', '9231', '9700', '9701', '9702', '9708', '9709'])
 const DEFAULT_SOURCE_ASSET_ROOT = path.resolve(import.meta.dirname, '..', 'public', 'question-assets')
 let extraSourceCache = null
 const temporaryImages = new Map()
@@ -162,10 +162,17 @@ function applyCoachAuthorization(context, authorization) {
   }
 }
 
+function parseImageDataUrl(dataUrl, message = 'Attached image must be PNG, JPEG or WebP.') {
+  const match = String(dataUrl || '').trim().match(IMAGE_PATTERN)
+  if (!match) throw Object.assign(new Error(message), { statusCode: 400, code: 'AI_IMAGE_FORMAT_INVALID' })
+  const base64 = match[2].replace(/\s+/g, '')
+  const mime = match[1].toLowerCase() === 'jpg' ? 'jpeg' : match[1].toLowerCase()
+  return { mime, base64, dataUrl: `data:image/${mime};base64,${base64}` }
+}
+
 function imageBytes(dataUrl) {
-  const match = String(dataUrl || '').match(IMAGE_PATTERN)
-  if (!match) throw Object.assign(new Error('Attached image must be PNG, JPEG or WebP.'), { statusCode: 400 })
-  const bytes = Buffer.byteLength(match[2], 'base64')
+  const parsed = parseImageDataUrl(dataUrl)
+  const bytes = Buffer.byteLength(parsed.base64, 'base64')
   if (!bytes || bytes > MAX_IMAGE_BYTES) throw Object.assign(new Error('Attached image is empty or too large.'), { statusCode: 400 })
   return bytes
 }
@@ -176,7 +183,10 @@ function coachImageDataUrls(payload) {
     : payload?.imageDataUrl
       ? [payload.imageDataUrl]
       : []
-  const images = source.map((value) => String(value || '').trim()).filter(Boolean)
+  const images = source
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .map((value) => parseImageDataUrl(value).dataUrl)
   if (images.length > MAX_COACH_IMAGE_COUNT) {
     throw Object.assign(new Error(`Attach no more than ${MAX_COACH_IMAGE_COUNT} images.`), { statusCode: 400 })
   }
@@ -204,17 +214,16 @@ function cleanupTemporaryImages() {
 }
 
 async function temporaryImageUrl(dataUrl, publicBaseUrl) {
-  if (!publicBaseUrl) return { url: dataUrl, cleanup: () => {} }
-  const match = String(dataUrl || '').match(IMAGE_PATTERN)
-  if (!match) throw Object.assign(new Error('Handwriting image must be PNG, JPEG or WebP.'), { statusCode: 400 })
+  const parsed = parseImageDataUrl(dataUrl)
+  if (!publicBaseUrl) return { url: parsed.dataUrl, cleanup: () => {} }
   cleanupTemporaryImages()
-  const extension = match[1] === 'jpeg' ? 'jpg' : match[1]
-  const mime = `image/${match[1] === 'jpg' ? 'jpeg' : match[1]}`
+  const extension = parsed.mime === 'jpeg' ? 'jpg' : parsed.mime
+  const mime = `image/${parsed.mime}`
   const token = crypto.randomUUID()
   const directory = path.join(os.tmpdir(), 'alevel-physics-ai-images')
   const filePath = path.join(directory, `${token}.${extension}`)
   await fs.promises.mkdir(directory, { recursive: true, mode: 0o700 })
-  await fs.promises.writeFile(filePath, Buffer.from(match[2], 'base64'), { mode: 0o600 })
+  await fs.promises.writeFile(filePath, Buffer.from(parsed.base64, 'base64'), { mode: 0o600 })
   temporaryImages.set(token, { filePath, mime, expiresAt: Date.now() + TEMP_IMAGE_TTL_MS })
   return {
     url: `${publicBaseUrl.replace(/\/+$/, '')}/api/ai/image/${token}`,
@@ -670,7 +679,30 @@ export function canonicalHandwritingMarkingContext(payload = {}, { questionBank 
 export function providerConfig(env = {}) {
   const explicitProvider = String(env.AI_PROVIDER || env.COACH_AI_PROVIDER || env.PHYSICS_AI_PROVIDER || '').trim().toLowerCase()
   const openAiKey = env.OPENAI_API_KEY || env.OPENAI_COACH_API_KEY || ''
-  const selectedProvider = explicitProvider === 'openai' ? 'openai' : 'qwen'
+  // THRID_AI_KEY is the account-level gateway variable used by the shared
+  // IELTSist/STEM deployment. Keep legacy spellings as compatibility aliases,
+  // but never expose the value to the browser or telemetry.
+  const savedGatewayKey = env.AI_GATEWAY_API_KEY || env.THRID_AI_KEY || env.THIRD_AI_KEY || env.thridkey || ''
+  const legacyOpenAiBaseUrl = env.OPENAI_CHAT_BASE_URL || env.OPENAI_BASE_URL || ''
+  const legacyOpenAiProtocol = normalizedProviderProtocol(env.OPENAI_API_PROTOCOL || env.OPENAI_API_STYLE, legacyOpenAiBaseUrl)
+  const gatewayBaseConfigured = Boolean(String(env.AI_GATEWAY_BASE_URL || '').trim())
+    || Boolean(String(savedGatewayKey).trim())
+    || explicitProvider === 'gateway'
+    || explicitProvider === 'openai-gateway'
+    || (legacyOpenAiProtocol === 'responses' && Boolean(String(openAiKey).trim()))
+  // During the gateway migration, installations may still have the key under
+  // OPENAI_API_KEY. Only reuse it when gateway routing was explicitly opted in
+  // (by a gateway setting or provider selection); never silently redirect a
+  // normal direct-OpenAI installation.
+  const gatewayKey = savedGatewayKey || (gatewayBaseConfigured ? openAiKey : '')
+  const gatewayRequested = explicitProvider === 'gateway' || explicitProvider === 'openai-gateway'
+  const selectedProvider = explicitProvider === 'qwen'
+    ? 'qwen'
+    : gatewayRequested || (!explicitProvider && Boolean(String(gatewayKey).trim()))
+      ? 'openai-gateway'
+      : explicitProvider === 'openai' || (!explicitProvider && Boolean(String(openAiKey).trim()))
+      ? 'openai'
+      : 'qwen'
   const workspaceId = env.DASHSCOPE_WORKSPACE_ID || env.QWEN_WORKSPACE_ID || ''
   const region = env.DASHSCOPE_REGION || 'cn-beijing'
   const dashscopeBase = workspaceId
@@ -678,15 +710,19 @@ export function providerConfig(env = {}) {
     : 'https://dashscope.aliyuncs.com/compatible-mode/v1'
   const compatibleBaseUrl = normalizeCompatibleBaseUrl(env.DASHSCOPE_COMPAT_BASE_URL || dashscopeBase)
   const dashscopeKey = env.DASHSCOPE_API_KEY || env.QWEN_API_KEY || ''
-  const sharedKey = env.PHYSICS_AI_API_KEY || dashscopeKey
-  const sharedBaseUrl = (env.PHYSICS_AI_BASE_URL || compatibleBaseUrl).replace(/\/+$/, '')
+  // Keep legacy generic aliases usable for an explicitly selected Qwen
+  // installation, but never let them override a separately configured
+  // DashScope/Qwen fallback behind the GPT gateway.
+  const qwenKey = dashscopeKey || (selectedProvider === 'qwen' ? env.PHYSICS_AI_API_KEY || '' : '')
+  const qwenBaseUrl = (env.DASHSCOPE_COMPAT_BASE_URL || (selectedProvider === 'qwen' ? env.PHYSICS_AI_BASE_URL : '') || compatibleBaseUrl).replace(/\/+$/, '')
   const publicBaseUrl = env.PHYSICS_PUBLIC_BASE_URL || env.PUBLIC_BASE_URL || ''
   const imageMode = env.PHYSICS_AI_IMAGE_MODE === 'url' ? 'url' : 'data-url'
   const qwenCoach = {
     name: 'qwen',
     label: 'Qwen',
-    apiKey: env.COACH_AI_API_KEY || env.QWEN_COACH_API_KEY || sharedKey,
-    baseUrl: normalizeCompatibleBaseUrl(env.COACH_AI_BASE_URL || env.QWEN_COACH_BASE_URL || sharedBaseUrl),
+    protocol: 'chat-completions',
+    apiKey: env.COACH_AI_API_KEY || env.QWEN_COACH_API_KEY || qwenKey,
+    baseUrl: normalizeCompatibleBaseUrl(env.COACH_AI_BASE_URL || env.QWEN_COACH_BASE_URL || qwenBaseUrl),
     model: env.COACH_AI_MODEL || env.QWEN_COACH_MODEL || env.PHYSICS_COACH_MODEL || 'qwen3.7-max',
     publicBaseUrl,
     imageMode,
@@ -694,11 +730,46 @@ export function providerConfig(env = {}) {
   const qwenVision = {
     name: 'qwen',
     label: 'Qwen',
-    apiKey: env.VISION_AI_API_KEY || env.QWEN_VISION_API_KEY || sharedKey,
-    baseUrl: normalizeCompatibleBaseUrl(env.VISION_AI_BASE_URL || env.QWEN_VISION_BASE_URL || sharedBaseUrl),
+    protocol: 'chat-completions',
+    apiKey: env.VISION_AI_API_KEY || env.QWEN_VISION_API_KEY || qwenKey,
+    baseUrl: normalizeCompatibleBaseUrl(env.VISION_AI_BASE_URL || env.QWEN_VISION_BASE_URL || qwenBaseUrl),
     model: env.VISION_AI_MODEL || env.QWEN_VISION_MODEL || env.PHYSICS_VISION_MODEL || 'qwen3-vl-plus',
     publicBaseUrl,
     imageMode,
+  }
+  if (selectedProvider === 'openai-gateway') {
+    const gatewayBaseUrl = normalizeOpenAiChatBaseUrl(env.AI_GATEWAY_BASE_URL || 'https://ai.ieltsist.com/v1')
+    const gatewayModel = env.AI_GATEWAY_MODEL || 'gpt-5.5'
+    const gatewayReasoningEffort = normalizedReasoningEffort(env.AI_GATEWAY_REASONING_EFFORT)
+    const gatewayCoach = {
+      name: 'openai-gateway',
+      label: 'OpenAI gateway',
+      protocol: 'responses',
+      apiKey: gatewayKey,
+      baseUrl: gatewayBaseUrl,
+      model: gatewayModel,
+      reasoningEffort: gatewayReasoningEffort,
+      publicBaseUrl,
+      imageMode,
+      fallback: qwenCoach,
+    }
+    const gatewayVision = {
+      name: 'openai-gateway',
+      label: 'OpenAI gateway',
+      protocol: 'responses',
+      apiKey: env.AI_GATEWAY_VISION_API_KEY || gatewayKey,
+      baseUrl: normalizeOpenAiChatBaseUrl(env.AI_GATEWAY_VISION_BASE_URL || gatewayBaseUrl),
+      model: env.AI_GATEWAY_VISION_MODEL || gatewayModel,
+      reasoningEffort: gatewayReasoningEffort,
+      publicBaseUrl,
+      imageMode,
+      fallback: qwenVision,
+    }
+    return {
+      provider: 'openai-gateway',
+      coach: gatewayCoach,
+      vision: gatewayVision,
+    }
   }
   if (selectedProvider === 'openai') {
     const openAiBaseUrl = normalizeOpenAiChatBaseUrl(env.OPENAI_CHAT_BASE_URL || env.OPENAI_BASE_URL || 'https://api.openai.com/v1')
@@ -706,6 +777,7 @@ export function providerConfig(env = {}) {
     const openAiCoach = {
       name: 'openai',
       label: 'OpenAI',
+      protocol: normalizedProviderProtocol(env.OPENAI_API_PROTOCOL || env.OPENAI_API_STYLE, env.OPENAI_CHAT_BASE_URL || env.OPENAI_BASE_URL),
       apiKey: openAiKey,
       baseUrl: openAiBaseUrl,
       model: openAiCoachModel,
@@ -716,6 +788,7 @@ export function providerConfig(env = {}) {
     const openAiVision = {
       name: 'openai',
       label: 'OpenAI',
+      protocol: normalizedProviderProtocol(env.OPENAI_VISION_API_PROTOCOL || env.OPENAI_API_PROTOCOL || env.OPENAI_API_STYLE, env.OPENAI_VISION_BASE_URL || openAiBaseUrl),
       apiKey: env.OPENAI_VISION_API_KEY || openAiKey,
       baseUrl: normalizeOpenAiChatBaseUrl(env.OPENAI_VISION_BASE_URL || openAiBaseUrl),
       model: env.OPENAI_VISION_MODEL || env.OPENAI_MODEL || openAiCoachModel,
@@ -731,9 +804,28 @@ export function providerConfig(env = {}) {
   }
   return {
     provider: 'qwen',
-    coach: qwenCoach,
-    vision: qwenVision,
+    coach: { ...qwenCoach, protocol: 'chat-completions' },
+    vision: { ...qwenVision, protocol: 'chat-completions' },
   }
+}
+
+function normalizedProviderProtocol(value, baseUrl = '') {
+  const explicit = String(value || '').trim().toLowerCase()
+  if (explicit === 'responses' || explicit === 'response') return 'responses'
+  if (explicit === 'chat' || explicit === 'chat-completions' || explicit === 'chat_completions') return 'chat-completions'
+  const source = String(baseUrl || '').trim()
+  // The legacy deployment used the shared ai.ieltsist.com origin without an
+  // explicit `/responses` suffix. That origin exposes the Responses API, so
+  // recognize it while leaving ordinary OpenAI-compatible chat endpoints
+  // unchanged.
+  return /\/responses(?:\/?)$/i.test(source) || /(^|:\/\/)ai\.ieltsist\.com(?:\/|$)/i.test(source)
+    ? 'responses'
+    : 'chat-completions'
+}
+
+function normalizedReasoningEffort(value) {
+  const effort = String(value || 'xhigh').trim().toLowerCase()
+  return ['low', 'medium', 'high', 'xhigh'].includes(effort) ? effort : 'xhigh'
 }
 
 function normalizeCompatibleBaseUrl(value) {
@@ -746,12 +838,112 @@ function normalizeCompatibleBaseUrl(value) {
 export function normalizeOpenAiChatBaseUrl(value) {
   const source = String(value || '').trim().replace(/[\r\n]+/g, '').replace(/\/+$/, '')
   if (!source) return ''
-  const hasExplicitEndpoint = /\/chat\/completions$/i.test(source)
+  const hasExplicitEndpoint = /\/(?:chat\/completions|responses)$/i.test(source)
   const withoutEndpoint = hasExplicitEndpoint
-    ? source.replace(/\/chat\/completions$/i, '')
+    ? source.replace(/\/(?:chat\/completions|responses)$/i, '')
     : source
   if (hasExplicitEndpoint || /\/v1$/i.test(withoutEndpoint)) return withoutEndpoint
   return `${withoutEndpoint}/v1`
+}
+
+function isResponsesProvider(provider) {
+  return provider?.protocol === 'responses'
+}
+
+function providerEndpoint(provider) {
+  return `${String(provider?.baseUrl || '').replace(/\/+$/, '')}/${isResponsesProvider(provider) ? 'responses' : 'chat/completions'}`
+}
+
+function providerMetadata(metadata) {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return null
+  const entries = Object.entries(metadata)
+    .slice(0, 16)
+    .map(([key, value]) => {
+      const safeKey = String(key || '').replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 64)
+      if (!safeKey) return null
+      let serialized = ''
+      try {
+        serialized = typeof value === 'string' ? value : JSON.stringify(value)
+      } catch {
+        serialized = ''
+      }
+      return [safeKey, String(serialized || '').slice(0, 512)]
+    })
+    .filter(Boolean)
+  return entries.length ? Object.fromEntries(entries) : null
+}
+
+function responseInputContentItem(item) {
+  if (typeof item === 'string') return { type: 'input_text', text: item }
+  if (!item || typeof item !== 'object') return null
+  if (item.type === 'image_url' && item.image_url?.url) {
+    return { type: 'input_image', image_url: String(item.image_url.url), detail: 'auto' }
+  }
+  if (item.type === 'text' || item.type === 'input_text' || item.type === 'output_text') {
+    return { type: 'input_text', text: String(item.text || '') }
+  }
+  return null
+}
+
+function responsesInput(messages = []) {
+  return messages
+    .filter((message) => message && message.role !== 'system' && message.role !== 'developer')
+    .map((message) => {
+      // Responses input messages accept user/system/developer roles. Preserve
+      // prior Coach turns as labelled user context instead of sending an
+      // output-only assistant item that strict gateways reject.
+      const prefix = message.role === 'assistant' ? '[Previous Coach response]\n' : ''
+      const rawContent = Array.isArray(message.content) ? message.content : [message.content]
+      const content = rawContent.map(responseInputContentItem).filter(Boolean)
+      if (prefix && content[0]?.type === 'input_text') content[0] = { ...content[0], text: `${prefix}${content[0].text}` }
+      return { role: 'user', content: content.length ? content : [{ type: 'input_text', text: prefix.trim() }] }
+    })
+}
+
+function responsesInstructions(messages = []) {
+  const instructions = messages
+    .filter((message) => message?.role === 'system' || message?.role === 'developer')
+    .map((message) => Array.isArray(message.content)
+      ? message.content.map((item) => responseInputContentItem(item)?.text || '').join('\n')
+      : String(message.content || ''))
+    .filter(Boolean)
+  return instructions.join('\n\n') || null
+}
+
+function providerRequestBody(provider, { messages, temperature = 0.2, stream = false, json = false, metadata = null }) {
+  const safeMetadata = providerMetadata(metadata)
+  if (isResponsesProvider(provider)) {
+    const instructions = responsesInstructions(messages)
+    return {
+      model: provider.model,
+      input: responsesInput(messages),
+      ...(instructions ? { instructions } : {}),
+      ...(provider.reasoningEffort ? { reasoning: { effort: provider.reasoningEffort } } : {}),
+      stream,
+      ...(json ? { text: { format: { type: 'json_object' } } } : {}),
+      ...(safeMetadata ? { metadata: safeMetadata } : {}),
+    }
+  }
+  return {
+    model: provider.model,
+    messages,
+    ...providerSampling(provider, temperature),
+    stream,
+    ...(json ? { response_format: { type: 'json_object' } } : {}),
+    ...(safeMetadata ? { metadata: safeMetadata } : {}),
+  }
+}
+
+function responseOutputText(payload) {
+  const direct = String(payload?.output_text || '').trim()
+  if (direct) return direct
+  const outputItems = Array.isArray(payload?.output) ? payload.output : []
+  const outputText = outputItems.flatMap((item) => Array.isArray(item?.content) ? item.content : [])
+    .map((item) => item?.type === 'output_text' || item?.type === 'text' ? String(item.text || '') : '')
+    .join('')
+    .trim()
+  if (outputText) return outputText
+  return String(payload?.choices?.[0]?.message?.content || '').trim()
 }
 
 function imagePublicBase(provider, request) {
@@ -779,7 +971,12 @@ function providerMessage(error, provider) {
 }
 
 function providerSampling(provider, temperature) {
-  return provider?.name === 'openai' && /^gpt-5/i.test(String(provider.model || '')) ? {} : { temperature }
+  if (/^gpt-5/i.test(String(provider?.model || ''))) {
+    return provider?.reasoningEffort
+      ? { reasoning_effort: provider.reasoningEffort }
+      : {}
+  }
+  return { temperature }
 }
 
 function providerCandidates(provider) {
@@ -801,6 +998,11 @@ function boundedDuration(value, fallback, minimum, maximum) {
 }
 
 function aiTimeoutConfig(env = {}) {
+  const sharedTotalDeadlineSource = env.STEM_AI_TOTAL_DEADLINE_MS
+    || env.PHYSICS_AI_TOTAL_DEADLINE_MS
+  const totalDeadlineSource = sharedTotalDeadlineSource
+    || env.STEM_AI_REQUEST_DEADLINE_MS
+    || env.PHYSICS_AI_REQUEST_DEADLINE_MS
   const providerTimeoutMs = boundedDuration(
     env.STEM_AI_PROVIDER_TIMEOUT_MS || env.PHYSICS_AI_PROVIDER_TIMEOUT_MS,
     DEFAULT_AI_PROVIDER_TIMEOUT_MS,
@@ -808,11 +1010,16 @@ function aiTimeoutConfig(env = {}) {
     MAX_AI_PROVIDER_TIMEOUT_MS,
   )
   const requestDeadlineMs = boundedDuration(
-    env.STEM_AI_REQUEST_DEADLINE_MS || env.PHYSICS_AI_REQUEST_DEADLINE_MS,
+    totalDeadlineSource,
     DEFAULT_AI_REQUEST_DEADLINE_MS,
-    providerTimeoutMs,
+    MIN_AI_TIMEOUT_MS,
     MAX_AI_REQUEST_DEADLINE_MS,
   )
+  const visionTotalDeadlineSource = env.STEM_AI_VISION_TOTAL_DEADLINE_MS
+    || env.STEM_AI_VISION_REQUEST_DEADLINE_MS
+    || env.PHYSICS_AI_VISION_TOTAL_DEADLINE_MS
+    || env.PHYSICS_AI_VISION_REQUEST_DEADLINE_MS
+    || sharedTotalDeadlineSource
   const visionProviderTimeoutMs = boundedDuration(
     env.STEM_AI_VISION_PROVIDER_TIMEOUT_MS || env.PHYSICS_AI_VISION_PROVIDER_TIMEOUT_MS,
     DEFAULT_AI_VISION_PROVIDER_TIMEOUT_MS,
@@ -820,12 +1027,19 @@ function aiTimeoutConfig(env = {}) {
     MAX_AI_PROVIDER_TIMEOUT_MS,
   )
   const visionRequestDeadlineMs = boundedDuration(
-    env.STEM_AI_VISION_REQUEST_DEADLINE_MS || env.PHYSICS_AI_VISION_REQUEST_DEADLINE_MS,
+    visionTotalDeadlineSource,
     DEFAULT_AI_VISION_REQUEST_DEADLINE_MS,
-    visionProviderTimeoutMs,
+    MIN_AI_TIMEOUT_MS,
     MAX_AI_REQUEST_DEADLINE_MS,
   )
-  return Object.freeze({ providerTimeoutMs, requestDeadlineMs, visionProviderTimeoutMs, visionRequestDeadlineMs })
+  return Object.freeze({
+    providerTimeoutMs,
+    requestDeadlineMs,
+    totalDeadlineMs: requestDeadlineMs,
+    visionProviderTimeoutMs,
+    visionRequestDeadlineMs,
+    visionTotalDeadlineMs: visionRequestDeadlineMs,
+  })
 }
 
 function aiDeadlineError() {
@@ -858,6 +1072,13 @@ function emitProviderTelemetry(telemetry, event) {
     durationMs: Math.max(0, Number(event.durationMs) || 0),
     finalState: String(event.finalState || 'error').slice(0, 40),
   }
+  if (event.failureClass || event.finalState !== 'connected') {
+    const totalDeadlineMs = Number(event.totalDeadlineMs)
+    const deadlineRemainingMs = Number(event.deadlineRemainingMs)
+    if (Number.isFinite(totalDeadlineMs) && totalDeadlineMs > 0) safeEvent.totalDeadlineMs = Math.round(totalDeadlineMs)
+    if (Number.isFinite(deadlineRemainingMs) && deadlineRemainingMs >= 0) safeEvent.deadlineRemainingMs = Math.round(deadlineRemainingMs)
+    if (event.failureClass) safeEvent.failureClass = String(event.failureClass).replace(/[^a-z0-9_-]/gi, '').slice(0, 40)
+  }
   try {
     if (typeof telemetry === 'function') telemetry(safeEvent)
     else console.info(`[ai-provider] ${JSON.stringify(safeEvent)}`)
@@ -872,25 +1093,31 @@ function aiResponseSchemaError(error) {
   return schemaError
 }
 
-async function callCompatibleAi(provider, { messages, temperature = 0.2, json = false, metadata = null, operation = 'ai', requestId = '', providerAttempt = 1, fallbackPath = '', fallback = false, telemetry = null, timeoutMs = DEFAULT_AI_PROVIDER_TIMEOUT_MS, deadlineAt = null, validateResponse = null }) {
+async function callCompatibleAi(provider, { messages, temperature = 0.2, json = false, metadata = null, operation = 'ai', requestId = '', providerAttempt = 1, fallbackPath = '', fallback = false, telemetry = null, timeoutMs = DEFAULT_AI_PROVIDER_TIMEOUT_MS, totalDeadlineMs = null, deadlineAt = null, validateResponse = null }) {
   const startedAt = Date.now()
   let statusCode = null
   let schemaStatus = 'not-checked'
   let finalState = provider.apiKey ? 'error' : 'not_configured'
   let requestTimeoutMs = timeoutMs
+  let failureClass = null
   if (!provider.apiKey) {
-    emitProviderTelemetry(telemetry, { requestId, operation, provider: provider.name, model: provider.model, providerAttempt, fallbackPath, fallback, timeoutMs: requestTimeoutMs, statusCode, schemaStatus, finalState, durationMs: Date.now() - startedAt })
+    emitProviderTelemetry(telemetry, { requestId, operation, provider: provider.name, model: provider.model, providerAttempt, fallbackPath, fallback, timeoutMs: requestTimeoutMs, totalDeadlineMs, statusCode, schemaStatus, finalState, durationMs: Date.now() - startedAt })
     return null
   }
   let timeout = null
   try {
     requestTimeoutMs = effectiveAiTimeoutMs(timeoutMs, deadlineAt)
+    const configuredTimeoutMs = boundedDuration(timeoutMs, DEFAULT_AI_PROVIDER_TIMEOUT_MS, 1, MAX_AI_PROVIDER_TIMEOUT_MS)
+    let timeoutReason = requestTimeoutMs < configuredTimeoutMs ? 'total_deadline' : 'provider_timeout'
     const controller = new AbortController()
-    timeout = setTimeout(() => controller.abort(), requestTimeoutMs)
-    const response = await fetch(`${provider.baseUrl}/chat/completions`, {
+    timeout = setTimeout(() => {
+      failureClass = timeoutReason
+      controller.abort()
+    }, requestTimeoutMs)
+    const response = await fetch(providerEndpoint(provider), {
       method: 'POST',
       headers: { Authorization: `Bearer ${provider.apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: provider.model, messages, ...providerSampling(provider, temperature), stream: false, ...(json ? { response_format: { type: 'json_object' } } : {}), ...(metadata ? { metadata } : {}) }),
+      body: JSON.stringify(providerRequestBody(provider, { messages, temperature, stream: false, json, metadata })),
       signal: controller.signal,
     })
     statusCode = response.status
@@ -907,8 +1134,10 @@ async function callCompatibleAi(provider, { messages, temperature = 0.2, json = 
       schemaStatus = 'invalid'
       throw aiResponseSchemaError(error)
     }
-    const answer = String(payload?.choices?.[0]?.message?.content || '').trim()
-    if (!Array.isArray(payload?.choices) || !answer) {
+    const answer = isResponsesProvider(provider)
+      ? responseOutputText(payload)
+      : String(payload?.choices?.[0]?.message?.content || '').trim()
+    if ((!isResponsesProvider(provider) && !Array.isArray(payload?.choices)) || !answer) {
       schemaStatus = 'invalid'
       throw aiResponseSchemaError('AI provider returned an invalid response schema.')
     }
@@ -925,10 +1154,31 @@ async function callCompatibleAi(provider, { messages, temperature = 0.2, json = 
     return answer
   } catch (error) {
     finalState = error?.name === 'AbortError' ? 'timeout' : 'error'
+    if (!failureClass) {
+      failureClass = error?.code === 'AI_REQUEST_DEADLINE'
+        ? 'total_deadline'
+        : finalState === 'timeout' ? 'provider_timeout' : statusCode >= 400 ? 'provider_http_error' : 'transport_error'
+    }
     throw error
   } finally {
     if (timeout) clearTimeout(timeout)
-    emitProviderTelemetry(telemetry, { requestId, operation, provider: provider.name, model: provider.model, providerAttempt, fallbackPath, fallback, timeoutMs: requestTimeoutMs, statusCode, schemaStatus, finalState, durationMs: Date.now() - startedAt })
+    emitProviderTelemetry(telemetry, {
+      requestId,
+      operation,
+      provider: provider.name,
+      model: provider.model,
+      providerAttempt,
+      fallbackPath,
+      fallback,
+      timeoutMs: requestTimeoutMs,
+      totalDeadlineMs,
+      deadlineRemainingMs: Number.isFinite(deadlineAt) ? Math.max(0, deadlineAt - Date.now()) : null,
+      statusCode,
+      schemaStatus,
+      finalState,
+      failureClass,
+      durationMs: Date.now() - startedAt,
+    })
   }
 }
 
@@ -1099,9 +1349,9 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   if (!activeProviders.length) return sendJson(response, 200, { mode: 'offline', providerStatus: 'not_configured', answer: localAnswer, warning: 'AI Coach provider is not configured on this server. This is an offline hint, not an AI review.' })
   const userText = coachRequestContext(context, message)
   const requestBudget = hasImages
-    ? { providerTimeoutMs: timeoutConfig.visionProviderTimeoutMs, requestDeadlineMs: timeoutConfig.visionRequestDeadlineMs }
-    : { providerTimeoutMs: timeoutConfig.providerTimeoutMs, requestDeadlineMs: timeoutConfig.requestDeadlineMs }
-  const deadlineAt = Date.now() + requestBudget.requestDeadlineMs
+    ? { providerTimeoutMs: timeoutConfig.visionProviderTimeoutMs, totalDeadlineMs: timeoutConfig.visionTotalDeadlineMs }
+    : { providerTimeoutMs: timeoutConfig.providerTimeoutMs, totalDeadlineMs: timeoutConfig.totalDeadlineMs }
+  const deadlineAt = Date.now() + requestBudget.totalDeadlineMs
   const requestId = crypto.randomUUID()
   let lastError = null
   for (const [providerIndex, activeProvider] of activeProviders.entries()) {
@@ -1120,6 +1370,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
         fallback: providerIndex > 0,
         telemetry,
         timeoutMs: requestBudget.providerTimeoutMs,
+        totalDeadlineMs: requestBudget.totalDeadlineMs,
         deadlineAt,
       })
       return sendJson(response, 200, { mode: 'ai', provider: activeProvider.name, providerStatus: 'connected', answer: answer || localAnswer, model: activeProvider.model })
@@ -1133,14 +1384,15 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   return sendJson(response, 200, { mode: 'offline', provider: failedProvider.name, providerStatus: 'error', answer: localAnswer, warning: providerMessage(lastError, failedProvider), retryable: true })
 }
 
-async function callCompatibleAiStream(provider, { messages, temperature = 0.2, metadata = null, onDelta, operation = 'ai-stream', requestId = '', providerAttempt = 1, fallbackPath = '', fallback = false, telemetry = null, timeoutMs = DEFAULT_AI_PROVIDER_TIMEOUT_MS, deadlineAt = null }) {
+async function callCompatibleAiStream(provider, { messages, temperature = 0.2, metadata = null, onDelta, operation = 'ai-stream', requestId = '', providerAttempt = 1, fallbackPath = '', fallback = false, telemetry = null, timeoutMs = DEFAULT_AI_PROVIDER_TIMEOUT_MS, totalDeadlineMs = null, deadlineAt = null }) {
   const startedAt = Date.now()
   let statusCode = null
   let schemaStatus = 'not-checked'
   let finalState = provider.apiKey ? 'error' : 'not_configured'
   let requestTimeoutMs = timeoutMs
+  let failureClass = null
   if (!provider.apiKey) {
-    emitProviderTelemetry(telemetry, { requestId, operation, provider: provider.name, model: provider.model, providerAttempt, fallbackPath, fallback, timeoutMs: requestTimeoutMs, statusCode, schemaStatus, finalState, durationMs: Date.now() - startedAt })
+    emitProviderTelemetry(telemetry, { requestId, operation, provider: provider.name, model: provider.model, providerAttempt, fallbackPath, fallback, timeoutMs: requestTimeoutMs, totalDeadlineMs, statusCode, schemaStatus, finalState, durationMs: Date.now() - startedAt })
     return { answer: '', providerStatus: 'not_configured' }
   }
   let idleTimeout = null
@@ -1152,18 +1404,24 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, m
     const resetIdleTimeout = () => {
       if (idleTimeout) clearTimeout(idleTimeout)
       const idleTimeoutMs = effectiveAiTimeoutMs(timeoutMs, deadlineAt)
-      idleTimeout = setTimeout(() => controller.abort(), idleTimeoutMs)
+      idleTimeout = setTimeout(() => {
+        failureClass = 'provider_timeout'
+        controller.abort()
+      }, idleTimeoutMs)
     }
     if (Number.isFinite(deadlineAt)) {
       const remainingDeadlineMs = Math.floor(deadlineAt - Date.now())
       if (remainingDeadlineMs <= 0) throw aiDeadlineError()
-      deadlineTimeout = setTimeout(() => controller.abort(), remainingDeadlineMs)
+      deadlineTimeout = setTimeout(() => {
+        failureClass = 'total_deadline'
+        controller.abort()
+      }, remainingDeadlineMs)
     }
     resetIdleTimeout()
-    const response = await fetch(`${provider.baseUrl}/chat/completions`, {
+    const response = await fetch(providerEndpoint(provider), {
       method: 'POST',
       headers: { Authorization: `Bearer ${provider.apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: provider.model, messages, ...providerSampling(provider, temperature), stream: true, ...(metadata ? { metadata } : {}) }),
+      body: JSON.stringify(providerRequestBody(provider, { messages, temperature, stream: true, metadata })),
       signal: controller.signal,
     })
     resetIdleTimeout()
@@ -1184,8 +1442,8 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, m
         schemaStatus = 'invalid'
         throw aiResponseSchemaError(error)
       }
-      answer = String(payload?.choices?.[0]?.message?.content || '').trim()
-      if (!Array.isArray(payload?.choices) || !answer) {
+      answer = responseOutputText(payload)
+      if ((!isResponsesProvider(provider) && !Array.isArray(payload?.choices)) || !answer) {
         schemaStatus = 'invalid'
         throw new Error('AI provider returned an invalid response schema.')
       }
@@ -1199,13 +1457,23 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, m
     const decoder = new TextDecoder()
     let buffer = ''
     let receivedDone = false
+    let eventName = ''
     async function consumeLine(line) {
       const clean = line.trim()
-      if (!clean || !clean.startsWith('data:')) return
+      if (!clean) {
+        eventName = ''
+        return
+      }
+      if (clean.startsWith('event:')) {
+        eventName = clean.slice(6).trim()
+        return
+      }
+      if (!clean.startsWith('data:')) return
       const data = clean.slice(5).trim()
       if (!data) return
       if (data === '[DONE]') {
         receivedDone = true
+        eventName = ''
         return
       }
       let payload
@@ -1215,10 +1483,32 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, m
         schemaStatus = 'invalid'
         throw aiResponseSchemaError(error)
       }
-      const delta = String(payload?.choices?.[0]?.delta?.content || payload?.choices?.[0]?.message?.content || '')
+      const responseEventType = String(payload?.type || eventName || '')
+      if (responseEventType === 'response.failed' || responseEventType === 'response.error') {
+        throw new Error(compactText(payload?.error?.message || payload?.message || 'AI provider stream failed.', 240))
+      }
+      if (responseEventType === 'response.incomplete' || responseEventType === 'response.cancelled') {
+        throw aiResponseSchemaError('AI provider stream ended incompletely.')
+      }
+      if (responseEventType === 'response.completed' || responseEventType === 'response.done') {
+        if (!answer) {
+          const completedText = responseOutputText(payload)
+          if (completedText) {
+            answer += completedText
+            await onDelta?.(completedText)
+          }
+        }
+        receivedDone = true
+        eventName = ''
+        return
+      }
+      const delta = isResponsesProvider(provider)
+        ? String(payload?.delta || (responseEventType === 'response.output_text.done' ? payload?.text || '' : ''))
+        : String(payload?.choices?.[0]?.delta?.content || payload?.choices?.[0]?.message?.content || '')
       if (!delta) return
       answer += delta
       await onDelta?.(delta)
+      eventName = ''
     }
 
     while (true) {
@@ -1241,11 +1531,32 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, m
     return { answer, providerStatus: 'connected' }
   } catch (error) {
     finalState = error?.name === 'AbortError' ? 'timeout' : 'error'
+    if (!failureClass) {
+      failureClass = error?.code === 'AI_REQUEST_DEADLINE'
+        ? 'total_deadline'
+        : finalState === 'timeout' ? 'provider_timeout' : statusCode >= 400 ? 'provider_http_error' : 'transport_error'
+    }
     throw error
   } finally {
     if (idleTimeout) clearTimeout(idleTimeout)
     if (deadlineTimeout) clearTimeout(deadlineTimeout)
-    emitProviderTelemetry(telemetry, { requestId, operation, provider: provider.name, model: provider.model, providerAttempt, fallbackPath, fallback, timeoutMs: requestTimeoutMs, statusCode, schemaStatus, finalState, durationMs: Date.now() - startedAt })
+    emitProviderTelemetry(telemetry, {
+      requestId,
+      operation,
+      provider: provider.name,
+      model: provider.model,
+      providerAttempt,
+      fallbackPath,
+      fallback,
+      timeoutMs: requestTimeoutMs,
+      totalDeadlineMs,
+      deadlineRemainingMs: Number.isFinite(deadlineAt) ? Math.max(0, deadlineAt - Date.now()) : null,
+      statusCode,
+      schemaStatus,
+      finalState,
+      failureClass,
+      durationMs: Date.now() - startedAt,
+    })
   }
 }
 
@@ -1315,9 +1626,9 @@ async function handleCoachStream(request, response, provider, visionProvider, li
 
   const userText = coachRequestContext(context, message)
   const requestBudget = hasImages
-    ? { providerTimeoutMs: timeoutConfig.visionProviderTimeoutMs, requestDeadlineMs: timeoutConfig.visionRequestDeadlineMs }
-    : { providerTimeoutMs: timeoutConfig.providerTimeoutMs, requestDeadlineMs: timeoutConfig.requestDeadlineMs }
-  const deadlineAt = Date.now() + requestBudget.requestDeadlineMs
+    ? { providerTimeoutMs: timeoutConfig.visionProviderTimeoutMs, totalDeadlineMs: timeoutConfig.visionTotalDeadlineMs }
+    : { providerTimeoutMs: timeoutConfig.providerTimeoutMs, totalDeadlineMs: timeoutConfig.totalDeadlineMs }
+  const deadlineAt = Date.now() + requestBudget.totalDeadlineMs
   const requestId = crypto.randomUUID()
   let streamedAnswer = ''
   let lastPartialAnswer = ''
@@ -1351,6 +1662,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
           fallback: providerIndex > 0,
           telemetry,
           timeoutMs: requestBudget.providerTimeoutMs,
+          totalDeadlineMs: requestBudget.totalDeadlineMs,
           deadlineAt,
           onDelta: async (delta) => {
             attemptAnswer += delta
@@ -1434,7 +1746,7 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
   if (hasStudentImage) imageBytes(payload.imageDataUrl)
   // The request budget includes trusted QP/MS image rendering. Without this,
   // a stalled local renderer can outlive the reverse proxy and become a 504.
-  const deadlineAt = Date.now() + timeoutConfig.visionRequestDeadlineMs
+  const deadlineAt = Date.now() + timeoutConfig.visionTotalDeadlineMs
   let officialImages
   try {
     officialImages = await canonicalHandwritingMarkingImages(canonical, { assetRoot: sourceAssetRoot, libraryRoot, env, deadlineAt })
@@ -1524,6 +1836,7 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
         fallback: providerIndex > 0,
         telemetry,
         timeoutMs: timeoutConfig.visionProviderTimeoutMs,
+        totalDeadlineMs: timeoutConfig.visionTotalDeadlineMs,
         deadlineAt,
         validateResponse: (answer) => validateMarkAssessment(parseStructuredJson(answer), requestedMaxMarks),
       })
