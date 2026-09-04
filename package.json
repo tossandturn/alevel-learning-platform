@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "pretest": "npm run test:remediation-contracts && npm run test:remediation-runtime",
-    "test:remediation-contracts": "node scripts/test-9702-syllabus-coverage-contract.mjs && node scripts/test-all-syllabus-coverage-contract.mjs && node scripts/test-topic-drill-readiness-floor.mjs && node scripts/test-secondary-syllabus-mapping.mjs && node scripts/test-full-paper-attempt-binding.mjs && node scripts/test-stem-syllabus-runtime-cache.mjs && node scripts/test-topic-pdf-request-deadline.mjs && node scripts/test-stem-9709-route-consistency.mjs",
+    "test:remediation-contracts": "node scripts/test-9702-syllabus-coverage-contract.mjs && node scripts/test-all-syllabus-coverage-contract.mjs && node scripts/test-topic-drill-readiness-floor.mjs && node scripts/test-secondary-syllabus-mapping.mjs && node scripts/test-full-paper-attempt-binding.mjs && node scripts/test-stem-syllabus-runtime-cache.mjs && node scripts/test-topic-pdf-request-deadline.mjs && node scripts/test-stem-9709-route-consistency.mjs && node scripts/test-native-pencil-bridge.mjs",
     "test:remediation-runtime": "node scripts/test-full-paper-attempt-binding.mjs && node scripts/test-stem-syllabus-runtime-cache.mjs",
     "test:9702-syllabus-coverage-contract": "node scripts/test-9702-syllabus-coverage-contract.mjs",
     "test:all-syllabus-coverage-contract": "node scripts/test-all-syllabus-coverage-contract.mjs",

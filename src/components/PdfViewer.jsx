@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, Download, ZoomIn, ZoomOut } from 'lucide-react'
 import * as pdfjs from 'pdfjs-dist'
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { canvasPoint, createInkMetrics, drawDot, drawSegment, exposeInkMetrics, pointDistance, pointerSamples } from '../lib/inkStroke'
 import { deletePaperEvidence, getPaperEvidence, putPaperEvidence } from '../lib/evidenceStorage'
+import { NATIVE_PENCIL_EVENT, mapNativePencilStroke, stableNativeSurfaceId } from '../lib/nativePencilBridge'
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker
 
@@ -38,6 +39,8 @@ function cloneCanvas(canvas) {
 }
 
 function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, evidenceStorageKey = '', questionNumber, tool = 'pen', onChange, onTouchZoom, registerInkFlush, readOnly = false, panMode = false }) {
+  const instanceId = useId()
+  const nativeSurfaceId = stableNativeSurfaceId('pdf-ink', `${evidenceStorageKey}-${pageNumber}-${instanceId}`)
   const canvasRef = useRef(null)
   const drawingRef = useRef(false)
   const movedRef = useRef(false)
@@ -210,13 +213,61 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, evidenceStor
     }
   }, [baseCanvas, evidenceIds, evidenceStorageKey, onChange, pageNumber])
 
-  function scheduleEmit() {
+  const scheduleEmit = useCallback(() => {
     window.clearTimeout(emitTimerRef.current)
     emitTimerRef.current = window.setTimeout(() => {
       emitTimerRef.current = null
       void emitInk().catch(() => {})
     }, 180)
-  }
+  }, [emitInk])
+
+  // The iOS shell routes Apple Pencil touches through PencilKit to avoid the
+  // WKWebView pointer/callout path. Browsers and other hosts simply never
+  // dispatch this event and keep the regular Pointer Events implementation.
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || readOnly || panMode || !ready) return undefined
+
+    const onNativeStroke = (event) => {
+      if (readOnly || panMode || !ready || drawingRef.current) return
+      const mapped = mapNativePencilStroke({
+        detail: event?.detail,
+        surfaceId: nativeSurfaceId,
+        rect: canvas.getBoundingClientRect(),
+        canvasWidth: canvas.width,
+        canvasHeight: canvas.height,
+      })
+      if (!mapped) return
+
+      const context = canvas.getContext('2d')
+      let segmentCount = 0
+      let previous = null
+      for (const next of mapped.points) {
+        if (previous && pointDistance(previous, next) >= 0.01) {
+          drawSegment(context, previous, next, brushFor(next, mapped.tool))
+          inkMetricsRef.current.segments += 1
+          segmentCount += 1
+        }
+        previous = next
+      }
+      if (segmentCount === 0 && mapped.points[0]) {
+        drawDot(context, mapped.points[0], brushFor(mapped.points[0], mapped.tool))
+        inkMetricsRef.current.dots += 1
+      }
+      inkMetricsRef.current.strokes += 1
+      inkMetricsRef.current.activePointerId = null
+      lastPointRef.current = null
+      movedRef.current = false
+      dirtyQuestionNumberRef.current = questionNumber
+      dirtyRevisionRef.current += 1
+      changedAtRef.current = Date.now()
+      exposeInkMetrics(canvas, inkMetricsRef.current)
+      scheduleEmit()
+    }
+
+    window.addEventListener(NATIVE_PENCIL_EVENT, onNativeStroke)
+    return () => window.removeEventListener(NATIVE_PENCIL_EVENT, onNativeStroke)
+  }, [nativeSurfaceId, panMode, questionNumber, readOnly, ready, scheduleEmit, tool])
 
   useEffect(() => {
     if (!registerInkFlush) return undefined
@@ -235,13 +286,13 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, evidenceStor
     storedPreviewUrlRef.current = ''
   }, [emitInk])
 
-  function brushFor(point) {
+  function brushFor(point, brushTool = tool) {
     const canvas = canvasRef.current
     const ratio = canvas.width / canvas.getBoundingClientRect().width
     return {
       color: '#14243a',
-      composite: tool === 'eraser' ? 'destination-out' : 'source-over',
-      width: (tool === 'eraser' ? 22 : 1.15 + point.pressure * 2.35) * ratio,
+      composite: brushTool === 'eraser' ? 'destination-out' : 'source-over',
+      width: (brushTool === 'eraser' ? 22 : 1.15 + point.pressure * 2.35) * ratio,
     }
   }
 
@@ -379,7 +430,7 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, evidenceStor
   }
 
   const inert = readOnly || panMode
-  return <canvas ref={canvasRef} className={`pdf-ink-layer ${readOnly ? 'read-only' : ''} ${panMode ? 'pdf-pan-mode' : ''}`} aria-label={`Handwriting layer for PDF page ${pageNumber}`} data-stroke-count={inkMetricsRef.current.strokes} data-segment-count={inkMetricsRef.current.segments} onPointerDown={inert ? undefined : startStroke} onPointerMove={inert ? undefined : continueStroke} onPointerUp={inert ? undefined : finishStroke} onPointerCancel={inert ? undefined : finishStroke} onLostPointerCapture={inert ? undefined : finishStroke} onDragStart={(event) => event.preventDefault()} onContextMenu={(event) => event.preventDefault()} />
+  return <canvas ref={canvasRef} className={`pdf-ink-layer ${readOnly ? 'read-only' : ''} ${panMode ? 'pdf-pan-mode' : ''}`} aria-label={`Handwriting layer for PDF page ${pageNumber}`} data-stroke-count={inkMetricsRef.current.strokes} data-segment-count={inkMetricsRef.current.segments} data-ink-surface="pdf" data-ink-surface-id={nativeSurfaceId} data-ink-interactive={(!inert && ready).toString()} data-ink-tool={tool} onPointerDown={inert ? undefined : startStroke} onPointerMove={inert ? undefined : continueStroke} onPointerUp={inert ? undefined : finishStroke} onPointerCancel={inert ? undefined : finishStroke} onLostPointerCapture={inert ? undefined : finishStroke} onDragStart={(event) => event.preventDefault()} onContextMenu={(event) => event.preventDefault()} />
 }
 
 export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage = {}, inkTool = 'pen', questionNumber = 1, evidenceStorageKey = '', onInkChange, registerInkFlush }) {
