@@ -69,6 +69,12 @@ assert.ok(validateReleaseManifest(releaseManifest, { releaseId: expectedReleaseI
 assert.equal(releaseManifest.commit, expectedCommit, 'Release manifest commit does not match the expected commit')
 assert.equal(releaseManifest.releaseId, expectedReleaseId, 'Release manifest ID does not match the expected release')
 assert.equal(releaseManifest.packageSha256, expectedPackageSha256, 'Release manifest package digest does not match the uploaded package')
+const releaseRouteIds = Array.isArray(releaseManifest.syllabusScope?.routeIds)
+  ? [...new Set(releaseManifest.syllabusScope.routeIds.map((routeId) => String(routeId).trim()).filter(Boolean))]
+  : []
+assert.equal(releaseManifest.syllabusScope?.schemaVersion, 'stem-syllabus-release-scope.v1', 'Release must declare its syllabus scope')
+assert.ok(releaseRouteIds.length > 0, 'Release syllabus scope must contain at least one route')
+assert.equal(releaseRouteIds.length, releaseManifest.syllabusScope.routeIds.length, 'Release syllabus scope routes must be unique and non-empty')
 assert.ok(fs.existsSync(buildIdentityPath) && fs.statSync(buildIdentityPath).isFile(), 'Release is missing dist/build-identity.json')
 const buildIdentity = JSON.parse(fs.readFileSync(buildIdentityPath, 'utf8'))
 assert.ok(
@@ -158,7 +164,10 @@ const syllabusCoverage = spawnSync(process.execPath, [syllabusCoverageScript], {
   maxBuffer: 32 * 1024 * 1024,
 })
 assert.equal(syllabusCoverage.status, 0, `Release 9702 syllabus coverage gate failed:\n${syllabusCoverage.stdout}\n${syllabusCoverage.stderr}`)
-const allSyllabusCoverage = spawnSync(process.execPath, [allSyllabusCoverageScript], {
+const allSyllabusCoverage = spawnSync(process.execPath, [
+  allSyllabusCoverageScript,
+  ...releaseRouteIds.flatMap((routeId) => ['--route', routeId]),
+], {
   cwd: releaseRoot,
   env,
   encoding: 'utf8',

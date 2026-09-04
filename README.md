@@ -159,12 +159,15 @@ npm run qa:browser
 
 The smoke test validates the decoupled question/answer/binding schema, deterministic and vision-assisted scoring contracts, syllabus routes and PDF pairing. Browser QA verifies a ten-question official set, correct MCQ marking, exact answer reveal, single-question mistake retest, Waves/Electricity inventory, continuous PDFs, iPad controls and 390px mobile geometry.
 
+The default production build is intentionally scoped to the reviewed `cie-9702-as-physics` route. Run `node scripts/verify-all-syllabus-coverage.mjs --report-only` to inspect every registered route; the strict no-argument form remains a complete-catalog gate and will fail while any route has a topic below the reviewed floor. To build a different, explicitly reviewed release scope, pass one or more `--route <route-id>` values to `verify-all-syllabus-coverage.mjs` and carry the same IDs into `STEM_RELEASE_ROUTES` when preparing the release manifest.
+
 `npm run qa:browser` expects Chrome at `C:\Program Files\Google\Chrome\Application\chrome.exe` and `playwright-core` under `D:\CodexWork\node_modules`.
 
 ## Boundaries
 
 - Student practice drafts and attempts are local-first. Authenticated class submissions and private route notes use the STEM shared-workspace database; drafts, handwriting evidence and Coach chats remain private to the browser unless an explicit assignment summary is submitted.
 - A Topic Drill unlocks only after at least two independent six-question tests are backed by reviewed QP/MS-bound source groups for that qualification, stage and official syllabus topic.
+- Routes outside the current release scope remain visible for discovery but stay labelled study-only or source-indexing until their own reviewed topic floor is met; an unrelated incomplete route must not block a release of a fully reviewed route.
 - Notebook images are compressed and stored locally as visual evidence. Automatic handwriting OCR/vision marking requires a configured vision provider; the product never claims that an image was recognized when no provider is configured.
 - Notebook image blobs are stored in IndexedDB and are not included in the JSON state export. Structured PDF answer slots represent whole printed question numbers; subparts and mark allocations are not extracted automatically.
 - Vision marks are assisted decisions with confidence and review status, not official Cambridge grades.

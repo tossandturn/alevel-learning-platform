@@ -18,6 +18,14 @@ function validTreeIdentity(value) {
   )
 }
 
+function validSyllabusScope(value) {
+  if (value === undefined) return true
+  if (!value || value.schemaVersion !== 'stem-syllabus-release-scope.v1' || !Array.isArray(value.routeIds) || value.routeIds.length === 0) return false
+  const routeIds = value.routeIds.map((routeId) => String(routeId || '').trim())
+  return routeIds.every((routeId) => /^[A-Za-z0-9._:-]{1,120}$/.test(routeId))
+    && new Set(routeIds).size === routeIds.length
+}
+
 export function releaseIdMatchesCommit(releaseId, commit) {
   const normalizedReleaseId = String(releaseId || '')
   const normalizedCommit = String(commit || '').toLowerCase()
@@ -56,7 +64,8 @@ export function validateReleaseManifest(manifest, { releaseId = '', now = Date.n
     && validTreeIdentity(manifest.releaseTree)
     && typeof manifest.immutableAssets?.identity === 'string'
     && manifest.immutableAssets.identity.length > 0
-    && validTreeIdentity(manifest.immutableAssets),
+    && validTreeIdentity(manifest.immutableAssets)
+    && validSyllabusScope(manifest.syllabusScope),
   )
   return { valid, generatedAtMs: valid ? generatedAtMs : null }
 }
