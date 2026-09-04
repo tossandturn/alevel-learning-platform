@@ -909,6 +909,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   assert.match(viteSource, /createCoachAttemptAuthorizer\(\{ env, questionBankProvider: runtimeAiGroups \}\)/, 'the Coach authorizer must revalidate dynamic reviewed source bindings')
   assert.match(appSource, /disabled=\{Boolean\(accountDialogMode \|\| accountPopoverOpen\)\}/, 'account overlays must disable the floating Coach layer')
   assert.match(coachSource, /if \(disabled\) return null/, 'account overlays must remove the Coach DOM entirely instead of merely moving it behind a modal')
+  assert.match(coachSource, /className="ai-coach-backdrop"[\s\S]{0,220}aria-hidden="true"[\s\S]{0,120}tabIndex=\{-1\}/, 'the Coach backdrop must not duplicate the accessible close action')
   assert.doesNotMatch(appStyles, /dashboard-studio\s*~\s*\.ai-coach-trigger\s*\{\s*display:\s*none/i, 'dashboard must keep the floating AI Coach entry available')
   assert.match(appStyles, /\.account-menu\s*\{[^}]*z-index:\s*130/s, 'account menu must own the foreground interaction layer above Coach')
   assert.match(paperLibrarySource, /Past-paper practice/)

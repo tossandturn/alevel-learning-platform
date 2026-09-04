@@ -926,7 +926,7 @@ export function AiCoach({
       {showTrigger && <button ref={triggerRef} type="button" className="ai-coach-trigger" onClick={() => setOpen(true)} aria-label="Open AI Coach" title="Open AI Coach">
         <Sparkles size={18} /><span>AI Coach</span>
       </button>}
-      {open && <button type="button" className="ai-coach-backdrop" onPointerDown={closeCoach} onClick={closeCoach} aria-label="Close AI Coach" />}
+      {open && <button type="button" className="ai-coach-backdrop" onPointerDown={closeCoach} onClick={closeCoach} aria-hidden="true" tabIndex={-1} />}
       <aside ref={dialogRef} className={`ai-coach ${open ? 'open' : ''} ${builderOpen ? 'builder-open' : ''}`} inert={!open ? true : undefined} aria-hidden={!open} aria-modal="true" role="dialog" aria-label="AI Coach">
         <header>
           <div className="ai-coach__identity"><span><BrainCircuit size={19} /></span><div><strong>AI Coach</strong><small>{activeContext.question?.label || activeContext.question?.title || activeContext.subject?.code || 'Study support'}</small></div></div>
