@@ -1,8 +1,11 @@
+import { courseRoutes } from '../data/routeRegistry.js'
+import { LEGACY_UNSCOPED_ROUTE_ID, resolveRouteBinding } from './routeMigration.js'
+
 function normalizeText(value) {
   return String(value || '')
     .toLowerCase()
-    .replace(/−/g, '-')
-    .replace(/×/g, 'x')
+    .replace(/\u2212/g, '-')
+    .replace(/\u00d7/g, 'x')
     .replace(/\s+/g, ' ')
     .trim()
 }
@@ -116,11 +119,16 @@ function scorePart(part, rawAnswer) {
 export function scoreAttempt(unit, answers, elapsedSec) {
   const criteria = unit.parts.map((part) => scorePart(part, answers[part.id]))
   const rawMarks = criteria.reduce((sum, part) => sum + part.awarded, 0)
-  const percentage = Math.round((rawMarks / unit.maxMarks) * 100)
+  const percentage = unit.maxMarks > 0 ? Math.round((rawMarks / unit.maxMarks) * 100) : 0
   const weakest = criteria.find((part) => part.awarded < part.maxMarks)
+  const binding = resolveRouteBinding(unit, { routes: courseRoutes })
+  const routeId = binding.routeId
+  const stage = routeId === LEGACY_UNSCOPED_ROUTE_ID ? null : binding.stage
 
   return {
-    schemaVersion: 'deterministic-v2',
+    schemaVersion: 'deterministic-v3-route-bound',
+    routeId,
+    stage,
     rawMarks,
     maxMarks: unit.maxMarks,
     percentage,

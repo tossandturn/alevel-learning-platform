@@ -1,50 +1,106 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertTriangle,
+  ArrowLeft,
   BarChart3,
   Brain,
   CheckCircle2,
   ChevronRight,
   Dumbbell,
   FileText,
-  Filter,
   Flag,
   GraduationCap,
   Heart,
-  Home,
+  History,
   BookOpen,
-  HelpCircle,
-  Library,
   ListFilter,
+  LogIn,
+  LogOut,
+  Play,
   RefreshCcw,
   Search,
   Sparkles,
   Target,
   TimerReset,
+  Trash2,
   Trophy,
   Users,
-  Settings,
 } from 'lucide-react'
-import { importedPdfLibrary, subjects } from './data/catalog'
+import { subjects } from './data/subjectCatalog'
 import { learningPlan, stagesForComponentTags } from './data/learningPlan'
-import { HistoryView } from './components/HistoryView'
-import { AiCoach } from './components/AiCoach'
-import { RoleWorkspace } from './components/RoleWorkspace'
-import { PaperLibrary } from './components/PaperLibrary'
-import { PracticeWorkspace } from './components/PracticeWorkspace'
+import { courseRoutes, formatRouteComponents, routeById, routeForStageDeepLink, routeForStagePreservingSubject, routesForSubject } from './data/routeRegistry'
+import { COURSE_STAGE_ORDER } from './data/stages'
 import { usePaperCatalog } from './hooks/usePaperCatalog'
-import { loadState, makeAttemptId, saveState } from './lib/storage'
-import { scoreAttempt } from './lib/scoring'
-import { reviewAttempt } from './lib/aiReview'
-import { buildCoachPractice, coachPracticeOptions, previewCoachPracticeSourceMix } from './lib/coachPractice'
+import { useSyllabusInventory } from './hooks/useSyllabusInventory'
+import { loadState, makeAttemptId, normalizeState, saveState } from './lib/storage'
+import { questionMatchesSyllabusTopicMembership, supportsSyllabusPracticeRoute, syllabusPracticeComponentsForRoute, syllabusTopicScopeIdsForRoute } from './lib/syllabusPracticeRoutes'
+import { attemptedSourceQuestionIds, buildAttemptReviewQueue, buildProvisionalAttemptEvidence, hasAttemptResponse, hasCurrentSourceBindingForAttempt, isPendingSelfMarkAttempt, isProvisionalAttempt, isScoredAttempt, isStudyOnlyAttempt, isStudyOnlyPracticeUnit, prepareLearningExport, sourceBindingSnapshotForUnit } from './lib/attemptAudit'
+import { mergeNotebookNote, notebookNoteRequest } from './lib/privateNotes'
+import { stripSourceVisualPlaceholders } from './lib/questionText'
+import {
+  buildPartMarkingLifecycle,
+  canUseAiAssistedMarking,
+  finalizePartMarking,
+  hasCompleteStudentMarks,
+  isFormalScoreResult,
+  markingCapabilityForUnit,
+  pendingPartsForLifecycle,
+} from './lib/markingLifecycle'
 import { latestBphoSpcPaper } from './lib/coachIntent'
-import { buildLearningProgress } from './lib/learningProgress'
-import { requestSharedAccount, requestSharedWorkspace, sharedAccountRequest } from './lib/sharedAccount'
+import { buildCompletionByUnit, buildLearningProgress, latestSubmittedActivity, recommendForRoute } from './lib/learningProgress'
+import { stableSorted } from './lib/arrayOrder'
+import { accountRefreshFailureState, accountRefreshRetryDelay, professionalTermsUrl, requestNativeAccountReadiness, requestSharedAccount, requestSyllabusPracticeRebind, requestSyllabusPracticeSet, requestTopicPdf, sharedAccountRequest, signInSharedAccount, signOutSharedAccount } from './lib/sharedAccount'
+import { requestMarkingCapabilities } from './lib/markingCapabilityClient'
+import { applyServerResultAuthority, persistStudentAttempt, projectServerResultAuthority, readStudentAttempts, sourceMarkingPartsForUnit } from './lib/attemptPersistence'
+import { getPaperEvidence } from './lib/evidenceStorage'
+import { mapWithConcurrency } from './lib/asyncPool'
+import { parseProductContext, termIdsForStemContext } from './lib/productContext'
+import { questionMatchesSearch } from './lib/questionSearch'
+import { studentNavigationFromLocation, studentNavigationHref } from './lib/studentNavigation'
+import { normalizePaperStudyMode, paperDraftKey } from './lib/paperStudyMode'
+import { buildStemVocabularyContext, vocabularyCoverageForRoute } from './data/stemVocabularyTaxonomy'
+import { topicLearningContent } from './data/topicLearningContent'
+import { SOURCE_LIBRARY_SUMMARY } from './data/sourceLibrarySummary'
+import { aggregateTopicPracticeInventory, evidencePresent, filterQuestionGroupsByPracticeInventory, practiceAttemptMetrics, practiceMetricsSummary, practiceUnitMetrics, topicDisplayNames, topicPracticeInventory, withPracticePresentation } from './lib/practicePresentation'
+import { isStartableTopicPracticeUnit, MIN_QUESTION_GROUPS_PER_TEST, MIN_VERIFIED_GROUPS_FOR_PRACTICE } from './lib/practiceConstants'
 import './App.css'
+import './StudentV2.css'
+import './TabletNavFix.css'
 
 const PaperWorkspace = lazy(() =>
   import('./components/PaperWorkspace').then((module) => ({ default: module.PaperWorkspace })),
 )
+const PaperLibrary = lazy(() =>
+  import('./components/PaperLibrary').then((module) => ({ default: module.PaperLibrary })),
+)
+const PracticeWorkspace = lazy(() =>
+  import('./components/PracticeWorkspace').then((module) => ({ default: module.PracticeWorkspace })),
+)
+const AiCoach = lazy(() =>
+  import('./components/AiCoach').then((module) => ({ default: module.AiCoach })),
+)
+const HistoryView = lazy(() =>
+  import('./components/HistoryView').then((module) => ({ default: module.HistoryView })),
+)
+const EMPTY_SELF_MARKS = Object.freeze({})
+let practiceRuntimePromise
+let studyQuestionRuntimePromise
+
+function loadPracticeRuntime() {
+  practiceRuntimePromise ||= import('./lib/verifiedPracticeCatalog').catch((error) => {
+    practiceRuntimePromise = undefined
+    throw error
+  })
+  return practiceRuntimePromise
+}
+
+function loadStudyQuestionRuntime() {
+  studyQuestionRuntimePromise ||= import('./lib/studyQuestionRuntime').catch((error) => {
+    studyQuestionRuntimePromise = undefined
+    throw error
+  })
+  return studyQuestionRuntimePromise
+}
 
 function formatTime(totalSec) {
   const minutes = Math.floor(totalSec / 60)
@@ -53,169 +109,280 @@ function formatTime(totalSec) {
 }
 
 function formatDate(value) {
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return 'Date not saved'
   return new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
     month: 'short',
     hour: '2-digit',
     minute: '2-digit',
-  }).format(new Date(value))
+  }).format(date)
 }
 
-function focusedRetestUnit(unit, partId) {
-  if (!partId || unit.parts.length === 1) return unit
-  const part = unit.parts.find((item) => item.id === partId)
-  if (!part) return unit
-  const ratio = 1 / Math.max(1, unit.parts.length)
+function routePickerLabel(route) {
+  const siblings = courseRoutes.filter((item) => item.qualification === route.qualification && item.subjectId === route.subjectId && item.stage === route.stage)
+  const componentLabel = siblings.length > 1 ? ` · ${formatRouteComponents(route.paperComponents, route)}` : ''
+  const stageLabel = route.stage === 'Competition' || route.stage === 'Admissions' ? '' : `${route.stage} `
+  return `${stageLabel}${route.subject} (${route.subjectCode.toUpperCase()})${componentLabel}`
+}
+
+function displayPartLabel(part, fallback = 'Question') {
+  if (part?.displayLabel) return part.displayLabel
+  const file = String(part?.sourceRef?.paper || '').replace(/\.[^.]+$/, '')
+  const match = file.match(/(?:^|[_-])([msw])(\d{2})[_-]qp[_-]?(\d{1,2})(?:$|[_-])/i)
+  const label = part?.label || fallback
+  return match ? `${match[1].toUpperCase()}${match[2]}/${match[3]} · ${label}` : label
+}
+
+function questionGroupCountForUnit(unit) {
+  const count = Number(unit?.questionGroupCount)
+  if (Number.isInteger(count) && count > 0) return count
+  const groupCount = new Set((unit?.parts || []).map((part) => part?.sourceQuestionId || part?.questionGroupId || part?.bankId).filter(Boolean)).size
+  return groupCount || unit?.parts?.length || 0
+}
+
+function sourceBindingFromServerAttempt(record, attempt) {
+  const parts = Array.isArray(record?.binding?.parts) ? record.binding.parts : []
+  if (!parts.length) return null
+  const snapshots = parts.map((part) => {
+    const provenance = part?.provenance || {}
+    return {
+      sourceQuestionId: String(part.sourceQuestionId || provenance.sourceQuestionId || ''),
+      questionPartId: String(part.questionPartId || provenance.questionPartId || ''),
+      bindingSignature: String(provenance.bindingSignature || ''),
+      reviewVersion: String(provenance.reviewVersion || ''),
+      sourceDocumentSha256: String(provenance.sourceDocumentSha256 || ''),
+      answerDocumentSha256: String(provenance.answerDocumentSha256 || ''),
+      sourceIndexSha256: String(provenance.sourceIndexSha256 || ''),
+      sourceManifestChecksum: String(provenance.sourceManifestChecksum || ''),
+    }
+  }).filter((part) => part.sourceQuestionId && part.questionPartId)
+  if (!snapshots.length) return null
   return {
-    ...unit,
-    id: `${unit.id}:focused:${part.id}`,
-    title: `${unit.title} · ${part.label}`,
-    parts: [part],
-    maxMarks: part.marks,
-    estimatedMinutes: Math.max(5, Math.ceil((unit.estimatedMinutes || 10) * ratio)),
-    durationSec: Math.max(300, Math.ceil((unit.durationSec || 600) * ratio)),
-    focusedRetestOf: unit.id,
+    schemaVersion: 'attempt-source-binding.v1',
+    unitId: String(attempt?.unitId || ''),
+    parts: stableSorted(snapshots, (left, right) => left.sourceQuestionId.localeCompare(right.sourceQuestionId) || left.questionPartId.localeCompare(right.questionPartId)),
   }
 }
 
-function getUnitAttempts(attempts, unitId) {
-  return attempts.filter((attempt) => attempt.unitId === unitId && attempt.stage === 'result')
+function serverAttemptProjection(record) {
+  const source = record?.attempt && typeof record.attempt === 'object' ? record.attempt : {}
+  const attempt = {
+    ...source,
+    id: String(record.attemptId || source.id || source.attemptId || ''),
+    routeId: String(record.routeId || source.routeId || ''),
+    stage: String(record.stage || source.stage || ''),
+    paperId: String(record.paperId || source.paperId || ''),
+    submittedAt: String(record.submittedAt || source.submittedAt || ''),
+    // The persistence endpoint stores browser-calculated results as evidence;
+    // it does not independently verify their authority. Never rehydrate one
+    // as a formal result that can affect mastery or recommendations.
+    ...projectServerResultAuthority(source),
+    attemptPersistenceStatus: 'saved',
+  }
+  const sourceBinding = sourceBindingFromServerAttempt(record, attempt)
+  if (sourceBinding) attempt.sourceBinding = sourceBinding
+  return attempt
 }
 
-function latestResultFor(attempts, unitId) {
-  const completed = getUnitAttempts(attempts, unitId)
-  return completed.at(-1)?.scoreResult || null
+function mergeServerStudentAttempts(state, records = []) {
+  const localAttempts = Array.isArray(state.attempts) ? state.attempts : []
+  const localById = new Map(localAttempts.map((attempt) => [String(attempt.id), attempt]))
+  const serverAttempts = records
+    .map(serverAttemptProjection)
+    .filter((attempt) => attempt.id)
+  for (const serverAttempt of serverAttempts) {
+    const local = localById.get(serverAttempt.id)
+    const merged = { ...local, ...serverAttempt }
+    if (serverAttempt.sourceBinding) merged.sourceBinding = serverAttempt.sourceBinding
+    if (!Object.prototype.hasOwnProperty.call(serverAttempt, 'scoreResult') && ['marking-pending', 'self-mark-pending'].includes(serverAttempt.attemptStatus)) {
+      delete merged.scoreResult
+      delete merged.learningSignal
+      merged.formalResult = false
+    }
+    if (serverAttempt.resultAuthority === 'client-reported') delete merged.learningSignal
+    localById.set(serverAttempt.id, merged)
+  }
+
+  const paperSessionsByAttemptId = new Map((state.paperSessions || []).map((session) => [String(session.attemptId), session]))
+  const paperReviewsByAttemptId = new Map((state.paperReviews || []).map((review) => [String(review.attemptId), review]))
+  for (const record of records) {
+    if (record?.mode !== 'full-paper') continue
+    const attempt = serverAttemptProjection(record)
+    const paperSession = {
+      ...attempt,
+      attemptId: attempt.id,
+      paperId: attempt.paperId,
+      file: attempt.paperRef?.file || 'Past paper',
+      paperRef: attempt.paperRef || null,
+      completedAt: attempt.submittedAt,
+      serverSync: 'synced',
+    }
+    paperSessionsByAttemptId.set(attempt.id, { ...paperSessionsByAttemptId.get(attempt.id), ...paperSession })
+    if (attempt.scoreResult || attempt.selfMarks) {
+      paperReviewsByAttemptId.set(attempt.id, {
+        ...paperReviewsByAttemptId.get(attempt.id),
+        attemptId: attempt.id,
+        paperId: attempt.paperId,
+        routeId: attempt.routeId,
+        paperStudyMode: attempt.paperStudyMode,
+        selfMarks: attempt.selfMarks || {},
+        maxMarksByQuestion: attempt.maxMarksByQuestion || {},
+        aiMarks: attempt.aiMarks || {},
+        rawMarks: attempt.scoreResult?.rawMarks ?? 0,
+        maxMarks: attempt.scoreResult?.maxMarks ?? 0,
+        partial: attempt.resultAuthority === 'client-reported' || attempt.scoreResult?.partial === true,
+        resultAuthority: attempt.resultAuthority || 'client-reported',
+        reviewedAt: attempt.submittedAt,
+        completedAt: attempt.submittedAt,
+      })
+    }
+  }
+
+  return {
+    ...state,
+    attempts: [...localById.values()],
+    paperSessions: [...paperSessionsByAttemptId.values()],
+    paperReviews: [...paperReviewsByAttemptId.values()],
+  }
 }
 
-function bestResultFor(attempts, unitId) {
-  return getUnitAttempts(attempts, unitId)
+function focusedRetestUnit(unit, partId, parentAttemptId = '') {
+  if (!partId || unit.parts.length === 1) return unit
+  const part = unit.parts.find((item) => item.id === partId)
+  if (!part) return unit
+  return withPracticePresentation({
+    ...unit,
+    id: `${unit.id}:focused:${part.id}`,
+    title: `${unit.title} · ${displayPartLabel(part)}`,
+    parts: [part],
+    focusedRetestOf: unit.id,
+    focusedRetestParentAttemptId: String(parentAttemptId || '').trim(),
+    // This is deliberately false until the server has looked up the owning,
+    // submitted parent attempt and rebound the focused source part.
+    focusedRetestValidated: false,
+  })
+}
+
+function getUnitAttempts(attempts, unit) {
+  const unitId = typeof unit === 'string' ? unit : unit?.id
+  return attempts.filter((attempt) => attempt.unitId === unitId && isScoredAttempt(attempt, typeof unit === 'string' ? null : unit))
+}
+
+function bestResultFor(attempts, unit) {
+  return getUnitAttempts(attempts, unit)
     .map((attempt) => attempt.scoreResult)
     .sort((a, b) => b.percentage - a.percentage)[0]
 }
 
-function gradeEstimate(percentage) {
-  return percentage >= 80 ? 'A/A* range' : percentage >= 65 ? 'B range' : percentage >= 50 ? 'C range' : 'Needs rebuild'
-}
-
-async function requestVisionReviews(unit, attempt) {
-  const entries = Object.entries(attempt.evidence || {}).filter(([, evidence]) => Boolean(evidence?.dataUrl))
-  if (!entries.length) return {}
+async function requestVisionReviews(unit, attempt, identityToken = '') {
+  const eligibleParts = (unit.parts || []).filter(canUseAiAssistedMarking)
+  const responseTextFor = (part) => String(attempt.answers?.[part.id] ?? attempt.working?.[part.id] ?? '').trim()
+  const hasEvidenceFor = (part) => evidencePresent(attempt.evidence?.[part.id])
+  const reviews = Object.fromEntries(eligibleParts.map((part) => [part.id, {
+    status: hasEvidenceFor(part) || responseTextFor(part) ? 'queued' : 'no_evidence',
+  }]))
+  const eligibleEntries = eligibleParts
+    .map((part) => [part.id, { evidence: attempt.evidence?.[part.id] || null, typedResponse: responseTextFor(part) }])
+    .filter(([, response]) => evidencePresent(response.evidence) || Boolean(response.typedResponse))
+  if (!eligibleEntries.length) return reviews
+  let capabilityByPartId
+  try {
+    const capabilityPayload = await requestMarkingCapabilities({
+      token: identityToken,
+      attemptId: attempt.id,
+      mode: 'topic',
+      submitted: true,
+      parts: eligibleEntries.map(([partId]) => {
+        const part = eligibleParts.find((candidate) => candidate.id === partId)
+        return { provenance: { routeId: unit.routeId, ...(part?.markingProvenance || {}) } }
+      }),
+    })
+    capabilityByPartId = Object.fromEntries((capabilityPayload.capabilities || []).map((item) => [item.questionPartId, item.markingGrant]))
+  } catch (error) {
+    return {
+      ...reviews,
+      ...Object.fromEntries(eligibleEntries.map(([partId]) => [partId, {
+        status: 'error',
+        error: error.message || 'This submitted attempt could not be verified for AI marking.',
+        loginRequired: Boolean(error.loginRequired),
+      }])),
+    }
+  }
   try {
     const statusResponse = await fetch('/api/ai/status')
     const status = await statusResponse.json()
-    if (!status.visionEnabled) return Object.fromEntries(entries.map(([partId]) => [partId, { status: 'unconfigured' }]))
+    if (!status.visionEnabled) return { ...reviews, ...Object.fromEntries(eligibleEntries.map(([partId]) => [partId, { status: 'unconfigured' }])) }
   } catch {
-    return Object.fromEntries(entries.map(([partId]) => [partId, { status: 'error', error: 'AI service status could not be checked.' }]))
+    return { ...reviews, ...Object.fromEntries(eligibleEntries.map(([partId]) => [partId, { status: 'error', error: 'AI service status could not be checked.' }])) }
   }
 
-  const subjectCode = subjects.find((subject) => subject.id === unit.subjectId)?.code || String(unit.specification || '').match(/\b\d{4}\b/)?.[0] || ''
-  const results = await Promise.all(entries.map(async ([partId, evidence]) => {
+  const results = await mapWithConcurrency(eligibleEntries, 3, async ([partId, responseEntry]) => {
     const part = unit.parts.find((item) => item.id === partId)
     if (!part) return [partId, { status: 'error', error: 'Question context is unavailable.' }]
     try {
-      const [questionImageDataUrls, markSchemeImageDataUrls] = await Promise.all([
-        Promise.all((part.sourceRef?.assetUrls || []).slice(0, 2).map(assetToDataUrl)),
-        Promise.all((part.answerRef?.assetUrls || []).slice(0, 2).map(assetToDataUrl)),
-      ])
       const response = await fetch('/api/ai/mark-handwriting', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          Authorization: `Bearer ${identityToken}`,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
-          imageDataUrl: evidence.dataUrl,
-          questionImageDataUrls,
-          markSchemeImageDataUrls,
-          subject: subjectCode,
-          syllabus: unit.specification,
-          questionNumber: Number(String(part.sourceRef?.question || '').match(/\d+/)?.[0]) || unit.parts.indexOf(part) + 1,
-          question: {
-            prompt: part.prompt,
-            answerType: part.answerType,
-            acceptedValue: part.acceptedValue,
-            acceptedUnits: part.acceptedUnits,
-            tolerance: part.tolerance,
-            officialAnswer: part.exactAnswer,
+          attemptId: attempt.id,
+          mode: 'topic',
+          submitted: true,
+          markingGrant: capabilityByPartId?.[part.markingProvenance?.questionPartId] || '',
+          imageDataUrl: await (async () => {
+            const evidence = responseEntry.evidence
+            if (!evidence) return ''
+            if (evidence.dataUrl) return evidence.dataUrl
+            if (evidence.previewUrl) {
+              const previewResponse = await fetch(evidence.previewUrl)
+              if (!previewResponse.ok) throw Object.assign(new Error('The saved handwriting image is unavailable.'), { code: 'evidence_unavailable' })
+              return new Promise((resolve, reject) => {
+                const reader = new FileReader()
+                reader.onload = () => resolve(String(reader.result || ''))
+                reader.onerror = () => reject(Object.assign(new Error('The saved handwriting image is unavailable.'), { code: 'evidence_unavailable' }))
+                previewResponse.blob().then((blob) => reader.readAsDataURL(blob)).catch(() => reject(Object.assign(new Error('The saved handwriting image is unavailable.'), { code: 'evidence_unavailable' })))
+              })
+            }
+            if (evidence.id) {
+              const stored = await getPaperEvidence(evidence.id)
+              if (stored?.blob) {
+                return new Promise((resolve, reject) => {
+                  const reader = new FileReader()
+                  reader.onload = () => resolve(String(reader.result || ''))
+                  reader.onerror = () => reject(Object.assign(new Error('The saved handwriting image is unavailable.'), { code: 'evidence_unavailable' }))
+                  reader.readAsDataURL(stored.blob)
+                })
+              }
+            }
+            throw Object.assign(new Error('The saved handwriting image is unavailable.'), { code: 'evidence_unavailable' })
+          })(),
+          typedResponse: responseEntry.typedResponse,
+          provenance: {
+            routeId: unit.routeId,
+            ...(part.markingProvenance || {}),
           },
-          expectedMarkPoints: part.markPoints,
-          maxMarks: part.marks,
-          typedResponse: attempt.answers[partId] || attempt.working?.[partId] || '',
-          paper: part.sourceRef && part.answerRef ? {
-            subject: subjectCode,
-            questionFile: part.sourceRef.paper,
-            markSchemeFile: part.answerRef.file,
-          } : undefined,
-          provenance: part.answerBinding ? {
-            questionId: part.bankId,
-            answerId: part.answerBinding.answerId,
-            verificationStatus: part.answerBinding.verificationStatus,
-            questionDocumentSha256: part.answerBinding.questionDocumentSha256,
-            answerDocumentSha256: part.answerBinding.answerDocumentSha256,
-          } : undefined,
+          paperId: part.sourceRef?.paperId || '',
         }),
       })
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) return [partId, { status: payload.code === 'vision_not_configured' ? 'unconfigured' : 'error', error: payload.error || 'AI review could not be completed.' }]
       if (payload.mode !== 'vision') return [partId, { status: 'error', error: payload.error || 'AI review could not be completed.' }]
       return [partId, { ...payload, status: 'success' }]
-    } catch {
-      return [partId, { status: 'error', error: 'AI review could not be reached. Your response remains saved.' }]
-    }
-  }))
-  return Object.fromEntries(results)
-}
-
-async function assetToDataUrl(url) {
-  const response = await fetch(url)
-  if (!response.ok) throw new Error('An indexed source page is unavailable.')
-  const blob = await response.blob()
-  return await new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result || ''))
-    reader.onerror = () => reject(new Error('An indexed source page could not be prepared.'))
-    reader.readAsDataURL(blob)
-  })
-}
-
-function mergeVisionScore(scoreResult, unit, answers, visionReviews) {
-  const criteria = scoreResult.criteria.map((criterion) => {
-    const part = unit.parts.find((item) => item.id === criterion.partId)
-    const review = visionReviews[criterion.partId]
-    const typed = Boolean(String(answers[criterion.partId] || '').trim())
-    const canUseVision = review?.status === 'success'
-      && review.confidence >= 0.55
-      && (!typed || ['written', 'handwritten'].includes(part.answerType))
-    if (!canUseVision) return criterion
-    return {
-      ...criterion,
-      awarded: Math.min(part.marks, review.rawMarks),
-      status: review.reviewRequired ? 'review-needed' : review.rawMarks >= part.marks ? 'secure' : review.rawMarks > 0 ? 'partial' : 'missed',
-      feedback: review.summary,
-      confidence: review.confidence,
-      evidence: review.markPoints?.length
-        ? review.markPoints.map((point, index) => ({ pointId: point.id || `${part.id}-AI${index + 1}`, awarded: point.awarded, point: point.reason }))
-        : criterion.evidence,
-      scoringSource: 'vision-assisted',
+    } catch (error) {
+      return [partId, { status: 'error', failureCode: error.code || 'provider_unavailable', retryable: error.code !== 'evidence_unavailable', error: error.message || 'AI review could not be reached. Your response remains saved.' }]
     }
   })
-  const rawMarks = criteria.reduce((sum, criterion) => sum + criterion.awarded, 0)
-  const percentage = Math.round((rawMarks / unit.maxMarks) * 100)
-  const weakest = criteria.find((criterion) => criterion.awarded < criterion.maxMarks)
-  return {
-    ...scoreResult,
-    schemaVersion: Object.values(visionReviews).some((review) => review.status === 'success') ? 'deterministic-plus-vision-v1' : scoreResult.schemaVersion,
-    rawMarks,
-    percentage,
-    gradeEstimate: gradeEstimate(percentage),
-    weakestPartId: weakest?.partId || null,
-    confidence: criteria.length ? Number((criteria.reduce((sum, criterion) => sum + (criterion.confidence ?? 0.9), 0) / criteria.length).toFixed(2)) : 0,
-    criteria,
-  }
+  return { ...reviews, ...Object.fromEntries(results) }
 }
 
 function migratePracticeAnswers(unit, draft) {
   if (!draft) return {}
   return Object.fromEntries(unit.parts.map((part) => {
-    const answer = String(draft.answers?.[part.id] || '').trim()
-    const working = String(draft.working?.[part.id] || '').trim()
+    const answer = String(draft.answers?.[part.id] ?? '').trim()
+    const working = String(draft.working?.[part.id] ?? '').trim()
     if (part.answerType === 'multiple-choice') {
       const keyedAnswer = answer.match(/^([A-D])(?:\b|[.)\s:-])/i)?.[1]?.toUpperCase()
       const optionIndex = part.options?.findIndex((option) => option === answer) ?? -1
@@ -226,85 +393,547 @@ function migratePracticeAnswers(unit, draft) {
   }).filter(([, value]) => value))
 }
 
+function unitFromSyllabusPracticeSet(payload) {
+  const route = routeById(payload.routeId)
+  const subjectCode = payload.subjectCode || route?.subjectCode || ''
+  const componentKey = (payload.components || []).join('-') || 'all'
+  const unitId = `syllabus-set:${payload.routeId}:${payload.syllabusTopicIds.join('+')}:c${componentKey}:q${payload.requestedCount}:s${payload.seed}`
+  const parts = payload.questionGroups.flatMap((group, groupIndex) => (group.parts || []).map((questionPart, partIndex) => ({
+    ...group,
+    ...questionPart,
+    id: `${unitId}:${group.id}:${questionPart.partId || `${groupIndex + 1}-${partIndex + 1}`}`,
+    sourceQuestionId: group.id,
+    questionGroupId: group.questionGroupId || group.id,
+    questionPartId: questionPart.partId,
+    label: `${group.questionNumber || groupIndex + 1}${questionPart.label ? `(${questionPart.label})` : ''}`,
+    displayLabel: questionPart.displayLabel || `${group.questionNumber || groupIndex + 1}${questionPart.label ? `(${questionPart.label})` : ''}`,
+    sourceKind: 'past-paper',
+    sourceContentComplete: group.sourceContent.complete === true,
+    sourceContentAvailable: group.sourceContent.fileComplete === true || group.sourceContent.complete === true,
+    sourceContentReasons: group.sourceContent.reasons || [],
+    sourceSemanticStatus: group.sourceContent.semanticStatus || 'unreviewed',
+    studyOnly: group.studyOnly === true || payload.practiceMode === 'study-only',
+    sourcePages: group.sourceContent.pages || [],
+    sourceAssetUrls: group.sourceContent.assetUrls || group.sourceRef?.assetUrls || [],
+    sourceFocus: questionPart.sourceFocus || null,
+    sourceRef: { ...group.sourceRef, questionPartId: questionPart.partId, page: questionPart.sourcePage || group.sourceRef?.pageStart },
+    answerRef: { ...group.answerRef, questionPartId: questionPart.partId, page: questionPart.answerSourcePage || group.answerRef?.pageStart },
+    prompt: stripSourceVisualPlaceholders(questionPart.promptFragment || group.prompt || ''),
+    marks: Number(questionPart.marks || 0),
+    answerType: questionPart.answerArea?.type || 'handwritten',
+    options: questionPart.options || [],
+    answerKey: questionPart.answerKey || null,
+    answer: questionPart.answerKey || null,
+    reviewStatus: group.reviewStatus || 'machine-indexed',
+    practiceAvailable: true,
+    deterministicScoringAvailable: Boolean(questionPart.answerKey),
+    // The server's reviewed provenance is the authority for a freshly built
+    // syllabus unit. Do not leave this false and then silently diverge from
+    // the rebind path, which would make new and restored attempts score under
+    // different contracts.
+    aiAssistedMarkingAvailable: Boolean(
+      questionPart.aiAssistedMarkingAvailable
+      && questionPart.markingProvenance
+      && questionPart.sourceBindingProvenance,
+    ),
+    markPoints: questionPart.markSchemePoints || [],
+    sourceAuthority: 'server-syllabus',
+    markingProvenance: questionPart.markingProvenance,
+    sourceBindingProvenance: questionPart.sourceBindingProvenance,
+  })))
+  const referencePapers = [...new Map(payload.questionGroups.map((group) => [group.sourceRef?.paperId, {
+    id: group.sourceRef?.paperId,
+    file: group.sourceRef?.paper,
+    year: group.sourceRef?.year,
+    season: group.sourceRef?.season,
+    paperNumber: group.paperComponent,
+    questionUrl: group.sourceRef?.localUrl,
+    markSchemeUrl: group.answerRef?.localUrl,
+  }])).values()].filter((paper) => paper.id)
+  const topicNames = topicDisplayNames(payload.syllabusTopicIds, payload.syllabusTopics)
+  const topicLabel = topicNames.join(' + ')
+  return withPracticePresentation({
+    id: unitId,
+    type: 'topic',
+    agentGenerated: true,
+    sourceAuthority: 'server-syllabus',
+    routeId: payload.routeId,
+    qualification: route?.qualification || 'A-Level',
+    subject: route?.subject || subjectCode,
+    subjectCode,
+    subjectId: route?.subjectId || `subject-${subjectCode}`,
+    qualificationId: `cambridge-${subjectCode}`,
+    knowledgeGroupId: payload.syllabusTopicIds[0],
+    topicId: payload.syllabusTopicIds[0],
+    topic: topicLabel,
+    title: `${route?.stage || 'AS'} ${route?.subject || subjectCode} · ${topicLabel}`,
+    stage: route?.stage || 'AS',
+    paperComponent: payload.components,
+    syllabusTopic: payload.syllabusTopicIds.join(','),
+    sourcePaper: referencePapers.map((paper) => paper.file).join(', '),
+    durationSec: Math.max(300, payload.questionGroups.length * 240),
+    maxMarks: parts.reduce((sum, part) => sum + part.marks, 0),
+    difficulty: 'Past paper',
+    estimatedMinutes: Math.max(5, Math.ceil(payload.questionGroups.length * 4)),
+    priority: 'Syllabus set',
+    inventoryStatus: payload.partial ? 'partial-source-inventory' : 'verified-source-inventory',
+    questionGroupCount: payload.questionGroups.length,
+    sourceSetSeed: payload.seed,
+    referencePapers,
+    parts,
+    sourceGateVersion: 'server-syllabus-catalog-v2',
+    practiceMode: payload.practiceMode || 'verified',
+  })
+}
+
+function rebindPracticeUnit(unit, validatedSyllabusUnits = new Map(), practiceRuntime = null) {
+  return unit?.sourceAuthority === 'server-syllabus'
+    ? validatedSyllabusUnits.get(unit.id) || null
+    : practiceRuntime?.rebindVerifiedPracticeUnit(unit) || null
+}
+
+function syllabusUnitsFingerprint(units) {
+  return units.map((unit) => [
+    unit.id,
+    unit.sourceGateVersion,
+    ...(unit.parts || []).map((part) => `${part.sourceQuestionId}:${part.questionPartId}:${part.sourceBindingProvenance?.bindingSignature || ''}`),
+  ].join('|')).sort().join('\n')
+}
+
 function getIncomingProductContext() {
   if (typeof window === 'undefined') return { from: '', focus: '', subjectId: 'all' }
-  const params = new URLSearchParams(window.location.search)
-  const focus = params.get('focus') || ''
+  const context = parseProductContext(window.location.search)
+  const focus = context.focus
+  const route = routeById(context.routeId)
   const subjectId = {
     physics: 'physics',
     biology: 'biology',
     mathematics: 'math',
     chemistry: 'chemistry',
     economics: 'economics',
-  }[focus] || 'all'
-  return { from: params.get('from') || '', focus, subjectId }
+  }[focus] || route?.subjectId || 'all'
+  return { ...context, subjectId }
 }
 
 function App() {
+  useLayoutEffect(() => {
+    if (typeof window !== 'undefined') window.__stemAppReady?.()
+  }, [])
+  const [initialNavigation] = useState(() => studentNavigationFromLocation())
+  const initialCoachOpen = Boolean(initialNavigation.coach)
   const [appState, setAppState] = useState(() => loadState())
-  const paperCatalogState = usePaperCatalog()
   const incomingContext = getIncomingProductContext()
-  const [view, setView] = useState(() => incomingContext.from === 'ieltsist' || incomingContext.focus ? 'library' : 'dashboard')
-  const [activeTab, setActiveTab] = useState('topics')
-  const [subjectFilter, setSubjectFilter] = useState(() => incomingContext.subjectId)
-  const [completionFilter, setCompletionFilter] = useState('all')
-  const [query, setQuery] = useState('')
+  const [view, setView] = useState(() => initialNavigation.view !== 'dashboard' ? initialNavigation.view : incomingContext.from === 'ieltsist' || incomingContext.focus ? 'library' : 'dashboard')
+  const [activeTab, setActiveTab] = useState(() => initialNavigation.tab)
+  const [selectedTopicId, setSelectedTopicId] = useState(() => initialNavigation.topicId || incomingContext.topicId || null)
+  const [topicBuilderRequested, setTopicBuilderRequested] = useState(false)
+  const initialStageRouteId = initialNavigation.stage
+    ? routeForStageDeepLink({
+        stage: initialNavigation.stage,
+        preferredRouteId: routeById(initialNavigation.routeId)?.routeId || routeById(incomingContext.routeId)?.routeId || routeById(appState.profile?.activeRouteId)?.routeId || '',
+        subjectId: initialNavigation.course || incomingContext.subjectId,
+        routes: courseRoutes,
+      })?.routeId || ''
+    : ''
+  const [activeRouteId, setActiveRouteId] = useState(() => {
+    if (routeById(initialNavigation.routeId)) return initialNavigation.routeId
+    if (routeById(incomingContext.routeId)) return incomingContext.routeId
+    if (initialStageRouteId) return initialStageRouteId
+    if (routeById(appState.profile?.activeRouteId)) return appState.profile.activeRouteId
+    return routesForSubject(incomingContext.subjectId).find((route) => route.stage === 'AS')?.routeId
+      || routesForSubject(incomingContext.subjectId)[0]?.routeId
+      || 'cie-9702-as-physics'
+  })
+  const activeRoute = routeById(activeRouteId) || courseRoutes[0]
+  const paperCatalogState = usePaperCatalog({
+    subject: activeRoute.subjectCode || routeById(initialNavigation.routeId)?.subjectCode || routeById(incomingContext.routeId)?.subjectCode || routeById(appState.profile?.activeRouteId)?.subjectCode || 'all',
+    enabled: view === 'paper'
+      || (view === 'library' && ['papers', 'exams'].includes(activeTab))
+      || Boolean(appState.paperSessions?.length || appState.paperReviews?.length),
+  })
+  const activeSubject = subjects.find((subject) => subject.routeIds?.includes(activeRoute.routeId)) || subjects[0]
+  const [_subjectFilter, setSubjectFilter] = useState(() => activeSubject.id)
+  const [completionFilter] = useState('all')
   const [currentAttempt, setCurrentAttempt] = useState(null)
   const [resultAttempt, setResultAttempt] = useState(null)
   const [activePaper, setActivePaper] = useState(null)
   const [pendingSession, setPendingSession] = useState(null)
+  const [coachMounted, setCoachMounted] = useState(false)
+  const [coachOpenPending, setCoachOpenPending] = useState(() => initialCoachOpen)
   const [coachOpenRequest, setCoachOpenRequest] = useState(0)
+  const coachBuilderOpenRequest = 0
   const [sharedAccount, setSharedAccount] = useState({ status: 'loading', token: '', workspace: null, error: '' })
-  const verifiedStarterUnits = useMemo(() => {
-    try {
-      return [buildCoachPractice({ subjectId: 'physics', stage: 'AS', knowledgeGroupId: 'physics-9702-topic-03', questionCount: 10 })]
-    } catch {
-      return []
-    }
+  const sharedAccountRef = useRef(sharedAccount)
+  const sharedAccountRefreshRef = useRef(0)
+  const sharedAccountRetryTimerRef = useRef(null)
+  sharedAccountRef.current = sharedAccount
+  const [accountPopoverOpen, setAccountPopoverOpen] = useState(false)
+  const [accountDialogMode, setAccountDialogMode] = useState(null)
+  const [stateOwnerId, setStateOwnerId] = useState('')
+  const [exportState, setExportState] = useState({ status: 'idle', error: '', exportedAt: '', filename: '' })
+  const [syllabusRebindState, setSyllabusRebindState] = useState(() => ({ fingerprint: '', status: 'idle', units: new Map() }))
+  const [practiceRuntimeState, setPracticeRuntimeState] = useState({ status: 'idle', module: null, error: '' })
+  const [studyQuestionRuntimeState, setStudyQuestionRuntimeState] = useState({ status: 'idle', module: null, groups: [], routeId: '', error: '' })
+  const migrationAttemptedRef = useRef(false)
+  const notebookSyncTimerRef = useRef(null)
+  const stateOwnerIdRef = useRef('')
+  const navigationInitializedRef = useRef(false)
+  const restoredLocationRef = useRef('')
+  const navigationRestorePendingRef = useRef(false)
+  const ensurePracticeRuntime = useCallback(() => {
+    setPracticeRuntimeState((current) => current.module ? current : { ...current, status: 'loading', error: '' })
+    return loadPracticeRuntime()
+      .then((module) => {
+        setPracticeRuntimeState({ status: 'ready', module, error: '' })
+        return module
+      })
+      .catch((error) => {
+        setPracticeRuntimeState({ status: 'error', module: null, error: error.message || 'Practice data could not be loaded.' })
+        throw error
+      })
   }, [])
+  const ensureStudyQuestionRuntime = useCallback((requestedRouteId = activeRouteId) => {
+    const routeId = String(requestedRouteId || activeRouteId || '').trim()
+    const verifiedGroups = practiceRuntimeState.module?.verifiedPracticeQuestionGroups || []
+    setStudyQuestionRuntimeState((current) => ({ ...current, status: 'loading', routeId, error: '' }))
+    return loadStudyQuestionRuntime()
+      .then((module) => module.loadStudyQuestionGroupsForRoute(routeId, verifiedGroups).then((groups) => ({ module, groups })))
+      .then(({ module, groups }) => {
+        setStudyQuestionRuntimeState({ status: 'ready', module: { loadStudyQuestionGroupsForRoute: module.loadStudyQuestionGroupsForRoute }, groups, routeId, error: '' })
+        return groups
+      })
+      .catch((error) => {
+        setStudyQuestionRuntimeState({ status: 'error', module: null, groups: [], routeId, error: error.message || 'Source question search could not be loaded.' })
+        throw error
+      })
+  }, [activeRouteId, practiceRuntimeState.module])
+  const openPastPaperQuestions = useCallback(() => {
+    void ensureStudyQuestionRuntime(activeRouteId).catch(() => {})
+  }, [activeRouteId, ensureStudyQuestionRuntime])
+  useEffect(() => {
+    if (!initialCoachOpen || view !== 'dashboard' || coachMounted) return
+    setCoachMounted(true)
+  }, [coachMounted, initialCoachOpen, view])
+  const practiceRuntime = practiceRuntimeState.module
+  const verifiedCatalogUnits = useMemo(
+    () => (practiceRuntime?.buildVerifiedPracticeCatalog() || []).filter((unit) => isStartableTopicPracticeUnit(unit)),
+    [practiceRuntime],
+  )
+  const persistedSyllabusUnits = useMemo(() => (
+    (appState.generatedUnits || []).filter((unit) => unit?.sourceAuthority === 'server-syllabus')
+  ), [appState.generatedUnits])
+  const persistedSyllabusFingerprint = useMemo(() => syllabusUnitsFingerprint(persistedSyllabusUnits), [persistedSyllabusUnits])
+
+  useEffect(() => {
+    if (!persistedSyllabusUnits.length) {
+      setSyllabusRebindState({ fingerprint: '', status: 'ready', units: new Map() })
+      return undefined
+    }
+    let active = true
+    setSyllabusRebindState((current) => ({ ...current, fingerprint: persistedSyllabusFingerprint, status: 'loading' }))
+    Promise.all(persistedSyllabusUnits.map(async (unit) => {
+      try {
+        const payload = await requestSyllabusPracticeRebind(sharedAccount.token, unit)
+        return payload?.unit ? [unit.id, payload.unit] : null
+      } catch {
+        return null
+      }
+    }))
+      .then((entries) => {
+        if (active) {
+          setSyllabusRebindState({
+            fingerprint: persistedSyllabusFingerprint,
+            status: 'ready',
+            units: new Map(entries.filter(Boolean)),
+          })
+        }
+      })
+    return () => { active = false }
+  }, [persistedSyllabusFingerprint, persistedSyllabusUnits, sharedAccount.token])
+
   const visibleVerifiedUnits = useMemo(() => {
-    const persisted = (appState.generatedUnits || []).filter((unit) => unit.agentGenerated && unit.parts?.length > 0 && unit.parts.every((part) => part.sourceKind === 'past-paper' && part.sourceRef?.sha256 && part.answerRef?.sha256 && part.answerBinding?.answerId))
-    return [...persisted, ...verifiedStarterUnits.filter((starter) => !persisted.some((unit) => unit.focusedRetestOf !== starter.id && unit.knowledgeGroupId === starter.knowledgeGroupId && unit.stage === starter.stage))]
-  }, [appState.generatedUnits, verifiedStarterUnits])
+    const persisted = (appState.generatedUnits || [])
+      .filter((unit) => unit.agentGenerated || unit.focusedRetestOf || unit.sourceAuthority === 'server-syllabus')
+      .map((unit) => rebindPracticeUnit(unit, syllabusRebindState.units, practiceRuntime))
+      .filter(Boolean)
+    const labelled = [...persisted, ...verifiedCatalogUnits.filter((catalogUnit) => !persisted.some((unit) => unit.id === catalogUnit.id))]
+    return labelled.map((unit) => {
+      const route = routeById(unit.routeId)
+      return route && !String(unit.title || '').startsWith(`${route.stage} `)
+        ? { ...unit, title: `${route.stage} ${route.subject} · ${unit.topic || unit.title}` }
+        : unit
+    })
+  }, [appState.generatedUnits, practiceRuntime, syllabusRebindState.units, verifiedCatalogUnits])
   const allPracticeUnits = visibleVerifiedUnits
-  const aiPracticeOptions = useMemo(() => coachPracticeOptions(), [])
+  const routePracticeUnits = useMemo(() => allPracticeUnits.filter((unit) => unit.routeId === activeRouteId), [activeRouteId, allPracticeUnits])
+  const routeAttempts = useMemo(() => appState.attempts.filter((attempt) => attempt.routeId === activeRouteId), [activeRouteId, appState.attempts])
+  const safePaperSessions = useMemo(() => (Array.isArray(appState.paperSessions) ? appState.paperSessions : [])
+    .filter((session) => session && typeof session === 'object' && String(session.attemptId || '').trim()), [appState.paperSessions])
+  const safePaperReviews = useMemo(() => (Array.isArray(appState.paperReviews) ? appState.paperReviews : [])
+    .filter((review) => review && typeof review === 'object' && String(review.attemptId || '').trim()), [appState.paperReviews])
+  const routePaperSessions = useMemo(() => safePaperSessions.filter((session) => session.routeId === activeRouteId), [activeRouteId, safePaperSessions])
+  const routePaperReviews = useMemo(() => {
+    const attemptIds = new Set(routePaperSessions.map((session) => session.attemptId))
+    return safePaperReviews.filter((review) => review.routeId === activeRouteId || attemptIds.has(review.attemptId))
+  }, [activeRouteId, routePaperSessions, safePaperReviews])
+  const aiPracticeOptions = useMemo(() => practiceRuntime?.coachPracticeOptions() || [], [practiceRuntime])
+  const syllabusInventory = useSyllabusInventory(activeRouteId, {
+    enabled: supportsSyllabusPracticeRoute(activeRouteId),
+  })
+  const syllabusPracticeFallbackOptions = useMemo(() => {
+    if (!supportsSyllabusPracticeRoute(activeRouteId) || aiPracticeOptions.length) return []
+    const topics = syllabusInventory.data?.topics?.length
+      ? syllabusInventory.data.topics
+      : (activeRoute.syllabus?.topics || [])
+    return [{
+      routeId: activeRouteId,
+      subjectId: activeRoute.subjectId,
+      subject: activeRoute.subject,
+      qualification: activeRoute.qualification,
+      qualificationId: activeRoute.qualificationId,
+      code: activeRoute.subjectCode,
+      label: `${activeRoute.stage} ${activeRoute.subjectCode} ${activeRoute.subject}`,
+      planSubjectId: activeRoute.subjectId,
+      stage: activeRoute.stage,
+      stages: [activeRoute.stage],
+      topics: topics.map((topic, index) => ({
+        id: topic.id,
+        routeId: activeRouteId,
+        label: `${topic.code || index + 1} ${topic.name || topic.title || ''}`.trim(),
+        stageTags: [activeRoute.stage],
+        inventory: Number(topic.availableQuestionCount ?? topic.verifiedQuestionCount ?? 0),
+        verifiedQuestionCount: Number(topic.verifiedQuestionCount || 0),
+        studyQuestionCount: Number(topic.studyQuestionCount || 0),
+        availableQuestionCount: Number(topic.availableQuestionCount ?? topic.verifiedQuestionCount ?? 0),
+        componentCounts: topic.componentCounts || {},
+        questionIdsByComponent: topic.questionIdsByComponent || {},
+        indexedQuestionCount: topic.indexedQuestionCount,
+        pendingReviewCount: Number(topic.pendingReviewCount || 0),
+        availableSetSizes: topic.availableSetSizes,
+        ctaPolicy: topic.ctaPolicy,
+        sourceGap: topic.sourceGap,
+        officialNotes: topic.officialNotes || [],
+        componentScope: topic.componentScope || null,
+        points: topic.points || [],
+      })),
+    }]
+  }, [activeRoute, activeRouteId, aiPracticeOptions.length, syllabusInventory.data])
+  const activePracticeOptions = useMemo(() => {
+    const routeOptions = [...aiPracticeOptions, ...syllabusPracticeFallbackOptions]
+      .filter((option) => option.routeId === activeRouteId)
+    if (!supportsSyllabusPracticeRoute(activeRouteId) || syllabusInventory.status !== 'ready') return routeOptions
+    const serverTopics = new Map((syllabusInventory.data?.topics || []).map((topic) => [topic.id, topic]))
+    return routeOptions.map((option) => ({
+      ...option,
+      topics: serverTopics.size
+        ? [...serverTopics.values()].map((serverTopic) => ({
+          ...(option.topics.find((topic) => topic.id === serverTopic.id) || {}),
+          id: serverTopic.id,
+          routeId: option.routeId,
+          label: `${serverTopic.code} ${serverTopic.name}`,
+          stageTags: [option.stage],
+          inventory: serverTopic.availableQuestionCount ?? serverTopic.verifiedQuestionCount,
+          verifiedQuestionCount: serverTopic.verifiedQuestionCount,
+          studyQuestionCount: serverTopic.studyQuestionCount || 0,
+          availableQuestionCount: serverTopic.availableQuestionCount ?? serverTopic.verifiedQuestionCount,
+          componentCounts: serverTopic.componentCounts || {},
+          questionIdsByComponent: serverTopic.questionIdsByComponent || {},
+          indexedQuestionCount: serverTopic.indexedQuestionCount,
+          pendingReviewCount: serverTopic.pendingReviewCount,
+          availableSetSizes: serverTopic.availableSetSizes,
+          ctaPolicy: serverTopic.ctaPolicy,
+          sourceGap: serverTopic.sourceGap,
+          officialNotes: serverTopic.officialNotes || [],
+          componentScope: serverTopic.componentScope || null,
+          points: serverTopic.points || [],
+        }))
+        : option.topics,
+    }))
+  }, [activeRouteId, aiPracticeOptions, syllabusInventory.data, syllabusInventory.status, syllabusPracticeFallbackOptions])
+
   const learningProgress = useMemo(() => buildLearningProgress({
     attempts: appState.attempts,
     drafts: appState.drafts,
     units: allPracticeUnits,
+    routes: courseRoutes,
+    routeId: activeRouteId,
     weeklyTarget: appState.profile.weeklyQuestions,
-  }), [allPracticeUnits, appState.attempts, appState.drafts, appState.profile.weeklyQuestions])
+    paperSessions: routePaperSessions,
+    paperReviews: routePaperReviews,
+  }), [activeRouteId, allPracticeUnits, appState.attempts, appState.drafts, appState.profile.weeklyQuestions, routePaperReviews, routePaperSessions])
+  const latestActivity = useMemo(() => latestSubmittedActivity({
+    attempts: routeAttempts,
+    units: routePracticeUnits,
+    paperSessions: routePaperSessions,
+    paperReviews: routePaperReviews,
+    routes: courseRoutes,
+    routeId: activeRouteId,
+  }), [activeRouteId, routeAttempts, routePaperReviews, routePaperSessions, routePracticeUnits])
   const syllabusRoadmap = useMemo(() => {
-    const planSubjectByAppSubject = { 'igcse-math': 'math-0580', 'additional-math': 'math-0606', physics: 'physics-9702', 'igcse-physics': 'physics-0625', biology: 'biology-9700', 'igcse-biology': 'biology-0610', chemistry: 'chemistry-9701', economics: 'economics-9708', math: 'math-9709', 'further-math': 'math-9231' }
-    const planSubjectId = subjectFilter === 'all' ? 'physics-9702' : planSubjectByAppSubject[subjectFilter]
     const topicStats = new Map(learningProgress.topicProgress.map((item) => [item.id, item]))
-    return learningPlan.knowledgeGroups.filter((group) => group.subjectId === planSubjectId && !group.hidden).map((group) => ({
-      ...group,
-      ...(topicStats.get(group.id) || { mastery: null, attempts: 0, questions: 0, status: 'Not started' }),
+    const routeOption = activePracticeOptions.find((option) => option.routeId === activeRouteId)
+    return (routeOption?.topics || []).map((topic, index) => ({
+      id: topic.id,
+      routeId: activeRouteId,
+      subjectId: activeRoute.subjectId,
+      name: topic.label,
+      officialTopicNumber: index + 1,
+      inventory: topic.inventory,
+      ...(topicStats.get(topic.id) || { mastery: null, attempts: 0, questions: 0, status: 'Not started' }),
     }))
-  }, [learningProgress.topicProgress, subjectFilter])
+  }, [activeRoute.subjectId, activeRouteId, activePracticeOptions, learningProgress.topicProgress])
 
   useEffect(() => {
-    saveState(appState)
-  }, [appState])
+    if (practiceRuntimeState.status !== 'idle') return undefined
+    if (view === 'dashboard') return undefined
+    if (supportsSyllabusPracticeRoute(activeRouteId) && (view === 'library' || view === 'topic')) return undefined
+    void ensurePracticeRuntime().catch(() => {})
+    return undefined
+  }, [activeRouteId, ensurePracticeRuntime, practiceRuntimeState.status, view])
+
+  useEffect(() => {
+    if (sharedAccount.status === 'loading') return
+    const nextOwnerId = sharedAccount.status === 'ready' ? String(sharedAccount.identity?.id || '') : ''
+    if (nextOwnerId === stateOwnerId) return
+    if (notebookSyncTimerRef.current) window.clearTimeout(notebookSyncTimerRef.current)
+    const nextState = loadState({ userId: nextOwnerId })
+    // A cross-product URL is an explicit navigation request and must not be
+    // overwritten by the user's most recently saved STEM route.
+    const nextRouteId = routeById(incomingContext.routeId)?.routeId
+      || routeById(nextState.profile?.activeRouteId)?.routeId
+      || 'cie-9702-as-physics'
+    stateOwnerIdRef.current = nextOwnerId
+    migrationAttemptedRef.current = false
+    setStateOwnerId(nextOwnerId)
+    setAppState(nextState)
+    setActiveRouteId(nextRouteId)
+    setCurrentAttempt(null)
+    setResultAttempt(null)
+    setActivePaper(null)
+    setPendingSession(null)
+    setSelectedTopicId(incomingContext.topicId || null)
+    restoredLocationRef.current = ''
+  }, [incomingContext.routeId, incomingContext.topicId, sharedAccount.identity?.id, sharedAccount.status, stateOwnerId])
+
+  useEffect(() => {
+    saveState(appState, { userId: stateOwnerId })
+  }, [appState, stateOwnerId])
+
+  useEffect(() => {
+    if (practiceRuntimeState.status !== 'ready' || migrationAttemptedRef.current) return
+    const needsContextMigration = [...(appState.attempts || []), ...Object.values(appState.drafts || {})]
+      .some((record) => record?.routeMigration?.status === 'deferred')
+    if (!needsContextMigration) {
+      migrationAttemptedRef.current = true
+      return
+    }
+    let active = true
+    import('./data/catalog')
+      .then(({ topicUnits, fullPaperUnits }) => {
+        if (!active) return
+        migrationAttemptedRef.current = true
+        const migrationUnits = [...new Map([...allPracticeUnits, ...topicUnits, ...fullPaperUnits].map((unit) => [unit.id, unit])).values()]
+        setAppState((state) => normalizeState(state, { units: migrationUnits }))
+      })
+      .catch(() => {
+        // A legacy migration is best-effort; the current route-bound state remains usable.
+      })
+    return () => { active = false }
+  }, [allPracticeUnits, appState.attempts, appState.drafts, practiceRuntimeState.status])
+
+  function selectRoute(routeId) {
+    const route = routeById(routeId)
+    if (!route) return
+    const subject = subjects.find((item) => item.routeIds?.includes(routeId))
+    setActiveRouteId(routeId)
+    setSelectedTopicId(null)
+    if (subject) setSubjectFilter(subject.id)
+    setAppState((state) => ({
+      ...state,
+      profile: {
+        ...state.profile,
+        activeRouteId: routeId,
+        learningTrack: route.stage,
+        recentRouteIds: [routeId, ...(state.profile.recentRouteIds || []).filter((id) => id !== routeId)].slice(0, 6),
+      },
+    }))
+  }
 
   const refreshSharedAccount = useCallback(async () => {
+    if (sharedAccountRetryTimerRef.current) {
+      window.clearTimeout(sharedAccountRetryTimerRef.current)
+      sharedAccountRetryTimerRef.current = null
+    }
+    const refreshId = sharedAccountRefreshRef.current + 1
+    sharedAccountRefreshRef.current = refreshId
     try {
       const account = await requestSharedAccount()
-      const workspace = await requestSharedWorkspace(account.token)
-      setSharedAccount({ status: 'ready', ...account, workspace, error: '' })
-      return account
+      if (sharedAccountRefreshRef.current !== refreshId) return sharedAccountRef.current
+      const next = { status: 'ready', ...account, workspace: null, error: '', refreshState: 'ready' }
+      if (sharedAccountRefreshRef.current !== refreshId) return sharedAccountRef.current
+      setSharedAccount(next)
+      return next
     } catch (error) {
-      setSharedAccount({ status: 'guest', token: '', workspace: null, error: error.message || 'Shared account is unavailable.' })
-      return null
+      if (sharedAccountRefreshRef.current !== refreshId) return sharedAccountRef.current
+      const next = accountRefreshFailureState(sharedAccountRef.current, error)
+      setSharedAccount(next)
+      const retryDelay = accountRefreshRetryDelay(error)
+      if (retryDelay && !sharedAccountRetryTimerRef.current) {
+        sharedAccountRetryTimerRef.current = window.setTimeout(() => {
+          sharedAccountRetryTimerRef.current = null
+          void refreshSharedAccount()
+        }, retryDelay)
+      }
+      return next.status === 'ready' ? next : null
     }
   }, [])
 
   useEffect(() => {
     refreshSharedAccount()
     const timer = window.setInterval(refreshSharedAccount, 4 * 60 * 1000)
-    return () => window.clearInterval(timer)
+    return () => {
+      window.clearInterval(timer)
+      if (sharedAccountRetryTimerRef.current) window.clearTimeout(sharedAccountRetryTimerRef.current)
+      sharedAccountRetryTimerRef.current = null
+      sharedAccountRefreshRef.current += 1
+    }
   }, [refreshSharedAccount])
+
+  useEffect(() => {
+    const accountUserId = String(sharedAccount.identity?.id || '')
+    if (sharedAccount.status !== 'ready' || !sharedAccount.token || !accountUserId || accountUserId !== stateOwnerId) return undefined
+    let cancelled = false
+    sharedAccountRequest(sharedAccount.token, `/api/stem/notebook/notes?routeId=${encodeURIComponent(activeRouteId)}`)
+      .then((payload) => {
+        if (cancelled || stateOwnerIdRef.current !== accountUserId) return
+        setAppState((state) => {
+          if (!payload.note) {
+            if (!Object.prototype.hasOwnProperty.call(state.notebookNotes || {}, activeRouteId)) return state
+            const { [activeRouteId]: _removed, ...notebookNotes } = state.notebookNotes || {}
+            return { ...state, notebookNotes }
+          }
+          const current = state.notebookNotes?.[activeRouteId]
+          const note = mergeNotebookNote(current, payload.note, { preferTombstone: true })
+          if (!note || note === current) return state
+          return { ...state, notebookNotes: { ...(state.notebookNotes || {}), [activeRouteId]: note } }
+        })
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [activeRouteId, sharedAccount.identity?.id, sharedAccount.status, sharedAccount.token, stateOwnerId])
+
+  useEffect(() => {
+    const accountUserId = String(sharedAccount.identity?.id || '')
+    if (sharedAccount.status !== 'ready' || !sharedAccount.token || !accountUserId || accountUserId !== stateOwnerId) return undefined
+    let cancelled = false
+    readStudentAttempts({ token: sharedAccount.token })
+      .then((records) => {
+        if (cancelled || stateOwnerIdRef.current !== accountUserId) return
+        setAppState((state) => mergeServerStudentAttempts(state, records))
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [sharedAccount.identity?.id, sharedAccount.status, sharedAccount.token, stateOwnerId])
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -322,6 +951,8 @@ function App() {
             drafts: {
               ...state.drafts,
               [attempt.unitId]: {
+                routeId: next.routeId,
+                stage: next.stage,
                 answers: next.answers,
                 working: next.working,
                 evidence: next.evidence,
@@ -341,65 +972,39 @@ function App() {
   }, [view])
 
   const completionByUnit = useMemo(() => {
-    return allPracticeUnits.reduce((acc, unit) => {
-      const latest = latestResultFor(appState.attempts, unit.id)
-      const best = bestResultFor(appState.attempts, unit.id)
-      acc[unit.id] = {
-        completed: Boolean(latest),
-        latest,
-        best,
-        count: getUnitAttempts(appState.attempts, unit.id).length,
-      }
-      return acc
-    }, {})
-  }, [allPracticeUnits, appState.attempts])
+    return buildCompletionByUnit({ attempts: appState.attempts, units: allPracticeUnits, routes: courseRoutes, routeId: activeRouteId })
+  }, [activeRouteId, allPracticeUnits, appState.attempts])
 
-  const mistakes = useMemo(() => {
-    const attemptById = new Map(appState.attempts.map((attempt) => [attempt.id, attempt]))
-    const latestRetestCriterion = (sourceAttempt, partId) => [...appState.attempts].reverse().find((candidate) => {
-      let parentId = candidate.retestOf
-      while (parentId) {
-        if (parentId === sourceAttempt.id) {
-          return candidate.scoreResult?.criteria?.some((criterion) => criterion.partId === partId)
-        }
-        parentId = attemptById.get(parentId)?.retestOf
-      }
-      return false
-    })?.scoreResult?.criteria?.find((criterion) => criterion.partId === partId)
+  const mistakes = useMemo(() => buildAttemptReviewQueue({
+    attempts: appState.attempts,
+    units: allPracticeUnits,
+    routeId: activeRouteId,
+    reviewQueueAudit: appState.reviewQueueAudit,
+  }), [activeRouteId, allPracticeUnits, appState.attempts, appState.reviewQueueAudit])
 
-    return appState.attempts.flatMap((attempt) => {
-      const unit = allPracticeUnits.find((item) => item.id === attempt.unitId)
-      if (!unit || !attempt.scoreResult) return []
-      return attempt.scoreResult.criteria
-        .filter((criterion) => criterion.awarded < criterion.maxMarks)
-        .filter((criterion) => {
-          const retestCriterion = latestRetestCriterion(attempt, criterion.partId)
-          return !retestCriterion || retestCriterion.awarded < retestCriterion.maxMarks
-        })
-        .map((criterion) => {
-          const part = unit.parts.find((item) => item.id === criterion.partId)
-          return {
-            id: `${attempt.id}-${criterion.partId}`,
-            attempt,
-            unit,
-            part,
-            criterion,
-            severity: criterion.awarded === 0 ? 'High' : 'Medium',
-            status: criterion.status === 'review-needed' ? 'Review needed' : 'Open',
-          }
-        })
-    })
-  }, [allPracticeUnits, appState.attempts])
+  const provisionalMistakes = useMemo(() => buildAttemptReviewQueue({
+    attempts: appState.attempts,
+    units: allPracticeUnits,
+    routeId: activeRouteId,
+    reviewQueueAudit: appState.reviewQueueAudit,
+    includeProvisional: true,
+  }).filter((item) => isProvisionalAttempt(item.attempt, item.unit)), [activeRouteId, allPracticeUnits, appState.attempts, appState.reviewQueueAudit])
+
+  const provisionalEvidence = useMemo(() => buildProvisionalAttemptEvidence({
+    attempts: appState.attempts,
+    units: allPracticeUnits,
+    routeId: activeRouteId,
+  }), [activeRouteId, allPracticeUnits, appState.attempts])
 
   const paperMistakes = useMemo(() => {
-    const reviews = appState.paperReviews || []
+    const reviews = safePaperReviews
     const latestReviewByAttempt = new Map()
     reviews.forEach((review) => latestReviewByAttempt.set(review.attemptId, review))
-    const sessionByAttempt = new Map(appState.paperSessions.map((session) => [session.attemptId, session]))
+    const sessionByAttempt = new Map(safePaperSessions.map((session) => [session.attemptId, session]))
     const paperById = new Map((paperCatalogState.catalog?.items || []).map((paper) => [paper.id, paper]))
 
     function latestDescendantReview(sourceAttemptId) {
-      for (const candidate of [...appState.paperSessions].reverse()) {
+      for (const candidate of [...safePaperSessions].reverse()) {
         let parentId = candidate.retestOf
         while (parentId) {
           if (parentId === sourceAttemptId) {
@@ -413,8 +1018,8 @@ function App() {
       return null
     }
 
-    return appState.paperSessions.flatMap((session) => {
-      if (session.retestOf) return []
+    return safePaperSessions.flatMap((session) => {
+      if (session.retestOf || session.routeId !== activeRouteId) return []
       const sourceReview = latestReviewByAttempt.get(session.attemptId)
       if (!sourceReview) return []
       const descendant = latestDescendantReview(session.attemptId)
@@ -426,9 +1031,11 @@ function App() {
 
       return Array.from({ length: session.questionCount || 0 }, (_, index) => index + 1).flatMap((questionNumber) => {
         const answer = activeSession.answers?.[questionNumber] || {}
+        const responseBody = String(answer.response || answer.finalAnswer || answer.working || '').trim()
         const hasResponse = activeSession.profile?.mode === 'mcq'
           ? Boolean(answer.choice)
-          : Boolean(String(answer.finalAnswer || '').trim() || answer.image || pdfInkQuestionNumbers.has(questionNumber))
+          : Boolean(responseBody || answer.image || pdfInkQuestionNumbers.has(questionNumber))
+        if (!hasResponse) return []
         const awardedValue = activeReview.selfMarks?.[questionNumber]
         const maxValue = activeSession.profile?.mode === 'mcq' ? 1 : activeReview.maxMarksByQuestion?.[questionNumber]
         const awarded = awardedValue === '' || awardedValue == null ? null : Number(awardedValue)
@@ -445,14 +1052,14 @@ function App() {
           awarded: Number.isFinite(awarded) ? awarded : null,
           maxMarks: Number.isFinite(maxMarks) ? maxMarks : null,
           severity: Number.isFinite(awarded) && awarded === 0 ? 'High' : 'Medium',
-          status: !hasResponse ? 'Blank response' : Number.isFinite(awarded) ? 'Open' : 'Self-mark needed',
+          status: Number.isFinite(awarded) ? 'Open' : 'Self-mark needed',
         }]
       })
     })
-  }, [appState.paperReviews, appState.paperSessions, paperCatalogState.catalog])
+  }, [activeRouteId, paperCatalogState.catalog, safePaperReviews, safePaperSessions])
 
   const topicMastery = useMemo(() => {
-    return visibleVerifiedUnits.map((unit) => {
+    return routePracticeUnits.map((unit) => {
       const best = bestResultFor(appState.attempts, unit.id)
       return {
         id: unit.id,
@@ -462,59 +1069,33 @@ function App() {
         score: best?.percentage ?? null,
       }
     })
-  }, [appState.attempts, visibleVerifiedUnits])
+  }, [appState.attempts, routePracticeUnits])
 
   const recommendation = useMemo(() => {
-    const draftUnitId = Object.keys(appState.drafts)[0]
-    const draftUnit = allPracticeUnits.find((unit) => unit.id === draftUnitId)
-    if (draftUnit) {
-      return {
-        unit: draftUnit,
-        reason: 'An autosaved attempt is ready to continue.',
-        action: 'Resume',
-      }
-    }
-
-    const weakMistake = mistakes[0]
-    if (weakMistake) {
-      return {
-        unit: weakMistake.unit,
-        reason: `${weakMistake.part.label} part lost ${weakMistake.criterion.maxMarks - weakMistake.criterion.awarded} mark(s).`,
-        action: 'Fix this',
-      }
-    }
-
-    const freshUnit = visibleVerifiedUnits.find((unit) => !completionByUnit[unit.id]?.completed)
-    return {
-      unit: freshUnit || visibleVerifiedUnits[0],
-      reason: freshUnit ? 'No valid submission yet.' : 'Retest your lowest scored unit.',
-      action: freshUnit ? 'Start' : 'Retest',
-    }
-  }, [allPracticeUnits, appState.drafts, completionByUnit, mistakes, visibleVerifiedUnits])
+    return recommendForRoute({ attempts: appState.attempts, drafts: appState.drafts, units: allPracticeUnits, routes: courseRoutes, routeId: activeRouteId, topicId: selectedTopicId })
+  }, [activeRouteId, allPracticeUnits, appState.attempts, appState.drafts, selectedTopicId])
 
   const visibleUnits = useMemo(() => {
-    const source = activeTab === 'papers' || activeTab === 'exams' || activeTab === 'mistakes' ? [] : visibleVerifiedUnits
-    const normalizedQuery = query.toLowerCase().trim()
-
+    const source = activeTab === 'papers' || activeTab === 'exams' || activeTab === 'mistakes' ? [] : routePracticeUnits
     return source.filter((unit) => {
-      const matchesSubject = subjectFilter === 'all' || unit.subjectId === subjectFilter
       const completion = completionByUnit[unit.id]
       const matchesCompletion =
         completionFilter === 'all' ||
         (completionFilter === 'completed' && completion.completed) ||
         (completionFilter === 'open' && !completion.completed)
-      const matchesQuery =
-        !normalizedQuery ||
-        [unit.title, unit.topic, unit.subtopic, unit.specification, unit.board]
-          .join(' ')
-          .toLowerCase()
-          .includes(normalizedQuery)
-      return matchesSubject && matchesCompletion && matchesQuery
+      const matchesTopic = !selectedTopicId || [unit.knowledgeGroupId, unit.topicId, unit.syllabusTopic, ...(unit.syllabusTopicIds || [])]
+        .filter(Boolean)
+        .includes(selectedTopicId)
+      return matchesCompletion && matchesTopic
     })
-  }, [activeTab, completionByUnit, completionFilter, query, subjectFilter, visibleVerifiedUnits])
+  }, [activeTab, completionByUnit, completionFilter, routePracticeUnits, selectedTopicId])
 
   function updateProfile(patch) {
     setAppState((state) => ({ ...state, profile: { ...state.profile, ...patch } }))
+  }
+
+  function setImmersiveLearning(value) {
+    updateProfile({ immersiveLearning: Boolean(value) })
   }
 
   function toggleFavoriteUnit(unitId) {
@@ -527,60 +1108,120 @@ function App() {
     })
   }
 
-  async function createClassroom(name) {
-    const account = sharedAccount.status === 'ready' ? sharedAccount : await refreshSharedAccount()
-    if (!account?.token) throw new Error('Sign in to IELTS-ist before creating a class.')
-    const result = await sharedAccountRequest(account.token, '/api/stem/classrooms', { method: 'POST', body: JSON.stringify({ name }) })
-    const workspace = await requestSharedWorkspace(account.token)
-    setSharedAccount((current) => ({ ...current, status: 'ready', workspace }))
-    return result.classroom
+  function updateNotebookNote(value) {
+    const updatedAt = new Date().toISOString()
+    const request = notebookNoteRequest(value)
+    const deleted = request.method === 'DELETE'
+    const noteOwnerId = String(sharedAccount.identity?.id || '')
+    setAppState((state) => ({
+      ...state,
+      notebookNotes: {
+        ...(state.notebookNotes || {}),
+        [activeRouteId]: {
+          body: deleted ? '' : value,
+          updatedAt,
+          ...(deleted ? { deleted: true, deletedAt: updatedAt } : { deleted: false, deletedAt: null }),
+          syncStatus: sharedAccount.status === 'ready' ? 'pending' : 'local-only',
+        },
+      },
+    }))
+    if (notebookSyncTimerRef.current) window.clearTimeout(notebookSyncTimerRef.current)
+    if (sharedAccount.status === 'ready' && sharedAccount.token && noteOwnerId) {
+      notebookSyncTimerRef.current = window.setTimeout(async () => {
+        if (stateOwnerIdRef.current !== noteOwnerId) return
+        try {
+          const payload = await sharedAccountRequest(sharedAccount.token, `/api/stem/notebook/notes/${encodeURIComponent(activeRouteId)}`, request)
+          if (stateOwnerIdRef.current !== noteOwnerId) return
+          setAppState((state) => {
+            const current = state.notebookNotes?.[activeRouteId]
+            const syncedNote = mergeNotebookNote(current, payload.note)
+            return {
+              ...state,
+              notebookNotes: {
+                ...(state.notebookNotes || {}),
+                [activeRouteId]: syncedNote || { ...(current || {}), syncStatus: 'synced' },
+              },
+            }
+          })
+        } catch {
+          if (stateOwnerIdRef.current !== noteOwnerId) return
+          setAppState((state) => ({
+            ...state,
+            notebookNotes: {
+              ...(state.notebookNotes || {}),
+              [activeRouteId]: { ...(state.notebookNotes?.[activeRouteId] || {}), syncStatus: 'error' },
+            },
+          }))
+        }
+      }, 650)
+    }
   }
 
-  async function joinClassroom(inviteCode) {
-    const account = sharedAccount.status === 'ready' ? sharedAccount : await refreshSharedAccount()
-    if (!account?.token) throw new Error('Sign in to IELTS-ist before joining a class.')
-    await sharedAccountRequest(account.token, '/api/stem/classrooms/join', { method: 'POST', body: JSON.stringify({ inviteCode }) })
-    const workspace = await requestSharedWorkspace(account.token)
-    setSharedAccount((current) => ({ ...current, status: 'ready', workspace }))
+  function recordReviewQueueAction(reviewItemId, action, reason = '', snoozeUntil = null) {
+    const allowedActions = new Set(['ignored', 'archived', 'snoozed', 'dismissed', 'manual-mastered', 'deleted'])
+    if (!allowedActions.has(action) || !reviewItemId) return
+    const at = new Date().toISOString()
+    setAppState((state) => ({
+      ...state,
+      reviewQueueAudit: [
+        ...(state.reviewQueueAudit || []),
+        {
+          id: makeAttemptId().replace('att-', 'review-'),
+          reviewItemId,
+          action,
+          reason: String(reason || '').trim().slice(0, 300),
+          at,
+          snoozeUntil: snoozeUntil || null,
+        },
+      ].slice(-500),
+    }))
   }
 
-  async function createAssignment(draft) {
-    const account = sharedAccount.status === 'ready' ? sharedAccount : await refreshSharedAccount()
-    if (!account?.token) throw new Error('Sign in to IELTS-ist before creating an assignment.')
-    const subject = subjects.find((item) => item.id === draft.subjectId)
-    const topic = learningPlan.knowledgeGroups.find((group) => group.id === draft.topicId)
-    const classroomId = draft.classroomId || account.workspace?.classrooms?.find((classroom) => ['owner', 'teacher'].includes(classroom.role))?.id
-    if (!classroomId) throw new Error('Create or join a teacher class before assigning work.')
-    const verifiedUnit = buildCoachPractice({ subjectId: draft.subjectId, stage: draft.stage, knowledgeGroupId: draft.topicId, questionCount: 10 })
-    const result = await sharedAccountRequest(account.token, '/api/stem/assignments', {
-      method: 'POST',
-      body: JSON.stringify({
-        classroomId,
-        subjectId: draft.subjectId,
-        stage: draft.stage,
-        syllabusPointId: draft.topicId,
-        title: draft.title || `${subject?.code || ''} ${topic?.name || 'verified practice'}`.trim(),
-        dueAt: draft.dueDate || null,
-        sourceScope: { questionIds: verifiedUnit.parts.map((part) => part.bankId), provenanceVersion: 'qp-ms-v1' },
-      }),
-    })
-    const workspace = await requestSharedWorkspace(account.token)
-    setSharedAccount((current) => ({ ...current, status: 'ready', workspace }))
-    return result.assignment
+  async function disconnectSharedAccount() {
+    try {
+      await signOutSharedAccount()
+    } catch {
+      // The local session is cleared optimistically so an unavailable server
+      // cannot leave a stale signed-in UI on this device.
+    }
+    setSharedAccount({ status: 'guest', token: '', workspace: null, error: 'You are signed out of the STEM session.' })
   }
 
-  function startAssignedAssignment(assignment) {
-    const unit = buildCoachPractice({
-      subjectId: assignment.subjectId,
-      stage: assignment.stage,
-      knowledgeGroupId: assignment.syllabusPointId,
-      questionCount: assignment.sourceScope?.questionIds?.length || 10,
-    })
-    startPractice(unit, { assignmentId: assignment.id })
+  async function submitNativeAccount({ mode, username, password }) {
+    const account = await signInSharedAccount({ mode, username, password })
+    setSharedAccount({ status: 'ready', ...account, workspace: null, error: '' })
+    setAccountDialogMode(null)
   }
 
   function startPractice(unit, options = {}) {
-    const sessionUnit = focusedRetestUnit(unit, options.onlyPartId)
+    const hasSourceParts = Array.isArray(unit?.parts) && unit.parts.some((part) => part?.sourceKind === 'past-paper')
+    const sourceValidatedUnit = options.sourceValidated === true
+      && unit?.sourceAuthority === 'server-syllabus'
+      && unit?.sourceGateStatus === 'current'
+      ? unit
+      : null
+    const currentBoundUnit = hasSourceParts ? sourceValidatedUnit || rebindPracticeUnit(unit, syllabusRebindState.units, practiceRuntime) : unit
+    if (!currentBoundUnit || !routeById(currentBoundUnit.routeId)) {
+      throw new Error('This saved question set is no longer source-complete and cannot be resumed or marked.')
+    }
+    const sourceAttempt = options.retestOf
+      ? appState.attempts.find((attempt) => attempt.id === options.retestOf)
+      : null
+    if (options.retestOf && !sourceAttempt) {
+      throw new Error('The source attempt for this retest is no longer available.')
+    }
+    if (sourceAttempt && !hasCurrentSourceBindingForAttempt(sourceAttempt, currentBoundUnit)) {
+      throw new Error('This saved attempt is linked to an older source review and is available only as read-only history.')
+    }
+    const restoredFocusedRetest = currentBoundUnit.focusedRetestValidated === true
+    if (!isStartableTopicPracticeUnit(currentBoundUnit, { allowFocusedRetest: restoredFocusedRetest })) {
+      throw new Error(`At least ${MIN_QUESTION_GROUPS_PER_TEST} distinct source questions are required before this Topic Drill can start.`)
+    }
+    if (options.onlyPartId && !sourceAttempt) {
+      throw new Error('A focused retest must be linked to its source attempt.')
+    }
+    selectRoute(currentBoundUnit.routeId)
+    const sessionUnit = focusedRetestUnit(currentBoundUnit, options.onlyPartId, sourceAttempt?.id)
     if (!options.confirmed) {
       setPendingSession({
         unit: sessionUnit,
@@ -600,17 +1241,21 @@ function App() {
     setAppState((state) => ({
       ...state,
       recentPractice: [
-        { unitId: sessionUnit.id, openedAt: new Date().toISOString() },
+        { unitId: sessionUnit.id, attemptId: options.clearDraft ? null : state.drafts[sessionUnit.id]?.attemptId || null, openedAt: new Date().toISOString() },
         ...(state.recentPractice || []).filter((item) => item.unitId !== sessionUnit.id),
       ].slice(0, 8),
     }))
     const draft = options.clearDraft ? null : appState.drafts[sessionUnit.id]
-    setCurrentAttempt({
-      id: makeAttemptId(),
+    const openedAttempt = {
+      id: draft?.attemptId || makeAttemptId(),
       unitId: sessionUnit.id,
+      routeId: sessionUnit.routeId,
+      qualification: sessionUnit.qualification,
+      courseStage: sessionUnit.stage,
       mode: sessionUnit.type,
-      stage: 'practice',
-      startedAt: new Date().toISOString(),
+      stage: sessionUnit.stage,
+      attemptStatus: 'practice',
+      startedAt: draft?.startedAt || new Date().toISOString(),
       elapsedSec: draft?.elapsedSec || 0,
       durationSec: sessionUnit.durationSec,
       activePartId: draft?.activePartId || sessionUnit.parts[0].id,
@@ -620,15 +1265,47 @@ function App() {
       saveStatus: draft ? 'Restored draft' : 'Ready',
       retestOf: options.retestOf || null,
       assignmentId: options.assignmentId || null,
+      sourceBinding: sourceBindingSnapshotForUnit(sessionUnit),
       settings: options.settings || draft?.settings || { mode: sessionUnit.type === 'paper' ? 'exam' : 'practice', timing: 'recommended', hints: true },
-    })
+    }
+    setAppState((state) => ({
+      ...state,
+      drafts: {
+        ...state.drafts,
+        [sessionUnit.id]: {
+          attemptId: openedAttempt.id,
+          startedAt: openedAttempt.startedAt,
+          routeId: openedAttempt.routeId,
+          stage: openedAttempt.stage,
+          answers: openedAttempt.answers,
+          working: openedAttempt.working,
+          evidence: openedAttempt.evidence,
+          elapsedSec: openedAttempt.elapsedSec,
+          activePartId: openedAttempt.activePartId,
+          settings: openedAttempt.settings,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    }))
+    setCurrentAttempt(openedAttempt)
     setPendingSession(null)
     setResultAttempt(null)
     setView('practice')
   }
 
-  function openPaper(paper) {
-    setActivePaper(paper)
+  function openPaper(paper, routeOverride = activeRoute) {
+    const paperNumber = paper.examProfile?.paperNumber == null ? null : Number(paper.examProfile.paperNumber)
+    const routeMatches = String(paper.subject) === String(routeOverride.subjectCode)
+      && (paperNumber == null || !Number.isFinite(paperNumber) || !routeOverride.paperComponents.length || routeOverride.paperComponents.includes(paperNumber))
+    if (!routeMatches) return
+    const scopedPaper = {
+      ...paper,
+      routeId: routeOverride.routeId,
+      stage: routeOverride.stage,
+      qualification: routeOverride.qualification,
+      paperStudyMode: normalizePaperStudyMode(paper.paperStudyMode),
+    }
+    setActivePaper(scopedPaper)
     setAppState((state) => ({
       ...state,
       recentPapers: [paper.id, ...state.recentPapers.filter((id) => id !== paper.id)].slice(0, 8),
@@ -636,10 +1313,13 @@ function App() {
     setView('paper')
   }
 
-  function generateCoachPractice(selection) {
-    const unit = buildCoachPractice({
+  async function generateCoachPractice(selection) {
+    if (!selection) throw new Error('Choose a valid learning route before building practice.')
+    const runtime = await ensurePracticeRuntime()
+    const unit = runtime.buildCoachPractice({
       ...selection,
-      allowPartial: selection.allowPartial ?? true,
+      agentGenerated: true,
+      allowPartial: false,
     })
     setAppState((state) => ({
       ...state,
@@ -653,25 +1333,69 @@ function App() {
     return unit
   }
 
-  function openPaperLibraryForSubject(subjectId = 'all') {
-    setSubjectFilter(subjectId)
-    setActiveTab('papers')
-    setView('library')
+  async function generateSyllabusPractice(selection) {
+    if (!supportsSyllabusPracticeRoute(selection?.routeId)) return generateCoachPractice(selection)
+    const syllabusTopicIds = (selection.syllabusTopicIds || [selection.knowledgeGroupId])
+      .flatMap((topicId) => syllabusTopicScopeIdsForRoute(selection.routeId, topicId))
+      .filter(Boolean)
+    const components = selection.components?.length
+      ? selection.components
+      : syllabusPracticeComponentsForRoute(selection.routeId)
+    const response = await requestSyllabusPracticeSet(sharedAccount.token, {
+      routeId: selection.routeId,
+      syllabusTopicIds,
+      questionCount: selection.questionCount || MIN_VERIFIED_GROUPS_FOR_PRACTICE,
+      components,
+      sourceQuestionIds: selection.sourceQuestionIds,
+      excludeAttempted: true,
+      attemptedQuestionIds: attemptedSourceQuestionIds(appState.attempts, selection.routeId),
+      seed: Date.now(),
+    })
+    if (!response?.questionGroups?.length) throw new Error('The selected syllabus topics have no official practice questions yet.')
+    const unit = { ...unitFromSyllabusPracticeSet(response), sourceGateStatus: 'current' }
+    setSyllabusRebindState((current) => ({
+      ...current,
+      units: new Map(current.units).set(unit.id, unit),
+    }))
+    setAppState((state) => ({
+      ...state,
+      generatedUnits: [unit, ...(state.generatedUnits || [])].slice(0, 24),
+    }))
+    startPractice(unit, {
+      confirmed: true,
+      clearDraft: true,
+      sourceValidated: true,
+      settings: { mode: 'guided', timing: 'recommended', hints: true },
+    })
+    return unit
   }
 
   async function handleCoachAgentAction(intent) {
     if (intent.type === 'open-latest-paper' && intent.contest === 'bpho-spc') {
-      const paper = latestBphoSpcPaper(paperCatalogState.catalog?.items || [])
+      const bphoRoute = routeById(intent.routeId)
+      if (!bphoRoute || bphoRoute.subjectId !== 'bpho' || bphoRoute.stage !== 'Competition') {
+        return { handled: true, message: 'This Competition paper request is not bound to a verified learning route.' }
+      }
+      let catalog = paperCatalogState.catalog
+      if (!catalog || !catalog.items?.some((item) => item.subject === bphoRoute.subjectCode)) {
+        try {
+          catalog = await paperCatalogState.load({ subject: bphoRoute.subjectCode })
+        } catch {
+          return { handled: true, message: 'BPhO SPC 的本地 PDF 目录暂时无法加载。请稍后再试。' }
+        }
+      }
+      const paper = latestBphoSpcPaper(catalog.items || [])
       if (!paper) {
         return {
           handled: true,
           message: 'BPhO SPC 的本地 PDF 目录还没有加载好，或没有找到已配对的最新 QP/MS。请稍后再试。',
         }
       }
+      selectRoute(bphoRoute.routeId)
       openPaper({
         ...paper,
         agentNotice: '已打开最新 BPhO SPC question paper。先在右侧答题区作答并提交，提交后会解锁精确配对的 mark scheme。',
-      })
+      }, bphoRoute)
       return {
         handled: true,
         message: `已打开 ${paper.file}。它已经配对 ${paper.markSchemeId ? '精确 mark scheme' : '答案文件'}；提交答题区后可以查看答案。`,
@@ -680,13 +1404,36 @@ function App() {
 
     if (intent.type === 'build-topic-practice') {
       try {
-        const unit = generateCoachPractice(intent)
+        const contextualRouteId = intent.routeId || (
+          String(activeRoute.subjectCode || '') === String(intent.subjectCode || '')
+          && activeRoute.stage === intent.stage
+          ? activeRouteId
+          : undefined
+        )
+        const runtime = await ensurePracticeRuntime()
+        const selection = runtime.resolveVerifiedPracticeSelection({
+          routeId: contextualRouteId,
+          subjectId: intent.subjectId,
+          stage: intent.stage,
+          topicId: intent.topicId || intent.knowledgeGroupId,
+        })
+        const unit = await generateSyllabusPractice({
+          ...intent,
+          routeId: selection.subject.routeId,
+          stage: selection.subject.stage,
+          topicId: selection.group.id,
+          knowledgeGroupId: selection.group.id,
+        })
         return {
           handled: true,
-          message: `已生成 ${unit.title}。共 ${unit.parts.length} 道真实来源题，每题绑定原卷和对应 mark scheme；提交后自动批改，手写图像会进入 AI 复核。`,
+          message: `已生成 ${unit.title}。共 ${questionGroupCountForUnit(unit)} 道真实来源题，包含 ${unit.parts.length} 个答题小问；每题绑定原卷和对应 mark scheme。`,
         }
       } catch (error) {
-        return { handled: true, message: error.message || 'This topic does not yet have enough verified questions.' }
+        return {
+          handled: true,
+          keepOpen: true,
+          message: error.message || 'This topic does not yet have enough verified questions.',
+        }
       }
     }
 
@@ -694,51 +1441,69 @@ function App() {
   }
 
   function retestPaper(paper, sourceAttemptId) {
-    const key = paper.pairKey || paper.id
+    const sourceSession = appState.paperSessions.find((session) => session.attemptId === sourceAttemptId)
+    const paperStudyMode = normalizePaperStudyMode(sourceSession?.paperStudyMode || paper.paperStudyMode)
+    const key = paperDraftKey({ ...paper, paperStudyMode }, paperStudyMode)
     setAppState((state) => {
       const { [key]: _removedDraft, ...paperDrafts } = state.paperDrafts
       return { ...state, paperDrafts, recentPapers: [paper.id, ...state.recentPapers.filter((id) => id !== paper.id)].slice(0, 8) }
     })
-    setActivePaper({ ...paper, retestOf: sourceAttemptId })
+    setActivePaper({ ...paper, routeId: sourceSession?.routeId || activeRouteId, stage: sourceSession?.stage || activeRoute.stage, qualification: sourceSession?.qualification || activeRoute.qualification, paperStudyMode, retestOf: sourceAttemptId })
     setView('paper')
   }
 
   const savePaperDraft = useCallback((draft) => {
-    const key = draft.pairKey || draft.paperId
-    setAppState((state) => ({ ...state, paperDrafts: { ...state.paperDrafts, [key]: draft } }))
+    const paperStudyMode = normalizePaperStudyMode(draft.paperStudyMode)
+    const normalizedDraft = { ...draft, paperStudyMode }
+    const key = paperDraftKey(normalizedDraft, paperStudyMode)
+    setAppState((state) => ({ ...state, paperDrafts: { ...state.paperDrafts, [key]: normalizedDraft } }))
+  }, [])
+
+  const handlePaperAttemptReady = useCallback((attemptId) => {
+    setActivePaper((current) => current && !current.attemptId ? { ...current, attemptId } : current)
   }, [])
 
   function finishPaperSession(session) {
+    const paperStudyMode = normalizePaperStudyMode(session.paperStudyMode || activePaper?.paperStudyMode)
     setAppState((state) => {
       if (state.paperSessions.some((item) => item.attemptId === session.attemptId)) return state
       return {
         ...state,
         paperSessions: [
           ...state.paperSessions,
-          { ...session, id: makeAttemptId().replace('att-', 'paper-'), completedAt: session.submittedAt || new Date().toISOString() },
+          { ...session, paperStudyMode, routeId: activePaper?.routeId || activeRouteId, stage: activePaper?.stage || activeRoute.stage, qualification: activePaper?.qualification || activeRoute.qualification, id: makeAttemptId().replace('att-', 'paper-'), completedAt: session.submittedAt || new Date().toISOString() },
         ],
       }
     })
   }
 
   function finishPaperReview(review) {
+    const paperStudyMode = normalizePaperStudyMode(review.paperStudyMode || activePaper?.paperStudyMode)
     setAppState((state) => ({
       ...state,
       paperReviews: [
         ...(state.paperReviews || []),
-        { ...review, id: makeAttemptId().replace('att-', 'review-'), completedAt: review.reviewedAt || new Date().toISOString() },
+        { ...review, paperStudyMode, routeId: activePaper?.routeId || activeRouteId, stage: activePaper?.stage || activeRoute.stage, id: makeAttemptId().replace('att-', 'review-'), completedAt: review.reviewedAt || new Date().toISOString() },
       ],
     }))
   }
 
-  function exportLearningData() {
-    const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), ...appState }, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = `alevel-studio-export-${new Date().toISOString().slice(0, 10)}.json`
-    anchor.click()
-    URL.revokeObjectURL(url)
+  async function exportLearningData() {
+    setExportState({ status: 'preparing', error: '', exportedAt: '', filename: '' })
+    try {
+      const prepared = await prepareLearningExport(appState, { units: allPracticeUnits })
+      const blob = new Blob([prepared.json], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      const filename = `stem-learning-data-${new Date().toISOString().slice(0, 10)}.json`
+      anchor.href = url
+      anchor.download = filename
+      anchor.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 0)
+      setExportState({ status: 'ready', error: '', exportedAt: prepared.payload.exportedAt, filename })
+    } catch {
+      setExportState({ status: 'failed', error: 'Your export could not be prepared. Try again.', exportedAt: '', filename: '' })
+    }
   }
 
   function updateAnswer(partId, value) {
@@ -753,6 +1518,10 @@ function App() {
         drafts: {
           ...state.drafts,
           [attempt.unitId]: {
+            attemptId: next.id,
+            startedAt: next.startedAt,
+            routeId: next.routeId,
+            stage: next.stage,
             answers: next.answers,
             working: next.working,
             evidence: next.evidence,
@@ -779,6 +1548,10 @@ function App() {
         drafts: {
           ...state.drafts,
           [attempt.unitId]: {
+            attemptId: next.id,
+            startedAt: next.startedAt,
+            routeId: next.routeId,
+            stage: next.stage,
             answers: next.answers,
             working: next.working,
             evidence: next.evidence,
@@ -801,6 +1574,10 @@ function App() {
         drafts: {
           ...state.drafts,
           [attempt.unitId]: {
+            attemptId: next.id,
+            startedAt: next.startedAt,
+            routeId: next.routeId,
+            stage: next.stage,
             answers: next.answers,
             working: next.working,
             evidence: next.evidence,
@@ -815,53 +1592,133 @@ function App() {
     })
   }
 
-  async function submitAttempt() {
+  async function submitAttempt(evidencePatch = {}) {
     if (!currentAttempt) return
     if (currentAttempt.submitting) return
-    const attemptSnapshot = { ...currentAttempt, submitting: true }
+    const attemptSnapshot = { ...currentAttempt, evidence: { ...(currentAttempt.evidence || {}), ...evidencePatch }, submitting: true }
     setCurrentAttempt(attemptSnapshot)
     const unit = allPracticeUnits.find((item) => item.id === currentAttempt.unitId)
-    const deterministicScore = scoreAttempt(unit, attemptSnapshot.answers, attemptSnapshot.elapsedSec)
-    const visionReviews = await requestVisionReviews(unit, attemptSnapshot)
-    const scoreResult = mergeVisionScore(deterministicScore, unit, attemptSnapshot.answers, visionReviews)
-    const assistedReview = reviewAttempt(unit, attemptSnapshot.answers, attemptSnapshot.working)
-    const imageEvidence = Object.entries(attemptSnapshot.evidence || {}).filter(([, evidence]) => Boolean(evidence)).map(([partId, evidence]) => ({ partId, ...evidence }))
-    const completedAttempt = {
+    if (!unit) {
+      setCurrentAttempt(null)
+      setView('library')
+      return
+    }
+    const capability = markingCapabilityForUnit(unit)
+    const studyOnly = isStudyOnlyPracticeUnit(unit)
+    const sourceBinding = sourceBindingSnapshotForUnit(unit)
+    if ((unit.parts || []).some((part) => part.sourceKind === 'past-paper') && !sourceBinding) {
+      setCurrentAttempt({ ...attemptSnapshot, submitting: false, saveStatus: 'Source review changed. Reopen this set before submitting.' })
+      return
+    }
+    const submittedAt = new Date().toISOString()
+    const submittedAttempt = { ...attemptSnapshot, submittedAt, submitting: false }
+    const pendingStatus = capability.mode === 'self-mark' ? 'self-mark-pending' : 'marking-pending'
+    let attemptPersistenceStatus = sharedAccount.token ? 'pending' : 'local-only'
+    if (sharedAccount.token) {
+      try {
+        await persistStudentAttempt({
+          token: sharedAccount.token,
+          attempt: { ...submittedAttempt, attemptStatus: pendingStatus, selfMarkPending: true },
+          mode: 'topic',
+          routeId: unit.routeId,
+          stage: unit.stage,
+          markingParts: sourceMarkingPartsForUnit(unit),
+        })
+        attemptPersistenceStatus = 'saved'
+      } catch (error) {
+        setCurrentAttempt({
+          ...attemptSnapshot,
+          submitting: false,
+          saveStatus: error.message || 'The submitted attempt could not be saved on the server. Try again.',
+        })
+        return
+      }
+    }
+    const visionReviews = capability.counts['ai-assisted'] ? await requestVisionReviews(unit, submittedAttempt, sharedAccount.token) : {}
+    const markingLifecycle = buildPartMarkingLifecycle(unit, attemptSnapshot.answers, attemptSnapshot.elapsedSec, visionReviews, attemptSnapshot.evidence)
+    const scoreResult = markingLifecycle.complete && markingLifecycle.provisionalCriteria.length > 0
+      ? finalizePartMarking(unit, markingLifecycle, {}, attemptSnapshot.elapsedSec)
+      : null
+    const formalScore = isFormalScoreResult(scoreResult, studyOnly)
+    const imageEvidence = Object.entries(attemptSnapshot.evidence || {}).filter(([, evidence]) => evidencePresent(evidence)).map(([partId, evidence]) => ({ partId, ...evidence }))
+    let completedAttempt = {
       ...attemptSnapshot,
       submitting: false,
-      stage: 'result',
-      submittedAt: new Date().toISOString(),
-      scoreResult,
-      assistedReview,
+      routeId: unit.routeId,
+      stage: unit.stage,
+       attemptStatus: scoreResult ? (scoreResult.partial ? 'provisional-result' : studyOnly ? 'study-result' : 'result') : pendingStatus,
+      submittedAt,
+      sourceBinding,
+      ...(scoreResult ? { scoreResult } : {}),
+      assistedReview: null,
       imageEvidence,
       visionReviews,
+      markingLifecycle,
+      selfMarkPending: !scoreResult,
+      formalResult: formalScore,
+      attemptPersistenceStatus,
       contentScope: {
         unitId: unit.id,
         title: unit.title,
         type: unit.type,
+        routeId: unit.routeId,
+        qualification: unit.qualification,
+        stage: unit.stage,
         subjectId: unit.subjectId,
+        syllabusTopic: unit.syllabusTopic || unit.knowledgeGroupId,
         topic: unit.topic,
       },
     }
     const previousScores = appState.attempts
-      .filter((attempt) => attempt.stage === 'result' && attempt.unitId === unit.id && Number.isFinite(attempt.scoreResult?.percentage))
+      .filter((attempt) => isScoredAttempt(attempt, unit) && attempt.routeId === unit.routeId && attempt.unitId === unit.id)
       .map((attempt) => attempt.scoreResult.percentage)
     const masteryBefore = previousScores.length
       ? Math.round(previousScores.reduce((total, score) => total + score, 0) / previousScores.length)
       : null
-    completedAttempt.learningSignal = {
-      masteryBefore,
-      masteryAfter: scoreResult.percentage,
-      masteryDelta: masteryBefore == null ? null : scoreResult.percentage - masteryBefore,
+    if (formalScore) {
+      completedAttempt.learningSignal = {
+        masteryBefore,
+        masteryAfter: scoreResult.percentage,
+        masteryDelta: masteryBefore == null ? null : scoreResult.percentage - masteryBefore,
+      }
     }
 
-    if (attemptSnapshot.assignmentId && sharedAccount.status === 'ready') {
+    if (sharedAccount.token) {
+      try {
+        const persisted = await persistStudentAttempt({
+          token: sharedAccount.token,
+          attempt: completedAttempt,
+          mode: 'topic',
+          routeId: unit.routeId,
+          stage: unit.stage,
+          markingParts: sourceMarkingPartsForUnit(unit),
+        })
+        completedAttempt = {
+          ...applyServerResultAuthority(completedAttempt, persisted.attempt),
+          attemptPersistenceStatus: 'saved',
+        }
+      } catch (error) {
+        const { scoreResult: _scoreResult, learningSignal: _learningSignal, ...pendingAttempt } = completedAttempt
+        completedAttempt = {
+          ...pendingAttempt,
+          attemptStatus: pendingStatus,
+          selfMarkPending: true,
+          formalResult: false,
+          attemptPersistenceStatus: 'pending',
+          attemptPersistenceError: error.message || 'The result could not be saved on the server. It remains pending.',
+        }
+      }
+    }
+
+    if (completedAttempt.formalResult === true && completedAttempt.attemptPersistenceStatus !== 'pending' && attemptSnapshot.assignmentId && sharedAccount.status === 'ready') {
       try {
         await sharedAccountRequest(sharedAccount.token, `/api/stem/assignments/${encodeURIComponent(attemptSnapshot.assignmentId)}/submissions`, {
           method: 'POST',
           body: JSON.stringify({
             idempotencyKey: attemptSnapshot.id,
             attemptId: attemptSnapshot.id,
+            routeId: unit.routeId,
+            stage: unit.stage,
             rawMarks: scoreResult.rawMarks,
             maxMarks: scoreResult.maxMarks,
             percentage: scoreResult.percentage,
@@ -869,6 +1726,7 @@ function App() {
             markingMode: Object.keys(visionReviews).length ? 'assisted-vision' : 'deterministic',
             reviewRequired: Object.values(visionReviews).some((review) => review.reviewRequired),
           }),
+          storageUserId: stateOwnerId,
         })
         completedAttempt.serverSync = 'synced'
       } catch (error) {
@@ -890,50 +1748,473 @@ function App() {
     setView('result')
   }
 
+  function saveSelfMarkDraft(attemptId, marksByPart) {
+    setAppState((state) => ({
+      ...state,
+      selfMarkDrafts: {
+        ...(state.selfMarkDrafts || {}),
+        [attemptId]: { ...marksByPart, updatedAt: new Date().toISOString() },
+      },
+    }))
+  }
+
+  async function recordSelfMark(attemptId, marksByPart) {
+    const pending = appState.attempts.find((attempt) => attempt.id === attemptId)
+    const unit = pending && allPracticeUnits.find((item) => item.id === pending.unitId)
+    if (!pending || !unit || !isPendingSelfMarkAttempt(pending) || !hasCurrentSourceBindingForAttempt(pending, unit)) return
+    const existingFinal = appState.attempts.find((attempt) => attempt.finalizedFromAttemptId === attemptId && isScoredAttempt(attempt, unit))
+    if (existingFinal) {
+      setResultAttempt(existingFinal)
+      return
+    }
+    const markingLifecycle = pending.markingLifecycle || buildPartMarkingLifecycle(unit, pending.answers, pending.elapsedSec, pending.visionReviews)
+    if (!hasCompleteStudentMarks(unit, markingLifecycle, marksByPart)) return
+    const scoreResult = finalizePartMarking(unit, markingLifecycle, marksByPart, pending.elapsedSec)
+    const studyOnly = isStudyOnlyPracticeUnit(unit)
+    const previousScores = appState.attempts
+      .filter((attempt) => attempt.id !== attemptId && isScoredAttempt(attempt, unit) && attempt.routeId === unit.routeId && attempt.unitId === unit.id)
+      .map((attempt) => attempt.scoreResult.percentage)
+    const masteryBefore = previousScores.length ? Math.round(previousScores.reduce((total, score) => total + score, 0) / previousScores.length) : null
+    let recorded = {
+      ...pending,
+      id: makeAttemptId(),
+      finalizedFromAttemptId: pending.id,
+      attemptStatus: scoreResult.partial ? 'provisional-result' : studyOnly ? 'study-result' : 'result',
+      selfMarkPending: false,
+      formalResult: isFormalScoreResult(scoreResult, studyOnly),
+      studentSelfMarks: Object.fromEntries(pendingPartsForLifecycle(unit, markingLifecycle).map((part) => [part.id, Number(marksByPart[part.id])])),
+      selfMarkRecordedAt: new Date().toISOString(),
+      scoreResult,
+      markingResolution: {
+        finalizedAt: new Date().toISOString(),
+        studentMarkedPartIds: pendingPartsForLifecycle(unit, markingLifecycle).map((part) => part.id),
+      },
+      ...((scoreResult.partial || studyOnly) ? {} : { learningSignal: {
+        masteryBefore,
+        masteryAfter: scoreResult.percentage,
+        masteryDelta: masteryBefore == null ? null : scoreResult.percentage - masteryBefore,
+      } }),
+    }
+    if (sharedAccount.token) {
+      try {
+        const persisted = await persistStudentAttempt({
+          token: sharedAccount.token,
+          attempt: recorded,
+          mode: 'topic',
+          routeId: unit.routeId,
+          stage: unit.stage,
+          markingParts: sourceMarkingPartsForUnit(unit),
+        })
+        recorded = applyServerResultAuthority(recorded, persisted.attempt)
+      } catch (error) {
+        setResultAttempt({
+          ...pending,
+          attemptPersistenceStatus: 'pending',
+          attemptPersistenceError: error.message || 'The result could not be saved on the server. Try again.',
+        })
+        return
+      }
+    }
+    setAppState((state) => {
+      const { [attemptId]: _removedDraft, ...selfMarkDrafts } = state.selfMarkDrafts || {}
+      return { ...state, attempts: [...state.attempts, recorded], selfMarkDrafts }
+    })
+    setResultAttempt(recorded)
+  }
+
+  async function retryAiMarking(attemptId) {
+    const pending = appState.attempts.find((attempt) => attempt.id === attemptId)
+    const unit = pending && allPracticeUnits.find((item) => item.id === pending.unitId)
+    if (!pending || !unit || !isPendingSelfMarkAttempt(pending) || !hasCurrentSourceBindingForAttempt(pending, unit)) return false
+    const retryAttempt = {
+      ...pending,
+      id: makeAttemptId(),
+      retriedMarkingFromAttemptId: pending.id,
+      submittedAt: new Date().toISOString(),
+      attemptStatus: 'marking-pending',
+      selfMarkPending: true,
+    }
+    if (sharedAccount.token) {
+      try {
+        await persistStudentAttempt({
+          token: sharedAccount.token,
+          attempt: retryAttempt,
+          mode: 'topic',
+          routeId: unit.routeId,
+          stage: unit.stage,
+          markingParts: sourceMarkingPartsForUnit(unit),
+        })
+      } catch (error) {
+        setResultAttempt({ ...pending, attemptPersistenceStatus: 'pending', attemptPersistenceError: error.message || 'The retry could not be saved on the server.' })
+        return false
+      }
+    }
+    const visionReviews = await requestVisionReviews(unit, retryAttempt, sharedAccount.token)
+    const markingLifecycle = buildPartMarkingLifecycle(unit, retryAttempt.answers, retryAttempt.elapsedSec, visionReviews, retryAttempt.evidence)
+    const scoreResult = markingLifecycle.complete && markingLifecycle.provisionalCriteria.length > 0
+      ? finalizePartMarking(unit, markingLifecycle, {}, retryAttempt.elapsedSec)
+      : null
+    const studyOnly = isStudyOnlyPracticeUnit(unit)
+    let recorded = {
+      ...retryAttempt,
+      attemptStatus: scoreResult ? (scoreResult.partial ? 'provisional-result' : studyOnly ? 'study-result' : 'result') : 'marking-pending',
+      visionReviews,
+      markingLifecycle,
+      ...(scoreResult ? { scoreResult } : {}),
+      selfMarkPending: !scoreResult,
+      formalResult: isFormalScoreResult(scoreResult, studyOnly),
+    }
+    if (sharedAccount.token) {
+      try {
+        const persisted = await persistStudentAttempt({
+          token: sharedAccount.token,
+          attempt: recorded,
+          mode: 'topic',
+          routeId: unit.routeId,
+          stage: unit.stage,
+          markingParts: sourceMarkingPartsForUnit(unit),
+        })
+        recorded = applyServerResultAuthority(recorded, persisted.attempt)
+      } catch (error) {
+        const { scoreResult: _scoreResult, ...pendingRecorded } = recorded
+        recorded = {
+          ...pendingRecorded,
+          attemptStatus: 'marking-pending',
+          selfMarkPending: true,
+          formalResult: false,
+          attemptPersistenceStatus: 'pending',
+          attemptPersistenceError: error.message || 'The retry result could not be saved on the server.',
+        }
+      }
+    }
+    setAppState((state) => ({ ...state, attempts: [...state.attempts, recorded] }))
+    setResultAttempt(recorded)
+    return Boolean(scoreResult)
+  }
+
   const currentUnit = currentAttempt ? allPracticeUnits.find((unit) => unit.id === currentAttempt.unitId) : null
   const resultUnit = resultAttempt ? allPracticeUnits.find((unit) => unit.id === resultAttempt.unitId) : null
+  const resultIsPendingSelfMark = Boolean(resultAttempt && resultUnit && isPendingSelfMarkAttempt(resultAttempt))
+  const resultPendingPartIds = resultAttempt?.markingLifecycle?.pendingPartIds || []
+  const resultPendingAutomaticAi = Boolean(resultIsPendingSelfMark && resultUnit && resultPendingPartIds.length && resultPendingPartIds
+    .map((partId) => resultUnit.parts.find((part) => part.id === partId))
+    .filter(Boolean)
+    .every((part) => part.studyOnly === true && canUseAiAssistedMarking(part)))
+  const resultCoachPart = resultAttempt && resultUnit
+    ? resultUnit.parts.find((part) => !resultIsPendingSelfMark && part.id === resultAttempt.scoreResult?.weakestPartId)
+      || resultUnit.parts.find((part) => hasAttemptResponse(resultAttempt, part.id))
+      || resultUnit.parts[0]
+    : null
+  const practiceCoachPart = currentAttempt && currentUnit
+    ? currentUnit.parts.find((part) => part.id === currentAttempt.activePartId) || currentUnit.parts[0]
+    : null
+  const coachAttempt = view === 'practice' ? currentAttempt : resultAttempt
+  const coachUnit = view === 'practice' ? currentUnit : resultUnit
+  const coachPart = view === 'practice' ? practiceCoachPart : resultCoachPart
+
+  const restoreStudentNavigation = useCallback((navigation) => {
+    const route = routeById(navigation.routeId)
+    const stageRoute = !route && navigation.stage
+      ? routeForStageDeepLink({
+          stage: navigation.stage,
+          subjectId: navigation.course,
+          routes: courseRoutes,
+        })
+      : null
+    const resolvedRoute = route || stageRoute
+    const routeId = resolvedRoute?.routeId || activeRouteId
+    if (resolvedRoute && resolvedRoute.routeId !== activeRouteId) selectRoute(resolvedRoute.routeId)
+    if (navigation.view === 'library') setActiveTab(navigation.tab)
+    if (navigation.topicId) setSelectedTopicId(navigation.topicId)
+    if (['practice', 'result'].includes(navigation.view) && practiceRuntimeState.status !== 'ready') {
+      navigationRestorePendingRef.current = true
+      void ensurePracticeRuntime().catch(() => {})
+      return
+    }
+
+    const referencedAttempt = navigation.view === 'result'
+      ? appState.attempts.find((item) => item.id === navigation.attemptId)
+      : null
+    const referencedUnitId = navigation.unitId || referencedAttempt?.unitId
+    const waitsForSyllabusRebind = referencedUnitId
+      && !syllabusRebindState.units.has(referencedUnitId)
+      && syllabusRebindState.status !== 'ready'
+      && (appState.generatedUnits || []).some((unit) => unit.id === referencedUnitId && unit.sourceAuthority === 'server-syllabus')
+    if (waitsForSyllabusRebind) {
+      navigationRestorePendingRef.current = true
+      return
+    }
+
+    if (navigation.view === 'practice') {
+      const unit = allPracticeUnits.find((item) => item.id === navigation.unitId)
+      const draft = unit ? appState.drafts?.[unit.id] : null
+      if (!unit || !draft || (navigation.attemptId && draft.attemptId !== navigation.attemptId)) {
+        setCurrentAttempt(null)
+        setResultAttempt(null)
+        setActivePaper(null)
+        setActiveTab('topics')
+        setView('library')
+        return
+      }
+      const currentBoundUnit = unit.parts?.some((part) => part.sourceKind === 'past-paper') ? rebindPracticeUnit(unit, syllabusRebindState.units, practiceRuntime) : unit
+      if (!currentBoundUnit) {
+        setCurrentAttempt(null)
+        setView('library')
+        return
+      }
+      const restoredAttempt = {
+        id: draft.attemptId,
+        unitId: currentBoundUnit.id,
+        routeId: currentBoundUnit.routeId,
+        qualification: currentBoundUnit.qualification,
+        courseStage: currentBoundUnit.stage,
+        mode: currentBoundUnit.type,
+        stage: currentBoundUnit.stage,
+        attemptStatus: 'practice',
+        startedAt: draft.startedAt || new Date().toISOString(),
+        elapsedSec: Math.max(0, Number(draft.elapsedSec) || 0),
+        durationSec: currentBoundUnit.durationSec,
+        activePartId: currentBoundUnit.parts.some((part) => part.id === navigation.partId)
+          ? navigation.partId
+          : draft.activePartId || currentBoundUnit.parts[0]?.id,
+        answers: migratePracticeAnswers(currentBoundUnit, draft),
+        working: draft.working || {},
+        evidence: draft.evidence || {},
+        saveStatus: 'Restored draft',
+        retestOf: null,
+        sourceBinding: sourceBindingSnapshotForUnit(currentBoundUnit),
+        settings: draft.settings || { mode: currentBoundUnit.type === 'paper' ? 'exam' : 'practice', timing: 'recommended', hints: true },
+      }
+      setCurrentAttempt(restoredAttempt)
+      setResultAttempt(null)
+      setActivePaper(null)
+      setView('practice')
+      return
+    }
+
+    if (navigation.view === 'result') {
+      const attempt = appState.attempts.find((item) => item.id === navigation.attemptId)
+      const unit = attempt && allPracticeUnits.find((item) => item.id === attempt.unitId)
+      if (attempt && unit && (isPendingSelfMarkAttempt(attempt) || isProvisionalAttempt(attempt, unit) || isStudyOnlyAttempt(attempt, unit) || isScoredAttempt(attempt, unit))) {
+        setResultAttempt(attempt)
+        setCurrentAttempt(null)
+        setActivePaper(null)
+        setView('result')
+        return
+      }
+      setView('history')
+      return
+    }
+
+    if (navigation.view === 'paper') {
+      if (paperCatalogState.status === 'loading') return
+      const paper = paperCatalogState.catalog?.items?.find((item) => item.id === navigation.paperId)
+      if (paper) {
+        const scopedRoute = routeById(routeId) || activeRoute
+        const paperStudyMode = normalizePaperStudyMode(navigation.paperMode || navigation.mode || paper.paperStudyMode)
+        const savedDraft = appState.paperDrafts?.[paperDraftKey({ ...paper, paperStudyMode }, paperStudyMode)]
+        const paperAttemptId = navigation.attemptId || savedDraft?.attemptId || ''
+        if (navigation.attemptId && (!savedDraft || savedDraft.attemptId !== navigation.attemptId)) {
+          setActiveTab('papers')
+          setView('library')
+          return
+        }
+        setActivePaper({ ...paper, routeId: scopedRoute.routeId, stage: scopedRoute.stage, qualification: scopedRoute.qualification, paperStudyMode, ...(paperAttemptId ? { attemptId: paperAttemptId } : {}) })
+        setCurrentAttempt(null)
+        setResultAttempt(null)
+        setView('paper')
+        return
+      }
+      setActiveTab('papers')
+      setView('library')
+      return
+    }
+
+    setCurrentAttempt(null)
+    setResultAttempt(null)
+    setActivePaper(null)
+    setView(navigation.view)
+  }, [activeRoute, activeRouteId, allPracticeUnits, appState.attempts, appState.drafts, appState.generatedUnits, appState.paperDrafts, ensurePracticeRuntime, paperCatalogState.catalog, paperCatalogState.status, practiceRuntime, practiceRuntimeState.status, syllabusRebindState.status, syllabusRebindState.units])
+
+  useEffect(() => {
+    const restoreLocation = () => {
+      const currentHref = window.location.href
+      const sameLocation = restoredLocationRef.current === currentHref
+      if (sameLocation && !navigationRestorePendingRef.current) {
+        navigationInitializedRef.current = true
+        return
+      }
+      const navigation = studentNavigationFromLocation(currentHref)
+      restoredLocationRef.current = currentHref
+      if (navigation.view === 'paper' && paperCatalogState.status === 'loading') {
+        navigationRestorePendingRef.current = true
+        return
+      }
+      navigationRestorePendingRef.current = false
+      navigationInitializedRef.current = true
+      restoreStudentNavigation(navigation)
+    }
+    restoreLocation()
+    window.addEventListener('popstate', restoreLocation)
+    window.addEventListener('hashchange', restoreLocation)
+    return () => {
+      window.removeEventListener('popstate', restoreLocation)
+      window.removeEventListener('hashchange', restoreLocation)
+    }
+  }, [restoreStudentNavigation, paperCatalogState.status])
+
+  const navigationHref = studentNavigationHref({
+    view,
+    routeId: activeRoute.routeId,
+    stage: activeRoute.stage,
+    course: activeRoute.subjectCode,
+    tab: activeTab,
+    topicId: view === 'topic' ? selectedTopicId : '',
+    unitId: view === 'practice' ? currentAttempt?.unitId : '',
+    paperId: view === 'paper' ? activePaper?.id : '',
+    attemptId: view === 'practice' ? currentAttempt?.id : view === 'result' ? resultAttempt?.id : view === 'paper' ? activePaper?.attemptId || activePaper?.retestOf || '' : '',
+    partId: view === 'practice' ? currentAttempt?.activePartId : '',
+    mode: view === 'practice' ? currentAttempt?.settings?.mode || currentAttempt?.mode : '',
+    coach: view === 'dashboard' && coachOpenPending ? '1' : '',
+    paperMode: view === 'paper' ? normalizePaperStudyMode(activePaper?.paperStudyMode) : '',
+  })
+
+  useEffect(() => {
+    if (navigationRestorePendingRef.current) return
+    const currentHref = `${window.location.pathname}${window.location.search}`
+    if (currentHref === navigationHref) {
+      navigationInitializedRef.current = true
+      return
+    }
+    if (navigationInitializedRef.current) window.history.pushState({}, '', navigationHref)
+    else window.history.replaceState({}, '', navigationHref)
+    navigationInitializedRef.current = true
+    restoredLocationRef.current = window.location.href
+  }, [navigationHref])
+
+  function returnToLibrary(tab = 'recommended') {
+    setCurrentAttempt(null)
+    setPendingSession(null)
+    setResultAttempt(null)
+    setActivePaper(null)
+    setSelectedTopicId(null)
+    setActiveTab(tab)
+    setView('library')
+  }
+
+  function openAiPractice() {
+    setActiveTab('ai-practice')
+    setView('library')
+  }
+
+  function openCoach() {
+    setCoachMounted(true)
+    setCoachOpenPending(true)
+    setCoachOpenRequest((value) => value + 1)
+  }
+
+  const openTopicPdf = useCallback(async ({ routeId, topicId } = {}) => {
+    if (!sharedAccount.token) throw new Error('Sign in to STEM before generating a topic PDF.')
+    let popup = null
+    try {
+      // Reserve the tab in the click handler so a long render is not blocked
+      // by popup protection. The binary URL is revoked after the new tab has
+      // had time to load; it is never written to app state or local storage.
+      popup = window.open('about:blank', '_blank')
+      if (popup) popup.opener = null
+    } catch {
+      popup = null
+    }
+    try {
+      const blob = await requestTopicPdf(sharedAccount.token, { routeId, topicId })
+      const objectUrl = URL.createObjectURL(blob)
+      if (popup && !popup.closed) {
+        popup.location.href = objectUrl
+      } else {
+        const link = document.createElement('a')
+        link.href = objectUrl
+        link.target = '_blank'
+        link.rel = 'noopener noreferrer'
+        link.click()
+      }
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 5 * 60 * 1000)
+    } catch (error) {
+      if (popup && !popup.closed) popup.close()
+      throw error
+    }
+  }, [sharedAccount.token])
 
   return (
-    <main className="app-shell">
-      {view !== 'practice' && view !== 'paper' && <TopNav view={view} setView={setView} profile={appState.profile} openWorkspace={() => setView('workspace')} />}
+    <main className={`app-shell app-shell--${view}`}>
+      {view !== 'practice' && view !== 'paper' && <TopNav view={view} activeTab={activeTab} activeRoute={activeRoute} setView={setView} profile={appState.profile} sharedAccount={sharedAccount} onDisconnectSharedAccount={disconnectSharedAccount} onOpenAccount={setAccountDialogMode} onAccountPopoverChange={setAccountPopoverOpen} openNotebook={() => setView('notebook')} openPractice={() => { setActiveTab('recommended'); setView('library') }} openPapers={() => { setActiveTab('papers'); setView('library') }} />}
+      {practiceRuntimeState.status === 'error' && view !== 'paper' && view !== 'practice' && <div className="inventory-alert" role="alert"><AlertTriangle size={18} /><span>{practiceRuntimeState.error}</span><button type="button" className="text-action" onClick={() => void ensurePracticeRuntime().catch(() => {})}>Retry</button></div>}
 
       {view === 'dashboard' && (
         <StudentDashboard
+          activeRoute={activeRoute}
+          routeOptions={courseRoutes}
+          selectRoute={selectRoute}
           profile={appState.profile}
           updateProfile={updateProfile}
-          attempts={appState.attempts}
+          attempts={routeAttempts}
           completionByUnit={completionByUnit}
           recommendation={recommendation}
           topicMastery={topicMastery}
           mistakes={mistakes}
+          provisionalEvidence={provisionalEvidence}
+          practiceUnits={routePracticeUnits}
           paperMistakes={paperMistakes}
+          latestActivity={latestActivity}
           learningProgress={learningProgress}
           syllabusRoadmap={syllabusRoadmap}
           startPractice={startPractice}
           setView={setView}
           setActiveTab={setActiveTab}
           setSubjectFilter={setSubjectFilter}
-          setQuery={setQuery}
           allPracticeUnits={allPracticeUnits}
           recentPractice={appState.recentPractice || []}
-          favoriteUnitIds={appState.favoriteUnitIds || []}
-          openCoach={() => setCoachOpenRequest((value) => value + 1)}
-          openWorkspace={() => setView('workspace')}
+           favoriteUnitIds={appState.favoriteUnitIds || []}
+           openCoach={openCoach}
+           sharedAccount={sharedAccount}
+           onRefreshSharedAccount={refreshSharedAccount}
+           onOpenAccount={setAccountDialogMode}
+           openNotebook={() => setView('notebook')}
         />
       )}
 
-      {view === 'workspace' && <RoleWorkspace profile={appState.profile} updateProfile={updateProfile} assignments={sharedAccount.workspace?.assignments || []} classrooms={sharedAccount.workspace?.classrooms || []} submissions={sharedAccount.workspace?.submissions || []} serverSummaries={sharedAccount.workspace?.serverSummaries || {}} attempts={appState.attempts} learningProgress={learningProgress} account={sharedAccount} onRefreshAccount={refreshSharedAccount} onCreateClassroom={createClassroom} onJoinClassroom={joinClassroom} onCreateAssignment={createAssignment} onStartAssignedAssignment={startAssignedAssignment} />}
+      {view === 'notebook' && (
+        <StudentNotebook
+          activeRoute={activeRoute}
+          routeOptions={courseRoutes}
+          selectRoute={selectRoute}
+          attempts={routeAttempts}
+          units={routePracticeUnits}
+          mistakes={mistakes}
+          provisionalMistakes={provisionalMistakes}
+          paperMistakes={paperMistakes}
+          note={appState.notebookNotes?.[activeRouteId] || null}
+          onChangeNote={updateNotebookNote}
+          onDeleteNote={() => updateNotebookNote('')}
+          startPractice={startPractice}
+          retestPaper={retestPaper}
+          onReviewAction={recordReviewQueueAction}
+          reviewQueueAudit={appState.reviewQueueAudit || []}
+          isSyncedAccount={sharedAccount.status === 'ready'}
+          openPractice={() => { setActiveTab('topics'); setView('library') }}
+        />
+      )}
 
       {view === 'library' && (
-        <LibraryView
+          <LibraryView
+            activeRoute={activeRoute}
+            activeRouteId={activeRouteId}
+            selectRoute={selectRoute}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
-          subjectFilter={subjectFilter}
-          setSubjectFilter={setSubjectFilter}
-          completionFilter={completionFilter}
-          setCompletionFilter={setCompletionFilter}
-          query={query}
-          setQuery={setQuery}
+          selectedTopicId={selectedTopicId}
+          onSelectTopic={(topicId) => {
+            setSelectedTopicId(topicId || null)
+          }}
           visibleUnits={visibleUnits}
           completionByUnit={completionByUnit}
           favoriteUnitIds={appState.favoriteUnitIds || []}
@@ -944,21 +2225,58 @@ function App() {
           retestPaper={retestPaper}
           paperCatalogState={paperCatalogState}
           openPaper={openPaper}
-          openPaperLibraryForSubject={openPaperLibraryForSubject}
-          startKnowledgeDrill={generateCoachPractice}
-          catalogItems={paperCatalogState.catalog?.items || []}
+          onReviewAction={recordReviewQueueAction}
+            recommendation={recommendation}
+            onOpenTopic={(topicId, options = {}) => { setSelectedTopicId(topicId); setTopicBuilderRequested(Boolean(options.openBuilder)); setView('topic') }}
+            onOpenAiPractice={openAiPractice}
+            onOpenCoach={openCoach}
+            startKnowledgeDrill={generateSyllabusPractice}
+            practiceOptions={activePracticeOptions}
+            syllabusInventory={syllabusInventory}
+          />
+      )}
+
+      {view === 'topic' && selectedTopicId && (
+        <TopicDetail
+          activeRoute={activeRoute}
+          activeRouteId={activeRouteId}
+          topicId={selectedTopicId}
+          initialBuilderOpen={topicBuilderRequested}
+          practiceOptions={activePracticeOptions}
+          syllabusInventory={syllabusInventory}
+          practiceUnits={routePracticeUnits}
+          practiceQuestionGroups={studyQuestionRuntimeState.routeId === activeRouteId ? studyQuestionRuntimeState.groups : []}
+          studyQuestionRuntimeStatus={studyQuestionRuntimeState.status}
+          studyQuestionRuntimeError={studyQuestionRuntimeState.error}
+          onOpenPastPaperQuestions={openPastPaperQuestions}
+          verifiedQuestionGroups={practiceRuntime?.verifiedPracticeQuestionGroups || []}
+          completionByUnit={completionByUnit}
+          learningProgress={learningProgress}
+          mistakes={mistakes}
+          startPractice={startPractice}
+          startKnowledgeDrill={generateSyllabusPractice}
+          onOpenTopicPdf={openTopicPdf}
+          onBack={() => { setTopicBuilderRequested(false); setActiveTab('topics'); setView('library') }}
+          onOpenCoach={openCoach}
+          favoriteUnitIds={appState.favoriteUnitIds || []}
+          onToggleFavorite={toggleFavoriteUnit}
         />
       )}
 
       {view === 'history' && (
-        <HistoryView
-          attempts={appState.attempts}
-          paperSessions={appState.paperSessions}
-          paperReviews={appState.paperReviews || []}
+        <Suspense fallback={<div className="workspace-loading"><span className="loading-line" />Loading history...</div>}><HistoryView
+          attempts={routeAttempts}
+          paperSessions={routePaperSessions}
+          paperReviews={routePaperReviews}
           onRetest={startPractice}
-          units={allPracticeUnits}
+          onContinuePending={(attempt) => {
+            setResultAttempt(attempt)
+            setView('result')
+          }}
+          units={routePracticeUnits}
           onExport={exportLearningData}
-        />
+          exportState={exportState}
+        /></Suspense>
       )}
 
       {view === 'paper' && activePaper && paperCatalogState.catalog && (
@@ -966,10 +2284,20 @@ function App() {
           <PaperWorkspace
             paper={activePaper}
             catalog={paperCatalogState.catalog}
-            draft={appState.paperDrafts[activePaper.pairKey || activePaper.id]}
+            draft={appState.paperDrafts[paperDraftKey(activePaper, activePaper.paperStudyMode)]}
+            assignmentContext={(() => {
+              const assignment = sharedAccount.workspace?.assignments?.find((item) => item.id === activePaper.assignmentId)
+              return assignment ? { assignmentId: assignment.id, classroomId: assignment.classroomId, organizationId: assignment.organizationId || null } : null
+            })()}
+            sharedIdentityToken={sharedAccount.token}
+            sharedIdentityUserId={sharedAccount.identity?.id || ''}
+            onOpenAccount={() => setAccountDialogMode('login')}
+            onAttemptReady={handlePaperAttemptReady}
+            stateOwnerId={stateOwnerId}
+            immersive={Boolean(appState.profile?.immersiveLearning)}
+            onToggleImmersive={setImmersiveLearning}
             onBack={() => {
-              setActiveTab('papers')
-              setView('library')
+              returnToLibrary('papers')
             }}
             onSaveDraft={savePaperDraft}
             onFinish={finishPaperSession}
@@ -979,23 +2307,44 @@ function App() {
       )}
 
       {view === 'practice' && currentUnit && currentAttempt && (
-        <PracticeWorkspace
+        <Suspense fallback={<div className="workspace-loading"><span className="loading-line" />Loading the question workspace...</div>}><PracticeWorkspace
           attempt={currentAttempt}
           unit={currentUnit}
           setActivePart={setActivePart}
           updateAnswer={updateAnswer}
           updateEvidence={updateEvidence}
           submitAttempt={submitAttempt}
-          goBack={() => setView('library')}
-        />
+          deferredMarking={markingCapabilityForUnit(currentUnit).mode !== 'deterministic'}
+          stateOwnerId={stateOwnerId}
+          sharedIdentityToken={sharedAccount.token}
+          sharedIdentityUserId={sharedAccount.identity?.id || ''}
+          practiceOptions={activePracticeOptions}
+          onGeneratePractice={generateCoachPractice}
+          onAgentAction={handleCoachAgentAction}
+          immersive={Boolean(appState.profile?.immersiveLearning)}
+          onToggleImmersive={setImmersiveLearning}
+          goBack={() => returnToLibrary('topics')}
+        /></Suspense>
       )}
 
+      {accountDialogMode && <SharedAccountDialog
+        mode={accountDialogMode}
+        onClose={() => setAccountDialogMode(null)}
+        onModeChange={setAccountDialogMode}
+        onSubmit={submitNativeAccount}
+      />}
+
       {view === 'result' && resultUnit && resultAttempt && (
-        <ResultView
-          attempt={resultAttempt}
-          unit={resultUnit}
-          startPractice={startPractice}
-          goLibrary={() => setView('library')}
+          <ResultView
+            attempt={resultAttempt}
+            unit={resultUnit}
+            sourceCurrent={hasCurrentSourceBindingForAttempt(resultAttempt, resultUnit)}
+            startPractice={startPractice}
+            goLibrary={() => returnToLibrary('recommended')}
+            recordSelfMark={recordSelfMark}
+            retryAiMarking={retryAiMarking}
+            initialSelfMarks={appState.selfMarkDrafts?.[resultAttempt.id] || resultAttempt.studentSelfMarks}
+            onSelfMarksChange={(marks) => saveSelfMarkDraft(resultAttempt.id, marks)}
         />
       )}
 
@@ -1015,26 +2364,48 @@ function App() {
           })}
         />
       )}
-      {view !== 'practice' && view !== 'paper' && (
-        <AiCoach
-          key={`${view}:${resultAttempt?.id || 'general'}`}
+      {view === 'dashboard' && !coachMounted && !accountDialogMode && !accountPopoverOpen && (
+        <button
+          type="button"
+          className="ai-coach-trigger"
+          onClick={openCoach}
+          aria-label="Open AI Coach"
+          title="Open AI Coach"
+        >
+          <Sparkles size={18} /><span>AI Coach</span>
+        </button>
+      )}
+      {view !== 'paper' && view !== 'practice' && !(view === 'library' && activeTab === 'papers') && (view !== 'dashboard' || coachMounted) && (
+        <Suspense fallback={null}><AiCoach
+          key={`${activeRouteId}:${view}:${coachAttempt?.id || 'general'}`}
+          stateOwnerId={stateOwnerId}
+          sharedIdentityToken={sharedAccount.token}
+          sharedIdentityUserId={sharedAccount.identity?.id || ''}
           context={{
-            attemptId: resultAttempt?.id,
+            attemptId: coachAttempt?.id,
+            stateOwnerId,
             view,
-            subject: subjectFilter === 'all' ? null : subjects.find((subject) => subject.id === subjectFilter),
-            stage: resultUnit?.stage || 'Cambridge IGCSE / AS / A2',
-            question: resultAttempt && resultUnit ? {
-              label: 'Latest result',
-              prompt: resultUnit.parts.find((part) => part.id === resultAttempt.scoreResult.weakestPartId)?.prompt || resultUnit.title,
+            routeId: coachUnit?.routeId || activeRouteId,
+            subject: activeSubject,
+            stage: coachUnit?.stage || activeRoute.stage,
+            question: coachAttempt && coachUnit ? {
+              id: coachPart?.id || '',
+              label: view === 'practice' ? 'Current practice question' : resultIsPendingSelfMark ? (resultPendingAutomaticAi ? 'Submitted response pending AI retry' : 'Submitted response pending self-mark') : resultAttempt.scoreResult?.partial ? 'Provisional result' : 'Latest scored result',
+              prompt: coachPart?.prompt || coachUnit.title,
             } : null,
-            response: resultAttempt && resultUnit ? resultAttempt.answers[resultAttempt.scoreResult.weakestPartId] || '' : '',
+            response: coachAttempt && coachPart ? coachAttempt.answers?.[coachPart.id] || coachAttempt.working?.[coachPart.id] || '' : '',
             submitted: view === 'result',
+            markingStatus: view === 'practice' ? 'in-progress' : resultIsPendingSelfMark ? (resultPendingAutomaticAi ? 'ai-retry-pending' : 'self-mark-pending') : resultAttempt?.scoreResult?.partial ? 'provisional' : resultAttempt?.scoreResult ? 'scored' : 'not-scored',
           }}
           openRequest={coachOpenRequest}
-          practiceOptions={aiPracticeOptions}
+          initialOpen={coachOpenPending}
+          onInitialOpenHandled={() => setCoachOpenPending(false)}
+          openBuilderRequest={coachBuilderOpenRequest}
+          practiceOptions={activePracticeOptions}
           onGeneratePractice={generateCoachPractice}
           onAgentAction={handleCoachAgentAction}
-        />
+          disabled={Boolean(accountDialogMode || accountPopoverOpen)}
+        /></Suspense>
       )}
     </main>
   )
@@ -1042,32 +2413,168 @@ function App() {
 
 function SessionSetup({ session, onChange, onCancel, onStart }) {
   const { unit } = session
-  const isPaper = unit.type === 'paper'
+  const metrics = practiceUnitMetrics(unit)
+  const markingCapability = markingCapabilityForUnit(unit)
   return (
     <div className="setup-backdrop" role="presentation" onMouseDown={onCancel}>
       <section className="session-setup" role="dialog" aria-modal="true" aria-labelledby="setup-title" onMouseDown={(event) => event.stopPropagation()}>
-        <header><div><p className="section-label">Session setup</p><h2 id="setup-title">{unit.title}</h2><p>{unit.topic} · {unit.parts.length} questions · {unit.maxMarks} marks</p></div><button type="button" className="setup-close" onClick={onCancel} aria-label="Close setup">×</button></header>
+        <header><div><p className="section-label">Session setup</p><h2 id="setup-title">{unit.title}</h2><p>{unit.topic} · {metrics.sourceQuestionCount} official questions · {metrics.answerPartCount} answer parts · {metrics.paperCount} papers · {metrics.totalMarks} marks</p></div><button type="button" className="setup-close" onClick={onCancel} aria-label="Close setup">×</button></header>
         <div className="setup-section"><span className="setup-label">How do you want to practise?</span><div className="mode-segments"><button type="button" className={session.mode === 'guided' ? 'active' : ''} onClick={() => onChange({ mode: 'guided', hints: true })}><Sparkles size={16} /><strong>Guided</strong><small>Hints available</small></button><button type="button" className={session.mode === 'practice' ? 'active' : ''} onClick={() => onChange({ mode: 'practice' })}><Dumbbell size={16} /><strong>Practice</strong><small>Independent set</small></button><button type="button" className={session.mode === 'exam' ? 'active' : ''} onClick={() => onChange({ mode: 'exam', timing: 'timed', hints: false })}><GraduationCap size={16} /><strong>Exam</strong><small>Answers hidden</small></button></div></div>
         <div className="setup-options"><label><span>Timing</span><select value={session.timing} onChange={(event) => onChange({ timing: event.target.value })}><option value="recommended">Recommended · {unit.estimatedMinutes} min</option><option value="timed">Strict timer</option><option value="untimed">Untimed</option></select></label><label className="toggle-row"><span><strong>Question hints</strong><small>Hints never reveal the final answer.</small></span><input type="checkbox" checked={session.hints} disabled={session.mode === 'exam'} onChange={(event) => onChange({ hints: event.target.checked })} /></label></div>
-        <div className="setup-summary"><ListFilter size={18} /><div><strong>{unit.parts.length} questions ready</strong><span>{isPaper ? 'Mixed paper practice' : `${unit.subtopic || unit.topic} knowledge drill`} · autosave on</span></div></div>
+        <div className="setup-summary"><ListFilter size={18} /><div><strong>{metrics.sourceQuestionCount} official questions ready</strong><span>{metrics.answerPartCount} answer parts · {metrics.paperCount} papers · autosave on</span></div></div>
+        <div className={`setup-marking-note setup-marking-note--${markingCapability.mode}`} role="status"><strong>{markingCapability.label}</strong><span>{markingCapability.description}</span></div>
         <footer><button type="button" className="secondary-action" onClick={onCancel}>Cancel</button><button type="button" className="primary-action" onClick={onStart}><PlayIcon />Start session</button></footer>
       </section>
     </div>
   )
 }
 
-function TopNav({ view, setView, profile, openWorkspace }) {
+function StudentRoutePicker({ activeRoute, routes = courseRoutes, selectRoute, compact = false }) {
+  const [stage, setStage] = useState(activeRoute.stage)
+  useEffect(() => setStage(activeRoute.stage), [activeRoute.stage])
+  const stages = COURSE_STAGE_ORDER.filter((item) => routes.some((route) => route.stage === item))
+  const stageRoutes = routes.filter((route) => route.stage === stage)
+  const selectedRoute = stageRoutes.some((route) => route.routeId === activeRoute.routeId) ? activeRoute.routeId : stageRoutes[0]?.routeId || activeRoute.routeId
+
+  function changeStage(nextStage) {
+    setStage(nextStage)
+    const nextRoute = routeForStagePreservingSubject(activeRoute, nextStage, routes)
+    if (nextRoute && nextRoute.routeId !== activeRoute.routeId) selectRoute(nextRoute.routeId)
+  }
+
+  return <div className={`student-route-picker ${compact ? 'student-route-picker--compact' : ''}`}>
+    <div className="student-route-picker__stages" role="tablist" aria-label="Choose stage">
+      {stages.map((item) => <button type="button" role="tab" aria-selected={stage === item} className={stage === item ? 'active' : ''} key={item} onClick={() => changeStage(item)}>{item}</button>)}
+    </div>
+    <label>
+      <span>{compact ? 'Course' : 'Current course'}</span>
+      <select aria-label="Current course" value={selectedRoute} onChange={(event) => selectRoute(event.target.value)}>
+        {stageRoutes.map((route) => <option value={route.routeId} key={route.routeId}>{routePickerLabel(route)}</option>)}
+      </select>
+    </label>
+    <small className="student-route-picker__selected">Selected: {activeRoute.stage} {activeRoute.subject} · {activeRoute.subjectCode}</small>
+  </div>
+}
+
+function SharedAccountBanner({ sharedAccount, onRefreshSharedAccount, onOpenAccount }) {
+  if (sharedAccount.status === 'ready') {
+    return <section className="student-account-banner student-account-banner--ready" role="status"><CheckCircle2 size={19} /><div><strong>Shared account connected</strong><span>{sharedAccount.identity?.username || 'Your account'} · STEM has its own local session and syncs to the same account database.</span></div><button type="button" className="text-action" onClick={onRefreshSharedAccount}>Refresh session <RefreshCcw size={14} /></button></section>
+  }
+  return <section className="student-account-banner" role="status"><LogIn size={19} /><div><strong>Save your learning across devices</strong><span>Use the same IELTSist account, but sign in directly on STEM. Your private notebook stays linked only to your account.</span></div><button type="button" className="primary-action compact-action" onClick={() => onOpenAccount?.('login')}>Log in or create account <ChevronRight size={15} /></button></section>
+}
+
+function SharedAccountDialog({ mode = 'login', onClose, onModeChange, onSubmit }) {
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [nativeReadiness, setNativeReadiness] = useState({ status: 'checking', configured: false })
+  const dialogRef = useRef(null)
+
+  useEffect(() => {
+    const firstField = dialogRef.current?.querySelector('input')
+    firstField?.focus?.()
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    requestNativeAccountReadiness()
+      .then((readiness) => {
+        if (!active) return
+        if (readiness.known && !readiness.nativeLoginConfigured) {
+          setNativeReadiness({ status: 'unconfigured', configured: false })
+          setError('Native STEM sign-in is not configured on this server. Your password will not be sent until it is fixed.')
+          return
+        }
+        if (readiness.known && !readiness.nativeLoginReady) {
+          const signatureMismatch = readiness.bridgeStatus === 'signature_mismatch'
+          setNativeReadiness({ status: 'bridge-unavailable', configured: false })
+          setError(signatureMismatch
+            ? 'STEM cannot verify the shared account bridge. Your password will not be sent until the server keys are corrected.'
+            : 'STEM cannot reach the shared account service. Your password will not be sent until it is available.')
+          return
+        }
+        setNativeReadiness({ status: 'ready', configured: true })
+      })
+      .catch(() => {
+        if (!active) return
+        setNativeReadiness({ status: 'unavailable', configured: false })
+        setError('STEM cannot confirm the shared account service. Your password will not be sent until it is available.')
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  async function submit(event) {
+    event.preventDefault()
+    if (!nativeReadiness.configured) return
+    const normalizedUsername = username.trim()
+    if (!normalizedUsername || password.length < 8) {
+      setError('Enter a username and a password of at least 8 characters.')
+      return
+    }
+    if (mode === 'register' && password !== confirmPassword) {
+      setError('Passwords do not match.')
+      return
+    }
+    setError('')
+    setSubmitting(true)
+    try {
+      await onSubmit({ mode, username: normalizedUsername, password })
+    } catch (submitError) {
+      setError(submitError.message || 'STEM could not complete sign in.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="account-dialog-backdrop" role="presentation" onMouseDown={onClose}>
+      <section ref={dialogRef} className="account-dialog" role="dialog" aria-modal="true" aria-labelledby="stem-account-dialog-title" onMouseDown={(event) => event.stopPropagation()}>
+        <header className="account-dialog__header">
+          <div>
+            <p className="section-label">STEM account</p>
+            <h2 id="stem-account-dialog-title">{mode === 'register' ? 'Create your STEM account' : 'Sign in to STEM'}</h2>
+            <p>Use the same account as IELTSist. Sign-in stays on this STEM page; your STEM study data remains on this site.</p>
+          </div>
+          <button type="button" className="icon-button" onClick={onClose} aria-label="Close account dialog" title="Close account dialog">×</button>
+        </header>
+        <form onSubmit={submit}>
+          <label><span>Username or email</span><input autoFocus autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} /></label>
+          <label><span>Password</span><input type="password" autoComplete={mode === 'register' ? 'new-password' : 'current-password'} value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+          {mode === 'register' && <label><span>Confirm password</span><input type="password" autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} /></label>}
+          {error && <p className="account-dialog__error" role="alert">{error}</p>}
+          <footer>
+            <button type="button" className="secondary-action" onClick={() => onModeChange(mode === 'register' ? 'login' : 'register')}>{mode === 'register' ? 'Use existing account' : 'Create account'}</button>
+            <button type="submit" className="primary-action" disabled={submitting || !nativeReadiness.configured}>{submitting ? 'Signing in...' : nativeReadiness.status === 'checking' ? 'Checking STEM sign-in...' : mode === 'register' ? 'Create account' : 'Sign in'}</button>
+          </footer>
+        </form>
+      </section>
+    </div>
+  )
+}
+
+function TopNav({ view, activeTab, activeRoute, setView, profile, sharedAccount, onDisconnectSharedAccount, onOpenAccount, onAccountPopoverChange, openNotebook, openPractice, openPapers }) {
   const [campusOpen, setCampusOpen] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
   const learnerName = String(profile?.learnerName || 'Student').trim() || 'Student'
-  const firstName = learnerName.split(/\s+/)[0]
+  const accountName = sharedAccount.status === 'ready' && sharedAccount.identity?.username ? sharedAccount.identity.username : learnerName
+  const firstName = accountName.split(/\s+/)[0]
+  const vocabularyContext = buildStemVocabularyContext({ route: activeRoute })
+  const vocabularyUrl = professionalTermsUrl({ ...vocabularyContext, returnTo: typeof window === 'undefined' ? 'https://stem.ieltsist.com/' : window.location.href })
+  useEffect(() => {
+    onAccountPopoverChange?.(accountOpen)
+    return () => onAccountPopoverChange?.(false)
+  }, [accountOpen, onAccountPopoverChange])
   return (
     <header className="top-nav unified-top-nav">
       <button className="brand-button" type="button" onClick={() => setView('dashboard')} aria-label="Open dashboard">
-        <span className="brand-mark">I</span>
+        <span className="brand-mark">S</span>
         <span>
-          <strong>IELTSist</strong>
-          <small>Learning platform</small>
+          <strong>STEM Studio</strong>
+          <small>Cambridge practice</small>
         </span>
       </button>
       <div className="campus-switcher">
@@ -1079,20 +2586,24 @@ function TopNav({ view, setView, profile, openWorkspace }) {
           <Target size={17} />
           Today
         </button>
-        <button className={view === 'library' ? 'active' : ''} type="button" onClick={() => setView('library')}>
+        <button className={view === 'topic' || (view === 'library' && activeTab !== 'papers') ? 'active' : ''} type="button" onClick={openPractice}>
           <Dumbbell size={17} />
           Practice
+        </button>
+        <button className={view === 'library' && activeTab === 'papers' ? 'active' : ''} type="button" onClick={openPapers}>
+          <FileText size={17} />
+          Papers
         </button>
         <button className={view === 'history' ? 'active' : ''} type="button" onClick={() => setView('history')}>
           <BarChart3 size={17} />
           Progress
         </button>
-        <button className={view === 'workspace' ? 'active' : ''} type="button" onClick={openWorkspace} aria-label="Notebook">
+        <button className={view === 'notebook' ? 'active' : ''} type="button" onClick={openNotebook} aria-label="Notebook">
           <BookOpen size={17} />
           Notebook
         </button>
       </nav>
-      <div className="nav-context"><a className="vocabulary-link" href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer"><Brain size={15} />Terms</a><button type="button" className="notification-button" aria-label="Notifications"><span /></button><div className="account-menu"><button type="button" className="account-trigger" aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}><span className="account-avatar">{firstName.slice(0, 1).toUpperCase()}</span><span>{learnerName}</span><ChevronRight size={14} /></button>{accountOpen && <div className="account-popover"><strong>{learnerName}</strong><small>IELTSist Account</small><div><span>Student</span><b>STEM</b></div><a href="https://ieltsist.com/" target="_blank" rel="noreferrer">Open IELTS campus <ChevronRight size={14} /></a><button type="button" onClick={() => { openWorkspace(); setAccountOpen(false) }}>Teacher &amp; school workspace <ChevronRight size={14} /></button></div>}</div></div>
+      <div className="nav-context"><a className="vocabulary-link" href={vocabularyUrl} target="_blank" rel="noreferrer"><Brain size={15} />Vocabulary</a><button type="button" className="notification-button" aria-label="Notifications"><span /></button><div className="account-menu"><button type="button" className={`account-trigger ${sharedAccount.status !== 'ready' ? 'account-trigger--guest' : ''}`} aria-label={sharedAccount.status === 'ready' ? `Account: ${accountName}` : 'Sign in to STEM'} title={sharedAccount.status === 'ready' ? `Account: ${accountName}` : 'Sign in to STEM'} aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}><span className="account-avatar">{firstName.slice(0, 1).toUpperCase()}</span><span>{sharedAccount.status === 'ready' ? accountName : 'Sign in'}</span><ChevronRight size={14} /></button>{accountOpen && <div className="account-popover"><strong>{sharedAccount.status === 'ready' ? accountName : 'STEM account'}</strong><small>{sharedAccount.status === 'ready' ? 'Shared account connected' : 'Same account database as IELTSist'}</small>{sharedAccount.status !== 'ready' ? <><p className="account-popover__hint">Sign in or register directly in STEM. This creates only a local STEM session for the same IELTSist account.</p><button type="button" className="account-popover__primary" onClick={() => { setAccountOpen(false); onOpenAccount?.('login') }}><LogIn size={15} />Sign in <ChevronRight size={14} /></button><button type="button" onClick={() => { setAccountOpen(false); onOpenAccount?.('register') }}><Users size={15} />Create account <ChevronRight size={14} /></button>{sharedAccount.error && <p className="account-popover__error" role="alert">{sharedAccount.error}</p>}</> : <><div><span>Student</span><b>STEM</b></div><span className="account-popover__privacy">Private notes are visible only to you.</span><a href="https://ieltsist.com/#mine" target="_blank" rel="noreferrer">Open IELTSist separately <ChevronRight size={14} /></a><button type="button" className="account-popover__logout" onClick={() => { setAccountOpen(false); onDisconnectSharedAccount() }}><LogOut size={15} />Sign out of STEM <ChevronRight size={14} /></button></>}<div className="account-popover__legal"><a href="https://ieltsist.com/terms" target="_blank" rel="noreferrer">Terms</a><a href="https://ieltsist.com/privacy" target="_blank" rel="noreferrer">Privacy</a></div></div>}</div></div>
     </header>
   )
 }
@@ -1107,21 +2618,26 @@ function Dashboard({
   topicMastery,
   mistakes,
   paperMistakes,
+  latestActivity,
   startPractice,
   setView,
   setActiveTab,
   setSubjectFilter,
-  openWorkspace,
   learningProgress,
   syllabusRoadmap,
+  allPracticeUnits = [],
 }) {
-  const verifiedAttempts = attempts.filter((attempt) => completionByUnit[attempt.unitId])
+  const unitById = new Map(allPracticeUnits.map((unit) => [unit.id, unit]))
+  const verifiedAttempts = attempts.filter((attempt) => {
+    const unit = unitById.get(attempt.unitId)
+    return Boolean(unit && isScoredAttempt(attempt, unit) && completionByUnit[attempt.unitId]?.completed)
+  })
   const completedCount = Object.values(completionByUnit).filter((item) => item.completed).length
-  const latest = verifiedAttempts.at(-1)
+  const latest = latestActivity || verifiedAttempts.at(-1)
   const average = verifiedAttempts.length
     ? Math.round(verifiedAttempts.reduce((sum, attempt) => sum + attempt.scoreResult.percentage, 0) / verifiedAttempts.length)
     : null
-  const totalImportedFiles = importedPdfLibrary.reduce((sum, subject) => sum + subject.files, 0)
+  const totalImportedFiles = SOURCE_LIBRARY_SUMMARY.files
   const nextUnit = recommendation.unit
 
   function openCourse(subject) {
@@ -1140,7 +2656,7 @@ function Dashboard({
         <div>
           <p className="section-label">STEM practice studio</p>
           <h1>Learn from the paper, not from made-up questions.</h1>
-          <p>Choose a course, choose the syllabus point, then work through source-backed questions with a teacher beside you.</p>
+          <p>Choose a course and syllabus point, then work through official questions with source-backed feedback.</p>
         </div>
         <div className="streak-note"><span>Weekly target</span><strong>{Math.min(attempts.length, profile.weeklyQuestions)}/{profile.weeklyQuestions}</strong><small>scored questions</small></div>
       </div>
@@ -1148,11 +2664,6 @@ function Dashboard({
       <section className="course-launcher" aria-label="Choose a course">
         <div className="section-heading-row"><div><p className="section-label">Start here</p><h2>Choose your qualification</h2></div><span>Each route keeps its own syllabus, stages and paper archive.</span></div>
         <div className="course-launcher__grid">{subjects.map((subject) => <button type="button" key={subject.id} onClick={() => openCourse(subject)}><span className="course-launcher__code" style={{ color: subject.accent }}>{subject.code}</span><span><strong>{subject.name}</strong><small>{subject.topics.slice(0, 3).join(' · ')}</small></span><ChevronRight size={17} /></button>)}</div>
-      </section>
-
-      <section className="audience-callout" aria-label="Choose workspace">
-        <div><p className="section-label">Student / Teacher / School</p><h2>Use the same evidence at the right level.</h2><p>Students get a next action. Teachers get assignable verified work. Schools get programme-level signals without exposing private notebooks.</p></div>
-        <button type="button" className="secondary-action" onClick={openWorkspace}><Users size={17} />Open workspace</button>
       </section>
 
       <div className="decision-panel student-decision">
@@ -1225,12 +2736,12 @@ function Dashboard({
         <Metric icon={<Trophy size={20} />} label="Current score" value={average == null ? 'No verified score' : `${average}%`} detail="Based only on submitted QP/MS drills" />
         <Metric icon={<CheckCircle2 size={20} />} label="Completed" value={`${completedCount}/${Object.keys(completionByUnit).length}`} detail="Valid submissions only" />
         <Metric icon={<FileText size={20} />} label="Source PDFs" value={totalImportedFiles.toLocaleString()} detail="Official papers available for indexing" />
-        <Metric icon={<Flag size={20} />} label="Last attempt" value={latest ? `${latest.scoreResult.rawMarks}/${latest.scoreResult.maxMarks}` : 'No attempt'} detail={latest ? formatDate(latest.submittedAt) : 'Start a topic to create history'} />
+        <Metric icon={<Flag size={20} />} label="Last attempt" value={latest ? `${latest.rawMarks ?? latest.scoreResult?.rawMarks ?? 0}/${latest.maxMarks ?? latest.scoreResult?.maxMarks ?? '?'}` : 'No attempt'} detail={latest ? (latest.partial ? `${latest.answeredCount || 0}/${latest.questionCount || '?'} answered · provisional` : formatDate(latest.date || latest.submittedAt)) : 'Start a topic to create history'} />
       </div>
 
       <section className="syllabus-roadmap" aria-label="Syllabus roadmap">
         <div className="panel-heading"><div><p className="section-label">Syllabus roadmap</p><h2>See where you are and what comes next</h2></div><button type="button" className="text-action" onClick={() => { setActiveTab('topics'); setView('library') }}>Open roadmap <ChevronRight size={16} /></button></div>
-        <div className="roadmap-track">{syllabusRoadmap.slice(0, 12).map((topic, index) => <button type="button" key={topic.id} className={`roadmap-node roadmap-${topic.status.toLowerCase().replaceAll(' ', '-')}`} onClick={() => { setSubjectFilter(topic.subjectId === 'physics-9702' ? 'physics' : subjectFilter); setActiveTab('topics'); setView('library') }}><span>{topic.officialTopicNumber || index + 1}</span><strong>{topic.name.replace(/^\d+\s+/, '')}</strong><small>{topic.mastery == null ? topic.status : `${topic.mastery}% mastery`}</small></button>)}</div>
+        <div className="roadmap-track">{syllabusRoadmap.slice(0, 12).map((topic, index) => <button type="button" key={topic.id} className={`roadmap-node roadmap-${topic.status.toLowerCase().replaceAll(' ', '-')}`} onClick={() => { setSubjectFilter(topic.subjectId === 'physics-9702' ? 'physics' : undefined); setActiveTab('topics'); setView('library') }}><span>{topic.officialTopicNumber || index + 1}</span><strong>{topic.name.replace(/^\d+\s+/, '')}</strong><small>{topic.mastery == null ? topic.status : `${topic.mastery}% mastery`}</small></button>)}</div>
       </section>
 
       <div className="student-progress-grid">
@@ -1277,7 +2788,7 @@ function Dashboard({
               <h2>Recent feedback</h2>
             </div>
           </div>
-          {mistakes.length ? <div className="feedback-list">{mistakes.slice(0, 3).map((mistake) => <div className="feedback-row" key={mistake.id}><span className="feedback-icon"><Flag size={15} /></span><div><strong>{mistake.part.label} · {mistake.unit.topic}</strong><small>{mistake.criterion.feedback}</small></div><ChevronRight size={16} /></div>)}</div> : <div className="feedback-empty"><CheckCircle2 size={22} /><strong>No weak points yet</strong><span>Submit a set and your mark points will appear here.</span></div>}
+          {mistakes.length ? <div className="feedback-list">{mistakes.slice(0, 3).map((mistake) => <div className="feedback-row" key={mistake.id}><span className="feedback-icon"><Flag size={15} /></span><div><strong>{displayPartLabel(mistake.part)} · {mistake.unit.topic}</strong><small>{mistake.criterion.feedback}</small></div><ChevronRight size={16} /></div>)}</div> : <div className="feedback-empty"><CheckCircle2 size={22} /><strong>No weak points yet</strong><span>Submit a set and your mark points will appear here.</span></div>}
         </section>
       </div>
 
@@ -1287,60 +2798,81 @@ function Dashboard({
 }
 
 /* oxlint-enable no-unused-vars */
-function StudentDashboard({ profile, attempts, completionByUnit, recommendation, topicMastery, mistakes, paperMistakes, startPractice, setView, setActiveTab, setSubjectFilter, setQuery, allPracticeUnits, recentPractice, favoriteUnitIds, openCoach, openWorkspace, learningProgress, syllabusRoadmap }) {
-  const [searchText, setSearchText] = useState('')
+function StudentDashboard({ activeRoute, routeOptions, selectRoute, profile, attempts, completionByUnit, recommendation, latestActivity, startPractice, setView, setActiveTab, allPracticeUnits, learningProgress, syllabusRoadmap, sharedAccount, onRefreshSharedAccount, onOpenAccount }) {
   const nextUnit = recommendation.unit
-  const latest = attempts.filter((attempt) => completionByUnit[attempt.unitId]).at(-1)
-  const average = latest ? Math.round(attempts.filter((attempt) => completionByUnit[attempt.unitId]).reduce((total, attempt) => total + attempt.scoreResult.percentage, 0) / attempts.filter((attempt) => completionByUnit[attempt.unitId]).length) : null
+  const unitById = new Map(allPracticeUnits.map((unit) => [unit.id, unit]))
+  const scoredAttempts = attempts.filter((attempt) => {
+    const unit = unitById.get(attempt.unitId)
+    return Boolean(unit && isScoredAttempt(attempt, unit) && completionByUnit[attempt.unitId]?.completed)
+  })
+  const latest = latestActivity || scoredAttempts.at(-1)
   const weeklyPercent = Math.min(100, Math.round((learningProgress.week.completedQuestions / learningProgress.week.targetQuestions) * 100))
   const goalComplete = learningProgress.week.completedQuestions >= learningProgress.week.targetQuestions
-  const unitById = new Map(allPracticeUnits.map((unit) => [unit.id, unit]))
-  const recentUnits = recentPractice.map((item) => unitById.get(item.unitId)).filter(Boolean).slice(0, 3)
-  const favoriteUnits = favoriteUnitIds.map((id) => unitById.get(id)).filter(Boolean).slice(0, 3)
-  const firstName = String(profile.learnerName || '').trim().split(/\s+/)[0] || 'there'
-  const weakTopic = topicMastery.find((item) => item.score != null && item.score < 65)
+  const firstName = String(profile.learnerName || '').trim().split(/\s+/)[0]
+  const routeLabel = `${activeRoute.stage} ${activeRoute.subject}`
+  const recommendedTopic = String(nextUnit?.topic || nextUnit?.title || 'Choose your first topic').replace(/^\d+\s+/, '')
+  const recommendedMetrics = nextUnit ? practiceUnitMetrics(nextUnit) : null
+  const latestUnit = latest?.unitId ? unitById.get(latest.unitId) : null
 
-  function openPractice({ tab = 'topics', subjectId, query } = {}) {
-    if (subjectId) setSubjectFilter(subjectId)
-    if (query != null) setQuery(query)
+  function openPractice({ tab = 'topics' } = {}) {
     setActiveTab(tab)
     setView('library')
   }
 
-  return <section className="dashboard-studio">
-    <aside className="study-rail" aria-label="Student study navigation">
-      <div className="study-rail__identity"><span>Student plan</span><strong>Cambridge STEM</strong><small>Verified question practice</small></div>
-      <div className="study-rail__nav"><button className="active" type="button"><Home size={17} />Today</button><button type="button" onClick={() => openPractice()}><Dumbbell size={17} />Find practice</button><button type="button" onClick={() => setView('history')}><BarChart3 size={17} />My progress</button></div>
-      <div className="study-rail__progress"><p>Your progress</p><span>Weekly target</span><strong>{Math.min(learningProgress.week.completedQuestions, learningProgress.week.targetQuestions)}/{learningProgress.week.targetQuestions}</strong><div className="progress-track"><span style={{ width: `${weeklyPercent}%` }} /></div><span>Study streak</span><strong>{learningProgress.streak} day{learningProgress.streak === 1 ? '' : 's'}</strong></div>
-      <div className="study-rail__footer"><button type="button" onClick={openWorkspace}><Settings size={16} />Study settings</button><a href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer"><BookOpen size={16} />Professional terms</a><button type="button" onClick={openCoach}><HelpCircle size={16} />Help &amp; support</button></div>
-    </aside>
+  return <section className="student-home-guided">
+    <main className="student-home-guided__main">
+      <header className="student-home-header">
+        <div><p>{firstName ? `Hi, ${firstName}.` : 'Your study plan'}</p><h1>Start here today.</h1><span>One focused session for the course you are studying now.</span></div>
+        <StudentRoutePicker activeRoute={activeRoute} routes={routeOptions} selectRoute={selectRoute} />
+      </header>
+      <SharedAccountBanner sharedAccount={sharedAccount} onRefreshSharedAccount={onRefreshSharedAccount} onOpenAccount={onOpenAccount} />
 
-    <main className="dashboard-main">
-      <header className="dashboard-welcome"><div><p>Good to see you, {firstName}.</p><h1>Ready for today&apos;s study session?</h1></div><form className="dashboard-search" onSubmit={(event) => { event.preventDefault(); openPractice({ query: searchText }) }}><Search size={17} /><input value={searchText} onChange={(event) => setSearchText(event.target.value)} placeholder="Search a topic, paper or course" aria-label="Search a course, topic or paper" /><button type="submit">Search</button></form></header>
-      <section className="continue-card" aria-label="Continue learning"><div className="continue-card__copy"><p>Continue learning</p><h2>{nextUnit?.title || 'Build your first syllabus drill'}</h2><span>{nextUnit ? `${nextUnit.topic} · ${nextUnit.estimatedMinutes} minutes · ${nextUnit.maxMarks} marks` : 'Start with a Cambridge syllabus point and a verified QP/MS question set.'}</span><div className="continue-card__progress"><strong>{nextUnit && completionByUnit[nextUnit.id]?.completed ? 'Completed previously' : 'Your next recommended set'}</strong><div className="progress-track"><span style={{ width: nextUnit && completionByUnit[nextUnit.id]?.completed ? '100%' : '18%' }} /></div></div><div className="action-row"><button className="primary-action" type="button" onClick={() => nextUnit ? startPractice(nextUnit, recommendation.action === 'Resume' ? { confirmed: true } : {}) : openPractice({ subjectId: 'physics' })}><PlayIcon />{nextUnit ? recommendation.action : 'Choose topic'}</button><button type="button" className="secondary-action" onClick={() => openPractice({ subjectId: nextUnit?.subjectId || 'physics' })}>View syllabus point</button></div></div><div className="continue-card__syllabus"><span>Source-backed</span><strong>{nextUnit?.board || 'Cambridge International'}</strong><small>{nextUnit?.stage || 'IGCSE / AS / A2'} · question paper and mark scheme paired</small></div></section>
-      <section className="dashboard-section"><div className="section-heading-row"><div><p className="section-label">Quick actions</p><h2>Choose how to study</h2></div></div><div className="study-action-grid"><StudyAction icon={<Sparkles size={21} />} tone="violet" title="AI practice" detail="Build a verified set from a syllabus topic" action="Start now" onClick={openCoach} /><StudyAction icon={<FileText size={21} />} tone="blue" title="Past papers" detail="Filter official papers by subject and session" action="Browse papers" onClick={() => openPractice({ tab: 'papers' })} /><StudyAction icon={<Target size={21} />} tone="green" title="Topic drill" detail="Practise one official syllabus point" action="Choose topic" onClick={() => openPractice()} /><StudyAction icon={<Trophy size={21} />} tone="amber" title="Exam simulation" detail="Work in the original PDF with handwriting" action="Start exam" onClick={() => openPractice({ tab: 'exams' })} /></div></section>
-      <div className="dashboard-lower-grid"><section className="dashboard-panel performance-panel"><header><div><p className="section-label">Your performance</p><h2>Evidence from submitted work</h2></div><button type="button" className="text-action" onClick={() => setView('history')}>View progress <ChevronRight size={15} /></button></header><div className="performance-stats"><Stat label="Accuracy" value={average == null ? '—' : `${average}%`} detail={average == null ? 'Submit a set to start' : 'Verified QP/MS attempts'} /><Stat label="Questions done" value={learningProgress.week.completedQuestions} detail="In the last 7 days" /><Stat label="Open mistakes" value={mistakes.length + paperMistakes.length} detail={weakTopic ? `${weakTopic.topic} needs attention` : 'Review after each result'} /><Stat label="Last attempt" value={latest ? `${latest.scoreResult.rawMarks}/${latest.scoreResult.maxMarks}` : '—'} detail={latest ? formatDate(latest.submittedAt) : 'No submission yet'} /></div></section><section className="dashboard-panel mistakes-panel"><header><div><p className="section-label">Recent mistakes</p><h2>What to revisit</h2></div><button type="button" className="text-action" onClick={() => openPractice({ tab: 'mistakes' })}>View all</button></header>{mistakes.length ? <div className="mistakes-compact">{mistakes.slice(0, 3).map((mistake) => <button type="button" key={mistake.id} onClick={() => startPractice(mistake.unit, { clearDraft: true, retestOf: mistake.attempt.id, onlyPartId: mistake.part.id })}><span>{mistake.unit.topic}</span><strong>{mistake.part.label}</strong><em>{mistake.criterion.maxMarks - mistake.criterion.awarded} mark{mistake.criterion.maxMarks - mistake.criterion.awarded === 1 ? '' : 's'}</em></button>)}</div> : <div className="compact-empty"><CheckCircle2 size={19} /><span>No weak points yet. Your next submitted set will create a focused review list.</span></div>}</section></div>
-      <div className="dashboard-feed-grid"><MiniUnitPanel eyebrow="Recent practice" title="Pick up where you left off" empty="Your opened drills will appear here for one-click return." units={recentUnits} icon={<Dumbbell size={19} />} openPractice={startPractice} onManage={() => openPractice()} /><MiniUnitPanel eyebrow="Saved for later" title="Favourite practice" empty="Save useful drills from the Practice Library and return to them here." units={favoriteUnits} icon={<Heart size={19} />} openPractice={startPractice} onManage={() => openPractice()} favorite /></div>
-      <section className="dashboard-panel roadmap-compact"><header><div><p className="section-label">Skill map</p><h2>Progress through the official syllabus</h2></div><button type="button" className="text-action" onClick={() => openPractice()}>Open all topics <ChevronRight size={15} /></button></header><div>{syllabusRoadmap.slice(0, 6).map((topic, index) => <button type="button" key={topic.id} onClick={() => openPractice({ subjectId: topic.subjectId === 'physics-9702' ? 'physics' : undefined })}><span>{topic.officialTopicNumber || index + 1}</span><strong>{topic.name.replace(/^\d+\s+/, '')}</strong><small>{topic.mastery == null ? 'Not started' : `${topic.mastery}% mastery`}</small><i><b style={{ width: `${topic.mastery || 0}%` }} /></i></button>)}</div></section>
+      <section className="recommended-session" aria-label="Recommended session">
+        <div className="recommended-session__copy">
+          <p className="recommended-session__eyebrow"><Sparkles size={16} />Continue learning</p>
+          <h2>{routeLabel} · {recommendedTopic}</h2>
+          <div className="recommended-session__meta">
+            {recommendedMetrics && <span>{recommendedMetrics.sourceQuestionCount} official questions</span>}
+            {recommendedMetrics && <span>{recommendedMetrics.answerPartCount} answer parts</span>}
+            {recommendedMetrics && <span>{recommendedMetrics.paperCount} papers</span>}
+            {nextUnit?.estimatedMinutes && <span>About {nextUnit.estimatedMinutes} minutes</span>}
+            {recommendedMetrics?.totalMarks > 0 && <span>{recommendedMetrics.totalMarks} marks</span>}
+          </div>
+          <div className="recommended-session__actions">
+            <button className="primary-action student-primary-start" type="button" onClick={() => nextUnit ? startPractice(nextUnit, recommendation.action === 'Resume' ? { confirmed: true } : {}) : openPractice()}><PlayIcon />{nextUnit ? (recommendation.action === 'Resume' ? 'Resume practice' : 'Start this practice') : 'Choose a topic'}</button>
+            <button type="button" className="secondary-action" onClick={() => openPractice()}>Choose another topic</button>
+          </div>
+        </div>
+        <div className="recommended-session__course" aria-label="Selected course">
+          <span>{activeRoute.stage}</span>
+          <strong>{activeRoute.subject}</strong>
+          <small>Cambridge {activeRoute.subjectCode.toUpperCase()}</small>
+        </div>
+      </section>
+
+      <nav className="study-paths" aria-label="Quick study paths">
+        <div><p className="section-label">Choose a path</p><h2>Work by topic, paper, or review.</h2></div>
+        <div className="study-paths__grid">
+          <button type="button" aria-label="Topic Drill" data-student-path="topic-drill" onClick={() => openPractice({ tab: 'topics' })}><span className="action-icon"><Dumbbell size={18} /></span><strong>Topic Drill</strong><small>Practise one syllabus topic</small><em>Open <ChevronRight size={14} /></em></button>
+          <button type="button" aria-label="Past Papers" data-student-path="past-papers" onClick={() => openPractice({ tab: 'papers' })}><span className="action-icon"><FileText size={18} /></span><strong>Past Papers</strong><small>Work through complete papers</small><em>Open <ChevronRight size={14} /></em></button>
+          <button type="button" aria-label="Mistakes" data-student-path="mistakes" onClick={() => openPractice({ tab: 'mistakes' })}><span className="action-icon"><RefreshCcw size={18} /></span><strong>Mistakes</strong><small>Review what needs another look</small><em>Review <ChevronRight size={14} /></em></button>
+        </div>
+      </nav>
+
+      <section className="week-progress-strip" aria-label="Weekly progress">
+        <div><p className="section-label">This week</p><h2>{goalComplete ? 'Weekly goal complete' : `${Math.max(0, learningProgress.week.targetQuestions - learningProgress.week.completedQuestions)} questions to reach your goal`}</h2><span>{learningProgress.streak ? `${learningProgress.streak}-day study streak` : 'Your study streak starts with the next question.'}</span></div>
+        <div className="week-progress-strip__progress"><strong>{Math.min(learningProgress.week.completedQuestions, learningProgress.week.targetQuestions)} / {learningProgress.week.targetQuestions}</strong><div className="progress-track"><span style={{ width: `${weeklyPercent}%` }} /></div></div>
+        <button type="button" className="text-action" onClick={() => nextUnit ? startPractice(nextUnit, recommendation.action === 'Resume' ? { confirmed: true } : {}) : openPractice()}>{nextUnit ? 'Continue' : 'Choose a topic'}<ChevronRight size={15} /></button>
+      </section>
+
+      <section className="dashboard-panel latest-record-panel"><header><div><p className="section-label">Recent record</p><h2>{latestUnit?.title || latest?.file || 'Complete your first set'}</h2></div><button type="button" className="text-action" onClick={() => setView('history')}>View progress <ChevronRight size={15} /></button></header>{latest ? <div className="latest-record-panel__content"><span>{latest.partial ? 'Provisional attempt' : 'Submitted attempt'}</span><strong>{latest.rawMarks ?? latest.scoreResult?.rawMarks ?? 0}/{latest.maxMarks ?? latest.scoreResult?.maxMarks ?? '?'}</strong><small>{latest.partial ? `${latest.answeredCount || 0}/${latest.questionCount || '?'} answered · excluded from mastery` : formatDate(latest.date || latest.submittedAt)}</small></div> : <p>Finish one practice set to create your first progress record.</p>}</section>
+      <section className="dashboard-panel roadmap-compact"><header><div><p className="section-label">Syllabus mastery</p><h2>Progress through the official syllabus</h2></div><button type="button" className="text-action" onClick={() => openPractice()}>Open all topics <ChevronRight size={15} /></button></header><div>{syllabusRoadmap.slice(0, 6).map((topic, index) => <button type="button" key={topic.id} onClick={() => openPractice()}><span>{topic.officialTopicNumber || index + 1}</span><strong>{topic.name.replace(/^\d+\s+/, '')}</strong><small>{topic.mastery == null ? 'Not started' : `${topic.mastery}% mastery`}</small><i><b style={{ width: `${topic.mastery || 0}%` }} /></i></button>)}</div></section>
     </main>
-    <aside className="dashboard-aside"><section className="weekly-card"><p>Weekly target</p><div className={`goal-ring ${goalComplete ? 'complete' : ''}`} style={{ '--goal': `${weeklyPercent * 3.6}deg` }}><strong>{goalComplete ? 'Done' : `${Math.min(learningProgress.week.completedQuestions, learningProgress.week.targetQuestions)}/${learningProgress.week.targetQuestions}`}</strong><span>{goalComplete ? 'Goal complete' : `${weeklyPercent}%`}</span></div><div className="weekly-card__footer"><span><span className="streak-flame">●</span>{learningProgress.streak} day streak</span><small>{goalComplete ? 'Next: review one weak topic.' : `${learningProgress.week.targetQuestions - learningProgress.week.completedQuestions} questions to go`}</small></div></section><section className="tutor-card"><header><span className="action-icon blue"><Brain size={20} /></span><small>AI Tutor</small></header><h2>Your science and maths coach</h2><p>Ask for a screenshot hint, a check of your method, or a sourced topic drill.</p><button type="button" className="secondary-action" onClick={openCoach}><Sparkles size={16} />Chat with AI Tutor</button></section><section className="dashboard-panel milestones-compact"><header><div><p className="section-label">This week</p><h2>Next milestones</h2></div></header>{learningProgress.milestones.slice(0, 3).map((milestone) => <div key={milestone.id}><span className={milestone.complete ? 'milestone-dot complete' : 'milestone-dot'}>{milestone.complete ? <CheckCircle2 size={13} /> : null}</span><p><strong>{milestone.label}</strong><small>{Math.min(milestone.value, milestone.target)}/{milestone.target} {milestone.unit}</small></p><i><b style={{ width: `${milestone.percentage}%` }} /></i></div>)}</section></aside>
   </section>
 }
 
-function StudyAction({ icon, tone, title, detail, action, onClick }) {
-  return <button type="button" onClick={onClick}><span className={`action-icon ${tone}`}>{icon}</span><strong>{title}</strong><small>{detail}</small><em>{action} <ChevronRight size={15} /></em></button>
-}
-
-function Stat({ label, value, detail }) {
-  return <div><span>{label}</span><strong>{value}</strong><small>{detail}</small></div>
-}
-
-function MiniUnitPanel({ eyebrow, title, empty, units, icon, openPractice, onManage, favorite = false }) {
-  return <section className="dashboard-panel recent-panel"><header><div><p className="section-label">{eyebrow}</p><h2>{title}</h2></div><button type="button" className="text-action" onClick={onManage}>Library <ChevronRight size={15} /></button></header>{units.length ? <div className="mini-unit-list">{units.map((unit) => <button type="button" key={unit.id} onClick={() => openPractice(unit)}><span>{favorite ? <Heart size={16} fill="currentColor" /> : unit.code || subjects.find((subject) => subject.id === unit.subjectId)?.code}</span><div><strong>{unit.title}</strong><small>{unit.topic} · {unit.estimatedMinutes} min</small></div><ChevronRight size={16} /></button>)}</div> : <div className="compact-empty">{icon}<span>{empty}</span></div>}</section>
-}
-
 function PlayIcon() {
-  return <span className="play-icon" aria-hidden="true">▶</span>
+  return <Play className="play-icon" size={16} fill="currentColor" aria-hidden="true" />
 }
 
 function ModeCard({ icon, title, detail, accent, onClick }) {
@@ -1359,14 +2891,13 @@ function Metric({ icon, label, value, detail }) {
 }
 
 function LibraryView({
+  activeRoute,
+  activeRouteId,
+  selectRoute,
   activeTab,
   setActiveTab,
-  subjectFilter,
-  setSubjectFilter,
-  completionFilter,
-  setCompletionFilter,
-  query,
-  setQuery,
+  selectedTopicId,
+  onSelectTopic,
   visibleUnits,
   completionByUnit,
   favoriteUnitIds,
@@ -1377,77 +2908,60 @@ function LibraryView({
   retestPaper,
   paperCatalogState,
   openPaper,
-  openPaperLibraryForSubject,
+  onReviewAction,
+  recommendation,
+  onOpenTopic,
+  onOpenAiPractice,
+  onOpenCoach,
   startKnowledgeDrill,
-  catalogItems,
+  practiceOptions,
+  syllabusInventory,
 }) {
   const incomingContext = getIncomingProductContext()
   const contextSubject = subjects.find((subject) => subject.id === incomingContext.subjectId)
+  const practiceTopics = practiceOptions.find((option) => option.routeId === activeRouteId)?.topics || []
+  const hasTopicInventory = practiceTopics.some((topic) => Number(topic.inventory || 0) > 0)
+  const selectedTopic = practiceTopics.find((topic) => topic.id === selectedTopicId) || null
+  const practiceModesRef = useRef(null)
+
+  useLayoutEffect(() => {
+    const activeMode = practiceModesRef.current?.querySelector('button.active')
+    activeMode?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'auto' })
+  }, [activeTab])
+
   return (
-    <section className="library-view page-band">
-      <div className="library-header">
+    <section className="practice-hub page-band">
+      <header className="practice-hub__header">
         <div>
           <p className="section-label">Practice</p>
-          <h1>Find the right question, faster.</h1>
-          <p className="library-header__intro">Choose a syllabus topic, a paper, or a short set from your recent mistakes.</p>
+          <h1>Choose your next study session.</h1>
+          <p className="practice-hub__intro">{activeRoute.stage === 'Competition' ? 'Start a focused competition set or open a historical paper.' : activeRoute.stage === 'Admissions' ? 'Choose a test module or open official preparation papers.' : 'Pick one syllabus topic for focused practice, or open a full Cambridge paper.'}</p>
         </div>
-        <div className="tabs" role="tablist" aria-label="Practice type">
-          <button className={activeTab === 'topics' ? 'active' : ''} type="button" onClick={() => setActiveTab('topics')}>
-            Knowledge
-          </button>
-          <button className={activeTab === 'exams' ? 'active' : ''} type="button" onClick={() => setActiveTab('exams')}>
-            Timed sets
-          </button>
-          <button className={activeTab === 'papers' ? 'active' : ''} type="button" onClick={() => setActiveTab('papers')}>
-            Paper PDFs
-          </button>
-          <button className={activeTab === 'mistakes' ? 'active' : ''} type="button" onClick={() => setActiveTab('mistakes')}>
-            Mistakes
-          </button>
-          <button className={activeTab === 'saved' ? 'active' : ''} type="button" onClick={() => setActiveTab('saved')}>
-            Saved
-          </button>
+        <div className="practice-hub__controls">
+          <StudentRoutePicker activeRoute={activeRoute} routes={courseRoutes} selectRoute={selectRoute} compact />
+          {hasTopicInventory && <label className="practice-topic-filter"><span>Topic focus</span><select aria-label="Topic focus" value={selectedTopicId || ''} onChange={(event) => onSelectTopic(event.target.value)}><option value="">All topics in this route</option>{practiceTopics.map((topic) => <option value={topic.id} key={topic.id}>{topic.label.replace(/^\d+\s+/, '')}</option>)}</select></label>}
         </div>
-      </div>
+      </header>
+
+      <nav className="practice-modes" ref={practiceModesRef} aria-label="Practice modes">
+        <div className="practice-mode-group" aria-label="Learn by topic"><span>Learn</span><button className={activeTab === 'recommended' ? 'active' : ''} type="button" onClick={() => setActiveTab('recommended')}><Target size={17} />Recommended</button><button className={activeTab === 'ai-practice' ? 'active' : ''} type="button" onClick={onOpenAiPractice}><Sparkles size={17} />AI Practice</button><button className={activeTab === 'topics' ? 'active' : ''} type="button" onClick={() => setActiveTab('topics')}><Dumbbell size={17} />Topic Drill</button></div>
+        <div className="practice-mode-group" aria-label="Work through a paper"><span>Exam prep</span><button className={activeTab === 'papers' ? 'active' : ''} type="button" onClick={() => setActiveTab('papers')}><FileText size={17} />Past Papers</button><button className={activeTab === 'exams' ? 'active' : ''} type="button" onClick={() => setActiveTab('exams')}><GraduationCap size={17} />Exam Simulation</button></div>
+        <div className="practice-mode-group" aria-label="Review saved work"><span>Review</span><button className={activeTab === 'mistakes' ? 'active' : ''} type="button" onClick={() => setActiveTab('mistakes')}><RefreshCcw size={17} />Mistakes</button><button className={activeTab === 'saved' ? 'active' : ''} type="button" onClick={() => setActiveTab('saved')}><Heart size={17} />Saved</button></div>
+      </nav>
 
       {incomingContext.from === 'ieltsist' && <div className="product-bridge-band" role="status"><span className="product-bridge-icon"><Brain size={17} /></span><div><strong>From IELTS-ist Vocabulary</strong><p>{contextSubject ? `You are ready to practise ${contextSubject.name} concepts.` : 'Use IELTS-ist for language support, then practise the subject here.'}</p></div><a href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer">Open IELTS Vocabulary <ChevronRight size={15} /></a></div>}
 
-      {activeTab === 'papers' && <PaperLibrary catalogState={paperCatalogState} initialSubject={subjects.find((subject) => subject.id === subjectFilter)?.code} onOpenPaper={openPaper} />}
+      {activeTab === 'recommended' && <PracticeOverview recommendation={recommendation} selectedTopic={selectedTopic} visibleUnits={visibleUnits} completionByUnit={completionByUnit} favoriteUnitIds={favoriteUnitIds} onToggleFavorite={onToggleFavorite} mistakes={mistakes} paperMistakes={paperMistakes} startPractice={startPractice} onOpenTopic={onOpenTopic} onOpenCoach={onOpenCoach} onOpenPapers={() => setActiveTab('papers')} />}
+      {activeTab === 'ai-practice' && <AiPracticeLanding activeRoute={activeRoute} selectedTopicId={selectedTopicId} practiceOptions={practiceOptions} startKnowledgeDrill={startKnowledgeDrill} onOpenCoach={onOpenCoach} />}
+      {activeTab === 'papers' && <Suspense fallback={<div className="workspace-loading"><span className="loading-line" />Loading past papers...</div>}><PaperLibrary catalogState={paperCatalogState} initialSubject={activeRoute.subjectCode} activeRoute={activeRoute} studyMode="past-paper-practice" onOpenPaper={openPaper} /></Suspense>}
 
-      {activeTab === 'exams' && <PaperLibrary catalogState={paperCatalogState} initialSubject={subjects.find((subject) => subject.id === subjectFilter)?.code} onOpenPaper={openPaper} />}
+      {activeTab === 'exams' && <Suspense fallback={<div className="workspace-loading"><span className="loading-line" />Loading exam papers...</div>}><PaperLibrary catalogState={paperCatalogState} initialSubject={activeRoute.subjectCode} activeRoute={activeRoute} studyMode="exam-simulation" onOpenPaper={(paper) => openPaper({ ...paper, paperStudyMode: 'exam-simulation' })} /></Suspense>}
 
-      {activeTab === 'topics' && (
-        <><KnowledgeMap subjectFilter={subjectFilter} setSubjectFilter={setSubjectFilter} completionByUnit={completionByUnit} startPractice={startPractice} startKnowledgeDrill={startKnowledgeDrill} openPapers={openPaperLibraryForSubject} catalogItems={catalogItems} verifiedUnits={visibleUnits} practiceOptions={coachPracticeOptions()} />
-        <div className="toolbar" aria-label="Library filters">
-          <label className="search-box">
-            <Search size={17} />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search topic, paper, source" />
-          </label>
-          <label>
-            <Filter size={17} />
-            <select value={subjectFilter} onChange={(event) => setSubjectFilter(event.target.value)}>
-              <option value="all">All subjects</option>
-              {subjects.map((subject) => (
-                <option value={subject.id} key={subject.id}>
-                  {subject.name} {subject.code}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Status
-            <select value={completionFilter} onChange={(event) => setCompletionFilter(event.target.value)}>
-              <option value="all">All</option>
-              <option value="open">Not completed</option>
-              <option value="completed">Completed</option>
-            </select>
-          </label>
-        </div></>
-      )}
+      {activeTab === 'topics' && <PracticeTopicDirectory activeRoute={activeRoute} activeRouteId={activeRouteId} practiceOptions={practiceOptions} visibleUnits={visibleUnits} completionByUnit={completionByUnit} query={selectedTopic?.label || ''} onOpenTopic={onOpenTopic} onOpenPapers={() => setActiveTab('papers')} onClearTopicFilter={() => onSelectTopic('')} syllabusInventory={syllabusInventory} />}
 
       {activeTab === 'mistakes' ? (
-        <MistakeList mistakes={mistakes} paperMistakes={paperMistakes} startPractice={startPractice} retestPaper={retestPaper} />
-      ) : activeTab === 'papers' || activeTab === 'exams' ? null : (activeTab === 'saved' ? visibleUnits.filter((unit) => favoriteUnitIds.includes(unit.id)) : visibleUnits).length ? (
+          <MistakeList mistakes={mistakes} paperMistakes={paperMistakes} startPractice={startPractice} retestPaper={retestPaper} onReviewAction={onReviewAction} />
+      ) : activeTab === 'papers' || activeTab === 'exams' || activeTab === 'recommended' || activeTab === 'ai-practice' || activeTab === 'topics' ? null : (activeTab === 'saved' ? visibleUnits.filter((unit) => favoriteUnitIds.includes(unit.id)) : visibleUnits).length ? (
         <div className="unit-grid">
           {(activeTab === 'saved' ? visibleUnits.filter((unit) => favoriteUnitIds.includes(unit.id)) : visibleUnits).map((unit) => (
             <UnitCard key={unit.id} unit={unit} completion={completionByUnit[unit.id]} startPractice={startPractice} favorite={favoriteUnitIds.includes(unit.id)} onToggleFavorite={onToggleFavorite} />
@@ -1457,14 +2971,648 @@ function LibraryView({
         <div className="empty-state">
           <Brain size={28} />
           <h2>{activeTab === 'saved' ? 'No saved practice yet' : 'No items match these filters'}</h2>
-          <p>{activeTab === 'saved' ? 'Use the heart on any practice card to keep it ready for later.' : 'Clear filters or switch subject to rebuild the practice queue.'}</p>
+          <p>{activeTab === 'saved' ? 'Save a practice set from Recommended or a topic page to keep it ready here.' : 'Clear filters or switch subject to rebuild the practice queue.'}</p>
+          {activeTab === 'saved' && <button type="button" className="primary-action" onClick={() => { onSelectTopic(''); setActiveTab('topics') }}>Browse practice</button>}
         </div>
       )}
     </section>
   )
 }
 
-function KnowledgeMap({ subjectFilter, setSubjectFilter, completionByUnit, startPractice, startKnowledgeDrill, openPapers, catalogItems, verifiedUnits, practiceOptions }) {
+function AiPracticeLanding({ activeRoute, selectedTopicId, practiceOptions, startKnowledgeDrill, onOpenCoach }) {
+  const option = practiceOptions.find((item) => item.routeId === activeRoute.routeId)
+  const topics = option?.topics || []
+  const firstTopicId = topics[0]?.id || ''
+  const preferredTopicId = topics.some((topic) => topic.id === selectedTopicId) ? selectedTopicId : firstTopicId
+  const [selectedTopicIds, setSelectedTopicIds] = useState(() => preferredTopicId ? [preferredTopicId] : [])
+  const [questionCount, setQuestionCount] = useState(10)
+  const routeComponents = (activeRoute.paperComponents || []).map(Number).filter(Number.isFinite)
+  const syllabusComponents = syllabusPracticeComponentsForRoute(activeRoute.routeId)
+  const defaultComponents = syllabusComponents.length ? syllabusComponents : routeComponents
+  const defaultComponentKey = defaultComponents.join(',')
+  const [componentKey, setComponentKey] = useState(() => defaultComponentKey)
+  const [startError, setStartError] = useState('')
+  const selectedComponents = componentKey.split(',').map(Number).filter(Number.isFinite)
+  const selectedTopics = topics.filter((topic) => selectedTopicIds.includes(topic.id))
+  const selectedInventory = aggregateTopicPracticeInventory(selectedTopics, selectedComponents)
+  const available = selectedInventory.availableQuestionCount
+  const formalReady = selectedTopics.length > 0
+    && selectedTopics.every((topic) => (
+      topicPracticeInventory(topic, selectedComponents).verifiedQuestionCount >= MIN_VERIFIED_GROUPS_FOR_PRACTICE
+    ))
+  const canBuildPractice = selectedTopicIds.length > 0
+    && selectedComponents.length > 0
+    && available >= MIN_QUESTION_GROUPS_PER_TEST
+    && formalReady
+
+  useEffect(() => {
+    setSelectedTopicIds(preferredTopicId ? [preferredTopicId] : [])
+    setComponentKey(defaultComponentKey)
+    setStartError('')
+  }, [activeRoute.routeId, defaultComponentKey, preferredTopicId])
+
+  async function buildPractice() {
+    if (!canBuildPractice) return
+    try {
+      setStartError('')
+      await startKnowledgeDrill({
+        routeId: activeRoute.routeId,
+        knowledgeGroupId: selectedTopicIds[0],
+        syllabusTopicIds: selectedTopicIds,
+        questionCount,
+        components: selectedComponents,
+      })
+    } catch (error) {
+      setStartError(error.message || 'This set could not be generated from the current reviewed inventory.')
+    }
+  }
+
+  return (
+    <section className="practice-overview ai-practice-landing" aria-labelledby="ai-practice-title">
+      <div className="practice-overview__header">
+        <div>
+          <p className="section-label">AI Practice</p>
+          <h2 id="ai-practice-title">Build a focused set for {activeRoute.stage} {activeRoute.subject}</h2>
+          <p>Choose the syllabus scope here. AI Tutor remains available for explanations and hints after the set opens.</p>
+        </div>
+        <button type="button" className="secondary-action" onClick={onOpenCoach}><Sparkles size={16} />Ask AI Tutor</button>
+      </div>
+      <div className="ai-practice-builder">
+        <fieldset>
+          <legend>Syllabus topics</legend>
+          <div className="ai-practice-builder__topics">{topics.map((topic) => {
+            const selected = selectedTopicIds.includes(topic.id)
+            const inventory = topicPracticeInventory(topic, selectedComponents)
+            return <label className={selected ? 'is-selected' : ''} key={topic.id}><input type="checkbox" checked={selected} onChange={(event) => setSelectedTopicIds((current) => event.target.checked ? [...new Set([...current, topic.id])] : current.filter((id) => id !== topic.id))} /><span><strong>{topic.label.replace(/^\d+\s+/, '')}</strong><small>{inventory.availableQuestionCount} source questions · {inventory.verifiedQuestionCount} ready for formal progress</small></span></label>
+          })}</div>
+        </fieldset>
+        <div className="ai-practice-builder__settings">
+          <label><span>Question count</span><select value={questionCount} onChange={(event) => setQuestionCount(Number(event.target.value))}><option value={6}>6 official questions</option><option value={10}>10 official questions</option><option value={15}>15 official questions</option></select></label>
+          <label><span>Paper component</span><select value={componentKey} onChange={(event) => setComponentKey(event.target.value)}>{defaultComponents.length > 1 && <option value={defaultComponents.join(',')}>{formatRouteComponents(defaultComponents, activeRoute)} mixed</option>}{defaultComponents.map((component) => <option value={String(component)} key={component}>{formatRouteComponents([component], activeRoute)}{activeRoute.subjectCode === '9702' && Number(component) === 3 ? ' practical' : ''}</option>)}</select></label>
+        </div>
+        <div className="ai-practice-builder__footer" role="status" data-available-source-questions={available} data-requested-source-questions={questionCount}><span><strong>{selectedTopics.map((topic) => topic.label.replace(/^\d+\s+/, '')).join(' + ') || 'Choose a topic'}</strong><small>{available} matching source questions · {questionCount} requested{available < questionCount ? ` · set will contain up to ${available}` : ''}</small>{selectedInventory.verifiedQuestionCount < available && <small>{selectedInventory.verifiedQuestionCount} ready for formal progress · {selectedInventory.studyQuestionCount} available for study only</small>}{selectedInventory.pendingReviewCount > 0 && <small>{selectedInventory.pendingReviewCount} more indexed questions are still being checked</small>}</span><button type="button" className="primary-action" disabled={!canBuildPractice} onClick={buildPractice}><PlayIcon />{available < MIN_QUESTION_GROUPS_PER_TEST ? `Need ${MIN_QUESTION_GROUPS_PER_TEST} questions` : !formalReady ? `Need ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} reviewed groups` : 'Build practice'}</button></div>
+        {selectedInventory.studyQuestionCount > 0 && <p className="ai-practice-builder__notice" role="status">This selection may include source questions still outside formal review. Complete checksum-bound QP/MS items are AI-marked automatically, while their study scores remain outside mastery and formal progress.</p>}
+        {startError && <p className="topic-detail__error" role="alert">{startError}</p>}
+      </div>
+    </section>
+  )
+}
+
+function topicMetadata(topicId) {
+  const baseId = String(topicId || '').split('@')[0]
+  return learningPlan.knowledgeGroups.find((group) => group.id === baseId)
+}
+
+function topicMasteryFromUnits(topicId, units, completionByUnit) {
+  const scores = units
+    .filter((unit) => unit.knowledgeGroupId === topicId || String(unit.knowledgeGroupId || '').split('@')[0] === String(topicId || '').split('@')[0])
+    .map((unit) => completionByUnit[unit.id]?.best?.percentage)
+    .filter((score) => Number.isFinite(score))
+  return scores.length ? Math.max(...scores) : null
+}
+
+function masteryLabel(mastery) {
+  if (mastery == null) return 'Not started'
+  if (mastery >= 80) return 'Strong'
+  if (mastery >= 60) return 'Developing'
+  return 'Weak'
+}
+
+function topicQuestionMatches(question, routeId, topicId) {
+  return questionMatchesSyllabusTopicMembership(routeId, question, topicId)
+}
+
+function sourceQuestionPreview(question) {
+  const source = question.sourceRef || {}
+  const pages = Array.isArray(source.assetUrls)
+    ? source.assetUrls.map((url) => String(url).match(/\/qp-(\d+)\.(?:png|jpe?g|webp)$/i)?.[1]).filter(Boolean)
+    : []
+  const pageLabel = pages.length ? `QP p.${pages.join(', p.')}` : `QP p.${source.pageStart || '?'}`
+  return `Official source image · ${pageLabel} · open the set to view the complete question.`
+}
+
+function sourcePaperLabel(question) {
+  const source = question.sourceRef || {}
+  const paperMatch = String(source.paper || '').match(/(?:^|[_-])([msw]\d{2})[_-]qp[_-]?(\d{1,2})(?:$|[_.-])/i)
+  if (paperMatch) return `${paperMatch[1].toUpperCase()}/${paperMatch[2]}`
+  const season = source.season ? `${source.season} ` : ''
+  return `${season}${source.year || ''} · ${source.paper || 'Verified question paper'}`.trim()
+}
+
+function SavePracticeButton({ unit, favorite, onToggleFavorite }) {
+  const [status, setStatus] = useState('idle')
+
+  useEffect(() => setStatus('idle'), [favorite, unit?.id])
+
+  async function toggle(event) {
+    event?.stopPropagation?.()
+    if (!unit || status === 'saving') return
+    setStatus('saving')
+    try {
+      await Promise.resolve(onToggleFavorite?.(unit.id))
+      setStatus('idle')
+    } catch {
+      setStatus('error')
+    }
+  }
+
+  const label = status === 'error'
+    ? `Try saving ${unit?.title || 'this practice set'} again`
+    : favorite
+      ? `Remove ${unit?.title || 'this practice set'} from saved practice`
+      : `Save ${unit?.title || 'this practice set'} for later`
+
+  return <button type="button" className={`unit-favorite ${favorite ? 'saved' : ''} ${status === 'saving' ? 'is-loading' : ''} ${status === 'error' ? 'is-error' : ''}`} aria-label={label} aria-pressed={favorite} disabled={status === 'saving'} title={status === 'error' ? 'Save failed. Try again.' : favorite ? 'Remove from Saved' : 'Save practice set'} onClick={toggle}><Heart size={17} fill={favorite ? 'currentColor' : 'none'} /></button>
+}
+
+function PracticeOverview({ recommendation, selectedTopic, visibleUnits, completionByUnit, favoriteUnitIds, onToggleFavorite, mistakes, paperMistakes, startPractice, onOpenTopic, onOpenCoach, onOpenPapers }) {
+  const nextUnit = recommendation?.unit
+  const completedCount = visibleUnits.filter((unit) => completionByUnit[unit.id]?.completed).length
+  const openMistakes = mistakes.length + paperMistakes.length
+  const topicId = selectedTopic?.id || nextUnit?.knowledgeGroupId
+  const topicName = selectedTopic?.label?.replace(/^\d+\s+/, '') || nextUnit?.topic
+
+  return (
+    <div className="practice-overview">
+      <section className="practice-overview__primary">
+        <div>
+          <p className="section-label">{selectedTopic ? 'Selected topic' : 'Recommended next'}</p>
+          <h2>{nextUnit?.title || topicName || 'Choose your first syllabus topic'}</h2>
+          <p>{nextUnit ? recommendation.reason : selectedTopic ? `Open ${topicName} to build a set from the available paper components.` : 'Build a short route-specific set from reviewed past-paper questions.'}</p>
+          {nextUnit && <div className="practice-overview__meta"><span>{practiceMetricsSummary(nextUnit)}</span><span>About {nextUnit.estimatedMinutes} min</span></div>}
+        </div>
+        <div className="practice-overview__primary-actions">
+          {nextUnit && <SavePracticeButton unit={nextUnit} favorite={favoriteUnitIds.includes(nextUnit.id)} onToggleFavorite={onToggleFavorite} />}
+          <button type="button" className="primary-action" onClick={() => nextUnit ? startPractice(nextUnit, recommendation.action === 'Resume' ? { confirmed: true } : {}) : onOpenTopic(topicId || visibleUnits[0]?.knowledgeGroupId)} disabled={!nextUnit && !topicId && !visibleUnits.length}><PlayIcon />{nextUnit ? (recommendation.action === 'Resume' ? 'Resume practice' : 'Start practice') : topicId ? 'Open topic' : 'Choose a topic'}</button>
+        </div>
+      </section>
+
+      <section className="practice-overview__choices" aria-label="Practice choices">
+        <button type="button" onClick={() => topicId && onOpenTopic(topicId)} disabled={!topicId}><Target size={20} /><span><strong>Focus on this topic</strong><small>{topicName || 'Select from the syllabus'}</small></span><ChevronRight size={17} /></button>
+        <button type="button" onClick={onOpenCoach}><Sparkles size={20} /><span><strong>Ask AI Tutor to build a set</strong><small>Describe the concept or skill you need</small></span><ChevronRight size={17} /></button>
+        <button type="button" onClick={onOpenPapers}><FileText size={20} /><span><strong>Take a past paper</strong><small>Full official paper in exam conditions</small></span><ChevronRight size={17} /></button>
+      </section>
+
+      <div className="practice-overview__status"><span><strong>{completedCount}</strong> topics practised</span><span><strong>{openMistakes}</strong> open mistakes</span><span><strong>{visibleUnits.length}</strong> practice sets in this course</span></div>
+    </div>
+  )
+}
+
+function PracticeTopicDirectory({ activeRoute, activeRouteId, practiceOptions, visibleUnits, completionByUnit, query, onOpenTopic, onOpenPapers, onClearTopicFilter, syllabusInventory }) {
+  const routeOption = practiceOptions.find((option) => option.routeId === activeRouteId)
+  const routeTopics = routeOption?.topics || []
+  const serverTopics = syllabusInventory?.data?.topics || []
+  const serverTopicById = new Map(serverTopics.map((topic) => [topic.id, topic]))
+  const displayTopics = routeTopics.map((topic) => {
+    const serverTopic = serverTopicById.get(topic.id)
+    const availableQuestionCount = Number(serverTopic?.availableQuestionCount ?? topic.inventory ?? 0)
+    const verifiedQuestionCount = Number(serverTopic?.verifiedQuestionCount ?? 0)
+    const studyQuestionCount = Number(serverTopic?.studyQuestionCount ?? 0)
+    const pendingReviewCount = Number(serverTopic?.pendingReviewCount ?? 0)
+    return {
+      ...topic,
+      inventory: availableQuestionCount,
+      verifiedQuestionCount,
+      studyQuestionCount,
+      pendingReviewCount,
+      availableQuestionCount,
+    }
+  })
+  const normalizedQuery = query.trim().toLowerCase()
+  const topics = displayTopics.filter((topic) => {
+    const metadata = topicMetadata(topic.id)
+    return !normalizedQuery || [topic.label, metadata?.description, ...(metadata?.themes || [])].join(' ').toLowerCase().includes(normalizedQuery)
+  })
+  // A question can map to multiple official topics. The API's route-level
+  // totals are distinct question groups; summing topic rows double-counts it.
+  const sourceQuestionCount = Number(syllabusInventory?.data?.availableQuestionGroupCount
+    ?? displayTopics.reduce((sum, topic) => sum + Number(topic.inventory || 0), 0))
+  const reviewedQuestionCount = Number(syllabusInventory?.data?.verifiedQuestionGroupCount
+    ?? displayTopics.reduce((sum, topic) => sum + Number(topic.verifiedQuestionCount || 0), 0))
+  const studyOnlyQuestionCount = Number(syllabusInventory?.data?.studyQuestionGroupCount
+    ?? displayTopics.reduce((sum, topic) => sum + Number(topic.studyQuestionCount || 0), 0))
+  const multiTopicTarget = displayTopics.find((topic) => Number(topic.inventory || 0) > 0) || displayTopics[0]
+  const topicDirectoryIntro = sourceQuestionCount > 0
+    ? 'Choose one topic. Source-backed questions open first; study-only records stay marked so you can practise them without pretending they are reviewed.'
+    : 'Topic drills will appear here when complete official questions and marking guidance are ready for this course.'
+  const topicContent = syllabusInventory?.status === 'loading'
+    ? <div className="empty-state" role="status"><Dumbbell size={28} /><h2>Loading your topic practice</h2><p>Checking the latest official questions for this course.</p></div>
+    : syllabusInventory?.status === 'error'
+      ? <div className="empty-state" role="alert"><AlertTriangle size={28} /><h2>Topic practice is temporarily unavailable</h2><p>{syllabusInventory.error}</p><button type="button" className="card-action" onClick={() => window.location.reload()}>Retry <RefreshCcw size={15} /></button></div>
+      : sourceQuestionCount === 0
+        ? <div className="topic-directory__empty topic-directory__empty--inventory"><FileText size={28} /><div><p className="section-label">Topic Drill</p><h2>Topic Drill is being prepared for this course</h2><p>There are not enough checked question groups for {activeRoute.stage} {activeRoute.subject} yet. Use a complete official paper now; a topic set will appear only when its question pages and marking guidance are ready together.</p></div><div className="topic-directory__empty-actions"><span>Available now</span><button type="button" className="primary-action" onClick={onOpenPapers}><FileText size={16} />Browse {activeRoute.stage} {activeRoute.subject} papers</button><a href={activeRoute.syllabus.url} target="_blank" rel="noreferrer">View syllabus <ChevronRight size={15} /></a></div></div>
+        : topics.length ? (
+          <>
+            <div className="topic-directory__route-status" role="status">
+              <div>
+                <strong>{routeTopics.length} syllabus topic{routeTopics.length === 1 ? '' : 's'}</strong>
+                <span>
+                  {reviewedQuestionCount > 0 ? `${reviewedQuestionCount} reviewed question${reviewedQuestionCount === 1 ? '' : 's'}` : 'No reviewed questions yet'}
+                  {studyOnlyQuestionCount > 0 ? ` · ${studyOnlyQuestionCount} study-only question${studyOnlyQuestionCount === 1 ? '' : 's'} ready to open` : ''}
+                </span>
+              </div>
+              <small>Choose a topic to set the paper style and question count.</small>
+            </div>
+            <div className="topic-directory__list">
+              {topics.map((topic) => {
+                const metadata = topicMetadata(topic.id)
+                const mastery = topicMasteryFromUnits(topic.id, visibleUnits, completionByUnit)
+                const available = Number(topic.inventory || 0)
+                const reviewed = Number(topic.verifiedQuestionCount || 0)
+                const studyOnly = Number(topic.studyQuestionCount || 0)
+                const pending = Number(topic.pendingReviewCount || 0)
+                const topicNumber = metadata?.officialTopicNumber || String(displayTopics.indexOf(topic) + 1).padStart(2, '0')
+                return <button type="button" className="topic-directory__row" key={topic.id} onClick={() => onOpenTopic(topic.id)}>
+                  <span className="topic-directory__number">{topicNumber}</span>
+                  <span className="topic-directory__copy"><strong>{topic.label.replace(/^\d+\s+/, '')}</strong><small>{topic.points?.length ? `${topic.points.length} syllabus outcome${topic.points.length === 1 ? '' : 's'}` : 'Open outcomes and past-paper practice'}</small></span>
+                  <span className={`topic-directory__mastery mastery-${masteryLabel(mastery).toLowerCase().replace(' ', '-')}`}><strong>{mastery == null ? '--' : `${mastery}%`}</strong><small>{masteryLabel(mastery)}</small></span>
+                  <span className="topic-directory__available">{available} source-backed question{available === 1 ? '' : 's'}{reviewed > 0 ? ` · ${reviewed} reviewed` : ''}{studyOnly > 0 ? ` · ${studyOnly} study-only` : ''}{pending > 0 ? ` · ${pending} pending` : ''}</span>
+                  <span className="topic-directory__open">{available ? 'Open topic' : 'View topic'}</span>
+                  <ChevronRight size={18} />
+                </button>
+              })}
+            </div>
+          </>
+        ) : <div className="topic-directory__empty empty-state"><Search size={28} /><h2>No topic matches this filter</h2><p>Clear the topic filter to see every available syllabus topic in this course.</p><button type="button" className="card-action" onClick={onClearTopicFilter}>Clear topic filter <RefreshCcw size={15} /></button></div>
+
+  return (
+    <section className="topic-directory">
+      <header><div><p className="section-label">Official syllabus</p><h2>{activeRoute.stage} {activeRoute.subject}</h2><p>{topicDirectoryIntro}</p></div><div className="topic-directory__header-actions"><button type="button" className="primary-action" disabled={!multiTopicTarget || sourceQuestionCount === 0} onClick={() => onOpenTopic(multiTopicTarget.id, { openBuilder: true })}><ListFilter size={16} />Build multi-topic practice</button><a href={activeRoute.syllabus.url} target="_blank" rel="noreferrer">View syllabus <ChevronRight size={15} /></a></div></header>
+      {topicContent}
+    </section>
+  )
+}
+
+function TopicDetail({ activeRoute, activeRouteId, topicId, initialBuilderOpen = false, practiceOptions, syllabusInventory, learningProgress, mistakes, practiceUnits, practiceQuestionGroups = [], studyQuestionRuntimeStatus = 'idle', studyQuestionRuntimeError = '', onOpenPastPaperQuestions = () => {}, verifiedQuestionGroups = [], completionByUnit, startPractice, startKnowledgeDrill, onBack, onOpenCoach, onOpenTopicPdf = async () => { throw new Error('Topic PDF rendering is unavailable.') }, favoriteUnitIds, onToggleFavorite }) {
+  const [startError, setStartError] = useState('')
+  const [topicPdfState, setTopicPdfState] = useState({ status: 'idle', error: '' })
+  const [detailTab, setDetailTab] = useState('overview')
+  const [builderOpen, setBuilderOpen] = useState(initialBuilderOpen)
+  const [selectedTopicIds, setSelectedTopicIds] = useState([topicId])
+  const [selectedQuestionCount, setSelectedQuestionCount] = useState(10)
+  const [componentMode, setComponentMode] = useState('mixed')
+  const [questionSearch, setQuestionSearch] = useState('')
+  const [selectedQuestionIds, setSelectedQuestionIds] = useState([])
+  const routeOption = practiceOptions.find((option) => option.routeId === activeRouteId)
+  const topic = routeOption?.topics.find((item) => item.id === topicId)
+  const selectedTopics = (routeOption?.topics || []).filter((item) => selectedTopicIds.includes(item.id))
+  const dynamicSyllabusRoute = supportsSyllabusPracticeRoute(activeRouteId)
+  const inventoryComponents = (syllabusInventory?.data?.assessmentComponents || []).map((item) => Number(item.component)).filter(Number.isFinite)
+  const routeComponents = inventoryComponents.length
+    ? inventoryComponents
+    : (activeRoute.paperComponents || []).map((component) => Number(component)).filter(Number.isFinite)
+  const selectedComponents = componentMode === 'p1'
+    ? [routeComponents[0]].filter(Boolean)
+    : componentMode === 'p2'
+      ? [routeComponents[1]].filter(Boolean)
+      : routeComponents
+  const componentLabel = formatRouteComponents(selectedComponents, activeRoute) || 'theory'
+  const serverTopicById = new Map((syllabusInventory?.data?.topics || []).map((candidate) => [candidate.id, candidate]))
+  const inventoryTopic = serverTopicById.get(topicId)
+  const topicInventoryFor = (candidate) => topicPracticeInventory(serverTopicById.get(candidate.id) || candidate, selectedComponents)
+  const componentInventoryByTopic = new Map((routeOption?.topics || []).map((candidate) => [candidate.id, topicInventoryFor(candidate).availableQuestionCount]))
+  const metadata = topicMetadata(topicId)
+  const guide = topicLearningContent(metadata || {
+    id: topicId,
+    name: topic?.label || 'this topic',
+    subjectId: activeRoute.subjectId,
+    stage: activeRoute.stage,
+    themes: [],
+  })
+  const progress = learningProgress.topicProgress.find((item) => item.id === topicId || String(item.id || '').split('@')[0] === String(topicId).split('@')[0])
+  const mastery = progress?.mastery ?? null
+  const selectedTopicInventories = selectedTopics.map(topicInventoryFor)
+  const selectedInventory = aggregateTopicPracticeInventory(
+    selectedTopics.map((candidate) => serverTopicById.get(candidate.id) || candidate),
+    selectedComponents,
+  )
+  const selectedTopicsMeetFormalFloor = selectedTopicInventories.length > 0
+    && selectedTopicInventories.every((inventory) => inventory.verifiedQuestionCount >= MIN_VERIFIED_GROUPS_FOR_PRACTICE)
+  const authoritativeTopicCtaPolicy = dynamicSyllabusRoute && selectedTopicIds.length === 1
+    ? selectedTopicsMeetFormalFloor ? 'start' : 'hidden'
+    : null
+  const authoritativeTopicSourceGap = dynamicSyllabusRoute && selectedTopicIds.length === 1 && authoritativeTopicCtaPolicy === 'hidden'
+    ? (selectedInventory.availableQuestionCount >= MIN_QUESTION_GROUPS_PER_TEST
+      ? `At least ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} reviewed source-backed question groups are required before a Topic Drill can start.`
+      : `At least ${MIN_QUESTION_GROUPS_PER_TEST} official ${componentLabel} questions are required before a Topic Drill can start.`)
+    : ''
+  const totalAvailable = selectedTopics.reduce((sum, item) => sum + (item.inventory || 0), 0)
+  const available = dynamicSyllabusRoute
+    ? selectedInventory.availableQuestionCount
+    : totalAvailable
+  const questionCount = Math.min(selectedQuestionCount, available)
+  const practiceReady = dynamicSyllabusRoute
+    ? selectedTopicsMeetFormalFloor
+      && selectedInventory.availableQuestionCount >= MIN_QUESTION_GROUPS_PER_TEST
+      && (!authoritativeTopicCtaPolicy || authoritativeTopicCtaPolicy === 'start')
+    : available >= MIN_VERIFIED_GROUPS_FOR_PRACTICE
+  const topicPracticeUnits = stableSorted(
+    (dynamicSyllabusRoute ? [] : practiceUnits).filter((unit) => unit.knowledgeGroupId === topicId),
+    (left, right) => (left.sourceSetIndex || 0) - (right.sourceSetIndex || 0),
+  )
+  const sampleReady = !practiceReady && available > 0 && topicPracticeUnits.length > 0
+  const topicCtaPolicy = authoritativeTopicCtaPolicy || (practiceReady || sampleReady ? 'start' : 'hidden')
+  const markingCapabilityCounts = topicPracticeUnits.reduce((counts, unit) => {
+    for (const part of unit.parts || []) {
+      counts.practice += 1
+      if (part.aiAssistedMarkingAvailable || part.reviewStatus === 'reviewed') counts.aiAssisted += 1
+      else if (part.deterministicScoringAvailable || part.answerKey) counts.deterministic += 1
+      else counts.selfMark += 1
+    }
+    return counts
+  }, { practice: 0, deterministic: 0, aiAssisted: 0, selfMark: 0 })
+  const nextPracticeUnit = topicPracticeUnits.find((unit) => !completionByUnit[unit.id]?.completed) || topicPracticeUnits[0]
+  const topicMistakes = mistakes.filter((mistake) => mistake.unit.knowledgeGroupId === topicId).length
+  const questionSourceGroups = useMemo(() => {
+    const merged = new Map()
+    for (const question of [...practiceQuestionGroups, ...verifiedQuestionGroups]) {
+      if (!question?.sourceQuestionId) continue
+      if (!topicQuestionMatches(question, activeRouteId, topicId)) continue
+      merged.set(question.sourceQuestionId, question)
+    }
+    const matchedQuestions = stableSorted([...merged.values()], (left, right) => (
+      (Number(right.sourceRef?.year) || 0) - (Number(left.sourceRef?.year) || 0)
+      || String(left.sourceRef?.paper || '').localeCompare(String(right.sourceRef?.paper || ''))
+      || String(left.sourceRef?.question || '').localeCompare(String(right.sourceRef?.question || ''), undefined, { numeric: true })
+    ))
+    if (!dynamicSyllabusRoute) return matchedQuestions
+    if (syllabusInventory?.status !== 'ready') return []
+    return filterQuestionGroupsByPracticeInventory(matchedQuestions, [inventoryTopic], selectedComponents)
+  }, [activeRouteId, dynamicSyllabusRoute, inventoryTopic, practiceQuestionGroups, selectedComponents, syllabusInventory?.status, topicId, verifiedQuestionGroups])
+  const topicQuestions = questionSourceGroups
+  const chapterItems = (metadata?.themes?.length ? metadata.themes : topic ? [`${topic.label.replace(/^\d+(?:\.\d+)?\s+/, '')}`] : ['Core method selection', 'Complete working', 'Accuracy and checking']).map((theme, index) => {
+    const normalizedTheme = theme.toLowerCase()
+    const count = topicQuestions.filter((question) => (question.topicTags || []).some((tag) => String(tag).toLowerCase().includes(normalizedTheme) || normalizedTheme.includes(String(tag).toLowerCase()))).length
+    return { theme, index, count }
+  })
+  const topicPaperGroups = [...topicQuestions.reduce((groups, question) => {
+    const key = question.sourceRef?.paperId || question.sourceRef?.paper || question.bankId
+    const current = groups.get(key) || []
+    current.push(question)
+    groups.set(key, current)
+    return groups
+  }, new Map()).values()]
+  const checkpoints = metadata?.mastery?.stageIds?.map((stageId) => ({
+    id: stageId,
+    label: stageId === 'exam-ready' ? 'Exam ready' : stageId.charAt(0).toUpperCase() + stageId.slice(1),
+    description: metadata.mastery.checkpoints[stageId],
+  })) || []
+  const sessionQuestionCount = practiceReady ? questionCount : sampleReady ? nextPracticeUnit.questionGroupCount || available : 0
+  const inventorySummary = dynamicSyllabusRoute
+    ? `${available} official ${componentLabel} question${available === 1 ? '' : 's'} match this selection`
+    : `${topicPracticeUnits.length} practice set${topicPracticeUnits.length === 1 ? '' : 's'} · ${available} official questions`
+  const answerPartSummary = dynamicSyllabusRoute
+    ? 'Each official question stays together with every answer part and required page'
+    : `${markingCapabilityCounts.practice} answer parts: ${markingCapabilityCounts.deterministic} Auto-scored, ${markingCapabilityCounts.selfMark} Self-mark, ${markingCapabilityCounts.aiAssisted} Semantic-reviewed`
+  const readinessSummary = dynamicSyllabusRoute
+    ? !practiceReady
+      ? authoritativeTopicSourceGap || `At least ${MIN_QUESTION_GROUPS_PER_TEST} official ${componentLabel} questions are required before a Topic Drill can start.`
+      : questionCount < selectedQuestionCount
+      ? `A shorter ${questionCount}-question set will be generated because only ${available} official ${componentLabel} questions are available.`
+      : `Ready to generate a ${questionCount}-question ${componentLabel} set.`
+    : topicMistakes
+      ? `${topicMistakes} mistake${topicMistakes === 1 ? '' : 's'} linked`
+      : practiceReady
+        ? 'Ready for a ten-question official set'
+        : sampleReady
+          ? `Checked sample only · more questions coming (${available}/${MIN_VERIFIED_GROUPS_FOR_PRACTICE})`
+          : topic?.sourceGap || 'More questions are being checked'
+  const filteredTopicQuestions = useMemo(
+    () => questionSourceGroups.filter((question) => questionMatchesSearch(question, questionSearch)),
+    [questionSearch, questionSourceGroups],
+  )
+  const selectedQuestionIdsSet = useMemo(() => new Set(selectedQuestionIds), [selectedQuestionIds])
+  const selectedTopicQuestions = useMemo(
+    () => questionSourceGroups.filter((question) => selectedQuestionIdsSet.has(question.sourceQuestionId)),
+    [questionSourceGroups, selectedQuestionIdsSet],
+  )
+  const selectedQuestionIdsForBuild = selectedTopicQuestions.map((question) => question.sourceQuestionId)
+  const selectedQuestionHasStudyOnly = selectedTopicQuestions.some((question) => question.studyOnly === true)
+  const canBuildSelectedQuestions = selectedQuestionIdsForBuild.length >= MIN_QUESTION_GROUPS_PER_TEST
+    && selectedQuestionIdsForBuild.length <= 15
+    && (practiceReady || selectedQuestionHasStudyOnly)
+
+  function toggleSelectedQuestion(questionId) {
+    setSelectedQuestionIds((current) => {
+      if (current.includes(questionId)) return current.filter((id) => id !== questionId)
+      if (current.length >= 15) return current
+      return [...current, questionId]
+    })
+  }
+
+  function selectVisibleQuestions() {
+    setSelectedQuestionIds((current) => {
+      const next = new Set(current)
+      for (const question of filteredTopicQuestions) {
+        if (next.size >= 15) break
+        next.add(question.sourceQuestionId)
+      }
+      return [...next]
+    })
+  }
+
+  async function startSelectedQuestionPractice() {
+    if (!canBuildSelectedQuestions) return
+    try {
+      setStartError('')
+      await startKnowledgeDrill({
+        routeId: activeRouteId,
+        knowledgeGroupId: topicId,
+        syllabusTopicIds: [topicId],
+        questionCount: selectedQuestionIdsForBuild.length,
+        components: selectedComponents,
+        sourceQuestionIds: selectedQuestionIdsForBuild,
+      })
+    } catch (error) {
+      setStartError(error.message || 'This topic is still being indexed.')
+    }
+  }
+
+  useEffect(() => {
+    setQuestionSearch('')
+    setSelectedQuestionIds([])
+    setTopicPdfState({ status: 'idle', error: '' })
+  }, [activeRouteId, topicId])
+
+  useEffect(() => {
+    if (detailTab === 'papers') onOpenPastPaperQuestions()
+  }, [detailTab, onOpenPastPaperQuestions])
+
+  async function startTopicPractice() {
+    try {
+      setStartError('')
+      if (!dynamicSyllabusRoute && selectedTopicIds.length === 1 && nextPracticeUnit && (practiceReady || sampleReady)) {
+        startPractice(nextPracticeUnit)
+        return
+      }
+      if (!practiceReady) {
+        if (dynamicSyllabusRoute && available === 0) {
+          throw new Error(`No reviewed ${componentLabel} questions are available for this topic selection. Choose another paper component.`)
+        }
+        throw new Error(
+          available > 0
+            ? `${selectedTopicIds.length > 1 ? 'These syllabus topics have' : topic.label + ' has'} ${available} official questions available. ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} reviewed groups are required before a Topic Drill can start.`
+            : topic?.sourceGap || 'This topic has no official questions ready yet. More are being prepared.',
+        )
+      }
+      await startKnowledgeDrill({
+        routeId: activeRouteId,
+        knowledgeGroupId: topicId,
+        syllabusTopicIds: selectedTopicIds,
+        questionCount: selectedQuestionCount,
+        components: selectedComponents,
+      })
+    } catch (error) {
+      setStartError(error.message || 'This topic is still being indexed.')
+    }
+  }
+
+  async function generateTopicPdf() {
+    if (topicPdfState.status === 'loading') return
+    setTopicPdfState({ status: 'loading', error: '' })
+    try {
+      await onOpenTopicPdf({ routeId: activeRouteId, topicId })
+      setTopicPdfState({ status: 'ready', error: '' })
+    } catch (error) {
+      setTopicPdfState({ status: 'error', error: error.message || 'The topic PDF could not be generated.' })
+    }
+  }
+
+  if (!topic) return <section className="topic-detail page-band"><button type="button" className="topic-detail__back" onClick={onBack}><ArrowLeft size={17} />Back to topics</button><div className="empty-state"><AlertTriangle size={28} /><h2>This topic is not available for the selected course</h2><p>Return to the route-specific syllabus list.</p></div></section>
+
+  return (
+    <section className="topic-detail page-band">
+      <button type="button" className="topic-detail__back" onClick={onBack}><ArrowLeft size={17} />Back to {activeRoute.stage} {activeRoute.subject}</button>
+      <header className="topic-detail__header">
+        <div><p className="section-label">{activeRoute.stage} {activeRoute.subject} · syllabus topic</p><h1>{topic.label.replace(/^\d+\s+/, '')}</h1><p>Review the official syllabus outcomes, then practise linked past-paper questions.</p></div>
+        <div className="topic-detail__mastery"><span>Mastery</span><strong>{mastery == null ? '--' : `${mastery}%`}</strong><small>{masteryLabel(mastery)}</small></div>
+      </header>
+
+      <nav className="topic-detail__tabs" role="tablist" aria-label="Topic details">
+        <button type="button" role="tab" aria-selected={detailTab === 'overview'} className={detailTab === 'overview' ? 'active' : ''} onClick={() => setDetailTab('overview')}>Overview</button>
+        <button type="button" role="tab" aria-selected={detailTab === 'outcomes'} className={detailTab === 'outcomes' ? 'active' : ''} onClick={() => setDetailTab('outcomes')}>Syllabus outcomes</button>
+        <button type="button" role="tab" aria-selected={detailTab === 'papers'} className={detailTab === 'papers' ? 'active' : ''} onClick={() => setDetailTab('papers')}>Past-paper questions</button>
+      </nav>
+
+      <div className="topic-detail__layout">
+        <main>
+          <section className="topic-detail__concepts" hidden={detailTab !== 'outcomes'}><header><div><p className="section-label">Official syllabus outcomes</p><h2>What this topic covers</h2><p>These outcomes come from the official syllabus. Skill labels are not separate chapters.</p></div></header><div>{topic.points?.length ? topic.points.slice(0, 8).map((item) => <div key={item.id}><span>{item.sectionCode}</span><strong>{item.outcomeNumber}. {item.officialText}</strong><small>Official outcome · syllabus point</small></div>) : chapterItems.map(({ theme, index, count }) => <div key={theme}><span>{topic?.label?.match(/^\d+(?:\.\d+)?/)?.[0] || String(index + 1).padStart(2, '0')}</span><strong>{theme}</strong><small>{count ? `${count} linked question${count === 1 ? '' : 's'}` : 'Questions are still being mapped to this outcome'}</small></div>)}</div></section>
+          <details className="topic-detail__disclosure" hidden={detailTab !== 'overview'}>
+            <summary><span>Study guide and exam habits</span><ChevronRight size={17} /></summary>
+            <div className="topic-detail__disclosure-body">
+          <section className="topic-detail__guide" aria-label={`${topic.label} learning guide`}>
+            <header>
+              <div><p className="section-label">Study guide</p><h2>Learn the idea before you practise</h2><p>{guide.overview}</p></div>
+              <span className="topic-detail__guide-note">Syllabus study guide · not an official past-paper question</span>
+            </header>
+            <div className="topic-detail__guide-grid">
+              <article>
+                <h3>Learning objectives</h3>
+                <ol>{guide.learningObjectives.map((objective) => <li key={objective}>{objective}</li>)}</ol>
+              </article>
+              <article>
+                <h3>Key ideas</h3>
+                <dl>{guide.keyIdeas.map((idea) => <div key={idea.term}><dt>{idea.term}</dt><dd>{idea.explanation}</dd></div>)}</dl>
+              </article>
+            </div>
+          </section>
+          <section className="topic-detail__guide-practice">
+            <div className="topic-detail__guide-example">
+              <p className="section-label">Guided example</p>
+              <h2>Build the method</h2>
+              <p><strong>Prompt</strong> {guide.workedExample.prompt}</p>
+              <p><strong>Method</strong> {guide.workedExample.method}</p>
+            </div>
+            <div className="topic-detail__guide-mistakes">
+              <p className="section-label">Before you submit</p>
+              <h2>Common mistakes</h2>
+              <ul>{guide.commonMistakes.map((mistake) => <li key={mistake}>{mistake}</li>)}</ul>
+            </div>
+          </section>
+          <section className="topic-detail__guide-checklist">
+            <div><p className="section-label">Exam habits</p><h2>Quick check before moving on</h2></div>
+            <ul>{guide.examChecklist.map((item) => <li key={item}>{item}</li>)}</ul>
+          </section>
+          {checkpoints.length > 0 && <section className="topic-detail__checkpoints"><header><div><p className="section-label">Progression</p><h2>What good looks like</h2></div><span>Move from recall to exam application</span></header><div>{checkpoints.map((checkpoint) => <article key={checkpoint.id}><strong>{checkpoint.label}</strong><p>{checkpoint.description}</p></article>)}</div></section>}
+            </div>
+          </details>
+          <details className="topic-detail__disclosure topic-detail__disclosure--papers" open={detailTab === 'papers'} hidden={detailTab !== 'papers'}>
+            <summary><span>Past-paper question list</span><strong>{topicQuestions.length} questions · {topicPaperGroups.length} paper{topicPaperGroups.length === 1 ? '' : 's'}</strong></summary>
+          <section className="topic-detail__past-papers">
+            <header><div><p className="section-label">Real exam collection</p><h2>Past-paper questions by chapter</h2><p>These are question-level records, grouped by their original paper. Open the source page or mark scheme without losing the topic mapping.</p></div><strong>{topicQuestions.length} questions · {topicPaperGroups.length} paper{topicPaperGroups.length === 1 ? '' : 's'}</strong></header>
+            <div className="topic-detail__question-picker">
+              <div className="topic-detail__question-picker-head">
+                <div>
+                  <p className="section-label">Search and select</p>
+                  <h3>Find questions by their prompt, source page, mark points, or tags</h3>
+                  <p>Pick the exact source questions you want, then build a set from those selection results.</p>
+                </div>
+                <div className="topic-detail__question-picker-actions">
+                  <button type="button" className="secondary-action" onClick={selectVisibleQuestions} disabled={!filteredTopicQuestions.length}>Select visible</button>
+                  <button type="button" className="primary-action" onClick={startSelectedQuestionPractice} disabled={!canBuildSelectedQuestions}>Build selected set</button>
+                </div>
+              </div>
+              <label className="topic-detail__question-search">
+                <span>Search question text, source, mark points, or tags</span>
+                <input
+                  type="search"
+                  value={questionSearch}
+                  onChange={(event) => setQuestionSearch(event.target.value)}
+                  placeholder="Try gravitational potential, free-body, transformer, or wave"
+                />
+              </label>
+              <div className="topic-detail__question-picker-summary" role="status">
+                <span><strong>{selectedQuestionIdsForBuild.length}</strong> selected</span>
+                <span><strong>{filteredTopicQuestions.length}</strong> matching</span>
+                <span><strong>{topicQuestions.length}</strong> source questions</span>
+              </div>
+              {studyQuestionRuntimeStatus === 'loading' || studyQuestionRuntimeStatus === 'idle'
+                ? <div className="topic-detail__empty-source" role="status"><FileText size={20} /><strong>{studyQuestionRuntimeStatus === 'loading' ? 'Loading linked questions...' : 'Open this tab to load linked questions'}</strong><p>The searchable source index loads only when you ask to browse past-paper questions.</p></div>
+                : filteredTopicQuestions.length ? <div className="topic-detail__question-list">{filteredTopicQuestions.map((question) => {
+                const firstPage = question.sourceRef?.pageStart || '?'
+                const markSchemePage = question.answerRef?.pageStart || '?'
+                const selected = selectedQuestionIdsSet.has(question.sourceQuestionId)
+                return <label className={`topic-detail__question-item ${selected ? 'is-selected' : ''}`} key={question.sourceQuestionId}>
+                  <input type="checkbox" checked={selected} onChange={() => toggleSelectedQuestion(question.sourceQuestionId)} />
+                  <span className="topic-detail__question-item-main">
+                    <strong>{sourcePaperLabel(question)} · {question.sourceRef?.question || 'Question'}</strong>
+                    <small>{sourceQuestionPreview(question)}</small>
+                  </span>
+                  <span className="topic-detail__question-item-meta">
+                    <strong>{question.totalMarks || question.marks || 1} marks</strong>
+                    <small>QP p.{firstPage} · MS p.{markSchemePage}{question.studyOnly ? ' · study-only' : ''}</small>
+                  </span>
+                </label>
+              })}</div> : <div className="topic-detail__empty-source" role="alert"><FileText size={20} /><strong>{studyQuestionRuntimeError ? 'Linked questions could not be loaded' : 'No question-level source records yet'}</strong><p>{studyQuestionRuntimeError || 'This topic is in the syllabus map, but its verified paper index has not been attached to this route.'}</p></div>}
+            </div>
+            {topicPaperGroups.length ? <div className="topic-detail__paper-groups">{topicPaperGroups.map((paperQuestions) => { const first = paperQuestions[0]; const source = first.sourceRef || {}; return <article className="topic-detail__paper-group" key={source.paperId || source.paper}><header><div><strong>{sourcePaperLabel(first)}</strong><span>{source.component ? `Component ${source.component}` : 'Official source'} · {paperQuestions.length} linked question{paperQuestions.length === 1 ? '' : 's'}</span></div><div><a href={`${source.localUrl}#page=${source.pageStart || 1}`} target="_blank" rel="noreferrer">Open QP</a><a href={`${first.answerRef?.localUrl || '#'}#page=${first.answerRef?.pageStart || 1}`} target="_blank" rel="noreferrer">Open MS</a></div></header><div>{paperQuestions.map((question) => <div className="topic-detail__question-row" key={question.questionGroupId || question.bankId}><span>{question.sourceRef?.question || 'Question'}</span><p>{sourceQuestionPreview(question) || 'Indexed question text is available in the source paper.'}</p><small>{question.totalMarks || question.marks || 1} mark{(question.totalMarks || question.marks || 1) === 1 ? '' : 's'} · QP p.{question.sourceRef?.pageStart || '?'} · MS p.{question.answerRef?.pageStart || '?'}</small></div>)}</div></article> })}</div> : <div className="topic-detail__empty-source"><FileText size={20} /><strong>No question-level source records yet</strong><p>This topic is in the syllabus map, but its verified paper index has not been attached to this route.</p></div>}
+          </section>
+          </details>
+          <section className="topic-detail__source" hidden={detailTab !== 'overview'} data-topic-pdf-authority={dynamicSyllabusRoute ? 'ai-provisional' : 'official'}><FileText size={20} /><div><strong>{dynamicSyllabusRoute ? 'AI-provisional question evidence (study-only)' : 'Official question evidence'}</strong><p>{dynamicSyllabusRoute ? 'This on-demand source PDF is AI-provisional study material. It is excluded from formal progress and official grades.' : 'Every question opens with its complete source page and linked marking guidance. You will see how each answer part is checked before starting.'}</p></div><span>{available} available</span></section>
+        </main>
+        <aside className="topic-detail__rail" aria-label="Start a topic session">
+          <section className="topic-detail__start"><div className="topic-detail__start-heading"><div><p className="section-label">Start this session</p><h2>{sessionQuestionCount} official question{sessionQuestionCount === 1 ? '' : 's'}</h2></div>{nextPracticeUnit && <SavePracticeButton unit={nextPracticeUnit} favorite={favoriteUnitIds.includes(nextPracticeUnit.id)} onToggleFavorite={onToggleFavorite} />}</div><p className="topic-detail__start-copy">Open the official question page, work in your preferred mode, then review against the linked mark scheme after submission.</p><ul><li>{inventorySummary}</li><li>{answerPartSummary}</li><li>{readinessSummary}</li></ul>{practiceReady || sampleReady ? <button type="button" className="primary-action" data-topic-practice-cta={topicCtaPolicy} onClick={startTopicPractice}><PlayIcon />{practiceReady ? dynamicSyllabusRoute ? `Practice ${questionCount}` : nextPracticeUnit ? `Start set ${nextPracticeUnit.sourceSetIndex}` : `Practice ${questionCount}` : 'Start checked sample'}</button> : <button type="button" className="primary-action" data-topic-practice-cta={topicCtaPolicy} disabled>{available ? `${available} official questions · more coming` : 'Questions not ready yet'}</button>}{topicPracticeUnits.length > 1 && <div className="topic-detail__set-list" aria-label="Past-paper practice sets">{topicPracticeUnits.map((unit) => { const unitMetrics = practiceUnitMetrics(unit); return <button type="button" key={unit.id} data-completed={Boolean(completionByUnit[unit.id]?.completed)} onClick={() => startPractice(unit)}><span>Set {unit.sourceSetIndex}</span><small>{unitMetrics.sourceQuestionCount} official questions · {unitMetrics.answerPartCount} answer parts · {unitMetrics.paperCount} papers · {unitMetrics.totalMarks} marks</small></button> })}</div>}<button type="button" className="topic-detail__ai" onClick={onOpenCoach}><Sparkles size={16} />Ask AI Tutor about this topic</button>{dynamicSyllabusRoute && <><button type="button" className="topic-detail__pdf" onClick={generateTopicPdf} disabled={topicPdfState.status === 'loading'}>{topicPdfState.status === 'loading' ? 'Rendering study-only topic PDF...' : topicPdfState.status === 'ready' ? 'Open study-only topic PDF again' : 'Open study-only topic PDF'}</button><p className="topic-detail__pdf-provenance">AI-provisional source · study-only · excluded from formal progress</p>{topicPdfState.error && <p className="topic-detail__error" role="alert">{topicPdfState.error}</p>}</>}{startError && <p className="topic-detail__error" role="alert">{startError}</p>}</section>
+          {dynamicSyllabusRoute && <details className="topic-detail__set-controls" open={builderOpen} onToggle={(event) => setBuilderOpen(event.currentTarget.open)}>
+            <summary><span><strong>Customize this set</strong><small>{selectedTopics.map((item) => item.label.replace(/^\d+\s+/, '')).join(' + ')} · {selectedQuestionCount} questions · {componentLabel}</small></span><ChevronRight size={17} /></summary>
+            <div className="topic-detail__set-controls-body" aria-label="Syllabus practice set controls">
+            <div><p className="section-label">Build your set</p><h2>Choose what to practise</h2><p>Pick one or more syllabus topics, then select the paper style and question count for this session.</p></div>
+            <fieldset className="topic-detail__topic-options"><legend>Choose syllabus topics</legend><div className="topic-detail__topic-option-list">{(routeOption?.topics || []).map((candidate) => {
+              const selected = selectedTopicIds.includes(candidate.id)
+              const componentCount = componentInventoryByTopic.get(candidate.id) || 0
+              return <label className={`topic-detail__topic-option ${selected ? 'is-selected' : ''}`} key={candidate.id}><input type="checkbox" checked={selected} onChange={(event) => setSelectedTopicIds((current) => event.target.checked ? [...new Set([...current, candidate.id])] : current.filter((id) => id !== candidate.id))} /><span><strong>{candidate.label}</strong><small>{componentCount} {componentLabel} question{componentCount === 1 ? '' : 's'} · {candidate.inventory || 0} total</small></span></label>
+            })}</div></fieldset>
+            <label><span>Question count</span><select value={selectedQuestionCount} onChange={(event) => setSelectedQuestionCount(Number(event.target.value))}><option value={6}>6 questions</option><option value={10}>10 questions</option><option value={15}>15 questions</option></select></label>
+            <label><span>Paper components</span><select value={componentMode} onChange={(event) => setComponentMode(event.target.value)}><option value="mixed">{formatRouteComponents(routeComponents, activeRoute) || 'Theory mixed'}</option><option value="p1">{formatRouteComponents([routeComponents[0] || 1], activeRoute)} only</option><option value="p2" disabled={!routeComponents[1]}>{formatRouteComponents([routeComponents[1] || 2], activeRoute)} only</option></select></label>
+            </div>
+          </details>}
+        </aside>
+      </div>
+    </section>
+  )
+}
+
+function LegacyKnowledgeMap({ subjectFilter, setSubjectFilter, completionByUnit, startPractice: _startPractice, startKnowledgeDrill, openPapers, catalogItems, verifiedUnits, practiceOptions, previewPracticeSourceMix = () => ({ status: 'empty', available: 0, partial: false }) }) {
+  // oxlint-disable-next-line react-hooks/rules-of-hooks
   const [inventoryError, setInventoryError] = useState('')
   const planSubjectByAppSubject = { 'igcse-math': 'math-0580', 'additional-math': 'math-0606', physics: 'physics-9702', 'igcse-physics': 'physics-0625', biology: 'biology-9700', 'igcse-biology': 'biology-0610', chemistry: 'chemistry-9701', economics: 'economics-9708', math: 'math-9709', 'further-math': 'math-9231' }
   const appSubjectByPlanSubject = Object.fromEntries(Object.entries(planSubjectByAppSubject).map(([appSubject, planSubject]) => [planSubject, appSubject]))
@@ -1494,24 +3642,27 @@ function KnowledgeMap({ subjectFilter, setSubjectFilter, completionByUnit, start
     return stagesForComponentTags(group.stageTags)
   }
 
-  function startGroupDrill(group, fallbackUnit, stage, available) {
+  function startGroupDrill(group, _fallbackUnit, stage, available) {
     const appSubjectId = appSubjectByPlanSubject[group.subjectId] || subjectFilter
-    if (startKnowledgeDrill && appSubjectId && appSubjectId !== 'all' && available > 0) {
+    if (startKnowledgeDrill && appSubjectId && appSubjectId !== 'all' && available >= MIN_VERIFIED_GROUPS_FOR_PRACTICE) {
       try {
         setInventoryError('')
-        startKnowledgeDrill({ subjectId: appSubjectId, stage, knowledgeGroupId: group.id, questionCount: Math.min(10, available), allowPartial: true })
+        startKnowledgeDrill({ subjectId: appSubjectId, stage, knowledgeGroupId: group.id, questionCount: MIN_VERIFIED_GROUPS_FOR_PRACTICE })
       } catch (error) {
-        setInventoryError(error.message || 'This topic has no verified source question yet.')
+        setInventoryError(error.message || 'This topic has no official question ready yet.')
       }
       return
     }
-    if (fallbackUnit) startPractice(fallbackUnit)
-    else openPapers(appSubjectId || 'all')
+    setInventoryError(
+      available > 0
+        ? `${group.name} has ${available} official questions available. ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} are required before a Topic Drill can start; more are being prepared.`
+        : `${group.name} has no official questions ready yet. More are being prepared.`,
+    )
   }
 
   return (
     <section className="knowledge-map">
-      <header><div><p className="section-label">Syllabus practice</p><h2>Pick the course, stage and topic you need today.</h2><p>Each drill follows the current Cambridge syllabus and uses only question-level items that are already indexed to their paired QP and mark scheme. Smaller inventories remain available and are labelled by stage.</p><div className="knowledge-links">{planSubject?.syllabusUrl && <a className="syllabus-link" href={planSubject.syllabusUrl} target="_blank" rel="noreferrer">Cambridge {planSubject.code} official syllabus <ChevronRight size={14} /></a>}<a className="syllabus-link" href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer">Review subject vocabulary <ChevronRight size={14} /></a></div></div><div className="subject-segments">{subjects.map((subject) => <button type="button" className={(subjectFilter === subject.id || (subjectFilter === 'all' && subject.id === 'physics')) ? 'active' : ''} key={subject.id} onClick={() => setSubjectFilter(subject.id)}><strong>{subject.code}</strong><span>{subject.name}</span></button>)}</div></header>
+      <header><div><p className="section-label">Syllabus practice</p><h2>Pick the course, stage and topic you need today.</h2><p>Each drill follows the current Cambridge syllabus and uses complete official questions with matching mark schemes. Smaller collections remain available and are labelled by stage.</p><div className="knowledge-links">{planSubject?.syllabusUrl && <a className="syllabus-link" href={planSubject.syllabusUrl} target="_blank" rel="noreferrer">Cambridge {planSubject.code} official syllabus <ChevronRight size={14} /></a>}<a className="syllabus-link" href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer">Review subject vocabulary <ChevronRight size={14} /></a></div></div><div className="subject-segments">{subjects.map((subject) => <button type="button" className={(subjectFilter === subject.id || (subjectFilter === 'all' && subject.id === 'physics')) ? 'active' : ''} key={subject.id} onClick={() => setSubjectFilter(subject.id)}><strong>{subject.code}</strong><span>{subject.name}</span></button>)}</div></header>
       {inventoryError && <div className="inventory-alert" role="alert"><AlertTriangle size={18} /><span>{inventoryError}</span></div>}
       <div className="knowledge-rows">{groups.map((group) => {
         const units = unitsForGroup(group)
@@ -1523,7 +3674,7 @@ function KnowledgeMap({ subjectFilter, setSubjectFilter, completionByUnit, start
         const stageOptions = stageOptionsForGroup(group)
         const previews = stageOptions.map((stageName) => ({
           stage: stageName,
-          sourceMix: previewCoachPracticeSourceMix({
+          sourceMix: previewPracticeSourceMix({
             subjectId: appSubjectId,
             stage: stageName,
             knowledgeGroupId: group.id,
@@ -1533,14 +3684,73 @@ function KnowledgeMap({ subjectFilter, setSubjectFilter, completionByUnit, start
         }))
         const primaryPreview = previews[0]?.sourceMix
         const subjectCode = subjects.find((subject) => subject.id === appSubjectId)?.code || 'selected'
-        return <article className="knowledge-row" key={group.id}><div className="knowledge-stage"><span>{stage}</span>{group.stageTags?.length > 0 && <small>{group.stageTags.join(' / ')}</small>}<div className="mini-progress"><i style={{ width: `${percentage ?? 4}%` }} /></div></div><div className="knowledge-copy"><h3>{group.name}</h3><p>{group.description}</p><div className="knowledge-themes">{group.themes.map((theme) => <span key={theme}>{theme}</span>)}</div><small className="knowledge-skill-line">Skills: {(group.skills || []).slice(0, 3).join(' · ')}</small><div className="knowledge-source-preview" aria-label={`${group.name} drill source inventory`}>{previews.map((preview) => <span className={preview.sourceMix.status === 'empty' ? 'not-ready' : preview.sourceMix.partial ? 'partial' : 'ready'} key={preview.stage}><strong>{preview.stage}</strong>{preview.sourceMix.available} verified{preview.sourceMix.partial ? ' · partial' : ''}</span>)}</div><small className="knowledge-source-policy">Stage availability is real question-level inventory. It never blocks access to other indexed content.</small></div><div className="knowledge-action"><strong>{percentage == null ? `${primaryPreview?.available || 0} verified questions` : `${percentage}% best`}</strong><div className="knowledge-drill-buttons">{stageOptions.map((stageName) => { const preview = previews.find((item) => item.stage === stageName)?.sourceMix; const count = Math.min(10, preview?.available || 0); return <button type="button" className="card-action" key={stageName} disabled={!count} onClick={() => startGroupDrill(group, unit, stageName, count)}>{count ? `Build ${stageName} drill · ${count} question${count === 1 ? '' : 's'}` : `${stageName} · no source indexed`}<ChevronRight size={15} /></button> })}</div><button type="button" className="text-action" onClick={() => openPapers(appSubjectId)}>Open {subjectCode} papers</button></div></article>
+        return <article className="knowledge-row" key={group.id}><div className="knowledge-stage"><span>{stage}</span>{group.stageTags?.length > 0 && <small>{group.stageTags.join(' / ')}</small>}<div className="mini-progress"><i style={{ width: `${percentage ?? 4}%` }} /></div></div><div className="knowledge-copy"><h3>{group.name}</h3><p>{group.description}</p><div className="knowledge-themes">{group.themes.map((theme) => <span key={theme}>{theme}</span>)}</div><small className="knowledge-skill-line">Skills: {(group.skills || []).slice(0, 3).join(' · ')}</small><div className="knowledge-source-preview" aria-label={`${group.name} available official questions`}>{previews.map((preview) => <span className={preview.sourceMix.status === 'empty' ? 'not-ready' : preview.sourceMix.partial ? 'partial' : 'ready'} key={preview.stage}><strong>{preview.stage}</strong>{preview.sourceMix.available} available{preview.sourceMix.partial ? ' · limited' : ''}</span>)}</div><small className="knowledge-source-policy">Choose a topic with at least {MIN_VERIFIED_GROUPS_FOR_PRACTICE} available questions for Topic Drill. For smaller collections, open the paper while more questions are prepared.</small></div><div className="knowledge-action"><strong>{percentage == null ? `${primaryPreview?.available || 0} official questions` : `${percentage}% best`}</strong><div className="knowledge-drill-buttons">{stageOptions.map((stageName) => { const preview = previews.find((item) => item.stage === stageName)?.sourceMix; const count = preview?.available || 0; const ready = count >= MIN_VERIFIED_GROUPS_FOR_PRACTICE; return <button type="button" className="card-action" key={stageName} disabled={!ready} onClick={() => startGroupDrill(group, unit, stageName, count)}>{ready ? `Build ${stageName} drill · ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} questions` : count ? `${stageName} · ${count} available, more coming` : `${stageName} · no questions ready`}<ChevronRight size={15} /></button> })}</div><button type="button" className="text-action" onClick={() => openPapers(appSubjectId)}>Open {subjectCode} papers</button></div></article>
       })}</div>
     </section>
   )
 }
 
+LegacyKnowledgeMap.displayName = 'LegacyKnowledgeMap'
+
+function KnowledgeMap({ activeRoute, activeRouteId, selectRoute, completionByUnit, startPractice, startKnowledgeDrill, openPapers, verifiedUnits, practiceOptions }) {
+  const [inventoryError, setInventoryError] = useState('')
+  const routeOption = practiceOptions.find((item) => item.routeId === activeRouteId)
+  const vocabularyCoverage = vocabularyCoverageForRoute(activeRoute)
+  const qualificationRoutes = courseRoutes.filter((route) => route.qualification === activeRoute.qualification)
+  const subjectRoutes = qualificationRoutes.filter((route) => route.subjectId === activeRoute.subjectId)
+  const stageRoutes = subjectRoutes.filter((route) => route.stage === activeRoute.stage)
+  const appSubject = subjects.find((subject) => subject.routeIds?.includes(activeRouteId))
+
+  const chooseFirst = (routes) => routes[0] && selectRoute(routes[0].routeId)
+  const topics = routeOption?.topics || []
+
+  function startDrill(topic, fallbackUnit) {
+    const available = topic.inventory || 0
+    if (available < MIN_VERIFIED_GROUPS_FOR_PRACTICE) {
+      setInventoryError(
+        available > 0
+          ? `${topic.label} has ${available} official questions available. ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} are required before a Topic Drill can start; more are being prepared.`
+          : `${topic.label} has no official questions ready yet. More are being prepared.`,
+      )
+      return
+    }
+    try {
+      setInventoryError('')
+      startKnowledgeDrill({ routeId: activeRouteId, knowledgeGroupId: topic.id, questionCount: MIN_VERIFIED_GROUPS_FOR_PRACTICE })
+    } catch (error) {
+      if (fallbackUnit) startPractice(fallbackUnit)
+      else setInventoryError(error.message || 'This syllabus topic has no official question ready yet.')
+    }
+  }
+
+  return <section className="knowledge-map">
+    <header>
+      <div><p className="section-label">Syllabus practice</p><h2>{activeRoute.stage} {activeRoute.subject} · choose a syllabus topic.</h2><p>All drills are restricted to this route. Each question remains bound to its original question paper and exact mark scheme.</p><div className="knowledge-links">{activeRoute.syllabus.url && <a className="syllabus-link" href={activeRoute.syllabus.url} target="_blank" rel="noreferrer">Cambridge {activeRoute.subjectCode} official syllabus <ChevronRight size={14} /></a>}<a className="syllabus-link" href="https://ieltsist.com/?from=stem&focus=language#vocabulary" target="_blank" rel="noreferrer">Vocabulary <ChevronRight size={14} /></a></div><div className="knowledge-vocabulary-band" data-vocabulary-taxonomy={vocabularyCoverage.taxonomyId}><Brain size={17} /><div><strong>{vocabularyCoverage.label}</strong><span>{vocabularyCoverage.sourceStatus} · {vocabularyCoverage.termInventoryStatusLabel}</span></div><small>{vocabularyCoverage.coverageNote}</small></div></div>
+      <div className="route-selector-grid" aria-label="Choose learning route">
+        <label><span>Qualification</span><select value={activeRoute.qualification} onChange={(event) => chooseFirst(courseRoutes.filter((route) => route.qualification === event.target.value))}>{[...new Set(courseRoutes.map((route) => route.qualification))].map((qualification) => <option value={qualification} key={qualification}>{qualification}</option>)}</select></label>
+        <label><span>Subject</span><select value={activeRoute.subjectId} onChange={(event) => chooseFirst(qualificationRoutes.filter((route) => route.subjectId === event.target.value))}>{[...new Map(qualificationRoutes.map((route) => [route.subjectId, route])).values()].map((route) => <option value={route.subjectId} key={route.subjectId}>{route.subjectCode.toUpperCase()} {route.subject}</option>)}</select></label>
+        <label><span>Stage</span><select value={activeRoute.stage} onChange={(event) => chooseFirst(subjectRoutes.filter((route) => route.stage === event.target.value))}>{[...new Set(subjectRoutes.map((route) => route.stage))].map((stage) => <option value={stage} key={stage}>{stage}</option>)}</select></label>
+        {stageRoutes.length > 1 && <label><span>Paper route</span><select value={activeRouteId} onChange={(event) => selectRoute(event.target.value)}>{stageRoutes.map((route) => <option value={route.routeId} key={route.routeId}>{formatRouteComponents(route.paperComponents, route)}</option>)}</select></label>}
+      </div>
+    </header>
+    {inventoryError && <div className="inventory-alert" role="alert"><AlertTriangle size={18} /><span>{inventoryError}</span></div>}
+    <div className="knowledge-rows">{topics.map((topic) => {
+      const baseId = topic.id.split('@')[0]
+      const metadata = learningPlan.knowledgeGroups.find((item) => item.id === baseId)
+      const units = verifiedUnits.filter((unit) => unit.routeId === activeRouteId && unit.knowledgeGroupId === topic.id)
+      const percentage = Math.max(...units.map((unit) => completionByUnit[unit.id]?.best?.percentage).filter((value) => value != null), -1)
+      const status = percentage < 0 ? 'Not started' : percentage >= 80 ? 'Secure' : 'Practising'
+      const available = topic.inventory || 0
+      return <article className="knowledge-row" key={topic.id}><div className="knowledge-stage"><span>{status}</span><small>{activeRoute.stage}</small><div className="mini-progress"><i style={{ width: `${percentage < 0 ? 4 : percentage}%` }} /></div></div><div className="knowledge-copy"><h3>{topic.label}</h3><p>{metadata?.description || `${activeRoute.syllabus.board} syllabus topic.`}</p><div className="knowledge-themes">{(metadata?.themes || []).slice(0, 5).map((theme) => <span key={theme}>{theme}</span>)}</div><div className="knowledge-source-preview"><span className={available ? available < MIN_VERIFIED_GROUPS_FOR_PRACTICE ? 'partial' : 'ready' : 'not-ready'}><strong>{activeRoute.stage}</strong>{available} verified</span></div></div><div className="knowledge-action"><strong>{percentage < 0 ? `${available} verified questions` : `${percentage}% best`}</strong><button type="button" className="card-action" disabled={available < MIN_VERIFIED_GROUPS_FOR_PRACTICE} onClick={() => startDrill(topic, units[0])}>{available >= MIN_VERIFIED_GROUPS_FOR_PRACTICE ? `Build ${activeRoute.stage} drill · ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} questions` : available ? `${activeRoute.stage} · ${available} verified, indexing` : 'No source indexed'}<ChevronRight size={15} /></button><button type="button" className="text-action" onClick={() => openPapers(appSubject?.id || 'all')}>Open {activeRoute.subjectCode} papers</button></div></article>
+    })}</div>
+  </section>
+}
+
+KnowledgeMap.displayName = 'KnowledgeMap'
+
 function UnitCard({ unit, completion, startPractice, favorite, onToggleFavorite }) {
   const subject = subjects.find((item) => item.id === unit.subjectId)
+  const metrics = practiceUnitMetrics(unit)
 
   return (
     <article className="unit-card">
@@ -1549,15 +3759,17 @@ function UnitCard({ unit, completion, startPractice, favorite, onToggleFavorite 
           {unit.icon}
         </span>
         <span className="status-pill">{unit.agentGenerated ? 'AI Coach set' : unit.priority}</span>
-        <button type="button" className={`unit-favorite ${favorite ? 'saved' : ''}`} onClick={() => onToggleFavorite(unit.id)} aria-label={favorite ? `Remove ${unit.title} from saved practice` : `Save ${unit.title} for later`}><Heart size={17} fill={favorite ? 'currentColor' : 'none'} /></button>
+        <SavePracticeButton unit={unit} favorite={favorite} onToggleFavorite={onToggleFavorite} />
       </div>
       <h2>{unit.title}</h2>
       <p>{unit.topic} · {unit.subtopic || unit.specification}</p>
       <div className="unit-meta">
         <span>{unit.board}</span>
         <span>{unit.estimatedMinutes} min</span>
-        <span>{unit.maxMarks} marks</span>
-        {unit.referencePapers?.length > 0 && <span>{unit.referencePapers.length} paper refs</span>}
+        <span>{metrics.sourceQuestionCount} official questions</span>
+        <span>{metrics.answerPartCount} answer parts</span>
+        <span>{metrics.paperCount} papers</span>
+        <span>{metrics.totalMarks} marks</span>
       </div>
       <div className="completion-line">
         <span>{completion.completed ? 'Completed' : 'Not completed'}</span>
@@ -1570,7 +3782,125 @@ function UnitCard({ unit, completion, startPractice, favorite, onToggleFavorite 
   )
 }
 
-function MistakeList({ mistakes, paperMistakes, startPractice, retestPaper }) {
+function ReviewQueueActions({ reviewItemId, onReviewAction }) {
+  const [action, setAction] = useState('ignored')
+  const [reason, setReason] = useState('')
+  const [snoozeUntil, setSnoozeUntil] = useState(() => {
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    return tomorrow.toISOString().slice(0, 10)
+  })
+  if (!onReviewAction) return null
+  const label = action === 'manual-mastered' ? 'Manual mastered' : action[0].toUpperCase() + action.slice(1)
+  return <div className="review-queue-actions">
+    <label><span>Action</span><select aria-label="Review queue action" value={action} onChange={(event) => setAction(event.target.value)}><option value="ignored">Ignore</option><option value="archived">Archive</option><option value="snoozed">Snooze</option><option value="dismissed">Dismiss</option><option value="manual-mastered">Manual mastered</option><option value="deleted">Delete from queue</option></select></label>
+    {action === 'snoozed' && <label><span>Until</span><input aria-label="Snooze until" type="date" value={snoozeUntil} onChange={(event) => setSnoozeUntil(event.target.value)} /></label>}
+    <label><span>Reason</span><input aria-label="Review action reason" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Optional reason" /></label>
+    <button type="button" className="text-action" onClick={() => onReviewAction(reviewItemId, action, reason, action === 'snoozed' && snoozeUntil ? new Date(`${snoozeUntil}T23:59:59`).toISOString() : null)}>{label}</button>
+  </div>
+}
+
+function StudentNotebook({ activeRoute, routeOptions, selectRoute, attempts, units, mistakes, provisionalMistakes = [], paperMistakes, note, onChangeNote, onDeleteNote, startPractice, retestPaper, onReviewAction, reviewQueueAudit = [], isSyncedAccount = false, openPractice }) {
+  const [query, setQuery] = useState('')
+  const [severity, setSeverity] = useState('all')
+  const unitById = new Map(units.map((unit) => [unit.id, unit]))
+  const search = query.trim().toLowerCase()
+  const noteMatchesSearch = Boolean(search && `${note?.body || ''} ${activeRoute.subjectCode} ${activeRoute.stage}`.toLowerCase().includes(search))
+  const filteredMistakes = mistakes.filter((mistake) => (!search || mistake.searchText?.includes(search)) && (severity === 'all' || mistake.severity.toLowerCase() === severity))
+  const filteredProvisionalMistakes = provisionalMistakes.filter((mistake) => !search || mistake.searchText?.includes(search))
+  const filteredPaperMistakes = paperMistakes.filter((mistake) => !search || `${mistake.session?.file || ''} ${mistake.paper?.id || ''} ${mistake.questionNumber} ${mistake.status}`.toLowerCase().includes(search))
+  const recentAttempts = stableSorted(
+    attempts.filter((attempt) => {
+      const unit = unitById.get(attempt.unitId)
+      return Boolean(unit && isScoredAttempt(attempt, unit))
+    }),
+    (a, b) => new Date(b.submittedAt) - new Date(a.submittedAt),
+  ).slice(0, 4)
+  const savedNote = note?.body || ''
+  const masteredTopics = new Set(units.filter((unit) => {
+    const best = getUnitAttempts(attempts, unit).map((attempt) => attempt.scoreResult?.percentage).filter(Number.isFinite).sort((a, b) => b - a)[0]
+    return best >= 80
+  }).map((unit) => unit.knowledgeGroupId || unit.topic)).size
+  const noteStatus = note?.deleted
+    ? note.syncStatus === 'error' ? 'Delete failed · local copy hidden' : note.syncStatus === 'pending' ? 'Deleting…' : isSyncedAccount ? 'Synced' : 'Local only'
+    : note?.syncStatus === 'error' ? 'Sync failed · local copy safe' : note?.syncStatus === 'pending' ? 'Syncing…' : isSyncedAccount ? 'Synced' : 'Local only'
+  const recentReviewActions = stableSorted(
+    [...reviewQueueAudit].filter((event) => event?.at),
+    (left, right) => Date.parse(right.at) - Date.parse(left.at),
+  ).slice(0, 5)
+  const hasReviewItems = mistakes.length > 0 || provisionalMistakes.length > 0 || paperMistakes.length > 0
+
+  if (!hasReviewItems) {
+    return (
+      <section className="notebook-view notebook-view--empty page-band">
+        <header className="notebook-header">
+          <div><p className="section-label">Notebook</p><h1>Turn mistakes into your next marks.</h1><p className="page-intro">Your incorrect answer parts will appear here after a submitted practice set.</p></div>
+          <StudentRoutePicker activeRoute={activeRoute} routes={routeOptions} selectRoute={selectRoute} compact />
+        </header>
+        <div className="notebook-empty-layout">
+          <section className="empty-state notebook-empty"><CheckCircle2 size={28} /><h2>No review items yet</h2><p>Complete a practice set to build a focused queue from the answer parts that need another look.</p><button type="button" className="primary-action" onClick={openPractice}><Dumbbell size={16} />Find practice</button></section>
+          <section className="notebook-note-tool"><header><div><p className="section-label">Private note</p><h2>What will you remember?</h2></div><div className="notebook-note-tool__actions"><BookOpen size={18} />{savedNote && <button type="button" className="icon-button" onClick={onDeleteNote} aria-label="Delete private note" title="Delete private note"><Trash2 size={16} /></button>}</div></header><textarea value={savedNote} onChange={(event) => onChangeNote(event.target.value)} placeholder="Write a short method, formula, or reminder for this route..." aria-label="Private route notebook note" /><small>{note?.updatedAt ? `${noteStatus} · ${formatDate(note.updatedAt)}` : noteStatus}</small></section>
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <section className="notebook-view page-band">
+      <header className="notebook-header">
+        <div>
+          <p className="section-label">Notebook</p>
+          <h1>Turn mistakes into your next marks.</h1>
+          <p className="page-intro">Review open mark points, keep a private route note, and retest without replacing the original attempt.</p>
+        </div>
+        <StudentRoutePicker activeRoute={activeRoute} routes={routeOptions} selectRoute={selectRoute} compact />
+      </header>
+
+      <div className="notebook-summary" aria-label="Notebook summary">
+        <div><strong>{mistakes.length + paperMistakes.length}</strong><span>open items</span></div>
+        <div><strong>{mistakes.filter((item) => item.severity === 'High').length}</strong><span>high priority</span></div>
+        <div><strong>{masteredTopics}</strong><span>mastered topics</span></div>
+        <div><strong>{recentAttempts.length}</strong><span>recent results</span></div>
+      </div>
+
+      <div className="notebook-layout">
+        <section className="notebook-queue">
+          <header className="notebook-section-heading"><div><p className="section-label">Review queue</p><h2>What needs another look</h2></div><button type="button" className="secondary-action compact-action" onClick={openPractice}><Dumbbell size={16} />Find practice</button></header>
+          <div className="notebook-filters"><label className="search-box"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search mistakes" aria-label="Search notebook mistakes" /></label><label><span>Priority</span><select value={severity} onChange={(event) => setSeverity(event.target.value)}><option value="all">All priorities</option><option value="high">High</option><option value="medium">Medium</option></select></label></div>
+          {filteredMistakes.length || filteredPaperMistakes.length || noteMatchesSearch ? <div className="notebook-mistake-list">
+            {noteMatchesSearch && <div className="notebook-search-note" role="status"><BookOpen size={16} /><span>Your private route note matches this search. It is shown only in the private note panel and does not add unrelated review items.</span></div>}
+            {filteredMistakes.map((mistake) => {
+              const response = mistake.attempt.answers?.[mistake.part.id] || mistake.attempt.working?.[mistake.part.id] || 'No typed response saved'
+              const pointEvidenceMissing = mistake.criterion.scoringSource === 'student-self-mark' && mistake.criterion.evidenceStatus === 'not-recorded'
+              const missedPoints = pointEvidenceMissing ? [] : mistake.criterion.evidence?.filter((point) => !point.awarded) || []
+              return <article className="notebook-mistake" key={mistake.id}><header><span className={`status-pill danger ${mistake.severity.toLowerCase()}`}>{mistake.severity} priority</span><span>{mistake.status}</span></header><h3>{mistake.unit.title} - part {displayPartLabel(mistake.part)}</h3><p className="notebook-mistake__topic">{mistake.unit.topic} - {mistake.sourcePaperId || 'Source paper'} - {mistake.sourceQuestion} - {mistake.part.marks} marks - {formatDate(mistake.attempt.submittedAt)}</p><p>{mistake.criterion.feedback}</p><details><summary>{pointEvidenceMissing ? 'Review your response and official mark scheme' : 'Review your response and missed points'}</summary><div className="notebook-evidence-copy"><strong>Your response</strong><pre>{response}</pre>{pointEvidenceMissing && <><p className="self-mark-evidence-note">Your total self-mark is saved, but the specific awarded and missed mark-scheme points were not recorded.</p>{mistake.part.answerRef?.localUrl && <a className="mark-scheme-link" href={mistake.part.answerRef.localUrl} target="_blank" rel="noreferrer">Open exact mark scheme for {displayPartLabel(mistake.part)}</a>}{mistake.part.markPoints?.length > 0 && <><strong>Official mark-scheme points</strong><ul>{mistake.part.markPoints.map((point, index) => <li key={`${mistake.part.id}-official-${index + 1}`}>{point}</li>)}</ul></>}</>}{missedPoints.length > 0 && <><strong>Mark points to add next time</strong><ul>{missedPoints.map((point) => <li key={point.pointId}>{point.point}</li>)}</ul></>}</div></details><footer><span>{mistake.criterion.awarded}/{mistake.criterion.maxMarks} marks</span><button type="button" className="primary-action compact-action" onClick={() => startPractice(mistake.unit, { clearDraft: true, retestOf: mistake.attempt.id, onlyPartId: mistake.part.id })}><RefreshCcw size={15} />Retest this part</button></footer><ReviewQueueActions reviewItemId={mistake.id} onReviewAction={onReviewAction} /></article>
+            })}
+            {filteredPaperMistakes.map((mistake) => <article className="notebook-mistake" key={mistake.id}><header><span className="status-pill danger">Paper review</span><span>{mistake.status}</span></header><h3>{mistake.session?.file || mistake.paper?.file || 'Past paper'} - question {mistake.questionNumber}</h3><p className="notebook-mistake__topic">{mistake.paper?.subject || mistake.session?.subject || 'Paper'} - {formatDate(mistake.session?.completedAt || mistake.session?.submittedAt)}</p><p>{mistake.status === 'Blank response' ? 'No final response was submitted for this printed question.' : 'Compare your response with the exact mark scheme and record the awarded marks.'}</p><footer><span>{mistake.awarded == null ? 'Not self-marked' : `${mistake.awarded}/${mistake.maxMarks} marks`}</span><button type="button" className="primary-action compact-action" onClick={() => retestPaper(mistake.paper, mistake.session.attemptId)}><RefreshCcw size={15} />Retest paper</button></footer></article>)}
+          </div> : <div className="empty-state notebook-empty"><CheckCircle2 size={28} /><h2>{search || severity !== 'all' ? 'No notebook items match' : 'Your review queue is clear'}</h2><p>{search || severity !== 'all' ? 'Try a different search or priority.' : 'Complete a practice set and missed mark points will be saved here.'}</p>{(search || severity !== 'all') && <button type="button" className="secondary-action" onClick={() => { setQuery(''); setSeverity('all') }}>Clear filters</button>}</div>}
+          {filteredProvisionalMistakes.length > 0 && <section className="notebook-provisional-evidence" aria-label="Provisional attempt evidence">
+            <header className="notebook-section-heading"><div><p className="section-label">Provisional evidence</p><h2>Answered work awaiting completion</h2></div></header>
+            <p className="notebook-provisional-evidence__intro">These answers are saved for review, but unanswered parts keep the attempt outside mastery, progress, weak-area and formal review calculations.</p>
+            <div className="notebook-mistake-list">
+              {filteredProvisionalMistakes.map((mistake) => {
+                const response = mistake.attempt.answers?.[mistake.part.id] || mistake.attempt.working?.[mistake.part.id] || 'No typed response saved'
+                const projection = mistake.responseProjection || {}
+                return <article className="notebook-mistake notebook-mistake--provisional" key={mistake.id}><header><span className="status-pill provisional">Provisional</span><span>{projection.answeredQuestionCount || 0} answered · {projection.incorrectQuestionCount || 0} incorrect · {projection.unansweredQuestionCount || 0} unanswered</span></header><h3>{mistake.unit.title} - part {displayPartLabel(mistake.part)}</h3><p className="notebook-mistake__topic">{mistake.unit.topic} - {mistake.sourcePaperId || 'Source paper'} - {mistake.sourceQuestion} - {mistake.part.marks} marks - {formatDate(mistake.attempt.submittedAt)}</p><p>{mistake.criterion.feedback}</p><details><summary>Review your saved response</summary><div className="notebook-evidence-copy"><strong>Your response</strong><pre>{response}</pre></div></details><footer><span>{mistake.criterion.awarded}/{mistake.criterion.maxMarks} marks recorded</span><span>Finish this attempt before it can become a formal review item.</span></footer></article>
+              })}
+            </div>
+          </section>}
+        </section>
+
+        <aside className="notebook-side">
+           <section className="notebook-note-tool"><header><div><p className="section-label">Private note</p><h2>What will you remember?</h2></div><div className="notebook-note-tool__actions"><BookOpen size={18} />{savedNote && <button type="button" className="icon-button" onClick={onDeleteNote} aria-label="Delete private note" title="Delete private note"><Trash2 size={16} /></button>}</div></header><textarea value={savedNote} onChange={(event) => onChangeNote(event.target.value)} placeholder="Write a short method, formula, or reminder for this route..." aria-label="Private route notebook note" /><small>{note?.updatedAt ? `${noteStatus} · ${formatDate(note.updatedAt)}` : noteStatus}</small></section>
+          <section className="notebook-recent"><header><div><p className="section-label">Progress</p><h2>Recent results</h2></div><BarChart3 size={18} /></header>{recentAttempts.length ? <div>{recentAttempts.map((attempt) => { const unit = unitById.get(attempt.unitId); return <div className="notebook-result-row" key={attempt.id}><span><strong>{unit?.topic || 'Practice set'}</strong><small>{unit?.title || 'Verified question set'}</small></span><b>{attempt.scoreResult.percentage}%</b></div> })}</div> : <p className="notebook-side-empty">Your completed sets will appear here.</p>}</section>
+          {recentReviewActions.length > 0 && <section className="notebook-recent"><header><div><p className="section-label">Activity</p><h2>Review actions</h2></div><History size={18} /></header><div>{recentReviewActions.map((event) => <div className="notebook-result-row" key={event.id || `${event.reviewItemId}-${event.at}`}><span><strong>{event.action === 'manual-mastered' ? 'Marked as reviewed' : event.action === 'deleted' ? 'Deleted from queue' : event.action}</strong><small>{event.reason || 'No reason recorded'} · {formatDate(event.at)}</small></span></div>)}</div></section>}
+        </aside>
+      </div>
+    </section>
+  )
+}
+
+function MistakeList({ mistakes, paperMistakes, startPractice, retestPaper, onReviewAction }) {
   if (!mistakes.length && !paperMistakes.length) {
     return (
       <div className="empty-state">
@@ -1587,7 +3917,7 @@ function MistakeList({ mistakes, paperMistakes, startPractice, retestPaper }) {
         <article className="mistake-row" key={mistake.id}>
           <div>
             <span className="status-pill danger">{mistake.severity}</span>
-            <h2>{mistake.unit.title} · part {mistake.part.label}</h2>
+            <h2>{mistake.unit.title} · part {displayPartLabel(mistake.part)}</h2>
             <p>{mistake.criterion.feedback}</p>
           </div>
           <div className="mistake-score">
@@ -1598,13 +3928,14 @@ function MistakeList({ mistakes, paperMistakes, startPractice, retestPaper }) {
             <RefreshCcw size={16} />
             Retest
           </button>
+          <ReviewQueueActions reviewItemId={mistake.id} onReviewAction={onReviewAction} />
         </article>
       ))}
       {paperMistakes.map((mistake) => (
         <article className="mistake-row paper-mistake-row" key={mistake.id}>
           <div>
             <span className="status-pill danger">{mistake.severity}</span>
-            <h2>{mistake.session.file} · question {mistake.questionNumber}</h2>
+            <h2>{mistake.session?.file || mistake.paper?.file || 'Past paper'} · question {mistake.questionNumber}</h2>
             <p>{mistake.status === 'Blank response' ? 'No final response was submitted for this printed question.' : mistake.status === 'Self-mark needed' ? 'Compare this response with the exact mark scheme and record the awarded marks.' : 'The latest self-mark is below the recorded available marks.'}</p>
           </div>
           <div className="mistake-score">
@@ -1621,23 +3952,184 @@ function MistakeList({ mistakes, paperMistakes, startPractice, retestPaper }) {
   )
 }
 
-function ResultView({ attempt, unit, startPractice, goLibrary }) {
-  const result = attempt.scoreResult
+function SavedEvidencePreview({ evidence, alt }) {
+  const [source, setSource] = useState(evidence?.dataUrl || evidence?.previewUrl || '')
+
+  useEffect(() => {
+    let active = true
+    let objectUrl = ''
+    const directSource = evidence?.dataUrl || evidence?.previewUrl || ''
+    if (directSource) {
+      setSource(directSource)
+      return undefined
+    }
+    if (!evidence?.id) {
+      setSource('')
+      return undefined
+    }
+    getPaperEvidence(evidence.id).then((stored) => {
+      if (!active || !stored?.blob) return
+      objectUrl = URL.createObjectURL(stored.blob)
+      setSource(objectUrl)
+    }).catch(() => {})
+    return () => {
+      active = false
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [evidence?.id, evidence?.dataUrl, evidence?.previewUrl])
+
+  if (!source) return <div className="image-evidence-missing" role="status">Saved handwriting image unavailable on this device.</div>
+  return <img src={source} alt={alt} />
+}
+
+function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibrary, recordSelfMark, retryAiMarking, initialSelfMarks, onSelfMarksChange }) {
+  const safeInitialSelfMarks = initialSelfMarks || EMPTY_SELF_MARKS
+  const [selfMarks, setSelfMarks] = useState(() => safeInitialSelfMarks)
+  const [retryingAi, setRetryingAi] = useState(false)
+  const result = attempt.scoreResult || null
+  const attemptMetrics = practiceAttemptMetrics(attempt, unit)
+  const answeredParts = attemptMetrics.answeredPartCount
+  const unansweredAnswerPartCount = attemptMetrics.unansweredAnswerPartCount
+  const pendingSelfMark = isPendingSelfMarkAttempt(attempt)
+
+  useEffect(() => {
+    setSelfMarks(safeInitialSelfMarks)
+  }, [attempt.id, safeInitialSelfMarks])
+
+  if (!sourceCurrent) {
+    return (
+      <section className="result-view page-band">
+        <div className="result-hero" role="status">
+          <div>
+            <p className="section-label">Saved record</p>
+            <h1>Source review has changed</h1>
+            <p>Your answers and handwriting remain in this private record, but this attempt cannot be self-marked, retested, scored or counted because its original QP/MS binding is no longer current.</p>
+          </div>
+          <div className="result-actions"><button type="button" className="secondary-action" onClick={goLibrary}><ArrowLeft size={18} />Back to library</button></div>
+        </div>
+      </section>
+    )
+  }
+
+  if (pendingSelfMark) {
+    const markingLifecycle = attempt.markingLifecycle || buildPartMarkingLifecycle(unit, attempt.answers, attempt.elapsedSec, attempt.visionReviews)
+    const pendingParts = pendingPartsForLifecycle(unit, markingLifecycle)
+    const marksComplete = hasCompleteStudentMarks(unit, markingLifecycle, selfMarks)
+    const resolvedCount = markingLifecycle.provisionalCriteria?.length || 0
+    const unansweredCount = Object.values(markingLifecycle.partStates || {}).filter((state) => state?.status === 'unanswered').length
+    const aiReviewStates = Object.values(attempt.visionReviews || {})
+    const aiReviewAttempted = aiReviewStates.length > 0
+    const automaticAiPending = pendingParts.length > 0 && pendingParts.every((part) => (
+      markingLifecycle.partStates?.[part.id]?.capability === 'ai-assisted'
+      && part.studyOnly === true
+      && part.aiAssistedMarkingAvailable === true
+    ))
+    if (automaticAiPending) {
+      const retry = async () => {
+        if (retryingAi) return
+        setRetryingAi(true)
+        try {
+          await retryAiMarking?.(attempt.id)
+        } finally {
+          setRetryingAi(false)
+        }
+      }
+      return (
+        <section className="result-view page-band self-mark-result">
+          <div className="result-hero">
+            <div><p className="section-label">Submission saved</p><h1>AI marking needs another attempt</h1><p><span className="result-status result-status--in-progress">Pending</span>Your answers are saved. GPT and the Qwen fallback did not return a complete mark, so no score or automatic zero was created.</p></div>
+            <div className="result-actions"><button type="button" className="primary-action" disabled={retryingAi} onClick={() => void retry()}><RefreshCcw size={18} />{retryingAi ? 'AI marking...' : 'Retry AI marking'}</button><button type="button" className="secondary-action" onClick={goLibrary}><ArrowLeft size={18} />Back to library</button></div>
+          </div>
+          <section className="self-mark-result__guide" aria-label="AI marking pending">
+            <header className="self-mark-result__heading"><div><p className="section-label">Automatic marking</p><h2>{pendingParts.length} answer part{pendingParts.length === 1 ? '' : 's'} waiting</h2><p>Retrying requests a new server capability and checks the current checksum-bound QP/MS before either AI provider receives the answer.</p></div>{resolvedCount > 0 && <div className="self-mark-result__subtotal"><span>Checked so far</span><strong>{markingLifecycle.provisionalRawMarks}/{markingLifecycle.provisionalMaxMarks}</strong><small>Saved until retry completes</small></div>}</header>
+          </section>
+        </section>
+      )
+    }
+    const pendingHeading = pendingParts.length
+      ? aiReviewAttempted ? 'AI review first, then self-mark' : 'AI check unavailable, self-mark next'
+      : 'No answered parts to score'
+    const pendingIntro = pendingParts.length
+      ? 'Your submission has passed through the AI-capable marking step. Anything still unresolved now needs your reviewed self-mark from the paired official mark scheme.'
+      : 'Your submission is saved, but no answer evidence was submitted. Finish or retake the set before it can create a score, mastery, mistake or progress event.'
+    const updateSelfMark = (part, raw) => {
+      const nextValue = raw === '' ? '' : Math.max(0, Math.min(part.marks, Number(raw)))
+      setSelfMarks((current) => {
+        const next = { ...current, [part.id]: nextValue }
+        onSelfMarksChange?.(next)
+        return next
+      })
+    }
+    return (
+      <section className="result-view page-band self-mark-result">
+        <div className="result-hero">
+          <div>
+            <p className="section-label">Submission saved</p>
+            <h1>{pendingHeading}</h1>
+            <p><span className="result-status result-status--in-progress">Pending</span>{pendingIntro}</p>
+          </div>
+          <div className="result-actions"><button type="button" className="secondary-action" onClick={goLibrary}><ArrowLeft size={18} />Back to library</button></div>
+        </div>
+        <section className="self-mark-result__guide" aria-label="Record self-mark">
+          <header className="self-mark-result__heading"><div><p className="section-label">AI-first marking</p><h2>{pendingParts.length ? 'Finish the unresolved parts' : 'Return when you have answer evidence'}</h2><p>AI-reviewed, deterministic or unavailable states are recorded first. Self-marking is only the second step for unresolved answered parts; blanks remain pending, not zero.</p></div>{resolvedCount > 0 && <div className="self-mark-result__subtotal"><span>Checked so far</span><strong>{markingLifecycle.provisionalRawMarks}/{markingLifecycle.provisionalMaxMarks}</strong><small>Provisional only; not in progress</small></div>}{unansweredCount > 0 && <div className="self-mark-result__subtotal"><span>Unanswered</span><strong>{unansweredCount}</strong><small>Not marked as zero</small></div>}</header>
+          <div className="self-mark-result__rows">
+            {pendingParts.map((part) => {
+              const index = unit.parts.findIndex((item) => item.id === part.id)
+              const partState = markingLifecycle.partStates?.[part.id]
+              const isAiPending = partState?.capability === 'ai-assisted'
+              return <div className="self-mark-result__row" key={part.id}><div className="self-mark-result__question"><span className={`self-mark-result__state self-mark-result__state--${isAiPending ? 'ai' : 'manual'}`}>{isAiPending ? 'AI unresolved' : 'Self-mark'}</span><strong>{displayPartLabel(part, `Question ${index + 1}`)}</strong><small>{partState?.reason || 'Compare your response with the paired mark scheme.'}</small></div><label className="self-mark-result__input"><span>Mark</span><span><input type="number" min="0" max={part.marks} step="1" inputMode="numeric" aria-label={`Self-mark for ${displayPartLabel(part, `Question ${index + 1}`)}`} value={selfMarks[part.id] ?? ''} onChange={(event) => updateSelfMark(part, event.target.value)} /><b>/ {part.marks}</b></span></label>{part.answerRef?.localUrl ? <a className="self-mark-result__scheme" href={part.answerRef.localUrl} target="_blank" rel="noreferrer"><BookOpen size={16} />Mark scheme</a> : <span className="self-mark-result__scheme is-missing">Scheme unavailable</span>}</div>
+            })}
+          </div>
+          <footer className="self-mark-result__footer"><p className={marksComplete ? 'self-mark-result__validation is-complete' : 'self-mark-result__validation'} role="status">{marksComplete ? 'Every unresolved answered part has an explicit mark. Saving appends a canonical scored result.' : pendingParts.length ? `Enter all ${pendingParts.length} unresolved marks after the AI-first check. Blank or partial entries remain unscored.` : 'There are no answered unresolved parts to self-mark yet.'}</p><button type="button" className="primary-action" disabled={!marksComplete} onClick={() => recordSelfMark?.(attempt.id, selfMarks)}>Record self-mark after AI review</button></footer>
+        </section>
+      </section>
+    )
+  }
+
+  if (!result) {
+    return (
+      <section className="result-view page-band">
+        <div className="result-hero" role="alert"><div><p className="section-label">Result unavailable</p><h1>This attempt has no valid score record.</h1><p>Your submitted work remains saved, but this attempt cannot update mastery or mistakes. Return to the library and start a fresh attempt.</p></div><div className="result-actions"><button type="button" className="secondary-action" onClick={goLibrary}><ArrowLeft size={18} />Back to library</button></div></div>
+      </section>
+    )
+  }
+
   const assisted = attempt.assistedReview
+  const isStudyOnly = isStudyOnlyPracticeUnit(unit)
+  const isProvisional = result.partial === true
   const weakest = result.weakestPartId ? unit.parts.find((part) => part.id === result.weakestPartId) : null
-  const answeredParts = unit.parts.filter((part) => Boolean(String(attempt.answers?.[part.id] || attempt.working?.[part.id] || '').trim()) || Boolean(attempt.evidence?.[part.id])).length
-  const assessmentState = answeredParts ? (result.percentage >= 80 ? 'Secure' : result.percentage >= 50 ? 'In progress' : 'Needs review') : 'Not assessed'
-  const assessmentCopy = answeredParts ? `${answeredParts}/${unit.parts.length} responses submitted` : 'No answer evidence was submitted'
-  const stemReturnUrl = typeof window === 'undefined' ? '' : `${window.location.origin}/?from=ieltsist&focus=${encodeURIComponent(unit.subjectId || '')}&return_attempt=${encodeURIComponent(attempt.id)}`
-  const termsUrl = `https://ieltsist.com/?from=stem&focus=language&subject=${encodeURIComponent(unit.code || unit.board || '')}&topic=${encodeURIComponent(unit.topic || '')}&term_ids=${encodeURIComponent((weakest?.topicTags || []).join(','))}&return_to=${encodeURIComponent(stemReturnUrl)}#vocabulary`
+  const hasAiReview = Object.values(attempt.visionReviews || {}).some((review) => ['success', 'unconfigured', 'error'].includes(review?.status))
+  const hasSavedHandwriting = attempt.imageEvidence?.length > 0
+  const hasCanonicalAiMarks = result.criteria.some((criterion) => criterion.scoringSource === 'vision-assisted')
+  const assessmentState = isStudyOnly ? 'Study result' : isProvisional ? 'Provisional' : answeredParts ? (result.percentage >= 80 ? 'Secure' : result.percentage >= 50 ? 'In progress' : 'Needs review') : 'Not assessed'
+  const assessmentCopy = isStudyOnly
+    ? `${answeredParts}/${unit.parts.length} responses ${hasCanonicalAiMarks ? 'automatically AI-marked against the bound QP/MS' : 'self-marked against the paired scheme'}`
+    : isProvisional
+    ? `${answeredParts}/${unit.parts.length} responses submitted · ${result.unansweredPartCount} unanswered`
+    : answeredParts ? `${answeredParts}/${unit.parts.length} responses submitted` : 'No answer evidence was submitted'
+  const stemReturnUrl = typeof window === 'undefined' ? '' : `${window.location.origin}/?from=ieltsist&focus=${encodeURIComponent(unit.subjectId || '')}&routeId=${encodeURIComponent(unit.routeId || '')}&topicId=${encodeURIComponent(unit.topicId || unit.syllabusTopic || '')}&attemptId=${encodeURIComponent(attempt.id)}`
+  const termsUrl = professionalTermsUrl({
+    subject: unit.code || unit.board || '',
+    subjectCode: unit.subjectCode || unit.code || '',
+    stage: unit.stage || '',
+    topic: unit.topic || '',
+    routeId: unit.routeId,
+    topicId: unit.topicId || unit.syllabusTopic || '',
+    termIds: termIdsForStemContext({ topicId: unit.topicId || unit.syllabusTopic || '', topicTags: weakest?.topicTags || [] }),
+    attemptId: attempt.id,
+    returnTo: stemReturnUrl,
+  })
+  const markingLabel = result.selfMarked
+    ? (hasCanonicalAiMarks ? 'AI-reviewed + student self-mark' : 'Student self-mark from official scheme')
+    : hasCanonicalAiMarks ? 'AI-reviewed handwriting' : 'Objective answer check'
 
   return (
     <section className="result-view page-band">
       <div className="result-hero">
         <div>
-          <p className="section-label">Result</p>
+          <p className="section-label">{isStudyOnly ? 'Study result' : isProvisional ? 'Provisional result' : 'Result'}</p>
           <h1>{result.rawMarks}/{result.maxMarks} marks</h1>
-          <p><span className={`result-status result-status--${assessmentState.toLowerCase().replaceAll(' ', '-')}`}>{assessmentState}</span>{assessmentCopy} · {result.gradeEstimate}</p>
+          <p><span className={`result-status result-status--${assessmentState.toLowerCase().replaceAll(' ', '-')}`}>{assessmentState}</span>{assessmentCopy}{isProvisional || isStudyOnly ? ' · Not included in mastery or grade estimates' : ` · ${result.gradeEstimate}`}</p>
         </div>
         <div className="result-actions">
           <button type="button" className="primary-action" onClick={() => startPractice(unit, { clearDraft: true, retestOf: attempt.id })}>
@@ -1645,25 +4137,30 @@ function ResultView({ attempt, unit, startPractice, goLibrary }) {
             Retest
           </button>
           <button type="button" className="secondary-action" onClick={goLibrary}>
-            <Library size={18} />
+            <ArrowLeft size={18} />
             Back to library
           </button>
         </div>
       </div>
 
-      <section className="result-learning-signal" aria-label="Mastery change">
+      {!isProvisional && !isStudyOnly && <section className="result-learning-signal" aria-label="Mastery change">
         <div><p className="section-label">Learning signal</p><h2>What changed after this attempt</h2><p>{attempt.learningSignal?.masteryBefore == null ? 'This is the first verified result for this set. Keep the evidence and compare it after your retest.' : 'The change is based on your prior submitted attempts for this same verified set.'}</p></div>
         <div className="mastery-delta"><span>Mastery</span><strong>{attempt.learningSignal?.masteryBefore == null ? `${result.percentage}%` : `${attempt.learningSignal.masteryBefore}% → ${attempt.learningSignal.masteryAfter}%`}</strong><small className={attempt.learningSignal?.masteryDelta > 0 ? 'up' : attempt.learningSignal?.masteryDelta < 0 ? 'down' : ''}>{attempt.learningSignal?.masteryDelta == null ? 'Baseline recorded' : `${attempt.learningSignal.masteryDelta > 0 ? '+' : ''}${attempt.learningSignal.masteryDelta}% from your previous average`}</small></div>
         <a className="terms-recommendation" href={termsUrl} target="_blank" rel="noreferrer"><Brain size={18} /><span><strong>Professional terms for this question</strong><small>{(weakest?.topicTags || [unit.topic]).slice(0, 3).join(' · ')}</small></span><ChevronRight size={16} /></a>
-      </section>
+      </section>}
 
-      {assisted && (
+       {isProvisional && <section className="result-learning-signal" aria-label="Provisional result notice"><div><p className="section-label">Saved evidence</p><h2>Finish the remaining answer parts before mastery updates</h2><p>This score covers only the answered parts. It does not update mastery, grade estimates, mistakes, streaks, weekly goals or class analytics.</p></div><div className="mastery-delta"><span>Answered</span><strong>{answeredParts}/{unit.parts.length}</strong><small>{unansweredAnswerPartCount} unanswered part{unansweredAnswerPartCount === 1 ? '' : 's'} remain unmarked</small></div><a className="terms-recommendation" href={termsUrl} target="_blank" rel="noreferrer"><Brain size={18} /><span><strong>Professional terms for this question</strong><small>{(weakest?.topicTags || [unit.topic]).slice(0, 3).join(' · ')}</small></span><ChevronRight size={16} /></a></section>}
+
+      {isStudyOnly && <section className="result-learning-signal" aria-label="Study result notice"><div><p className="section-label">Practice record</p><h2>Use this {hasCanonicalAiMarks ? 'AI feedback' : 'self-mark'} to guide the next attempt</h2><p>This source-bound practice result is saved privately, but it does not update mastery, grade estimates, mistakes, streaks, weekly goals or class analytics.</p></div><div className="mastery-delta"><span>{hasCanonicalAiMarks ? 'AI-marked' : 'Self-marked'}</span><strong>{answeredParts}/{unit.parts.length}</strong><small>Study evidence, not an official Cambridge result</small></div></section>}
+
+      {hasAiReview && assisted && (
         <section className="ai-review-summary">
           <header><span className="ai-review-icon"><Sparkles size={19} /></span><div><p className="section-label">Process review</p><h2>{assisted.overallLabel}</h2><p>Objective typed answers use deterministic checks. Handwriting marks are AI-assisted suggestions with confidence and review status, not an official Cambridge decision.</p></div><div className="confidence-meter"><span>Confidence</span><strong>{Math.round(assisted.confidence * 100)}%</strong></div></header>
           <div className="ai-review-grid"><div><span className="review-label secure">What worked</span>{assisted.strengths.length ? <ul>{assisted.strengths.slice(0, 3).map((item) => <li key={item}>{item}</li>)}</ul> : <p>No secure evidence yet.</p>}</div><div><span className="review-label gap">Marks still available</span>{assisted.gaps.length ? <ul>{assisted.gaps.slice(0, 3).map((item) => <li key={item}>{item}</li>)}</ul> : <p>No missing mark points detected.</p>}</div><div><span className="review-label next">Do this next</span><p>{assisted.nextStep}</p>{assisted.suggestedRetest.recommended && <button type="button" className="text-action" onClick={() => startPractice(unit, { clearDraft: true, retestOf: attempt.id })}>Build focused retest <ChevronRight size={15} /></button>}</div></div>
-          {attempt.imageEvidence?.length > 0 && <div className="image-evidence-review"><div><strong>Handwritten responses</strong><span>{attempt.imageEvidence.length} response image{attempt.imageEvidence.length === 1 ? '' : 's'} saved with this attempt. Configured vision results are shown beside each question below.</span></div>{attempt.imageEvidence.map((evidence) => <figure key={evidence.partId}><img src={evidence.dataUrl} alt={`Handwritten response for part ${evidence.partId}`} /><figcaption>Part {unit.parts.find((part) => part.id === evidence.partId)?.label || evidence.partId}</figcaption></figure>)}</div>}
+          {attempt.imageEvidence?.length > 0 && <div className="image-evidence-review"><div><strong>Handwritten responses</strong><span>{attempt.imageEvidence.length} response image{attempt.imageEvidence.length === 1 ? '' : 's'} saved with this attempt. Configured vision results are shown beside each question below.</span></div>{attempt.imageEvidence.map((evidence) => <figure key={evidence.partId}><SavedEvidencePreview evidence={evidence} alt={`Handwritten response for part ${evidence.partId}`} /><figcaption>Part {unit.parts.find((part) => part.id === evidence.partId)?.label || evidence.partId}</figcaption></figure>)}</div>}
         </section>
       )}
+      {hasSavedHandwriting && !hasAiReview && <section className="handwriting-self-mark-note"><strong>Handwritten responses saved</strong><span>{unit.parts.some((part) => part.aiAssistedMarkingAvailable) ? 'Your handwriting is attached to this attempt. Retry automatic AI marking when the service is available.' : 'Your handwriting is attached to this attempt. Compare it with the paired official mark scheme and record your self-mark.'}</span></section>}
 
       <section className="result-next-step" aria-label="Next study step"><div><p className="section-label">Next step</p><h2>Turn this feedback into another attempt</h2><p>{weakest ? `Revisit ${weakest.topic || unit.topic}, then retest the specific mark point you missed.` : 'Keep the method active with a short retest and the related professional terms.'}</p></div><div className="result-next-actions"><button type="button" className="primary-action" onClick={() => startPractice(unit, { clearDraft: true, retestOf: attempt.id })}><RefreshCcw size={17} />Retest this idea</button><a className="secondary-action" href={termsUrl} target="_blank" rel="noreferrer"><Brain size={17} />Review professional terms</a></div></section>
 
@@ -1672,33 +4169,35 @@ function ResultView({ attempt, unit, startPractice, goLibrary }) {
           <div className="panel-heading">
             <div>
               <p className="section-label">Evidence</p>
-              <h2>{weakest ? `Weakest part: ${weakest.label}` : 'All seed checks secure'}</h2>
+              <h2>{isProvisional ? 'Answered-part evidence' : weakest ? `Weakest part: ${displayPartLabel(weakest)}` : 'All seed checks secure'}</h2>
             </div>
-            <strong>{result.percentage}%</strong>
+            <strong>{isProvisional ? `${result.rawMarks}/${result.maxMarks}` : `${result.percentage}%`}</strong>
           </div>
           <div className="criteria-list">
             {result.criteria.map((criterion, criterionIndex) => {
               const part = unit.parts.find((item) => item.id === criterion.partId)
-              const assistedPart = assisted?.parts?.[criterionIndex]
+              const assistedPart = hasAiReview ? assisted?.parts?.[criterionIndex] : null
               const visionPart = attempt.visionReviews?.[criterion.partId]
               return (
                 <article className="criterion" key={criterion.partId}>
                   <div>
-                    <h3>Part {part.label}: {criterion.awarded}/{criterion.maxMarks}</h3>
+                    <h3>Part {displayPartLabel(part)}: {criterion.awarded}/{criterion.maxMarks}</h3>
                     <p>{criterion.feedback}</p>
                     <div className="student-submission">
                       <span>Your response</span>
-                      <strong>{attempt.answers[part.id] || (attempt.evidence?.[part.id] ? 'Handwritten response submitted' : 'No answer submitted')}</strong>
+                       <strong>{attempt.answers[part.id] ?? (attempt.evidence?.[part.id] ? 'Handwritten response submitted' : 'No answer submitted')}</strong>
                       {attempt.working?.[part.id] && !attempt.answers[part.id] && <pre>{attempt.working[part.id]}</pre>}
                     </div>
                     {visionPart?.status === 'success' && <div className="vision-result-inline"><header><Sparkles size={14} /><strong>Handwriting review: {visionPart.rawMarks}/{visionPart.maxMarks}</strong><span>{Math.round(visionPart.confidence * 100)}% confidence{visionPart.reviewRequired ? ' · check required' : ''}</span></header>{visionPart.recognizedWork && <p>{visionPart.recognizedWork}</p>}{visionPart.correctedSolution && <details><summary>Correction</summary><p>{visionPart.correctedSolution}</p></details>}</div>}
                     {visionPart?.status === 'unconfigured' && <p className="vision-result-inactive">AI handwriting marking was not configured; this image is saved for manual review.</p>}
                     {visionPart?.status === 'error' && <p className="vision-result-inactive">{visionPart.error}</p>}
-                    {part.sourceRef?.markSchemeUrl && <a className="mark-scheme-link" href={part.sourceRef.markSchemeUrl} target="_blank" rel="noreferrer">Open exact mark scheme for {part.sourceRef.question}</a>}
+                    {visionPart?.status === 'self_mark_only' && <p className="vision-result-inactive">Handwriting is saved with this attempt. Compare it with the exact mark scheme and record your self-mark.</p>}
+                    {part.sourceRef?.markSchemeUrl && <a className="mark-scheme-link" href={part.sourceRef.markSchemeUrl} target="_blank" rel="noreferrer">Open exact mark scheme for {displayPartLabel(part)}</a>}
                     {part.answerRef && <div className="official-answer"><header><strong>Official mark scheme</strong><a className="mark-scheme-link" href={part.answerRef.localUrl} target="_blank" rel="noreferrer">Open {part.answerRef.file}</a></header>{part.answerRef.assetUrls?.map((url) => <img src={url} alt={`${part.answerRef.file}, answer for ${part.sourceRef?.question}`} loading="lazy" key={url} />)}{part.exactAnswer && <details><summary>Extracted mark-scheme text</summary><p>{part.exactAnswer}</p></details>}</div>}
                   </div>
                   <div className="mark-points">
-                    {criterion.evidence.map((point) => (
+                    {criterion.evidenceStatus === 'not-recorded' && <p className="self-mark-evidence-note">Specific awarded and missed mark-scheme points were not recorded for this self-mark. Review the official mark scheme without treating any individual point as awarded.</p>}
+                    {(criterion.evidence || []).map((point) => (
                       <span className={point.awarded ? 'awarded' : ''} key={point.pointId}>
                         {point.awarded ? '✓' : '○'} {point.point}
                       </span>
@@ -1724,12 +4223,9 @@ function ResultView({ attempt, unit, startPractice, goLibrary }) {
             </div>
             <div>
               <dt>Scoring</dt>
-              <dd>{result.schemaVersion}</dd>
+              <dd>{markingLabel}</dd>
             </div>
-            <div>
-              <dt>Confidence</dt>
-              <dd>{Math.round(result.confidence * 100)}%</dd>
-            </div>
+            {hasCanonicalAiMarks && Number.isFinite(result.confidence) && <div><dt>AI confidence</dt><dd>{Math.round(result.confidence * 100)}%</dd></div>}
           </dl>
         </aside>
       </div>

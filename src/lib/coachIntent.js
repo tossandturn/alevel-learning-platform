@@ -1,3 +1,5 @@
+import { stableSorted } from './arrayOrder.js'
+
 const PRACTICE_PATTERN = /真题|练习|刷题|习题|组卷|题目|题集|专题|practice|drill|questions?|set|paper/i
 const LATEST_PATTERN = /最新|最近|latest|newest/i
 
@@ -17,6 +19,13 @@ const QUALIFICATIONS = Object.freeze([
   qualification('igcse-math', '0580', 'IGCSE', /0580|igcse\s*math(?:ematics)?|IG数学/i),
   qualification('additional-math', '0606', 'IGCSE', /0606|additional\s*math(?:ematics)?|IG附加数学/i),
 ])
+
+const SPECIALIST_ROUTE_BY_SUBJECT = Object.freeze({
+  bpho: 'bpho-admissions-physics',
+  amc12: 'maa-amc12-admissions-mathematics',
+  esat: 'uatuk-esat-admissions',
+  tmua: 'uatuk-tmua-admissions',
+})
 
 function qualification(subjectId, code, defaultStage, pattern) {
   return Object.freeze({ subjectId, code, defaultStage, pattern })
@@ -166,22 +175,28 @@ function stageFor(source, qualification) {
 
 function parseSource(source) {
   const qualification = QUALIFICATIONS.find((item) => item.pattern.test(source))
-  const matchingTopics = TOPICS.filter((item) => item.pattern.test(source) && (!qualification || item.subjectId === qualification.subjectId))
-    .toSorted((left, right) => left.priority - right.priority)
-  const fallbackTopics = qualification ? [] : TOPICS.filter((item) => item.pattern.test(source))
-    .toSorted((left, right) => left.priority - right.priority)
+  const matchingTopics = stableSorted(
+    TOPICS.filter((item) => item.pattern.test(source) && (!qualification || item.subjectId === qualification.subjectId)),
+    (left, right) => left.priority - right.priority,
+  )
+  const fallbackTopics = qualification ? [] : stableSorted(
+    TOPICS.filter((item) => item.pattern.test(source)),
+    (left, right) => left.priority - right.priority,
+  )
   const rawSelectedTopic = matchingTopics[0] || fallbackTopics[0]
   const resolvedQualification = qualification || QUALIFICATIONS.find((item) => item.subjectId === rawSelectedTopic?.subjectId)
   const selectedTopic = resolvedQualification?.subjectId === 'physics'
     ? officialPhysicsIntentTopic(source, rawSelectedTopic)
     : rawSelectedTopic
   if (!resolvedQualification) return null
+  const routeId = SPECIALIST_ROUTE_BY_SUBJECT[resolvedQualification.subjectId]
   if (!PRACTICE_PATTERN.test(source) && source.replace(/\s+/g, '').length > 10) return null
   if (!selectedTopic) {
     return {
       type: 'clarify-practice',
       subjectId: resolvedQualification.subjectId,
       subjectCode: resolvedQualification.code,
+      ...(routeId ? { routeId } : {}),
       stage: stageFor(source, resolvedQualification),
       questionCount: questionCount(source),
       topicOptions: TOPICS.filter((item) => item.subjectId === resolvedQualification.subjectId).map((item) => item.knowledgeGroupId),
@@ -192,6 +207,7 @@ function parseSource(source) {
     type: 'build-topic-practice',
     subjectId: resolvedQualification.subjectId,
     subjectCode: resolvedQualification.code,
+    ...(routeId ? { routeId } : {}),
     stage: stageFor(source, resolvedQualification),
     knowledgeGroupId: selectedTopic.knowledgeGroupId,
     questionCount: questionCount(source),
@@ -204,7 +220,7 @@ export function parseCoachIntent(message) {
   if (!source) return null
   const bpho = QUALIFICATIONS.find((item) => item.subjectId === 'bpho')
   if (bpho.pattern.test(source) && /SPC|senior physics challenge/i.test(source) && (LATEST_PATTERN.test(source) || /真题|paper/i.test(source))) {
-    return { type: 'open-latest-paper', contest: 'bpho-spc', label: 'BPhO Senior Physics Challenge' }
+    return { type: 'open-latest-paper', contest: 'bpho-spc', routeId: SPECIALIST_ROUTE_BY_SUBJECT.bpho, label: 'BPhO Senior Physics Challenge' }
   }
   return parseSource(source)
 }
@@ -218,7 +234,8 @@ export function resolveCoachIntent(message, history = []) {
 
 export function latestBphoSpcPaper(items = []) {
   const markSchemeIds = new Set(items.filter((item) => item.subject === 'bpho' && item.kind === 'ms').map((item) => item.id))
-  return items
-    .filter((item) => item.subject === 'bpho' && item.kind === 'qp' && /^BPhO_SPC_\d{4}_QP\.pdf$/i.test(item.file) && item.markSchemeId && markSchemeIds.has(item.markSchemeId))
-    .toSorted((left, right) => (Number(right.year) || 0) - (Number(left.year) || 0) || left.file.localeCompare(right.file))[0] || null
+  return stableSorted(
+    items.filter((item) => item.subject === 'bpho' && item.kind === 'qp' && /^BPhO_SPC_\d{4}_QP\.pdf$/i.test(item.file) && item.markSchemeId && markSchemeIds.has(item.markSchemeId)),
+    (left, right) => (Number(right.year) || 0) - (Number(left.year) || 0) || left.file.localeCompare(right.file),
+  )[0] || null
 }

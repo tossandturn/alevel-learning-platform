@@ -1,0 +1,2367 @@
+{
+  "schemaVersion": "reviewed-question-set.v1",
+  "generatedAt": "2026-08-15T18:30:00+08:00",
+  "paperId": "cie-9702-9702_m24_qp_22",
+  "questionCount": 5,
+  "totalMarks": 39,
+  "sourceFragments": [
+    {
+      "file": "cambridge-9702-p2-topic-coverage-review-ledger.js",
+      "sha256": "3f608d2e5f05c286428cb83cb33d19d6e3fb4da6da9b388132e6995cf4b024fb"
+    }
+  ],
+  "sourceMaterials": {
+    "questionPaper": {
+      "id": "cie-9702-9702_m24_qp_22",
+      "file": "9702_m24_qp_22.pdf",
+      "sha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m24_qp_22.pdf",
+      "governance": {
+        "schemaVersion": "paper-governance-v1",
+        "state": "active",
+        "sourcePolicyId": "cie-mirror-restricted-v1",
+        "accessPolicyId": "personal-study-restricted-v1",
+        "sourceVersion": "2024:Mar:9702_m24_qp_22.pdf",
+        "retrievedAt": null,
+        "retrievalStatus": "not-recorded",
+        "integrityStatus": "pending-release-audit",
+        "duplicateOf": null,
+        "answerStatus": "exact-pair",
+        "reasonCode": null,
+        "reviewedAt": null,
+        "reviewEvidence": null
+      }
+    },
+    "markScheme": {
+      "id": "cie-9702-9702_m24_ms_22",
+      "file": "9702_m24_ms_22.pdf",
+      "sha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m24_ms_22.pdf",
+      "governance": {
+        "schemaVersion": "paper-governance-v1",
+        "state": "active",
+        "sourcePolicyId": "cie-mirror-restricted-v1",
+        "accessPolicyId": "personal-study-restricted-v1",
+        "sourceVersion": "2024:Mar:9702_m24_ms_22.pdf",
+        "retrievedAt": null,
+        "retrievalStatus": "not-recorded",
+        "integrityStatus": "pending-release-audit",
+        "duplicateOf": null,
+        "answerStatus": "not-applicable",
+        "reasonCode": null,
+        "reviewedAt": null,
+        "reviewEvidence": null
+      }
+    }
+  },
+  "questions": [
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-9702",
+      "specificationId": "cambridge-9702-2025-2027",
+      "subjectId": "physics",
+      "subjectCode": "9702",
+      "knowledgeGroupId": "physics-9702-topic-01",
+      "topicId": "physics-9702-topic-01",
+      "stageTags": [
+        "AS"
+      ],
+      "componentTags": [
+        2
+      ],
+      "topicTags": [
+        "physics-9702-topic-01",
+        "physics-9702-topic-07",
+        "SI units"
+      ],
+      "skillTags": [
+        "recall",
+        "application"
+      ],
+      "answerType": "structured",
+      "prompt": "(a) Table 1.1 lists some SI quantities. Complete the table by indicating with a tick (✓) which rows are SI base quantities.\n\n(b) Use the definition of power to determine its SI base units.\n\n(c) A light meter is used to measure the intensity of light in a classroom. Daylight is incident normally on the sensor of the meter. The sensor has an area of 2.2 cm². The reading on the meter is 950 W m⁻². Calculate the power of the daylight incident on the sensor.",
+      "questionGroupId": "cie-9702-9702_m24_qp_22:q1",
+      "questionGroupStatus": "verified",
+      "totalMarks": 6,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q1:part-a",
+          "label": "a",
+          "promptFragment": "Table 1.1 lists some SI quantities. Complete the table by indicating with a tick (✓) which rows are SI base quantities.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 4,
+          "sourceEvidence": [
+            {
+              "documentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+              "page": 4,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/qp-04.jpg",
+              "assetSha256": "e57afcb2689122387190f9aa567f12e3369e99afd02522da1d7ee2e06ce6842f"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q1:part-b",
+          "label": "b",
+          "promptFragment": "Use the definition of power to determine its SI base units.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 4,
+          "sourceEvidence": [
+            {
+              "documentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+              "page": 4,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/qp-04.jpg",
+              "assetSha256": "e57afcb2689122387190f9aa567f12e3369e99afd02522da1d7ee2e06ce6842f"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q1:part-c",
+          "label": "c",
+          "promptFragment": "A light meter is used to measure the intensity of light in a classroom. Daylight is incident normally on the sensor of the meter. The sensor has an area of 2.2 cm². The reading on the meter is 950 W m⁻². Calculate the power of the daylight incident on the sensor.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 4,
+          "sourceEvidence": [
+            {
+              "documentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+              "page": 4,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/qp-04.jpg",
+              "assetSha256": "e57afcb2689122387190f9aa567f12e3369e99afd02522da1d7ee2e06ce6842f"
+            }
+          ]
+        }
+      ],
+      "marks": 6,
+      "sourceRef": {
+        "paperId": "cie-9702-9702_m24_qp_22",
+        "paper": "9702_m24_qp_22.pdf",
+        "question": "Q1",
+        "localUrl": "/local-pdf/9702/9702_m24_qp_22.pdf",
+        "pageStart": 4,
+        "pageEnd": 4,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_m24_qp_22/qp-04.jpg"
+        ],
+        "year": 2024,
+        "season": "Mar",
+        "component": 2,
+        "sha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-15T05:43:52.269Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-topic-coverage-review.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-9702-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "physics-9702-topic-01",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-01",
+        "secondaryTopicIds": [
+          "physics-9702-topic-07"
+        ],
+        "syllabusPointIds": [
+          "physics-9702-point-1-2-01",
+          "physics-9702-point-1-2-02",
+          "physics-9702-point-7-1-07"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+        "reviewedAt": "2026-08-15T18:30:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_m24_qp_22",
+          "markSchemeId": "cie-9702-9702_m24_ms_22",
+          "questionPages": [
+            4
+          ],
+          "markSchemePages": [
+            6
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m24_qp_22.pdf",
+          "studentPromptPolicy": "official-source-image",
+          "privateTextPolicy": "hidden-indexing-and-marking-context"
+        }
+      },
+      "questionId": "cie-9702-9702_m24_qp_22:q1",
+      "answerId": "cie-9702-9702_m24_qp_22:q1:answer"
+    },
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-9702",
+      "specificationId": "cambridge-9702-2025-2027",
+      "subjectId": "physics",
+      "subjectCode": "9702",
+      "knowledgeGroupId": "physics-9702-topic-08",
+      "topicId": "physics-9702-topic-08",
+      "stageTags": [
+        "AS"
+      ],
+      "componentTags": [
+        2
+      ],
+      "topicTags": [
+        "physics-9702-topic-08",
+        "physics-9702-topic-07",
+        "interference",
+        "stationary waves"
+      ],
+      "skillTags": [
+        "explain"
+      ],
+      "answerType": "structured",
+      "prompt": "(a(i)) Explain how the pattern of bright and dark interference fringes is formed.\n\n(a(ii)) The distance between the centres of bright fringe X and bright fringe Y in the pattern is 10.2 mm. The slit spacing is 1.2 mm. The distance from the slits to the screen is 3.1 m. Calculate the wavelength of the light incident on the slits.\n\n(a(iii)) The light is replaced by different visible light with a shorter wavelength. State how the new fringe separation will compare to the original fringe separation.\n\n(b(i)) A stationary wave is formed on a stretched string AB, as shown in Fig. 6.2.\nOn Fig. 6.2, draw a cross (×) to show the position of a node.\n\n(b(ii)) State the phase difference between P and Q.\n\n(b(iii)) State the phase difference between P and R.",
+      "questionGroupId": "cie-9702-9702_m24_qp_22:q6",
+      "questionGroupStatus": "verified",
+      "totalMarks": 10,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q6:part-a(i)",
+          "label": "a(i)",
+          "promptFragment": "Explain how the pattern of bright and dark interference fringes is formed.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 12,
+          "sourceEvidence": [
+            {
+              "documentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+              "page": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/qp-12.jpg",
+              "assetSha256": "368248549b9e03507b423918223b327242b87afe5976e001fdbf9b7735a9574f"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q6:part-a(ii)",
+          "label": "a(ii)",
+          "promptFragment": "The distance between the centres of bright fringe X and bright fringe Y in the pattern is 10.2 mm. The slit spacing is 1.2 mm. The distance from the slits to the screen is 3.1 m. Calculate the wavelength of the light incident on the slits.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 12,
+          "sourceEvidence": [
+            {
+              "documentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+              "page": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/qp-12.jpg",
+              "assetSha256": "368248549b9e03507b423918223b327242b87afe5976e001fdbf9b7735a9574f"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q6:part-a(iii)",
+          "label": "a(iii)",
+          "promptFragment": "The light is replaced by different visible light with a shorter wavelength. State how the new fringe separation will compare to the original fringe separation.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 13,
+          "sourceEvidence": [
+            {
+              "documentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+              "page": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/qp-13.jpg",
+              "assetSha256": "8b98eb775ab10ae8ac8d2efc6d1367decf6c549186a4e97e1513d9c86442e352"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q6:part-b(i)",
+          "label": "b(i)",
+          "promptFragment": "A stationary wave is formed on a stretched string AB, as shown in Fig. 6.2.\nOn Fig. 6.2, draw a cross (×) to show the position of a node.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 13,
+          "sourceEvidence": [
+            {
+              "documentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+              "page": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/qp-13.jpg",
+              "assetSha256": "8b98eb775ab10ae8ac8d2efc6d1367decf6c549186a4e97e1513d9c86442e352"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q6:part-b(ii)",
+          "label": "b(ii)",
+          "promptFragment": "State the phase difference between P and Q.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 13,
+          "sourceEvidence": [
+            {
+              "documentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+              "page": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/qp-13.jpg",
+              "assetSha256": "8b98eb775ab10ae8ac8d2efc6d1367decf6c549186a4e97e1513d9c86442e352"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q6:part-b(iii)",
+          "label": "b(iii)",
+          "promptFragment": "State the phase difference between P and R.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 13,
+          "sourceEvidence": [
+            {
+              "documentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+              "page": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/qp-13.jpg",
+              "assetSha256": "8b98eb775ab10ae8ac8d2efc6d1367decf6c549186a4e97e1513d9c86442e352"
+            }
+          ]
+        }
+      ],
+      "marks": 10,
+      "sourceRef": {
+        "paperId": "cie-9702-9702_m24_qp_22",
+        "paper": "9702_m24_qp_22.pdf",
+        "question": "Q6",
+        "localUrl": "/local-pdf/9702/9702_m24_qp_22.pdf",
+        "pageStart": 12,
+        "pageEnd": 13,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_m24_qp_22/qp-12.jpg",
+          "/question-assets/cie-9702-9702_m24_qp_22/qp-13.jpg"
+        ],
+        "year": 2024,
+        "season": "Mar",
+        "component": 2,
+        "sha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-15T05:43:52.270Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-topic-coverage-review.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-9702-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "physics-9702-topic-08",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-08",
+        "secondaryTopicIds": [
+          "physics-9702-topic-07"
+        ],
+        "syllabusPointIds": [
+          "physics-9702-point-8-1-03",
+          "physics-9702-point-8-3-01",
+          "physics-9702-point-8-3-03",
+          "physics-9702-point-8-3-04"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+        "reviewedAt": "2026-08-15T18:30:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_m24_qp_22",
+          "markSchemeId": "cie-9702-9702_m24_ms_22",
+          "questionPages": [
+            12,
+            13
+          ],
+          "markSchemePages": [
+            11
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m24_qp_22.pdf",
+          "studentPromptPolicy": "official-source-image",
+          "privateTextPolicy": "hidden-indexing-and-marking-context"
+        }
+      },
+      "questionId": "cie-9702-9702_m24_qp_22:q6",
+      "answerId": "cie-9702-9702_m24_qp_22:q6:answer"
+    },
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-9702",
+      "specificationId": "cambridge-9702-2025-2027",
+      "subjectId": "physics",
+      "subjectCode": "9702",
+      "knowledgeGroupId": "physics-9702-topic-02",
+      "topicId": "physics-9702-topic-02",
+      "stageTags": [
+        "AS"
+      ],
+      "componentTags": [
+        2
+      ],
+      "topicTags": [
+        "physics-9702-topic-02",
+        "physics-9702-topic-04",
+        "kinematics",
+        "equations of motion"
+      ],
+      "skillTags": [
+        "define"
+      ],
+      "answerType": "structured",
+      "prompt": "(a) Define acceleration.\n\n(b) An Olympic diver stands on a platform above a pool of water, as shown in Fig. 2.1.\n\nWhen the diver is on the platform his centre of gravity is a vertical height of 9.0 m above the surface of the water. The diver jumps from the platform with a velocity of 5.9 m s⁻¹ at an angle of 60° to the horizontal.\n\nAir resistance is negligible.\n\nWhen the diver hits the surface of the water, his centre of gravity is a vertical height of 1.2 m above the surface of the water.\n\nCalculate the speed of the diver at the instant he hits the surface of the water.\n\n(c(i)) Describe and explain the variation of the viscous drag force acting on the diver in the water as he moves downwards.\n\n(c(ii)) The diver has a volume of 7.5 × 10⁻² m³. The density of the water is 1.0 × 10³ kg m⁻³. Show that the upthrust acting on the diver when he is entirely underwater is 740 N.\n\n(c(iii)) At a particular instant when the diver is entirely underwater his horizontal velocity is zero. The viscous drag force acting on him at this instant is 950 N vertically upwards. The diver has mass 78 kg. Determine the magnitude and direction of the acceleration of the diver.",
+      "questionGroupId": "cie-9702-9702_m24_qp_22:q2",
+      "questionGroupStatus": "verified",
+      "totalMarks": 11,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q2:part-a",
+          "label": "a",
+          "promptFragment": "Define acceleration.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 6,
+          "sourceEvidence": [
+            {
+              "documentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+              "page": 6,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/qp-06.jpg",
+              "assetSha256": "d9c47e08d379abf74d3fc2596b9d1be75604f44050da847764b78f1b6c6a049b"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q2:part-b",
+          "label": "b",
+          "promptFragment": "An Olympic diver stands on a platform above a pool of water, as shown in Fig. 2.1.\n\nWhen the diver is on the platform his centre of gravity is a vertical height of 9.0 m above the surface of the water. The diver jumps from the platform with a velocity of 5.9 m s⁻¹ at an angle of 60° to the horizontal.\n\nAir resistance is negligible.\n\nWhen the diver hits the surface of the water, his centre of gravity is a vertical height of 1.2 m above the surface of the water.\n\nCalculate the speed of the diver at the instant he hits the surface of the water.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 6,
+          "sourceEvidence": [
+            {
+              "documentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+              "page": 6,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/qp-06.jpg",
+              "assetSha256": "d9c47e08d379abf74d3fc2596b9d1be75604f44050da847764b78f1b6c6a049b"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q2:part-c(i)",
+          "label": "c(i)",
+          "promptFragment": "Describe and explain the variation of the viscous drag force acting on the diver in the water as he moves downwards.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 7,
+          "sourceEvidence": [
+            {
+              "documentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+              "page": 7,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/qp-07.jpg",
+              "assetSha256": "cef0cd369d1964dc0edb43fe3e7c464564548fac498a784e3c6be66dd1115c8c"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q2:part-c(ii)",
+          "label": "c(ii)",
+          "promptFragment": "The diver has a volume of 7.5 × 10⁻² m³. The density of the water is 1.0 × 10³ kg m⁻³. Show that the upthrust acting on the diver when he is entirely underwater is 740 N.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 7,
+          "sourceEvidence": [
+            {
+              "documentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+              "page": 7,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/qp-07.jpg",
+              "assetSha256": "cef0cd369d1964dc0edb43fe3e7c464564548fac498a784e3c6be66dd1115c8c"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q2:part-c(iii)",
+          "label": "c(iii)",
+          "promptFragment": "At a particular instant when the diver is entirely underwater his horizontal velocity is zero. The viscous drag force acting on him at this instant is 950 N vertically upwards. The diver has mass 78 kg. Determine the magnitude and direction of the acceleration of the diver.",
+          "marks": 4,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 7,
+          "sourceEvidence": [
+            {
+              "documentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+              "page": 7,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/qp-07.jpg",
+              "assetSha256": "cef0cd369d1964dc0edb43fe3e7c464564548fac498a784e3c6be66dd1115c8c"
+            }
+          ]
+        }
+      ],
+      "marks": 11,
+      "sourceRef": {
+        "paperId": "cie-9702-9702_m24_qp_22",
+        "paper": "9702_m24_qp_22.pdf",
+        "question": "Q2",
+        "localUrl": "/local-pdf/9702/9702_m24_qp_22.pdf",
+        "pageStart": 6,
+        "pageEnd": 7,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_m24_qp_22/qp-06.jpg",
+          "/question-assets/cie-9702-9702_m24_qp_22/qp-07.jpg"
+        ],
+        "year": 2024,
+        "season": "Mar",
+        "component": 2,
+        "sha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-15T05:43:52.270Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-topic-coverage-review.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-9702-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "physics-9702-topic-02",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-02",
+        "secondaryTopicIds": [
+          "physics-9702-topic-04"
+        ],
+        "syllabusPointIds": [
+          "physics-9702-point-2-1-01",
+          "physics-9702-point-2-1-06",
+          "physics-9702-point-2-1-07",
+          "physics-9702-point-2-1-09",
+          "physics-9702-point-4-3-05",
+          "physics-9702-point-4-3-06"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+        "reviewedAt": "2026-09-02T17:41:59+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_m24_qp_22",
+          "markSchemeId": "cie-9702-9702_m24_ms_22",
+          "questionPages": [
+            6,
+            7
+          ],
+          "markSchemePages": [
+            7,
+            8
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m24_qp_22.pdf",
+          "studentPromptPolicy": "official-source-image",
+          "privateTextPolicy": "hidden-indexing-and-marking-context"
+        }
+      },
+      "questionId": "cie-9702-9702_m24_qp_22:q2",
+      "answerId": "cie-9702-9702_m24_qp_22:q2:answer"
+    },
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-9702",
+      "specificationId": "cambridge-9702-2025-2027",
+      "subjectId": "physics",
+      "subjectCode": "9702",
+      "knowledgeGroupId": "physics-9702-topic-11",
+      "topicId": "physics-9702-topic-11",
+      "stageTags": [
+        "AS"
+      ],
+      "componentTags": [
+        2
+      ],
+      "topicTags": [
+        "physics-9702-topic-11",
+        "atoms",
+        "nuclei and radiation"
+      ],
+      "skillTags": [
+        "application",
+        "recall"
+      ],
+      "answerType": "structured",
+      "prompt": "(a) Complete the equation for this decay.\n\n(b(i)) State the principle of conservation of momentum.\n\n(b(ii)) Before the decay, nucleus P has a speed of 3.2 × 10⁵ m s⁻¹. After the decay, nucleus Q is stationary. Calculate the speed of the alpha particle after the decay.",
+      "questionGroupId": "cie-9702-9702_m24_qp_22:q4",
+      "questionGroupStatus": "verified",
+      "totalMarks": 6,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q4:part-a",
+          "label": "a",
+          "promptFragment": "Complete the equation for this decay.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 10,
+          "sourceEvidence": [
+            {
+              "documentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+              "page": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/qp-10.jpg",
+              "assetSha256": "30b4bd23adf6dfe5849251096eaa9b2906849aacf3f54d415b401ad3d6ca21fe"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q4:part-b(i)",
+          "label": "b(i)",
+          "promptFragment": "State the principle of conservation of momentum.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 10,
+          "sourceEvidence": [
+            {
+              "documentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+              "page": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/qp-10.jpg",
+              "assetSha256": "30b4bd23adf6dfe5849251096eaa9b2906849aacf3f54d415b401ad3d6ca21fe"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q4:part-b(ii)",
+          "label": "b(ii)",
+          "promptFragment": "Before the decay, nucleus P has a speed of 3.2 × 10⁵ m s⁻¹. After the decay, nucleus Q is stationary. Calculate the speed of the alpha particle after the decay.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 10,
+          "sourceEvidence": [
+            {
+              "documentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+              "page": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/qp-10.jpg",
+              "assetSha256": "30b4bd23adf6dfe5849251096eaa9b2906849aacf3f54d415b401ad3d6ca21fe"
+            }
+          ]
+        }
+      ],
+      "marks": 6,
+      "sourceRef": {
+        "paperId": "cie-9702-9702_m24_qp_22",
+        "paper": "9702_m24_qp_22.pdf",
+        "question": "Q4",
+        "localUrl": "/local-pdf/9702/9702_m24_qp_22.pdf",
+        "pageStart": 10,
+        "pageEnd": 10,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_m24_qp_22/qp-10.jpg"
+        ],
+        "year": 2024,
+        "season": "Mar",
+        "component": 2,
+        "sha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-15T05:43:52.270Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-topic-coverage-review.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-9702-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "physics-9702-topic-11",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-11",
+        "secondaryTopicIds": [],
+        "syllabusPointIds": [
+          "physics-9702-point-11-1-03",
+          "physics-9702-point-11-1-05",
+          "physics-9702-point-11-1-06",
+          "physics-9702-point-11-1-11"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+        "reviewedAt": "2026-09-02T17:41:59+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_m24_qp_22",
+          "markSchemeId": "cie-9702-9702_m24_ms_22",
+          "questionPages": [
+            10
+          ],
+          "markSchemePages": [
+            10
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m24_qp_22.pdf",
+          "studentPromptPolicy": "official-source-image",
+          "privateTextPolicy": "hidden-indexing-and-marking-context"
+        }
+      },
+      "questionId": "cie-9702-9702_m24_qp_22:q4",
+      "answerId": "cie-9702-9702_m24_qp_22:q4:answer"
+    },
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-9702",
+      "specificationId": "cambridge-9702-2025-2027",
+      "subjectId": "physics",
+      "subjectCode": "9702",
+      "knowledgeGroupId": "physics-9702-topic-11",
+      "topicId": "physics-9702-topic-11",
+      "stageTags": [
+        "AS"
+      ],
+      "componentTags": [
+        2
+      ],
+      "topicTags": [
+        "physics-9702-topic-11",
+        "fundamental particles"
+      ],
+      "skillTags": [
+        "recall"
+      ],
+      "answerType": "structured",
+      "prompt": "(a) State the name of the class (group) of fundamental particles that contains a neutrino.\n\n(b(i)) Identify a possible flavour for this other quark.\n\n(b(ii)) State what type of hadron is P.\n\n(c(i)) State what particle is represented by X.\n\n(c(ii)) Compare the nucleon numbers of Q and R.\n\n(c(iii)) Compare the charges of Q and R.",
+      "questionGroupId": "cie-9702-9702_m24_qp_22:q8",
+      "questionGroupStatus": "verified",
+      "totalMarks": 6,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q8:part-a",
+          "label": "a",
+          "promptFragment": "State the name of the class (group) of fundamental particles that contains a neutrino.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 16,
+          "sourceEvidence": [
+            {
+              "documentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+              "page": 16,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/qp-16.jpg",
+              "assetSha256": "5dbace9e424ea062cb18c859d1a29e67488940fc7bee43b822dbf8e7c3abd424"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q8:part-b(i)",
+          "label": "b(i)",
+          "promptFragment": "Identify a possible flavour for this other quark.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 16,
+          "sourceEvidence": [
+            {
+              "documentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+              "page": 16,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/qp-16.jpg",
+              "assetSha256": "5dbace9e424ea062cb18c859d1a29e67488940fc7bee43b822dbf8e7c3abd424"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q8:part-b(ii)",
+          "label": "b(ii)",
+          "promptFragment": "State what type of hadron is P.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 16,
+          "sourceEvidence": [
+            {
+              "documentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+              "page": 16,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/qp-16.jpg",
+              "assetSha256": "5dbace9e424ea062cb18c859d1a29e67488940fc7bee43b822dbf8e7c3abd424"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q8:part-c(i)",
+          "label": "c(i)",
+          "promptFragment": "State what particle is represented by X.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 16,
+          "sourceEvidence": [
+            {
+              "documentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+              "page": 16,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/qp-16.jpg",
+              "assetSha256": "5dbace9e424ea062cb18c859d1a29e67488940fc7bee43b822dbf8e7c3abd424"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q8:part-c(ii)",
+          "label": "c(ii)",
+          "promptFragment": "Compare the nucleon numbers of Q and R.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 16,
+          "sourceEvidence": [
+            {
+              "documentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+              "page": 16,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/qp-16.jpg",
+              "assetSha256": "5dbace9e424ea062cb18c859d1a29e67488940fc7bee43b822dbf8e7c3abd424"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q8:part-c(iii)",
+          "label": "c(iii)",
+          "promptFragment": "Compare the charges of Q and R.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 16,
+          "sourceEvidence": [
+            {
+              "documentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+              "page": 16,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/qp-16.jpg",
+              "assetSha256": "5dbace9e424ea062cb18c859d1a29e67488940fc7bee43b822dbf8e7c3abd424"
+            }
+          ]
+        }
+      ],
+      "marks": 6,
+      "sourceRef": {
+        "paperId": "cie-9702-9702_m24_qp_22",
+        "paper": "9702_m24_qp_22.pdf",
+        "question": "Q8",
+        "localUrl": "/local-pdf/9702/9702_m24_qp_22.pdf",
+        "pageStart": 16,
+        "pageEnd": 16,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_m24_qp_22/qp-16.jpg"
+        ],
+        "year": 2024,
+        "season": "Mar",
+        "component": 2,
+        "sha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-15T05:43:52.270Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-topic-coverage-review.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-9702-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "physics-9702-topic-11",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-11",
+        "secondaryTopicIds": [],
+        "syllabusPointIds": [
+          "physics-9702-point-11-1-03",
+          "physics-9702-point-11-1-07",
+          "physics-9702-point-11-2-01",
+          "physics-9702-point-11-2-02",
+          "physics-9702-point-11-2-04",
+          "physics-9702-point-11-2-06"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+        "reviewedAt": "2026-09-02T17:41:59+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_m24_qp_22",
+          "markSchemeId": "cie-9702-9702_m24_ms_22",
+          "questionPages": [
+            16
+          ],
+          "markSchemePages": [
+            13
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m24_qp_22.pdf",
+          "studentPromptPolicy": "official-source-image",
+          "privateTextPolicy": "hidden-indexing-and-marking-context"
+        }
+      },
+      "questionId": "cie-9702-9702_m24_qp_22:q8",
+      "answerId": "cie-9702-9702_m24_qp_22:q8:answer"
+    }
+  ],
+  "answers": [
+    {
+      "answerId": "cie-9702-9702_m24_qp_22:q1:answer",
+      "answer": null,
+      "answerKey": null,
+      "markPoints": [
+        "A1",
+        "C1",
+        "A1",
+        "power = intensity x area",
+        "power = 950 x 2.2 x 10^-4",
+        "power = 0.21 W"
+      ],
+      "exactAnswer": "(a) A1\n\n(b) C1\nA1\n\n(c) power = intensity x area\npower = 950 x 2.2 x 10^-4\npower = 0.21 W",
+      "answerRef": {
+        "documentId": "cie-9702-9702_m24_ms_22",
+        "file": "9702_m24_ms_22.pdf",
+        "localUrl": "/local-pdf/9702/9702_m24_ms_22.pdf",
+        "pageStart": 6,
+        "pageEnd": 6,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_m24_qp_22/ms-06.jpg"
+        ],
+        "sha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q1:part-a",
+          "label": "a",
+          "marks": 1,
+          "markSchemePoints": [
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "A1",
+          "sourcePage": 6,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 6,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-06.jpg",
+              "assetSha256": "70f44a3afb291e5f45e0994139ad3e458ec8d2d0081a436cfaa25c0e30cef2df",
+              "text": "A1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q1:part-b",
+          "label": "b",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "C1\nA1",
+          "sourcePage": 6,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 6,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-06.jpg",
+              "assetSha256": "70f44a3afb291e5f45e0994139ad3e458ec8d2d0081a436cfaa25c0e30cef2df",
+              "text": "C1"
+            },
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 6,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-06.jpg",
+              "assetSha256": "70f44a3afb291e5f45e0994139ad3e458ec8d2d0081a436cfaa25c0e30cef2df",
+              "text": "A1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q1:part-c",
+          "label": "c",
+          "marks": 3,
+          "markSchemePoints": [
+            "power = intensity x area",
+            "power = 950 x 2.2 x 10^-4",
+            "power = 0.21 W"
+          ],
+          "answerKey": null,
+          "answerText": "power = intensity x area\npower = 950 x 2.2 x 10^-4\npower = 0.21 W",
+          "sourcePage": 6,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 6,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-06.jpg",
+              "assetSha256": "70f44a3afb291e5f45e0994139ad3e458ec8d2d0081a436cfaa25c0e30cef2df",
+              "text": "power = intensity x area"
+            },
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 6,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-06.jpg",
+              "assetSha256": "70f44a3afb291e5f45e0994139ad3e458ec8d2d0081a436cfaa25c0e30cef2df",
+              "text": "power = 950 x 2.2 x 10^-4"
+            },
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 6,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-06.jpg",
+              "assetSha256": "70f44a3afb291e5f45e0994139ad3e458ec8d2d0081a436cfaa25c0e30cef2df",
+              "text": "power = 0.21 W"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-9702-9702_m24_qp_22:q6:answer",
+      "answer": null,
+      "answerKey": null,
+      "markPoints": [
+        "Light diffracts at the (two) slits.",
+        "Light (from each slit) meets / superposes (at the screen).",
+        "When the phase difference is 0 (degrees) a bright fringe / (intensity) maximum is formed. / When the phase difference is 180 (degrees) a dark fringe / (intensity) minimum is formed.",
+        "λ = ax/D",
+        "λ = 1.2 × 10⁻³ × (10.2 × 10⁻³ / 6) / 3.1",
+        "λ = 6.6 × 10⁻⁷ m",
+        "(new fringe separation will be) smaller",
+        "A cross at the intersection of the string and the mean position line.",
+        "0",
+        "180°"
+      ],
+      "exactAnswer": "(a(i)) Light diffracts at the (two) slits.\nLight (from each slit) meets / superposes (at the screen).\nWhen the phase difference is 0 (degrees) a bright fringe / (intensity) maximum is formed. / When the phase difference is 180 (degrees) a dark fringe / (intensity) minimum is formed.\n\n(a(ii)) λ = ax/D\nλ = 1.2 × 10⁻³ × (10.2 × 10⁻³ / 6) / 3.1\nλ = 6.6 × 10⁻⁷ m\n\n(a(iii)) (new fringe separation will be) smaller\n\n(b(i)) A cross at the intersection of the string and the mean position line.\n\n(b(ii)) 0\n\n(b(iii)) 180°",
+      "answerRef": {
+        "documentId": "cie-9702-9702_m24_ms_22",
+        "file": "9702_m24_ms_22.pdf",
+        "localUrl": "/local-pdf/9702/9702_m24_ms_22.pdf",
+        "pageStart": 11,
+        "pageEnd": 11,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_m24_qp_22/ms-11.jpg"
+        ],
+        "sha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q6:part-a(i)",
+          "label": "a(i)",
+          "marks": 3,
+          "markSchemePoints": [
+            "Light diffracts at the (two) slits.",
+            "Light (from each slit) meets / superposes (at the screen).",
+            "When the phase difference is 0 (degrees) a bright fringe / (intensity) maximum is formed. / When the phase difference is 180 (degrees) a dark fringe / (intensity) minimum is formed."
+          ],
+          "answerKey": null,
+          "answerText": "Light diffracts at the (two) slits.\nLight (from each slit) meets / superposes (at the screen).\nWhen the phase difference is 0 (degrees) a bright fringe / (intensity) maximum is formed. / When the phase difference is 180 (degrees) a dark fringe / (intensity) minimum is formed.",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-11.jpg",
+              "assetSha256": "1643624bd07faae59e46f593cdd66774abcc73408080a4eb14c0742613749a46",
+              "text": "Light diffracts at the (two) slits."
+            },
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-11.jpg",
+              "assetSha256": "1643624bd07faae59e46f593cdd66774abcc73408080a4eb14c0742613749a46",
+              "text": "Light (from each slit) meets / superposes (at the screen)."
+            },
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-11.jpg",
+              "assetSha256": "1643624bd07faae59e46f593cdd66774abcc73408080a4eb14c0742613749a46",
+              "text": "When the phase difference is 0 (degrees) a bright fringe / (intensity) maximum is formed. / When the phase difference is 180 (degrees) a dark fringe / (intensity) minimum is formed."
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q6:part-a(ii)",
+          "label": "a(ii)",
+          "marks": 3,
+          "markSchemePoints": [
+            "λ = ax/D",
+            "λ = 1.2 × 10⁻³ × (10.2 × 10⁻³ / 6) / 3.1",
+            "λ = 6.6 × 10⁻⁷ m"
+          ],
+          "answerKey": null,
+          "answerText": "λ = ax/D\nλ = 1.2 × 10⁻³ × (10.2 × 10⁻³ / 6) / 3.1\nλ = 6.6 × 10⁻⁷ m",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-11.jpg",
+              "assetSha256": "1643624bd07faae59e46f593cdd66774abcc73408080a4eb14c0742613749a46",
+              "text": "λ = ax/D"
+            },
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-11.jpg",
+              "assetSha256": "1643624bd07faae59e46f593cdd66774abcc73408080a4eb14c0742613749a46",
+              "text": "λ = 1.2 × 10⁻³ × (10.2 × 10⁻³ / 6) / 3.1"
+            },
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-11.jpg",
+              "assetSha256": "1643624bd07faae59e46f593cdd66774abcc73408080a4eb14c0742613749a46",
+              "text": "λ = 6.6 × 10⁻⁷ m"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q6:part-a(iii)",
+          "label": "a(iii)",
+          "marks": 1,
+          "markSchemePoints": [
+            "(new fringe separation will be) smaller"
+          ],
+          "answerKey": null,
+          "answerText": "(new fringe separation will be) smaller",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-11.jpg",
+              "assetSha256": "1643624bd07faae59e46f593cdd66774abcc73408080a4eb14c0742613749a46",
+              "text": "(new fringe separation will be) smaller"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q6:part-b(i)",
+          "label": "b(i)",
+          "marks": 1,
+          "markSchemePoints": [
+            "A cross at the intersection of the string and the mean position line."
+          ],
+          "answerKey": null,
+          "answerText": "A cross at the intersection of the string and the mean position line.",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-11.jpg",
+              "assetSha256": "1643624bd07faae59e46f593cdd66774abcc73408080a4eb14c0742613749a46",
+              "text": "A cross at the intersection of the string and the mean position line."
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q6:part-b(ii)",
+          "label": "b(ii)",
+          "marks": 1,
+          "markSchemePoints": [
+            "0"
+          ],
+          "answerKey": null,
+          "answerText": "0",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-11.jpg",
+              "assetSha256": "1643624bd07faae59e46f593cdd66774abcc73408080a4eb14c0742613749a46",
+              "text": "0"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q6:part-b(iii)",
+          "label": "b(iii)",
+          "marks": 1,
+          "markSchemePoints": [
+            "180°"
+          ],
+          "answerKey": null,
+          "answerText": "180°",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-11.jpg",
+              "assetSha256": "1643624bd07faae59e46f593cdd66774abcc73408080a4eb14c0742613749a46",
+              "text": "180°"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-9702-9702_m24_qp_22:q2:answer",
+      "answer": null,
+      "answerKey": null,
+      "markPoints": [
+        "rate of change of velocity",
+        "½ m(Δ)v² = mg(Δ)h",
+        "v² = 5.9² + 2 × 9.81 × 7.8; v² = 188",
+        "v = 14 m s⁻¹ OR by resolving components: v² = u² + 2as; vᵥ = 13.4; vₕ = 2.95; resultant velocity = √(13.4² + 2.95²) = 14 m s⁻¹",
+        "(As the diver moves down their) speed decreases",
+        "(So) viscous force / drag (force) decreases",
+        "(F = ) ρgV = 1000 × 9.81 × 7.5 × 10⁻² = 740 (N)",
+        "resultant force = 740 + 950 − (78 × 9.81) = 925",
+        "acceleration = F / m",
+        "= 925 / 78 = 12 m s⁻²",
+        "(vertically) upwards"
+      ],
+      "exactAnswer": "(a) rate of change of velocity\n\n(b) ½ m(Δ)v² = mg(Δ)h\nv² = 5.9² + 2 × 9.81 × 7.8; v² = 188\nv = 14 m s⁻¹ OR by resolving components: v² = u² + 2as; vᵥ = 13.4; vₕ = 2.95; resultant velocity = √(13.4² + 2.95²) = 14 m s⁻¹\n\n(c(i)) (As the diver moves down their) speed decreases\n(So) viscous force / drag (force) decreases\n\n(c(ii)) (F = ) ρgV = 1000 × 9.81 × 7.5 × 10⁻² = 740 (N)\n\n(c(iii)) resultant force = 740 + 950 − (78 × 9.81) = 925\nacceleration = F / m\n= 925 / 78 = 12 m s⁻²\n(vertically) upwards",
+      "answerRef": {
+        "documentId": "cie-9702-9702_m24_ms_22",
+        "file": "9702_m24_ms_22.pdf",
+        "localUrl": "/local-pdf/9702/9702_m24_ms_22.pdf",
+        "pageStart": 7,
+        "pageEnd": 8,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_m24_qp_22/ms-07.jpg",
+          "/question-assets/cie-9702-9702_m24_qp_22/ms-08.jpg"
+        ],
+        "sha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q2:part-a",
+          "label": "a",
+          "marks": 1,
+          "markSchemePoints": [
+            "rate of change of velocity"
+          ],
+          "answerKey": null,
+          "answerText": "rate of change of velocity",
+          "sourcePage": 7,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 7,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-07.jpg",
+              "assetSha256": "be060f17d67abf3201542a4dab612108f5e417ecf9bbeb8ea5057423272d31d1",
+              "text": "rate of change of velocity"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q2:part-b",
+          "label": "b",
+          "marks": 3,
+          "markSchemePoints": [
+            "½ m(Δ)v² = mg(Δ)h",
+            "v² = 5.9² + 2 × 9.81 × 7.8; v² = 188",
+            "v = 14 m s⁻¹ OR by resolving components: v² = u² + 2as; vᵥ = 13.4; vₕ = 2.95; resultant velocity = √(13.4² + 2.95²) = 14 m s⁻¹"
+          ],
+          "answerKey": null,
+          "answerText": "½ m(Δ)v² = mg(Δ)h\nv² = 5.9² + 2 × 9.81 × 7.8; v² = 188\nv = 14 m s⁻¹ OR by resolving components: v² = u² + 2as; vᵥ = 13.4; vₕ = 2.95; resultant velocity = √(13.4² + 2.95²) = 14 m s⁻¹",
+          "sourcePage": 7,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 7,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-07.jpg",
+              "assetSha256": "be060f17d67abf3201542a4dab612108f5e417ecf9bbeb8ea5057423272d31d1",
+              "text": "½ m(Δ)v² = mg(Δ)h"
+            },
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 7,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-07.jpg",
+              "assetSha256": "be060f17d67abf3201542a4dab612108f5e417ecf9bbeb8ea5057423272d31d1",
+              "text": "v² = 5.9² + 2 × 9.81 × 7.8; v² = 188"
+            },
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 7,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-07.jpg",
+              "assetSha256": "be060f17d67abf3201542a4dab612108f5e417ecf9bbeb8ea5057423272d31d1",
+              "text": "v = 14 m s⁻¹ OR by resolving components: v² = u² + 2as; vᵥ = 13.4; vₕ = 2.95; resultant velocity = √(13.4² + 2.95²) = 14 m s⁻¹"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q2:part-c(i)",
+          "label": "c(i)",
+          "marks": 2,
+          "markSchemePoints": [
+            "(As the diver moves down their) speed decreases",
+            "(So) viscous force / drag (force) decreases"
+          ],
+          "answerKey": null,
+          "answerText": "(As the diver moves down their) speed decreases\n(So) viscous force / drag (force) decreases",
+          "sourcePage": 7,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 7,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-07.jpg",
+              "assetSha256": "be060f17d67abf3201542a4dab612108f5e417ecf9bbeb8ea5057423272d31d1",
+              "text": "(As the diver moves down their) speed decreases"
+            },
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 7,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-07.jpg",
+              "assetSha256": "be060f17d67abf3201542a4dab612108f5e417ecf9bbeb8ea5057423272d31d1",
+              "text": "(So) viscous force / drag (force) decreases"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q2:part-c(ii)",
+          "label": "c(ii)",
+          "marks": 1,
+          "markSchemePoints": [
+            "(F = ) ρgV = 1000 × 9.81 × 7.5 × 10⁻² = 740 (N)"
+          ],
+          "answerKey": null,
+          "answerText": "(F = ) ρgV = 1000 × 9.81 × 7.5 × 10⁻² = 740 (N)",
+          "sourcePage": 7,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 7,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-07.jpg",
+              "assetSha256": "be060f17d67abf3201542a4dab612108f5e417ecf9bbeb8ea5057423272d31d1",
+              "text": "(F = ) ρgV = 1000 × 9.81 × 7.5 × 10⁻² = 740 (N)"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q2:part-c(iii)",
+          "label": "c(iii)",
+          "marks": 4,
+          "markSchemePoints": [
+            "resultant force = 740 + 950 − (78 × 9.81) = 925",
+            "acceleration = F / m",
+            "= 925 / 78 = 12 m s⁻²",
+            "(vertically) upwards"
+          ],
+          "answerKey": null,
+          "answerText": "resultant force = 740 + 950 − (78 × 9.81) = 925\nacceleration = F / m\n= 925 / 78 = 12 m s⁻²\n(vertically) upwards",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-08.jpg",
+              "assetSha256": "bed64e5b172d0442569c939d5a38cd1ccca344ba9c4d7a2426b65d05071b6857",
+              "text": "resultant force = 740 + 950 − (78 × 9.81) = 925"
+            },
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-08.jpg",
+              "assetSha256": "bed64e5b172d0442569c939d5a38cd1ccca344ba9c4d7a2426b65d05071b6857",
+              "text": "acceleration = F / m"
+            },
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-08.jpg",
+              "assetSha256": "bed64e5b172d0442569c939d5a38cd1ccca344ba9c4d7a2426b65d05071b6857",
+              "text": "= 925 / 78 = 12 m s⁻²"
+            },
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-08.jpg",
+              "assetSha256": "bed64e5b172d0442569c939d5a38cd1ccca344ba9c4d7a2426b65d05071b6857",
+              "text": "(vertically) upwards"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-9702-9702_m24_qp_22:q4:answer",
+      "answer": null,
+      "answerKey": null,
+      "markPoints": [
+        "⁴₂α",
+        "²¹¹₈₂Q",
+        "sum / total momentum (of a system of bodies) is constant or sum / total momentum before = sum / total momentum after",
+        "for an isolated system / no (resultant) external force",
+        "pα = pP − pQ; 4(u)v = 215(u) × 3.2 × 10⁵ (− 0)",
+        "v = 215(u) × 3.2 × 10⁵ / 4(u) = 1.7 × 10⁷ m s⁻¹"
+      ],
+      "exactAnswer": "(a) ⁴₂α\n²¹¹₈₂Q\n\n(b(i)) sum / total momentum (of a system of bodies) is constant or sum / total momentum before = sum / total momentum after\nfor an isolated system / no (resultant) external force\n\n(b(ii)) pα = pP − pQ; 4(u)v = 215(u) × 3.2 × 10⁵ (− 0)\nv = 215(u) × 3.2 × 10⁵ / 4(u) = 1.7 × 10⁷ m s⁻¹",
+      "answerRef": {
+        "documentId": "cie-9702-9702_m24_ms_22",
+        "file": "9702_m24_ms_22.pdf",
+        "localUrl": "/local-pdf/9702/9702_m24_ms_22.pdf",
+        "pageStart": 10,
+        "pageEnd": 10,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_m24_qp_22/ms-10.jpg"
+        ],
+        "sha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q4:part-a",
+          "label": "a",
+          "marks": 2,
+          "markSchemePoints": [
+            "⁴₂α",
+            "²¹¹₈₂Q"
+          ],
+          "answerKey": null,
+          "answerText": "⁴₂α\n²¹¹₈₂Q",
+          "sourcePage": 10,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-10.jpg",
+              "assetSha256": "d2785405e1de14cd58d86faf5e98c9f66fe08189ae3c209712268e648635fc31",
+              "text": "⁴₂α"
+            },
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-10.jpg",
+              "assetSha256": "d2785405e1de14cd58d86faf5e98c9f66fe08189ae3c209712268e648635fc31",
+              "text": "²¹¹₈₂Q"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q4:part-b(i)",
+          "label": "b(i)",
+          "marks": 2,
+          "markSchemePoints": [
+            "sum / total momentum (of a system of bodies) is constant or sum / total momentum before = sum / total momentum after",
+            "for an isolated system / no (resultant) external force"
+          ],
+          "answerKey": null,
+          "answerText": "sum / total momentum (of a system of bodies) is constant or sum / total momentum before = sum / total momentum after\nfor an isolated system / no (resultant) external force",
+          "sourcePage": 10,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-10.jpg",
+              "assetSha256": "d2785405e1de14cd58d86faf5e98c9f66fe08189ae3c209712268e648635fc31",
+              "text": "sum / total momentum (of a system of bodies) is constant or sum / total momentum before = sum / total momentum after"
+            },
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-10.jpg",
+              "assetSha256": "d2785405e1de14cd58d86faf5e98c9f66fe08189ae3c209712268e648635fc31",
+              "text": "for an isolated system / no (resultant) external force"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q4:part-b(ii)",
+          "label": "b(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "pα = pP − pQ; 4(u)v = 215(u) × 3.2 × 10⁵ (− 0)",
+            "v = 215(u) × 3.2 × 10⁵ / 4(u) = 1.7 × 10⁷ m s⁻¹"
+          ],
+          "answerKey": null,
+          "answerText": "pα = pP − pQ; 4(u)v = 215(u) × 3.2 × 10⁵ (− 0)\nv = 215(u) × 3.2 × 10⁵ / 4(u) = 1.7 × 10⁷ m s⁻¹",
+          "sourcePage": 10,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-10.jpg",
+              "assetSha256": "d2785405e1de14cd58d86faf5e98c9f66fe08189ae3c209712268e648635fc31",
+              "text": "pα = pP − pQ; 4(u)v = 215(u) × 3.2 × 10⁵ (− 0)"
+            },
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-10.jpg",
+              "assetSha256": "d2785405e1de14cd58d86faf5e98c9f66fe08189ae3c209712268e648635fc31",
+              "text": "v = 215(u) × 3.2 × 10⁵ / 4(u) = 1.7 × 10⁷ m s⁻¹"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-9702-9702_m24_qp_22:q8:answer",
+      "answer": null,
+      "answerKey": null,
+      "markPoints": [
+        "lepton(s)",
+        "up or top or charm",
+        "meson(s)",
+        "β⁻ (particle) or electron",
+        "equal",
+        "(the charge of) R is greater (than Q)"
+      ],
+      "exactAnswer": "(a) lepton(s)\n\n(b(i)) up or top or charm\n\n(b(ii)) meson(s)\n\n(c(i)) β⁻ (particle) or electron\n\n(c(ii)) equal\n\n(c(iii)) (the charge of) R is greater (than Q)",
+      "answerRef": {
+        "documentId": "cie-9702-9702_m24_ms_22",
+        "file": "9702_m24_ms_22.pdf",
+        "localUrl": "/local-pdf/9702/9702_m24_ms_22.pdf",
+        "pageStart": 13,
+        "pageEnd": 13,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_m24_qp_22/ms-13.jpg"
+        ],
+        "sha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q8:part-a",
+          "label": "a",
+          "marks": 1,
+          "markSchemePoints": [
+            "lepton(s)"
+          ],
+          "answerKey": null,
+          "answerText": "lepton(s)",
+          "sourcePage": 13,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-13.jpg",
+              "assetSha256": "0328719f723f4562b9f460079decdf59b3ebe0e20e368bd6981daaa08e073aa4",
+              "text": "lepton(s)"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q8:part-b(i)",
+          "label": "b(i)",
+          "marks": 1,
+          "markSchemePoints": [
+            "up or top or charm"
+          ],
+          "answerKey": null,
+          "answerText": "up or top or charm",
+          "sourcePage": 13,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-13.jpg",
+              "assetSha256": "0328719f723f4562b9f460079decdf59b3ebe0e20e368bd6981daaa08e073aa4",
+              "text": "up or top or charm"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q8:part-b(ii)",
+          "label": "b(ii)",
+          "marks": 1,
+          "markSchemePoints": [
+            "meson(s)"
+          ],
+          "answerKey": null,
+          "answerText": "meson(s)",
+          "sourcePage": 13,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-13.jpg",
+              "assetSha256": "0328719f723f4562b9f460079decdf59b3ebe0e20e368bd6981daaa08e073aa4",
+              "text": "meson(s)"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q8:part-c(i)",
+          "label": "c(i)",
+          "marks": 1,
+          "markSchemePoints": [
+            "β⁻ (particle) or electron"
+          ],
+          "answerKey": null,
+          "answerText": "β⁻ (particle) or electron",
+          "sourcePage": 13,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-13.jpg",
+              "assetSha256": "0328719f723f4562b9f460079decdf59b3ebe0e20e368bd6981daaa08e073aa4",
+              "text": "β⁻ (particle) or electron"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q8:part-c(ii)",
+          "label": "c(ii)",
+          "marks": 1,
+          "markSchemePoints": [
+            "equal"
+          ],
+          "answerKey": null,
+          "answerText": "equal",
+          "sourcePage": 13,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-13.jpg",
+              "assetSha256": "0328719f723f4562b9f460079decdf59b3ebe0e20e368bd6981daaa08e073aa4",
+              "text": "equal"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m24_qp_22:q8:part-c(iii)",
+          "label": "c(iii)",
+          "marks": 1,
+          "markSchemePoints": [
+            "(the charge of) R is greater (than Q)"
+          ],
+          "answerKey": null,
+          "answerText": "(the charge of) R is greater (than Q)",
+          "sourcePage": 13,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_m24_qp_22/ms-13.jpg",
+              "assetSha256": "0328719f723f4562b9f460079decdf59b3ebe0e20e368bd6981daaa08e073aa4",
+              "text": "(the charge of) R is greater (than Q)"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "bindings": [
+    {
+      "questionId": "cie-9702-9702_m24_qp_22:q1",
+      "answerId": "cie-9702-9702_m24_qp_22:q1:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+      "answerDocumentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+      "reviewedAt": "2026-08-15T18:30:00+08:00",
+      "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "reviewProtocolVersion": "cambridge-9702-p2-topic-coverage-review.v1",
+        "sourcePolicy": "personal-study-restricted",
+        "manualVisualReview": true,
+        "studentPromptPolicy": "official-source-image",
+        "privateTextPolicy": "hidden-indexing-and-marking-context",
+        "completeQuestionPageReview": true,
+        "questionPaper": {
+          "file": "9702_m24_qp_22.pdf",
+          "sha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m24_qp_22.pdf"
+        },
+        "markScheme": {
+          "file": "9702_m24_ms_22.pdf",
+          "sha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m24_ms_22.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_m24_qp_22:q1:part-a",
+            "marks": 1,
+            "questionPage": 4,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 6,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "A1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m24_qp_22:q1:part-b",
+            "marks": 2,
+            "questionPage": 4,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 6,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "C1",
+              "A1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m24_qp_22:q1:part-c",
+            "marks": 3,
+            "questionPage": 4,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 6,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 3,
+            "markSchemeEvidence": [
+              "power = intensity x area",
+              "power = 950 x 2.2 x 10^-4",
+              "power = 0.21 W"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-9702-9702_m24_qp_22:q6",
+      "answerId": "cie-9702-9702_m24_qp_22:q6:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+      "answerDocumentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+      "reviewedAt": "2026-08-15T18:30:00+08:00",
+      "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "reviewProtocolVersion": "cambridge-9702-p2-topic-coverage-review.v1",
+        "sourcePolicy": "personal-study-restricted",
+        "manualVisualReview": true,
+        "studentPromptPolicy": "official-source-image",
+        "privateTextPolicy": "hidden-indexing-and-marking-context",
+        "completeQuestionPageReview": true,
+        "questionPaper": {
+          "file": "9702_m24_qp_22.pdf",
+          "sha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m24_qp_22.pdf"
+        },
+        "markScheme": {
+          "file": "9702_m24_ms_22.pdf",
+          "sha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m24_ms_22.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_m24_qp_22:q6:part-a(i)",
+            "marks": 3,
+            "questionPage": 12,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 3,
+            "markSchemeEvidence": [
+              "Light diffracts at the (two) slits.",
+              "Light (from each slit) meets / superposes (at the screen).",
+              "When the phase difference is 0 (degrees) a bright fringe / (intensity) maximum is formed. / When the phase difference is 180 (degrees) a dark fringe / (intensity) minimum is formed."
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m24_qp_22:q6:part-a(ii)",
+            "marks": 3,
+            "questionPage": 12,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 3,
+            "markSchemeEvidence": [
+              "λ = ax/D",
+              "λ = 1.2 × 10⁻³ × (10.2 × 10⁻³ / 6) / 3.1",
+              "λ = 6.6 × 10⁻⁷ m"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m24_qp_22:q6:part-a(iii)",
+            "marks": 1,
+            "questionPage": 13,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "(new fringe separation will be) smaller"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m24_qp_22:q6:part-b(i)",
+            "marks": 1,
+            "questionPage": 13,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "A cross at the intersection of the string and the mean position line."
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m24_qp_22:q6:part-b(ii)",
+            "marks": 1,
+            "questionPage": 13,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "0"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m24_qp_22:q6:part-b(iii)",
+            "marks": 1,
+            "questionPage": 13,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "180°"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-9702-9702_m24_qp_22:q2",
+      "answerId": "cie-9702-9702_m24_qp_22:q2:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+      "answerDocumentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+      "reviewedAt": "2026-09-02T17:41:59+08:00",
+      "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "reviewProtocolVersion": "cambridge-9702-p2-topic-coverage-review.v1",
+        "sourcePolicy": "personal-study-restricted",
+        "manualVisualReview": true,
+        "studentPromptPolicy": "official-source-image",
+        "privateTextPolicy": "hidden-indexing-and-marking-context",
+        "completeQuestionPageReview": true,
+        "questionPaper": {
+          "file": "9702_m24_qp_22.pdf",
+          "sha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m24_qp_22.pdf"
+        },
+        "markScheme": {
+          "file": "9702_m24_ms_22.pdf",
+          "sha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m24_ms_22.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_m24_qp_22:q2:part-a",
+            "marks": 1,
+            "questionPage": 6,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 7,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "rate of change of velocity"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m24_qp_22:q2:part-b",
+            "marks": 3,
+            "questionPage": 6,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 7,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 3,
+            "markSchemeEvidence": [
+              "½ m(Δ)v² = mg(Δ)h",
+              "v² = 5.9² + 2 × 9.81 × 7.8; v² = 188",
+              "v = 14 m s⁻¹ OR by resolving components: v² = u² + 2as; vᵥ = 13.4; vₕ = 2.95; resultant velocity = √(13.4² + 2.95²) = 14 m s⁻¹"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m24_qp_22:q2:part-c(i)",
+            "marks": 2,
+            "questionPage": 7,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 7,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "(As the diver moves down their) speed decreases",
+              "(So) viscous force / drag (force) decreases"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m24_qp_22:q2:part-c(ii)",
+            "marks": 1,
+            "questionPage": 7,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 7,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "(F = ) ρgV = 1000 × 9.81 × 7.5 × 10⁻² = 740 (N)"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m24_qp_22:q2:part-c(iii)",
+            "marks": 4,
+            "questionPage": 7,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 4,
+            "markSchemeEvidence": [
+              "resultant force = 740 + 950 − (78 × 9.81) = 925",
+              "acceleration = F / m",
+              "= 925 / 78 = 12 m s⁻²",
+              "(vertically) upwards"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-9702-9702_m24_qp_22:q4",
+      "answerId": "cie-9702-9702_m24_qp_22:q4:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+      "answerDocumentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+      "reviewedAt": "2026-09-02T17:41:59+08:00",
+      "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "reviewProtocolVersion": "cambridge-9702-p2-topic-coverage-review.v1",
+        "sourcePolicy": "personal-study-restricted",
+        "manualVisualReview": true,
+        "studentPromptPolicy": "official-source-image",
+        "privateTextPolicy": "hidden-indexing-and-marking-context",
+        "completeQuestionPageReview": true,
+        "questionPaper": {
+          "file": "9702_m24_qp_22.pdf",
+          "sha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m24_qp_22.pdf"
+        },
+        "markScheme": {
+          "file": "9702_m24_ms_22.pdf",
+          "sha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m24_ms_22.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_m24_qp_22:q4:part-a",
+            "marks": 2,
+            "questionPage": 10,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 10,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "⁴₂α",
+              "²¹¹₈₂Q"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m24_qp_22:q4:part-b(i)",
+            "marks": 2,
+            "questionPage": 10,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 10,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "sum / total momentum (of a system of bodies) is constant or sum / total momentum before = sum / total momentum after",
+              "for an isolated system / no (resultant) external force"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m24_qp_22:q4:part-b(ii)",
+            "marks": 2,
+            "questionPage": 10,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 10,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "pα = pP − pQ; 4(u)v = 215(u) × 3.2 × 10⁵ (− 0)",
+              "v = 215(u) × 3.2 × 10⁵ / 4(u) = 1.7 × 10⁷ m s⁻¹"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-9702-9702_m24_qp_22:q8",
+      "answerId": "cie-9702-9702_m24_qp_22:q8:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+      "answerDocumentSha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+      "reviewedAt": "2026-09-02T17:41:59+08:00",
+      "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "reviewProtocolVersion": "cambridge-9702-p2-topic-coverage-review.v1",
+        "sourcePolicy": "personal-study-restricted",
+        "manualVisualReview": true,
+        "studentPromptPolicy": "official-source-image",
+        "privateTextPolicy": "hidden-indexing-and-marking-context",
+        "completeQuestionPageReview": true,
+        "questionPaper": {
+          "file": "9702_m24_qp_22.pdf",
+          "sha256": "7dd30501f9ffe7fedef2b1ee647feb799335063ada235fc3d1e52736808e85b6",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m24_qp_22.pdf"
+        },
+        "markScheme": {
+          "file": "9702_m24_ms_22.pdf",
+          "sha256": "9eeb903bfe3b17090081b0683331fe49c2de78748047ced964c7c6fb21547196",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m24_ms_22.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_m24_qp_22:q8:part-a",
+            "marks": 1,
+            "questionPage": 16,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 13,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "lepton(s)"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m24_qp_22:q8:part-b(i)",
+            "marks": 1,
+            "questionPage": 16,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 13,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "up or top or charm"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m24_qp_22:q8:part-b(ii)",
+            "marks": 1,
+            "questionPage": 16,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 13,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "meson(s)"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m24_qp_22:q8:part-c(i)",
+            "marks": 1,
+            "questionPage": 16,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 13,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "β⁻ (particle) or electron"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m24_qp_22:q8:part-c(ii)",
+            "marks": 1,
+            "questionPage": 16,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 13,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "equal"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m24_qp_22:q8:part-c(iii)",
+            "marks": 1,
+            "questionPage": 16,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 13,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "(the charge of) R is greater (than Q)"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

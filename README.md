@@ -10,7 +10,7 @@ A local-first Cambridge STEM, Economics and admissions-test practice platform bu
 - PDF.js study desk with continuous long-document scrolling, zoom, download, timer, quiet autosave, a draggable desktop split and side-by-side continuous question/mark-scheme review.
 - Continuous student answer sheet: A-D multiple choice, unified handwriting/typed calculation responses, written responses and unanswered-submit guard.
 - On phone and iPad, a Paper / Answer sheet control switches between two independently scrollable panes, so the PDF position and current response are retained.
-- Official-only topic practice with at least ten independently indexed questions, guided/practice modes, refresh-safe answers, Apple Pencil/image evidence and deterministic plus Qwen Vision marking.
+- Official-only topic practice with at least two independent six-question tests (12 reviewed source groups per syllabus topic), guided/practice modes, refresh-safe answers, Apple Pencil/image evidence and deterministic plus Qwen Vision marking.
 - Syllabus knowledge maps for IGCSE Mathematics 0580, Additional Mathematics 0606, Physics 0625, A-Level Chemistry 9701, Physics 9702, Economics 9708, Mathematics 9709 and Further Mathematics 9231.
 - Every unlocked drill is assembled from question-level QP entities bound to separate answer/MS entities. Insufficient inventory stays locked instead of being filled with generated questions.
 - Append-only results, mistake review, linked chapter and PDF retests, and combined practice/PDF history. PDF blanks, pending self-marks and marks below the recorded maximum enter the Mistakes view after a self-mark review is saved.
@@ -54,6 +54,38 @@ npm run catalog
 
 The GitHub source mirror intentionally excludes the generated catalog and rendered source-page images. They are deployed with the private content release only, so verified question images and mark-scheme crops do not become repository artifacts. Run the catalog/index commands against the authorised local library before creating a fresh content release.
 
+### Private Content Release Gate
+
+`git archive` is code-only. Release content preparation, manifest creation, and full verification are separate gates. Do not regenerate or relax the source manifest on the server.
+
+```powershell
+node scripts/prepare-stem-release.mjs --release-root D:\path\to\release --assets-dir D:\authorised-content\question-assets --catalog-file D:\authorised-content\papers.json --pdf-library-root D:\authorised-content\pdf
+node scripts/write-stem-release-manifest.mjs --release-root D:\path\to\release --immutable-assets-root D:\path\to\release\public\question-assets --commit <full-git-sha> --release-id <release-id> --package-sha256 <package-sha256>
+node scripts/verify-stem-release.mjs --release-root D:\path\to\release --pdf-library-root D:\authorised-content\pdf --immutable-assets-root D:\path\to\release\public\question-assets --commit <full-git-sha> --release-id <release-id> --package-sha256 <package-sha256>
+```
+
+Run the full verifier only after dependencies are installed and the production build is present. Production releases may bind `public/question-assets` and `dist/question-assets` to the same approved immutable rendered-asset tree; pass that external root as `--immutable-assets-root`. The verifier runs source-content and governed-PDF audits from the release root. It fails if private source assets, catalog, source manifest, source identity, the governed PDF library, checksums, PDF structure, source policy, withdrawal state, duplicate relationship or QP/MS association are absent or stale. The PDF library is not copied into Git; production must mount or configure the same approved private library explicitly.
+
+The release gate also rejects any physical PDF/archive inside a release, rejects an `assets-dir` that overlaps the PDF library, rejects nested asset symlinks, and caps physical release size at 1 GiB (`dist` at 512 MiB). Shared production links are allowed because the size and file checks do not follow release-internal symlinks.
+
+After a production release has passed health checks, prune only releases that are neither active nor explicitly retained for rollback. The command is dry-run by default and requires `--apply` to remove anything. Always preserve the current release, the chosen rollback release, and an explicit number of newest additional releases:
+
+```powershell
+node scripts/prune-stem-releases.mjs --releases-root /home/ubuntu/alevel-physics/releases --current /home/ubuntu/alevel-physics/current --retain /home/ubuntu/alevel-physics/releases/<rollback-release> --keep 4
+node scripts/prune-stem-releases.mjs --releases-root /home/ubuntu/alevel-physics/releases --current /home/ubuntu/alevel-physics/current --retain /home/ubuntu/alevel-physics/releases/<rollback-release> --keep 4 --apply
+```
+
+The pruner refuses paths outside the release directory, refuses to run without an explicit retention count, rechecks the current symlink before deletion, and never follows release symlinks.
+
+Run the paper-governance audit before a content release:
+
+```powershell
+npm run papers:audit
+npm run papers:audit-report
+```
+
+The report distinguishes source policy, restricted/private-study access policy, active/withdrawn/quarantined records, duplicate checksums, local file integrity, and QP-to-answer links. It intentionally does not infer a redistribution licence from an official URL or a mirror.
+
 Index new papers at question level. Re-running the same command is idempotent; use `--all` only for an intentional historical backfill:
 
 ```powershell
@@ -62,6 +94,23 @@ npm run questions:index -- --subject 9709 --papers 2
 npm run questions:index -- --subject bpho --papers 2
 npm run questions:index -- --subject 9702 --all
 ```
+
+The optional server-side AI PDF importer writes only to the ignored
+`data/ai-pdf-ingestion` candidate store (or `AI_PDF_INGESTION_ROOT`). It is
+restricted to 9702, requires separate QP/MS evidence, and auto-quarantines
+failed extraction, verification, or asset checks. `ai-verified` means the
+two-pass model checks passed; it is still not a human-reviewed student
+question and is never added to `unifiedQuestionBank`. Inspect the redacted
+candidate contract with:
+
+```powershell
+npm run questions:ai-ingestion-status
+```
+
+Authenticated teacher/owner accounts may query the same redacted contract at
+`GET /api/stem/content/ai-ingestion-candidates`. The response contains status,
+source checksums, counts, and quarantine reasons only; OCR, source paths,
+question payloads, and mark-scheme payloads remain server-side.
 
 The local PDF route validates the subject and filename against a fixed subject allowlist and serves byte ranges read-only. Do not publish this project as a public past-paper host without confirming distribution rights.
 
@@ -83,11 +132,21 @@ npm run preview -- --host 127.0.0.1 --port 4173
 
 `vite preview` also exposes the validated local PDF route.
 
-## Qwen AI
+## AI providers
 
-AI Coach and handwriting marking use the same DashScope-compatible configuration pattern as IELTS-ist. Create a local `.env` from `.env.example` and set `DASHSCOPE_API_KEY`; real values remain server-side and `.env` is ignored by Git. `COACH_AI_*` and `VISION_AI_*` can override the shared key, base URL and model independently.
+AI Coach and handwriting marking use the server-only GPT gateway when
+`AI_GATEWAY_API_KEY` is configured, with the configured DashScope/Qwen channel
+as the real fallback. Create a local `.env` from `.env.example`; real values
+remain server-side and `.env` is ignored by Git. `AI_GATEWAY_*` controls the
+gateway model and reasoning effort, while `COACH_AI_*` and `VISION_AI_*` can
+override the Qwen fallback key, base URL and model independently.
 
-The default models are `qwen3.7-max` for Coach and `qwen3-vl-plus` for handwriting vision. The app stays in labeled local fallback mode when Qwen is not configured or temporarily unavailable; it does not silently switch to OpenAI.
+The gateway defaults to `gpt-5.5` with `xhigh` reasoning. The Qwen fallback
+defaults to `qwen3.7-max` for Coach and `qwen3-vl-plus` for handwriting vision.
+Set `AI_PROVIDER=qwen` to force Qwen or `AI_PROVIDER=openai` to explicitly use
+the legacy direct OpenAI-compatible endpoint. If every configured provider is
+unavailable, the app stays in a labeled retryable/offline state and does not
+fabricate an answer or score.
 
 ## Verify
 
@@ -100,12 +159,15 @@ npm run qa:browser
 
 The smoke test validates the decoupled question/answer/binding schema, deterministic and vision-assisted scoring contracts, syllabus routes and PDF pairing. Browser QA verifies a ten-question official set, correct MCQ marking, exact answer reveal, single-question mistake retest, Waves/Electricity inventory, continuous PDFs, iPad controls and 390px mobile geometry.
 
+The default production build is intentionally scoped to the reviewed `cie-9702-as-physics` route. Run `node scripts/verify-all-syllabus-coverage.mjs --report-only` to inspect every registered route; the strict no-argument form remains a complete-catalog gate and will fail while any route has a topic below the reviewed floor. To build a different, explicitly reviewed release scope, pass one or more `--route <route-id>` values to `verify-all-syllabus-coverage.mjs` and carry the same IDs into `STEM_RELEASE_ROUTES` when preparing the release manifest.
+
 `npm run qa:browser` expects Chrome at `C:\Program Files\Google\Chrome\Application\chrome.exe` and `playwright-core` under `D:\CodexWork\node_modules`.
 
 ## Boundaries
 
-- Student attempts are local-first; no shared account database is currently part of the practice contract.
-- A topic unlocks only after at least ten QP/MS-bound questions are indexed for that qualification, stage and syllabus group.
+- Student practice drafts and attempts are local-first. Authenticated class submissions and private route notes use the STEM shared-workspace database; drafts, handwriting evidence and Coach chats remain private to the browser unless an explicit assignment summary is submitted.
+- A Topic Drill unlocks only after at least two independent six-question tests are backed by reviewed QP/MS-bound source groups for that qualification, stage and official syllabus topic.
+- Routes outside the current release scope remain visible for discovery but stay labelled study-only or source-indexing until their own reviewed topic floor is met; an unrelated incomplete route must not block a release of a fully reviewed route.
 - Notebook images are compressed and stored locally as visual evidence. Automatic handwriting OCR/vision marking requires a configured vision provider; the product never claims that an image was recognized when no provider is configured.
 - Notebook image blobs are stored in IndexedDB and are not included in the JSON state export. Structured PDF answer slots represent whole printed question numbers; subparts and mark allocations are not extracted automatically.
 - Vision marks are assisted decisions with confidence and review status, not official Cambridge grades.

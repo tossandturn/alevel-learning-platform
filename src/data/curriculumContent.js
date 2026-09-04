@@ -1,3 +1,5 @@
+import { LEGACY_UNSCOPED_ROUTE_ID, resolveRouteId, routeById, routesForSubject } from './routeRegistry.js'
+
 const SOURCES = Object.freeze({
   '0580': {
     page: 'https://www.cambridgeinternational.org/programmes-and-qualifications/cambridge-igcse-mathematics-0580/',
@@ -63,9 +65,18 @@ function checkpoints(name) {
 }
 
 function chapter({ id, subjectId, name, description, themes, stageTags = ['IGCSE'], priority = 1 }) {
+  const stage = stageTags.length === 1 ? stageTags[0] : null
+  const routeId = resolveRouteId({ subjectId, stage, knowledgeGroupId: id }) || LEGACY_UNSCOPED_ROUTE_ID
+  const route = routeById(routeId)
   return Object.freeze({
     id,
     subjectId,
+    routeId,
+    qualification: route?.qualification || null,
+    stage: route?.stage || LEGACY_UNSCOPED_ROUTE_ID,
+    paperComponent: null,
+    syllabusTopic: id,
+    sourcePaper: null,
     name,
     description,
     themes: Object.freeze(themes),
@@ -123,7 +134,7 @@ export const additionalKnowledgeGroups = Object.freeze([
   chapter({ id: 'math-0606-calculus', subjectId: 'math-0606', name: 'Differentiation and integration', description: 'Differentiate and integrate functions and apply calculus to rates, areas and stationary points.', themes: ['differentiation', 'stationary points', 'integration', 'kinematics'], priority: 1 }),
 ])
 
-export const additionalSubjects = Object.freeze([
+const ADDITIONAL_SUBJECTS = [
   {
     id: 'biology-9700',
     code: '9700',
@@ -178,7 +189,19 @@ export const additionalSubjects = Object.freeze([
     knowledgeGroupIds: additionalKnowledgeGroups.filter((item) => item.subjectId === 'math-0606').map((item) => item.id),
     mockConfigIds: [],
   },
-])
+]
+
+export const additionalSubjects = Object.freeze(ADDITIONAL_SUBJECTS.map((subject) => {
+  const routeIds = routesForSubject(subject.id).map((route) => route.routeId)
+  const routeId = routeIds.length === 1 ? routeIds[0] : LEGACY_UNSCOPED_ROUTE_ID
+  const route = routeById(routeId)
+  return Object.freeze({
+    ...subject,
+    routeId,
+    routeIds: Object.freeze(routeIds),
+    stage: route?.stage || LEGACY_UNSCOPED_ROUTE_ID,
+  })
+}))
 
 function provenance(code, paperRef = null) {
   return {
@@ -190,10 +213,28 @@ function provenance(code, paperRef = null) {
 }
 
 function numericUnit({ id, subjectId, groupId, code, topic, subtopic, prompt, value, units = [''], tolerance = 0, marks = 2, stage = 'IGCSE', sourceRef = null }) {
+  const routeId = resolveRouteId({
+    subjectId,
+    stage,
+    paperComponent: sourceRef?.component,
+    sourcePaper: sourceRef?.paper,
+    knowledgeGroupId: groupId,
+    year: sourceRef?.year,
+  }) || LEGACY_UNSCOPED_ROUTE_ID
+  const route = routeById(routeId)
+  const routeFields = {
+    routeId,
+    qualification: route?.qualification || null,
+    stage: route?.stage || LEGACY_UNSCOPED_ROUTE_ID,
+    paperComponent: sourceRef?.component ?? null,
+    syllabusTopic: groupId,
+    sourcePaper: sourceRef?.paper || null,
+  }
   return Object.freeze({
     id,
     type: 'topic',
     subjectId,
+    ...routeFields,
     knowledgeGroupId: groupId,
     topicId: groupId,
     topic,
@@ -202,7 +243,7 @@ function numericUnit({ id, subjectId, groupId, code, topic, subtopic, prompt, va
     icon: '#',
     board: `Cambridge ${code}`,
     specification: `${code} ${stage} syllabus practice`,
-    stage,
+    stageTags: Object.freeze([stage]),
     durationSec: 6 * 60,
     maxMarks: marks,
     difficulty: 'Core skill',
@@ -211,6 +252,7 @@ function numericUnit({ id, subjectId, groupId, code, topic, subtopic, prompt, va
     provenance: provenance(code, sourceRef?.paper),
     parts: Object.freeze([Object.freeze({
       id: `${id}-a`,
+      ...routeFields,
       label: 'a',
       marks,
       answerType: 'numeric',
@@ -225,10 +267,21 @@ function numericUnit({ id, subjectId, groupId, code, topic, subtopic, prompt, va
 }
 
 function mcqUnit({ id, subjectId, groupId, code, topic, subtopic, prompt, options, answer, stage = 'IGCSE' }) {
+  const routeId = resolveRouteId({ subjectId, stage, knowledgeGroupId: groupId }) || LEGACY_UNSCOPED_ROUTE_ID
+  const route = routeById(routeId)
+  const routeFields = {
+    routeId,
+    qualification: route?.qualification || null,
+    stage: route?.stage || LEGACY_UNSCOPED_ROUTE_ID,
+    paperComponent: null,
+    syllabusTopic: groupId,
+    sourcePaper: null,
+  }
   return Object.freeze({
     id,
     type: 'topic',
     subjectId,
+    ...routeFields,
     knowledgeGroupId: groupId,
     topicId: groupId,
     topic,
@@ -237,14 +290,14 @@ function mcqUnit({ id, subjectId, groupId, code, topic, subtopic, prompt, option
     icon: '?',
     board: `Cambridge ${code}`,
     specification: `${code} ${stage} syllabus practice`,
-    stage,
+    stageTags: Object.freeze([stage]),
     durationSec: 4 * 60,
     maxMarks: 1,
     difficulty: 'Core skill',
     estimatedMinutes: 4,
     priority: 'Chapter practice',
     provenance: provenance(code),
-    parts: Object.freeze([Object.freeze({ id: `${id}-a`, label: 'a', marks: 1, answerType: 'multiple-choice', prompt, options, answer, markPoints: ['Selects the correct result or method.'] })]),
+    parts: Object.freeze([Object.freeze({ id: `${id}-a`, ...routeFields, label: 'a', marks: 1, answerType: 'multiple-choice', prompt, options, answer, markPoints: ['Selects the correct result or method.'] })]),
   })
 }
 

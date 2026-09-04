@@ -19,6 +19,11 @@ artifacts/
 tmp/
 public/question-assets/
 public/data/papers.json
+public/data/papers/
+data/*.sqlite
+data/*.sqlite-shm
+data/*.sqlite-wal
+data/ai-pdf-ingestion/
 
 # Editor directories and files
 .vscode/*

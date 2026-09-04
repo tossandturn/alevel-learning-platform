@@ -1,0 +1,2087 @@
+{
+  "schemaVersion": "reviewed-question-set.v1",
+  "generatedAt": "2026-08-15T18:30:00+08:00",
+  "paperId": "cie-9702-9702_w25_qp_22",
+  "questionCount": 4,
+  "totalMarks": 40,
+  "sourceFragments": [
+    {
+      "file": "cambridge-9702-p2-topic-coverage-review-ledger.js",
+      "sha256": "3f608d2e5f05c286428cb83cb33d19d6e3fb4da6da9b388132e6995cf4b024fb"
+    }
+  ],
+  "sourceMaterials": {
+    "questionPaper": {
+      "id": "cie-9702-9702_w25_qp_22",
+      "file": "9702_w25_qp_22.pdf",
+      "sha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_qp_22.pdf",
+      "governance": {
+        "schemaVersion": "paper-governance-v1",
+        "state": "active",
+        "sourcePolicyId": "cie-mirror-restricted-v1",
+        "accessPolicyId": "personal-study-restricted-v1",
+        "sourceVersion": "2025:Nov:9702_w25_qp_22.pdf",
+        "retrievedAt": null,
+        "retrievalStatus": "not-recorded",
+        "integrityStatus": "pending-release-audit",
+        "duplicateOf": null,
+        "answerStatus": "exact-pair",
+        "reasonCode": null,
+        "reviewedAt": null,
+        "reviewEvidence": null
+      }
+    },
+    "markScheme": {
+      "id": "cie-9702-9702_w25_ms_22",
+      "file": "9702_w25_ms_22.pdf",
+      "sha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_ms_22.pdf",
+      "governance": {
+        "schemaVersion": "paper-governance-v1",
+        "state": "active",
+        "sourcePolicyId": "cie-mirror-restricted-v1",
+        "accessPolicyId": "personal-study-restricted-v1",
+        "sourceVersion": "2025:Nov:9702_w25_ms_22.pdf",
+        "retrievedAt": null,
+        "retrievalStatus": "not-recorded",
+        "integrityStatus": "pending-release-audit",
+        "duplicateOf": null,
+        "answerStatus": "not-applicable",
+        "reasonCode": null,
+        "reviewedAt": null,
+        "reviewEvidence": null
+      }
+    }
+  },
+  "questions": [
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-9702",
+      "specificationId": "cambridge-9702-2025-2027",
+      "subjectId": "physics",
+      "subjectCode": "9702",
+      "knowledgeGroupId": "physics-9702-topic-01",
+      "topicId": "physics-9702-topic-01",
+      "stageTags": [
+        "AS"
+      ],
+      "componentTags": [
+        2
+      ],
+      "topicTags": [
+        "physics-9702-topic-01",
+        "physics-9702-topic-04",
+        "SI units",
+        "scalars and vectors"
+      ],
+      "skillTags": [
+        "recall",
+        "application"
+      ],
+      "answerType": "structured",
+      "prompt": "(a) The scientists take measurements of several physical quantities at each location.\nComplete Table 1.1 by stating the SI base unit for each quantity and identifying with a tick (✓) whether each quantity is a scalar or a vector. Use the space for any working.\n\n(b(i)) At one location, the density of the air is 1.1 kg m⁻³. A spherical weather balloon is filled with a gas and released from rest. The balloon has radius 0.90 m.\nCalculate the upthrust acting on the balloon when it is released.\n\n(b(ii)) Explain why an upthrust acts on the balloon.\n\n(b(iii)) The balloon has weight 19 N.\nCalculate the magnitude of the initial acceleration of the balloon.\n\n(c) A quantity c relating to the motion of the balloon is calculated from three measured quantities k, F and v using the formula\nc = 2kF / v².\nThe percentage uncertainties in the measured quantities are given in Table 1.2.\n\nTable 1.2\nmeasured quantity | percentage uncertainty\nk | 5%\nF | 3%\nv | 4%\n\nThe calculated value of c is 1.8.\nDetermine the absolute uncertainty in c.",
+      "questionGroupId": "cie-9702-9702_w25_qp_22:q1",
+      "questionGroupStatus": "verified",
+      "totalMarks": 11,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q1:part-a",
+          "label": "a",
+          "promptFragment": "The scientists take measurements of several physical quantities at each location.\nComplete Table 1.1 by stating the SI base unit for each quantity and identifying with a tick (✓) whether each quantity is a scalar or a vector. Use the space for any working.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 4,
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 4,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-04.jpg",
+              "assetSha256": "56ff3e6dd414e7167a1f79732164a72103a60ad0b79b5e0d9568b1cd5b8adc2d"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q1:part-b(i)",
+          "label": "b(i)",
+          "promptFragment": "At one location, the density of the air is 1.1 kg m⁻³. A spherical weather balloon is filled with a gas and released from rest. The balloon has radius 0.90 m.\nCalculate the upthrust acting on the balloon when it is released.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 4,
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 4,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-04.jpg",
+              "assetSha256": "56ff3e6dd414e7167a1f79732164a72103a60ad0b79b5e0d9568b1cd5b8adc2d"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q1:part-b(ii)",
+          "label": "b(ii)",
+          "promptFragment": "Explain why an upthrust acts on the balloon.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 4,
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 4,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-04.jpg",
+              "assetSha256": "56ff3e6dd414e7167a1f79732164a72103a60ad0b79b5e0d9568b1cd5b8adc2d"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q1:part-b(iii)",
+          "label": "b(iii)",
+          "promptFragment": "The balloon has weight 19 N.\nCalculate the magnitude of the initial acceleration of the balloon.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 5,
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 5,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-05.jpg",
+              "assetSha256": "160ae534871044c9b961c07ee87cec1f0d6cb15e2a034dd518ff5beb2bfd9fc3"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q1:part-c",
+          "label": "c",
+          "promptFragment": "A quantity c relating to the motion of the balloon is calculated from three measured quantities k, F and v using the formula\nc = 2kF / v².\nThe percentage uncertainties in the measured quantities are given in Table 1.2.\n\nTable 1.2\nmeasured quantity | percentage uncertainty\nk | 5%\nF | 3%\nv | 4%\n\nThe calculated value of c is 1.8.\nDetermine the absolute uncertainty in c.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 5,
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 5,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-05.jpg",
+              "assetSha256": "160ae534871044c9b961c07ee87cec1f0d6cb15e2a034dd518ff5beb2bfd9fc3"
+            }
+          ]
+        }
+      ],
+      "marks": 11,
+      "sourceRef": {
+        "paperId": "cie-9702-9702_w25_qp_22",
+        "paper": "9702_w25_qp_22.pdf",
+        "question": "Q1",
+        "localUrl": "/local-pdf/9702/9702_w25_qp_22.pdf",
+        "pageStart": 4,
+        "pageEnd": 5,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_w25_qp_22/qp-04.jpg",
+          "/question-assets/cie-9702-9702_w25_qp_22/qp-05.jpg"
+        ],
+        "year": 2025,
+        "season": "Nov",
+        "component": 2,
+        "sha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-15T05:38:56.241Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-topic-coverage-review.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-9702-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "physics-9702-topic-01",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-01",
+        "secondaryTopicIds": [
+          "physics-9702-topic-04"
+        ],
+        "syllabusPointIds": [
+          "physics-9702-point-1-2-01",
+          "physics-9702-point-1-3-03",
+          "physics-9702-point-1-4-01",
+          "physics-9702-point-4-3-06"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+        "reviewedAt": "2026-08-15T18:30:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_w25_qp_22",
+          "markSchemeId": "cie-9702-9702_w25_ms_22",
+          "questionPages": [
+            4,
+            5
+          ],
+          "markSchemePages": [
+            8
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_qp_22.pdf",
+          "studentPromptPolicy": "official-source-image",
+          "privateTextPolicy": "hidden-indexing-and-marking-context"
+        }
+      },
+      "questionId": "cie-9702-9702_w25_qp_22:q1",
+      "answerId": "cie-9702-9702_w25_qp_22:q1:answer"
+    },
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-9702",
+      "specificationId": "cambridge-9702-2025-2027",
+      "subjectId": "physics",
+      "subjectCode": "9702",
+      "knowledgeGroupId": "physics-9702-topic-06",
+      "topicId": "physics-9702-topic-06",
+      "stageTags": [
+        "AS"
+      ],
+      "componentTags": [
+        2
+      ],
+      "topicTags": [
+        "physics-9702-topic-06",
+        "physics-9702-topic-04",
+        "physics-9702-topic-05",
+        "moments",
+        "equilibrium"
+      ],
+      "skillTags": [
+        "diagram interpretation",
+        "force diagram"
+      ],
+      "answerType": "structured",
+      "prompt": "(a) On Fig. 3.2, draw labelled arrows to show the directions of the forces acting on the pulley.\n\n(b(i)) The force F is 110 N. Determine T.\n\n(b(ii)) Calculate the extension of the spring.\n\n(c(i)) Determine the extension of the springs.\n\n(c(ii)) The elastic potential energy stored in the spring in Fig. 3.1 is E₁. The total elastic potential energy stored in the two springs in Fig. 3.3 is E₂. Calculate the ratio E₁/E₂.",
+      "questionGroupId": "cie-9702-9702_w25_qp_22:q3",
+      "questionGroupStatus": "verified",
+      "totalMarks": 9,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q3:part-a",
+          "label": "a",
+          "promptFragment": "On Fig. 3.2, draw labelled arrows to show the directions of the forces acting on the pulley.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 10,
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-10.jpg",
+              "assetSha256": "6f6733fe226c072bca8926e26f3aa9e76aabbd0ff483a518d49380569686547c"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q3:part-b(i)",
+          "label": "b(i)",
+          "promptFragment": "The force F is 110 N. Determine T.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 10,
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-10.jpg",
+              "assetSha256": "6f6733fe226c072bca8926e26f3aa9e76aabbd0ff483a518d49380569686547c"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q3:part-b(ii)",
+          "label": "b(ii)",
+          "promptFragment": "Calculate the extension of the spring.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 11,
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-11.jpg",
+              "assetSha256": "2fa796f0f27ad0c16c96343e230404b333ccb00950ea2dc4ea65bdc9859d72f2"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q3:part-c(i)",
+          "label": "c(i)",
+          "promptFragment": "Determine the extension of the springs.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 11,
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-11.jpg",
+              "assetSha256": "2fa796f0f27ad0c16c96343e230404b333ccb00950ea2dc4ea65bdc9859d72f2"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q3:part-c(ii)",
+          "label": "c(ii)",
+          "promptFragment": "The elastic potential energy stored in the spring in Fig. 3.1 is E₁. The total elastic potential energy stored in the two springs in Fig. 3.3 is E₂. Calculate the ratio E₁/E₂.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 11,
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-11.jpg",
+              "assetSha256": "2fa796f0f27ad0c16c96343e230404b333ccb00950ea2dc4ea65bdc9859d72f2"
+            }
+          ]
+        }
+      ],
+      "marks": 9,
+      "sourceRef": {
+        "paperId": "cie-9702-9702_w25_qp_22",
+        "paper": "9702_w25_qp_22.pdf",
+        "question": "Q3",
+        "localUrl": "/local-pdf/9702/9702_w25_qp_22.pdf",
+        "pageStart": 10,
+        "pageEnd": 11,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_w25_qp_22/qp-10.jpg",
+          "/question-assets/cie-9702-9702_w25_qp_22/qp-11.jpg"
+        ],
+        "year": 2025,
+        "season": "Nov",
+        "component": 2,
+        "sha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-15T05:38:56.242Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-topic-coverage-review.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-9702-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "physics-9702-topic-06",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-06",
+        "secondaryTopicIds": [
+          "physics-9702-topic-04",
+          "physics-9702-topic-05"
+        ],
+        "syllabusPointIds": [
+          "physics-9702-point-4-2-02",
+          "physics-9702-point-6-1-03",
+          "physics-9702-point-6-1-04",
+          "physics-9702-point-6-2-04"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+        "reviewedAt": "2026-09-02T19:03:24+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_w25_qp_22",
+          "markSchemeId": "cie-9702-9702_w25_ms_22",
+          "questionPages": [
+            10,
+            11
+          ],
+          "markSchemePages": [
+            11
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_qp_22.pdf",
+          "studentPromptPolicy": "official-source-image",
+          "privateTextPolicy": "hidden-indexing-and-marking-context"
+        }
+      },
+      "questionId": "cie-9702-9702_w25_qp_22:q3",
+      "answerId": "cie-9702-9702_w25_qp_22:q3:answer"
+    },
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-9702",
+      "specificationId": "cambridge-9702-2025-2027",
+      "subjectId": "physics",
+      "subjectCode": "9702",
+      "knowledgeGroupId": "physics-9702-topic-10",
+      "topicId": "physics-9702-topic-10",
+      "stageTags": [
+        "AS"
+      ],
+      "componentTags": [
+        2
+      ],
+      "topicTags": [
+        "physics-9702-topic-10",
+        "physics-9702-topic-09",
+        "Kirchhoff laws"
+      ],
+      "skillTags": [
+        "recall",
+        "state"
+      ],
+      "answerType": "structured",
+      "prompt": "(a) The battery has electromotive force (e.m.f.) 5.0 V and internal resistance 4.7 Ω. The current in X is I₁ and the current in Y is I₂.\n\nThe resistance of X is 100 Ω. The resistance of Z varies with the intensity of light incident on it as shown in Fig. 5.2.\nState Kirchhoff's first law.\n\n(b(i)) The intensity of light incident on Z is 130 W m⁻². The current in the battery is 38 mA. Show that the terminal potential difference of the battery is 4.8 V.\n\n(b(ii)) Calculate the current I₂ in Y.\n\n(b(iii)) Calculate the power dissipated in Y.\n\n(b(iv)) The intensity of the light incident on Z decreases. State and explain the effect on the terminal potential difference of the battery.",
+      "questionGroupId": "cie-9702-9702_w25_qp_22:q5",
+      "questionGroupStatus": "verified",
+      "totalMarks": 11,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q5:part-a",
+          "label": "a",
+          "promptFragment": "The battery has electromotive force (e.m.f.) 5.0 V and internal resistance 4.7 Ω. The current in X is I₁ and the current in Y is I₂.\n\nThe resistance of X is 100 Ω. The resistance of Z varies with the intensity of light incident on it as shown in Fig. 5.2.\nState Kirchhoff's first law.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 15,
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 15,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-15.jpg",
+              "assetSha256": "9bced6329c3230f153bc6fe8cfd58a75b8ace1eb51022abc2c0126c9d448fb93"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q5:part-b(i)",
+          "label": "b(i)",
+          "promptFragment": "The intensity of light incident on Z is 130 W m⁻². The current in the battery is 38 mA. Show that the terminal potential difference of the battery is 4.8 V.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 15,
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 15,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-15.jpg",
+              "assetSha256": "9bced6329c3230f153bc6fe8cfd58a75b8ace1eb51022abc2c0126c9d448fb93"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q5:part-b(ii)",
+          "label": "b(ii)",
+          "promptFragment": "Calculate the current I₂ in Y.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 15,
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 15,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-15.jpg",
+              "assetSha256": "9bced6329c3230f153bc6fe8cfd58a75b8ace1eb51022abc2c0126c9d448fb93"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q5:part-b(iii)",
+          "label": "b(iii)",
+          "promptFragment": "Calculate the power dissipated in Y.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 15,
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 15,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-15.jpg",
+              "assetSha256": "9bced6329c3230f153bc6fe8cfd58a75b8ace1eb51022abc2c0126c9d448fb93"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q5:part-b(iv)",
+          "label": "b(iv)",
+          "promptFragment": "The intensity of the light incident on Z decreases. State and explain the effect on the terminal potential difference of the battery.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 15,
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 15,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-15.jpg",
+              "assetSha256": "9bced6329c3230f153bc6fe8cfd58a75b8ace1eb51022abc2c0126c9d448fb93"
+            }
+          ]
+        }
+      ],
+      "marks": 11,
+      "sourceRef": {
+        "paperId": "cie-9702-9702_w25_qp_22",
+        "paper": "9702_w25_qp_22.pdf",
+        "question": "Q5",
+        "localUrl": "/local-pdf/9702/9702_w25_qp_22.pdf",
+        "pageStart": 14,
+        "pageEnd": 15,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_w25_qp_22/qp-14.jpg",
+          "/question-assets/cie-9702-9702_w25_qp_22/qp-15.jpg"
+        ],
+        "year": 2025,
+        "season": "Nov",
+        "component": 2,
+        "sha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-15T05:38:56.242Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-topic-coverage-review.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-9702-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "physics-9702-topic-10",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-10",
+        "secondaryTopicIds": [
+          "physics-9702-topic-09"
+        ],
+        "syllabusPointIds": [
+          "physics-9702-point-9-2-03",
+          "physics-9702-point-9-3-07",
+          "physics-9702-point-10-1-05",
+          "physics-9702-point-10-2-01"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+        "reviewedAt": "2026-08-15T18:30:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_w25_qp_22",
+          "markSchemeId": "cie-9702-9702_w25_ms_22",
+          "questionPages": [
+            14,
+            15
+          ],
+          "markSchemePages": [
+            13,
+            14
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_qp_22.pdf",
+          "studentPromptPolicy": "official-source-image",
+          "privateTextPolicy": "hidden-indexing-and-marking-context"
+        }
+      },
+      "questionId": "cie-9702-9702_w25_qp_22:q5",
+      "answerId": "cie-9702-9702_w25_qp_22:q5:answer"
+    },
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-9702",
+      "specificationId": "cambridge-9702-2025-2027",
+      "subjectId": "physics",
+      "subjectCode": "9702",
+      "knowledgeGroupId": "physics-9702-topic-11",
+      "topicId": "physics-9702-topic-11",
+      "stageTags": [
+        "AS"
+      ],
+      "componentTags": [
+        2
+      ],
+      "topicTags": [
+        "physics-9702-topic-11",
+        "physics-9702-topic-05",
+        "fundamental particles"
+      ],
+      "skillTags": [
+        "define"
+      ],
+      "answerType": "structured",
+      "prompt": "(a) State what is meant by a fundamental particle.\n\n(b(i)) Particle Q is a meson with a charge of 0. Determine a possible quark composition for Q.\n\n(b(ii)) Particle Q has a mass of 0.67 u and a kinetic energy of 2.1 × 10⁻¹⁶ J. Calculate the speed of particle Q.\n\n(c(i)) State the number of electrons in a neutral atom of radium-228.\n\n(c(ii)) A nucleus of radium-228 undergoes a series of decays to form nucleus X. During the process, 5 α-particles and 4 β⁻ particles are emitted. Determine the number of protons and the number of neutrons in nucleus X.",
+      "questionGroupId": "cie-9702-9702_w25_qp_22:q6",
+      "questionGroupStatus": "verified",
+      "totalMarks": 9,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q6:part-a",
+          "label": "a",
+          "promptFragment": "State what is meant by a fundamental particle.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 16,
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 16,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-16.jpg",
+              "assetSha256": "e17e042a320b5c2fcee29c2a0db0363c5d072295b3edad3a73b3e343ed5fe6c1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q6:part-b(i)",
+          "label": "b(i)",
+          "promptFragment": "Particle Q is a meson with a charge of 0. Determine a possible quark composition for Q.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 16,
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 16,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-16.jpg",
+              "assetSha256": "e17e042a320b5c2fcee29c2a0db0363c5d072295b3edad3a73b3e343ed5fe6c1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q6:part-b(ii)",
+          "label": "b(ii)",
+          "promptFragment": "Particle Q has a mass of 0.67 u and a kinetic energy of 2.1 × 10⁻¹⁶ J. Calculate the speed of particle Q.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 16,
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 16,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-16.jpg",
+              "assetSha256": "e17e042a320b5c2fcee29c2a0db0363c5d072295b3edad3a73b3e343ed5fe6c1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q6:part-c(i)",
+          "label": "c(i)",
+          "promptFragment": "State the number of electrons in a neutral atom of radium-228.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 16,
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 16,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-16.jpg",
+              "assetSha256": "e17e042a320b5c2fcee29c2a0db0363c5d072295b3edad3a73b3e343ed5fe6c1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q6:part-c(ii)",
+          "label": "c(ii)",
+          "promptFragment": "A nucleus of radium-228 undergoes a series of decays to form nucleus X. During the process, 5 α-particles and 4 β⁻ particles are emitted. Determine the number of protons and the number of neutrons in nucleus X.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 16,
+          "sourceEvidence": [
+            {
+              "documentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+              "page": 16,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/qp-16.jpg",
+              "assetSha256": "e17e042a320b5c2fcee29c2a0db0363c5d072295b3edad3a73b3e343ed5fe6c1"
+            }
+          ]
+        }
+      ],
+      "marks": 9,
+      "sourceRef": {
+        "paperId": "cie-9702-9702_w25_qp_22",
+        "paper": "9702_w25_qp_22.pdf",
+        "question": "Q6",
+        "localUrl": "/local-pdf/9702/9702_w25_qp_22.pdf",
+        "pageStart": 16,
+        "pageEnd": 16,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_w25_qp_22/qp-16.jpg"
+        ],
+        "year": 2025,
+        "season": "Nov",
+        "component": 2,
+        "sha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-15T05:38:56.244Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-topic-coverage-review.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-9702-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "physics-9702-topic-11",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-11",
+        "secondaryTopicIds": [
+          "physics-9702-topic-05"
+        ],
+        "syllabusPointIds": [
+          "physics-9702-point-5-2-04",
+          "physics-9702-point-11-1-05",
+          "physics-9702-point-11-1-11",
+          "physics-9702-point-11-2-01",
+          "physics-9702-point-11-2-04"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+        "reviewedAt": "2026-08-15T18:30:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_w25_qp_22",
+          "markSchemeId": "cie-9702-9702_w25_ms_22",
+          "questionPages": [
+            16
+          ],
+          "markSchemePages": [
+            15
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_qp_22.pdf",
+          "studentPromptPolicy": "official-source-image",
+          "privateTextPolicy": "hidden-indexing-and-marking-context"
+        }
+      },
+      "questionId": "cie-9702-9702_w25_qp_22:q6",
+      "answerId": "cie-9702-9702_w25_qp_22:q6:answer"
+    }
+  ],
+  "answers": [
+    {
+      "answerId": "cie-9702-9702_w25_qp_22:q1:answer",
+      "answer": null,
+      "answerKey": null,
+      "markPoints": [
+        "air temperature: K; air pressure: kg m^-1 s^-2",
+        "scalar is selected for both air temperature and air pressure",
+        "C1",
+        "A1",
+        "B1",
+        "B1",
+        "C1",
+        "C1",
+        "A1",
+        "C1",
+        "A1"
+      ],
+      "exactAnswer": "(a) air temperature: K; air pressure: kg m^-1 s^-2\nscalar is selected for both air temperature and air pressure\n\n(b(i)) C1\nA1\n\n(b(ii)) B1\nB1\n\n(b(iii)) C1\nC1\nA1\n\n(c) C1\nA1",
+      "answerRef": {
+        "documentId": "cie-9702-9702_w25_ms_22",
+        "file": "9702_w25_ms_22.pdf",
+        "localUrl": "/local-pdf/9702/9702_w25_ms_22.pdf",
+        "pageStart": 8,
+        "pageEnd": 8,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_w25_qp_22/ms-08.jpg"
+        ],
+        "sha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q1:part-a",
+          "label": "a",
+          "marks": 2,
+          "markSchemePoints": [
+            "air temperature: K; air pressure: kg m^-1 s^-2",
+            "scalar is selected for both air temperature and air pressure"
+          ],
+          "answerKey": null,
+          "answerText": "air temperature: K; air pressure: kg m^-1 s^-2\nscalar is selected for both air temperature and air pressure",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-08.jpg",
+              "assetSha256": "b6cffa10d3c4b94febcdf7a253ddb6ea9a11881910b4743acc90132a753c8571",
+              "text": "air temperature: K; air pressure: kg m^-1 s^-2"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-08.jpg",
+              "assetSha256": "b6cffa10d3c4b94febcdf7a253ddb6ea9a11881910b4743acc90132a753c8571",
+              "text": "scalar is selected for both air temperature and air pressure"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q1:part-b(i)",
+          "label": "b(i)",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "C1\nA1",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-08.jpg",
+              "assetSha256": "b6cffa10d3c4b94febcdf7a253ddb6ea9a11881910b4743acc90132a753c8571",
+              "text": "C1"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-08.jpg",
+              "assetSha256": "b6cffa10d3c4b94febcdf7a253ddb6ea9a11881910b4743acc90132a753c8571",
+              "text": "A1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q1:part-b(ii)",
+          "label": "b(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "B1",
+            "B1"
+          ],
+          "answerKey": null,
+          "answerText": "B1\nB1",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-08.jpg",
+              "assetSha256": "b6cffa10d3c4b94febcdf7a253ddb6ea9a11881910b4743acc90132a753c8571",
+              "text": "B1"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-08.jpg",
+              "assetSha256": "b6cffa10d3c4b94febcdf7a253ddb6ea9a11881910b4743acc90132a753c8571",
+              "text": "B1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q1:part-b(iii)",
+          "label": "b(iii)",
+          "marks": 3,
+          "markSchemePoints": [
+            "C1",
+            "C1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "C1\nC1\nA1",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-08.jpg",
+              "assetSha256": "b6cffa10d3c4b94febcdf7a253ddb6ea9a11881910b4743acc90132a753c8571",
+              "text": "C1"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-08.jpg",
+              "assetSha256": "b6cffa10d3c4b94febcdf7a253ddb6ea9a11881910b4743acc90132a753c8571",
+              "text": "C1"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-08.jpg",
+              "assetSha256": "b6cffa10d3c4b94febcdf7a253ddb6ea9a11881910b4743acc90132a753c8571",
+              "text": "A1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q1:part-c",
+          "label": "c",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "C1\nA1",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-08.jpg",
+              "assetSha256": "b6cffa10d3c4b94febcdf7a253ddb6ea9a11881910b4743acc90132a753c8571",
+              "text": "C1"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-08.jpg",
+              "assetSha256": "b6cffa10d3c4b94febcdf7a253ddb6ea9a11881910b4743acc90132a753c8571",
+              "text": "A1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-9702-9702_w25_qp_22:q3:answer",
+      "answer": null,
+      "answerKey": null,
+      "markPoints": [
+        "an arrow horizontally on the page to the left labelled F",
+        "two arrows horizontally on the page to the right each labelled T",
+        "T = 110 / 2 = 55 N",
+        "x = F / k",
+        "= 110 / 250 = 0.44 m",
+        "extension = 55 / 250 or 110 / (2 × 250)",
+        "extension = 0.22 m",
+        "E = ½ Fx or E = ½ kx² or E = ½ F² / k",
+        "E₁ / E₂ = (½ × 110 × 0.44) / (2 × (½ × 55 × 0.22)) = 2.0"
+      ],
+      "exactAnswer": "(a) an arrow horizontally on the page to the left labelled F\ntwo arrows horizontally on the page to the right each labelled T\n\n(b(i)) T = 110 / 2 = 55 N\n\n(b(ii)) x = F / k\n= 110 / 250 = 0.44 m\n\n(c(i)) extension = 55 / 250 or 110 / (2 × 250)\nextension = 0.22 m\n\n(c(ii)) E = ½ Fx or E = ½ kx² or E = ½ F² / k\nE₁ / E₂ = (½ × 110 × 0.44) / (2 × (½ × 55 × 0.22)) = 2.0",
+      "answerRef": {
+        "documentId": "cie-9702-9702_w25_ms_22",
+        "file": "9702_w25_ms_22.pdf",
+        "localUrl": "/local-pdf/9702/9702_w25_ms_22.pdf",
+        "pageStart": 11,
+        "pageEnd": 11,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg"
+        ],
+        "sha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q3:part-a",
+          "label": "a",
+          "marks": 2,
+          "markSchemePoints": [
+            "an arrow horizontally on the page to the left labelled F",
+            "two arrows horizontally on the page to the right each labelled T"
+          ],
+          "answerKey": null,
+          "answerText": "an arrow horizontally on the page to the left labelled F\ntwo arrows horizontally on the page to the right each labelled T",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg",
+              "assetSha256": "7964857de4c476987d219feac3a7c471c22537bfe02bff7a5bf1789717d14ff5",
+              "text": "an arrow horizontally on the page to the left labelled F"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg",
+              "assetSha256": "7964857de4c476987d219feac3a7c471c22537bfe02bff7a5bf1789717d14ff5",
+              "text": "two arrows horizontally on the page to the right each labelled T"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q3:part-b(i)",
+          "label": "b(i)",
+          "marks": 1,
+          "markSchemePoints": [
+            "T = 110 / 2 = 55 N"
+          ],
+          "answerKey": null,
+          "answerText": "T = 110 / 2 = 55 N",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg",
+              "assetSha256": "7964857de4c476987d219feac3a7c471c22537bfe02bff7a5bf1789717d14ff5",
+              "text": "T = 110 / 2 = 55 N"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q3:part-b(ii)",
+          "label": "b(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "x = F / k",
+            "= 110 / 250 = 0.44 m"
+          ],
+          "answerKey": null,
+          "answerText": "x = F / k\n= 110 / 250 = 0.44 m",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg",
+              "assetSha256": "7964857de4c476987d219feac3a7c471c22537bfe02bff7a5bf1789717d14ff5",
+              "text": "x = F / k"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg",
+              "assetSha256": "7964857de4c476987d219feac3a7c471c22537bfe02bff7a5bf1789717d14ff5",
+              "text": "= 110 / 250 = 0.44 m"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q3:part-c(i)",
+          "label": "c(i)",
+          "marks": 2,
+          "markSchemePoints": [
+            "extension = 55 / 250 or 110 / (2 × 250)",
+            "extension = 0.22 m"
+          ],
+          "answerKey": null,
+          "answerText": "extension = 55 / 250 or 110 / (2 × 250)\nextension = 0.22 m",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg",
+              "assetSha256": "7964857de4c476987d219feac3a7c471c22537bfe02bff7a5bf1789717d14ff5",
+              "text": "extension = 55 / 250 or 110 / (2 × 250)"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg",
+              "assetSha256": "7964857de4c476987d219feac3a7c471c22537bfe02bff7a5bf1789717d14ff5",
+              "text": "extension = 0.22 m"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q3:part-c(ii)",
+          "label": "c(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "E = ½ Fx or E = ½ kx² or E = ½ F² / k",
+            "E₁ / E₂ = (½ × 110 × 0.44) / (2 × (½ × 55 × 0.22)) = 2.0"
+          ],
+          "answerKey": null,
+          "answerText": "E = ½ Fx or E = ½ kx² or E = ½ F² / k\nE₁ / E₂ = (½ × 110 × 0.44) / (2 × (½ × 55 × 0.22)) = 2.0",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg",
+              "assetSha256": "7964857de4c476987d219feac3a7c471c22537bfe02bff7a5bf1789717d14ff5",
+              "text": "E = ½ Fx or E = ½ kx² or E = ½ F² / k"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-11.jpg",
+              "assetSha256": "7964857de4c476987d219feac3a7c471c22537bfe02bff7a5bf1789717d14ff5",
+              "text": "E₁ / E₂ = (½ × 110 × 0.44) / (2 × (½ × 55 × 0.22)) = 2.0"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-9702-9702_w25_qp_22:q5:answer",
+      "answer": null,
+      "answerKey": null,
+      "markPoints": [
+        "sum of current(s) into junction = sum of current(s) out junction / or (algebraic) sum of current(s) at a junction is zero",
+        "(V=) E−Ir",
+        "(V=) 5.0 − (38 × 10⁻³ × 4.7) = 4.8 (V)",
+        "R(Z) = 120 Ω",
+        "I₂ = 38 × 10⁻³ − (4.8 / (100 + 120))",
+        "I₂ = 0.016 A / R(EXT) = 4.8 / 38 × 10⁻³ / (= 126 Ω) / 1 / R(Y) = 1 / 126 − 1 / (120 + 100) / (R(Y) = 297 Ω) / I₂ = 4.8 / 297",
+        "C1",
+        "A1",
+        "B1",
+        "M1",
+        "A1"
+      ],
+      "exactAnswer": "(a) sum of current(s) into junction = sum of current(s) out junction / or (algebraic) sum of current(s) at a junction is zero\n\n(b(i)) (V=) E−Ir\n(V=) 5.0 − (38 × 10⁻³ × 4.7) = 4.8 (V)\n\n(b(ii)) R(Z) = 120 Ω\nI₂ = 38 × 10⁻³ − (4.8 / (100 + 120))\nI₂ = 0.016 A / R(EXT) = 4.8 / 38 × 10⁻³ / (= 126 Ω) / 1 / R(Y) = 1 / 126 − 1 / (120 + 100) / (R(Y) = 297 Ω) / I₂ = 4.8 / 297\n\n(b(iii)) C1\nA1\n\n(b(iv)) B1\nM1\nA1",
+      "answerRef": {
+        "documentId": "cie-9702-9702_w25_ms_22",
+        "file": "9702_w25_ms_22.pdf",
+        "localUrl": "/local-pdf/9702/9702_w25_ms_22.pdf",
+        "pageStart": 13,
+        "pageEnd": 14,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_w25_qp_22/ms-13.jpg",
+          "/question-assets/cie-9702-9702_w25_qp_22/ms-14.jpg"
+        ],
+        "sha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q5:part-a",
+          "label": "a",
+          "marks": 1,
+          "markSchemePoints": [
+            "sum of current(s) into junction = sum of current(s) out junction / or (algebraic) sum of current(s) at a junction is zero"
+          ],
+          "answerKey": null,
+          "answerText": "sum of current(s) into junction = sum of current(s) out junction / or (algebraic) sum of current(s) at a junction is zero",
+          "sourcePage": 13,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-13.jpg",
+              "assetSha256": "28679f60aecc8a3ce3c202c0d043ab85c4e4c38a9d1eccf802efbf829558c40d",
+              "text": "sum of current(s) into junction = sum of current(s) out junction / or (algebraic) sum of current(s) at a junction is zero"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q5:part-b(i)",
+          "label": "b(i)",
+          "marks": 2,
+          "markSchemePoints": [
+            "(V=) E−Ir",
+            "(V=) 5.0 − (38 × 10⁻³ × 4.7) = 4.8 (V)"
+          ],
+          "answerKey": null,
+          "answerText": "(V=) E−Ir\n(V=) 5.0 − (38 × 10⁻³ × 4.7) = 4.8 (V)",
+          "sourcePage": 13,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-13.jpg",
+              "assetSha256": "28679f60aecc8a3ce3c202c0d043ab85c4e4c38a9d1eccf802efbf829558c40d",
+              "text": "(V=) E−Ir"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-13.jpg",
+              "assetSha256": "28679f60aecc8a3ce3c202c0d043ab85c4e4c38a9d1eccf802efbf829558c40d",
+              "text": "(V=) 5.0 − (38 × 10⁻³ × 4.7) = 4.8 (V)"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q5:part-b(ii)",
+          "label": "b(ii)",
+          "marks": 3,
+          "markSchemePoints": [
+            "R(Z) = 120 Ω",
+            "I₂ = 38 × 10⁻³ − (4.8 / (100 + 120))",
+            "I₂ = 0.016 A / R(EXT) = 4.8 / 38 × 10⁻³ / (= 126 Ω) / 1 / R(Y) = 1 / 126 − 1 / (120 + 100) / (R(Y) = 297 Ω) / I₂ = 4.8 / 297"
+          ],
+          "answerKey": null,
+          "answerText": "R(Z) = 120 Ω\nI₂ = 38 × 10⁻³ − (4.8 / (100 + 120))\nI₂ = 0.016 A / R(EXT) = 4.8 / 38 × 10⁻³ / (= 126 Ω) / 1 / R(Y) = 1 / 126 − 1 / (120 + 100) / (R(Y) = 297 Ω) / I₂ = 4.8 / 297",
+          "sourcePage": 13,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-13.jpg",
+              "assetSha256": "28679f60aecc8a3ce3c202c0d043ab85c4e4c38a9d1eccf802efbf829558c40d",
+              "text": "R(Z) = 120 Ω"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-13.jpg",
+              "assetSha256": "28679f60aecc8a3ce3c202c0d043ab85c4e4c38a9d1eccf802efbf829558c40d",
+              "text": "I₂ = 38 × 10⁻³ − (4.8 / (100 + 120))"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-13.jpg",
+              "assetSha256": "28679f60aecc8a3ce3c202c0d043ab85c4e4c38a9d1eccf802efbf829558c40d",
+              "text": "I₂ = 0.016 A / R(EXT) = 4.8 / 38 × 10⁻³ / (= 126 Ω) / 1 / R(Y) = 1 / 126 − 1 / (120 + 100) / (R(Y) = 297 Ω) / I₂ = 4.8 / 297"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q5:part-b(iii)",
+          "label": "b(iii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "C1\nA1",
+          "sourcePage": 14,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 14,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-14.jpg",
+              "assetSha256": "a140db8d8daee11addadd3578268873765a5e876736cf0ef2894285d045f1650",
+              "text": "C1"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 14,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-14.jpg",
+              "assetSha256": "a140db8d8daee11addadd3578268873765a5e876736cf0ef2894285d045f1650",
+              "text": "A1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q5:part-b(iv)",
+          "label": "b(iv)",
+          "marks": 3,
+          "markSchemePoints": [
+            "B1",
+            "M1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "B1\nM1\nA1",
+          "sourcePage": 14,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 14,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-14.jpg",
+              "assetSha256": "a140db8d8daee11addadd3578268873765a5e876736cf0ef2894285d045f1650",
+              "text": "B1"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 14,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-14.jpg",
+              "assetSha256": "a140db8d8daee11addadd3578268873765a5e876736cf0ef2894285d045f1650",
+              "text": "M1"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 14,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-14.jpg",
+              "assetSha256": "a140db8d8daee11addadd3578268873765a5e876736cf0ef2894285d045f1650",
+              "text": "A1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-9702-9702_w25_qp_22:q6:answer",
+      "answer": null,
+      "answerKey": null,
+      "markPoints": [
+        "B1",
+        "C1",
+        "A1",
+        "E_k = 1/2 mv^2",
+        "2.1 x 10^-16 = 1/2 x 0.67 x 1.66 x 10^-27 x v^2",
+        "v = 6.1 x 10^5 m s^-1",
+        "A1",
+        "number of nucleons = 228 - 5 x 4 = 208; number of protons = 88 - 5 x 2 + 4 = 82",
+        "number of neutrons = 208 - 82 = 126"
+      ],
+      "exactAnswer": "(a) B1\n\n(b(i)) C1\nA1\n\n(b(ii)) E_k = 1/2 mv^2\n2.1 x 10^-16 = 1/2 x 0.67 x 1.66 x 10^-27 x v^2\nv = 6.1 x 10^5 m s^-1\n\n(c(i)) A1\n\n(c(ii)) number of nucleons = 228 - 5 x 4 = 208; number of protons = 88 - 5 x 2 + 4 = 82\nnumber of neutrons = 208 - 82 = 126",
+      "answerRef": {
+        "documentId": "cie-9702-9702_w25_ms_22",
+        "file": "9702_w25_ms_22.pdf",
+        "localUrl": "/local-pdf/9702/9702_w25_ms_22.pdf",
+        "pageStart": 15,
+        "pageEnd": 15,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_w25_qp_22/ms-15.jpg"
+        ],
+        "sha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q6:part-a",
+          "label": "a",
+          "marks": 1,
+          "markSchemePoints": [
+            "B1"
+          ],
+          "answerKey": null,
+          "answerText": "B1",
+          "sourcePage": 15,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 15,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-15.jpg",
+              "assetSha256": "e5da7d2cac2a31b71d6468a3b7f87948fddd102fc3231f9abdb9d6bcd5fc27d2",
+              "text": "B1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q6:part-b(i)",
+          "label": "b(i)",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "C1\nA1",
+          "sourcePage": 15,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 15,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-15.jpg",
+              "assetSha256": "e5da7d2cac2a31b71d6468a3b7f87948fddd102fc3231f9abdb9d6bcd5fc27d2",
+              "text": "C1"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 15,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-15.jpg",
+              "assetSha256": "e5da7d2cac2a31b71d6468a3b7f87948fddd102fc3231f9abdb9d6bcd5fc27d2",
+              "text": "A1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q6:part-b(ii)",
+          "label": "b(ii)",
+          "marks": 3,
+          "markSchemePoints": [
+            "E_k = 1/2 mv^2",
+            "2.1 x 10^-16 = 1/2 x 0.67 x 1.66 x 10^-27 x v^2",
+            "v = 6.1 x 10^5 m s^-1"
+          ],
+          "answerKey": null,
+          "answerText": "E_k = 1/2 mv^2\n2.1 x 10^-16 = 1/2 x 0.67 x 1.66 x 10^-27 x v^2\nv = 6.1 x 10^5 m s^-1",
+          "sourcePage": 15,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 15,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-15.jpg",
+              "assetSha256": "e5da7d2cac2a31b71d6468a3b7f87948fddd102fc3231f9abdb9d6bcd5fc27d2",
+              "text": "E_k = 1/2 mv^2"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 15,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-15.jpg",
+              "assetSha256": "e5da7d2cac2a31b71d6468a3b7f87948fddd102fc3231f9abdb9d6bcd5fc27d2",
+              "text": "2.1 x 10^-16 = 1/2 x 0.67 x 1.66 x 10^-27 x v^2"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 15,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-15.jpg",
+              "assetSha256": "e5da7d2cac2a31b71d6468a3b7f87948fddd102fc3231f9abdb9d6bcd5fc27d2",
+              "text": "v = 6.1 x 10^5 m s^-1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q6:part-c(i)",
+          "label": "c(i)",
+          "marks": 1,
+          "markSchemePoints": [
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "A1",
+          "sourcePage": 15,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 15,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-15.jpg",
+              "assetSha256": "e5da7d2cac2a31b71d6468a3b7f87948fddd102fc3231f9abdb9d6bcd5fc27d2",
+              "text": "A1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_w25_qp_22:q6:part-c(ii)",
+          "label": "c(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "number of nucleons = 228 - 5 x 4 = 208; number of protons = 88 - 5 x 2 + 4 = 82",
+            "number of neutrons = 208 - 82 = 126"
+          ],
+          "answerKey": null,
+          "answerText": "number of nucleons = 228 - 5 x 4 = 208; number of protons = 88 - 5 x 2 + 4 = 82\nnumber of neutrons = 208 - 82 = 126",
+          "sourcePage": 15,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 15,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-15.jpg",
+              "assetSha256": "e5da7d2cac2a31b71d6468a3b7f87948fddd102fc3231f9abdb9d6bcd5fc27d2",
+              "text": "number of nucleons = 228 - 5 x 4 = 208; number of protons = 88 - 5 x 2 + 4 = 82"
+            },
+            {
+              "documentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+              "sourcePage": 15,
+              "assetUrl": "/question-assets/cie-9702-9702_w25_qp_22/ms-15.jpg",
+              "assetSha256": "e5da7d2cac2a31b71d6468a3b7f87948fddd102fc3231f9abdb9d6bcd5fc27d2",
+              "text": "number of neutrons = 208 - 82 = 126"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "bindings": [
+    {
+      "questionId": "cie-9702-9702_w25_qp_22:q1",
+      "answerId": "cie-9702-9702_w25_qp_22:q1:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+      "answerDocumentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+      "reviewedAt": "2026-08-15T18:30:00+08:00",
+      "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "reviewProtocolVersion": "cambridge-9702-p2-topic-coverage-review.v1",
+        "sourcePolicy": "personal-study-restricted",
+        "manualVisualReview": true,
+        "studentPromptPolicy": "official-source-image",
+        "privateTextPolicy": "hidden-indexing-and-marking-context",
+        "completeQuestionPageReview": true,
+        "questionPaper": {
+          "file": "9702_w25_qp_22.pdf",
+          "sha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_qp_22.pdf"
+        },
+        "markScheme": {
+          "file": "9702_w25_ms_22.pdf",
+          "sha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_ms_22.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q1:part-a",
+            "marks": 2,
+            "questionPage": 4,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "air temperature: K; air pressure: kg m^-1 s^-2",
+              "scalar is selected for both air temperature and air pressure"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q1:part-b(i)",
+            "marks": 2,
+            "questionPage": 4,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "C1",
+              "A1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q1:part-b(ii)",
+            "marks": 2,
+            "questionPage": 4,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "B1",
+              "B1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q1:part-b(iii)",
+            "marks": 3,
+            "questionPage": 5,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 3,
+            "markSchemeEvidence": [
+              "C1",
+              "C1",
+              "A1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q1:part-c",
+            "marks": 2,
+            "questionPage": 5,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "C1",
+              "A1"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-9702-9702_w25_qp_22:q3",
+      "answerId": "cie-9702-9702_w25_qp_22:q3:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+      "answerDocumentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+      "reviewedAt": "2026-09-02T19:03:24+08:00",
+      "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "reviewProtocolVersion": "cambridge-9702-p2-topic-coverage-review.v1",
+        "sourcePolicy": "personal-study-restricted",
+        "manualVisualReview": true,
+        "studentPromptPolicy": "official-source-image",
+        "privateTextPolicy": "hidden-indexing-and-marking-context",
+        "completeQuestionPageReview": true,
+        "questionPaper": {
+          "file": "9702_w25_qp_22.pdf",
+          "sha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_qp_22.pdf"
+        },
+        "markScheme": {
+          "file": "9702_w25_ms_22.pdf",
+          "sha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_ms_22.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q3:part-a",
+            "marks": 2,
+            "questionPage": 10,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "an arrow horizontally on the page to the left labelled F",
+              "two arrows horizontally on the page to the right each labelled T"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q3:part-b(i)",
+            "marks": 1,
+            "questionPage": 10,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "T = 110 / 2 = 55 N"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q3:part-b(ii)",
+            "marks": 2,
+            "questionPage": 11,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "x = F / k",
+              "= 110 / 250 = 0.44 m"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q3:part-c(i)",
+            "marks": 2,
+            "questionPage": 11,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "extension = 55 / 250 or 110 / (2 × 250)",
+              "extension = 0.22 m"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q3:part-c(ii)",
+            "marks": 2,
+            "questionPage": 11,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "E = ½ Fx or E = ½ kx² or E = ½ F² / k",
+              "E₁ / E₂ = (½ × 110 × 0.44) / (2 × (½ × 55 × 0.22)) = 2.0"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-9702-9702_w25_qp_22:q5",
+      "answerId": "cie-9702-9702_w25_qp_22:q5:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+      "answerDocumentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+      "reviewedAt": "2026-08-15T18:30:00+08:00",
+      "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "reviewProtocolVersion": "cambridge-9702-p2-topic-coverage-review.v1",
+        "sourcePolicy": "personal-study-restricted",
+        "manualVisualReview": true,
+        "studentPromptPolicy": "official-source-image",
+        "privateTextPolicy": "hidden-indexing-and-marking-context",
+        "completeQuestionPageReview": true,
+        "questionPaper": {
+          "file": "9702_w25_qp_22.pdf",
+          "sha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_qp_22.pdf"
+        },
+        "markScheme": {
+          "file": "9702_w25_ms_22.pdf",
+          "sha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_ms_22.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q5:part-a",
+            "marks": 1,
+            "questionPage": 15,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 13,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "sum of current(s) into junction = sum of current(s) out junction / or (algebraic) sum of current(s) at a junction is zero"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q5:part-b(i)",
+            "marks": 2,
+            "questionPage": 15,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 13,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "(V=) E−Ir",
+              "(V=) 5.0 − (38 × 10⁻³ × 4.7) = 4.8 (V)"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q5:part-b(ii)",
+            "marks": 3,
+            "questionPage": 15,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 13,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 3,
+            "markSchemeEvidence": [
+              "R(Z) = 120 Ω",
+              "I₂ = 38 × 10⁻³ − (4.8 / (100 + 120))",
+              "I₂ = 0.016 A / R(EXT) = 4.8 / 38 × 10⁻³ / (= 126 Ω) / 1 / R(Y) = 1 / 126 − 1 / (120 + 100) / (R(Y) = 297 Ω) / I₂ = 4.8 / 297"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q5:part-b(iii)",
+            "marks": 2,
+            "questionPage": 15,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 14,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "C1",
+              "A1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q5:part-b(iv)",
+            "marks": 3,
+            "questionPage": 15,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 14,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 3,
+            "markSchemeEvidence": [
+              "B1",
+              "M1",
+              "A1"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-9702-9702_w25_qp_22:q6",
+      "answerId": "cie-9702-9702_w25_qp_22:q6:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+      "answerDocumentSha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+      "reviewedAt": "2026-08-15T18:30:00+08:00",
+      "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "reviewProtocolVersion": "cambridge-9702-p2-topic-coverage-review.v1",
+        "sourcePolicy": "personal-study-restricted",
+        "manualVisualReview": true,
+        "studentPromptPolicy": "official-source-image",
+        "privateTextPolicy": "hidden-indexing-and-marking-context",
+        "completeQuestionPageReview": true,
+        "questionPaper": {
+          "file": "9702_w25_qp_22.pdf",
+          "sha256": "068e178d1fa94ff6a083f14337662cdf0193162967f288b161a9573058a8bfc6",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_qp_22.pdf"
+        },
+        "markScheme": {
+          "file": "9702_w25_ms_22.pdf",
+          "sha256": "c8064133261aad465c6edc5cc3995d96f0fddc23fb87edf70a4957e455b88fa4",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_w25_ms_22.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q6:part-a",
+            "marks": 1,
+            "questionPage": 16,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 15,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "B1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q6:part-b(i)",
+            "marks": 2,
+            "questionPage": 16,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 15,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "C1",
+              "A1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q6:part-b(ii)",
+            "marks": 3,
+            "questionPage": 16,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 15,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 3,
+            "markSchemeEvidence": [
+              "E_k = 1/2 mv^2",
+              "2.1 x 10^-16 = 1/2 x 0.67 x 1.66 x 10^-27 x v^2",
+              "v = 6.1 x 10^5 m s^-1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q6:part-c(i)",
+            "marks": 1,
+            "questionPage": 16,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 15,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "A1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_w25_qp_22:q6:part-c(ii)",
+            "marks": 2,
+            "questionPage": 16,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 15,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "number of nucleons = 228 - 5 x 4 = 208; number of protons = 88 - 5 x 2 + 4 = 82",
+              "number of neutrons = 208 - 82 = 126"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

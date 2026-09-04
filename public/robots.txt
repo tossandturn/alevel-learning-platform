@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://stem.ieltsist.com/sitemap.xml

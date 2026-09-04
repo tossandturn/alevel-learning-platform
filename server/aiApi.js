@@ -2,13 +2,49 @@ import fs from 'node:fs'
 import crypto from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
+import { isAiMarkablePastPaperItem, studyQuestionBank } from '../src/data/questionBank.js'
+import { renderVerifiedCoordinatePdfPage } from './coordinatePdfImages.js'
+import {
+  auditedMarkSchemeAssetEvidence,
+  auditedQuestionAssetEvidence,
+  canonicalAiMarkingProvenance,
+  documentPageFromAssetUrl,
+  requiredMarkSchemeAssetEvidence,
+  requiredSourceAssetEvidence,
+  STEM_AI_COORDINATE_SOURCE_BINDING_SCHEMA_VERSION,
+  STEM_AI_SOURCE_BINDING_SCHEMA_VERSION,
+  STEM_MARKING_MANIFEST_SCHEMA_VERSION,
+  STEM_SOURCE_REVIEW_SCHEMA_VERSION,
+} from '../src/lib/sourceContentContract.js'
+import { validHmacJwt, verifyMarkingCapability } from './markingCapability.js'
 
 const IMAGE_PATTERN = /^data:image\/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=]+)$/
 const MAX_BODY_BYTES = 16 * 1024 * 1024
 const MAX_IMAGE_BYTES = 12 * 1024 * 1024
+const MAX_COACH_IMAGE_COUNT = 4
+const MAX_COACH_IMAGE_BYTES = 4 * 1024 * 1024
+const MAX_COACH_TOTAL_IMAGE_BYTES = 10 * 1024 * 1024
+export const COACH_IMAGE_LIMITS = Object.freeze({
+  maxBodyBytes: MAX_BODY_BYTES,
+  maxImageCount: MAX_COACH_IMAGE_COUNT,
+  maxImageBytes: MAX_COACH_IMAGE_BYTES,
+  maxTotalImageBytes: MAX_COACH_TOTAL_IMAGE_BYTES,
+})
 const TEMP_IMAGE_TTL_MS = 5 * 60 * 1000
+const PDF_TEXT_CACHE_MAX_ENTRIES = 6
+const COACH_CONTEXT_CACHE_MAX_ENTRIES = 48
+const COACH_CONTEXT_MAX_CHARS = 4_800
+const DEFAULT_AI_PROVIDER_TIMEOUT_MS = 25_000
+const DEFAULT_AI_REQUEST_DEADLINE_MS = 50_000
+const DEFAULT_AI_VISION_PROVIDER_TIMEOUT_MS = 45_000
+const DEFAULT_AI_VISION_REQUEST_DEADLINE_MS = 55_000
+const MIN_AI_TIMEOUT_MS = 250
+const MAX_AI_PROVIDER_TIMEOUT_MS = 45_000
+const MAX_AI_REQUEST_DEADLINE_MS = 55_000
 const pdfTextCache = new Map()
+const coachContextCache = new Map()
 const CIE_SUBJECTS = new Set(['0580', '0606', '0625', '9231', '9701', '9702', '9708', '9709'])
+const DEFAULT_SOURCE_ASSET_ROOT = path.resolve(import.meta.dirname, '..', 'public', 'question-assets')
 let extraSourceCache = null
 const temporaryImages = new Map()
 
@@ -48,32 +84,24 @@ function compactText(value, maxLength = 18000) {
   return clean.length > maxLength ? `${clean.slice(0, maxLength)}\n...[truncated]` : clean
 }
 
-function decodeBase64Url(value) {
-  return JSON.parse(Buffer.from(String(value || ''), 'base64url').toString('utf8'))
-}
-
-function validHmacJwt(token, key, { issuer, audience, maxLifetimeSeconds = 900 } = {}) {
-  if (!token || !key) return null
-  const parts = String(token).split('.')
-  if (parts.length !== 3) return null
-  const [encodedHeader, encodedPayload, signature] = parts
-  const expected = crypto.createHmac('sha256', key).update(`${encodedHeader}.${encodedPayload}`).digest('base64url')
-  if (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null
-  try {
-    const header = decodeBase64Url(encodedHeader)
-    const claims = decodeBase64Url(encodedPayload)
-    const now = Math.floor(Date.now() / 1000)
-    if (header.alg !== 'HS256' || (issuer && claims.iss !== issuer) || (audience && claims.aud !== audience) || !claims.sub || !Number.isFinite(Number(claims.exp)) || Number(claims.exp) <= now || (Number(claims.iat) && Number(claims.exp) - Number(claims.iat) > maxLifetimeSeconds)) return null
-    return claims
-  } catch {
-    return null
-  }
+function boundedCacheSet(cache, key, value, maxEntries) {
+  if (cache.has(key)) cache.delete(key)
+  cache.set(key, value)
+  while (cache.size > maxEntries) cache.delete(cache.keys().next().value)
 }
 
 function authenticatedStemUser(request, env) {
   const token = String(request.headers.authorization || '').match(/^Bearer\s+(.+)$/i)?.[1]
-  const claims = validHmacJwt(token, env.STEM_IDENTITY_SIGNING_KEY, { issuer: 'ieltsist.com', audience: 'stem.ieltsist.com', maxLifetimeSeconds: 60 * 60 })
+  const identitySigningKey = env.STEM_INTERNAL_AUTH_KEY || env.STEM_IDENTITY_SIGNING_KEY
+  const claims = validHmacJwt(token, identitySigningKey, { issuer: 'ieltsist.com', audience: 'stem.ieltsist.com', maxLifetimeSeconds: 60 * 60 })
   return claims && /^ielts:\d+$/.test(String(claims.sub)) ? String(claims.sub) : null
+}
+
+function compactCoachContextText(value, maxLength = 4000) {
+  return compactText(value, maxLength)
+    .replace(/data:image\/[a-z0-9.+-]+;base64,[a-z0-9+/_=-]+/gi, '[image omitted]')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
 }
 
 function verifiedCoachSubmission(payload, request, env) {
@@ -89,22 +117,81 @@ function verifiedCoachSubmission(payload, request, env) {
 function safeCoachContext(value) {
   const source = value && typeof value === 'object' ? value : {}
   const question = source.question && typeof source.question === 'object' ? source.question : {}
+  const part = source.part && typeof source.part === 'object' ? source.part : {}
   const paper = source.paper && typeof source.paper === 'object' ? source.paper : {}
+  const contextText = compactCoachContextText(source.contextText || source.sourceQuestionExtract, 4000)
   return {
-    subject: typeof source.subject === 'object' ? { code: compactText(source.subject.code, 20), name: compactText(source.subject.name, 100) } : compactText(source.subject, 80),
-    syllabus: compactText(source.syllabus, 200), stage: compactText(source.stage, 30), topic: compactText(source.topic, 200), attemptId: compactText(source.attemptId, 100),
-    question: { id: compactText(question.id || question.questionId, 160), number: Number(question.number) || null, title: compactText(question.title, 300), prompt: compactText(question.prompt, 4000), hint: compactText(question.hint, 1000) },
-    paper: { id: compactText(paper.id || paper.paperId, 160), questionFile: compactText(paper.questionFile, 180), markSchemeFile: compactText(paper.markSchemeFile, 180) },
+    view: compactText(source.view, 80),
+    subject: typeof source.subject === 'object' ? { code: compactText(source.subject.code, 20), name: compactText(source.subject.name || source.subject.title, 100) } : compactText(source.subject, 80),
+    syllabus: compactText(source.syllabus, 200), stage: compactText(source.stage, 30), routeId: compactText(source.routeId, 120), topic: compactText(source.topic, 200), component: compactText(source.component, 120), attemptId: compactText(source.attemptId, 100),
+    paperStudyMode: compactText(source.paperStudyMode, 60), submissionStatus: compactText(source.submissionStatus, 30), responseStatus: compactText(source.responseStatus, 30), submitted: typeof source.submitted === 'boolean' ? source.submitted : false,
+    question: { id: compactText(question.id || question.questionId, 360), number: Number(question.number) || null, label: compactText(question.label, 300), title: compactText(question.title, 300), prompt: compactText(question.prompt, 4000), hint: compactText(question.hint, 1000), marks: Number(question.marks) || null },
+    part: { id: compactText(part.id || part.questionPartId, 360), questionPartId: compactText(part.questionPartId, 360), label: compactText(part.label, 300), prompt: compactText(part.prompt, 2000), marks: Number(part.marks) || null },
+    paper: { id: compactText(paper.id || paper.paperId, 240), questionFile: compactText(paper.questionFile, 180), markSchemeFile: compactText(paper.markSchemeFile, 180) },
+    ...(contextText ? { contextText, sourceQuestionExtract: contextText } : {}),
     agentIntent: source.agentIntent && typeof source.agentIntent === 'object' ? { type: compactText(source.agentIntent.type, 80) } : null,
+  }
+}
+
+function applyCoachAuthorization(context, authorization) {
+  if (!authorization) return context
+  const question = context.question && typeof context.question === 'object' ? context.question : {}
+  const part = context.part && typeof context.part === 'object' ? context.part : {}
+  return {
+    ...context,
+    attemptId: String(authorization.attemptId || context.attemptId || ''),
+    routeId: String(authorization.routeId || context.routeId || ''),
+    stage: String(authorization.stage || context.stage || ''),
+    paperStudyMode: String(authorization.paperStudyMode || context.paperStudyMode || 'past-paper-practice'),
+    submissionStatus: String(authorization.submissionStatus || 'draft'),
+    submitted: Boolean(authorization.submitted),
+    ...(authorization.responseStatus ? { responseStatus: authorization.responseStatus } : {}),
+    ...(authorization.paperId
+      ? {
+        paper: authorization.paper
+          ? { ...authorization.paper }
+          : { id: String(authorization.paperId) },
+        // Source extracts are rebuilt from the canonical QP below. Never pass
+        // a client-supplied extract through when a paper attempt is bound.
+        contextText: undefined,
+        sourceQuestionExtract: undefined,
+      }
+      : {}),
+    question: authorization.question ? { ...authorization.question } : question,
+    part: authorization.part ? { ...authorization.part } : part,
   }
 }
 
 function imageBytes(dataUrl) {
   const match = String(dataUrl || '').match(IMAGE_PATTERN)
-  if (!match) throw Object.assign(new Error('Handwriting image must be PNG, JPEG or WebP.'), { statusCode: 400 })
+  if (!match) throw Object.assign(new Error('Attached image must be PNG, JPEG or WebP.'), { statusCode: 400 })
   const bytes = Buffer.byteLength(match[2], 'base64')
-  if (!bytes || bytes > MAX_IMAGE_BYTES) throw Object.assign(new Error('Handwriting image is empty or too large.'), { statusCode: 400 })
+  if (!bytes || bytes > MAX_IMAGE_BYTES) throw Object.assign(new Error('Attached image is empty or too large.'), { statusCode: 400 })
   return bytes
+}
+
+function coachImageDataUrls(payload) {
+  const source = Array.isArray(payload?.imageDataUrls)
+    ? payload.imageDataUrls
+    : payload?.imageDataUrl
+      ? [payload.imageDataUrl]
+      : []
+  const images = source.map((value) => String(value || '').trim()).filter(Boolean)
+  if (images.length > MAX_COACH_IMAGE_COUNT) {
+    throw Object.assign(new Error(`Attach no more than ${MAX_COACH_IMAGE_COUNT} images.`), { statusCode: 400 })
+  }
+  let totalBytes = 0
+  for (const image of images) {
+    const bytes = imageBytes(image)
+    if (bytes > MAX_COACH_IMAGE_BYTES) {
+      throw Object.assign(new Error('Each Coach image must be under 4 MB after compression.'), { statusCode: 400 })
+    }
+    totalBytes += bytes
+  }
+  if (totalBytes > MAX_COACH_TOTAL_IMAGE_BYTES) {
+    throw Object.assign(new Error('Coach attachments are too large. Remove a photo or choose smaller images.'), { statusCode: 400 })
+  }
+  return images
 }
 
 function cleanupTemporaryImages() {
@@ -136,6 +223,25 @@ async function temporaryImageUrl(dataUrl, publicBaseUrl) {
       fs.rm(filePath, { force: true }, () => {})
     },
   }
+}
+
+async function temporaryProviderImages(dataUrls, publicBaseUrl) {
+  const images = []
+  try {
+    for (const dataUrl of dataUrls) images.push(await temporaryImageUrl(dataUrl, publicBaseUrl))
+    return images
+  } catch (error) {
+    images.forEach((image) => image.cleanup())
+    throw error
+  }
+}
+
+function providerMessageContent(text, providerImages) {
+  if (!providerImages.length) return text
+  return [
+    { type: 'text', text },
+    ...providerImages.map((image) => ({ type: 'image_url', image_url: { url: image.url } })),
+  ]
 }
 
 function handleTemporaryImage(requestUrl, response) {
@@ -203,7 +309,12 @@ async function pdfBytes(reference) {
 
 async function extractPdfText(reference) {
   const { cacheKey, data } = await pdfBytes(reference)
-  if (pdfTextCache.has(cacheKey)) return pdfTextCache.get(cacheKey)
+  if (pdfTextCache.has(cacheKey)) {
+    const cached = pdfTextCache.get(cacheKey)
+    pdfTextCache.delete(cacheKey)
+    pdfTextCache.set(cacheKey, cached)
+    return cached
+  }
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
   const task = pdfjs.getDocument({ data: new Uint8Array(data), disableWorker: true })
   const document = await task.promise
@@ -215,11 +326,10 @@ async function extractPdfText(reference) {
       pages.push(`[Page ${pageNumber}]\n${content.items.map((item) => item.str).join(' ')}`)
     }
   } finally {
-    await document.destroy()
+    if (typeof document.destroy === 'function') await document.destroy()
   }
   const text = pages.join('\n\n')
-  pdfTextCache.clear()
-  pdfTextCache.set(cacheKey, text)
+  boundedCacheSet(pdfTextCache, cacheKey, text, PDF_TEXT_CACHE_MAX_ENTRIES)
   return text
 }
 
@@ -233,35 +343,591 @@ function questionExcerpt(text, questionNumber) {
   return compactText(source.slice(start, start + 12000), 12000)
 }
 
+function subjectCodeForQuestion(question) {
+  const match = String(question?.sourceRef?.paper || '').match(/^(\d{4})[_-]/)
+  return match?.[1] || String(question?.subjectId || '')
+}
+
+function sourceAssetPath(assetRoot, assetUrl) {
+  let pathname
+  try {
+    pathname = decodeURIComponent(new URL(String(assetUrl || ''), 'https://stem.local').pathname)
+  } catch {
+    return null
+  }
+  const prefix = '/question-assets/'
+  if (!pathname.startsWith(prefix)) return null
+  const parts = pathname.slice(prefix.length).split('/')
+  if (!parts.length || parts.some((part) => !part || part === '.' || part === '..' || part.includes('\\'))) return null
+  const root = path.resolve(assetRoot)
+  const resolved = path.resolve(root, ...parts)
+  const relative = path.relative(root, resolved)
+  return relative && !relative.startsWith('..') && !path.isAbsolute(relative) ? resolved : null
+}
+
+function imageMimeType(assetUrl) {
+  const extension = path.extname(String(assetUrl || '')).toLowerCase()
+  if (extension === '.png') return 'image/png'
+  if (extension === '.webp') return 'image/webp'
+  if (extension === '.jpg' || extension === '.jpeg') return 'image/jpeg'
+  return ''
+}
+
+function sourceContextFailure(code) {
+  return Object.assign(new Error('The paired official source images are unavailable for this response.'), {
+    statusCode: 422,
+    code,
+  })
+}
+
+function evidenceByPage(parts, evidenceForPart, documentSha256) {
+  const byPage = new Map()
+  for (const part of parts || []) {
+    for (const evidence of evidenceForPart(part)) {
+      if (evidence.documentSha256 && evidence.documentSha256 !== documentSha256) {
+        throw sourceContextFailure('source_asset_document_mismatch')
+      }
+      const existing = byPage.get(evidence.page)
+      if (existing && existing.assetSha256 !== evidence.assetSha256) {
+        throw sourceContextFailure('source_asset_checksum_conflict')
+      }
+      byPage.set(evidence.page, evidence)
+    }
+  }
+  return byPage
+}
+
+function assetUrlByPage(assetUrls, page) {
+  return (assetUrls || []).find((url) => documentPageFromAssetUrl(url) === Number(page)) || ''
+}
+
+function localOfficialImage({ assetRoot, assetUrl, page, expectedSha256, role, region = null }) {
+  const filePath = sourceAssetPath(assetRoot, assetUrl)
+  const mimeType = imageMimeType(assetUrl)
+  if (!filePath || !mimeType || !fs.existsSync(filePath)) throw sourceContextFailure('source_asset_unavailable')
+  const bytes = fs.readFileSync(filePath)
+  if (!bytes.length) throw sourceContextFailure('source_asset_unavailable')
+  const sha256 = crypto.createHash('sha256').update(bytes).digest('hex')
+  if (sha256 !== expectedSha256) throw sourceContextFailure('source_asset_checksum_mismatch')
+  return Object.freeze({
+    role,
+    page: Number(page),
+    sha256,
+    region: Array.isArray(region) ? [...region] : null,
+    dataUrl: `data:${mimeType};base64,${bytes.toString('base64')}`,
+  })
+}
+
+function mergeAiMarkingQuestionBanks(baseQuestionBank, additionalQuestionBank) {
+  const questions = new Map()
+  for (const question of [...(Array.isArray(baseQuestionBank) ? baseQuestionBank : []), ...(Array.isArray(additionalQuestionBank) ? additionalQuestionBank : [])]) {
+    const routeId = String(question?.routeId || '').trim()
+    const sourceQuestionId = String(question?.sourceQuestionId || question?.questionGroupId || '').trim()
+    if (!routeId || !sourceQuestionId) continue
+    questions.set(`${routeId}\u0000${sourceQuestionId}`, question)
+  }
+  return Object.freeze([...questions.values()])
+}
+
+function coordinateRegion(value) {
+  if (!Array.isArray(value) || value.length !== 4) return null
+  const [x0, y0, x1, y1] = value.map(Number)
+  return [x0, y0, x1, y1].every(Number.isFinite) && x0 >= 0 && y0 >= 0 && x1 <= 1 && y1 <= 1 && x0 < x1 && y0 < y1
+    ? [x0, y0, x1, y1]
+    : null
+}
+
+function unionCoordinateRegions(left, right) {
+  if (!left) return right ? [...right] : null
+  if (!right) return [...left]
+  return [
+    Math.min(left[0], right[0]),
+    Math.min(left[1], right[1]),
+    Math.max(left[2], right[2]),
+    Math.max(left[3], right[3]),
+  ]
+}
+
+function coordinatePageEvidence(entries, { expectedDocumentSha256 = '', requireRegion = false, failureCode }) {
+  const expectedHash = String(expectedDocumentSha256 || '').trim().toLowerCase()
+  const byPage = new Map()
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    const page = Number(entry?.page)
+    const pageImageSha256 = String(entry?.pageImageSha256 || '').trim().toLowerCase()
+    const region = coordinateRegion(entry?.region)
+    if (!Number.isInteger(page) || page <= 0 || !/^[a-f0-9]{64}$/.test(pageImageSha256)) throw sourceContextFailure(failureCode)
+    if (expectedHash && entry?.documentSha256 && String(entry.documentSha256).trim().toLowerCase() !== expectedHash) {
+      throw sourceContextFailure('source_asset_document_mismatch')
+    }
+    if (requireRegion && (entry?.coordinateSpace !== 'normalized-xyxy' || !region)) throw sourceContextFailure(failureCode)
+    const existing = byPage.get(page)
+    if (existing && existing.pageImageSha256 !== pageImageSha256) throw sourceContextFailure('source_asset_checksum_conflict')
+    byPage.set(page, { page, pageImageSha256, region: unionCoordinateRegions(existing?.region, region) })
+  }
+  return [...byPage.values()].sort((left, right) => left.page - right.page)
+}
+
+function coordinatePdfFileName(value, failureCode) {
+  const fileName = String(value || '').trim()
+  if (!fileName || path.basename(fileName) !== fileName || !fileName.toLowerCase().endsWith('.pdf')) throw sourceContextFailure(failureCode)
+  return fileName
+}
+
+async function coordinateOfficialImages(canonical, { libraryRoot, env, deadlineAt = null }) {
+  const question = canonical.question
+  const part = canonical.part
+  const sourceRef = question.sourceRef || {}
+  const answerRef = question.answerRef || {}
+  const subject = subjectCodeForQuestion(question)
+  const questionFile = coordinatePdfFileName(sourceRef.paper, 'source_asset_evidence_missing')
+  const markSchemeFile = coordinatePdfFileName(answerRef.file, 'mark_scheme_asset_evidence_missing')
+  const questionEvidence = coordinatePageEvidence(part.sourceEvidence, {
+    expectedDocumentSha256: sourceRef.sha256,
+    requireRegion: true,
+    failureCode: 'source_asset_evidence_missing',
+  })
+  const markSchemeEvidence = coordinatePageEvidence(part.markSchemeEvidence, {
+    failureCode: 'mark_scheme_asset_evidence_missing',
+  })
+  if (!subject || !questionEvidence.length) throw sourceContextFailure('source_asset_evidence_missing')
+  if (!markSchemeEvidence.length) throw sourceContextFailure('mark_scheme_asset_evidence_missing')
+  const renderDpi = sourceRef.renderDpi ?? answerRef.renderDpi
+  const [questionImages, markSchemeImages] = await Promise.all([
+    Promise.all(questionEvidence.map((evidence) => renderVerifiedCoordinatePdfPage({
+      libraryRoot,
+      subject,
+      fileName: questionFile,
+      expectedPdfSha256: sourceRef.sha256,
+      page: evidence.page,
+      expectedPageImageSha256: evidence.pageImageSha256,
+      role: 'question-paper',
+      region: evidence.region,
+      renderDpi,
+      deadlineAt,
+      env,
+    }))),
+    Promise.all(markSchemeEvidence.map((evidence) => renderVerifiedCoordinatePdfPage({
+      libraryRoot,
+      subject,
+      fileName: markSchemeFile,
+      expectedPdfSha256: answerRef.sha256,
+      page: evidence.page,
+      expectedPageImageSha256: evidence.pageImageSha256,
+      role: 'mark-scheme',
+      renderDpi,
+      deadlineAt,
+      env,
+    }))),
+  ])
+  return Object.freeze({ questionImages: Object.freeze(questionImages), markSchemeImages: Object.freeze(markSchemeImages) })
+}
+
+/**
+ * Resolve official QP/MS images from the current reviewed server binding.
+ * The request never supplies source URLs, hashes or image bytes for official
+ * material, so a stale or forged client capability cannot alter AI context.
+ */
+export async function canonicalHandwritingMarkingImages(canonical, { assetRoot = DEFAULT_SOURCE_ASSET_ROOT, libraryRoot, env = process.env, deadlineAt = null } = {}) {
+  if (!canonical?.ok || !canonical.question || !canonical.part) throw sourceContextFailure('source_provenance_missing')
+  const question = canonical.question
+  const sourceRef = question.sourceRef || {}
+  const answerRef = question.answerRef || {}
+  if (canonical.provenance?.reviewSchemaVersion === STEM_AI_COORDINATE_SOURCE_BINDING_SCHEMA_VERSION) {
+    return coordinateOfficialImages(canonical, { libraryRoot, env, deadlineAt })
+  }
+  if (canonical.provenance?.reviewSchemaVersion === STEM_AI_SOURCE_BINDING_SCHEMA_VERSION) {
+    const questionImages = auditedQuestionAssetEvidence(question).map((evidence) => localOfficialImage({
+      assetRoot,
+      assetUrl: evidence.assetUrl,
+      page: evidence.page,
+      expectedSha256: evidence.assetSha256,
+      role: 'question-paper',
+    }))
+    const markSchemeImages = auditedMarkSchemeAssetEvidence(question).map((evidence) => localOfficialImage({
+      assetRoot,
+      assetUrl: evidence.assetUrl,
+      page: evidence.page,
+      expectedSha256: evidence.assetSha256,
+      role: 'mark-scheme',
+    }))
+    if (!questionImages.length) throw sourceContextFailure('source_asset_evidence_missing')
+    if (!markSchemeImages.length) throw sourceContextFailure('mark_scheme_asset_evidence_missing')
+    return Object.freeze({
+      questionImages: Object.freeze(questionImages),
+      markSchemeImages: Object.freeze(markSchemeImages),
+    })
+  }
+  const sourceEvidence = evidenceByPage([canonical.part], requiredSourceAssetEvidence, String(sourceRef.sha256 || ''))
+  const questionImages = [...sourceEvidence.entries()].map(([page, evidence]) => {
+    const assetUrl = assetUrlByPage(sourceRef.assetUrls, page)
+    if (!assetUrl) throw sourceContextFailure('source_asset_evidence_missing')
+    return localOfficialImage({
+      assetRoot,
+      assetUrl,
+      page,
+      expectedSha256: evidence.assetSha256,
+      role: 'question-paper',
+    })
+  })
+  if (!questionImages.length) throw sourceContextFailure('source_asset_evidence_missing')
+
+  const markSchemeEvidence = evidenceByPage([canonical.part], requiredMarkSchemeAssetEvidence, String(answerRef.sha256 || ''))
+  const markSchemeImages = [...markSchemeEvidence.entries()].map(([page, evidence]) => {
+    const assetUrl = assetUrlByPage(answerRef.assetUrls, page)
+    if (!assetUrl) throw sourceContextFailure('mark_scheme_asset_evidence_missing')
+    return localOfficialImage({
+      assetRoot,
+      assetUrl,
+      page,
+      expectedSha256: evidence.assetSha256,
+      role: 'mark-scheme',
+    })
+  })
+  if (!markSchemeImages.length) throw sourceContextFailure('mark_scheme_asset_evidence_missing')
+
+  return Object.freeze({
+    questionImages: Object.freeze(questionImages),
+    markSchemeImages: Object.freeze(markSchemeImages),
+  })
+}
+
+/**
+ * Client supplied flags and mark points are display data only. This resolves
+ * the exact source group and part against the server's current effective bank
+ * before a provider request can be made.
+ */
+export function canonicalHandwritingMarkingContext(payload = {}, { questionBank = studyQuestionBank } = {}) {
+  const provenance = payload?.provenance || {}
+  const sourceQuestionId = String(provenance.sourceQuestionId || '').trim()
+  const questionPartId = String(provenance.questionPartId || '')
+  const routeId = String(provenance.routeId || '')
+  const bindingSignature = String(provenance.bindingSignature || '')
+  const reviewSchemaVersion = String(provenance.reviewSchemaVersion || '')
+  const reviewVersion = String(provenance.reviewVersion || '')
+  const sourceDocumentSha256 = String(provenance.sourceDocumentSha256 || '')
+  const answerDocumentSha256 = String(provenance.answerDocumentSha256 || '')
+  const sourceIndexSha256 = String(provenance.sourceIndexSha256 || '')
+  const sourceManifestChecksum = String(provenance.sourceManifestChecksum || '')
+  if (!sourceQuestionId || sourceQuestionId.includes('@') || !questionPartId || !routeId || !bindingSignature || !reviewSchemaVersion || !reviewVersion || !sourceDocumentSha256 || !answerDocumentSha256 || !sourceIndexSha256 || !sourceManifestChecksum || !provenance.sourceEvidence) {
+    return Object.freeze({ ok: false, code: 'source_provenance_missing' })
+  }
+  if (provenance.manifestSchemaVersion !== STEM_MARKING_MANIFEST_SCHEMA_VERSION || ![STEM_SOURCE_REVIEW_SCHEMA_VERSION, STEM_AI_SOURCE_BINDING_SCHEMA_VERSION, STEM_AI_COORDINATE_SOURCE_BINDING_SCHEMA_VERSION].includes(reviewSchemaVersion)) {
+    return Object.freeze({ ok: false, code: 'source_provenance_mismatch' })
+  }
+
+  const effectiveQuestionBank = Array.isArray(questionBank) ? questionBank : studyQuestionBank
+  const question = effectiveQuestionBank.find((item) => (
+    item.routeId === routeId
+    && item.sourceQuestionId === sourceQuestionId
+    && isAiMarkablePastPaperItem(item)
+  ))
+  if (!question) return Object.freeze({ ok: false, code: 'source_question_unreviewed' })
+  const part = (question.parts || []).find((item) => item.partId === questionPartId)
+  if (!part || !Number.isFinite(Number(part.marks)) || Number(part.marks) <= 0) {
+    return Object.freeze({ ok: false, code: 'source_question_unknown' })
+  }
+  const canonicalProvenance = canonicalAiMarkingProvenance(question, part)
+  if (!canonicalProvenance) return Object.freeze({ ok: false, code: 'source_question_unreviewed' })
+  const sourceEvidence = provenance.sourceEvidence || {}
+  const sourceMatches = sourceEvidence.assetId === canonicalProvenance.sourceEvidence.assetId
+    && Number(sourceEvidence.page) === canonicalProvenance.sourceEvidence.page
+    && String(sourceEvidence.assetUrl || '') === canonicalProvenance.sourceEvidence.assetUrl
+    && String(sourceEvidence.assetSha256 || '') === canonicalProvenance.sourceEvidence.assetSha256
+    && String(sourceEvidence.quote || '') === canonicalProvenance.sourceEvidence.quote
+    && (!canonicalProvenance.sourceEvidence.coordinateSpace || (
+      sourceEvidence.coordinateSpace === canonicalProvenance.sourceEvidence.coordinateSpace
+      && JSON.stringify(sourceEvidence.region || null) === JSON.stringify(canonicalProvenance.sourceEvidence.region || null)
+      && Number(sourceEvidence.markSchemePage) === Number(canonicalProvenance.sourceEvidence.markSchemePage)
+      && String(sourceEvidence.markSchemePageImageSha256 || '') === String(canonicalProvenance.sourceEvidence.markSchemePageImageSha256 || '')
+    ))
+  if (reviewSchemaVersion !== canonicalProvenance.reviewSchemaVersion
+    || bindingSignature !== canonicalProvenance.bindingSignature
+    || reviewVersion !== canonicalProvenance.reviewVersion
+    || sourceDocumentSha256 !== canonicalProvenance.sourceDocumentSha256
+    || answerDocumentSha256 !== canonicalProvenance.answerDocumentSha256
+    || sourceIndexSha256 !== canonicalProvenance.sourceIndexSha256
+    || sourceManifestChecksum !== canonicalProvenance.sourceManifestChecksum
+    || !sourceMatches) {
+    return Object.freeze({ ok: false, code: 'source_provenance_mismatch' })
+  }
+
+  const questionNumber = Number(String(question.sourceRef?.question || '').match(/\d+/)?.[0])
+  const subject = subjectCodeForQuestion(question)
+  if (!questionNumber || !subject) return Object.freeze({ ok: false, code: 'canonical_question_context_missing' })
+  return Object.freeze({
+    ok: true,
+    sourceQuestionId,
+    questionPartId,
+    question,
+    part,
+    provenance: canonicalProvenance,
+    autoFinal: [STEM_AI_SOURCE_BINDING_SCHEMA_VERSION, STEM_AI_COORDINATE_SOURCE_BINDING_SCHEMA_VERSION].includes(canonicalProvenance.reviewSchemaVersion),
+    subject,
+    questionNumber,
+  })
+}
+
 export function providerConfig(env = {}) {
+  const explicitProvider = String(env.AI_PROVIDER || env.COACH_AI_PROVIDER || env.PHYSICS_AI_PROVIDER || '').trim().toLowerCase()
+  const openAiKey = env.OPENAI_API_KEY || env.OPENAI_COACH_API_KEY || ''
+  const legacyOpenAiBaseUrl = env.OPENAI_CHAT_BASE_URL || env.OPENAI_BASE_URL || ''
+  const legacyOpenAiProtocol = normalizedProviderProtocol(env.OPENAI_API_PROTOCOL || env.OPENAI_API_STYLE, legacyOpenAiBaseUrl)
+  const gatewayBaseConfigured = Boolean(String(env.AI_GATEWAY_BASE_URL || '').trim())
+    || Boolean(String(env.AI_GATEWAY_API_KEY || '').trim())
+    || explicitProvider === 'gateway'
+    || explicitProvider === 'openai-gateway'
+    || (legacyOpenAiProtocol === 'responses' && Boolean(String(openAiKey).trim()))
+  // During the gateway migration, installations may still have the key under
+  // OPENAI_API_KEY. Only reuse it when gateway routing was explicitly opted in
+  // (by a gateway setting or provider selection); never silently redirect a
+  // normal direct-OpenAI installation.
+  const gatewayKey = env.AI_GATEWAY_API_KEY || (gatewayBaseConfigured ? openAiKey : '')
+  const gatewayRequested = explicitProvider === 'gateway' || explicitProvider === 'openai-gateway'
+  const selectedProvider = explicitProvider === 'qwen'
+    ? 'qwen'
+    : gatewayRequested || (!explicitProvider && Boolean(String(gatewayKey).trim()))
+      ? 'openai-gateway'
+      : explicitProvider === 'openai' || (!explicitProvider && Boolean(String(openAiKey).trim()))
+      ? 'openai'
+      : 'qwen'
   const workspaceId = env.DASHSCOPE_WORKSPACE_ID || env.QWEN_WORKSPACE_ID || ''
   const region = env.DASHSCOPE_REGION || 'cn-beijing'
   const dashscopeBase = workspaceId
     ? `https://${workspaceId}.${region}.maas.aliyuncs.com/compatible-mode/v1`
     : 'https://dashscope.aliyuncs.com/compatible-mode/v1'
-  const compatibleBaseUrl = (env.DASHSCOPE_COMPAT_BASE_URL || dashscopeBase).replace(/\/+$/, '')
+  const compatibleBaseUrl = normalizeCompatibleBaseUrl(env.DASHSCOPE_COMPAT_BASE_URL || dashscopeBase)
   const dashscopeKey = env.DASHSCOPE_API_KEY || env.QWEN_API_KEY || ''
   const sharedKey = env.PHYSICS_AI_API_KEY || dashscopeKey
   const sharedBaseUrl = (env.PHYSICS_AI_BASE_URL || compatibleBaseUrl).replace(/\/+$/, '')
   const publicBaseUrl = env.PHYSICS_PUBLIC_BASE_URL || env.PUBLIC_BASE_URL || ''
   const imageMode = env.PHYSICS_AI_IMAGE_MODE === 'url' ? 'url' : 'data-url'
+  const qwenCoach = {
+    name: 'qwen',
+    label: 'Qwen',
+    protocol: 'chat-completions',
+    apiKey: env.COACH_AI_API_KEY || env.QWEN_COACH_API_KEY || sharedKey,
+    baseUrl: normalizeCompatibleBaseUrl(env.COACH_AI_BASE_URL || env.QWEN_COACH_BASE_URL || sharedBaseUrl),
+    model: env.COACH_AI_MODEL || env.QWEN_COACH_MODEL || env.PHYSICS_COACH_MODEL || 'qwen3.7-max',
+    publicBaseUrl,
+    imageMode,
+  }
+  const qwenVision = {
+    name: 'qwen',
+    label: 'Qwen',
+    protocol: 'chat-completions',
+    apiKey: env.VISION_AI_API_KEY || env.QWEN_VISION_API_KEY || sharedKey,
+    baseUrl: normalizeCompatibleBaseUrl(env.VISION_AI_BASE_URL || env.QWEN_VISION_BASE_URL || sharedBaseUrl),
+    model: env.VISION_AI_MODEL || env.QWEN_VISION_MODEL || env.PHYSICS_VISION_MODEL || 'qwen3-vl-plus',
+    publicBaseUrl,
+    imageMode,
+  }
+  if (selectedProvider === 'openai-gateway') {
+    const gatewayBaseUrl = normalizeOpenAiChatBaseUrl(env.AI_GATEWAY_BASE_URL || 'https://ai.ieltsist.com/v1')
+    const gatewayModel = env.AI_GATEWAY_MODEL || 'gpt-5.5'
+    const gatewayReasoningEffort = normalizedReasoningEffort(env.AI_GATEWAY_REASONING_EFFORT)
+    const gatewayCoach = {
+      name: 'openai-gateway',
+      label: 'OpenAI gateway',
+      protocol: 'responses',
+      apiKey: gatewayKey,
+      baseUrl: gatewayBaseUrl,
+      model: gatewayModel,
+      reasoningEffort: gatewayReasoningEffort,
+      publicBaseUrl,
+      imageMode,
+      fallback: qwenCoach,
+    }
+    const gatewayVision = {
+      name: 'openai-gateway',
+      label: 'OpenAI gateway',
+      protocol: 'responses',
+      apiKey: env.AI_GATEWAY_VISION_API_KEY || gatewayKey,
+      baseUrl: normalizeOpenAiChatBaseUrl(env.AI_GATEWAY_VISION_BASE_URL || gatewayBaseUrl),
+      model: env.AI_GATEWAY_VISION_MODEL || gatewayModel,
+      reasoningEffort: gatewayReasoningEffort,
+      publicBaseUrl,
+      imageMode,
+      fallback: qwenVision,
+    }
+    return {
+      provider: 'openai-gateway',
+      coach: gatewayCoach,
+      vision: gatewayVision,
+    }
+  }
+  if (selectedProvider === 'openai') {
+    const openAiBaseUrl = normalizeOpenAiChatBaseUrl(env.OPENAI_CHAT_BASE_URL || env.OPENAI_BASE_URL || 'https://api.openai.com/v1')
+    const openAiCoachModel = env.OPENAI_COACH_MODEL || env.OPENAI_MODEL || 'gpt-5.6'
+    const openAiCoach = {
+      name: 'openai',
+      label: 'OpenAI',
+      protocol: normalizedProviderProtocol(env.OPENAI_API_PROTOCOL || env.OPENAI_API_STYLE, env.OPENAI_CHAT_BASE_URL || env.OPENAI_BASE_URL),
+      apiKey: openAiKey,
+      baseUrl: openAiBaseUrl,
+      model: openAiCoachModel,
+      publicBaseUrl,
+      imageMode,
+      fallback: qwenCoach,
+    }
+    const openAiVision = {
+      name: 'openai',
+      label: 'OpenAI',
+      protocol: normalizedProviderProtocol(env.OPENAI_VISION_API_PROTOCOL || env.OPENAI_API_PROTOCOL || env.OPENAI_API_STYLE, env.OPENAI_VISION_BASE_URL || openAiBaseUrl),
+      apiKey: env.OPENAI_VISION_API_KEY || openAiKey,
+      baseUrl: normalizeOpenAiChatBaseUrl(env.OPENAI_VISION_BASE_URL || openAiBaseUrl),
+      model: env.OPENAI_VISION_MODEL || env.OPENAI_MODEL || openAiCoachModel,
+      publicBaseUrl,
+      imageMode,
+      fallback: qwenVision,
+    }
+    return {
+      provider: 'openai',
+      coach: openAiCoach,
+      vision: openAiVision,
+    }
+  }
   return {
     provider: 'qwen',
-    coach: {
-      apiKey: env.COACH_AI_API_KEY || env.QWEN_COACH_API_KEY || sharedKey,
-      baseUrl: (env.COACH_AI_BASE_URL || env.QWEN_COACH_BASE_URL || sharedBaseUrl).replace(/\/+$/, ''),
-      model: env.COACH_AI_MODEL || env.QWEN_COACH_MODEL || env.PHYSICS_COACH_MODEL || 'qwen3.7-max',
-      publicBaseUrl,
-      imageMode,
-    },
-    vision: {
-      apiKey: env.VISION_AI_API_KEY || env.QWEN_VISION_API_KEY || sharedKey,
-      baseUrl: (env.VISION_AI_BASE_URL || env.QWEN_VISION_BASE_URL || sharedBaseUrl).replace(/\/+$/, ''),
-      model: env.VISION_AI_MODEL || env.QWEN_VISION_MODEL || env.PHYSICS_VISION_MODEL || 'qwen3-vl-plus',
-      publicBaseUrl,
-      imageMode,
-    },
+    coach: { ...qwenCoach, protocol: 'chat-completions' },
+    vision: { ...qwenVision, protocol: 'chat-completions' },
   }
+}
+
+function normalizedProviderProtocol(value, baseUrl = '') {
+  const explicit = String(value || '').trim().toLowerCase()
+  if (explicit === 'responses' || explicit === 'response') return 'responses'
+  if (explicit === 'chat' || explicit === 'chat-completions' || explicit === 'chat_completions') return 'chat-completions'
+  const source = String(baseUrl || '').trim()
+  // The legacy deployment used the shared ai.ieltsist.com origin without an
+  // explicit `/responses` suffix. That origin exposes the Responses API, so
+  // recognize it while leaving ordinary OpenAI-compatible chat endpoints
+  // unchanged.
+  return /\/responses(?:\/?)$/i.test(source) || /(^|:\/\/)ai\.ieltsist\.com(?:\/|$)/i.test(source)
+    ? 'responses'
+    : 'chat-completions'
+}
+
+function normalizedReasoningEffort(value) {
+  const effort = String(value || 'xhigh').trim().toLowerCase()
+  return ['low', 'medium', 'high', 'xhigh'].includes(effort) ? effort : 'xhigh'
+}
+
+function normalizeCompatibleBaseUrl(value) {
+  const source = String(value || '').trim().replace(/[\r\n]+/g, '').replace(/\/+$/, '')
+  if (!source) return ''
+  if (/\/(?:chat\/completions|responses)$/i.test(source)) return source.replace(/\/(?:chat\/completions|responses)$/i, '')
+  return source
+}
+
+export function normalizeOpenAiChatBaseUrl(value) {
+  const source = String(value || '').trim().replace(/[\r\n]+/g, '').replace(/\/+$/, '')
+  if (!source) return ''
+  const hasExplicitEndpoint = /\/(?:chat\/completions|responses)$/i.test(source)
+  const withoutEndpoint = hasExplicitEndpoint
+    ? source.replace(/\/(?:chat\/completions|responses)$/i, '')
+    : source
+  if (hasExplicitEndpoint || /\/v1$/i.test(withoutEndpoint)) return withoutEndpoint
+  return `${withoutEndpoint}/v1`
+}
+
+function isResponsesProvider(provider) {
+  return provider?.protocol === 'responses'
+}
+
+function providerEndpoint(provider) {
+  return `${String(provider?.baseUrl || '').replace(/\/+$/, '')}/${isResponsesProvider(provider) ? 'responses' : 'chat/completions'}`
+}
+
+function providerMetadata(metadata) {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return null
+  const entries = Object.entries(metadata)
+    .slice(0, 16)
+    .map(([key, value]) => {
+      const safeKey = String(key || '').replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 64)
+      if (!safeKey) return null
+      let serialized = ''
+      try {
+        serialized = typeof value === 'string' ? value : JSON.stringify(value)
+      } catch {
+        serialized = ''
+      }
+      return [safeKey, String(serialized || '').slice(0, 512)]
+    })
+    .filter(Boolean)
+  return entries.length ? Object.fromEntries(entries) : null
+}
+
+function responseInputContentItem(item) {
+  if (typeof item === 'string') return { type: 'input_text', text: item }
+  if (!item || typeof item !== 'object') return null
+  if (item.type === 'image_url' && item.image_url?.url) {
+    return { type: 'input_image', image_url: String(item.image_url.url), detail: 'auto' }
+  }
+  if (item.type === 'text' || item.type === 'input_text' || item.type === 'output_text') {
+    return { type: 'input_text', text: String(item.text || '') }
+  }
+  return null
+}
+
+function responsesInput(messages = []) {
+  return messages
+    .filter((message) => message && message.role !== 'system' && message.role !== 'developer')
+    .map((message) => {
+      // Responses input messages accept user/system/developer roles. Preserve
+      // prior Coach turns as labelled user context instead of sending an
+      // output-only assistant item that strict gateways reject.
+      const prefix = message.role === 'assistant' ? '[Previous Coach response]\n' : ''
+      const rawContent = Array.isArray(message.content) ? message.content : [message.content]
+      const content = rawContent.map(responseInputContentItem).filter(Boolean)
+      if (prefix && content[0]?.type === 'input_text') content[0] = { ...content[0], text: `${prefix}${content[0].text}` }
+      return { role: 'user', content: content.length ? content : [{ type: 'input_text', text: prefix.trim() }] }
+    })
+}
+
+function responsesInstructions(messages = []) {
+  const instructions = messages
+    .filter((message) => message?.role === 'system' || message?.role === 'developer')
+    .map((message) => Array.isArray(message.content)
+      ? message.content.map((item) => responseInputContentItem(item)?.text || '').join('\n')
+      : String(message.content || ''))
+    .filter(Boolean)
+  return instructions.join('\n\n') || null
+}
+
+function providerRequestBody(provider, { messages, temperature = 0.2, stream = false, json = false, metadata = null }) {
+  const safeMetadata = providerMetadata(metadata)
+  if (isResponsesProvider(provider)) {
+    const instructions = responsesInstructions(messages)
+    return {
+      model: provider.model,
+      input: responsesInput(messages),
+      ...(instructions ? { instructions } : {}),
+      ...(provider.reasoningEffort ? { reasoning: { effort: provider.reasoningEffort } } : {}),
+      stream,
+      ...(json ? { text: { format: { type: 'json_object' } } } : {}),
+      ...(safeMetadata ? { metadata: safeMetadata } : {}),
+    }
+  }
+  return {
+    model: provider.model,
+    messages,
+    ...providerSampling(provider, temperature),
+    stream,
+    ...(json ? { response_format: { type: 'json_object' } } : {}),
+    ...(safeMetadata ? { metadata: safeMetadata } : {}),
+  }
+}
+
+function responseOutputText(payload) {
+  const direct = String(payload?.output_text || '').trim()
+  if (direct) return direct
+  const outputItems = Array.isArray(payload?.output) ? payload.output : []
+  const outputText = outputItems.flatMap((item) => Array.isArray(item?.content) ? item.content : [])
+    .map((item) => item?.type === 'output_text' || item?.type === 'text' ? String(item.text || '') : '')
+    .join('')
+    .trim()
+  if (outputText) return outputText
+  return String(payload?.choices?.[0]?.message?.content || '').trim()
 }
 
 function imagePublicBase(provider, request) {
@@ -276,33 +942,231 @@ function publicBaseUrlFromRequest(request) {
   return `${proto}://${host}`
 }
 
-function providerMessage(error) {
+function providerMessage(error, provider) {
+  const label = provider?.label || 'AI provider'
   const message = String(error?.message || error || '')
-  if (/timeout|timed out|fetch failed|econn|network/i.test(message)) return 'The AI service could not be reached. Try again in a moment.'
-  return 'AI review is temporarily unavailable. Your answer remains saved.'
+  if (/timeout|timed out|abort/i.test(message)) return `${label} request timed out. Check the server network and retry.`
+  if (/fetch failed|econn|enotfound|network/i.test(message)) return `${label} network request failed. Check the server network and retry.`
+  const status = message.match(/AI provider returned (\d{3})/)?.[1]
+  if (status === '401' || status === '403') return `${label} authentication or model access failed. Check the server key and model permission.`
+  if (status === '404') return `${label} model or endpoint was not found. Check the Base URL and model ID.`
+  if (status) return `${label} upstream returned HTTP ${status}. Retry or check the provider configuration.`
+  return `${label} review is temporarily unavailable. Your answer remains saved.`
 }
 
-async function callCompatibleAi(provider, { messages, temperature = 0.2, json = false }) {
-  if (!provider.apiKey) return null
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 60000)
+function providerSampling(provider, temperature) {
+  if (/^gpt-5/i.test(String(provider?.model || ''))) {
+    return provider?.reasoningEffort
+      ? { reasoning_effort: provider.reasoningEffort }
+      : {}
+  }
+  return { temperature }
+}
+
+function providerCandidates(provider) {
+  const candidates = []
+  const seen = new Set()
+  let current = provider
+  while (current && !seen.has(current)) {
+    seen.add(current)
+    if (current.apiKey) candidates.push(current)
+    current = current.fallback
+  }
+  return candidates
+}
+
+function boundedDuration(value, fallback, minimum, maximum) {
+  const number = Number(value)
+  if (!Number.isFinite(number) || number <= 0) return fallback
+  return Math.min(maximum, Math.max(minimum, Math.round(number)))
+}
+
+function aiTimeoutConfig(env = {}) {
+  const sharedTotalDeadlineSource = env.STEM_AI_TOTAL_DEADLINE_MS
+    || env.PHYSICS_AI_TOTAL_DEADLINE_MS
+  const totalDeadlineSource = sharedTotalDeadlineSource
+    || env.STEM_AI_REQUEST_DEADLINE_MS
+    || env.PHYSICS_AI_REQUEST_DEADLINE_MS
+  const providerTimeoutMs = boundedDuration(
+    env.STEM_AI_PROVIDER_TIMEOUT_MS || env.PHYSICS_AI_PROVIDER_TIMEOUT_MS,
+    DEFAULT_AI_PROVIDER_TIMEOUT_MS,
+    MIN_AI_TIMEOUT_MS,
+    MAX_AI_PROVIDER_TIMEOUT_MS,
+  )
+  const requestDeadlineMs = boundedDuration(
+    totalDeadlineSource,
+    DEFAULT_AI_REQUEST_DEADLINE_MS,
+    MIN_AI_TIMEOUT_MS,
+    MAX_AI_REQUEST_DEADLINE_MS,
+  )
+  const visionTotalDeadlineSource = env.STEM_AI_VISION_TOTAL_DEADLINE_MS
+    || env.STEM_AI_VISION_REQUEST_DEADLINE_MS
+    || env.PHYSICS_AI_VISION_TOTAL_DEADLINE_MS
+    || env.PHYSICS_AI_VISION_REQUEST_DEADLINE_MS
+    || sharedTotalDeadlineSource
+  const visionProviderTimeoutMs = boundedDuration(
+    env.STEM_AI_VISION_PROVIDER_TIMEOUT_MS || env.PHYSICS_AI_VISION_PROVIDER_TIMEOUT_MS,
+    DEFAULT_AI_VISION_PROVIDER_TIMEOUT_MS,
+    MIN_AI_TIMEOUT_MS,
+    MAX_AI_PROVIDER_TIMEOUT_MS,
+  )
+  const visionRequestDeadlineMs = boundedDuration(
+    visionTotalDeadlineSource,
+    DEFAULT_AI_VISION_REQUEST_DEADLINE_MS,
+    MIN_AI_TIMEOUT_MS,
+    MAX_AI_REQUEST_DEADLINE_MS,
+  )
+  return Object.freeze({
+    providerTimeoutMs,
+    requestDeadlineMs,
+    totalDeadlineMs: requestDeadlineMs,
+    visionProviderTimeoutMs,
+    visionRequestDeadlineMs,
+    visionTotalDeadlineMs: visionRequestDeadlineMs,
+  })
+}
+
+function aiDeadlineError() {
+  const error = new Error('AI request deadline exceeded.')
+  error.name = 'AbortError'
+  error.code = 'AI_REQUEST_DEADLINE'
+  return error
+}
+
+function effectiveAiTimeoutMs(timeoutMs, deadlineAt) {
+  const configuredTimeoutMs = boundedDuration(timeoutMs, DEFAULT_AI_PROVIDER_TIMEOUT_MS, 1, MAX_AI_PROVIDER_TIMEOUT_MS)
+  if (!Number.isFinite(deadlineAt)) return configuredTimeoutMs
+  const remainingMs = Math.floor(deadlineAt - Date.now())
+  if (remainingMs <= 0) throw aiDeadlineError()
+  return Math.min(configuredTimeoutMs, remainingMs)
+}
+
+function emitProviderTelemetry(telemetry, event) {
+  const safeEvent = {
+    requestId: String(event.requestId || '').replace(/[^a-z0-9._:-]/gi, '').slice(0, 80) || null,
+    operation: String(event.operation || 'ai').slice(0, 40),
+    provider: String(event.provider || '').slice(0, 40),
+    model: String(event.model || '').slice(0, 120),
+    providerAttempt: Number.isInteger(event.providerAttempt) && event.providerAttempt > 0 ? Math.min(event.providerAttempt, 10) : 1,
+    fallbackPath: String(event.fallbackPath || event.provider || '').replace(/[^a-z0-9._:>-]/gi, '').slice(0, 160),
+    timeoutMs: boundedDuration(event.timeoutMs, DEFAULT_AI_PROVIDER_TIMEOUT_MS, 1, MAX_AI_REQUEST_DEADLINE_MS),
+    fallback: Boolean(event.fallback),
+    statusCode: Number.isInteger(event.statusCode) ? event.statusCode : null,
+    schemaStatus: String(event.schemaStatus || 'unknown').slice(0, 40),
+    durationMs: Math.max(0, Number(event.durationMs) || 0),
+    finalState: String(event.finalState || 'error').slice(0, 40),
+  }
+  if (event.failureClass || event.finalState !== 'connected') {
+    const totalDeadlineMs = Number(event.totalDeadlineMs)
+    const deadlineRemainingMs = Number(event.deadlineRemainingMs)
+    if (Number.isFinite(totalDeadlineMs) && totalDeadlineMs > 0) safeEvent.totalDeadlineMs = Math.round(totalDeadlineMs)
+    if (Number.isFinite(deadlineRemainingMs) && deadlineRemainingMs >= 0) safeEvent.deadlineRemainingMs = Math.round(deadlineRemainingMs)
+    if (event.failureClass) safeEvent.failureClass = String(event.failureClass).replace(/[^a-z0-9_-]/gi, '').slice(0, 40)
+  }
   try {
-    const response = await fetch(`${provider.baseUrl}/chat/completions`, {
+    if (typeof telemetry === 'function') telemetry(safeEvent)
+    else console.info(`[ai-provider] ${JSON.stringify(safeEvent)}`)
+  } catch {
+    // Telemetry must never change provider or marking behavior.
+  }
+}
+
+function aiResponseSchemaError(error) {
+  const schemaError = error instanceof Error ? error : new Error(String(error || 'AI provider returned an invalid response schema.'))
+  schemaError.code = 'AI_RESPONSE_SCHEMA_INVALID'
+  return schemaError
+}
+
+async function callCompatibleAi(provider, { messages, temperature = 0.2, json = false, metadata = null, operation = 'ai', requestId = '', providerAttempt = 1, fallbackPath = '', fallback = false, telemetry = null, timeoutMs = DEFAULT_AI_PROVIDER_TIMEOUT_MS, totalDeadlineMs = null, deadlineAt = null, validateResponse = null }) {
+  const startedAt = Date.now()
+  let statusCode = null
+  let schemaStatus = 'not-checked'
+  let finalState = provider.apiKey ? 'error' : 'not_configured'
+  let requestTimeoutMs = timeoutMs
+  let failureClass = null
+  if (!provider.apiKey) {
+    emitProviderTelemetry(telemetry, { requestId, operation, provider: provider.name, model: provider.model, providerAttempt, fallbackPath, fallback, timeoutMs: requestTimeoutMs, totalDeadlineMs, statusCode, schemaStatus, finalState, durationMs: Date.now() - startedAt })
+    return null
+  }
+  let timeout = null
+  try {
+    requestTimeoutMs = effectiveAiTimeoutMs(timeoutMs, deadlineAt)
+    const configuredTimeoutMs = boundedDuration(timeoutMs, DEFAULT_AI_PROVIDER_TIMEOUT_MS, 1, MAX_AI_PROVIDER_TIMEOUT_MS)
+    let timeoutReason = requestTimeoutMs < configuredTimeoutMs ? 'total_deadline' : 'provider_timeout'
+    const controller = new AbortController()
+    timeout = setTimeout(() => {
+      failureClass = timeoutReason
+      controller.abort()
+    }, requestTimeoutMs)
+    const response = await fetch(providerEndpoint(provider), {
       method: 'POST',
       headers: { Authorization: `Bearer ${provider.apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: provider.model, messages, temperature, stream: false, ...(json ? { response_format: { type: 'json_object' } } : {}) }),
+      body: JSON.stringify(providerRequestBody(provider, { messages, temperature, stream: false, json, metadata })),
       signal: controller.signal,
     })
+    statusCode = response.status
     if (!response.ok) {
       const providerPayload = await response.json().catch(() => ({}))
       const providerCode = compactText(providerPayload?.error?.code || providerPayload?.code, 80)
       const providerDetail = compactText(providerPayload?.error?.message || providerPayload?.message, 140)
       throw new Error(`AI provider returned ${response.status}${providerCode ? ` (${providerCode})` : ''}${providerDetail ? `: ${providerDetail}` : ''}`)
     }
-    const payload = await response.json()
-    return String(payload?.choices?.[0]?.message?.content || '').trim()
+    let payload
+    try {
+      payload = await response.json()
+    } catch (error) {
+      schemaStatus = 'invalid'
+      throw aiResponseSchemaError(error)
+    }
+    if (isResponsesProvider(provider) && payload?.status !== 'completed') {
+      schemaStatus = 'invalid'
+      throw aiResponseSchemaError('AI Responses provider did not complete the response.')
+    }
+    const answer = isResponsesProvider(provider)
+      ? responseOutputText(payload)
+      : String(payload?.choices?.[0]?.message?.content || '').trim()
+    if ((!isResponsesProvider(provider) && !Array.isArray(payload?.choices)) || !answer) {
+      schemaStatus = 'invalid'
+      throw aiResponseSchemaError('AI provider returned an invalid response schema.')
+    }
+    if (typeof validateResponse === 'function') {
+      try {
+        validateResponse(answer)
+      } catch (error) {
+        schemaStatus = 'invalid'
+        throw aiResponseSchemaError(error)
+      }
+    }
+    schemaStatus = 'valid'
+    finalState = 'connected'
+    return answer
+  } catch (error) {
+    finalState = error?.name === 'AbortError' ? 'timeout' : 'error'
+    if (!failureClass) {
+      failureClass = error?.code === 'AI_REQUEST_DEADLINE'
+        ? 'total_deadline'
+        : finalState === 'timeout' ? 'provider_timeout' : statusCode >= 400 ? 'provider_http_error' : 'transport_error'
+    }
+    throw error
   } finally {
-    clearTimeout(timeout)
+    if (timeout) clearTimeout(timeout)
+    emitProviderTelemetry(telemetry, {
+      requestId,
+      operation,
+      provider: provider.name,
+      model: provider.model,
+      providerAttempt,
+      fallbackPath,
+      fallback,
+      timeoutMs: requestTimeoutMs,
+      totalDeadlineMs,
+      deadlineRemainingMs: Number.isFinite(deadlineAt) ? Math.max(0, deadlineAt - Date.now()) : null,
+      statusCode,
+      schemaStatus,
+      finalState,
+      failureClass,
+      durationMs: Date.now() - startedAt,
+    })
   }
 }
 
@@ -314,16 +1178,48 @@ export function parseStructuredJson(value) {
   return JSON.parse(source.slice(start, end + 1))
 }
 
+function validateMarkAssessment(value, requestedMaxMarks) {
+  const maxMarks = Math.max(1, Math.round(Number(requestedMaxMarks) || 1))
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('AI assessment must be an object.')
+  if (!Object.hasOwn(value, 'rawMarks') || typeof value.rawMarks !== 'number' || !Number.isFinite(value.rawMarks) || !Number.isInteger(value.rawMarks)) throw new Error('AI assessment rawMarks is missing or invalid.')
+  if (Number(value.rawMarks) < 0 || Number(value.rawMarks) > maxMarks) throw new Error('AI assessment rawMarks is outside the requested mark range.')
+  if (!Object.hasOwn(value, 'confidence') || typeof value.confidence !== 'number' || !Number.isFinite(value.confidence) || value.confidence < 0 || value.confidence > 1) throw new Error('AI assessment confidence is missing or invalid.')
+  if (typeof value.reviewRequired !== 'boolean') throw new Error('AI assessment reviewRequired is missing or invalid.')
+  if (!Array.isArray(value.markPoints) || !value.markPoints.length) throw new Error('AI assessment markPoints are missing or invalid.')
+  const pointIds = new Set()
+  let totalMarks = 0
+  for (const point of value.markPoints) {
+    if (!point || typeof point !== 'object' || Array.isArray(point)) throw new Error('AI assessment mark point is invalid.')
+    if (typeof point.id !== 'string' || !point.id.trim() || pointIds.has(point.id.trim())) throw new Error('AI assessment mark point ID is missing or duplicated.')
+    if (typeof point.awarded !== 'boolean') throw new Error('AI assessment mark point awarded must be boolean.')
+    if (typeof point.marks !== 'number' || !Number.isFinite(point.marks) || !Number.isInteger(point.marks) || point.marks < 0 || point.marks > maxMarks) throw new Error('AI assessment mark point marks are invalid.')
+    if ((!point.awarded && point.marks !== 0) || (point.awarded && point.marks <= 0)) throw new Error('AI assessment mark point awarded state conflicts with marks.')
+    if (typeof point.reason !== 'string' || !point.reason.trim()) throw new Error('AI assessment mark point rationale is missing.')
+    if (typeof point.studentEvidence !== 'string' || !point.studentEvidence.trim()) throw new Error('AI assessment mark point student evidence is missing.')
+    pointIds.add(point.id.trim())
+    totalMarks += point.marks
+  }
+  if (totalMarks !== value.rawMarks) throw new Error('AI assessment mark points do not reconcile with rawMarks.')
+  return value
+}
+
 export function normalizeMarkResult(value, requestedMaxMarks) {
-  const maxMarks = Math.max(1, Math.round(Number(value.maxMarks) || Number(requestedMaxMarks) || 1))
+  const maxMarks = Math.max(1, Math.round(Number(requestedMaxMarks) || 1))
   const rawMarks = Math.min(maxMarks, Math.max(0, Math.round(Number(value.rawMarks) || 0)))
-  const markPoints = Array.isArray(value.markPoints) ? value.markPoints.slice(0, maxMarks + 4).map((point, index) => ({
+  const suppliedMarkPoints = Array.isArray(value.markPoints) ? value.markPoints.slice(0, maxMarks + 4).map((point, index) => ({
     id: String(point.id || `M${index + 1}`).slice(0, 30),
     awarded: Boolean(point.awarded),
     marks: Math.min(maxMarks, Math.max(0, Number(point.marks) || (point.awarded ? 1 : 0))),
     reason: compactText(point.reason, 500),
     studentEvidence: compactText(point.studentEvidence, 500),
   })) : []
+  const markPoints = suppliedMarkPoints.length ? suppliedMarkPoints : [{
+    id: 'AI-overall',
+    awarded: rawMarks > 0,
+    marks: rawMarks,
+    reason: compactText(value.summary, 500) || `AI examiner awarded ${rawMarks}/${maxMarks}.`,
+    studentEvidence: compactText(value.recognizedWork, 500),
+  }]
   return {
     rawMarks,
     maxMarks,
@@ -364,97 +1260,528 @@ async function hydrateCoachPaperContext(context, libraryRoot, allowedSubjects) {
   const questionNumber = Number(context?.question?.number || context?.questionNumber)
   if (!subject || !questionFile || !questionNumber) return context
   const questionReference = resolvePdfReference(libraryRoot, allowedSubjects, subject, questionFile)
-  const questionText = questionExcerpt(await extractPdfText(questionReference), questionNumber)
-  return { ...context, sourceQuestionExtract: questionText }
+  const { cacheKey } = await pdfBytes(questionReference)
+  const contextKey = `${cacheKey}:q${questionNumber}`
+  let questionText = coachContextCache.get(contextKey)
+  if (questionText) {
+    coachContextCache.delete(contextKey)
+    coachContextCache.set(contextKey, questionText)
+  } else {
+    questionText = questionExcerpt(await extractPdfText(questionReference), questionNumber)
+    boundedCacheSet(coachContextCache, contextKey, questionText, COACH_CONTEXT_CACHE_MAX_ENTRIES)
+  }
+  return { ...context, sourceQuestionExtract: compactText(questionText, COACH_CONTEXT_MAX_CHARS) }
 }
 
-async function handleCoach(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env) {
+function shouldUseLocalCoachFirst({ message, hasImages, hintLevel }) {
+  if (hasImages) return false
+  const clean = String(message || '').trim()
+  if (!clean || clean.length > 180 || Number(hintLevel) > 2) return false
+  return /(?:hint|nudge|next step|what should i practise|check my method|提示|下一步|练什么|方法检查)/i.test(clean)
+}
+
+function coachRequestContext(context, message) {
+  return compactText(JSON.stringify({
+    view: context.view,
+    subject: context.subject,
+    syllabus: context.syllabus,
+    routeId: context.routeId,
+    stage: context.stage,
+    topic: context.topic,
+    component: context.component,
+    attemptId: context.attemptId,
+    paperStudyMode: context.paperStudyMode,
+    submissionStatus: context.submissionStatus,
+    responseStatus: context.responseStatus,
+    submitted: context.submitted,
+    question: context.question,
+    part: context.part,
+    paper: context.paper,
+    sourceQuestionExtract: context.sourceQuestionExtract,
+    studentRequest: message,
+  }), COACH_CONTEXT_MAX_CHARS)
+}
+
+async function handleCoach(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest) {
   const payload = await readJsonBody(request)
+  const authorization = typeof authorizeCoachRequest === 'function'
+    ? await authorizeCoachRequest({ request, payload })
+    : null
   const message = compactText(payload.message, 3000)
   const history = Array.isArray(payload.history) ? payload.history.slice(-10).map((item) => ({ role: item.role === 'assistant' ? 'assistant' : 'user', content: compactText(item.content, 3000) })) : []
   // Client context is useful for tutoring, but cannot authorize answer release.
   // In particular, `context.submitted` is deliberately discarded here.
   const suppliedContext = safeCoachContext(payload.context)
-  const context = await hydrateCoachPaperContext(suppliedContext, libraryRoot, allowedSubjects)
-  const verifiedSubmitted = verifiedCoachSubmission(payload, request, env)
+  const context = await hydrateCoachPaperContext(applyCoachAuthorization(suppliedContext, authorization), libraryRoot, allowedSubjects)
+  const verifiedSubmitted = Boolean(authorization?.submitted) || verifiedCoachSubmission(payload, request, env)
   const hintLevel = Math.min(5, Math.max(1, Number(payload.hintLevel) || 1))
-  const imageDataUrl = payload.imageDataUrl || ''
-  if (imageDataUrl) imageBytes(imageDataUrl)
-  if (!message && !imageDataUrl) throw Object.assign(new Error('Ask a question or attach an image.'), { statusCode: 400 })
+  const imageDataUrls = coachImageDataUrls(payload)
+  const hasImages = imageDataUrls.length > 0
+  if (!message && !hasImages) throw Object.assign(new Error('Ask a question or attach an image.'), { statusCode: 400 })
   const localAnswer = localCoachReply(context, hintLevel)
-  const activeProvider = imageDataUrl && visionProvider?.apiKey ? visionProvider : provider
-  if (!activeProvider.apiKey) return sendJson(response, 200, { mode: 'local', answer: localAnswer, warning: 'Qwen AI Coach is not configured on this local server.' })
-  const userText = [
-    `Structured learning context:\n${compactText(JSON.stringify(context), 12000)}`,
-    `Student request:\n${message || 'Explain the attached handwriting or diagram.'}`,
-  ].join('\n\n')
-  const providerImage = imageDataUrl ? await temporaryImageUrl(imageDataUrl, imagePublicBase(activeProvider, request)) : null
-  const content = providerImage ? [{ type: 'text', text: userText }, { type: 'image_url', image_url: { url: providerImage.url } }] : userText
-  try {
-    const answer = await callCompatibleAi(activeProvider, {
-      messages: [{ role: 'system', content: buildCoachSystemPrompt({ verifiedSubmitted, hintLevel }) }, ...history, { role: 'user', content }],
-      temperature: 0.2,
-    })
-    return sendJson(response, 200, { mode: 'ai', provider: 'qwen', answer: answer || localAnswer, model: activeProvider.model })
-  } catch (error) {
-    return sendJson(response, 200, { mode: 'local', answer: localAnswer, warning: providerMessage(error) })
-  } finally {
-    providerImage?.cleanup()
-  }
-}
-
-async function paperContext(payload, libraryRoot, allowedSubjects) {
-  if (!payload.paper?.questionFile || !payload.paper?.markSchemeFile) return { questionText: '', markSchemeText: '' }
-  const subject = String(payload.paper.subject || '')
-  const questionReference = resolvePdfReference(libraryRoot, allowedSubjects, subject, String(payload.paper.questionFile || ''))
-  const markSchemeReference = resolvePdfReference(libraryRoot, allowedSubjects, subject, String(payload.paper.markSchemeFile || ''))
-  const [questionText, markSchemeText] = await Promise.all([extractPdfText(questionReference), extractPdfText(markSchemeReference)])
-  return {
-    questionText: questionExcerpt(questionText, payload.questionNumber),
-    markSchemeText: questionExcerpt(markSchemeText, payload.questionNumber),
-  }
-}
-
-async function handleHandwritingMark(request, response, provider, libraryRoot, allowedSubjects) {
-  const payload = await readJsonBody(request)
-  imageBytes(payload.imageDataUrl)
-  const questionImages = Array.isArray(payload.questionImageDataUrls) ? payload.questionImageDataUrls.slice(0, 2) : []
-  const markSchemeImages = Array.isArray(payload.markSchemeImageDataUrls) ? payload.markSchemeImageDataUrls.slice(0, 2) : []
-  for (const image of [...questionImages, ...markSchemeImages]) imageBytes(image)
-  const requestedMaxMarks = Number(payload.maxMarks)
-  if (!Number.isFinite(requestedMaxMarks) || requestedMaxMarks <= 0) {
+  if (shouldUseLocalCoachFirst({ message, hasImages, hintLevel })) {
     return sendJson(response, 200, {
-      mode: 'vision',
-      status: 'review-only',
-      marksAvailable: false,
-      reviewRequired: true,
-      confidence: 0,
-      rawMarks: null,
-      maxMarks: null,
-      summary: 'The official question-level mark allocation is not available for this PDF item.',
-      nextAction: 'Review the handwriting against the paired mark scheme and enter self-marked marks manually.',
-      markPoints: [],
+      mode: 'local',
+      providerStatus: 'skipped',
+      answer: localAnswer,
+      warning: 'Local first hint. Ask for a detailed explanation to escalate to AI Coach.',
+      retryable: false,
+      canEscalate: true,
     })
   }
-  if (!provider.apiKey) return sendJson(response, 503, { code: 'vision_not_configured', error: 'Qwen vision marking is not configured on this local server.' })
-  let source
+  if (!authenticatedStemUser(request, env)) {
+    throw Object.assign(new Error('Sign in to STEM before using detailed AI Coach.'), { statusCode: 401 })
+  }
+  const configuredProvider = hasImages ? visionProvider : provider
+  const activeProviders = providerCandidates(configuredProvider)
+  if (!activeProviders.length) return sendJson(response, 200, { mode: 'offline', providerStatus: 'not_configured', answer: localAnswer, warning: 'AI Coach provider is not configured on this server. This is an offline hint, not an AI review.' })
+  const userText = coachRequestContext(context, message)
+  const requestBudget = hasImages
+    ? { providerTimeoutMs: timeoutConfig.visionProviderTimeoutMs, totalDeadlineMs: timeoutConfig.visionTotalDeadlineMs }
+    : { providerTimeoutMs: timeoutConfig.providerTimeoutMs, totalDeadlineMs: timeoutConfig.totalDeadlineMs }
+  const deadlineAt = Date.now() + requestBudget.totalDeadlineMs
+  const requestId = crypto.randomUUID()
+  let lastError = null
+  for (const [providerIndex, activeProvider] of activeProviders.entries()) {
+    let providerImages = []
+    try {
+      providerImages = await temporaryProviderImages(imageDataUrls, imagePublicBase(activeProvider, request))
+      const content = providerMessageContent(userText, providerImages)
+      const answer = await callCompatibleAi(activeProvider, {
+        messages: [{ role: 'system', content: buildCoachSystemPrompt({ verifiedSubmitted, hintLevel }) }, ...history, { role: 'user', content }],
+        temperature: 0.2,
+        metadata: { stemCoachContext: context },
+        operation: hasImages ? 'coach-vision' : 'coach',
+        requestId,
+        providerAttempt: providerIndex + 1,
+        fallbackPath: activeProviders.slice(0, providerIndex + 1).map((candidate) => candidate.name).join('>'),
+        fallback: providerIndex > 0,
+        telemetry,
+        timeoutMs: requestBudget.providerTimeoutMs,
+        totalDeadlineMs: requestBudget.totalDeadlineMs,
+        deadlineAt,
+      })
+      return sendJson(response, 200, { mode: 'ai', provider: activeProvider.name, providerStatus: 'connected', answer: answer || localAnswer, model: activeProvider.model })
+    } catch (error) {
+      lastError = error
+    } finally {
+      providerImages.forEach((image) => image.cleanup())
+    }
+  }
+  const failedProvider = activeProviders.at(-1)
+  return sendJson(response, 200, { mode: 'offline', provider: failedProvider.name, providerStatus: 'error', answer: localAnswer, warning: providerMessage(lastError, failedProvider), retryable: true })
+}
+
+async function callCompatibleAiStream(provider, { messages, temperature = 0.2, metadata = null, onDelta, operation = 'ai-stream', requestId = '', providerAttempt = 1, fallbackPath = '', fallback = false, telemetry = null, timeoutMs = DEFAULT_AI_PROVIDER_TIMEOUT_MS, totalDeadlineMs = null, deadlineAt = null }) {
+  const startedAt = Date.now()
+  let statusCode = null
+  let schemaStatus = 'not-checked'
+  let finalState = provider.apiKey ? 'error' : 'not_configured'
+  let requestTimeoutMs = timeoutMs
+  let failureClass = null
+  if (!provider.apiKey) {
+    emitProviderTelemetry(telemetry, { requestId, operation, provider: provider.name, model: provider.model, providerAttempt, fallbackPath, fallback, timeoutMs: requestTimeoutMs, totalDeadlineMs, statusCode, schemaStatus, finalState, durationMs: Date.now() - startedAt })
+    return { answer: '', providerStatus: 'not_configured' }
+  }
+  let idleTimeout = null
+  let deadlineTimeout = null
+  let answer = ''
   try {
-    source = await paperContext(payload, libraryRoot, allowedSubjects)
+    requestTimeoutMs = effectiveAiTimeoutMs(timeoutMs, deadlineAt)
+    const controller = new AbortController()
+    const resetIdleTimeout = () => {
+      if (idleTimeout) clearTimeout(idleTimeout)
+      const idleTimeoutMs = effectiveAiTimeoutMs(timeoutMs, deadlineAt)
+      idleTimeout = setTimeout(() => {
+        failureClass = 'provider_timeout'
+        controller.abort()
+      }, idleTimeoutMs)
+    }
+    if (Number.isFinite(deadlineAt)) {
+      const remainingDeadlineMs = Math.floor(deadlineAt - Date.now())
+      if (remainingDeadlineMs <= 0) throw aiDeadlineError()
+      deadlineTimeout = setTimeout(() => {
+        failureClass = 'total_deadline'
+        controller.abort()
+      }, remainingDeadlineMs)
+    }
+    resetIdleTimeout()
+    const response = await fetch(providerEndpoint(provider), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${provider.apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(providerRequestBody(provider, { messages, temperature, stream: true, metadata })),
+      signal: controller.signal,
+    })
+    resetIdleTimeout()
+    statusCode = response.status
+    if (!response.ok) {
+      const providerPayload = await response.json().catch(() => ({}))
+      const providerCode = compactText(providerPayload?.error?.code || providerPayload?.code, 80)
+      const providerDetail = compactText(providerPayload?.error?.message || providerPayload?.message, 140)
+      throw new Error(`AI provider returned ${response.status}${providerCode ? ` (${providerCode})` : ''}${providerDetail ? `: ${providerDetail}` : ''}`)
+    }
+
+    const contentType = response.headers.get('content-type') || ''
+    if (!response.body || !contentType.includes('text/event-stream')) {
+      let payload
+      try {
+        payload = await response.json()
+      } catch (error) {
+        schemaStatus = 'invalid'
+        throw aiResponseSchemaError(error)
+      }
+      if (isResponsesProvider(provider) && payload?.status !== 'completed') {
+        schemaStatus = 'invalid'
+        throw aiResponseSchemaError('AI Responses provider did not complete the response.')
+      }
+      answer = responseOutputText(payload)
+      if ((!isResponsesProvider(provider) && !Array.isArray(payload?.choices)) || !answer) {
+        schemaStatus = 'invalid'
+        throw new Error('AI provider returned an invalid response schema.')
+      }
+      schemaStatus = 'valid'
+      await onDelta?.(answer)
+      finalState = 'connected'
+      return { answer, providerStatus: 'connected' }
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let receivedDone = false
+    let eventName = ''
+    async function consumeLine(line) {
+      const clean = line.trim()
+      if (!clean) {
+        eventName = ''
+        return
+      }
+      if (clean.startsWith('event:')) {
+        eventName = clean.slice(6).trim()
+        return
+      }
+      if (!clean.startsWith('data:')) return
+      const data = clean.slice(5).trim()
+      if (!data) return
+      if (data === '[DONE]') {
+        receivedDone = true
+        eventName = ''
+        return
+      }
+      let payload
+      try {
+        payload = JSON.parse(data)
+      } catch (error) {
+        schemaStatus = 'invalid'
+        throw aiResponseSchemaError(error)
+      }
+      const responseEventType = String(payload?.type || eventName || '')
+      if (responseEventType === 'response.failed' || responseEventType === 'response.error') {
+        throw new Error(compactText(payload?.error?.message || payload?.message || 'AI provider stream failed.', 240))
+      }
+      if (responseEventType === 'response.incomplete' || responseEventType === 'response.cancelled') {
+        throw aiResponseSchemaError('AI provider stream ended incompletely.')
+      }
+      if (responseEventType === 'response.completed' || responseEventType === 'response.done') {
+        if (isResponsesProvider(provider) && payload?.status && payload.status !== 'completed') {
+          throw aiResponseSchemaError('AI provider stream reported a non-completed response.')
+        }
+        if (!answer) {
+          const completedText = responseOutputText(payload)
+          if (completedText) {
+            answer += completedText
+            await onDelta?.(completedText)
+          }
+        }
+        receivedDone = true
+        eventName = ''
+        return
+      }
+      const delta = isResponsesProvider(provider)
+        ? String(payload?.delta || (responseEventType === 'response.output_text.done' ? payload?.text || '' : ''))
+        : String(payload?.choices?.[0]?.delta?.content || payload?.choices?.[0]?.message?.content || '')
+      if (!delta) return
+      answer += delta
+      await onDelta?.(delta)
+      eventName = ''
+    }
+
+    while (true) {
+      const { value, done } = await reader.read()
+      if (!done) resetIdleTimeout()
+      buffer += decoder.decode(value || new Uint8Array(), { stream: !done })
+      const lines = buffer.split(/\r?\n/)
+      buffer = lines.pop() || ''
+      for (const line of lines) await consumeLine(line)
+      if (done) break
+    }
+    if (buffer) await consumeLine(buffer)
+    answer = answer.trim()
+    if (!answer || !receivedDone) {
+      schemaStatus = 'invalid'
+      throw aiResponseSchemaError('AI provider stream ended without a complete response.')
+    }
+    schemaStatus = 'valid'
+    finalState = 'connected'
+    return { answer, providerStatus: 'connected' }
   } catch (error) {
-    if (error.statusCode) throw error
-    return sendJson(response, 200, { mode: 'unavailable', code: 'vision_context_failed', error: providerMessage(error) })
+    finalState = error?.name === 'AbortError' ? 'timeout' : 'error'
+    if (!failureClass) {
+      failureClass = error?.code === 'AI_REQUEST_DEADLINE'
+        ? 'total_deadline'
+        : finalState === 'timeout' ? 'provider_timeout' : statusCode >= 400 ? 'provider_http_error' : 'transport_error'
+    }
+    throw error
+  } finally {
+    if (idleTimeout) clearTimeout(idleTimeout)
+    if (deadlineTimeout) clearTimeout(deadlineTimeout)
+    emitProviderTelemetry(telemetry, {
+      requestId,
+      operation,
+      provider: provider.name,
+      model: provider.model,
+      providerAttempt,
+      fallbackPath,
+      fallback,
+      timeoutMs: requestTimeoutMs,
+      totalDeadlineMs,
+      deadlineRemainingMs: Number.isFinite(deadlineAt) ? Math.max(0, deadlineAt - Date.now()) : null,
+      statusCode,
+      schemaStatus,
+      finalState,
+      failureClass,
+      durationMs: Date.now() - startedAt,
+    })
   }
+}
+
+function sendCoachEvent(response, event, value) {
+  response.write(`event: ${event}\ndata: ${JSON.stringify(value)}\n\n`)
+}
+
+async function handleCoachStream(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest) {
+  const payload = await readJsonBody(request)
+  const authorization = typeof authorizeCoachRequest === 'function'
+    ? await authorizeCoachRequest({ request, payload })
+    : null
+  const message = compactText(payload.message, 3000)
+  const history = Array.isArray(payload.history)
+    ? payload.history.slice(-8).map((item) => ({
+      role: item.role === 'assistant' ? 'assistant' : 'user',
+      content: compactText(item.content, 1200),
+    }))
+    : []
+  const suppliedContext = safeCoachContext(payload.context)
+  const context = await hydrateCoachPaperContext(applyCoachAuthorization(suppliedContext, authorization), libraryRoot, allowedSubjects)
+  const verifiedSubmitted = Boolean(authorization?.submitted) || verifiedCoachSubmission(payload, request, env)
+  const hintLevel = Math.min(5, Math.max(1, Number(payload.hintLevel) || 1))
+  const imageDataUrls = coachImageDataUrls(payload)
+  const hasImages = imageDataUrls.length > 0
+  if (!message && !hasImages) throw Object.assign(new Error('Ask a question or attach an image.'), { statusCode: 400 })
+  if (!shouldUseLocalCoachFirst({ message, hasImages, hintLevel }) && !authenticatedStemUser(request, env)) {
+    throw Object.assign(new Error('Sign in to STEM before using detailed AI Coach.'), { statusCode: 401 })
+  }
+
+  response.statusCode = 200
+  response.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
+  response.setHeader('Cache-Control', 'no-cache, no-transform')
+  response.setHeader('Connection', 'keep-alive')
+  response.setHeader('X-Accel-Buffering', 'no')
+  response.flushHeaders?.()
+
+  const localAnswer = localCoachReply(context, hintLevel)
+  if (shouldUseLocalCoachFirst({ message, hasImages, hintLevel })) {
+    sendCoachEvent(response, 'meta', { mode: 'local', providerStatus: 'skipped', canEscalate: true })
+    sendCoachEvent(response, 'delta', { text: localAnswer })
+    sendCoachEvent(response, 'done', {
+      mode: 'local',
+      providerStatus: 'skipped',
+      answer: localAnswer,
+      canEscalate: true,
+      warning: 'Local first hint. Ask for a detailed explanation to escalate to AI Coach.',
+    })
+    response.end()
+    return
+  }
+  const configuredProvider = hasImages ? visionProvider : provider
+  const activeProviders = providerCandidates(configuredProvider)
+  if (!activeProviders.length) {
+    sendCoachEvent(response, 'meta', { mode: 'offline', providerStatus: 'not_configured' })
+    sendCoachEvent(response, 'delta', { text: localAnswer })
+    sendCoachEvent(response, 'done', {
+      mode: 'offline',
+      providerStatus: 'not_configured',
+      answer: localAnswer,
+      warning: 'AI Coach provider is not configured on this server. This is an offline hint, not an AI review.',
+      retryable: true,
+    })
+    response.end()
+    return
+  }
+
+  const userText = coachRequestContext(context, message)
+  const requestBudget = hasImages
+    ? { providerTimeoutMs: timeoutConfig.visionProviderTimeoutMs, totalDeadlineMs: timeoutConfig.visionTotalDeadlineMs }
+    : { providerTimeoutMs: timeoutConfig.providerTimeoutMs, totalDeadlineMs: timeoutConfig.totalDeadlineMs }
+  const deadlineAt = Date.now() + requestBudget.totalDeadlineMs
+  const requestId = crypto.randomUUID()
+  let streamedAnswer = ''
+  let lastPartialAnswer = ''
+  let lastError = null
+  let lastAttemptedProvider = activeProviders[0]
+  const heartbeat = setInterval(() => {
+    if (!response.writableEnded && !response.destroyed) response.write(': keep-alive\n\n')
+  }, 15_000)
+  try {
+    for (const [providerIndex, activeProvider] of activeProviders.entries()) {
+      lastAttemptedProvider = activeProvider
+      let providerImages = []
+      let attemptAnswer = ''
+      try {
+        providerImages = await temporaryProviderImages(imageDataUrls, imagePublicBase(activeProvider, request))
+        const content = providerMessageContent(userText, providerImages)
+        sendCoachEvent(response, 'meta', {
+          mode: 'ai',
+          provider: activeProvider.name,
+          providerStatus: 'connecting',
+          model: activeProvider.model,
+        })
+        const result = await callCompatibleAiStream(activeProvider, {
+          messages: [{ role: 'system', content: buildCoachSystemPrompt({ verifiedSubmitted, hintLevel }) }, ...history, { role: 'user', content }],
+          temperature: 0.2,
+          metadata: { stemCoachContext: context },
+          operation: hasImages ? 'coach-vision-stream' : 'coach-stream',
+          requestId,
+          providerAttempt: providerIndex + 1,
+          fallbackPath: activeProviders.slice(0, providerIndex + 1).map((candidate) => candidate.name).join('>'),
+          fallback: providerIndex > 0,
+          telemetry,
+          timeoutMs: requestBudget.providerTimeoutMs,
+          totalDeadlineMs: requestBudget.totalDeadlineMs,
+          deadlineAt,
+          onDelta: async (delta) => {
+            attemptAnswer += delta
+            sendCoachEvent(response, 'delta', { text: delta })
+          },
+        })
+        streamedAnswer = result.answer || attemptAnswer
+        const answer = streamedAnswer || localAnswer
+        sendCoachEvent(response, 'done', {
+          mode: 'ai',
+          provider: activeProvider.name,
+          providerStatus: 'connected',
+          answer,
+          model: activeProvider.model,
+        })
+        response.end()
+        return
+      } catch (error) {
+        lastError = error
+        if (attemptAnswer) {
+          lastPartialAnswer = attemptAnswer
+          if (providerIndex < activeProviders.length - 1) {
+            sendCoachEvent(response, 'reset', { provider: activeProvider.name })
+          }
+        }
+      } finally {
+        providerImages.forEach((image) => image.cleanup())
+      }
+    }
+    const failedProvider = lastAttemptedProvider
+    const preservedAnswer = lastPartialAnswer || streamedAnswer || localAnswer
+    const partial = Boolean(lastPartialAnswer)
+    sendCoachEvent(response, 'done', {
+      mode: partial ? 'interrupted' : 'offline',
+      provider: failedProvider.name,
+      providerStatus: 'error',
+      answer: preservedAnswer,
+      warning: providerMessage(lastError, failedProvider),
+      retryable: true,
+      ...(partial ? { partial: true } : {}),
+    })
+    response.end()
+  } finally {
+    clearInterval(heartbeat)
+  }
+}
+
+async function handleHandwritingMark(request, response, provider, libraryRoot, allowedSubjects, sourceAssetRoot, env, questionBank, telemetry, timeoutConfig) {
+  const payload = await readJsonBody(request)
+  const identitySigningKey = env.STEM_INTERNAL_AUTH_KEY || env.STEM_IDENTITY_SIGNING_KEY
+  const capability = verifyMarkingCapability({
+    request,
+    payload,
+    identitySigningKey,
+    capabilitySigningKey: env.STEM_MARKING_CAPABILITY_SIGNING_KEY || identitySigningKey,
+  })
+  if (!capability.ok) {
+    return sendJson(response, capability.statusCode || 403, {
+      code: capability.code,
+      error: capability.message,
+      reviewRequired: true,
+    })
+  }
+  const canonical = canonicalHandwritingMarkingContext(payload, { questionBank })
+  if (!canonical.ok) {
+    return sendJson(response, 422, {
+      code: canonical.code,
+      error: 'This response is no longer backed by a current AI-markable source record. It remains saved for a later retry.',
+      reviewRequired: true,
+    })
+  }
+  const typedResponse = compactText(payload.typedResponse, 6000)
+  const hasStudentImage = Boolean(String(payload.imageDataUrl || '').trim())
+  if (!hasStudentImage && !typedResponse) {
+    return sendJson(response, 400, {
+      code: 'student_response_missing',
+      error: 'Add a typed response or a handwriting image before requesting AI marking.',
+      reviewRequired: true,
+    })
+  }
+  if (hasStudentImage) imageBytes(payload.imageDataUrl)
+  // The request budget includes trusted QP/MS image rendering. Without this,
+  // a stalled local renderer can outlive the reverse proxy and become a 504.
+  const deadlineAt = Date.now() + timeoutConfig.visionTotalDeadlineMs
+  let officialImages
+  try {
+    officialImages = await canonicalHandwritingMarkingImages(canonical, { assetRoot: sourceAssetRoot, libraryRoot, env, deadlineAt })
+  } catch (error) {
+    return sendJson(response, error.statusCode || 422, {
+      code: error.code || 'source_asset_unavailable',
+      error: 'The paired official source images are unavailable for this response. Your work remains saved for self-review.',
+      reviewRequired: true,
+    })
+  }
+  const { questionImages, markSchemeImages } = officialImages
+  const requestedMaxMarks = Number(canonical.part.marks)
+  const activeProviders = providerCandidates(provider)
+  if (!activeProviders.length) return sendJson(response, 503, { code: 'vision_not_configured', error: 'AI vision marking is not configured on this local server.' })
   const context = {
-    subject: compactText(payload.subject, 80),
-    syllabus: compactText(payload.syllabus, 200),
-    questionNumber: Number(payload.questionNumber) || null,
-    question: payload.question || null,
-    expectedMarkPoints: payload.expectedMarkPoints || [],
-    requestedMaxMarks: Number(payload.maxMarks) || null,
-    typedResponse: compactText(payload.typedResponse, 6000),
-    questionPaperExtract: source.questionText,
-    exactMarkSchemeExtract: source.markSchemeText,
+    subject: canonical.subject,
+    syllabus: compactText(canonical.question.specification || canonical.question.qualification, 200),
+    questionNumber: canonical.questionNumber,
+    question: { prompt: canonical.part.promptFragment, answerType: canonical.part.answerArea?.type || canonical.question.answerType },
+    expectedMarkPoints: canonical.part.markSchemePoints || [],
+    requestedMaxMarks,
+    typedResponse,
+    officialSourceImages: [
+      ...questionImages.map((image) => ({
+        role: image.role,
+        page: image.page,
+        sha256: image.sha256,
+        sourcePageSha256: image.sourcePageSha256 || image.sha256,
+        region: image.region || null,
+      })),
+      ...markSchemeImages.map((image) => ({
+        role: image.role,
+        page: image.page,
+        sha256: image.sha256,
+        sourcePageSha256: image.sourcePageSha256 || image.sha256,
+        region: image.region || null,
+      })),
+    ],
   }
+  const requestId = crypto.randomUUID()
   const system = [
     'You are an assisted examiner reviewing one handwritten response for the exact qualification and subject supplied in context.',
     'Read the student image directly. Use the exact mark-scheme extract when supplied; otherwise use only explicit stored expected mark points.',
@@ -464,56 +1791,126 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
     'Return JSON only with: rawMarks, maxMarks, confidence (0-1), reviewRequired, summary, recognizedWork, correctedSolution, nextAction, markPoints[].',
     'Each markPoints item must contain id, awarded, marks, reason and studentEvidence.',
   ].join('\n')
-  try {
-    const publicBase = imagePublicBase(provider, request)
-    const [providerImage, ...sourceImages] = await Promise.all([
-      temporaryImageUrl(payload.imageDataUrl, publicBase),
-      ...questionImages.map((image) => temporaryImageUrl(image, publicBase)),
-      ...markSchemeImages.map((image) => temporaryImageUrl(image, publicBase)),
-    ])
-    const content = [
-      { type: 'text', text: compactText(JSON.stringify({ ...context, imageOrder: { questionPaperPages: questionImages.length, markSchemePages: markSchemeImages.length, studentResponsePages: 1 } }), 30000) },
-      ...sourceImages.map((image) => ({ type: 'image_url', image_url: { url: image.url } })),
-      { type: 'image_url', image_url: { url: providerImage.url } },
-    ]
-    // Qwen-VL accepts the OpenAI-compatible image message, but some DashScope
-    // deployments reject response_format. The prompt still requires JSON and
-    // parseStructuredJson validates the returned structure server-side.
+  let lastError = null
+  let lastAttemptedProvider = activeProviders[0]
+  for (const [providerIndex, activeProvider] of activeProviders.entries()) {
+    lastAttemptedProvider = activeProvider
+    let studentImage = null
+    let sourceImages = []
     try {
-      const raw = await callCompatibleAi(provider, { messages: [{ role: 'system', content: system }, { role: 'user', content }], temperature: 0.05 })
-      const result = normalizeMarkResult(parseStructuredJson(raw), payload.maxMarks)
-      return sendJson(response, 200, { mode: 'vision', provider: 'qwen', model: provider.model, ...result })
+      const publicBase = imagePublicBase(activeProvider, request)
+      const officialSourceImages = [...questionImages, ...markSchemeImages]
+      ;[studentImage, ...sourceImages] = await Promise.all([
+        hasStudentImage ? temporaryImageUrl(payload.imageDataUrl, publicBase) : null,
+        ...officialSourceImages.map((image) => temporaryImageUrl(image.dataUrl, publicBase)),
+      ])
+      const questionProviderImages = sourceImages.slice(0, questionImages.length)
+      const markSchemeProviderImages = sourceImages.slice(questionImages.length)
+      const content = [
+        { type: 'text', text: compactText(JSON.stringify({ ...context, imageOrder: { questionPaperPages: questionImages.length, markSchemePages: markSchemeImages.length, studentResponsePages: hasStudentImage ? 1 : 0 } }), 30000) },
+        ...questionProviderImages.flatMap((image, index) => [
+          { type: 'text', text: `Official question-paper page ${questionImages[index].page}; SHA-256 ${questionImages[index].sha256}.` },
+          { type: 'image_url', image_url: { url: image.url } },
+        ]),
+        ...markSchemeProviderImages.flatMap((image, index) => [
+          { type: 'text', text: `Official mark-scheme page ${markSchemeImages[index].page}; SHA-256 ${markSchemeImages[index].sha256}.` },
+          { type: 'image_url', image_url: { url: image.url } },
+        ]),
+        { type: 'text', text: hasStudentImage ? 'Student handwritten response.' : 'Student typed response (no handwriting image attached).' },
+        ...(studentImage ? [{ type: 'image_url', image_url: { url: studentImage.url } }] : []),
+      ]
+      // Providers accept the OpenAI-compatible image message, but some reject
+      // response_format. The prompt still requires JSON and the parser validates it.
+      const raw = await callCompatibleAi(activeProvider, {
+        messages: [{ role: 'system', content: system }, { role: 'user', content }],
+        temperature: 0.05,
+        operation: 'handwriting-marking',
+        requestId,
+        providerAttempt: providerIndex + 1,
+        fallbackPath: activeProviders.slice(0, providerIndex + 1).map((candidate) => candidate.name).join('>'),
+        fallback: providerIndex > 0,
+        telemetry,
+        timeoutMs: timeoutConfig.visionProviderTimeoutMs,
+        totalDeadlineMs: timeoutConfig.visionTotalDeadlineMs,
+        deadlineAt,
+        validateResponse: (answer) => validateMarkAssessment(parseStructuredJson(answer), requestedMaxMarks),
+      })
+      const assessment = validateMarkAssessment(parseStructuredJson(raw), requestedMaxMarks)
+      const result = normalizeMarkResult(assessment, requestedMaxMarks)
+      const autoFinal = canonical.autoFinal && result.reviewRequired === false && result.confidence >= 0.7
+      return sendJson(response, 200, {
+        mode: 'vision',
+        provider: activeProvider.name,
+        providerStatus: 'connected',
+        model: activeProvider.model,
+        autoFinal,
+        humanReviewRequired: result.reviewRequired,
+        score: result.rawMarks,
+        maxScore: result.maxMarks,
+        criteria: result.markPoints,
+        evidence: result.markPoints.map((point) => point.studentEvidence),
+        rationale: result.summary,
+        ...result,
+      })
+    } catch (error) {
+      lastError = error
     } finally {
-      providerImage.cleanup()
+      studentImage?.cleanup()
       sourceImages.forEach((image) => image.cleanup())
     }
-  } catch (error) {
-    console.error(`[qwen-vision] ${String(error?.message || error).slice(0, 180)}`)
-    return sendJson(response, 200, { mode: 'unavailable', code: 'vision_review_failed', error: providerMessage(error) })
   }
+  if (lastError?.code === 'AI_RESPONSE_SCHEMA_INVALID' || /^AI assessment /.test(String(lastError?.message || ''))) {
+    return sendJson(response, 422, {
+      code: 'ai_assessment_schema_invalid',
+      provider: lastAttemptedProvider.name,
+      providerStatus: 'invalid_schema',
+      error: 'The AI marking response could not be validated. Your answer remains saved for review or retry.',
+      reviewRequired: true,
+      retryable: true,
+    })
+  }
+  console.error(`[${lastAttemptedProvider.name}-vision] ${providerMessage(lastError, lastAttemptedProvider)}`)
+  return sendJson(response, 200, { mode: 'offline', code: 'vision_review_failed', provider: lastAttemptedProvider.name, providerStatus: 'error', error: providerMessage(lastError, lastAttemptedProvider), retryable: true })
 }
 
-export function createAiApi({ env = process.env, libraryRoot, allowedSubjects }) {
+export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null, authorizeCoachRequest = null }) {
   const config = providerConfig(env)
+  const timeoutConfig = aiTimeoutConfig(env)
+  const currentAiMarkingQuestionBank = () => {
+    if (typeof questionBankProvider !== 'function') return studyQuestionBank
+    try {
+      return mergeAiMarkingQuestionBanks(studyQuestionBank, questionBankProvider())
+    } catch {
+      return studyQuestionBank
+    }
+  }
   return async function aiApi(request, response, next) {
     const requestUrl = new URL(request.url, 'http://127.0.0.1')
     if (!requestUrl.pathname.startsWith('/api/ai/')) return next()
     try {
       if (request.method === 'GET' && requestUrl.pathname.startsWith('/api/ai/image/')) return handleTemporaryImage(requestUrl, response)
       if (request.method === 'GET' && requestUrl.pathname === '/api/ai/status') {
+        const coachProvider = providerCandidates(config.coach)[0]
+        const visionProvider = providerCandidates(config.vision)[0]
         return sendJson(response, 200, {
           provider: config.provider,
-          coachEnabled: Boolean(config.coach.apiKey),
-          visionEnabled: Boolean(config.vision.apiKey),
-          coachModel: config.coach.apiKey ? config.coach.model : null,
-          visionModel: config.vision.apiKey ? config.vision.model : null,
+          coachEnabled: Boolean(coachProvider),
+          visionEnabled: Boolean(visionProvider),
+          coachProvider: coachProvider?.name || null,
+          visionProvider: visionProvider?.name || null,
+          coachModel: coachProvider?.model || null,
+          visionModel: visionProvider?.model || null,
         })
       }
-      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach') return await handleCoach(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env)
-      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/mark-handwriting') return await handleHandwritingMark(request, response, config.vision, libraryRoot, allowedSubjects)
+      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach') return await handleCoach(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest)
+      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach/stream') return await handleCoachStream(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest)
+      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/mark-handwriting') return await handleHandwritingMark(request, response, config.vision, libraryRoot, allowedSubjects, sourceAssetRoot, env, currentAiMarkingQuestionBank(), telemetry, timeoutConfig)
       return sendJson(response, 404, { error: 'AI route not found.' })
     } catch (error) {
-      return sendJson(response, error.statusCode || 500, { error: error.statusCode ? error.message : 'The AI request could not be completed.' })
+      return sendJson(response, error.statusCode || 500, {
+        ...(error.code ? { code: String(error.code).slice(0, 80) } : {}),
+        error: error.statusCode ? error.message : 'The AI request could not be completed.',
+      })
     }
   }
 }

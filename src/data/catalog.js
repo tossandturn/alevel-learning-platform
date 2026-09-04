@@ -1,6 +1,7 @@
 import { curriculumPracticeUnits } from './curriculumContent.js'
+import { LEGACY_UNSCOPED_ROUTE_ID, resolveRouteId, routeById, routesForSubject } from './routeRegistry.js'
 
-export const importedPdfLibrary = [
+const IMPORTED_PDF_LIBRARY = [
   {
     id: 'cie-0610',
     subjectCode: '0610',
@@ -129,7 +130,22 @@ export const importedPdfLibrary = [
   },
 ]
 
-export const subjects = [
+export const importedPdfLibrary = Object.freeze(IMPORTED_PDF_LIBRARY.map((library) => {
+  const routeIds = routesForSubject(library.subjectCode).map((route) => route.routeId)
+  const routeId = resolveRouteId({ qualificationId: library.qualification, subjectId: library.subjectCode }) || LEGACY_UNSCOPED_ROUTE_ID
+  const route = routeById(routeId)
+  return Object.freeze({
+    ...library,
+    routeId,
+    routeIds: Object.freeze(routeIds),
+    stage: route?.stage || LEGACY_UNSCOPED_ROUTE_ID,
+    paperComponent: null,
+    syllabusTopic: null,
+    sourcePaper: null,
+  })
+}))
+
+const SUBJECTS = [
   {
     id: 'igcse-biology',
     name: 'IGCSE Biology',
@@ -167,7 +183,7 @@ export const subjects = [
     name: 'Physics',
     code: '9702',
     icon: '⚡',
-    accent: '#246bfe',
+    accent: '#7357e8',
     topics: ['mechanics', 'waves', 'electricity', 'fields'],
   },
   {
@@ -244,7 +260,20 @@ export const subjects = [
   },
 ]
 
-export const topicUnits = [
+export const subjects = Object.freeze(SUBJECTS.map((subject) => {
+  const routeIds = routesForSubject(subject.id).map((route) => route.routeId)
+  const routeId = routeIds.length === 1 ? routeIds[0] : LEGACY_UNSCOPED_ROUTE_ID
+  const route = routeById(routeId)
+  return Object.freeze({
+    ...subject,
+    routeId,
+    routeIds: Object.freeze(routeIds),
+    qualificationId: route?.qualificationId || null,
+    stage: route?.stage || LEGACY_UNSCOPED_ROUTE_ID,
+  })
+}))
+
+const TOPIC_UNITS = [
   ...curriculumPracticeUnits,
   {
     id: 'topic-igcse-physics-forces',
@@ -458,6 +487,36 @@ export const topicUnits = [
   },
 ]
 
+function withRouteOwnership(unit) {
+  const routeId = unit.routeId && unit.routeId !== LEGACY_UNSCOPED_ROUTE_ID
+    ? unit.routeId
+    : resolveRouteId({
+      qualificationId: unit.qualification,
+      subjectId: unit.subjectId,
+      stage: unit.stage,
+      paperComponent: unit.paperComponent,
+      sourcePaper: unit.sourcePaper || unit.provenance?.paperRef,
+      knowledgeGroupId: unit.knowledgeGroupId,
+      year: unit.year,
+    }) || LEGACY_UNSCOPED_ROUTE_ID
+  const route = routeById(routeId)
+  const routeFields = {
+    routeId,
+    qualification: route?.qualification || unit.qualification || null,
+    stage: route?.stage || LEGACY_UNSCOPED_ROUTE_ID,
+    paperComponent: unit.paperComponent ?? null,
+    syllabusTopic: unit.syllabusTopic || unit.knowledgeGroupId || unit.topicId || null,
+    sourcePaper: unit.sourcePaper || unit.provenance?.paperRef || null,
+  }
+  return Object.freeze({
+    ...unit,
+    ...routeFields,
+    parts: Object.freeze((unit.parts || []).map((part) => Object.freeze({ ...part, ...routeFields }))),
+  })
+}
+
+export const topicUnits = Object.freeze(TOPIC_UNITS.map(withRouteOwnership))
+
 function clonePartsForPaper(parts, prefix) {
   return parts.map((part) => ({
     ...part,
@@ -465,11 +524,13 @@ function clonePartsForPaper(parts, prefix) {
   }))
 }
 
-export const fullPaperUnits = [
+const FULL_PAPER_UNITS = [
   {
     id: 'paper-9702-structured-seed',
     type: 'paper',
     subjectId: 'physics',
+    stage: 'AS',
+    paperComponent: 2,
     topicId: 'mixed-physics',
     topic: 'Mixed Physics',
     title: '9702 structured paper warm-up',
@@ -492,6 +553,8 @@ export const fullPaperUnits = [
     id: 'paper-9709-pure-seed',
     type: 'paper',
     subjectId: 'math',
+    stage: 'AS',
+    paperComponent: 1,
     topicId: 'mixed-math',
     topic: 'Mixed Mathematics',
     title: '9709 pure paper warm-up',
@@ -511,6 +574,8 @@ export const fullPaperUnits = [
     parts: [...clonePartsForPaper(topicUnits.find((unit) => unit.id === 'topic-math-pure-differentiation').parts, 'paper9709'), ...clonePartsForPaper(topicUnits.find((unit) => unit.id === 'topic-fm-complex-roots').parts, 'paper9709')],
   },
 ]
+
+export const fullPaperUnits = Object.freeze(FULL_PAPER_UNITS.map(withRouteOwnership))
 
 export const practiceUnits = [
   // Formal student practice is built only from the indexed QP/MS bank.

@@ -2,6 +2,14 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { createHash } from 'node:crypto'
 import { getExamPaperProfile } from '../src/data/examStructure.js'
+import {
+  PAPER_ACCESS_POLICIES,
+  PAPER_CATALOG_SCHEMA_VERSION,
+  PAPER_GOVERNANCE_POLICIES,
+  PAPER_GOVERNANCE_SCHEMA_VERSION,
+  paperGovernanceForItem,
+} from '../src/lib/paperGovernance.js'
+import { PAPER_GOVERNANCE_OVERRIDES } from '../src/data/paperGovernanceOverrides.js'
 
 const projectRoot = path.resolve(import.meta.dirname, '..')
 const sourceRoot = path.resolve(process.env.CIE_SOURCE_ROOT || 'D:/CodexWork/cie-fraft-fetcher/output')
@@ -126,6 +134,15 @@ function extraKind(item) {
   return item.kind
 }
 
+function extraOfficialYear(item) {
+  if (item.subject !== 'bpho' || item.season !== 'pc') return { year: item.year, yearSource: 'manifest' }
+  const legacyFileYear = Number(item.file.match(/^BPhO_Paper1_(20\d{2})_/i)?.[1])
+  if (legacyFileYear >= 2005 && legacyFileYear <= 2011) {
+    return { year: legacyFileYear - 1, yearSource: 'official source-page heading' }
+  }
+  return { year: item.year, yearSource: 'manifest' }
+}
+
 function extraPairKey(item) {
   const file = item.file.toLowerCase()
   if (item.subject === 'amc12') return `amc12-${item.year}-${item.season || 'main'}`
@@ -152,7 +169,8 @@ if (fs.existsSync(extraManifestPath)) {
   const extraManifest = JSON.parse(fs.readFileSync(extraManifestPath, 'utf8')).filter((item) => extraSubjects.has(item.subject) && item.downloaded !== 'missing')
   for (const item of extraManifest) {
     const kind = extraKind(item)
-    const normalisedItem = { ...item, kind }
+    const officialYear = extraOfficialYear(item)
+    const normalisedItem = { ...item, kind, year: officialYear.year }
     const filePath = path.join(pdfRoot, item.subject, item.file)
     if (!fs.existsSync(filePath)) throw new Error(`Missing extra manifest file: ${filePath}`)
     const stat = fs.statSync(filePath)
@@ -160,7 +178,8 @@ if (fs.existsSync(extraManifestPath)) {
     prepared.push({
       id: `${item.subject}-${item.file.replace(/\.pdf$/i, '')}`,
       subject: item.subject,
-      year: item.year,
+      year: normalisedItem.year,
+      yearSource: officialYear.yearSource,
       season: item.season || '',
       kind,
       file: item.file,
@@ -205,31 +224,82 @@ function resolveMarkSchemeId(item) {
   return general.length === 1 ? general[0].id : null
 }
 
-const items = prepared.map((item) => ({
+const preGovernanceItems = prepared.map((item) => ({
   ...item,
   questionPaperId: item.pairKey ? byPairAndKind.get(`${item.pairKey}:qp`) || null : null,
   markSchemeId: resolveMarkSchemeId(item),
 }))
+const firstByChecksum = new Map()
+for (const item of preGovernanceItems) {
+  if (!firstByChecksum.has(item.sha256)) firstByChecksum.set(item.sha256, item.id)
+}
+const itemsById = new Map(preGovernanceItems.map((item) => [item.id, item]))
+const items = preGovernanceItems.map((item) => {
+  const answerStatus = item.kind !== 'qp'
+    ? 'not-applicable'
+    : !item.markSchemeId
+      ? 'missing'
+      : ['ms', 'ak'].includes(itemsById.get(item.markSchemeId)?.kind)
+        ? 'exact-pair'
+        : 'invalid-link'
+  return {
+    ...item,
+    governance: paperGovernanceForItem(item, {
+      duplicateOf: firstByChecksum.get(item.sha256) === item.id ? null : firstByChecksum.get(item.sha256),
+      answerStatus,
+      override: PAPER_GOVERNANCE_OVERRIDES[item.id] || null,
+    }),
+  }
+})
 
-const totals = items.reduce(
-  (acc, item) => {
-    acc.files += 1
-    acc.bytes += item.bytes
-    acc.bySubject[item.subject] = (acc.bySubject[item.subject] || 0) + 1
-    acc.byKind[item.kind] = (acc.byKind[item.kind] || 0) + 1
-    if (item.kind === 'qp') {
-      acc.questionPapers += 1
-      if (item.markSchemeId) acc.pairedQuestionPapers += 1
-      else acc.unpairedQuestionPapers += 1
-    }
-    return acc
-  },
-  { files: 0, bytes: 0, bySubject: {}, byKind: {}, questionPapers: 0, pairedQuestionPapers: 0, unpairedQuestionPapers: 0 },
-)
+function catalogPayload(catalogItems) {
+  const catalogTotals = catalogItems.reduce(
+    (acc, item) => {
+      acc.files += 1
+      acc.bytes += item.bytes
+      acc.bySubject[item.subject] = (acc.bySubject[item.subject] || 0) + 1
+      acc.byKind[item.kind] = (acc.byKind[item.kind] || 0) + 1
+      if (item.kind === 'qp') {
+        acc.questionPapers += 1
+        if (item.markSchemeId) acc.pairedQuestionPapers += 1
+        else acc.unpairedQuestionPapers += 1
+      }
+      return acc
+    },
+    { files: 0, bytes: 0, bySubject: {}, byKind: {}, questionPapers: 0, pairedQuestionPapers: 0, unpairedQuestionPapers: 0 },
+  )
+  return {
+    schemaVersion: PAPER_CATALOG_SCHEMA_VERSION,
+    generatedAt: new Date().toISOString(),
+    sourceRoot,
+    paperGovernance: {
+      schemaVersion: PAPER_GOVERNANCE_SCHEMA_VERSION,
+      sourcePolicies: PAPER_GOVERNANCE_POLICIES,
+      accessPolicies: PAPER_ACCESS_POLICIES,
+      policy: 'Catalogue records provenance and local-access constraints; a source URL is not a redistribution licence.',
+    },
+    totals: catalogTotals,
+    items: catalogItems,
+  }
+}
+
+function writeCatalog(filePath, catalogItems) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true })
+  fs.writeFileSync(filePath, `${JSON.stringify(catalogPayload(catalogItems), null, 2)}\n`)
+}
 
 fs.mkdirSync(path.dirname(outputPath), { recursive: true })
-fs.writeFileSync(
-  outputPath,
-  `${JSON.stringify({ schemaVersion: 1, generatedAt: new Date().toISOString(), sourceRoot, totals, items }, null, 2)}\n`,
-)
+fs.writeFileSync(outputPath, `${JSON.stringify(catalogPayload(items), null, 2)}\n`)
 console.log(`Wrote ${items.length} records to ${outputPath}`)
+
+const subjectOutputRoot = path.join(projectRoot, 'public', 'data', 'papers')
+const itemsBySubject = new Map()
+for (const item of items) {
+  const subjectItems = itemsBySubject.get(item.subject) || []
+  subjectItems.push(item)
+  itemsBySubject.set(item.subject, subjectItems)
+}
+for (const [subject, subjectItems] of itemsBySubject) {
+  writeCatalog(path.join(subjectOutputRoot, `${subject}.json`), subjectItems)
+}
+console.log(`Wrote ${itemsBySubject.size} subject catalogs to ${subjectOutputRoot}`)

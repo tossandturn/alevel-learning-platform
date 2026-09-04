@@ -1,0 +1,496 @@
+{
+  "schemaVersion": "reviewed-question-set.v1",
+  "generatedAt": "2026-08-15T18:30:00+08:00",
+  "paperId": "cie-9702-9702_s25_qp_24",
+  "questionCount": 1,
+  "totalMarks": 8,
+  "sourceFragments": [
+    {
+      "file": "cambridge-9702-p2-topic-coverage-review-ledger.js",
+      "sha256": "3f608d2e5f05c286428cb83cb33d19d6e3fb4da6da9b388132e6995cf4b024fb"
+    }
+  ],
+  "sourceMaterials": {
+    "questionPaper": {
+      "id": "cie-9702-9702_s25_qp_24",
+      "file": "9702_s25_qp_24.pdf",
+      "sha256": "7b08025eb85e1bbf46dfcadbfa5434a231708ec62b2c3ef6fa78457300d5a1bb",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s25_qp_24.pdf",
+      "governance": {
+        "schemaVersion": "paper-governance-v1",
+        "state": "active",
+        "sourcePolicyId": "cie-mirror-restricted-v1",
+        "accessPolicyId": "personal-study-restricted-v1",
+        "sourceVersion": "2025:Jun:9702_s25_qp_24.pdf",
+        "retrievedAt": null,
+        "retrievalStatus": "not-recorded",
+        "integrityStatus": "pending-release-audit",
+        "duplicateOf": null,
+        "answerStatus": "exact-pair",
+        "reasonCode": null,
+        "reviewedAt": null,
+        "reviewEvidence": null
+      }
+    },
+    "markScheme": {
+      "id": "cie-9702-9702_s25_ms_24",
+      "file": "9702_s25_ms_24.pdf",
+      "sha256": "b4f2db21b63eb3e59619efb3bce1d12031f7641f74653eb9df7e32e6658fecb5",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s25_ms_24.pdf",
+      "governance": {
+        "schemaVersion": "paper-governance-v1",
+        "state": "active",
+        "sourcePolicyId": "cie-mirror-restricted-v1",
+        "accessPolicyId": "personal-study-restricted-v1",
+        "sourceVersion": "2025:Jun:9702_s25_ms_24.pdf",
+        "retrievedAt": null,
+        "retrievalStatus": "not-recorded",
+        "integrityStatus": "pending-release-audit",
+        "duplicateOf": null,
+        "answerStatus": "not-applicable",
+        "reasonCode": null,
+        "reviewedAt": null,
+        "reviewEvidence": null
+      }
+    }
+  },
+  "questions": [
+    {
+      "examFamilyId": "cambridge",
+      "qualificationId": "cambridge-9702",
+      "specificationId": "cambridge-9702-2025-2027",
+      "subjectId": "physics",
+      "subjectCode": "9702",
+      "knowledgeGroupId": "physics-9702-topic-09",
+      "topicId": "physics-9702-topic-09",
+      "stageTags": [
+        "AS"
+      ],
+      "componentTags": [
+        2
+      ],
+      "topicTags": [
+        "physics-9702-topic-09",
+        "physics-9702-topic-10",
+        "resistance",
+        "filament lamp"
+      ],
+      "skillTags": [
+        "explanation"
+      ],
+      "answerType": "structured",
+      "prompt": "(a(i)) State and explain the effect, if any, on the resistance of a filament wire in a lamp as the current in the wire decreases.\n\n(a(ii)) On Fig. 5.1, sketch the I–V characteristic of a filament lamp.\n\n(b(i)) A battery of electromotive force (e.m.f.) E and negligible internal resistance is connected in parallel with two filament lamps A and B, as shown in Fig. 5.2. The current in the battery is 3.3 A and the current in lamp A is 1.5 A. The power dissipated in lamp A is 18 W.\nCalculate the e.m.f. E of the battery.\n\n(b(ii)) The filament wire of lamp B has a cross-sectional area of 1.4 × 10⁻⁹ m². The number of free (conduction) electrons per unit volume in the metal of the filament wire is 3.4 × 10²⁸ m⁻³.\n\nCalculate the average drift speed of the free electrons in the filament wire of lamp B.",
+      "questionGroupId": "cie-9702-9702_s25_qp_24:q5",
+      "questionGroupStatus": "verified",
+      "totalMarks": 8,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_s25_qp_24:q5:part-a(i)",
+          "label": "a(i)",
+          "promptFragment": "State and explain the effect, if any, on the resistance of a filament wire in a lamp as the current in the wire decreases.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 10,
+          "sourceEvidence": [
+            {
+              "documentSha256": "7b08025eb85e1bbf46dfcadbfa5434a231708ec62b2c3ef6fa78457300d5a1bb",
+              "page": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_24/qp-10.jpg",
+              "assetSha256": "e0dda37dc270602dddeee0db5ed6df5e4528ab86e9153dc8e094e07a7ae44272"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_24:q5:part-a(ii)",
+          "label": "a(ii)",
+          "promptFragment": "On Fig. 5.1, sketch the I–V characteristic of a filament lamp.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 10,
+          "sourceEvidence": [
+            {
+              "documentSha256": "7b08025eb85e1bbf46dfcadbfa5434a231708ec62b2c3ef6fa78457300d5a1bb",
+              "page": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_24/qp-10.jpg",
+              "assetSha256": "e0dda37dc270602dddeee0db5ed6df5e4528ab86e9153dc8e094e07a7ae44272"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_24:q5:part-b(i)",
+          "label": "b(i)",
+          "promptFragment": "A battery of electromotive force (e.m.f.) E and negligible internal resistance is connected in parallel with two filament lamps A and B, as shown in Fig. 5.2. The current in the battery is 3.3 A and the current in lamp A is 1.5 A. The power dissipated in lamp A is 18 W.\nCalculate the e.m.f. E of the battery.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 11,
+          "sourceEvidence": [
+            {
+              "documentSha256": "7b08025eb85e1bbf46dfcadbfa5434a231708ec62b2c3ef6fa78457300d5a1bb",
+              "page": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_24/qp-11.jpg",
+              "assetSha256": "5ec72d2269bb40fa0feb629e9f848e38be1908afbc7f530c8af4fad84e004a71"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_24:q5:part-b(ii)",
+          "label": "b(ii)",
+          "promptFragment": "The filament wire of lamp B has a cross-sectional area of 1.4 × 10⁻⁹ m². The number of free (conduction) electrons per unit volume in the metal of the filament wire is 3.4 × 10²⁸ m⁻³.\n\nCalculate the average drift speed of the free electrons in the filament wire of lamp B.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 11,
+          "sourceEvidence": [
+            {
+              "documentSha256": "7b08025eb85e1bbf46dfcadbfa5434a231708ec62b2c3ef6fa78457300d5a1bb",
+              "page": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_24/qp-11.jpg",
+              "assetSha256": "5ec72d2269bb40fa0feb629e9f848e38be1908afbc7f530c8af4fad84e004a71"
+            }
+          ]
+        }
+      ],
+      "marks": 8,
+      "sourceRef": {
+        "paperId": "cie-9702-9702_s25_qp_24",
+        "paper": "9702_s25_qp_24.pdf",
+        "question": "Q5",
+        "localUrl": "/local-pdf/9702/9702_s25_qp_24.pdf",
+        "pageStart": 10,
+        "pageEnd": 11,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_s25_qp_24/qp-10.jpg",
+          "/question-assets/cie-9702-9702_s25_qp_24/qp-11.jpg"
+        ],
+        "year": 2025,
+        "season": "Jun",
+        "component": 2,
+        "sha256": "7b08025eb85e1bbf46dfcadbfa5434a231708ec62b2c3ef6fa78457300d5a1bb"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-15T05:35:44.411Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-topic-coverage-review.v1"
+      },
+      "syllabusMapping": {
+        "specificationId": "cambridge-9702-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "physics-9702-topic-09",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-09",
+        "secondaryTopicIds": [
+          "physics-9702-topic-10"
+        ],
+        "syllabusPointIds": [
+          "physics-9702-point-9-1-04",
+          "physics-9702-point-9-2-03",
+          "physics-9702-point-9-3-03",
+          "physics-9702-point-9-3-04"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+        "reviewedAt": "2026-08-15T18:30:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_s25_qp_24",
+          "markSchemeId": "cie-9702-9702_s25_ms_24",
+          "questionPages": [
+            10,
+            11
+          ],
+          "markSchemePages": [
+            12
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s25_qp_24.pdf",
+          "studentPromptPolicy": "official-source-image",
+          "privateTextPolicy": "hidden-indexing-and-marking-context"
+        }
+      },
+      "questionId": "cie-9702-9702_s25_qp_24:q5",
+      "answerId": "cie-9702-9702_s25_qp_24:q5:answer"
+    }
+  ],
+  "answers": [
+    {
+      "answerId": "cie-9702-9702_s25_qp_24:q5:answer",
+      "answer": null,
+      "answerKey": null,
+      "markPoints": [
+        "B1",
+        "M1",
+        "A1",
+        "C1",
+        "A1",
+        "current in metal wire = 3.3 - 1.5 = 1.8 A",
+        "I = Anvq; 1.8 = 1.4 x 10^-9 x 3.4 x 10^28 x v x 1.6 x 10^-19",
+        "v = 0.24 m s^-1"
+      ],
+      "exactAnswer": "(a(i)) B1\n\n(a(ii)) M1\nA1\n\n(b(i)) C1\nA1\n\n(b(ii)) current in metal wire = 3.3 - 1.5 = 1.8 A\nI = Anvq; 1.8 = 1.4 x 10^-9 x 3.4 x 10^28 x v x 1.6 x 10^-19\nv = 0.24 m s^-1",
+      "answerRef": {
+        "documentId": "cie-9702-9702_s25_ms_24",
+        "file": "9702_s25_ms_24.pdf",
+        "localUrl": "/local-pdf/9702/9702_s25_ms_24.pdf",
+        "pageStart": 12,
+        "pageEnd": 12,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_s25_qp_24/ms-12.jpg"
+        ],
+        "sha256": "b4f2db21b63eb3e59619efb3bce1d12031f7641f74653eb9df7e32e6658fecb5"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_s25_qp_24:q5:part-a(i)",
+          "label": "a(i)",
+          "marks": 1,
+          "markSchemePoints": [
+            "B1"
+          ],
+          "answerKey": null,
+          "answerText": "B1",
+          "sourcePage": 12,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "b4f2db21b63eb3e59619efb3bce1d12031f7641f74653eb9df7e32e6658fecb5",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_24/ms-12.jpg",
+              "assetSha256": "d9076c1fb4618dff295c77aa5e2329e4607938c21acea636ca74d43c5591ef9c",
+              "text": "B1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_24:q5:part-a(ii)",
+          "label": "a(ii)",
+          "marks": 2,
+          "markSchemePoints": [
+            "M1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "M1\nA1",
+          "sourcePage": 12,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "b4f2db21b63eb3e59619efb3bce1d12031f7641f74653eb9df7e32e6658fecb5",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_24/ms-12.jpg",
+              "assetSha256": "d9076c1fb4618dff295c77aa5e2329e4607938c21acea636ca74d43c5591ef9c",
+              "text": "M1"
+            },
+            {
+              "documentSha256": "b4f2db21b63eb3e59619efb3bce1d12031f7641f74653eb9df7e32e6658fecb5",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_24/ms-12.jpg",
+              "assetSha256": "d9076c1fb4618dff295c77aa5e2329e4607938c21acea636ca74d43c5591ef9c",
+              "text": "A1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_24:q5:part-b(i)",
+          "label": "b(i)",
+          "marks": 2,
+          "markSchemePoints": [
+            "C1",
+            "A1"
+          ],
+          "answerKey": null,
+          "answerText": "C1\nA1",
+          "sourcePage": 12,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "b4f2db21b63eb3e59619efb3bce1d12031f7641f74653eb9df7e32e6658fecb5",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_24/ms-12.jpg",
+              "assetSha256": "d9076c1fb4618dff295c77aa5e2329e4607938c21acea636ca74d43c5591ef9c",
+              "text": "C1"
+            },
+            {
+              "documentSha256": "b4f2db21b63eb3e59619efb3bce1d12031f7641f74653eb9df7e32e6658fecb5",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_24/ms-12.jpg",
+              "assetSha256": "d9076c1fb4618dff295c77aa5e2329e4607938c21acea636ca74d43c5591ef9c",
+              "text": "A1"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_s25_qp_24:q5:part-b(ii)",
+          "label": "b(ii)",
+          "marks": 3,
+          "markSchemePoints": [
+            "current in metal wire = 3.3 - 1.5 = 1.8 A",
+            "I = Anvq; 1.8 = 1.4 x 10^-9 x 3.4 x 10^28 x v x 1.6 x 10^-19",
+            "v = 0.24 m s^-1"
+          ],
+          "answerKey": null,
+          "answerText": "current in metal wire = 3.3 - 1.5 = 1.8 A\nI = Anvq; 1.8 = 1.4 x 10^-9 x 3.4 x 10^28 x v x 1.6 x 10^-19\nv = 0.24 m s^-1",
+          "sourcePage": 12,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "b4f2db21b63eb3e59619efb3bce1d12031f7641f74653eb9df7e32e6658fecb5",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_24/ms-12.jpg",
+              "assetSha256": "d9076c1fb4618dff295c77aa5e2329e4607938c21acea636ca74d43c5591ef9c",
+              "text": "current in metal wire = 3.3 - 1.5 = 1.8 A"
+            },
+            {
+              "documentSha256": "b4f2db21b63eb3e59619efb3bce1d12031f7641f74653eb9df7e32e6658fecb5",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_24/ms-12.jpg",
+              "assetSha256": "d9076c1fb4618dff295c77aa5e2329e4607938c21acea636ca74d43c5591ef9c",
+              "text": "I = Anvq; 1.8 = 1.4 x 10^-9 x 3.4 x 10^28 x v x 1.6 x 10^-19"
+            },
+            {
+              "documentSha256": "b4f2db21b63eb3e59619efb3bce1d12031f7641f74653eb9df7e32e6658fecb5",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_s25_qp_24/ms-12.jpg",
+              "assetSha256": "d9076c1fb4618dff295c77aa5e2329e4607938c21acea636ca74d43c5591ef9c",
+              "text": "v = 0.24 m s^-1"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "bindings": [
+    {
+      "questionId": "cie-9702-9702_s25_qp_24:q5",
+      "answerId": "cie-9702-9702_s25_qp_24:q5:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "7b08025eb85e1bbf46dfcadbfa5434a231708ec62b2c3ef6fa78457300d5a1bb",
+      "answerDocumentSha256": "b4f2db21b63eb3e59619efb3bce1d12031f7641f74653eb9df7e32e6658fecb5",
+      "reviewedAt": "2026-08-15T18:30:00+08:00",
+      "reviewedBy": "Codex manual QP/MS visual review / 9702-P2-topic-coverage",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "reviewProtocolVersion": "cambridge-9702-p2-topic-coverage-review.v1",
+        "sourcePolicy": "personal-study-restricted",
+        "manualVisualReview": true,
+        "studentPromptPolicy": "official-source-image",
+        "privateTextPolicy": "hidden-indexing-and-marking-context",
+        "completeQuestionPageReview": true,
+        "questionPaper": {
+          "file": "9702_s25_qp_24.pdf",
+          "sha256": "7b08025eb85e1bbf46dfcadbfa5434a231708ec62b2c3ef6fa78457300d5a1bb",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s25_qp_24.pdf"
+        },
+        "markScheme": {
+          "file": "9702_s25_ms_24.pdf",
+          "sha256": "b4f2db21b63eb3e59619efb3bce1d12031f7641f74653eb9df7e32e6658fecb5",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s25_ms_24.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_s25_qp_24:q5:part-a(i)",
+            "marks": 1,
+            "questionPage": 10,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 12,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "B1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_s25_qp_24:q5:part-a(ii)",
+            "marks": 2,
+            "questionPage": 10,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 12,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "M1",
+              "A1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_s25_qp_24:q5:part-b(i)",
+            "marks": 2,
+            "questionPage": 11,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 12,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "C1",
+              "A1"
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_s25_qp_24:q5:part-b(ii)",
+            "marks": 3,
+            "questionPage": 11,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 12,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 3,
+            "markSchemeEvidence": [
+              "current in metal wire = 3.3 - 1.5 = 1.8 A",
+              "I = Anvq; 1.8 = 1.4 x 10^-9 x 3.4 x 10^28 x v x 1.6 x 10^-19",
+              "v = 0.24 m s^-1"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

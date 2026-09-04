@@ -1,0 +1,2019 @@
+import { createHash } from 'node:crypto'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { spawn } from 'node:child_process'
+
+import { CAMBRIDGE_9702_AS_SYLLABUS } from '../src/data/syllabus/cambridge-9702-as-2025-2027.js'
+import { CAMBRIDGE_9702_A2_SYLLABUS } from '../src/data/syllabus/cambridge-9702-a2-2025-2027.js'
+import { CAMBRIDGE_0580_IGCSE_SYLLABUS } from '../src/data/syllabus/cambridge-0580-igcse-2025-2027.js'
+import { CAMBRIDGE_0625_IGCSE_SYLLABUS } from '../src/data/syllabus/cambridge-0625-igcse-2026-2028.js'
+import { CAMBRIDGE_9709_AS_P1_S1_SYLLABUS } from '../src/data/syllabus/cambridge-9709-as-p1-s1-2026-2027.js'
+import { cambridge9709SyllabusForRoute } from '../src/data/syllabus/cambridge-9709-2026-2027.js'
+import { mergeRuntimeEnv } from '../src/lib/runtimeEnv.js'
+import {
+  AI_PDF_INGESTION_SCHEMA_VERSION,
+  artifactId,
+  buildAiStudentStudyRelease,
+  subjectRelativePdfPath,
+} from './ai-pdf-ingestion/contract.mjs'
+import { callStructuredWithFallback, providersFromEnvironment } from './ai-pdf-ingestion/provider-fallback.mjs'
+import {
+  buildCropCommand,
+  buildCropManifest,
+  buildRenderArgs,
+  imageSha256,
+  resolvePopplerExecutable,
+} from './ai-pdf-ingestion/render.mjs'
+import { validateCandidate } from './ai-pdf-ingestion/validate.mjs'
+
+const DEFAULT_OUTPUT_ROOT = 'data/ai-pdf-ingestion'
+const DEFAULT_RENDER_DPI = 180
+const DEFAULT_MAX_ATTEMPTS = 3
+const DEFAULT_OPENAI_TIMEOUT_MS = 120000
+const DEFAULT_PAPER_TIMEOUT_MS = 900000
+const DEFAULT_PAGE_WINDOW_OWNED_PAGE_COUNT = 4
+const DEFAULT_PAGE_WINDOW_TRAILING_CONTEXT_PAGE_COUNT = 1
+const PAGE_WINDOW_MARK_SCHEME_CONTEXT_PAGE_COUNT = 1
+const MAX_PDF_TEXT_BYTES = 2 * 1024 * 1024
+const NO_EXTRACTABLE_TEXT_PAGE_MARKER = '[No extractable text on this page.]'
+const UNMAPPED_TOPIC_ID = '__unmapped__'
+const SAFE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/
+const SAFE_ARTIFACT_SUFFIX = /^[A-Za-z0-9][A-Za-z0-9._-]{0,96}$/
+const PDF_VALIDATION_PROGRAM = 'from pypdf import PdfReader; import sys; reader = PdfReader(sys.argv[1]); expected = int(sys.argv[2]); assert expected > 0 and len(reader.pages) == expected'
+function math9709Route(routeId, stage, components) {
+  return Object.freeze({
+    routeId,
+    stage,
+    components: Object.freeze([...components]),
+    syllabus: cambridge9709SyllabusForRoute(routeId, components),
+  })
+}
+
+const CAMBRIDGE_9709_INGESTION_ROUTES = Object.freeze({
+  'cie-9709-as-p1-p2': math9709Route('cie-9709-as-p1-p2', 'AS', [1, 2]),
+  'cie-9709-as-p1-p4': math9709Route('cie-9709-as-p1-p4', 'AS', [1, 4]),
+  'cie-9709-as-p1-p5': math9709Route('cie-9709-as-p1-p5', 'AS', [1, 5]),
+  'cie-9709-a2-after-p1-p5-p3-p4': math9709Route('cie-9709-a2-after-p1-p5-p3-p4', 'A2', [3, 4]),
+  'cie-9709-a2-after-p1-p5-p3-p6': math9709Route('cie-9709-a2-after-p1-p5-p3-p6', 'A2', [3, 6]),
+  'cie-9709-a2-after-p1-p4-p3-p5': math9709Route('cie-9709-a2-after-p1-p4-p3-p5', 'A2', [3, 5]),
+})
+
+const DEFAULT_9709_ROUTE_BY_STAGE_COMPONENT = Object.freeze({
+  AS: Object.freeze({ 1: 'cie-9709-as-p1-p5', 2: 'cie-9709-as-p1-p2', 4: 'cie-9709-as-p1-p4', 5: 'cie-9709-as-p1-p5' }),
+  A2: Object.freeze({ 3: 'cie-9709-a2-after-p1-p5-p3-p6', 4: 'cie-9709-a2-after-p1-p5-p3-p4', 5: 'cie-9709-a2-after-p1-p4-p3-p5', 6: 'cie-9709-a2-after-p1-p5-p3-p6' }),
+})
+
+const SUPPORTED_SYLLABUSES = Object.freeze({
+  '0580': Object.freeze({ IGCSE: CAMBRIDGE_0580_IGCSE_SYLLABUS }),
+  '0625': Object.freeze({ IGCSE: CAMBRIDGE_0625_IGCSE_SYLLABUS }),
+  '9702': Object.freeze({ AS: CAMBRIDGE_9702_AS_SYLLABUS, A2: CAMBRIDGE_9702_A2_SYLLABUS }),
+  '9709': Object.freeze({
+    AS: CAMBRIDGE_9709_AS_P1_S1_SYLLABUS,
+    A2: CAMBRIDGE_9709_INGESTION_ROUTES['cie-9709-a2-after-p1-p5-p3-p6'].syllabus,
+  }),
+})
+
+function pageWindowSize(value, label, fallback) {
+  const parsed = Number(value ?? fallback)
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 8) {
+    throw new RangeError(`${label} must be between 1 and 8.`)
+  }
+  return parsed
+}
+
+const extractorSchema = {
+  type: 'object', additionalProperties: false, required: ['source', 'questions'], properties: {
+    source: {
+      type: 'object', additionalProperties: false, required: ['questionPdfSha256', 'markSchemePdfSha256'], properties: {
+        questionPdfSha256: { type: 'string' }, markSchemePdfSha256: { type: 'string' },
+      },
+    },
+    questions: {
+      type: 'array', items: {
+        type: 'object', additionalProperties: false,
+        required: ['questionNumber', 'questionStartPage', 'regions', 'diagramRegions', 'parts', 'tags', 'markSchemeEvidence'], properties: {
+          questionNumber: { type: 'string' }, questionStartPage: { type: 'integer', minimum: 1 },
+          regions: { type: 'array', items: regionSchema() },
+          diagramRegions: { type: 'array', items: regionSchema() },
+          parts: {
+            type: 'array', items: {
+              type: 'object', additionalProperties: false,
+              required: ['label', 'marks', 'ocrText', 'math', 'diagramAssociations'], properties: {
+                label: { type: 'string' }, marks: { type: 'integer', minimum: 0 }, ocrText: { type: 'string' },
+                math: { type: 'array', items: { type: 'string' } },
+                diagramAssociations: { type: 'array', items: { type: 'integer', minimum: 0 } },
+              },
+            },
+          },
+          tags: tagSchema(null, { allowUnmapped: true }),
+          markSchemeEvidence: { type: 'array', items: markSchemeEvidenceSchema() },
+        },
+      },
+    },
+  },
+}
+
+const verifierSchema = {
+  type: 'object', additionalProperties: false, required: ['questionStarts', 'questions'], properties: {
+    questionStarts: {
+      type: 'array', items: questionStartSchema(),
+    },
+    questions: {
+      type: 'array', items: {
+        type: 'object', additionalProperties: false,
+         required: ['questionNumber', 'questionStartPage', 'pages', 'regions', 'diagramRegions', 'parts', 'diagramRegionCount', 'tags', 'markSchemeEvidence'], properties: {
+           questionNumber: { type: 'string' }, questionStartPage: { type: 'integer', minimum: 1 },
+           pages: { type: 'array', items: { type: 'integer', minimum: 1 } },
+           regions: { type: 'array', minItems: 1, items: regionSchema() },
+           diagramRegions: { type: 'array', items: regionSchema() },
+          parts: {
+            type: 'array', items: {
+              type: 'object', additionalProperties: false, required: ['label', 'marks'], properties: {
+                label: { type: 'string' }, marks: { type: 'integer', minimum: 0 },
+              },
+            },
+          },
+          diagramRegionCount: { type: 'integer', minimum: 0 },
+          tags: tagSchema(),
+          markSchemeEvidence: { type: 'array', items: markSchemeEvidenceSchema() },
+        },
+      },
+    },
+  },
+}
+
+export function parseArgs(argv, { cwd = process.cwd(), env = process.env } = {}) {
+  const runtimeEnv = mergeRuntimeEnv({ cwd, env })
+  const values = {}
+  const flags = new Set(['--dry-run', '--retry', '--coordinate-only', '--page-windowed'])
+  const options = new Set([
+    '--paper-id', '--question-pdf', '--mark-scheme-pdf', '--subject', '--stage', '--route-id', '--output-root', '--artifact-suffix', '--model', '--base-url', '--render-dpi', '--max-attempts', '--timeout-ms', '--paper-timeout-ms', '--page-window-owned-pages', '--page-window-trailing-pages',
+  ])
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const argument = argv[index]
+    if (flags.has(argument)) {
+      const flagName = argument === '--dry-run'
+        ? 'dryRun'
+        : argument === '--retry'
+          ? 'retry'
+          : argument === '--coordinate-only'
+            ? 'coordinateOnly'
+            : 'pageWindowed'
+      if (values[flagName]) throw new RangeError(`${argument} may only be provided once.`)
+      values[flagName] = true
+      continue
+    }
+    if (!options.has(argument)) throw new RangeError(`Unknown argument: ${String(argument)}`)
+    if (Object.hasOwn(values, argument)) throw new RangeError(`${argument} may only be provided once.`)
+    const value = argv[index + 1]
+    if (!value || value.startsWith('--')) throw new RangeError(`${argument} requires a value.`)
+    values[argument] = value
+    index += 1
+  }
+
+  for (const required of ['--paper-id', '--question-pdf', '--mark-scheme-pdf', '--subject']) {
+    if (!values[required]) throw new RangeError(`${required} is required.`)
+  }
+  if (!SAFE_SEGMENT.test(values['--paper-id'])) throw new RangeError('--paper-id must be a single safe path segment.')
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(values['--subject'])) throw new RangeError('--subject must be a safe identifier.')
+  if (!supportedSubject(values['--subject'])) throw codedError('UNSUPPORTED_SUBJECT')
+  const stage = normalizeStage(values['--subject'], values['--stage'])
+  const paperComponent = paperComponentFromIdentity(values['--paper-id'], values['--question-pdf'])
+  const routeId = syllabusRouteIdForOptions({
+    subject: values['--subject'],
+    stage,
+    paperComponent,
+    routeId: values['--route-id'],
+  })
+  syllabusForOptions({ subject: values['--subject'], stage, paperComponent, routeId })
+
+  const renderDpi = positiveInteger(values['--render-dpi'] ?? DEFAULT_RENDER_DPI, '--render-dpi')
+  const maxAttempts = positiveInteger(values['--max-attempts'] ?? DEFAULT_MAX_ATTEMPTS, '--max-attempts')
+  const timeoutMs = positiveInteger(values['--timeout-ms'] ?? runtimeEnv.AI_PDF_INGESTION_TIMEOUT_MS ?? DEFAULT_OPENAI_TIMEOUT_MS, '--timeout-ms')
+  const paperTimeoutMs = positiveInteger(values['--paper-timeout-ms'] ?? runtimeEnv.AI_PDF_INGESTION_PAPER_TIMEOUT_MS ?? DEFAULT_PAPER_TIMEOUT_MS, '--paper-timeout-ms')
+  const pageWindowOwnedPages = pageWindowSize(
+    values['--page-window-owned-pages'] ?? runtimeEnv.AI_PDF_PAGE_WINDOW_OWNED_PAGE_COUNT,
+    '--page-window-owned-pages',
+    DEFAULT_PAGE_WINDOW_OWNED_PAGE_COUNT,
+  )
+  const pageWindowTrailingPages = pageWindowSize(
+    values['--page-window-trailing-pages'] ?? runtimeEnv.AI_PDF_PAGE_WINDOW_TRAILING_CONTEXT_PAGE_COUNT,
+    '--page-window-trailing-pages',
+    DEFAULT_PAGE_WINDOW_TRAILING_CONTEXT_PAGE_COUNT,
+  )
+  const outputRoot = path.resolve(cwd, values['--output-root'] ?? runtimeEnv.AI_PDF_INGESTION_ROOT ?? DEFAULT_OUTPUT_ROOT)
+  const artifactSuffix = normalizeArtifactSuffix(values['--artifact-suffix'])
+
+  return Object.freeze({
+    paperId: values['--paper-id'],
+    questionPdf: resolveExistingFile(values['--question-pdf'], '--question-pdf', cwd),
+    markSchemePdf: resolveExistingFile(values['--mark-scheme-pdf'], '--mark-scheme-pdf', cwd),
+    subject: values['--subject'],
+    stage,
+    routeId,
+    paperComponent,
+    outputRoot,
+    artifactSuffix,
+    model: nonemptyString(values['--model'] ?? runtimeEnv.AI_PDF_INGESTION_MODEL) ?? 'gpt-5.6',
+    baseUrl: nonemptyString(values['--base-url'] ?? runtimeEnv.OPENAI_BASE_URL),
+    dryRun: values.dryRun === true,
+    retry: values.retry === true,
+    coordinateOnly: values.coordinateOnly === true,
+    pageWindowed: values.pageWindowed === true,
+    renderDpi,
+    maxAttempts,
+    timeoutMs,
+    paperTimeoutMs,
+    pageWindowOwnedPages,
+    pageWindowTrailingPages,
+  })
+}
+
+export function buildDryRunPlan(options) {
+  const questionPdfSha256 = fileSha256(options.questionPdf)
+  const markSchemePdfSha256 = fileSha256(options.markSchemePdf)
+  const id = artifactId({ paperId: options.paperId, questionPdfSha256, markSchemePdfSha256 })
+  const outputArtifactPath = artifactPath(options.outputRoot, options.paperId, id, options.artifactSuffix)
+  return Object.freeze({
+    schemaVersion: AI_PDF_INGESTION_SCHEMA_VERSION,
+    mode: 'dry-run',
+    paperId: options.paperId,
+    subject: options.subject,
+    stage: options.stage,
+    syllabusRouteId: syllabusForOptions(options).routeId,
+    model: options.model,
+    renderDpi: options.renderDpi,
+    maxAttempts: options.maxAttempts,
+    timeoutMs: options.timeoutMs,
+    paperTimeoutMs: options.paperTimeoutMs,
+    pageWindowOwnedPages: options.pageWindowOwnedPages,
+    pageWindowTrailingPages: options.pageWindowTrailingPages,
+    retry: options.retry,
+    coordinateOnly: options.coordinateOnly === true,
+    pageWindowed: options.pageWindowed === true,
+    artifactSuffix: normalizeArtifactSuffix(options.artifactSuffix),
+    artifactId: id,
+    immutableInputs: {
+      questionPdf: { path: options.questionPdf, sha256: questionPdfSha256 },
+      markSchemePdf: { path: options.markSchemePdf, sha256: markSchemePdfSha256 },
+    },
+    outputArtifactPath,
+  })
+}
+
+export async function runCli(options, {
+  cwd = process.cwd(),
+  env = process.env,
+  callStructured = null,
+  callWithFallback = callStructuredWithFallback,
+  providerChain = providersFromEnvironment,
+  renderPdf = renderPdfPages,
+  extractPdfText = extractPdfTextPages,
+  runCropCommand = runCropCommandWithBundledPython,
+  validateCropOutput = validateCropOutputWithBundledPython,
+  writeArtifact = writeArtifactSafely,
+  onStructuredResult = null,
+  transformStructuredResult = async ({ value }) => value,
+} = {}) {
+  const runtimeEnv = mergeRuntimeEnv({ cwd, env })
+  const plan = buildDryRunPlan(options)
+  if (options.dryRun) return plan
+
+  const priorArtifact = readExistingArtifact(plan.outputArtifactPath)
+  if (priorArtifact?.status === 'auto-quarantined' && !options.retry) return priorArtifact
+  if (priorArtifact?.status === 'ai-verified' && options.forceReprocess !== true) {
+    const fresh = priorArtifact.storageMode === 'coordinate-only'
+      ? coordinateOnlyArtifactSourcesFresh(priorArtifact)
+      : verifiedArtifactAssetsFresh(priorArtifact, plan.outputArtifactPath)
+    if (fresh) return priorArtifact
+    if (!options.retry) {
+      return writeArtifact(plan.outputArtifactPath, {
+        schemaVersion: AI_PDF_INGESTION_SCHEMA_VERSION,
+        artifactId: plan.artifactId,
+        paperId: plan.paperId,
+        subject: plan.subject,
+        status: 'auto-quarantined',
+        source: priorArtifact.source || sourceMetadata(plan, options),
+        model: plan.model,
+        reasonCodes: [priorArtifact.storageMode === 'coordinate-only' ? 'EXISTING_ARTIFACT_SOURCE_MISSING' : 'EXISTING_ARTIFACT_ASSET_MISSING'],
+      })
+    }
+  }
+  if (priorArtifact && options.retry) {
+    fs.rmSync(assetsRootFor(plan.outputArtifactPath, plan.artifactId, plan.artifactSuffix), { recursive: true, force: true })
+  }
+
+  const source = sourceMetadata(plan, options)
+  const paperDeadlineAt = Date.now() + (options.paperTimeoutMs || DEFAULT_PAPER_TIMEOUT_MS)
+  let temporaryDirectory
+  let createdAssetsRoot = null
+  const providerTelemetry = []
+  try {
+    temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-pdf-ingestion-'))
+    const questionRenderDirectory = path.join(temporaryDirectory, 'question-paper')
+    const markSchemeRenderDirectory = path.join(temporaryDirectory, 'mark-scheme')
+    fs.mkdirSync(questionRenderDirectory)
+    fs.mkdirSync(markSchemeRenderDirectory)
+    const questionRender = normalizeRenderResult(await renderPdf(options.questionPdf, questionRenderDirectory, options.renderDpi, runtimeEnv))
+    const markSchemeRender = normalizeRenderResult(await renderPdf(options.markSchemePdf, markSchemeRenderDirectory, options.renderDpi, runtimeEnv))
+    source.pageImageHashes = questionRender.pageImageHashes
+    source.pageSizes = questionRender.pageSizes
+    source.markSchemePageHashes = markSchemeRender.pageImageHashes
+    source.markSchemePageSizes = markSchemeRender.pageSizes
+
+    const providers = callStructured ? [] : providerChain(runtimeEnv, { model: options.model, baseUrl: options.baseUrl })
+    if (!callStructured && providers.length === 0) {
+      return await writeQuarantine({ plan, source, writeArtifact, reasonCodes: ['OPENAI_CONFIGURATION_INVALID'], providerTelemetry })
+    }
+
+    const requestStructured = async ({ schemaName, schema, input }) => {
+      const remainingMs = Math.floor(paperDeadlineAt - Date.now())
+      if (remainingMs < 1) throw codedError('AI_PAPER_TIMEOUT')
+      const request = {
+        apiKey: runtimeEnv.OPENAI_API_KEY,
+        model: options.model,
+        baseUrl: options.baseUrl,
+        schemaName,
+        schema,
+        input,
+        maxAttempts: options.maxAttempts,
+        timeoutMs: Math.min(options.timeoutMs, remainingMs),
+        deadlineAt: paperDeadlineAt,
+      }
+      let selectedResult
+      try {
+        selectedResult = callStructured
+          ? { provider: { name: 'injected' }, value: await withDeadline(callStructured(request), paperDeadlineAt) }
+          : await callWithFallback({ providers, request })
+        selectedResult = {
+          ...selectedResult,
+          value: await transformStructuredResult({ schemaName, value: selectedResult.value }),
+        }
+      } catch (error) {
+        providerTelemetry.push({
+          schemaName,
+          status: 'failed',
+          provider: null,
+          model: options.model,
+          errorCode: safeFailureCode(error),
+          attempts: (error?.providerTelemetry?.attempts || []).map((attempt) => ({ ...attempt })),
+        })
+        throw error
+      }
+      const result = { ...selectedResult, provider: providerIdentity(selectedResult.provider, request.model) }
+      providerTelemetry.push({
+        schemaName,
+        status: 'success',
+        provider: result.provider.name,
+        model: result.provider.model,
+        attempts: (result.telemetry?.attempts || []).map((attempt) => ({ ...attempt })),
+      })
+      if (typeof onStructuredResult === 'function') {
+        await onStructuredResult({
+          schemaName,
+          provider: result.provider?.name || null,
+          model: result.provider?.model || null,
+          providerAttempts: (result.telemetry?.attempts || []).map((attempt) => ({ ...attempt })),
+          questionNumbers: Array.isArray(result.value?.questions)
+            ? result.value.questions.map((question) => String(question?.questionNumber || '')).filter(Boolean)
+            : [],
+          questionStructures: Array.isArray(result.value?.questions)
+            ? result.value.questions.map((question) => ({
+              questionNumber: String(question?.questionNumber || ''),
+              questionStartPage: Number.isInteger(question?.questionStartPage) ? question.questionStartPage : null,
+              primaryTopicId: typeof question?.tags?.primaryTopicId === 'string' ? question.tags.primaryTopicId : null,
+              pages: [...new Set((Array.isArray(question?.pages)
+                ? question.pages
+                : [...(question?.regions || []), ...(question?.diagramRegions || [])].map((region) => region?.page))
+                .filter(Number.isInteger))].sort((left, right) => left - right),
+              regions: (Array.isArray(question?.regions) ? question.regions : []).map((region) => ({
+                page: region?.page, x0: region?.x0, y0: region?.y0, x1: region?.x1, y1: region?.y1,
+              })),
+              diagramRegions: (Array.isArray(question?.diagramRegions) ? question.diagramRegions : []).map((region) => ({
+                page: region?.page, x0: region?.x0, y0: region?.y0, x1: region?.x1, y1: region?.y1,
+              })),
+              parts: (Array.isArray(question?.parts) ? question.parts : []).map((part) => ({
+                label: String(part?.label || ''),
+                marks: Number.isInteger(part?.marks) ? part.marks : null,
+              })),
+            }))
+            : [],
+          questionStartPages: Array.isArray(result.value?.questionStarts)
+            ? result.value.questionStarts.map((question) => Number(question?.questionStartPage)).filter(Number.isInteger)
+            : [],
+        })
+      }
+      return result
+    }
+    const ingestion = options.pageWindowed
+      ? await extractAndVerifyPageWindows({
+        source,
+        options,
+        questionRenderDirectory,
+        markSchemeRenderDirectory,
+        requestStructured,
+        extractPdfText,
+        runtimeEnv,
+      })
+      : await extractAndVerifyWholePaper({
+        source,
+        questionRenderDirectory,
+        markSchemeRenderDirectory,
+        requestStructured,
+      })
+    const syllabusMapping = reconcileSyllabusMappings(ingestion.extraction, ingestion.verification)
+    if (options.pageWindowed) assertPageWindowAgreement(syllabusMapping.extraction, syllabusMapping.verification)
+    const extraction = syllabusMapping.extraction
+    const verification = syllabusMapping.verification
+    const normalizedVerification = normalizeVerificationForValidation(verification)
+    const validationCandidate = normalizeExtractionForValidation(extraction, normalizedVerification)
+    const validation = validateCandidate({ candidate: validationCandidate, verification: normalizedVerification, source })
+    let assets = []
+    if (validation.status === 'ai-verified' && !options.coordinateOnly) {
+      createdAssetsRoot = assetsRootFor(plan.outputArtifactPath, plan.artifactId, plan.artifactSuffix)
+      fs.mkdirSync(path.dirname(createdAssetsRoot), { recursive: true })
+      fs.mkdirSync(createdAssetsRoot)
+      try {
+        assets = await cropVerifiedQuestions({
+          extraction,
+          options,
+          plan,
+          pageSizes: questionRender.pageSizes,
+          assetsRoot: createdAssetsRoot,
+          runCropCommand,
+          validateCropOutput,
+        })
+      } catch {
+        throw codedError('CROP_FAILED')
+      }
+    }
+    return writeArtifact(plan.outputArtifactPath, artifactForResult(plan, source, options, validation, validationCandidate, normalizedVerification, assets, {
+      extractorProvider: ingestion.extractorProvider,
+      verifierProvider: ingestion.verifierProvider,
+      excludedQuestions: syllabusMapping.excludedQuestions,
+      providerTelemetry,
+    }))
+  } catch (error) {
+    if (createdAssetsRoot) fs.rmSync(createdAssetsRoot, { recursive: true, force: true })
+    return writeQuarantine({
+      plan,
+      source,
+      writeArtifact,
+      reasonCodes: [safeFailureCode(error)],
+      providerTelemetry,
+    })
+  } finally {
+    if (temporaryDirectory) fs.rmSync(temporaryDirectory, { recursive: true, force: true })
+  }
+}
+
+async function extractAndVerifyWholePaper({ source, questionRenderDirectory, markSchemeRenderDirectory, requestStructured }) {
+  const extractionResult = await requestStructured({
+    schemaName: 'ai_pdf_question_extraction_v1',
+    schema: extractionSchemaFor(source.controlledTags),
+    input: buildExtractionInput(source, questionRenderDirectory, markSchemeRenderDirectory),
+  })
+  const verificationResult = await requestStructured({
+    schemaName: 'ai_pdf_question_verification_v1',
+    schema: verifierSchemaFor(source.controlledTags),
+    input: buildVerificationInput(source, extractionResult.value, questionRenderDirectory, markSchemeRenderDirectory),
+  })
+  return {
+    extraction: extractionResult.value,
+    verification: verificationResult.value,
+    extractorProvider: extractionResult.provider,
+    verifierProvider: verificationResult.provider,
+  }
+}
+
+async function extractAndVerifyPageWindows({
+  source,
+  options,
+  questionRenderDirectory,
+  markSchemeRenderDirectory,
+  requestStructured,
+  extractPdfText,
+  runtimeEnv,
+}) {
+  const pageText = {
+    questionPaper: normalizePdfTextPages(
+      await extractPdfText(options.questionPdf, source.pageImageHashes, runtimeEnv),
+      source.pageImageHashes,
+    ),
+    markScheme: normalizePdfTextPages(
+      await extractPdfText(options.markSchemePdf, source.markSchemePageHashes, runtimeEnv),
+      source.markSchemePageHashes,
+    ),
+  }
+  const chunks = []
+  const observations = new Map()
+  for (const pageWindow of questionPaperPageWindows(source.pageImageHashes, {
+    ownedPageCount: options.pageWindowOwnedPages,
+    trailingPageCount: options.pageWindowTrailingPages,
+    questionStartPages: questionStartPagesFromText(pageText.questionPaper, source.pageImageHashes),
+  })) {
+    const chunk = await extractAndVerifyPageWindow({
+      source,
+      questionRenderDirectory,
+      markSchemeRenderDirectory,
+      pageText,
+      pageWindow,
+      requestStructured,
+    })
+    chunks.push(chunk)
+    for (const observation of [...chunk.extractionObservations, ...chunk.verificationObservations]) {
+      observations.set(observation.questionNumber, observation)
+    }
+  }
+
+  const ownedQuestionNumbers = ownedQuestionNumbersFromChunks(chunks)
+  const unresolved = [...observations.values()].filter(({ questionNumber }) => !ownedQuestionNumbers.has(questionNumber))
+  if (unresolved.length) {
+    const recoveryWindow = recoveryPageWindow(source.pageImageHashes, unresolved)
+    const recoveryChunk = await extractAndVerifyPageWindow({
+      source,
+      questionRenderDirectory,
+      markSchemeRenderDirectory,
+      pageText,
+      pageWindow: recoveryWindow,
+      requestStructured,
+    })
+    chunks.push(recoveryChunk)
+    const recoveredQuestionNumbers = ownedQuestionNumbersFromChunks(chunks)
+    const stillUnresolved = unresolved.filter(({ questionNumber }) => !recoveredQuestionNumbers.has(questionNumber))
+    if (stillUnresolved.length) throw codedError('PAGE_WINDOW_QUESTION_OWNERSHIP_UNRESOLVED')
+  }
+  const deterministicMarkSchemeEvidence = markSchemeEvidenceByQuestionFromText(pageText.markScheme, source.markSchemePageHashes)
+  return {
+    extraction: applyDeterministicMarkSchemeEvidence(mergePageWindowExtractions(chunks), deterministicMarkSchemeEvidence),
+    verification: applyDeterministicMarkSchemeEvidence(mergePageWindowVerifications(chunks), deterministicMarkSchemeEvidence),
+    extractorProvider: providerSummary(chunks.map(chunk => chunk.extractionProvider)),
+    verifierProvider: providerSummary(chunks.map(chunk => chunk.verificationProvider)),
+  }
+}
+
+async function extractAndVerifyPageWindow({ source, questionRenderDirectory, markSchemeRenderDirectory, pageText, pageWindow, requestStructured }) {
+  const extractionResult = await requestStructured({
+    schemaName: 'ai_pdf_question_extraction_v1',
+    schema: extractionSchemaFor(source.controlledTags),
+    input: buildPageWindowedExtractionInput(source, questionRenderDirectory, markSchemeRenderDirectory, pageWindow, pageText),
+  })
+  const extractionValue = normalizePageWindowResponse(extractionResult.value)
+  const extractionFilter = filterPageWindowQuestions(
+    extractionValue?.questions,
+    pageWindow,
+    'PAGE_WINDOW_EXTRACTION',
+    { sourcePages: source.pageImageHashes },
+  )
+  const extraction = { ...(extractionValue || {}), questions: extractionFilter.questions }
+
+  const verificationResult = await requestStructured({
+    schemaName: 'ai_pdf_question_verification_v1',
+    schema: verifierSchemaFor(source.controlledTags),
+    input: buildPageWindowedVerificationInput(source, questionRenderDirectory, markSchemeRenderDirectory, pageWindow, pageText),
+  })
+  const verificationValue = normalizePageWindowResponse(verificationResult.value, { verification: true })
+  const verificationFilter = filterPageWindowQuestions(
+    verificationValue?.questions,
+    pageWindow,
+    'PAGE_WINDOW_VERIFICATION',
+    { verification: true, sourcePages: source.pageImageHashes },
+  )
+  const startFilter = filterPageWindowStarts(
+    verificationValue?.questionStarts,
+    pageWindow,
+    'PAGE_WINDOW_VERIFICATION',
+    { sourcePages: source.pageImageHashes },
+  )
+  const verification = { ...(verificationValue || {}), questions: verificationFilter.questions }
+  return {
+    pageWindow,
+    extraction,
+    verification,
+    extractionObservations: extractionFilter.observations,
+    verificationObservations: [...verificationFilter.observations, ...startFilter.observations],
+    extractionProvider: extractionResult.provider,
+    verificationProvider: verificationResult.provider,
+  }
+}
+
+export function questionPaperPageWindows(pageHashes, {
+  ownedPageCount = DEFAULT_PAGE_WINDOW_OWNED_PAGE_COUNT,
+  trailingPageCount = DEFAULT_PAGE_WINDOW_TRAILING_CONTEXT_PAGE_COUNT,
+  questionStartPages = [],
+} = {}) {
+  const pages = sortedPageNumbers(pageHashes)
+  if (!pages.length) throw codedError('PAGE_WINDOW_SOURCE_PAGES_INVALID')
+  const ownedPages = pageWindowSize(ownedPageCount, '--page-window-owned-pages', DEFAULT_PAGE_WINDOW_OWNED_PAGE_COUNT)
+  const trailingPages = pageWindowSize(trailingPageCount, '--page-window-trailing-pages', DEFAULT_PAGE_WINDOW_TRAILING_CONTEXT_PAGE_COUNT)
+  const textAnchoredStarts = [...new Set((Array.isArray(questionStartPages) ? questionStartPages : [])
+    .filter((page) => pages.includes(page)))]
+    .sort((left, right) => left - right)
+  if (textAnchoredStarts.length >= 2) {
+    const windows = []
+    for (let index = 0; index < textAnchoredStarts.length; index += ownedPages) {
+      const ownedQuestionPaperPages = textAnchoredStarts.slice(index, index + ownedPages)
+      const startPage = ownedQuestionPaperPages[0]
+      const startIndex = pages.indexOf(startPage)
+      const nextStartIndex = index + ownedQuestionPaperPages.length < textAnchoredStarts.length
+        ? pages.indexOf(textAnchoredStarts[index + ownedQuestionPaperPages.length])
+        : -1
+      const endIndex = nextStartIndex >= startIndex
+        ? nextStartIndex - 1
+        : pages.length - 1
+      windows.push(Object.freeze({
+        ownedQuestionPaperPages,
+        visibleQuestionPaperPages: pages.slice(startIndex, Math.max(startIndex, endIndex) + 1),
+        textAnchored: true,
+      }))
+    }
+    return windows
+  }
+  const windows = []
+  for (let index = 0; index < pages.length; index += ownedPages) {
+    const ownedQuestionPaperPages = pages.slice(index, index + ownedPages)
+    const visibleQuestionPaperPages = pages.slice(index, index + ownedPages + trailingPages)
+    windows.push(Object.freeze({ ownedQuestionPaperPages, visibleQuestionPaperPages }))
+  }
+  return windows
+}
+
+function questionStartPagesFromText(pageText, pageHashes) {
+  const pages = sortedPageNumbers(pageHashes)
+  const starts = []
+  let nextQuestionNumber = 1
+  for (const page of pages) {
+    const lines = String(pageText?.[page] || '').replace(/\r/g, '').split('\n')
+    for (const line of lines) {
+      const match = /^\s*(\d{1,2})(?:(?:\s*\([a-z]\))|(?:\s+[A-Z]))/i.exec(line)
+      if (!match || Number(match[1]) !== nextQuestionNumber) continue
+      starts.push(page)
+      nextQuestionNumber += 1
+    }
+  }
+  return starts
+}
+
+export function selectPageWindowMarkSchemePages({ questionPaperPageHashes = {}, markSchemePageHashes = {}, pageWindow = {}, contextPageCount = PAGE_WINDOW_MARK_SCHEME_CONTEXT_PAGE_COUNT } = {}) {
+  const questionPages = sortedPageNumbers(questionPaperPageHashes)
+  const markSchemePages = sortedPageNumbers(markSchemePageHashes)
+  const ownedPages = (Array.isArray(pageWindow.ownedQuestionPaperPages) ? pageWindow.ownedQuestionPaperPages : [])
+    .filter(page => questionPages.includes(page))
+  const context = Number(contextPageCount)
+  if (!questionPages.length || !markSchemePages.length || !ownedPages.length || !Number.isInteger(context) || context < 0 || context > 4) {
+    throw codedError('PAGE_WINDOW_SOURCE_PAGES_INVALID')
+  }
+  const questionSpan = Math.max(1, questionPages.length - 1)
+  const markSchemeSpan = Math.max(1, markSchemePages.length - 1)
+  const firstQuestionIndex = questionPages.indexOf(Math.min(...ownedPages))
+  const lastQuestionIndex = questionPages.indexOf(Math.max(...ownedPages))
+  const firstRatio = firstQuestionIndex / questionSpan
+  const lastRatio = lastQuestionIndex / questionSpan
+  const startIndex = Math.max(0, Math.floor(firstRatio * markSchemeSpan) - context)
+  const endIndex = Math.min(markSchemePages.length - 1, Math.ceil(lastRatio * markSchemeSpan) + context)
+  return markSchemePages.slice(startIndex, endIndex + 1)
+}
+
+function recoveryPageWindow(pageHashes, observations) {
+  const pages = sortedPageNumbers(pageHashes)
+  const startPages = [...new Set(observations.map(observation => observation.questionStartPage))]
+    .filter(page => pages.includes(page))
+    .sort((left, right) => left - right)
+  if (!startPages.length) throw codedError('PAGE_WINDOW_QUESTION_START_PAGE_INVALID')
+  const firstStartIndex = pages.indexOf(startPages[0])
+  return Object.freeze({
+    ownedQuestionPaperPages: startPages,
+    visibleQuestionPaperPages: pages.slice(firstStartIndex),
+    recovery: true,
+  })
+}
+
+function normalizePdfTextPages(value, pageHashes) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw codedError('PDF_TEXT_EXTRACTION_FAILED')
+  const normalized = {}
+  let pagesWithText = 0
+  for (const page of sortedPageNumbers(pageHashes)) {
+    const text = typeof value[page] === 'string' ? value[page].trim() : ''
+    if (text) pagesWithText += 1
+    normalized[page] = text || NO_EXTRACTABLE_TEXT_PAGE_MARKER
+  }
+  if (!pagesWithText) throw codedError('PDF_TEXT_EXTRACTION_FAILED')
+  return Object.freeze(normalized)
+}
+
+export function markSchemeEvidenceByQuestionFromText(pageText = {}, pageImageHashes = {}) {
+  const evidenceByQuestion = new Map()
+  for (const page of sortedPageNumbers(pageImageHashes)) {
+    const pageImageSha256 = pageImageHashes?.[page]
+    if (typeof pageImageSha256 !== 'string' || !pageImageSha256) continue
+    const questionNumbers = [...new Set(String(pageText?.[page] || '')
+      .replace(/\r/g, '')
+      .split('\n')
+      .map(line => /^\s*(\d{1,2})\s*(?=\([a-z](?:\)|\s|$))/i.exec(line)?.[1])
+      .filter(Boolean))]
+    for (const questionNumber of questionNumbers) {
+      const evidence = evidenceByQuestion.get(questionNumber) || []
+      evidence.push({ page, pageImageSha256 })
+      evidenceByQuestion.set(questionNumber, evidence)
+    }
+  }
+  return Object.fromEntries([...evidenceByQuestion.entries()].sort((left, right) => Number(left[0]) - Number(right[0])))
+}
+
+function applyDeterministicMarkSchemeEvidence(result, evidenceByQuestion) {
+  if (!result || typeof result !== 'object' || !Array.isArray(result.questions)) return result
+  return {
+    ...result,
+    questions: result.questions.map((question) => {
+      const evidence = evidenceByQuestion?.[nonemptyString(question?.questionNumber)]
+      return Array.isArray(evidence) && evidence.length ? { ...question, markSchemeEvidence: evidence } : question
+    }),
+  }
+}
+
+function filterPageWindowQuestions(questions, pageWindow, prefix, { verification = false, sourcePages = {} } = {}) {
+  if (!Array.isArray(questions)) throw codedError(`${prefix}_QUESTIONS_INVALID`)
+  const ownedPages = new Set(pageWindow.ownedQuestionPaperPages)
+  const visiblePages = new Set(pageWindow.visibleQuestionPaperPages)
+  const allPages = new Set(sortedPageNumbers(sourcePages))
+  const ownedQuestions = []
+  const observations = []
+  for (const question of questions) {
+    const pages = verification
+      ? Array.isArray(question?.pages) ? question.pages : []
+      : [
+        ...(Array.isArray(question?.regions) ? question.regions : []),
+        ...(Array.isArray(question?.diagramRegions) ? question.diagramRegions : []),
+      ].map(region => region?.page)
+    const questionNumber = nonemptyString(question?.questionNumber)
+    const questionStartPage = question?.questionStartPage
+    if (!questionNumber) throw codedError(`${prefix}_QUESTION_NUMBER_INVALID`)
+    if (!pages.length || pages.some(page => !Number.isInteger(page))) throw codedError(`${prefix}_PAGES_INVALID`)
+    if (!Number.isInteger(questionStartPage) || !allPages.has(questionStartPage) || !pages.includes(questionStartPage)) {
+      throw codedError(`${prefix}_START_PAGE_INVALID`)
+    }
+    if (pages.some(page => !allPages.has(page))) throw codedError(`${prefix}_PAGE_OUTSIDE_SOURCE`)
+    if (!visiblePages.has(questionStartPage) || pages.some(page => !visiblePages.has(page)) || !ownedPages.has(questionStartPage)) {
+      observations.push({ questionNumber, questionStartPage, pages: [...new Set(pages)].sort((left, right) => left - right) })
+      continue
+    }
+    ownedQuestions.push(question)
+  }
+  return { questions: ownedQuestions, observations }
+}
+
+function filterPageWindowStarts(questionStarts, pageWindow, prefix, { sourcePages = {} } = {}) {
+  if (!Array.isArray(questionStarts)) throw codedError(`${prefix}_QUESTION_STARTS_INVALID`)
+  const visiblePages = new Set(pageWindow.visibleQuestionPaperPages)
+  const allPages = new Set(sortedPageNumbers(sourcePages))
+  const observations = []
+  for (const questionStart of questionStarts) {
+    const questionNumber = nonemptyString(questionStart?.questionNumber)
+    const questionStartPage = questionStart?.questionStartPage
+    if (!questionNumber || !Number.isInteger(questionStartPage) || !allPages.has(questionStartPage)) {
+      throw codedError(`${prefix}_START_PAGE_INVALID`)
+    }
+    if (!visiblePages.has(questionStartPage)) {
+      observations.push({ questionNumber, questionStartPage, pages: [questionStartPage] })
+      continue
+    }
+    observations.push({ questionNumber, questionStartPage, pages: [questionStartPage] })
+  }
+  return { observations }
+}
+
+function ownedQuestionNumbersFromChunks(chunks) {
+  return new Set(chunks.flatMap(chunk => [
+    ...(chunk.extraction?.questions || []),
+    ...(chunk.verification?.questions || []),
+  ]).map(question => question?.questionNumber).filter(Boolean))
+}
+
+function stableObjectKey(value) {
+  return JSON.stringify(value)
+}
+
+function appendUniqueObjects(target, values) {
+  const keys = new Set(target.map(stableObjectKey))
+  for (const value of values) {
+    const key = stableObjectKey(value)
+    if (keys.has(key)) continue
+    keys.add(key)
+    target.push(value)
+  }
+}
+
+function mergeExtractionQuestionFragments(fragments) {
+  const [first] = fragments
+  if (!first || fragments.length < 2) return first
+  const questionNumber = nonemptyString(first.questionNumber)
+  const questionStartPage = first.questionStartPage
+  const requiredArrays = ['regions', 'diagramRegions', 'parts', 'markSchemeEvidence']
+  if (!questionNumber || !Number.isInteger(questionStartPage)
+    || fragments.some(fragment => requiredArrays.some(field => !Array.isArray(fragment?.[field])) || !fragment?.tags)) {
+    throw codedError('PAGE_WINDOW_QUESTION_DUPLICATE')
+  }
+
+  const merged = {
+    ...first,
+    regions: [],
+    diagramRegions: [],
+    parts: [],
+    tags: {
+      ...first.tags,
+      secondaryTopicIds: [],
+      syllabusPointIds: [],
+    },
+    markSchemeEvidence: [],
+  }
+  const partByLabel = new Map()
+  const diagramIndexByKey = new Map()
+
+  for (const fragment of fragments) {
+    if (nonemptyString(fragment.questionNumber) !== questionNumber || fragment.questionStartPage !== questionStartPage) {
+      throw codedError('PAGE_WINDOW_QUESTION_START_DISAGREEMENT')
+    }
+    if (nonemptyString(fragment.tags?.primaryTopicId) !== nonemptyString(first.tags?.primaryTopicId)) {
+      throw codedError('PAGE_WINDOW_QUESTION_TAG_DISAGREEMENT')
+    }
+
+    appendUniqueObjects(merged.regions, fragment.regions)
+    const localDiagramIndexes = new Map()
+    for (let index = 0; index < fragment.diagramRegions.length; index += 1) {
+      const diagram = fragment.diagramRegions[index]
+      const key = stableObjectKey(diagram)
+      let mergedIndex = diagramIndexByKey.get(key)
+      if (mergedIndex === undefined) {
+        mergedIndex = merged.diagramRegions.length
+        diagramIndexByKey.set(key, mergedIndex)
+        merged.diagramRegions.push(diagram)
+      }
+      localDiagramIndexes.set(index, mergedIndex)
+    }
+
+    for (const part of fragment.parts) {
+      const label = nonemptyString(part?.label)
+      if (!label || !Array.isArray(part?.math) || !Array.isArray(part?.diagramAssociations)) {
+        throw codedError('PAGE_WINDOW_PART_INVALID')
+      }
+      const diagramAssociations = [...new Set(part.diagramAssociations.map(index => {
+        if (!Number.isInteger(index) || !localDiagramIndexes.has(index)) throw codedError('PAGE_WINDOW_DIAGRAM_ASSOCIATION_INVALID')
+        return localDiagramIndexes.get(index)
+      }))].sort((left, right) => left - right)
+      const existing = partByLabel.get(label)
+      if (!existing) {
+        const nextPart = { ...part, math: [...new Set(part.math)], diagramAssociations }
+        partByLabel.set(label, nextPart)
+        merged.parts.push(nextPart)
+        continue
+      }
+      if (existing.marks !== part.marks) throw codedError('PAGE_WINDOW_PART_DISAGREEMENT')
+      const existingText = nonemptyString(existing.ocrText)
+      const incomingText = nonemptyString(part.ocrText)
+      if (existingText && incomingText && existingText !== incomingText) {
+        if (incomingText.includes(existingText)) existing.ocrText = incomingText
+        else if (!existingText.includes(incomingText)) throw codedError('PAGE_WINDOW_PART_DISAGREEMENT')
+      } else if (!existingText && incomingText) {
+        existing.ocrText = incomingText
+      }
+      existing.math = [...new Set([...existing.math, ...part.math])]
+      existing.diagramAssociations = [...new Set([...existing.diagramAssociations, ...diagramAssociations])].sort((left, right) => left - right)
+    }
+
+    merged.tags.secondaryTopicIds = [...new Set([
+      ...merged.tags.secondaryTopicIds,
+      ...(Array.isArray(fragment.tags.secondaryTopicIds) ? fragment.tags.secondaryTopicIds : []),
+    ])].sort()
+    merged.tags.syllabusPointIds = [...new Set([
+      ...merged.tags.syllabusPointIds,
+      ...(Array.isArray(fragment.tags.syllabusPointIds) ? fragment.tags.syllabusPointIds : []),
+    ])].sort()
+    appendUniqueObjects(merged.markSchemeEvidence, fragment.markSchemeEvidence)
+  }
+
+  merged.regions.sort((left, right) => left.page - right.page || left.y0 - right.y0 || left.x0 - right.x0)
+  merged.markSchemeEvidence.sort((left, right) => left.page - right.page)
+  return merged
+}
+
+function mergeVerifiedExtractionFragments(questions, verification) {
+  const grouped = new Map()
+  for (const question of questions) {
+    const questionNumber = nonemptyString(question?.questionNumber)
+    if (!questionNumber) throw codedError('PAGE_WINDOW_QUESTION_NUMBER_INVALID')
+    const group = grouped.get(questionNumber) || []
+    group.push(question)
+    grouped.set(questionNumber, group)
+  }
+
+  const merged = []
+  for (const fragments of grouped.values()) {
+    if (fragments.length === 1) {
+      merged.push(fragments[0])
+      continue
+    }
+    const questionNumber = nonemptyString(fragments[0]?.questionNumber)
+    const verified = (Array.isArray(verification?.questions) ? verification.questions : [])
+      .filter(question => nonemptyString(question?.questionNumber) === questionNumber)
+    if (verified.length !== 1 || verified[0].questionStartPage !== fragments[0].questionStartPage) {
+      throw codedError('PAGE_WINDOW_QUESTION_DUPLICATE')
+    }
+    const question = mergeExtractionQuestionFragments(fragments)
+    const pages = [...new Set([...question.regions, ...question.diagramRegions].map(region => region?.page))].sort((left, right) => left - right)
+    const parts = question.parts.map(part => ({ label: nonemptyString(part?.label), marks: part?.marks }))
+    const verifiedPages = [...new Set(verified[0].pages || [])].sort((left, right) => left - right)
+    const verifiedParts = (verified[0].parts || []).map(part => ({ label: nonemptyString(part?.label), marks: part?.marks }))
+    if (stableObjectKey(pages) !== stableObjectKey(verifiedPages)
+      || stableObjectKey(parts) !== stableObjectKey(verifiedParts)
+      || question.diagramRegions.length !== verified[0].diagramRegionCount) {
+      throw codedError('PAGE_WINDOW_QUESTION_FRAGMENT_VERIFICATION_DISAGREEMENT')
+    }
+    merged.push(question)
+  }
+  return merged
+}
+
+export function mergePageWindowExtractions(chunks) {
+  const source = chunks[0]?.extraction?.source
+  if (!source || typeof source !== 'object' || Array.isArray(source)) throw codedError('PAGE_WINDOW_CANDIDATE_SOURCE_INVALID')
+  const questions = []
+  const startsByQuestion = new Map()
+  for (const chunk of chunks) {
+    const extraction = chunk.extraction
+    if (!sameCandidateSource(source, extraction?.source) || !Array.isArray(extraction?.questions)) throw codedError('PAGE_WINDOW_CANDIDATE_SOURCE_DISAGREEMENT')
+    for (const question of mergeVerifiedExtractionFragments(extraction.questions, chunk.verification)) {
+      const questionNumber = nonemptyString(question?.questionNumber)
+      if (!questionNumber) throw codedError('PAGE_WINDOW_QUESTION_NUMBER_INVALID')
+      const questionStartPage = question?.questionStartPage
+      if (!Number.isInteger(questionStartPage)) throw codedError('PAGE_WINDOW_QUESTION_START_INVALID')
+      const existingStart = startsByQuestion.get(questionNumber)
+      if (existingStart !== undefined) {
+        if (questionStartPage < existingStart) throw codedError('PAGE_WINDOW_QUESTION_START_REGRESSION')
+        continue
+      }
+      startsByQuestion.set(questionNumber, questionStartPage)
+      questions.push(question)
+    }
+  }
+  return { source, questions: sortQuestions(questions) }
+}
+
+export function mergePageWindowVerifications(chunks) {
+  const questions = []
+  const questionStartsByDetailedQuestion = new Map()
+  const questionStarts = []
+  const startsByQuestion = new Map()
+  for (const chunk of chunks) {
+    const verification = chunk.verification
+    if (!Array.isArray(verification?.questions)) throw codedError('PAGE_WINDOW_VERIFICATION_QUESTIONS_INVALID')
+    if (!Array.isArray(verification?.questionStarts)) throw codedError('PAGE_WINDOW_QUESTION_STARTS_INVALID')
+    const startsSeenInChunk = new Set()
+    for (const questionStart of verification.questionStarts) {
+      const questionNumber = nonemptyString(questionStart?.questionNumber)
+      if (!questionNumber || !Number.isInteger(questionStart?.questionStartPage)) throw codedError('PAGE_WINDOW_QUESTION_START_INVALID')
+      if (startsSeenInChunk.has(questionNumber)) throw codedError('PAGE_WINDOW_QUESTION_START_DUPLICATE')
+      startsSeenInChunk.add(questionNumber)
+      const existingStart = startsByQuestion.get(questionNumber)
+      if (existingStart !== undefined) {
+        if (questionStart.questionStartPage < existingStart) throw codedError('PAGE_WINDOW_QUESTION_START_REGRESSION')
+        continue
+      }
+      startsByQuestion.set(questionNumber, questionStart.questionStartPage)
+      questionStarts.push(questionStart)
+    }
+    const questionsSeenInChunk = new Set()
+    for (const question of verification.questions) {
+      const questionNumber = nonemptyString(question?.questionNumber)
+      if (!questionNumber) throw codedError('PAGE_WINDOW_QUESTION_NUMBER_INVALID')
+      const questionStartPage = question?.questionStartPage
+      if (!Number.isInteger(questionStartPage)) throw codedError('PAGE_WINDOW_QUESTION_START_INVALID')
+      if (questionsSeenInChunk.has(questionNumber)) throw codedError('PAGE_WINDOW_VERIFICATION_DUPLICATE')
+      questionsSeenInChunk.add(questionNumber)
+      const existingStart = questionStartsByDetailedQuestion.get(questionNumber)
+      if (existingStart !== undefined) {
+        if (questionStartPage < existingStart) throw codedError('PAGE_WINDOW_QUESTION_START_REGRESSION')
+        continue
+      }
+      questionStartsByDetailedQuestion.set(questionNumber, questionStartPage)
+      questions.push(question)
+    }
+  }
+  return { questionStarts: sortQuestionStarts(questionStarts), questions: sortQuestions(questions) }
+}
+
+function sortQuestionStarts(questionStarts) {
+  return [...questionStarts].sort((left, right) => String(left.questionNumber).localeCompare(String(right.questionNumber), undefined, { numeric: true }))
+}
+
+function sameCandidateSource(left, right) {
+  return left && right
+    && left.questionPdfSha256 === right.questionPdfSha256
+    && left.markSchemePdfSha256 === right.markSchemePdfSha256
+}
+
+function sortQuestions(questions) {
+  return [...questions].sort((left, right) => String(left.questionNumber).localeCompare(String(right.questionNumber), undefined, { numeric: true }))
+}
+
+function providerIdentity(provider, fallbackModel = null) {
+  return Object.freeze({
+    name: nonemptyString(provider?.name) || 'unknown',
+    model: nonemptyString(provider?.model) || nonemptyString(fallbackModel) || 'unknown',
+  })
+}
+
+function providerSummary(providers) {
+  const identities = providers.map(provider => providerIdentity(provider))
+  const names = [...new Set(identities.map(provider => provider.name))]
+  const models = [...new Set(identities.map(provider => provider.model))]
+  return Object.freeze({ name: names.join('+'), model: models.join('+') })
+}
+
+export async function renderPdfPages(pdfPath, outputDirectory, dpi, env) {
+  const prefix = path.join(outputDirectory, 'page')
+  const executable = resolvePopplerExecutable('pdftoppm', { env })
+  await runProcess(executable, buildRenderArgs({ pdfPath, outputPrefix: prefix, dpi }))
+  const pages = fs.readdirSync(outputDirectory, { withFileTypes: true })
+    .filter(entry => entry.isFile())
+    .map(entry => entry.name)
+    .map(name => ({ name, match: /^page-(\d+)\.(?:jpg|jpeg|png)$/i.exec(name) }))
+    .filter(entry => entry.match)
+    .sort((left, right) => Number(left.match[1]) - Number(right.match[1]))
+  if (pages.length === 0) throw codedError('RENDER_NO_PAGES')
+  return {
+    pageImageHashes: Object.fromEntries(pages.map(({ name, match }) => [String(Number(match[1])), imageSha256(path.join(outputDirectory, name))])),
+    pageSizes: Object.fromEntries(pages.map(({ name, match }) => [String(Number(match[1])), imageDimensions(path.join(outputDirectory, name))])),
+  }
+}
+
+export async function extractPdfTextPages(pdfPath, pageHashes, env, { runText = runTextProcess } = {}) {
+  const executable = resolvePopplerExecutable('pdftotext', { env })
+  const pages = sortedPageNumbers(pageHashes)
+  let imageOnly = false
+  let text = ''
+  try {
+    text = await runText(executable, ['-layout', pdfPath, '-'])
+  } catch (error) {
+    // Rendering already succeeded before this function is called. Scanned or
+    // damaged text layers can therefore fall back to image-only OCR; a source
+    // with no renderable pages is still rejected by the earlier render gate.
+    if (error?.code !== 'PDF_TEXT_EXTRACTION_FAILED') throw error
+    const pdfjsText = await extractPdfTextPagesWithPdfjs(pdfPath, pages)
+    if (pdfjsText) return pdfjsText
+    imageOnly = true
+  }
+  if (imageOnly) return Object.fromEntries(pages.map((page) => [page, NO_EXTRACTABLE_TEXT_PAGE_MARKER]))
+  const extractedPages = text.replaceAll('\r\n', '\n').split('\f')
+  return Object.fromEntries(pages.map((page, index) => [page, String(extractedPages[index] || '').trim()]))
+}
+
+async function extractPdfTextPagesWithPdfjs(pdfPath, pages) {
+  try {
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
+    const document = await pdfjs.getDocument({
+      data: new Uint8Array(fs.readFileSync(pdfPath)),
+      disableWorker: true,
+      standardFontDataUrl: `${path.resolve(import.meta.dirname, '../node_modules/pdfjs-dist/standard_fonts')}${path.sep}`,
+    }).promise
+    const extracted = {}
+    try {
+      for (const pageNumber of pages) {
+        const page = await document.getPage(pageNumber)
+        const content = await page.getTextContent()
+        extracted[pageNumber] = pdfjsTextLines(content.items).join('\n').trim()
+      }
+    } finally {
+      if (typeof document.destroy === 'function') await document.destroy()
+    }
+    return Object.values(extracted).some(value => value) ? extracted : null
+  } catch {
+    return null
+  }
+}
+
+function pdfjsTextLines(items) {
+  const lines = []
+  for (const item of items || []) {
+    const text = String(item?.str || '').trim()
+    if (!text) continue
+    const y = Number(item?.transform?.[5])
+    const current = lines.find((line) => Number.isFinite(y) && Number.isFinite(line.y) && Math.abs(line.y - y) <= 2)
+    if (current) current.items.push({ x: Number(item?.transform?.[4]) || 0, text })
+    else lines.push({ y, items: [{ x: Number(item?.transform?.[4]) || 0, text }] })
+  }
+  return lines
+    .sort((left, right) => right.y - left.y)
+    .map((line) => line.items.sort((left, right) => left.x - right.x).map((item) => item.text).join(' '))
+}
+
+async function cropVerifiedQuestions({ extraction, options, plan, pageSizes, assetsRoot, runCropCommand, validateCropOutput }) {
+  const assets = []
+  for (const question of extraction.questions) {
+    const questionId = `${options.paperId}:q${question.questionNumber}`
+    const manifest = buildCropManifest({
+      paperId: options.paperId,
+      questionId,
+      sourcePdfPath: options.questionPdf,
+      sourcePdfSha256: plan.immutableInputs.questionPdf.sha256,
+      regions: [...question.regions, ...question.diagramRegions],
+      pageSizes,
+      outputRoot: assetsRoot,
+    })
+    const command = buildCropCommand(manifest)
+    await runCropCommand(command, manifest)
+    if (!fs.statSync(manifest.questionPdfPath, { throwIfNoEntry: false })?.isFile()) throw codedError('CROP_FAILED')
+    await validateCropOutput(manifest.questionPdfPath, manifest)
+    assets.push({
+      questionId,
+      questionNumber: question.questionNumber,
+      questionPdfPath: manifest.questionPdfPath,
+      questionPdfSha256: imageSha256(manifest.questionPdfPath),
+      pages: [...new Set(manifest.crops.map(crop => crop.page))],
+      regionCount: manifest.crops.length,
+    })
+  }
+  return assets
+}
+
+async function runCropCommandWithBundledPython(command, manifest) {
+  fs.mkdirSync(manifest.outputDirectory, { recursive: true })
+  const bundledPython = bundledPythonPath()
+  const useBundledPython = fs.statSync(bundledPython, { throwIfNoEntry: false })?.isFile()
+  const executable = useBundledPython ? bundledPython : command.command
+  const args = useBundledPython && command.args[0] === '-3.12' ? command.args.slice(1) : command.args
+  await runProcess(executable, args)
+}
+
+async function validateCropOutputWithBundledPython(questionPdfPath, manifest) {
+  const bundledPython = bundledPythonPath()
+  const useBundledPython = fs.statSync(bundledPython, { throwIfNoEntry: false })?.isFile()
+  const executable = useBundledPython ? bundledPython : (process.platform === 'win32' ? 'py' : 'python3')
+  const args = useBundledPython
+    ? ['-c', PDF_VALIDATION_PROGRAM, questionPdfPath, String(manifest.crops.length)]
+    : (process.platform === 'win32'
+      ? ['-3.12', '-c', PDF_VALIDATION_PROGRAM, questionPdfPath, String(manifest.crops.length)]
+      : ['-c', PDF_VALIDATION_PROGRAM, questionPdfPath, String(manifest.crops.length)])
+  try {
+    await runProcess(executable, args)
+  } catch {
+    throw codedError('CROP_OUTPUT_INVALID')
+  }
+}
+
+function bundledPythonPath() {
+  return path.join(
+    os.homedir(), '.cache', 'codex-runtimes', 'codex-primary-runtime',
+    'dependencies', 'python', 'python.exe',
+  )
+}
+
+function runProcess(executable, args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(executable, args, { stdio: 'ignore', windowsHide: true })
+    child.once('error', () => reject(codedError('RENDER_FAILED')))
+    child.once('exit', code => code === 0 ? resolve() : reject(codedError('RENDER_FAILED')))
+  })
+}
+
+function runTextProcess(executable, args) {
+  return new Promise((resolve, reject) => {
+    const chunks = []
+    let byteLength = 0
+    let exceededLimit = false
+    const child = spawn(executable, args, { stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true })
+    child.stdout.on('data', (chunk) => {
+      byteLength += chunk.length
+      if (byteLength > MAX_PDF_TEXT_BYTES) {
+        exceededLimit = true
+        child.kill()
+        return
+      }
+      chunks.push(chunk)
+    })
+    child.once('error', () => reject(codedError('PDF_TEXT_EXTRACTION_FAILED')))
+    child.once('exit', (code) => {
+      if (exceededLimit || code !== 0) {
+        reject(codedError('PDF_TEXT_EXTRACTION_FAILED'))
+        return
+      }
+      resolve(Buffer.concat(chunks).toString('utf8'))
+    })
+  })
+}
+
+function sortedPageNumbers(pageHashes) {
+  return Object.keys(pageHashes || {})
+    .map(Number)
+    .filter(page => Number.isInteger(page) && page > 0)
+    .sort((left, right) => left - right)
+}
+
+function sourceMetadata(plan, options) {
+  const syllabus = syllabusForOptions(options)
+  const source = {
+    board: 'CIE',
+    paperId: options.paperId,
+    specificationId: syllabus.routeId,
+    stage: options.stage,
+    rightsStatus: 'unverified-restricted',
+    accessPolicyId: 'personal-study-restricted-v1',
+    questionPdfSha256: plan.immutableInputs.questionPdf.sha256,
+    markSchemePdfSha256: plan.immutableInputs.markSchemePdf.sha256,
+    questionPdfPath: options.questionPdf,
+    markSchemePdfPath: options.markSchemePdf,
+    questionPdfRelativePath: subjectRelativePdfPath(options.questionPdf, options.subject),
+    markSchemePdfRelativePath: subjectRelativePdfPath(options.markSchemePdf, options.subject),
+    renderDpi: options.renderDpi,
+    pageImageHashes: {},
+    pageSizes: {},
+    markSchemePageHashes: {},
+    markSchemePageSizes: {},
+    controlledTags: controlledTagsForOptions(options),
+    controlledTopicCatalog: controlledTopicCatalogForOptions(options),
+  }
+  const ocr = boundedOcrMetadata(options.ocrMetadata)
+  if (ocr) source.ocr = ocr
+  return source
+}
+
+function syllabusForOptions(options = {}) {
+  const subject = nonemptyString(options.subject)
+  const stage = normalizeStage(subject, options.stage)
+  if (subject === '9709') {
+    const routeId = syllabusRouteIdForOptions({ ...options, subject, stage })
+    const config = CAMBRIDGE_9709_INGESTION_ROUTES[routeId]
+    if (!config || config.stage !== stage) throw codedError('UNSUPPORTED_SYLLABUS_ROUTE')
+    if (options.paperComponent != null && !config.components.includes(Number(options.paperComponent))) {
+      throw codedError('PAPER_COMPONENT_NOT_IN_ROUTE')
+    }
+    return config.syllabus
+  }
+  const syllabus = SUPPORTED_SYLLABUSES[subject]?.[stage]
+  if (!syllabus) throw codedError('UNSUPPORTED_SYLLABUS_STAGE')
+  if (options.routeId && options.routeId !== syllabus.routeId) throw codedError('UNSUPPORTED_SYLLABUS_ROUTE')
+  return syllabus
+}
+
+function controlledTopicsForOptions(options) {
+  const syllabus = syllabusForOptions(options)
+  if (options?.subject !== '9709' || options.paperComponent == null) return syllabus.topics
+  return syllabus.topics.filter((topic) => Number(topic.component) === Number(options.paperComponent))
+}
+
+function controlledTagsForOptions(options) {
+  const topics = controlledTopicsForOptions(options)
+  const topicIds = new Set(topics.map(topic => topic.id))
+  return {
+    primaryTopicIds: topicIds,
+    secondaryTopicIds: new Set(topicIds),
+    syllabusPointIds: new Set(topics.flatMap(topic => topic.points).map(point => point.id)),
+    // These legacy validator fields stay empty because the platform has no canonical registry yet.
+    skillTagIds: new Set(),
+    questionFormatIds: new Set(),
+  }
+}
+
+function controlledTopicCatalogForSubject(options) {
+  return controlledTopicsForOptions(options).map((topic) => ({
+    id: topic.id,
+    code: topic.code,
+    name: topic.name,
+    component: topic.component || null,
+  }))
+}
+
+export function controlledTopicCatalogForOptions(options) {
+  return controlledTopicCatalogForSubject(options || {})
+}
+
+function buildExtractionInput(source, questionDirectory, markSchemeDirectory) {
+  return [
+    { role: 'system', content: [{ type: 'input_text', text: `Extract every printed question from the question paper. Include questionStartPage, the page where each printed question heading begins. Use only supplied official tag IDs. If no supplied official topic matches, set primaryTopicId to ${UNMAPPED_TOPIC_ID} and return empty secondaryTopicIds and syllabusPointIds. Preserve question regions, part OCR, mathematical expressions, diagrams, and mark-scheme page evidence. Do not invent page hashes or force an out-of-syllabus question into a topic.` }] },
+    { role: 'user', content: [
+      { type: 'input_text', text: JSON.stringify({ source: serializableSource(source), instruction: 'Question-paper pages come first; mark-scheme pages follow.' }) },
+      ...imageInputs(questionDirectory, 'question-paper', source.pageImageHashes),
+      ...imageInputs(markSchemeDirectory, 'mark-scheme', source.markSchemePageHashes),
+    ] },
+  ]
+}
+
+function buildVerificationInput(source, extraction, questionDirectory, markSchemeDirectory) {
+  return [
+    { role: 'system', content: [{ type: 'input_text', text: `Independently verify the supplied pages. Return questionStarts for every printed question heading you can see, plus detailed question identity, questionStartPage (the page where each printed question heading begins), page span, parts, diagram count, mark-scheme evidence, and an independent official syllabus mapping. Use only supplied tag IDs. If no supplied official topic matches, set primaryTopicId to ${UNMAPPED_TOPIC_ID} and return empty secondaryTopicIds and syllabusPointIds. Do not repeat OCR or rely on another model's mapping.` }] },
+    { role: 'user', content: [
+      { type: 'input_text', text: JSON.stringify({ source: serializableSource(source), instruction: 'Independently locate, verify and map each question directly from these pages.' }) },
+      ...imageInputs(questionDirectory, 'question-paper', source.pageImageHashes),
+      ...imageInputs(markSchemeDirectory, 'mark-scheme', source.markSchemePageHashes),
+    ] },
+  ]
+}
+
+function buildPageWindowedExtractionInput(source, questionDirectory, markSchemeDirectory, pageWindow, pageText) {
+  const markSchemePages = selectPageWindowMarkSchemePages({
+    questionPaperPageHashes: source.pageImageHashes,
+    markSchemePageHashes: source.markSchemePageHashes,
+    pageWindow,
+  })
+  const requestPageWindow = { ...pageWindow, markSchemePages }
+  return [
+    { role: 'system', content: [{ type: 'input_text', text: `Extract only questions whose printed question heading begins on an owned question-paper page. Always return questionNumber as a string containing only the whole-question number, and return questionStartPage as an integer page number. Return the complete whole question as one object, with at least one region for every page in its full page span; never represent a multi-page question using only its first page. Region coordinates are normalized x0,y0,x1,y1 bounds and must satisfy 0 <= x0 < x1 <= 1 and 0 <= y0 < y1 <= 1. Independently map the whole question to the supplied official syllabus catalog. If no supplied official topic matches, set primaryTopicId to ${UNMAPPED_TOPIC_ID} and return empty secondaryTopicIds and syllabusPointIds. Use the supplied question-paper images for regions, diagrams, OCR and mathematics. Use both the supplied mark-scheme page text and mark-scheme images for marks and evidence; cite only the supplied mark-scheme page hashes. The explicit no-extractable-text marker means that PDF page has no text layer; it is not a missing page. Do not emit a question that begins outside the owned pages, invent a page hash, split one whole question into multiple objects, force an out-of-syllabus question into a topic, or emit an incomplete question.` }] },
+    { role: 'user', content: [
+      { type: 'input_text', text: JSON.stringify({
+        source: pageWindowSourceMetadata(source, requestPageWindow, { includeTags: true }),
+        pageWindow: requestPageWindow,
+        instruction: 'The owned pages are the only question starts to emit. Visible pages include trailing context for questions that continue. Mark-scheme pages listed in pageWindow.markSchemePages are the relevant bounded context; cite only page hashes supplied in the source.',
+      }) },
+      { type: 'input_text', text: pageTextByPage('Question-paper', pageText.questionPaper, source.pageImageHashes, pageWindow.visibleQuestionPaperPages) },
+      { type: 'input_text', text: pageTextByPage('Mark-scheme', pageText.markScheme, source.markSchemePageHashes, markSchemePages) },
+      ...imageInputs(questionDirectory, 'question-paper', source.pageImageHashes, pageWindow.visibleQuestionPaperPages),
+      ...imageInputs(markSchemeDirectory, 'mark-scheme', source.markSchemePageHashes, markSchemePages),
+    ] },
+  ]
+}
+
+function buildPageWindowedVerificationInput(source, questionDirectory, markSchemeDirectory, pageWindow, pageText) {
+  const markSchemePages = selectPageWindowMarkSchemePages({
+    questionPaperPageHashes: source.pageImageHashes,
+    markSchemePageHashes: source.markSchemePageHashes,
+    pageWindow,
+  })
+  const requestPageWindow = { ...pageWindow, markSchemePages }
+  return [
+    { role: 'system', content: [{ type: 'input_text', text: `Independently verify the window. Return questionStarts for every printed question heading visible in the supplied pages, including trailing context, with questionNumber as a string containing only the whole-question number and questionStartPage as an integer. For detailed questions, only return questions whose printed heading begins on an owned page; always include questionStartPage. Independently map each detailed whole question to the supplied official syllabus catalog. If no supplied official topic matches, set primaryTopicId to ${UNMAPPED_TOPIC_ID} and return empty secondaryTopicIds and syllabusPointIds. Use the supplied question-paper images and both bounded mark-scheme page text and mark-scheme images. Cite only supplied mark-scheme page hashes. The explicit no-extractable-text marker means that PDF page has no text layer; it is not a missing page. Return complete visible page spans, parts, diagram counts and mark-scheme evidence for detailed questions. Do not invent a heading, force an out-of-syllabus question into a topic, or emit a detailed question outside the owned pages.` }] },
+    { role: 'user', content: [
+      { type: 'input_text', text: JSON.stringify({
+        source: pageWindowSourceMetadata(source, requestPageWindow, { includeTags: true }),
+        pageWindow: requestPageWindow,
+        instruction: 'The owned pages are the only question starts to return. Visible pages include trailing context. Mark-scheme pages listed in pageWindow.markSchemePages are the relevant bounded context; cite only page hashes supplied in the source.',
+      }) },
+      { type: 'input_text', text: pageTextByPage('Question-paper', pageText.questionPaper, source.pageImageHashes, pageWindow.visibleQuestionPaperPages) },
+      { type: 'input_text', text: pageTextByPage('Mark-scheme', pageText.markScheme, source.markSchemePageHashes, markSchemePages) },
+      ...imageInputs(questionDirectory, 'question-paper', source.pageImageHashes, pageWindow.visibleQuestionPaperPages),
+      ...imageInputs(markSchemeDirectory, 'mark-scheme', source.markSchemePageHashes, markSchemePages),
+    ] },
+  ]
+}
+
+export function pageWindowSourceMetadata(source, pageWindow, { includeTags = false } = {}) {
+  const visiblePages = Array.isArray(pageWindow?.visibleQuestionPaperPages)
+    ? pageWindow.visibleQuestionPaperPages
+    : []
+  const questionPaperPageHashes = Object.fromEntries(
+    visiblePages.map((page) => [String(page), source?.pageImageHashes?.[page]]).filter(([, hash]) => typeof hash === 'string'),
+  )
+  const metadata = {
+    board: source?.board,
+    paperId: source?.paperId,
+    specificationId: source?.specificationId,
+    stage: source?.stage,
+    rightsStatus: source?.rightsStatus,
+    accessPolicyId: source?.accessPolicyId,
+    questionPdfSha256: source?.questionPdfSha256,
+    markSchemePdfSha256: source?.markSchemePdfSha256,
+    questionPaperPageHashes,
+    markSchemePageHashes: Object.fromEntries(
+      sortedPageNumbers(source?.markSchemePageHashes).map((page) => [String(page), source.markSchemePageHashes[page]]),
+    ),
+  }
+  if (includeTags) {
+    metadata.controlledTags = Object.fromEntries(Object.entries(source?.controlledTags || {}).map(([name, values]) => [
+      name,
+      values instanceof Set ? [...values].sort() : Array.isArray(values) ? [...values].sort() : [],
+    ]))
+    metadata.controlledTopicCatalog = Array.isArray(source?.controlledTopicCatalog)
+      ? source.controlledTopicCatalog.map((topic) => ({ ...topic }))
+      : []
+  }
+  return metadata
+}
+
+export function normalizePageWindowResponse(value, { verification = false } = {}) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value
+  const normalized = { ...value }
+  if (Array.isArray(normalized.questions)) {
+    normalized.questions = normalized.questions.map((question) => normalizePageWindowQuestion(question, { verification }))
+  }
+  if (Array.isArray(normalized.questionStarts)) {
+    normalized.questionStarts = normalized.questionStarts.map((questionStart) => ({
+      ...questionStart,
+      questionNumber: normalizeQuestionNumber(questionStart?.questionNumber),
+      questionStartPage: normalizeIntegerLike(questionStart?.questionStartPage),
+    }))
+  }
+  return normalized
+}
+
+function normalizePageWindowQuestion(question, { verification }) {
+  if (!question || typeof question !== 'object' || Array.isArray(question)) return question
+  const normalized = {
+    ...question,
+    questionNumber: normalizeQuestionNumber(question.questionNumber),
+    questionStartPage: normalizeIntegerLike(question.questionStartPage),
+    tags: normalizePageWindowTags(question.tags),
+  }
+  if (verification && Array.isArray(question.pages)) normalized.pages = question.pages.map(normalizeIntegerLike)
+  if (Array.isArray(question.parts)) {
+    normalized.parts = question.parts.map((part) => ({
+      ...part,
+      marks: normalizeIntegerLike(part?.marks),
+    }))
+  }
+  if (Array.isArray(question.markSchemeEvidence)) {
+    normalized.markSchemeEvidence = question.markSchemeEvidence.map((evidence) => ({
+      ...evidence,
+      page: normalizeIntegerLike(evidence?.page),
+    }))
+  }
+  if (verification) normalized.diagramRegionCount = normalizeIntegerLike(question.diagramRegionCount)
+  if (Array.isArray(question.regions)) normalized.regions = question.regions.map(normalizePageWindowRegion)
+  if (Array.isArray(question.diagramRegions)) normalized.diagramRegions = question.diagramRegions.map(normalizePageWindowRegion)
+  return normalized
+}
+
+function normalizePageWindowTags(tags) {
+  if (!tags || typeof tags !== 'object' || Array.isArray(tags)) return tags
+  const normalized = { ...tags }
+  if (!Object.hasOwn(tags, 'syllabusPointIds') && Array.isArray(tags.syllabuPointIds)) {
+    normalized.syllabusPointIds = tags.syllabuPointIds
+  }
+  delete normalized.syllabuPointIds
+  return normalized
+}
+
+function normalizePageWindowRegion(region) {
+  if (!region || typeof region !== 'object' || Array.isArray(region)) return region
+  return {
+    ...region,
+    page: normalizeIntegerLike(region.page),
+    x0: normalizeNumberLike(region.x0),
+    y0: normalizeNumberLike(region.y0),
+    x1: normalizeNumberLike(region.x1),
+    y1: normalizeNumberLike(region.y1),
+  }
+}
+
+function normalizeQuestionNumber(value) {
+  if (Number.isInteger(value) && value > 0) return String(value)
+  if (typeof value !== 'string') return value
+  const trimmed = value.trim()
+  const match = /^(?:(?:question|q)\s*)?0*(\d+)[.)]?$/i.exec(trimmed)
+  if (!match || Number(match[1]) < 1) return value
+  return String(Number(match[1]))
+}
+
+function normalizeIntegerLike(value) {
+  if (typeof value === 'string' && /^\d+$/.test(value.trim())) return Number(value.trim())
+  return value
+}
+
+function normalizeNumberLike(value) {
+  if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value)
+  return value
+}
+
+function pageTextByPage(label, textByPage, pageHashes, selectedPages = null) {
+  const availablePages = sortedPageNumbers(pageHashes)
+  const pages = selectedPages === null
+    ? availablePages
+    : selectedPages.filter((page) => availablePages.includes(page))
+  if (selectedPages !== null && pages.length !== selectedPages.length) throw codedError('PAGE_WINDOW_SOURCE_PAGES_INVALID')
+  const entries = pages.map((page) => {
+    const text = typeof textByPage?.[page] === 'string' ? textByPage[page].trim() : ''
+    if (!text) throw codedError('PDF_TEXT_EXTRACTION_FAILED')
+    return `${label} page ${page}; sha256:${pageHashes[page]}\n${text}`
+  })
+  return `${label} text by page:\n${entries.join('\n\n')}`
+}
+
+function imageInputs(directory, label, pageHashes, selectedPages = null) {
+  const availablePages = sortedPageNumbers(pageHashes)
+  const pages = selectedPages === null
+    ? availablePages
+    : selectedPages.filter((page) => availablePages.includes(page))
+  if (selectedPages !== null && pages.length !== selectedPages.length) throw codedError('PAGE_WINDOW_SOURCE_PAGES_INVALID')
+  return pages.flatMap((page) => {
+    const imagePath = renderedPageImagePath(directory, page)
+    return [
+      { type: 'input_text', text: `${label} page ${page}; sha256:${pageHashes[page]}` },
+      { type: 'input_image', image_url: `data:${imageMimeType(imagePath)};base64,${fs.readFileSync(imagePath).toString('base64')}` },
+    ]
+  })
+}
+
+function renderedPageImagePath(directory, page) {
+  for (const extension of ['.jpg', '.jpeg', '.png']) {
+    const exactPath = path.join(directory, `page-${page}${extension}`)
+    if (fs.statSync(exactPath, { throwIfNoEntry: false })?.isFile()) return exactPath
+  }
+  const match = fs.readdirSync(directory, { withFileTypes: true })
+    .filter(entry => entry.isFile())
+    .map(entry => entry.name)
+    .find(name => {
+      const parsed = /^page-(\d+)\.(?:jpg|jpeg|png)$/i.exec(name)
+      return parsed && Number(parsed[1]) === page
+    })
+  if (!match) throw codedError('RENDER_PAGE_IMAGE_MISSING')
+  return path.join(directory, match)
+}
+
+async function writeQuarantine({ plan, source, writeArtifact, reasonCodes, providerTelemetry = [] }) {
+  return writeArtifact(plan.outputArtifactPath, {
+    schemaVersion: AI_PDF_INGESTION_SCHEMA_VERSION,
+    artifactId: plan.artifactId,
+    paperId: plan.paperId,
+    subject: plan.subject,
+    artifactSuffix: plan.artifactSuffix || undefined,
+    stage: plan.stage,
+    syllabusRouteId: plan.syllabusRouteId,
+    status: 'auto-quarantined',
+    source: serializableSource(source),
+    model: plan.model,
+    reasonCodes: [...new Set(reasonCodes)].sort(),
+    providerTelemetry: providerTelemetry.map((entry) => ({ ...entry })),
+  })
+}
+
+function artifactForResult(plan, source, options, validation, extraction, verification, assets, {
+  extractorProvider = null,
+  verifierProvider = null,
+  excludedQuestions = [],
+  providerTelemetry = [],
+} = {}) {
+  const extractorIdentity = providerIdentity(extractorProvider, options.model)
+  const verifierIdentity = providerIdentity(verifierProvider, options.model)
+  const artifact = {
+    schemaVersion: AI_PDF_INGESTION_SCHEMA_VERSION,
+    artifactId: plan.artifactId,
+    paperId: plan.paperId,
+    artifactSuffix: plan.artifactSuffix || undefined,
+    subject: options.subject,
+    stage: options.stage,
+    syllabusRouteId: source.specificationId,
+    generatedAt: new Date().toISOString(),
+    status: validation.status,
+    storageMode: options.coordinateOnly ? 'coordinate-only' : 'cropped-question-pdfs',
+    ingestionStrategy: options.pageWindowed
+      ? {
+        id: 'page-windowed-v1',
+        ownedQuestionPaperPageCount: options.pageWindowOwnedPages,
+        trailingQuestionPaperContextPageCount: options.pageWindowTrailingPages,
+        markSchemeEvidenceMode: 'bounded-page-addressed-pdf-text',
+        markSchemeContextPageCount: PAGE_WINDOW_MARK_SCHEME_CONTEXT_PAGE_COUNT,
+        ownershipReconciliation: 'boundary-recovery-v1',
+      }
+      : { id: 'whole-paper-v1' },
+    source: serializableSource(source),
+    extractor: { provider: extractorIdentity.name, model: extractorIdentity.model, schemaName: 'ai_pdf_question_extraction_v1' },
+    verifier: { provider: verifierIdentity.name, model: verifierIdentity.model, schemaName: 'ai_pdf_question_verification_v1' },
+    providerTelemetry: providerTelemetry.map((entry) => ({ ...entry })),
+    reasonCodes: validation.reasonCodes.sort(),
+    excludedQuestions: excludedQuestions.map((question) => ({ ...question })),
+    assets,
+    candidate: extraction,
+    verification,
+  }
+  const studentRelease = buildAiStudentStudyRelease({
+    artifactId: artifact.artifactId,
+    routeId: artifact.syllabusRouteId,
+    status: artifact.status,
+    source: artifact.source,
+    extractor: artifact.extractor,
+    verifier: artifact.verifier,
+    candidate: artifact.candidate,
+    verification: artifact.verification,
+  })
+  return studentRelease ? { ...artifact, studentRelease } : artifact
+}
+
+function normalizeRenderResult(result) {
+  if (!result || typeof result !== 'object' || Array.isArray(result)
+    || !result.pageImageHashes || !result.pageSizes) throw codedError('RENDER_FAILED')
+  return result
+}
+
+function assetsRootFor(outputArtifactPath, id, artifactSuffix = null) {
+  const root = path.dirname(path.resolve(outputArtifactPath))
+  const target = path.resolve(root, `${artifactStorageStem(id, artifactSuffix)}.assets`)
+  assertPathWithinRoot(root, target)
+  return target
+}
+
+function imageDimensions(filePath) {
+  return path.extname(filePath).toLowerCase() === '.png'
+    ? pngDimensions(filePath)
+    : jpegDimensions(filePath)
+}
+
+function imageMimeType(filePath) {
+  const extension = path.extname(filePath).toLowerCase()
+  if (extension === '.png') return 'image/png'
+  if (extension === '.webp') return 'image/webp'
+  if (extension === '.bmp') return 'image/bmp'
+  if (extension === '.tif' || extension === '.tiff') return 'image/tiff'
+  return 'image/jpeg'
+}
+
+function pngDimensions(filePath) {
+  const bytes = fs.readFileSync(filePath)
+  const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
+  if (bytes.length < 24 || !bytes.subarray(0, 8).equals(signature)) throw codedError('RENDER_PAGE_DIMENSIONS_INVALID')
+  const width = bytes.readUInt32BE(16)
+  const height = bytes.readUInt32BE(20)
+  if (!width || !height) throw codedError('RENDER_PAGE_DIMENSIONS_INVALID')
+  return { width, height }
+}
+
+function jpegDimensions(filePath) {
+  const bytes = fs.readFileSync(filePath)
+  if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) throw codedError('RENDER_PAGE_DIMENSIONS_INVALID')
+  let offset = 2
+  while (offset + 8 < bytes.length) {
+    if (bytes[offset] !== 0xff) { offset += 1; continue }
+    while (bytes[offset] === 0xff) offset += 1
+    const marker = bytes[offset]
+    offset += 1
+    if (marker === 0xd8 || marker === 0xd9 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) continue
+    if (offset + 2 > bytes.length) break
+    const length = bytes.readUInt16BE(offset)
+    if (length < 2 || offset + length > bytes.length) break
+    if ([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf].includes(marker)) {
+      if (length < 7) break
+      const height = bytes.readUInt16BE(offset + 3)
+      const width = bytes.readUInt16BE(offset + 5)
+      if (width > 0 && height > 0) return { width, height }
+      break
+    }
+    offset += length
+  }
+  throw codedError('RENDER_PAGE_DIMENSIONS_INVALID')
+}
+
+function writeArtifactSafely(outputPath, artifact) {
+  const absoluteOutputPath = path.resolve(outputPath)
+  const outputRoot = path.resolve(path.dirname(path.dirname(absoluteOutputPath)))
+  assertPathWithinRoot(outputRoot, absoluteOutputPath)
+  fs.mkdirSync(path.dirname(absoluteOutputPath), { recursive: true })
+  const existing = fs.lstatSync(absoluteOutputPath, { throwIfNoEntry: false })
+  if (existing?.isSymbolicLink()) throw codedError('ARTIFACT_PATH_INVALID')
+  const temporaryPath = path.join(path.dirname(absoluteOutputPath), `.${path.basename(absoluteOutputPath)}.${process.pid}.tmp`)
+  fs.writeFileSync(temporaryPath, `${JSON.stringify(artifact, null, 2)}\n`, { encoding: 'utf8', flag: 'w' })
+  fs.renameSync(temporaryPath, absoluteOutputPath)
+  return artifact
+}
+
+function readExistingArtifact(outputPath) {
+  const existing = fs.statSync(outputPath, { throwIfNoEntry: false })
+  if (!existing?.isFile()) return null
+  try {
+    const artifact = JSON.parse(fs.readFileSync(outputPath, 'utf8'))
+    return artifact?.status === 'ai-verified' || artifact?.status === 'auto-quarantined' ? artifact : null
+  } catch {
+    return null
+  }
+}
+
+function verifiedArtifactAssetsFresh(artifact, artifactPath) {
+  const assets = Array.isArray(artifact?.assets) ? artifact.assets : []
+  if (!assets.length) return false
+  const artifactRoot = path.dirname(path.resolve(artifactPath))
+  const assetRoot = path.resolve(artifactRoot, `${artifactStorageStem(artifact.artifactId, artifact.artifactSuffix)}.assets`)
+  const seen = new Set()
+  return assets.every((asset) => {
+    const recordedPath = typeof asset?.questionPdfPath === 'string' ? path.resolve(asset.questionPdfPath) : ''
+    const relative = recordedPath ? path.relative(assetRoot, recordedPath) : '..'
+    if (!recordedPath || path.isAbsolute(relative) || relative === '..' || relative.startsWith(`..${path.sep}`) || seen.has(recordedPath)) return false
+    seen.add(recordedPath)
+    const stat = fs.statSync(recordedPath, { throwIfNoEntry: false })
+    if (!stat?.isFile() || stat.size <= 0) return false
+    const bytes = fs.readFileSync(recordedPath)
+    if (!bytes.subarray(0, 5).equals(Buffer.from('%PDF-'))) return false
+    const expectedHash = normalizeSha256(asset.questionPdfSha256)
+    return expectedHash && createHash('sha256').update(bytes).digest('hex') === expectedHash
+  })
+}
+
+function coordinateOnlyArtifactSourcesFresh(artifact) {
+  const source = artifact?.source || {}
+  const questionPath = typeof source.questionPdfPath === 'string' ? source.questionPdfPath : ''
+  const markSchemePath = typeof source.markSchemePdfPath === 'string' ? source.markSchemePdfPath : ''
+  const questionHash = normalizeSha256(source.questionPdfSha256)
+  const markSchemeHash = normalizeSha256(source.markSchemePdfSha256)
+  return Boolean(
+    questionPath
+    && markSchemePath
+    && questionHash
+    && markSchemeHash
+    && fs.statSync(questionPath, { throwIfNoEntry: false })?.isFile()
+    && fs.statSync(markSchemePath, { throwIfNoEntry: false })?.isFile()
+    && fileSha256(questionPath) === questionHash
+    && fileSha256(markSchemePath) === markSchemeHash,
+  )
+}
+
+function serializableSource(source) {
+  return { ...source, controlledTags: Object.fromEntries(Object.entries(source.controlledTags).map(([name, values]) => [name, [...values].sort()])) }
+}
+
+function artifactPath(outputRoot, paperId, id, artifactSuffix = null) {
+  const root = path.resolve(outputRoot)
+  const target = path.resolve(root, paperId, `${artifactStorageStem(id, artifactSuffix)}.json`)
+  assertPathWithinRoot(root, target)
+  return target
+}
+
+function safeArtifactFilename(id) {
+  return typeof id === 'string' && id.startsWith('sha256:') ? id.slice('sha256:'.length) : id
+}
+
+function artifactStorageStem(id, artifactSuffix = null) {
+  const base = safeArtifactFilename(id)
+  const suffix = normalizeArtifactSuffix(artifactSuffix)
+  return suffix ? `${base}--${suffix}` : base
+}
+
+function supportedSubject(subject) {
+  return Boolean(SUPPORTED_SYLLABUSES[subject])
+}
+
+function paperComponentFromIdentity(paperId, questionPdf) {
+  for (const identity of [paperId, path.basename(String(questionPdf || ''))]) {
+    const match = String(identity || '').match(/(?:^|_)qp_(\d)(?:\d)?(?:\.pdf)?$/i)
+    if (match) return Number(match[1])
+  }
+  return null
+}
+
+function syllabusRouteIdForOptions({ subject, stage, paperComponent = null, routeId = null } = {}) {
+  const explicitRouteId = nonemptyString(routeId)
+  if (subject !== '9709') {
+    const syllabus = SUPPORTED_SYLLABUSES[subject]?.[stage]
+    if (!syllabus) throw codedError('UNSUPPORTED_SYLLABUS_STAGE')
+    if (explicitRouteId && explicitRouteId !== syllabus.routeId) throw codedError('UNSUPPORTED_SYLLABUS_ROUTE')
+    return syllabus.routeId
+  }
+
+  if (explicitRouteId) {
+    const config = CAMBRIDGE_9709_INGESTION_ROUTES[explicitRouteId]
+    if (!config || config.stage !== stage) throw codedError('UNSUPPORTED_SYLLABUS_ROUTE')
+    return explicitRouteId
+  }
+
+  const inferredRouteId = DEFAULT_9709_ROUTE_BY_STAGE_COMPONENT[stage]?.[Number(paperComponent)]
+  if (inferredRouteId) return inferredRouteId
+  return stage === 'A2'
+    ? 'cie-9709-a2-after-p1-p5-p3-p6'
+    : 'cie-9709-as-p1-p5'
+}
+
+function normalizeStage(subject, value) {
+  const configured = nonemptyString(value)
+  const stage = configured ? configured.toUpperCase() : subject === '9702' || subject === '9709' ? 'AS' : 'IGCSE'
+  if (!SUPPORTED_SYLLABUSES[subject]?.[stage]) throw codedError('UNSUPPORTED_SYLLABUS_STAGE')
+  return stage
+}
+
+function normalizeExtractionForValidation(extraction, verification) {
+  if (!extraction || typeof extraction !== 'object' || !Array.isArray(extraction.questions)) return extraction
+  const verificationEvidenceByQuestion = new Map((verification?.questions || [])
+    .filter(question => typeof question?.questionNumber === 'string')
+    .map(question => [question.questionNumber, Array.isArray(question.markSchemeEvidence) ? question.markSchemeEvidence : []]))
+  return {
+    ...extraction,
+    questions: extraction.questions.map(question => ({
+      ...question,
+      parts: normalizeSingleAnswerParts(question.parts),
+      markSchemeEvidence: Array.isArray(question.markSchemeEvidence) && question.markSchemeEvidence.length
+        ? question.markSchemeEvidence
+        : verificationEvidenceByQuestion.get(question.questionNumber) || question.markSchemeEvidence,
+      tags: {
+        ...question.tags,
+        skillTagIds: [],
+        questionFormatIds: [],
+      },
+    })),
+  }
+}
+
+function reconcileSyllabusMappings(extraction, verification) {
+  const extractionQuestions = Array.isArray(extraction?.questions) ? extraction.questions : []
+  const verificationQuestions = Array.isArray(verification?.questions) ? verification.questions : []
+  const verificationByQuestion = new Map(verificationQuestions.map(question => [nonemptyString(question?.questionNumber), question]))
+  const includedNumbers = new Set()
+  const excludedQuestions = []
+  for (const question of extractionQuestions) {
+    const questionNumber = nonemptyString(question?.questionNumber)
+    const verified = verificationByQuestion.get(questionNumber)
+    const candidateTopicId = nonemptyString(question?.tags?.primaryTopicId)
+    const verifiedTopicId = nonemptyString(verified?.tags?.primaryTopicId)
+    if (!questionNumber || !verified || candidateTopicId === UNMAPPED_TOPIC_ID || verifiedTopicId === UNMAPPED_TOPIC_ID) {
+      excludedQuestions.push({ questionNumber: questionNumber || null, reasonCode: 'SYLLABUS_TOPIC_UNMAPPED' })
+      continue
+    }
+    if (!candidateTopicId || candidateTopicId !== verifiedTopicId) {
+      excludedQuestions.push({ questionNumber, reasonCode: 'SYLLABUS_MAPPING_DISAGREEMENT' })
+      continue
+    }
+    includedNumbers.add(questionNumber)
+  }
+  if (!includedNumbers.size) throw codedError('SYLLABUS_MAPPING_UNVERIFIED')
+  return {
+    extraction: { ...extraction, questions: extractionQuestions.filter(question => includedNumbers.has(nonemptyString(question?.questionNumber))) },
+    verification: { ...verification, questions: verificationQuestions.filter(question => includedNumbers.has(nonemptyString(question?.questionNumber))) },
+    excludedQuestions: excludedQuestions.sort((left, right) => String(left.questionNumber || '').localeCompare(String(right.questionNumber || ''), undefined, { numeric: true })),
+  }
+}
+
+function assertPageWindowAgreement(extraction, verification) {
+  const extractionQuestions = Array.isArray(extraction?.questions) ? extraction.questions : []
+  const verificationByQuestion = new Map((Array.isArray(verification?.questions) ? verification.questions : [])
+    .map(question => [question?.questionNumber, question]))
+  for (const question of extractionQuestions) {
+    const verified = verificationByQuestion.get(question?.questionNumber)
+    if (!verified || verified.questionStartPage !== question.questionStartPage) {
+      throw codedError('PAGE_WINDOW_START_PAGE_DISAGREEMENT')
+    }
+  }
+}
+
+function normalizeVerificationForValidation(verification) {
+  if (!verification || typeof verification !== 'object' || !Array.isArray(verification.questions)) return verification
+  return {
+    ...verification,
+    questions: verification.questions.map(question => ({
+      ...question,
+      parts: normalizeSingleAnswerParts(question.parts),
+    })),
+  }
+}
+
+function normalizeSingleAnswerParts(parts) {
+  if (!Array.isArray(parts)) return parts
+  if (parts.length !== 1) return parts
+  const [part] = parts
+  if (!part || typeof part !== 'object' || Array.isArray(part)) return parts
+  if (typeof part.label === 'string' && part.label.trim()) return parts
+  return [{ ...part, label: 'answer' }]
+}
+
+function assertPathWithinRoot(root, target) {
+  const relative = path.relative(root, target)
+  if (!relative || path.isAbsolute(relative) || relative === '..' || relative.startsWith(`..${path.sep}`)) throw new RangeError('Output artifact path must remain below --output-root.')
+}
+
+function fileSha256(filePath) {
+  return createHash('sha256').update(fs.readFileSync(filePath)).digest('hex')
+}
+
+function normalizeSha256(value) {
+  const match = typeof value === 'string' ? /^(?:sha256:)?([a-fA-F0-9]{64})$/.exec(value) : null
+  return match ? match[1].toLowerCase() : null
+}
+
+function resolveExistingFile(value, name, cwd) {
+  const absolutePath = path.resolve(cwd, value)
+  if (!fs.statSync(absolutePath, { throwIfNoEntry: false })?.isFile()) throw new RangeError(`${name} must reference an existing file.`)
+  return absolutePath
+}
+
+function positiveInteger(value, name) {
+  const parsed = typeof value === 'number' ? value : Number(value)
+  if (!Number.isInteger(parsed) || parsed < 1) throw new RangeError(`${name} must be a positive integer.`)
+  return parsed
+}
+
+function nonemptyString(value) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+function normalizeArtifactSuffix(value) {
+  if (value === undefined || value === null || value === '') return null
+  if (typeof value !== 'string' || !SAFE_ARTIFACT_SUFFIX.test(value.trim())) {
+    throw new RangeError('artifactSuffix must be a single safe filename segment.')
+  }
+  return value.trim()
+}
+
+function boundedOcrMetadata(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const metadata = {}
+  const allowedFields = ['engine', 'provider', 'model', 'executionMode', 'pipelineVersion', 'statePath', 'jobId']
+  for (const field of allowedFields) {
+    const item = value[field]
+    if (typeof item !== 'string' || !item.trim()) continue
+    const normalized = item.trim()
+    if (normalized.length > 256 || /(?:token|secret|authorization|cookie|api[_-]?key)/i.test(normalized)) continue
+    metadata[field] = normalized
+  }
+  for (const field of ['documentCount', 'pageCount']) {
+    const item = value[field]
+    if (Number.isInteger(item) && item >= 0 && item <= 100000) metadata[field] = item
+  }
+  return Object.keys(metadata).length ? Object.freeze(metadata) : null
+}
+
+function withDeadline(promise, deadlineAt) {
+  if (!Number.isFinite(deadlineAt)) return promise
+  const remainingMs = Math.floor(deadlineAt - Date.now())
+  if (remainingMs < 1) return Promise.reject(codedError('AI_PAPER_TIMEOUT'))
+  let timer
+  const deadlinePromise = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(codedError('AI_PAPER_TIMEOUT')), remainingMs)
+  })
+  return Promise.race([promise, deadlinePromise]).finally(() => clearTimeout(timer))
+}
+
+function safeFailureCode(error) {
+  return typeof error?.code === 'string' && /^([A-Z][A-Z0-9_]{2,})$/.test(error.code) ? error.code : 'INGESTION_FAILED'
+}
+
+function codedError(code) {
+  const error = new Error(code)
+  error.code = code
+  return error
+}
+
+function regionSchema() {
+  return {
+    type: 'object', additionalProperties: false,
+    required: ['page', 'pageImageSha256', 'x0', 'y0', 'x1', 'y1'], properties: {
+      page: { type: 'integer', minimum: 1 }, pageImageSha256: { type: 'string' },
+      x0: { type: 'number', minimum: 0, maximum: 1 }, y0: { type: 'number', minimum: 0, maximum: 1 },
+      x1: { type: 'number', minimum: 0, maximum: 1 }, y1: { type: 'number', minimum: 0, maximum: 1 },
+    },
+  }
+}
+
+function questionStartSchema() {
+  return {
+    type: 'object', additionalProperties: false,
+    required: ['questionNumber', 'questionStartPage'],
+    properties: {
+      questionNumber: { type: 'string' },
+      questionStartPage: { type: 'integer', minimum: 1 },
+    },
+  }
+}
+
+function markSchemeEvidenceSchema() {
+  return { type: 'object', additionalProperties: false, required: ['page', 'pageImageSha256'], properties: { page: { type: 'integer', minimum: 1 }, pageImageSha256: { type: 'string' } } }
+}
+
+function extractionSchemaFor(controlledTags) {
+  const schema = structuredClone(extractorSchema)
+  schema.properties.questions.items.properties.tags = tagSchema(controlledTags, { allowUnmapped: true })
+  return schema
+}
+
+function verifierSchemaFor(controlledTags) {
+  const schema = structuredClone(verifierSchema)
+  schema.properties.questions.items.properties.tags = tagSchema(controlledTags, { allowUnmapped: true })
+  return schema
+}
+
+function tagSchema(controlledTags = null, { allowUnmapped = false } = {}) {
+  const allowed = (field) => controlledTags instanceof Object && controlledTags[field] instanceof Set
+    ? [...controlledTags[field]].sort()
+    : null
+  const stringSchema = (field) => allowed(field) ? { type: 'string', enum: allowed(field) } : { type: 'string' }
+  const primaryTopicSchema = allowed('primaryTopicIds')
+    ? { type: 'string', enum: [...allowed('primaryTopicIds'), ...(allowUnmapped ? [UNMAPPED_TOPIC_ID] : [])] }
+    : { type: 'string' }
+  return {
+    type: 'object', additionalProperties: false,
+    required: ['primaryTopicId', 'secondaryTopicIds', 'syllabusPointIds'], properties: {
+      primaryTopicId: primaryTopicSchema, secondaryTopicIds: { type: 'array', items: stringSchema('secondaryTopicIds') },
+      syllabusPointIds: { type: 'array', items: stringSchema('syllabusPointIds') },
+    },
+  }
+}
+
+async function main() {
+  try {
+    const cwd = process.cwd()
+    const env = mergeRuntimeEnv({ cwd, env: process.env })
+    const options = parseArgs(process.argv.slice(2), { cwd, env })
+    const result = await runCli(options, { cwd, env })
+    process.stdout.write(`${JSON.stringify(result)}\n`)
+    process.exitCode = result.status === 'auto-quarantined' ? 2 : 0
+  } catch (error) {
+    process.stderr.write(`${safeFailureCode(error)}\n`)
+    process.exitCode = 1
+  }
+}
+
+function isDirectExecution() {
+  if (!process.argv[1]) return false
+  const modulePath = fileURLToPath(import.meta.url)
+  try {
+    return fs.realpathSync(modulePath) === fs.realpathSync(path.resolve(process.argv[1]))
+  } catch {
+    return path.resolve(process.argv[1]) === modulePath
+  }
+}
+
+if (isDirectExecution()) {
+  await main()
+}

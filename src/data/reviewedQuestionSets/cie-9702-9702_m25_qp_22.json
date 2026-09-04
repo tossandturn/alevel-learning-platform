@@ -1,0 +1,3151 @@
+{
+  "schemaVersion": "reviewed-question-set.v1",
+  "generatedAt": "2026-08-14T17:00:00+08:00",
+  "paperId": "cie-9702-9702_m25_qp_22",
+  "questionCount": 7,
+  "totalMarks": 60,
+  "sourceFragments": [
+    {
+      "file": "cambridge-9702-p2-m25-review-ledger.js",
+      "sha256": "c65f29a5fdea520945ce55cca1074cc7ec29aa2ec17150418a1ca057c95c49a1"
+    }
+  ],
+  "sourceMaterials": {
+    "questionPaper": {
+      "id": "cie-9702-9702_m25_qp_22",
+      "file": "9702_m25_qp_22.pdf",
+      "sha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m25_qp_22.pdf",
+      "governance": {
+        "schemaVersion": "paper-governance-v1",
+        "state": "active",
+        "sourcePolicyId": "cie-mirror-restricted-v1",
+        "accessPolicyId": "personal-study-restricted-v1",
+        "sourceVersion": "2025:Mar:9702_m25_qp_22.pdf",
+        "retrievedAt": null,
+        "retrievalStatus": "not-recorded",
+        "integrityStatus": "pending-release-audit",
+        "duplicateOf": null,
+        "answerStatus": "exact-pair",
+        "reasonCode": null,
+        "reviewedAt": null,
+        "reviewEvidence": null
+      }
+    },
+    "markScheme": {
+      "id": "cie-9702-9702_m25_ms_22",
+      "file": "9702_m25_ms_22.pdf",
+      "sha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m25_ms_22.pdf",
+      "governance": {
+        "schemaVersion": "paper-governance-v1",
+        "state": "active",
+        "sourcePolicyId": "cie-mirror-restricted-v1",
+        "accessPolicyId": "personal-study-restricted-v1",
+        "sourceVersion": "2025:Mar:9702_m25_ms_22.pdf",
+        "retrievedAt": null,
+        "retrievalStatus": "not-recorded",
+        "integrityStatus": "pending-release-audit",
+        "duplicateOf": null,
+        "answerStatus": "not-applicable",
+        "reasonCode": null,
+        "reviewedAt": null,
+        "reviewEvidence": null
+      }
+    }
+  },
+  "questions": [
+    {
+      "qualificationId": "cambridge-9702",
+      "subjectId": "physics",
+      "subjectCode": "9702",
+      "knowledgeGroupId": "physics-9702-topic-01",
+      "topicId": "physics-9702-topic-01",
+      "stageTags": [
+        "AS"
+      ],
+      "componentTags": [
+        2
+      ],
+      "topicTags": [
+        "physics-9702-topic-01",
+        "physics-9702-topic-04",
+        "physics-9702-practical-data",
+        "measurement and uncertainty"
+      ],
+      "skillTags": [
+        "definition",
+        "conceptual understanding"
+      ],
+      "answerType": "structured",
+      "prompt": "(a) Explain what is meant by the accuracy of a measured value.\n\n(b-i) Show that the calculated density of cube A is 8.7 x 10^3 kg m^-3.\n\n(b-ii) Calculate the percentage uncertainty in the density of cube A.\n\n(b-iii) State and explain whether cubes A and B could be made from the same material.",
+      "marks": 7,
+      "sourceRef": {
+        "paperId": "cie-9702-9702_m25_qp_22",
+        "paper": "9702_m25_qp_22.pdf",
+        "question": "Q1",
+        "localUrl": "/local-pdf/9702/9702_m25_qp_22.pdf",
+        "pageStart": 3,
+        "pageEnd": 3,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_m25_qp_22/qp-03.jpg"
+        ],
+        "year": 2025,
+        "season": "Mar",
+        "component": 2,
+        "sha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-06T18:27:02.280Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-m25-review-ledger.v1"
+      },
+      "questionId": "cie-9702-9702_m25_qp_22:q1",
+      "answerId": "cie-9702-9702_m25_qp_22:q1:answer",
+      "examFamilyId": "cambridge",
+      "specificationId": "cambridge-9702-2025-2027",
+      "syllabusMapping": {
+        "specificationId": "cambridge-9702-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "physics-9702-topic-01",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-01",
+        "secondaryTopicIds": [
+          "physics-9702-topic-04"
+        ],
+        "syllabusPointIds": [
+          "physics-9702-point-1-3-02",
+          "physics-9702-point-1-3-03",
+          "physics-9702-point-4-3-01"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex source-semantic-review / 9702-P2-M25",
+        "reviewedAt": "2026-08-14T17:00:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_m25_qp_22",
+          "markSchemeId": "cie-9702-9702_m25_ms_22",
+          "questionPages": [
+            3
+          ],
+          "markSchemePages": [
+            7
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m25_qp_22.pdf"
+        }
+      },
+      "questionGroupId": "cie-9702-9702_m25_qp_22:q1",
+      "questionGroupStatus": "verified",
+      "totalMarks": 7,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q1:part-a",
+          "label": "a",
+          "promptFragment": "Explain what is meant by the accuracy of a measured value.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 3,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 3,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-03.jpg",
+              "assetSha256": "9f3da7e4ff53626355a7a9dd104feae78279d6a1fbe4c12d6f8c51009661d99a"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q1:part-b-i",
+          "label": "b-i",
+          "promptFragment": "Show that the calculated density of cube A is 8.7 x 10^3 kg m^-3.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 3,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 3,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-03.jpg",
+              "assetSha256": "9f3da7e4ff53626355a7a9dd104feae78279d6a1fbe4c12d6f8c51009661d99a"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q1:part-b-ii",
+          "label": "b-ii",
+          "promptFragment": "Calculate the percentage uncertainty in the density of cube A.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 3,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 3,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-03.jpg",
+              "assetSha256": "9f3da7e4ff53626355a7a9dd104feae78279d6a1fbe4c12d6f8c51009661d99a"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q1:part-b-iii",
+          "label": "b-iii",
+          "promptFragment": "State and explain whether cubes A and B could be made from the same material.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 3,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 3,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-03.jpg",
+              "assetSha256": "9f3da7e4ff53626355a7a9dd104feae78279d6a1fbe4c12d6f8c51009661d99a"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "qualificationId": "cambridge-9702",
+      "subjectId": "physics",
+      "subjectCode": "9702",
+      "knowledgeGroupId": "physics-9702-topic-04",
+      "topicId": "physics-9702-topic-04",
+      "stageTags": [
+        "AS"
+      ],
+      "componentTags": [
+        2
+      ],
+      "topicTags": [
+        "physics-9702-topic-04",
+        "physics-9702-mechanics",
+        "forces and momentum",
+        "work energy and power"
+      ],
+      "skillTags": [
+        "recall",
+        "definition"
+      ],
+      "answerType": "structured",
+      "prompt": "(a) State the principle of moments.\n\n(b-i) By taking moments about A, determine the distance x from A to P in Fig. 2.1.\n\n(b-ii) Show that the upthrust acting on the cylinder is 1400 N.\n\n(b-iii) Calculate the depth y of the bottom of the cylinder in the water.\n\n(b-iv) Sketch the variation of cylinder-bottom depth with the person distance from A on Fig. 2.3.",
+      "marks": 10,
+      "sourceRef": {
+        "paperId": "cie-9702-9702_m25_qp_22",
+        "paper": "9702_m25_qp_22.pdf",
+        "question": "Q2",
+        "localUrl": "/local-pdf/9702/9702_m25_qp_22.pdf",
+        "pageStart": 4,
+        "pageEnd": 6,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_m25_qp_22/qp-04.jpg",
+          "/question-assets/cie-9702-9702_m25_qp_22/qp-05.jpg",
+          "/question-assets/cie-9702-9702_m25_qp_22/qp-06.jpg"
+        ],
+        "year": 2025,
+        "season": "Mar",
+        "component": 2,
+        "sha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-06T18:27:02.280Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-m25-review-ledger.v1"
+      },
+      "questionId": "cie-9702-9702_m25_qp_22:q2",
+      "answerId": "cie-9702-9702_m25_qp_22:q2:answer",
+      "examFamilyId": "cambridge",
+      "specificationId": "cambridge-9702-2025-2027",
+      "syllabusMapping": {
+        "specificationId": "cambridge-9702-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "physics-9702-topic-04",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-04",
+        "secondaryTopicIds": [],
+        "syllabusPointIds": [
+          "physics-9702-point-4-2-01",
+          "physics-9702-point-4-3-03",
+          "physics-9702-point-4-3-05",
+          "physics-9702-point-4-3-06"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex source-semantic-review / 9702-P2-M25",
+        "reviewedAt": "2026-08-14T17:00:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_m25_qp_22",
+          "markSchemeId": "cie-9702-9702_m25_ms_22",
+          "questionPages": [
+            4,
+            5,
+            6
+          ],
+          "markSchemePages": [
+            7,
+            8
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m25_qp_22.pdf"
+        }
+      },
+      "questionGroupId": "cie-9702-9702_m25_qp_22:q2",
+      "questionGroupStatus": "verified",
+      "totalMarks": 10,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q2:part-a",
+          "label": "a",
+          "promptFragment": "State the principle of moments.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 4,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 4,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-04.jpg",
+              "assetSha256": "4f0de5d920588bf1fff1535b601469212a40c8524a41d82e6f00e656ae7572ff"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q2:part-b-i",
+          "label": "b-i",
+          "promptFragment": "By taking moments about A, determine the distance x from A to P in Fig. 2.1.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 4,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 4,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-04.jpg",
+              "assetSha256": "4f0de5d920588bf1fff1535b601469212a40c8524a41d82e6f00e656ae7572ff"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q2:part-b-ii",
+          "label": "b-ii",
+          "promptFragment": "Show that the upthrust acting on the cylinder is 1400 N.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 5,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 5,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-05.jpg",
+              "assetSha256": "52b448094d4bb5720d16438fd72154e6cb8de418ddfa75a94faf9e409865867c"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q2:part-b-iii",
+          "label": "b-iii",
+          "promptFragment": "Calculate the depth y of the bottom of the cylinder in the water.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 5,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 5,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-05.jpg",
+              "assetSha256": "52b448094d4bb5720d16438fd72154e6cb8de418ddfa75a94faf9e409865867c"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q2:part-b-iv",
+          "label": "b-iv",
+          "promptFragment": "Sketch the variation of cylinder-bottom depth with the person distance from A on Fig. 2.3.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 6,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 6,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-06.jpg",
+              "assetSha256": "79832ab0a5c9f7d33a8d0be67472b095d224bc23aa9c53a939537bca5c138595"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "qualificationId": "cambridge-9702",
+      "subjectId": "physics",
+      "subjectCode": "9702",
+      "knowledgeGroupId": "physics-9702-topic-03",
+      "topicId": "physics-9702-topic-03",
+      "stageTags": [
+        "AS"
+      ],
+      "componentTags": [
+        2
+      ],
+      "topicTags": [
+        "physics-9702-topic-03",
+        "physics-9702-topic-02",
+        "physics-9702-topic-05",
+        "physics-9702-mechanics",
+        "kinematics",
+        "work energy and power"
+      ],
+      "skillTags": [
+        "calculation",
+        "application of equations of motion",
+        "energy calculation"
+      ],
+      "answerType": "structured",
+      "prompt": "(a-i) Calculate the acceleration of truck R between A and B.\n\n(a-ii) Determine the gain in kinetic energy of truck R between A and B.\n\n(b-i) Define force.\n\n(b-ii) Show that the average resultant force F on truck R between t = 0 and t = 15 s is -1.2 x 10^4 N.\n\n(b-iii) State and explain whether identical truck S takes more, less or the same time to stop as truck R.",
+      "marks": 10,
+      "sourceRef": {
+        "paperId": "cie-9702-9702_m25_qp_22",
+        "paper": "9702_m25_qp_22.pdf",
+        "question": "Q3",
+        "localUrl": "/local-pdf/9702/9702_m25_qp_22.pdf",
+        "pageStart": 7,
+        "pageEnd": 9,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_m25_qp_22/qp-07.jpg",
+          "/question-assets/cie-9702-9702_m25_qp_22/qp-08.jpg",
+          "/question-assets/cie-9702-9702_m25_qp_22/qp-09.jpg"
+        ],
+        "year": 2025,
+        "season": "Mar",
+        "component": 2,
+        "sha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-06T18:27:02.281Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-m25-review-ledger.v1"
+      },
+      "questionId": "cie-9702-9702_m25_qp_22:q3",
+      "answerId": "cie-9702-9702_m25_qp_22:q3:answer",
+      "examFamilyId": "cambridge",
+      "specificationId": "cambridge-9702-2025-2027",
+      "syllabusMapping": {
+        "specificationId": "cambridge-9702-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "physics-9702-topic-03",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-03",
+        "secondaryTopicIds": [
+          "physics-9702-topic-02",
+          "physics-9702-topic-05"
+        ],
+        "syllabusPointIds": [
+          "physics-9702-point-2-1-07",
+          "physics-9702-point-3-1-02",
+          "physics-9702-point-3-1-04",
+          "physics-9702-point-5-2-04"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex source-semantic-review / 9702-P2-M25",
+        "reviewedAt": "2026-08-14T17:00:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_m25_qp_22",
+          "markSchemeId": "cie-9702-9702_m25_ms_22",
+          "questionPages": [
+            7,
+            8,
+            9
+          ],
+          "markSchemePages": [
+            9,
+            10
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m25_qp_22.pdf"
+        }
+      },
+      "questionGroupId": "cie-9702-9702_m25_qp_22:q3",
+      "questionGroupStatus": "verified",
+      "totalMarks": 10,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q3:part-a-i",
+          "label": "a-i",
+          "promptFragment": "Calculate the acceleration of truck R between A and B.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 7,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 7,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-07.jpg",
+              "assetSha256": "3fcfce993a42c18b6eaefa74c2a4df4d7f34317871a310f3e96468b945137482"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q3:part-a-ii",
+          "label": "a-ii",
+          "promptFragment": "Determine the gain in kinetic energy of truck R between A and B.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 7,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 7,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-07.jpg",
+              "assetSha256": "3fcfce993a42c18b6eaefa74c2a4df4d7f34317871a310f3e96468b945137482"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q3:part-b-i",
+          "label": "b-i",
+          "promptFragment": "Define force.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 8,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-08.jpg",
+              "assetSha256": "7756f7c12d28379ee932e832528b9d4c04718a08e57b6e7e37cb06f5501ad461"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q3:part-b-ii",
+          "label": "b-ii",
+          "promptFragment": "Show that the average resultant force F on truck R between t = 0 and t = 15 s is -1.2 x 10^4 N.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 8,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-08.jpg",
+              "assetSha256": "7756f7c12d28379ee932e832528b9d4c04718a08e57b6e7e37cb06f5501ad461"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q3:part-b-iii",
+          "label": "b-iii",
+          "promptFragment": "State and explain whether identical truck S takes more, less or the same time to stop as truck R.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 9,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 9,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-09.jpg",
+              "assetSha256": "0bde6c9d871e2c4b2dcc251b7c8f2f2dd402d400b9633d2bd896383daa3c6cea"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "qualificationId": "cambridge-9702",
+      "subjectId": "physics",
+      "subjectCode": "9702",
+      "knowledgeGroupId": "physics-9702-topic-08",
+      "topicId": "physics-9702-topic-08",
+      "stageTags": [
+        "AS"
+      ],
+      "componentTags": [
+        2
+      ],
+      "topicTags": [
+        "physics-9702-topic-08",
+        "physics-9702-waves",
+        "wave properties",
+        "stationary waves"
+      ],
+      "skillTags": [
+        "explanation",
+        "conceptual understanding"
+      ],
+      "answerType": "structured",
+      "prompt": "(a) Explain how the stationary microwave wave, including nodes and antinodes, is formed.\n\n(b-i) Calculate the wavelength of the microwaves.\n\n(b-ii) Determine the distance between P and Q.\n\n(b-iii) State and explain whether QR is greater than, less than or the same as PQ when intensity increases but frequency is unchanged.",
+      "marks": 8,
+      "sourceRef": {
+        "paperId": "cie-9702-9702_m25_qp_22",
+        "paper": "9702_m25_qp_22.pdf",
+        "question": "Q4",
+        "localUrl": "/local-pdf/9702/9702_m25_qp_22.pdf",
+        "pageStart": 10,
+        "pageEnd": 11,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_m25_qp_22/qp-10.jpg",
+          "/question-assets/cie-9702-9702_m25_qp_22/qp-11.jpg"
+        ],
+        "year": 2025,
+        "season": "Mar",
+        "component": 2,
+        "sha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-06T18:27:02.281Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-m25-review-ledger.v1"
+      },
+      "questionId": "cie-9702-9702_m25_qp_22:q4",
+      "answerId": "cie-9702-9702_m25_qp_22:q4:answer",
+      "examFamilyId": "cambridge",
+      "specificationId": "cambridge-9702-2025-2027",
+      "syllabusMapping": {
+        "specificationId": "cambridge-9702-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "physics-9702-topic-08",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-08",
+        "secondaryTopicIds": [],
+        "syllabusPointIds": [
+          "physics-9702-point-8-1-01",
+          "physics-9702-point-8-1-02",
+          "physics-9702-point-8-1-03",
+          "physics-9702-point-8-1-04"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex source-semantic-review / 9702-P2-M25",
+        "reviewedAt": "2026-08-14T17:00:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_m25_qp_22",
+          "markSchemeId": "cie-9702-9702_m25_ms_22",
+          "questionPages": [
+            10,
+            11
+          ],
+          "markSchemePages": [
+            10,
+            11
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m25_qp_22.pdf"
+        }
+      },
+      "questionGroupId": "cie-9702-9702_m25_qp_22:q4",
+      "questionGroupStatus": "verified",
+      "totalMarks": 8,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q4:part-a",
+          "label": "a",
+          "promptFragment": "Explain how the stationary microwave wave, including nodes and antinodes, is formed.",
+          "marks": 4,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 10,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-10.jpg",
+              "assetSha256": "3ed7f5fdd0c3c997ec0de77edf1ceba10f942876752f3365a2c0796b9f01743b"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q4:part-b-i",
+          "label": "b-i",
+          "promptFragment": "Calculate the wavelength of the microwaves.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 10,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-10.jpg",
+              "assetSha256": "3ed7f5fdd0c3c997ec0de77edf1ceba10f942876752f3365a2c0796b9f01743b"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q4:part-b-ii",
+          "label": "b-ii",
+          "promptFragment": "Determine the distance between P and Q.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 11,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-11.jpg",
+              "assetSha256": "bed33b058bc365f765fb82ed0c3e430503b7c142c906394cc4ad42ea5d9e6fda"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q4:part-b-iii",
+          "label": "b-iii",
+          "promptFragment": "State and explain whether QR is greater than, less than or the same as PQ when intensity increases but frequency is unchanged.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 11,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-11.jpg",
+              "assetSha256": "bed33b058bc365f765fb82ed0c3e430503b7c142c906394cc4ad42ea5d9e6fda"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "qualificationId": "cambridge-9702",
+      "subjectId": "physics",
+      "subjectCode": "9702",
+      "knowledgeGroupId": "physics-9702-topic-07",
+      "topicId": "physics-9702-topic-07",
+      "stageTags": [
+        "AS"
+      ],
+      "componentTags": [
+        2
+      ],
+      "topicTags": [
+        "physics-9702-topic-07",
+        "physics-9702-mechanics",
+        "forces and momentum",
+        "work energy and power"
+      ],
+      "skillTags": [
+        "force balance",
+        "equilibrium"
+      ],
+      "answerType": "structured",
+      "prompt": "(a) Use the CRO trace and time-base to determine the wavelength of the sound.\n\n(b) Describe the motion of the loudspeaker when the CRO period increases continuously.",
+      "marks": 5,
+      "sourceRef": {
+        "paperId": "cie-9702-9702_m25_qp_22",
+        "paper": "9702_m25_qp_22.pdf",
+        "question": "Q5",
+        "localUrl": "/local-pdf/9702/9702_m25_qp_22.pdf",
+        "pageStart": 12,
+        "pageEnd": 12,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_m25_qp_22/qp-12.jpg"
+        ],
+        "year": 2025,
+        "season": "Mar",
+        "component": 2,
+        "sha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-06T18:27:02.280Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-m25-review-ledger.v1"
+      },
+      "questionId": "cie-9702-9702_m25_qp_22:q5",
+      "answerId": "cie-9702-9702_m25_qp_22:q5:answer",
+      "examFamilyId": "cambridge",
+      "specificationId": "cambridge-9702-2025-2027",
+      "syllabusMapping": {
+        "specificationId": "cambridge-9702-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "physics-9702-topic-07",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-07",
+        "secondaryTopicIds": [],
+        "syllabusPointIds": [
+          "physics-9702-point-7-1-03",
+          "physics-9702-point-7-1-04",
+          "physics-9702-point-7-3-02"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex source-semantic-review / 9702-P2-M25",
+        "reviewedAt": "2026-08-14T17:00:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_m25_qp_22",
+          "markSchemeId": "cie-9702-9702_m25_ms_22",
+          "questionPages": [
+            12
+          ],
+          "markSchemePages": [
+            11
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m25_qp_22.pdf"
+        }
+      },
+      "questionGroupId": "cie-9702-9702_m25_qp_22:q5",
+      "questionGroupStatus": "verified",
+      "totalMarks": 5,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q5:part-a",
+          "label": "a",
+          "promptFragment": "Use the CRO trace and time-base to determine the wavelength of the sound.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 12,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-12.jpg",
+              "assetSha256": "d2a3af58d167258a6de39eefc4926e10a4d77374192747e69d3c33eab320a681"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q5:part-b",
+          "label": "b",
+          "promptFragment": "Describe the motion of the loudspeaker when the CRO period increases continuously.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 12,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-12.jpg",
+              "assetSha256": "d2a3af58d167258a6de39eefc4926e10a4d77374192747e69d3c33eab320a681"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "qualificationId": "cambridge-9702",
+      "subjectId": "physics",
+      "subjectCode": "9702",
+      "knowledgeGroupId": "physics-9702-topic-09",
+      "topicId": "physics-9702-topic-09",
+      "stageTags": [
+        "AS"
+      ],
+      "componentTags": [
+        2
+      ],
+      "topicTags": [
+        "physics-9702-topic-09",
+        "physics-9702-electricity",
+        "current and charge",
+        "potential difference and resistance",
+        "resistivity"
+      ],
+      "skillTags": [
+        "calculation",
+        "derivation",
+        "show that"
+      ],
+      "answerType": "structured",
+      "prompt": "(a) Calculate the potential difference between the ends of copper wire P.\n\n(b-i) Show that the cross-sectional area of wire P is 1.3 x 10^-6 m^2.\n\n(b-ii) Show that the number density of charge carriers in wire P is 8.3 x 10^28 m^-3.\n\n(b-iii) Calculate the average drift speed of charge carriers in wire P.\n\n(c-i) State and explain how the resistance of wire Q compares with wire P.\n\n(c-ii) Sketch average drift speed against distance from X for wire Q on Fig. 6.3.",
+      "marks": 13,
+      "sourceRef": {
+        "paperId": "cie-9702-9702_m25_qp_22",
+        "paper": "9702_m25_qp_22.pdf",
+        "question": "Q6",
+        "localUrl": "/local-pdf/9702/9702_m25_qp_22.pdf",
+        "pageStart": 13,
+        "pageEnd": 15,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_m25_qp_22/qp-13.jpg",
+          "/question-assets/cie-9702-9702_m25_qp_22/qp-14.jpg",
+          "/question-assets/cie-9702-9702_m25_qp_22/qp-15.jpg"
+        ],
+        "year": 2025,
+        "season": "Mar",
+        "component": 2,
+        "sha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-06T18:27:02.281Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-m25-review-ledger.v1"
+      },
+      "questionId": "cie-9702-9702_m25_qp_22:q6",
+      "answerId": "cie-9702-9702_m25_qp_22:q6:answer",
+      "examFamilyId": "cambridge",
+      "specificationId": "cambridge-9702-2025-2027",
+      "syllabusMapping": {
+        "specificationId": "cambridge-9702-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "physics-9702-topic-09",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-09",
+        "secondaryTopicIds": [],
+        "syllabusPointIds": [
+          "physics-9702-point-9-1-04",
+          "physics-9702-point-9-3-02",
+          "physics-9702-point-9-3-06"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex source-semantic-review / 9702-P2-M25",
+        "reviewedAt": "2026-08-14T17:00:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_m25_qp_22",
+          "markSchemeId": "cie-9702-9702_m25_ms_22",
+          "questionPages": [
+            13,
+            14,
+            15
+          ],
+          "markSchemePages": [
+            11,
+            12
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m25_qp_22.pdf"
+        }
+      },
+      "questionGroupId": "cie-9702-9702_m25_qp_22:q6",
+      "questionGroupStatus": "verified",
+      "totalMarks": 13,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q6:part-a",
+          "label": "a",
+          "promptFragment": "Calculate the potential difference between the ends of copper wire P.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 13,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-13.jpg",
+              "assetSha256": "89926a77bfe398a8f0ae645dd8a96336754e71d466111860d01575001017a77e"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q6:part-b-i",
+          "label": "b-i",
+          "promptFragment": "Show that the cross-sectional area of wire P is 1.3 x 10^-6 m^2.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 13,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-13.jpg",
+              "assetSha256": "89926a77bfe398a8f0ae645dd8a96336754e71d466111860d01575001017a77e"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q6:part-b-ii",
+          "label": "b-ii",
+          "promptFragment": "Show that the number density of charge carriers in wire P is 8.3 x 10^28 m^-3.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 13,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-13.jpg",
+              "assetSha256": "89926a77bfe398a8f0ae645dd8a96336754e71d466111860d01575001017a77e"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q6:part-b-iii",
+          "label": "b-iii",
+          "promptFragment": "Calculate the average drift speed of charge carriers in wire P.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 13,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-13.jpg",
+              "assetSha256": "89926a77bfe398a8f0ae645dd8a96336754e71d466111860d01575001017a77e"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q6:part-c-i",
+          "label": "c-i",
+          "promptFragment": "State and explain how the resistance of wire Q compares with wire P.",
+          "marks": 4,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 14,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 14,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-14.jpg",
+              "assetSha256": "cfc5a5626b26e0a83e1a2d4ae5f2c4f47b9d0ac7b951a5e2252ccb6f31b37823"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q6:part-c-ii",
+          "label": "c-ii",
+          "promptFragment": "Sketch average drift speed against distance from X for wire Q on Fig. 6.3.",
+          "marks": 2,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 15,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 15,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-15.jpg",
+              "assetSha256": "35fb5f31c0cd438df7cdb75cacc4cc3e6b92be12258d595268e7cfadbb86a8a6"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "qualificationId": "cambridge-9702",
+      "subjectId": "physics",
+      "subjectCode": "9702",
+      "knowledgeGroupId": "physics-9702-topic-11",
+      "topicId": "physics-9702-topic-11",
+      "stageTags": [
+        "AS"
+      ],
+      "componentTags": [
+        2
+      ],
+      "topicTags": [
+        "physics-9702-topic-11",
+        "physics-9702-topic-03",
+        "physics-9702-particles",
+        "nuclear structure",
+        "radioactive decay"
+      ],
+      "skillTags": [
+        "conservation laws",
+        "momentum calculation",
+        "nuclear equations"
+      ],
+      "answerType": "structured",
+      "prompt": "(a) Complete the alpha-decay equation for nucleus Q.\n\n(b) By considering momentum, calculate the speed of nucleus R after the decay.\n\n(c) State three quantities that are conserved during the decay.",
+      "marks": 7,
+      "sourceRef": {
+        "paperId": "cie-9702-9702_m25_qp_22",
+        "paper": "9702_m25_qp_22.pdf",
+        "question": "Q7",
+        "localUrl": "/local-pdf/9702/9702_m25_qp_22.pdf",
+        "pageStart": 16,
+        "pageEnd": 16,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_m25_qp_22/qp-16.jpg"
+        ],
+        "year": 2025,
+        "season": "Mar",
+        "component": 2,
+        "sha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec"
+      },
+      "provenance": {
+        "licenseStatus": "Official exam material; personal study library",
+        "indexedAt": "2026-08-06T18:27:02.281Z",
+        "reviewPolicy": "personal-study-restricted",
+        "sourceReviewLedger": "cambridge-9702-p2-m25-review-ledger.v1"
+      },
+      "questionId": "cie-9702-9702_m25_qp_22:q7",
+      "answerId": "cie-9702-9702_m25_qp_22:q7:answer",
+      "examFamilyId": "cambridge",
+      "specificationId": "cambridge-9702-2025-2027",
+      "syllabusMapping": {
+        "specificationId": "cambridge-9702-2025-2027",
+        "syllabusUrl": "https://www.cambridgeinternational.org/Images/664565-2025-2027-syllabus.pdf",
+        "knowledgeGroupId": "physics-9702-topic-11",
+        "mappingStatus": "machine-indexed",
+        "schemaVersion": "question-syllabus-mapping-v1",
+        "primaryTopicId": "physics-9702-topic-11",
+        "secondaryTopicIds": [
+          "physics-9702-topic-03"
+        ],
+        "syllabusPointIds": [
+          "physics-9702-point-3-3-02",
+          "physics-9702-point-11-1-05",
+          "physics-9702-point-11-1-06",
+          "physics-9702-point-11-1-11"
+        ],
+        "confidence": 1,
+        "mappingMethod": "manual",
+        "reviewStatus": "reviewed",
+        "reviewedBy": "Codex source-semantic-review / 9702-P2-M25",
+        "reviewedAt": "2026-08-14T17:00:00+08:00",
+        "reviewEvidence": {
+          "method": "paired-qp-ms-page-review",
+          "questionPaperId": "cie-9702-9702_m25_qp_22",
+          "markSchemeId": "cie-9702-9702_m25_ms_22",
+          "questionPages": [
+            16
+          ],
+          "markSchemePages": [
+            12,
+            13
+          ],
+          "sourcePolicy": "personal-study-restricted",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m25_qp_22.pdf"
+        }
+      },
+      "questionGroupId": "cie-9702-9702_m25_qp_22:q7",
+      "questionGroupStatus": "verified",
+      "totalMarks": 7,
+      "parts": [
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q7:part-a",
+          "label": "a",
+          "promptFragment": "Complete the alpha-decay equation for nucleus Q.",
+          "marks": 1,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 16,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 16,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-16.jpg",
+              "assetSha256": "3daa379ed4baf24a7515308c685c021e98d061413aa1089d43ec5924e1ffbf91"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q7:part-b",
+          "label": "b",
+          "promptFragment": "By considering momentum, calculate the speed of nucleus R after the decay.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 16,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 16,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-16.jpg",
+              "assetSha256": "3daa379ed4baf24a7515308c685c021e98d061413aa1089d43ec5924e1ffbf91"
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q7:part-c",
+          "label": "c",
+          "promptFragment": "State three quantities that are conserved during the decay.",
+          "marks": 3,
+          "answerArea": {
+            "type": "handwritten",
+            "input": "handwriting"
+          },
+          "sourcePage": 16,
+          "sourceEvidence": [
+            {
+              "documentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+              "page": 16,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/qp-16.jpg",
+              "assetSha256": "3daa379ed4baf24a7515308c685c021e98d061413aa1089d43ec5924e1ffbf91"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "answers": [
+    {
+      "answerId": "cie-9702-9702_m25_qp_22:q1:answer",
+      "answer": null,
+      "answerKey": null,
+      "markPoints": [
+        "Measured value is close to the true value of the quantity.",
+        "Use density = mass / volume.",
+        "Calculate 8.7 x 10^3 kg m^-3.",
+        "Use the stated mass or length fractional uncertainty.",
+        "Calculate 4%.",
+        "Identify that the density ranges overlap or are within uncertainty.",
+        "Conclude that the cubes could be the same material."
+      ],
+      "exactAnswer": "(a) Measured value is close to the true value of the quantity.\n\n(b-i) Use density = mass / volume.\nCalculate 8.7 x 10^3 kg m^-3.\n\n(b-ii) Use the stated mass or length fractional uncertainty.\nCalculate 4%.\n\n(b-iii) Identify that the density ranges overlap or are within uncertainty.\nConclude that the cubes could be the same material.",
+      "answerRef": {
+        "documentId": "cie-9702-9702_m25_ms_22",
+        "file": "9702_m25_ms_22.pdf",
+        "localUrl": "/local-pdf/9702/9702_m25_ms_22.pdf",
+        "pageStart": 7,
+        "pageEnd": 7,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_m25_qp_22/ms-07.jpg"
+        ],
+        "sha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q1:part-a",
+          "label": "a",
+          "marks": 1,
+          "markSchemePoints": [
+            "Measured value is close to the true value of the quantity."
+          ],
+          "answerKey": null,
+          "answerText": "Measured value is close to the true value of the quantity.",
+          "sourcePage": 7,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 7,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-07.jpg",
+              "assetSha256": "ead475f39721d8554976fc32c4b033a1fda27881686f03ab44a760139a6e3c01",
+              "text": "Measured value is close to the true value of the quantity."
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q1:part-b-i",
+          "label": "b-i",
+          "marks": 2,
+          "markSchemePoints": [
+            "Use density = mass / volume.",
+            "Calculate 8.7 x 10^3 kg m^-3."
+          ],
+          "answerKey": null,
+          "answerText": "Use density = mass / volume.\nCalculate 8.7 x 10^3 kg m^-3.",
+          "sourcePage": 7,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 7,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-07.jpg",
+              "assetSha256": "ead475f39721d8554976fc32c4b033a1fda27881686f03ab44a760139a6e3c01",
+              "text": "Use density = mass / volume."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 7,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-07.jpg",
+              "assetSha256": "ead475f39721d8554976fc32c4b033a1fda27881686f03ab44a760139a6e3c01",
+              "text": "Calculate 8.7 x 10^3 kg m^-3."
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q1:part-b-ii",
+          "label": "b-ii",
+          "marks": 2,
+          "markSchemePoints": [
+            "Use the stated mass or length fractional uncertainty.",
+            "Calculate 4%."
+          ],
+          "answerKey": null,
+          "answerText": "Use the stated mass or length fractional uncertainty.\nCalculate 4%.",
+          "sourcePage": 7,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 7,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-07.jpg",
+              "assetSha256": "ead475f39721d8554976fc32c4b033a1fda27881686f03ab44a760139a6e3c01",
+              "text": "Use the stated mass or length fractional uncertainty."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 7,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-07.jpg",
+              "assetSha256": "ead475f39721d8554976fc32c4b033a1fda27881686f03ab44a760139a6e3c01",
+              "text": "Calculate 4%."
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q1:part-b-iii",
+          "label": "b-iii",
+          "marks": 2,
+          "markSchemePoints": [
+            "Identify that the density ranges overlap or are within uncertainty.",
+            "Conclude that the cubes could be the same material."
+          ],
+          "answerKey": null,
+          "answerText": "Identify that the density ranges overlap or are within uncertainty.\nConclude that the cubes could be the same material.",
+          "sourcePage": 7,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 7,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-07.jpg",
+              "assetSha256": "ead475f39721d8554976fc32c4b033a1fda27881686f03ab44a760139a6e3c01",
+              "text": "Identify that the density ranges overlap or are within uncertainty."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 7,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-07.jpg",
+              "assetSha256": "ead475f39721d8554976fc32c4b033a1fda27881686f03ab44a760139a6e3c01",
+              "text": "Conclude that the cubes could be the same material."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-9702-9702_m25_qp_22:q2:answer",
+      "answer": null,
+      "answerKey": null,
+      "markPoints": [
+        "State rotational equilibrium.",
+        "State that total clockwise moments equal total anticlockwise moments about the same point.",
+        "Set up moments about A using the beam, person and cylinder forces.",
+        "Use a second correct moment magnitude.",
+        "Calculate x = 2.1 m.",
+        "Calculate upthrust as 11 x 9.81 + 1300 = 1400 N.",
+        "Use upthrust = density x g x area x depth.",
+        "Calculate y = 0.30 m.",
+        "Start at a non-zero depth when distance is zero.",
+        "Draw a line with positive gradient to 6.0 m."
+      ],
+      "exactAnswer": "(a) State rotational equilibrium.\nState that total clockwise moments equal total anticlockwise moments about the same point.\n\n(b-i) Set up moments about A using the beam, person and cylinder forces.\nUse a second correct moment magnitude.\nCalculate x = 2.1 m.\n\n(b-ii) Calculate upthrust as 11 x 9.81 + 1300 = 1400 N.\n\n(b-iii) Use upthrust = density x g x area x depth.\nCalculate y = 0.30 m.\n\n(b-iv) Start at a non-zero depth when distance is zero.\nDraw a line with positive gradient to 6.0 m.",
+      "answerRef": {
+        "documentId": "cie-9702-9702_m25_ms_22",
+        "file": "9702_m25_ms_22.pdf",
+        "localUrl": "/local-pdf/9702/9702_m25_ms_22.pdf",
+        "pageStart": 7,
+        "pageEnd": 8,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_m25_qp_22/ms-07.jpg",
+          "/question-assets/cie-9702-9702_m25_qp_22/ms-08.jpg"
+        ],
+        "sha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q2:part-a",
+          "label": "a",
+          "marks": 2,
+          "markSchemePoints": [
+            "State rotational equilibrium.",
+            "State that total clockwise moments equal total anticlockwise moments about the same point."
+          ],
+          "answerKey": null,
+          "answerText": "State rotational equilibrium.\nState that total clockwise moments equal total anticlockwise moments about the same point.",
+          "sourcePage": 7,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 7,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-07.jpg",
+              "assetSha256": "ead475f39721d8554976fc32c4b033a1fda27881686f03ab44a760139a6e3c01",
+              "text": "State rotational equilibrium."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 7,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-07.jpg",
+              "assetSha256": "ead475f39721d8554976fc32c4b033a1fda27881686f03ab44a760139a6e3c01",
+              "text": "State that total clockwise moments equal total anticlockwise moments about the same point."
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q2:part-b-i",
+          "label": "b-i",
+          "marks": 3,
+          "markSchemePoints": [
+            "Set up moments about A using the beam, person and cylinder forces.",
+            "Use a second correct moment magnitude.",
+            "Calculate x = 2.1 m."
+          ],
+          "answerKey": null,
+          "answerText": "Set up moments about A using the beam, person and cylinder forces.\nUse a second correct moment magnitude.\nCalculate x = 2.1 m.",
+          "sourcePage": 7,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 7,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-07.jpg",
+              "assetSha256": "ead475f39721d8554976fc32c4b033a1fda27881686f03ab44a760139a6e3c01",
+              "text": "Set up moments about A using the beam, person and cylinder forces."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 7,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-07.jpg",
+              "assetSha256": "ead475f39721d8554976fc32c4b033a1fda27881686f03ab44a760139a6e3c01",
+              "text": "Use a second correct moment magnitude."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 7,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-07.jpg",
+              "assetSha256": "ead475f39721d8554976fc32c4b033a1fda27881686f03ab44a760139a6e3c01",
+              "text": "Calculate x = 2.1 m."
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q2:part-b-ii",
+          "label": "b-ii",
+          "marks": 1,
+          "markSchemePoints": [
+            "Calculate upthrust as 11 x 9.81 + 1300 = 1400 N."
+          ],
+          "answerKey": null,
+          "answerText": "Calculate upthrust as 11 x 9.81 + 1300 = 1400 N.",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-08.jpg",
+              "assetSha256": "86ba7c2d65e8ffc60243ed3733311114443698dad80fac23500abe1cbfb8eef0",
+              "text": "Calculate upthrust as 11 x 9.81 + 1300 = 1400 N."
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q2:part-b-iii",
+          "label": "b-iii",
+          "marks": 2,
+          "markSchemePoints": [
+            "Use upthrust = density x g x area x depth.",
+            "Calculate y = 0.30 m."
+          ],
+          "answerKey": null,
+          "answerText": "Use upthrust = density x g x area x depth.\nCalculate y = 0.30 m.",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-08.jpg",
+              "assetSha256": "86ba7c2d65e8ffc60243ed3733311114443698dad80fac23500abe1cbfb8eef0",
+              "text": "Use upthrust = density x g x area x depth."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-08.jpg",
+              "assetSha256": "86ba7c2d65e8ffc60243ed3733311114443698dad80fac23500abe1cbfb8eef0",
+              "text": "Calculate y = 0.30 m."
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q2:part-b-iv",
+          "label": "b-iv",
+          "marks": 2,
+          "markSchemePoints": [
+            "Start at a non-zero depth when distance is zero.",
+            "Draw a line with positive gradient to 6.0 m."
+          ],
+          "answerKey": null,
+          "answerText": "Start at a non-zero depth when distance is zero.\nDraw a line with positive gradient to 6.0 m.",
+          "sourcePage": 8,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-08.jpg",
+              "assetSha256": "86ba7c2d65e8ffc60243ed3733311114443698dad80fac23500abe1cbfb8eef0",
+              "text": "Start at a non-zero depth when distance is zero."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 8,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-08.jpg",
+              "assetSha256": "86ba7c2d65e8ffc60243ed3733311114443698dad80fac23500abe1cbfb8eef0",
+              "text": "Draw a line with positive gradient to 6.0 m."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-9702-9702_m25_qp_22:q3:answer",
+      "answer": null,
+      "answerKey": null,
+      "markPoints": [
+        "Use a valid constant-acceleration equation.",
+        "Calculate 0.88 m s^-2.",
+        "Use the kinetic-energy change expression.",
+        "Substitute the stated mass and speeds.",
+        "Calculate 1.5 x 10^6 J.",
+        "Force is the rate of change of momentum.",
+        "Calculate the stated average force from the momentum change.",
+        "Identify that the stopping momentum change is the same.",
+        "Compare the average braking force with F.",
+        "Conclude that S stops in less time than R."
+      ],
+      "exactAnswer": "(a-i) Use a valid constant-acceleration equation.\nCalculate 0.88 m s^-2.\n\n(a-ii) Use the kinetic-energy change expression.\nSubstitute the stated mass and speeds.\nCalculate 1.5 x 10^6 J.\n\n(b-i) Force is the rate of change of momentum.\n\n(b-ii) Calculate the stated average force from the momentum change.\n\n(b-iii) Identify that the stopping momentum change is the same.\nCompare the average braking force with F.\nConclude that S stops in less time than R.",
+      "answerRef": {
+        "documentId": "cie-9702-9702_m25_ms_22",
+        "file": "9702_m25_ms_22.pdf",
+        "localUrl": "/local-pdf/9702/9702_m25_ms_22.pdf",
+        "pageStart": 9,
+        "pageEnd": 10,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_m25_qp_22/ms-09.jpg",
+          "/question-assets/cie-9702-9702_m25_qp_22/ms-10.jpg"
+        ],
+        "sha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q3:part-a-i",
+          "label": "a-i",
+          "marks": 2,
+          "markSchemePoints": [
+            "Use a valid constant-acceleration equation.",
+            "Calculate 0.88 m s^-2."
+          ],
+          "answerKey": null,
+          "answerText": "Use a valid constant-acceleration equation.\nCalculate 0.88 m s^-2.",
+          "sourcePage": 9,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 9,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-09.jpg",
+              "assetSha256": "8dcf1e43dfab3e3db99c68ab9bb61f3127d95e1b27573888473b9f4ec91b676d",
+              "text": "Use a valid constant-acceleration equation."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 9,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-09.jpg",
+              "assetSha256": "8dcf1e43dfab3e3db99c68ab9bb61f3127d95e1b27573888473b9f4ec91b676d",
+              "text": "Calculate 0.88 m s^-2."
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q3:part-a-ii",
+          "label": "a-ii",
+          "marks": 3,
+          "markSchemePoints": [
+            "Use the kinetic-energy change expression.",
+            "Substitute the stated mass and speeds.",
+            "Calculate 1.5 x 10^6 J."
+          ],
+          "answerKey": null,
+          "answerText": "Use the kinetic-energy change expression.\nSubstitute the stated mass and speeds.\nCalculate 1.5 x 10^6 J.",
+          "sourcePage": 9,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 9,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-09.jpg",
+              "assetSha256": "8dcf1e43dfab3e3db99c68ab9bb61f3127d95e1b27573888473b9f4ec91b676d",
+              "text": "Use the kinetic-energy change expression."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 9,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-09.jpg",
+              "assetSha256": "8dcf1e43dfab3e3db99c68ab9bb61f3127d95e1b27573888473b9f4ec91b676d",
+              "text": "Substitute the stated mass and speeds."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 9,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-09.jpg",
+              "assetSha256": "8dcf1e43dfab3e3db99c68ab9bb61f3127d95e1b27573888473b9f4ec91b676d",
+              "text": "Calculate 1.5 x 10^6 J."
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q3:part-b-i",
+          "label": "b-i",
+          "marks": 1,
+          "markSchemePoints": [
+            "Force is the rate of change of momentum."
+          ],
+          "answerKey": null,
+          "answerText": "Force is the rate of change of momentum.",
+          "sourcePage": 9,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 9,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-09.jpg",
+              "assetSha256": "8dcf1e43dfab3e3db99c68ab9bb61f3127d95e1b27573888473b9f4ec91b676d",
+              "text": "Force is the rate of change of momentum."
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q3:part-b-ii",
+          "label": "b-ii",
+          "marks": 1,
+          "markSchemePoints": [
+            "Calculate the stated average force from the momentum change."
+          ],
+          "answerKey": null,
+          "answerText": "Calculate the stated average force from the momentum change.",
+          "sourcePage": 9,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 9,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-09.jpg",
+              "assetSha256": "8dcf1e43dfab3e3db99c68ab9bb61f3127d95e1b27573888473b9f4ec91b676d",
+              "text": "Calculate the stated average force from the momentum change."
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q3:part-b-iii",
+          "label": "b-iii",
+          "marks": 3,
+          "markSchemePoints": [
+            "Identify that the stopping momentum change is the same.",
+            "Compare the average braking force with F.",
+            "Conclude that S stops in less time than R."
+          ],
+          "answerKey": null,
+          "answerText": "Identify that the stopping momentum change is the same.\nCompare the average braking force with F.\nConclude that S stops in less time than R.",
+          "sourcePage": 10,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-10.jpg",
+              "assetSha256": "2ea30fd26d6aee5a86571cdc1326551d55195395d3354cb9a349fe0f4019767c",
+              "text": "Identify that the stopping momentum change is the same."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-10.jpg",
+              "assetSha256": "2ea30fd26d6aee5a86571cdc1326551d55195395d3354cb9a349fe0f4019767c",
+              "text": "Compare the average braking force with F."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-10.jpg",
+              "assetSha256": "2ea30fd26d6aee5a86571cdc1326551d55195395d3354cb9a349fe0f4019767c",
+              "text": "Conclude that S stops in less time than R."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-9702-9702_m25_qp_22:q4:answer",
+      "answer": null,
+      "answerKey": null,
+      "markPoints": [
+        "State that the microwave reflects from the metal sheet.",
+        "State that incident and reflected waves superpose.",
+        "State that amplitude is maximum at an antinode.",
+        "State that amplitude is minimum or zero at a node.",
+        "Use wavelength = c / f.",
+        "Calculate 0.048 m.",
+        "Calculate PQ = one quarter wavelength = 0.012 m.",
+        "State QR is the same as PQ because wavelength and node-antinode spacing are unchanged."
+      ],
+      "exactAnswer": "(a) State that the microwave reflects from the metal sheet.\nState that incident and reflected waves superpose.\nState that amplitude is maximum at an antinode.\nState that amplitude is minimum or zero at a node.\n\n(b-i) Use wavelength = c / f.\nCalculate 0.048 m.\n\n(b-ii) Calculate PQ = one quarter wavelength = 0.012 m.\n\n(b-iii) State QR is the same as PQ because wavelength and node-antinode spacing are unchanged.",
+      "answerRef": {
+        "documentId": "cie-9702-9702_m25_ms_22",
+        "file": "9702_m25_ms_22.pdf",
+        "localUrl": "/local-pdf/9702/9702_m25_ms_22.pdf",
+        "pageStart": 10,
+        "pageEnd": 11,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_m25_qp_22/ms-10.jpg",
+          "/question-assets/cie-9702-9702_m25_qp_22/ms-11.jpg"
+        ],
+        "sha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q4:part-a",
+          "label": "a",
+          "marks": 4,
+          "markSchemePoints": [
+            "State that the microwave reflects from the metal sheet.",
+            "State that incident and reflected waves superpose.",
+            "State that amplitude is maximum at an antinode.",
+            "State that amplitude is minimum or zero at a node."
+          ],
+          "answerKey": null,
+          "answerText": "State that the microwave reflects from the metal sheet.\nState that incident and reflected waves superpose.\nState that amplitude is maximum at an antinode.\nState that amplitude is minimum or zero at a node.",
+          "sourcePage": 10,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-10.jpg",
+              "assetSha256": "2ea30fd26d6aee5a86571cdc1326551d55195395d3354cb9a349fe0f4019767c",
+              "text": "State that the microwave reflects from the metal sheet."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-10.jpg",
+              "assetSha256": "2ea30fd26d6aee5a86571cdc1326551d55195395d3354cb9a349fe0f4019767c",
+              "text": "State that incident and reflected waves superpose."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-10.jpg",
+              "assetSha256": "2ea30fd26d6aee5a86571cdc1326551d55195395d3354cb9a349fe0f4019767c",
+              "text": "State that amplitude is maximum at an antinode."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-10.jpg",
+              "assetSha256": "2ea30fd26d6aee5a86571cdc1326551d55195395d3354cb9a349fe0f4019767c",
+              "text": "State that amplitude is minimum or zero at a node."
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q4:part-b-i",
+          "label": "b-i",
+          "marks": 2,
+          "markSchemePoints": [
+            "Use wavelength = c / f.",
+            "Calculate 0.048 m."
+          ],
+          "answerKey": null,
+          "answerText": "Use wavelength = c / f.\nCalculate 0.048 m.",
+          "sourcePage": 10,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-10.jpg",
+              "assetSha256": "2ea30fd26d6aee5a86571cdc1326551d55195395d3354cb9a349fe0f4019767c",
+              "text": "Use wavelength = c / f."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-10.jpg",
+              "assetSha256": "2ea30fd26d6aee5a86571cdc1326551d55195395d3354cb9a349fe0f4019767c",
+              "text": "Calculate 0.048 m."
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q4:part-b-ii",
+          "label": "b-ii",
+          "marks": 1,
+          "markSchemePoints": [
+            "Calculate PQ = one quarter wavelength = 0.012 m."
+          ],
+          "answerKey": null,
+          "answerText": "Calculate PQ = one quarter wavelength = 0.012 m.",
+          "sourcePage": 10,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 10,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-10.jpg",
+              "assetSha256": "2ea30fd26d6aee5a86571cdc1326551d55195395d3354cb9a349fe0f4019767c",
+              "text": "Calculate PQ = one quarter wavelength = 0.012 m."
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q4:part-b-iii",
+          "label": "b-iii",
+          "marks": 1,
+          "markSchemePoints": [
+            "State QR is the same as PQ because wavelength and node-antinode spacing are unchanged."
+          ],
+          "answerKey": null,
+          "answerText": "State QR is the same as PQ because wavelength and node-antinode spacing are unchanged.",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-11.jpg",
+              "assetSha256": "af377c9d16728ae1b8b46384bd90dcfd9aa346b8e32b1791a945ee1e8e1b01f8",
+              "text": "State QR is the same as PQ because wavelength and node-antinode spacing are unchanged."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-9702-9702_m25_qp_22:q5:answer",
+      "answer": null,
+      "answerKey": null,
+      "markPoints": [
+        "Determine the period T = 2.9 x 10^-3 s.",
+        "Use wavelength = speed x period or equivalent.",
+        "Calculate 0.96 m.",
+        "State that the loudspeaker moves away from the microphone.",
+        "State that its speed increases or that it accelerates."
+      ],
+      "exactAnswer": "(a) Determine the period T = 2.9 x 10^-3 s.\nUse wavelength = speed x period or equivalent.\nCalculate 0.96 m.\n\n(b) State that the loudspeaker moves away from the microphone.\nState that its speed increases or that it accelerates.",
+      "answerRef": {
+        "documentId": "cie-9702-9702_m25_ms_22",
+        "file": "9702_m25_ms_22.pdf",
+        "localUrl": "/local-pdf/9702/9702_m25_ms_22.pdf",
+        "pageStart": 11,
+        "pageEnd": 11,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_m25_qp_22/ms-11.jpg"
+        ],
+        "sha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q5:part-a",
+          "label": "a",
+          "marks": 3,
+          "markSchemePoints": [
+            "Determine the period T = 2.9 x 10^-3 s.",
+            "Use wavelength = speed x period or equivalent.",
+            "Calculate 0.96 m."
+          ],
+          "answerKey": null,
+          "answerText": "Determine the period T = 2.9 x 10^-3 s.\nUse wavelength = speed x period or equivalent.\nCalculate 0.96 m.",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-11.jpg",
+              "assetSha256": "af377c9d16728ae1b8b46384bd90dcfd9aa346b8e32b1791a945ee1e8e1b01f8",
+              "text": "Determine the period T = 2.9 x 10^-3 s."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-11.jpg",
+              "assetSha256": "af377c9d16728ae1b8b46384bd90dcfd9aa346b8e32b1791a945ee1e8e1b01f8",
+              "text": "Use wavelength = speed x period or equivalent."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-11.jpg",
+              "assetSha256": "af377c9d16728ae1b8b46384bd90dcfd9aa346b8e32b1791a945ee1e8e1b01f8",
+              "text": "Calculate 0.96 m."
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q5:part-b",
+          "label": "b",
+          "marks": 2,
+          "markSchemePoints": [
+            "State that the loudspeaker moves away from the microphone.",
+            "State that its speed increases or that it accelerates."
+          ],
+          "answerKey": null,
+          "answerText": "State that the loudspeaker moves away from the microphone.\nState that its speed increases or that it accelerates.",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-11.jpg",
+              "assetSha256": "af377c9d16728ae1b8b46384bd90dcfd9aa346b8e32b1791a945ee1e8e1b01f8",
+              "text": "State that the loudspeaker moves away from the microphone."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-11.jpg",
+              "assetSha256": "af377c9d16728ae1b8b46384bd90dcfd9aa346b8e32b1791a945ee1e8e1b01f8",
+              "text": "State that its speed increases or that it accelerates."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-9702-9702_m25_qp_22:q6:answer",
+      "answer": null,
+      "answerKey": null,
+      "markPoints": [
+        "Use V = IR.",
+        "Calculate 2.8 x 10^-3 V.",
+        "Use A = rho L / R.",
+        "Calculate 1.3 x 10^-6 m^2.",
+        "Calculate 8.3 x 10^28 m^-3 from the stated carrier count, area and length.",
+        "Use I = Anvq or the equivalent carrier-count relation.",
+        "Calculate 4.9 x 10^-5 m s^-1.",
+        "State that Q has greater length than P.",
+        "State that Q has lower average cross-sectional area than P.",
+        "State that resistance is proportional to length divided by area.",
+        "Conclude that Q has greater resistance.",
+        "Start at non-zero drift speed at distance zero.",
+        "Draw a line with increasing positive gradient."
+      ],
+      "exactAnswer": "(a) Use V = IR.\nCalculate 2.8 x 10^-3 V.\n\n(b-i) Use A = rho L / R.\nCalculate 1.3 x 10^-6 m^2.\n\n(b-ii) Calculate 8.3 x 10^28 m^-3 from the stated carrier count, area and length.\n\n(b-iii) Use I = Anvq or the equivalent carrier-count relation.\nCalculate 4.9 x 10^-5 m s^-1.\n\n(c-i) State that Q has greater length than P.\nState that Q has lower average cross-sectional area than P.\nState that resistance is proportional to length divided by area.\nConclude that Q has greater resistance.\n\n(c-ii) Start at non-zero drift speed at distance zero.\nDraw a line with increasing positive gradient.",
+      "answerRef": {
+        "documentId": "cie-9702-9702_m25_ms_22",
+        "file": "9702_m25_ms_22.pdf",
+        "localUrl": "/local-pdf/9702/9702_m25_ms_22.pdf",
+        "pageStart": 11,
+        "pageEnd": 12,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_m25_qp_22/ms-11.jpg",
+          "/question-assets/cie-9702-9702_m25_qp_22/ms-12.jpg"
+        ],
+        "sha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q6:part-a",
+          "label": "a",
+          "marks": 2,
+          "markSchemePoints": [
+            "Use V = IR.",
+            "Calculate 2.8 x 10^-3 V."
+          ],
+          "answerKey": null,
+          "answerText": "Use V = IR.\nCalculate 2.8 x 10^-3 V.",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-11.jpg",
+              "assetSha256": "af377c9d16728ae1b8b46384bd90dcfd9aa346b8e32b1791a945ee1e8e1b01f8",
+              "text": "Use V = IR."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-11.jpg",
+              "assetSha256": "af377c9d16728ae1b8b46384bd90dcfd9aa346b8e32b1791a945ee1e8e1b01f8",
+              "text": "Calculate 2.8 x 10^-3 V."
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q6:part-b-i",
+          "label": "b-i",
+          "marks": 2,
+          "markSchemePoints": [
+            "Use A = rho L / R.",
+            "Calculate 1.3 x 10^-6 m^2."
+          ],
+          "answerKey": null,
+          "answerText": "Use A = rho L / R.\nCalculate 1.3 x 10^-6 m^2.",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-11.jpg",
+              "assetSha256": "af377c9d16728ae1b8b46384bd90dcfd9aa346b8e32b1791a945ee1e8e1b01f8",
+              "text": "Use A = rho L / R."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-11.jpg",
+              "assetSha256": "af377c9d16728ae1b8b46384bd90dcfd9aa346b8e32b1791a945ee1e8e1b01f8",
+              "text": "Calculate 1.3 x 10^-6 m^2."
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q6:part-b-ii",
+          "label": "b-ii",
+          "marks": 1,
+          "markSchemePoints": [
+            "Calculate 8.3 x 10^28 m^-3 from the stated carrier count, area and length."
+          ],
+          "answerKey": null,
+          "answerText": "Calculate 8.3 x 10^28 m^-3 from the stated carrier count, area and length.",
+          "sourcePage": 11,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 11,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-11.jpg",
+              "assetSha256": "af377c9d16728ae1b8b46384bd90dcfd9aa346b8e32b1791a945ee1e8e1b01f8",
+              "text": "Calculate 8.3 x 10^28 m^-3 from the stated carrier count, area and length."
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q6:part-b-iii",
+          "label": "b-iii",
+          "marks": 2,
+          "markSchemePoints": [
+            "Use I = Anvq or the equivalent carrier-count relation.",
+            "Calculate 4.9 x 10^-5 m s^-1."
+          ],
+          "answerKey": null,
+          "answerText": "Use I = Anvq or the equivalent carrier-count relation.\nCalculate 4.9 x 10^-5 m s^-1.",
+          "sourcePage": 12,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-12.jpg",
+              "assetSha256": "7a2711e0c644f1cca13d44fc0e2cadb56d7fc0a547146e83fbd4e0187ae23ba2",
+              "text": "Use I = Anvq or the equivalent carrier-count relation."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-12.jpg",
+              "assetSha256": "7a2711e0c644f1cca13d44fc0e2cadb56d7fc0a547146e83fbd4e0187ae23ba2",
+              "text": "Calculate 4.9 x 10^-5 m s^-1."
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q6:part-c-i",
+          "label": "c-i",
+          "marks": 4,
+          "markSchemePoints": [
+            "State that Q has greater length than P.",
+            "State that Q has lower average cross-sectional area than P.",
+            "State that resistance is proportional to length divided by area.",
+            "Conclude that Q has greater resistance."
+          ],
+          "answerKey": null,
+          "answerText": "State that Q has greater length than P.\nState that Q has lower average cross-sectional area than P.\nState that resistance is proportional to length divided by area.\nConclude that Q has greater resistance.",
+          "sourcePage": 12,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-12.jpg",
+              "assetSha256": "7a2711e0c644f1cca13d44fc0e2cadb56d7fc0a547146e83fbd4e0187ae23ba2",
+              "text": "State that Q has greater length than P."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-12.jpg",
+              "assetSha256": "7a2711e0c644f1cca13d44fc0e2cadb56d7fc0a547146e83fbd4e0187ae23ba2",
+              "text": "State that Q has lower average cross-sectional area than P."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-12.jpg",
+              "assetSha256": "7a2711e0c644f1cca13d44fc0e2cadb56d7fc0a547146e83fbd4e0187ae23ba2",
+              "text": "State that resistance is proportional to length divided by area."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-12.jpg",
+              "assetSha256": "7a2711e0c644f1cca13d44fc0e2cadb56d7fc0a547146e83fbd4e0187ae23ba2",
+              "text": "Conclude that Q has greater resistance."
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q6:part-c-ii",
+          "label": "c-ii",
+          "marks": 2,
+          "markSchemePoints": [
+            "Start at non-zero drift speed at distance zero.",
+            "Draw a line with increasing positive gradient."
+          ],
+          "answerKey": null,
+          "answerText": "Start at non-zero drift speed at distance zero.\nDraw a line with increasing positive gradient.",
+          "sourcePage": 12,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-12.jpg",
+              "assetSha256": "7a2711e0c644f1cca13d44fc0e2cadb56d7fc0a547146e83fbd4e0187ae23ba2",
+              "text": "Start at non-zero drift speed at distance zero."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-12.jpg",
+              "assetSha256": "7a2711e0c644f1cca13d44fc0e2cadb56d7fc0a547146e83fbd4e0187ae23ba2",
+              "text": "Draw a line with increasing positive gradient."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "answerId": "cie-9702-9702_m25_qp_22:q7:answer",
+      "answer": null,
+      "answerKey": null,
+      "markPoints": [
+        "Give nucleon number 226 for Q and proton number 86 for R.",
+        "Set the alpha and R momentum magnitudes equal.",
+        "Rearrange for the speed of R.",
+        "Calculate 2.7 x 10^5 m s^-1.",
+        "State one accepted conserved quantity.",
+        "State a second accepted conserved quantity.",
+        "State a third accepted conserved quantity."
+      ],
+      "exactAnswer": "(a) Give nucleon number 226 for Q and proton number 86 for R.\n\n(b) Set the alpha and R momentum magnitudes equal.\nRearrange for the speed of R.\nCalculate 2.7 x 10^5 m s^-1.\n\n(c) State one accepted conserved quantity.\nState a second accepted conserved quantity.\nState a third accepted conserved quantity.",
+      "answerRef": {
+        "documentId": "cie-9702-9702_m25_ms_22",
+        "file": "9702_m25_ms_22.pdf",
+        "localUrl": "/local-pdf/9702/9702_m25_ms_22.pdf",
+        "pageStart": 12,
+        "pageEnd": 13,
+        "assetUrls": [
+          "/question-assets/cie-9702-9702_m25_qp_22/ms-12.jpg",
+          "/question-assets/cie-9702-9702_m25_qp_22/ms-13.jpg"
+        ],
+        "sha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8"
+      },
+      "answerParts": [
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q7:part-a",
+          "label": "a",
+          "marks": 1,
+          "markSchemePoints": [
+            "Give nucleon number 226 for Q and proton number 86 for R."
+          ],
+          "answerKey": null,
+          "answerText": "Give nucleon number 226 for Q and proton number 86 for R.",
+          "sourcePage": 12,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-12.jpg",
+              "assetSha256": "7a2711e0c644f1cca13d44fc0e2cadb56d7fc0a547146e83fbd4e0187ae23ba2",
+              "text": "Give nucleon number 226 for Q and proton number 86 for R."
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q7:part-b",
+          "label": "b",
+          "marks": 3,
+          "markSchemePoints": [
+            "Set the alpha and R momentum magnitudes equal.",
+            "Rearrange for the speed of R.",
+            "Calculate 2.7 x 10^5 m s^-1."
+          ],
+          "answerKey": null,
+          "answerText": "Set the alpha and R momentum magnitudes equal.\nRearrange for the speed of R.\nCalculate 2.7 x 10^5 m s^-1.",
+          "sourcePage": 12,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-12.jpg",
+              "assetSha256": "7a2711e0c644f1cca13d44fc0e2cadb56d7fc0a547146e83fbd4e0187ae23ba2",
+              "text": "Set the alpha and R momentum magnitudes equal."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-12.jpg",
+              "assetSha256": "7a2711e0c644f1cca13d44fc0e2cadb56d7fc0a547146e83fbd4e0187ae23ba2",
+              "text": "Rearrange for the speed of R."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 12,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-12.jpg",
+              "assetSha256": "7a2711e0c644f1cca13d44fc0e2cadb56d7fc0a547146e83fbd4e0187ae23ba2",
+              "text": "Calculate 2.7 x 10^5 m s^-1."
+            }
+          ]
+        },
+        {
+          "partId": "cie-9702-9702_m25_qp_22:q7:part-c",
+          "label": "c",
+          "marks": 3,
+          "markSchemePoints": [
+            "State one accepted conserved quantity.",
+            "State a second accepted conserved quantity.",
+            "State a third accepted conserved quantity."
+          ],
+          "answerKey": null,
+          "answerText": "State one accepted conserved quantity.\nState a second accepted conserved quantity.\nState a third accepted conserved quantity.",
+          "sourcePage": 13,
+          "markSchemeEvidence": [
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-13.jpg",
+              "assetSha256": "8b97a50136d7a302bd171a2b6a87e9193236fc3468950a7d2c7046c3082e370d",
+              "text": "State one accepted conserved quantity."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-13.jpg",
+              "assetSha256": "8b97a50136d7a302bd171a2b6a87e9193236fc3468950a7d2c7046c3082e370d",
+              "text": "State a second accepted conserved quantity."
+            },
+            {
+              "documentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+              "sourcePage": 13,
+              "assetUrl": "/question-assets/cie-9702-9702_m25_qp_22/ms-13.jpg",
+              "assetSha256": "8b97a50136d7a302bd171a2b6a87e9193236fc3468950a7d2c7046c3082e370d",
+              "text": "State a third accepted conserved quantity."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "bindings": [
+    {
+      "questionId": "cie-9702-9702_m25_qp_22:q1",
+      "answerId": "cie-9702-9702_m25_qp_22:q1:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+      "answerDocumentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+      "reviewedAt": "2026-08-14T17:00:00+08:00",
+      "reviewedBy": "Codex source-semantic-review / 9702-P2-M25",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "sourcePolicy": "personal-study-restricted",
+        "questionPaper": {
+          "file": "9702_m25_qp_22.pdf",
+          "sha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m25_qp_22.pdf"
+        },
+        "markScheme": {
+          "file": "9702_m25_ms_22.pdf",
+          "sha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m25_ms_22.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q1:part-a",
+            "marks": 1,
+            "questionPage": 3,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 7,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "Measured value is close to the true value of the quantity."
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q1:part-b-i",
+            "marks": 2,
+            "questionPage": 3,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 7,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "Use density = mass / volume.",
+              "Calculate 8.7 x 10^3 kg m^-3."
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q1:part-b-ii",
+            "marks": 2,
+            "questionPage": 3,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 7,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "Use the stated mass or length fractional uncertainty.",
+              "Calculate 4%."
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q1:part-b-iii",
+            "marks": 2,
+            "questionPage": 3,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 7,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "Identify that the density ranges overlap or are within uncertainty.",
+              "Conclude that the cubes could be the same material."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-9702-9702_m25_qp_22:q2",
+      "answerId": "cie-9702-9702_m25_qp_22:q2:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+      "answerDocumentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+      "reviewedAt": "2026-08-14T17:00:00+08:00",
+      "reviewedBy": "Codex source-semantic-review / 9702-P2-M25",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "sourcePolicy": "personal-study-restricted",
+        "questionPaper": {
+          "file": "9702_m25_qp_22.pdf",
+          "sha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m25_qp_22.pdf"
+        },
+        "markScheme": {
+          "file": "9702_m25_ms_22.pdf",
+          "sha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m25_ms_22.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q2:part-a",
+            "marks": 2,
+            "questionPage": 4,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 7,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "State rotational equilibrium.",
+              "State that total clockwise moments equal total anticlockwise moments about the same point."
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q2:part-b-i",
+            "marks": 3,
+            "questionPage": 4,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 7,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 3,
+            "markSchemeEvidence": [
+              "Set up moments about A using the beam, person and cylinder forces.",
+              "Use a second correct moment magnitude.",
+              "Calculate x = 2.1 m."
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q2:part-b-ii",
+            "marks": 1,
+            "questionPage": 5,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "Calculate upthrust as 11 x 9.81 + 1300 = 1400 N."
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q2:part-b-iii",
+            "marks": 2,
+            "questionPage": 5,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "Use upthrust = density x g x area x depth.",
+              "Calculate y = 0.30 m."
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q2:part-b-iv",
+            "marks": 2,
+            "questionPage": 6,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 8,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "Start at a non-zero depth when distance is zero.",
+              "Draw a line with positive gradient to 6.0 m."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-9702-9702_m25_qp_22:q3",
+      "answerId": "cie-9702-9702_m25_qp_22:q3:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+      "answerDocumentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+      "reviewedAt": "2026-08-14T17:00:00+08:00",
+      "reviewedBy": "Codex source-semantic-review / 9702-P2-M25",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "sourcePolicy": "personal-study-restricted",
+        "questionPaper": {
+          "file": "9702_m25_qp_22.pdf",
+          "sha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m25_qp_22.pdf"
+        },
+        "markScheme": {
+          "file": "9702_m25_ms_22.pdf",
+          "sha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m25_ms_22.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q3:part-a-i",
+            "marks": 2,
+            "questionPage": 7,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 9,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "Use a valid constant-acceleration equation.",
+              "Calculate 0.88 m s^-2."
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q3:part-a-ii",
+            "marks": 3,
+            "questionPage": 7,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 9,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 3,
+            "markSchemeEvidence": [
+              "Use the kinetic-energy change expression.",
+              "Substitute the stated mass and speeds.",
+              "Calculate 1.5 x 10^6 J."
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q3:part-b-i",
+            "marks": 1,
+            "questionPage": 8,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 9,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "Force is the rate of change of momentum."
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q3:part-b-ii",
+            "marks": 1,
+            "questionPage": 8,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 9,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "Calculate the stated average force from the momentum change."
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q3:part-b-iii",
+            "marks": 3,
+            "questionPage": 9,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 10,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 3,
+            "markSchemeEvidence": [
+              "Identify that the stopping momentum change is the same.",
+              "Compare the average braking force with F.",
+              "Conclude that S stops in less time than R."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-9702-9702_m25_qp_22:q4",
+      "answerId": "cie-9702-9702_m25_qp_22:q4:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+      "answerDocumentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+      "reviewedAt": "2026-08-14T17:00:00+08:00",
+      "reviewedBy": "Codex source-semantic-review / 9702-P2-M25",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "sourcePolicy": "personal-study-restricted",
+        "questionPaper": {
+          "file": "9702_m25_qp_22.pdf",
+          "sha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m25_qp_22.pdf"
+        },
+        "markScheme": {
+          "file": "9702_m25_ms_22.pdf",
+          "sha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m25_ms_22.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q4:part-a",
+            "marks": 4,
+            "questionPage": 10,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 10,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 4,
+            "markSchemeEvidence": [
+              "State that the microwave reflects from the metal sheet.",
+              "State that incident and reflected waves superpose.",
+              "State that amplitude is maximum at an antinode.",
+              "State that amplitude is minimum or zero at a node."
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q4:part-b-i",
+            "marks": 2,
+            "questionPage": 10,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 10,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "Use wavelength = c / f.",
+              "Calculate 0.048 m."
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q4:part-b-ii",
+            "marks": 1,
+            "questionPage": 11,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 10,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "Calculate PQ = one quarter wavelength = 0.012 m."
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q4:part-b-iii",
+            "marks": 1,
+            "questionPage": 11,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "State QR is the same as PQ because wavelength and node-antinode spacing are unchanged."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-9702-9702_m25_qp_22:q5",
+      "answerId": "cie-9702-9702_m25_qp_22:q5:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+      "answerDocumentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+      "reviewedAt": "2026-08-14T17:00:00+08:00",
+      "reviewedBy": "Codex source-semantic-review / 9702-P2-M25",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "sourcePolicy": "personal-study-restricted",
+        "questionPaper": {
+          "file": "9702_m25_qp_22.pdf",
+          "sha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m25_qp_22.pdf"
+        },
+        "markScheme": {
+          "file": "9702_m25_ms_22.pdf",
+          "sha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m25_ms_22.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q5:part-a",
+            "marks": 3,
+            "questionPage": 12,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 3,
+            "markSchemeEvidence": [
+              "Determine the period T = 2.9 x 10^-3 s.",
+              "Use wavelength = speed x period or equivalent.",
+              "Calculate 0.96 m."
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q5:part-b",
+            "marks": 2,
+            "questionPage": 12,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "State that the loudspeaker moves away from the microphone.",
+              "State that its speed increases or that it accelerates."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-9702-9702_m25_qp_22:q6",
+      "answerId": "cie-9702-9702_m25_qp_22:q6:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+      "answerDocumentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+      "reviewedAt": "2026-08-14T17:00:00+08:00",
+      "reviewedBy": "Codex source-semantic-review / 9702-P2-M25",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "sourcePolicy": "personal-study-restricted",
+        "questionPaper": {
+          "file": "9702_m25_qp_22.pdf",
+          "sha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m25_qp_22.pdf"
+        },
+        "markScheme": {
+          "file": "9702_m25_ms_22.pdf",
+          "sha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m25_ms_22.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q6:part-a",
+            "marks": 2,
+            "questionPage": 13,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "Use V = IR.",
+              "Calculate 2.8 x 10^-3 V."
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q6:part-b-i",
+            "marks": 2,
+            "questionPage": 13,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "Use A = rho L / R.",
+              "Calculate 1.3 x 10^-6 m^2."
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q6:part-b-ii",
+            "marks": 1,
+            "questionPage": 13,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 11,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "Calculate 8.3 x 10^28 m^-3 from the stated carrier count, area and length."
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q6:part-b-iii",
+            "marks": 2,
+            "questionPage": 13,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 12,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "Use I = Anvq or the equivalent carrier-count relation.",
+              "Calculate 4.9 x 10^-5 m s^-1."
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q6:part-c-i",
+            "marks": 4,
+            "questionPage": 14,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 12,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 4,
+            "markSchemeEvidence": [
+              "State that Q has greater length than P.",
+              "State that Q has lower average cross-sectional area than P.",
+              "State that resistance is proportional to length divided by area.",
+              "Conclude that Q has greater resistance."
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q6:part-c-ii",
+            "marks": 2,
+            "questionPage": 15,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 12,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 2,
+            "markSchemeEvidence": [
+              "Start at non-zero drift speed at distance zero.",
+              "Draw a line with increasing positive gradient."
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "questionId": "cie-9702-9702_m25_qp_22:q7",
+      "answerId": "cie-9702-9702_m25_qp_22:q7:answer",
+      "verificationStatus": "reviewed",
+      "questionDocumentSha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+      "answerDocumentSha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+      "reviewedAt": "2026-08-14T17:00:00+08:00",
+      "reviewedBy": "Codex source-semantic-review / 9702-P2-M25",
+      "reviewEvidence": {
+        "method": "paired-qp-ms-page-review",
+        "sourcePolicy": "personal-study-restricted",
+        "questionPaper": {
+          "file": "9702_m25_qp_22.pdf",
+          "sha256": "5eb75e06ac740bebc19cba67bb4f43892e0a84432b05f265d09a7ef42f102cec",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m25_qp_22.pdf"
+        },
+        "markScheme": {
+          "file": "9702_m25_ms_22.pdf",
+          "sha256": "ab38e615d8d745544ec87289e67423866d85416a20c393d14fe5b3809916acc8",
+          "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m25_ms_22.pdf"
+        },
+        "partAllocations": [
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q7:part-a",
+            "marks": 1,
+            "questionPage": 16,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 12,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 1,
+            "markSchemeEvidence": [
+              "Give nucleon number 226 for Q and proton number 86 for R."
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q7:part-b",
+            "marks": 3,
+            "questionPage": 16,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 12,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 3,
+            "markSchemeEvidence": [
+              "Set the alpha and R momentum magnitudes equal.",
+              "Rearrange for the speed of R.",
+              "Calculate 2.7 x 10^5 m s^-1."
+            ]
+          },
+          {
+            "partId": "cie-9702-9702_m25_qp_22:q7:part-c",
+            "marks": 3,
+            "questionPage": 16,
+            "questionRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markSchemePage": 13,
+            "markSchemeRegion": [
+              0,
+              0,
+              1,
+              1
+            ],
+            "markPointCount": 3,
+            "markSchemeEvidence": [
+              "State one accepted conserved quantity.",
+              "State a second accepted conserved quantity.",
+              "State a third accepted conserved quantity."
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,82 @@
+import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import path from 'node:path'
+import {
+  assertWithinLimit,
+  findForbiddenFiles,
+  findForbiddenSensitiveFiles,
+  findNestedSymlinks,
+  findUnexpectedReleaseEntries,
+  MAX_RELEASE_BYTES,
+  pathsOverlap,
+  physicalTreeBytes,
+} from './release-content-policy.mjs'
+
+function option(name) {
+  const index = process.argv.indexOf(name)
+  return index >= 0 ? process.argv[index + 1] : ''
+}
+
+function requiredOption(name) {
+  const value = option(name)
+  assert.ok(value, `Pass ${name} <path>`)
+  return path.resolve(value)
+}
+
+function targetInsideRelease(releaseRoot, target) {
+  const relative = path.relative(releaseRoot, target)
+  return Boolean(relative) && !relative.startsWith('..') && !path.isAbsolute(relative)
+}
+
+const releaseRoot = requiredOption('--release-root')
+const sourceAssets = requiredOption('--assets-dir')
+const sourceCatalog = requiredOption('--catalog-file')
+const sourcePdfLibrary = requiredOption('--pdf-library-root')
+const targetAssets = path.join(releaseRoot, 'public', 'question-assets')
+const targetCatalog = path.join(releaseRoot, 'public', 'data', 'papers.json')
+const sourceSubjectCatalogRoot = path.join(path.dirname(sourceCatalog), 'papers')
+const targetSubjectCatalogRoot = path.join(releaseRoot, 'public', 'data', 'papers')
+const verifier = path.join(releaseRoot, 'scripts', 'verify-stem-release.mjs')
+
+assert.ok(fs.existsSync(releaseRoot) && fs.statSync(releaseRoot).isDirectory(), `Release root is missing: ${releaseRoot}`)
+const unexpectedReleaseEntries = findUnexpectedReleaseEntries(releaseRoot)
+assert.equal(unexpectedReleaseEntries.length, 0, `Release root contains files outside the runtime allowlist: ${unexpectedReleaseEntries.slice(0, 10).join(', ')}`)
+const forbiddenReleaseSensitiveFiles = findForbiddenSensitiveFiles(releaseRoot)
+assert.equal(forbiddenReleaseSensitiveFiles.length, 0, `Release root contains nested sensitive files: ${forbiddenReleaseSensitiveFiles.slice(0, 10).join(', ')}`)
+assert.ok(fs.existsSync(sourceAssets) && fs.statSync(sourceAssets).isDirectory(), `Source assets are missing: ${sourceAssets}`)
+assert.ok(fs.existsSync(sourceCatalog) && fs.statSync(sourceCatalog).isFile(), `Source catalog is missing: ${sourceCatalog}`)
+assert.ok(fs.existsSync(sourceSubjectCatalogRoot) && fs.statSync(sourceSubjectCatalogRoot).isDirectory(), `Source subject catalog root is missing: ${sourceSubjectCatalogRoot}`)
+assert.ok(fs.existsSync(sourcePdfLibrary) && fs.statSync(sourcePdfLibrary).isDirectory(), `Governed PDF library is missing: ${sourcePdfLibrary}`)
+const resolvedAssets = fs.realpathSync(sourceAssets)
+const resolvedPdfLibrary = fs.realpathSync(sourcePdfLibrary)
+assert.ok(!pathsOverlap(resolvedAssets, resolvedPdfLibrary), `Assets directory must be separate from the PDF library: ${resolvedAssets}`)
+const nestedSymlinks = findNestedSymlinks(sourceAssets)
+assert.equal(nestedSymlinks.length, 0, `Assets directory contains nested symlinks; materialise a self-contained rendered asset tree first: ${nestedSymlinks.slice(0, 5).join(', ')}`)
+const forbiddenSourceFiles = findForbiddenFiles(sourceAssets, ['.pdf', '.tgz', '.tar.gz', '.zip'])
+assert.equal(forbiddenSourceFiles.length, 0, `Assets directory contains non-rendered archive/PDF files: ${forbiddenSourceFiles.slice(0, 5).join(', ')}`)
+const forbiddenSourceSensitiveFiles = findForbiddenSensitiveFiles(sourceAssets)
+assert.equal(forbiddenSourceSensitiveFiles.length, 0, `Assets directory contains nested sensitive files: ${forbiddenSourceSensitiveFiles.slice(0, 5).join(', ')}`)
+assert.ok(targetInsideRelease(releaseRoot, targetAssets) && targetInsideRelease(releaseRoot, targetCatalog), 'Release content target escapes release root')
+assert.ok(targetInsideRelease(releaseRoot, targetSubjectCatalogRoot), 'Subject paper catalog target escapes release root')
+assert.ok(!fs.existsSync(targetAssets), `Release already has question-assets: ${targetAssets}`)
+assert.ok(!fs.existsSync(targetCatalog), `Release already has papers.json: ${targetCatalog}`)
+assert.ok(!fs.existsSync(targetSubjectCatalogRoot), `Release already has subject paper catalogs: ${targetSubjectCatalogRoot}`)
+assert.ok(fs.existsSync(verifier), `Release verifier is missing: ${verifier}`)
+
+fs.mkdirSync(path.dirname(targetAssets), { recursive: true })
+fs.mkdirSync(path.dirname(targetCatalog), { recursive: true })
+fs.mkdirSync(targetSubjectCatalogRoot, { recursive: true })
+fs.cpSync(sourceAssets, targetAssets, { recursive: true, dereference: true, force: false, errorOnExist: true })
+fs.copyFileSync(sourceCatalog, targetCatalog, fs.constants.COPYFILE_EXCL)
+fs.cpSync(sourceSubjectCatalogRoot, targetSubjectCatalogRoot, { recursive: true, dereference: true, force: false, errorOnExist: true })
+
+const releaseBytes = physicalTreeBytes(releaseRoot)
+assertWithinLimit(releaseBytes, MAX_RELEASE_BYTES, 'Prepared release')
+process.stdout.write(`${JSON.stringify({
+  ok: true,
+  phase: 'content-prepared',
+  releaseRoot,
+  assetsDir: targetAssets,
+  catalogFile: targetCatalog,
+  releaseBytes,
+}, null, 2)}\n`)
