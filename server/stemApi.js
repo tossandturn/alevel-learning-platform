@@ -1455,7 +1455,8 @@ function removeNativeSession(request, database) {
   database.prepare('DELETE FROM stem_sessions WHERE token_hash = ?').run(tokenHash)
 }
 
-function canonicalInternalAuthPayload({ mode, username, password }) {
+function canonicalInternalAuthPayload({ mode, username, password, code }) {
+  if (mode === 'wechat') return JSON.stringify({ mode: 'wechat', code: String(code || '') })
   return JSON.stringify({
     mode: asText(mode, 20),
     username: asText(username, 80).toLowerCase(),
@@ -1510,9 +1511,9 @@ function nativeAuthBridgeError(code, message) {
   return Object.assign(new Error(message), { statusCode: 503, code })
 }
 
-function signedInternalAuthRequest({ mode, username, password, env }) {
-  const normalizedMode = mode === 'register' ? 'register' : 'login'
-  const body = canonicalInternalAuthPayload({ mode: normalizedMode, username, password })
+function signedInternalAuthRequest({ mode, username, password, code, env }) {
+  const normalizedMode = mode === 'wechat' ? 'wechat' : mode === 'register' ? 'register' : 'login'
+  const body = canonicalInternalAuthPayload({ mode: normalizedMode, username, password, code })
   const signingKey = String(env.STEM_INTERNAL_AUTH_KEY || env.STEM_IDENTITY_SIGNING_KEY || '')
   if (!signingKey) throw nativeAuthNotConfigured()
   const endpoint = internalAuthEndpoint(nativeAuthOrigin(env))
@@ -1790,8 +1791,8 @@ async function probeNativeAuthBridge({ env, fetchImpl = fetch }) {
   }
 }
 
-async function authenticateNativeAccount({ mode, username, password, env, fetchImpl = fetch }) {
-  const internalRequest = signedInternalAuthRequest({ mode, username, password, env })
+async function authenticateNativeAccount({ mode, username, password, code, env, fetchImpl = fetch }) {
+  const internalRequest = signedInternalAuthRequest({ mode, username, password, code, env })
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 12_000)
   try {
@@ -2377,7 +2378,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
 
   return async function stemApi(request, response, next) {
     const url = new URL(request.url, 'http://127.0.0.1')
-    if (!url.pathname.startsWith('/api/stem/') && !['/api/auth/status', '/api/auth/config', '/api/auth/login', '/api/auth/register', '/api/auth/logout'].includes(url.pathname)) return next()
+    if (!url.pathname.startsWith('/api/stem/') && !['/api/auth/status', '/api/auth/config', '/api/auth/login', '/api/auth/register', '/api/auth/logout', '/api/auth/wechat'].includes(url.pathname)) return next()
     try {
       if (request.method === 'GET' && url.pathname === '/api/auth/config') {
         const readiness = await nativeAccountReadiness()
@@ -2459,6 +2460,16 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
         }
         if (!signingKey) throw Object.assign(new Error('STEM account sessions are not configured.'), { statusCode: 503 })
         sendJson(response, 200, { authenticated: true, ...identityToken(user, signingKey), ...currentWorkspace(db, user) })
+        return
+      }
+      if (request.method === 'POST' && url.pathname === '/api/auth/wechat') {
+        const payload = await readJson(request, 4096)
+        if (typeof payload.code !== 'string' || !/^[A-Za-z0-9_-]{8,512}$/.test(payload.code)) {
+          throw Object.assign(new Error('A valid WeChat sign-in code is required.'), { statusCode: 400, code: 'wechat_code_invalid' })
+        }
+        if (!signingKey) throw Object.assign(new Error('Account sign-in is not configured.'), { statusCode: 503 })
+        const identity = await authenticateNativeAccount({ mode: 'wechat', code: payload.code, env, fetchImpl })
+        sendJson(response, 200, { authenticated: true, ...identityToken(identity, signingKey), ...currentWorkspace(db, identity) })
         return
       }
       if (request.method === 'POST' && (url.pathname === '/api/auth/login' || url.pathname === '/api/auth/register')) {
