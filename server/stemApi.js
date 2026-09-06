@@ -2214,6 +2214,47 @@ function eventPayload(value) {
   }
 }
 
+export function nativePaperContext(questionBank, { routeId, stage, paperId }) {
+  const scope = verifiedRouteScope(routeId, stage)
+  if (!/^[A-Za-z0-9_-]{1,200}$/.test(String(paperId || ''))) {
+    throw Object.assign(new Error('A valid paper identifier is required.'), { statusCode: 400, code: 'paper_context_missing' })
+  }
+  const seen = new Set()
+  const questions = []
+  for (const question of questionBank || []) {
+    if (question.routeId !== scope.routeId || question.stage !== scope.stage || question.sourceRef?.paperId !== paperId) continue
+    const sourceQuestionId = String(question.sourceQuestionId || '')
+    if (!sourceQuestionId || seen.has(sourceQuestionId)) continue
+    const parts = (question.parts || []).flatMap((part) => {
+      const ai = canonicalAiMarkingProvenance(question, part)
+      const provenance = ai || canonicalSourcePracticeProvenance(question, part)
+      if (!provenance) return []
+      return [{
+        partId: provenance.questionPartId,
+        label: String(part.label || ''),
+        marks: Number(part.marks),
+        provenance: { ...provenance, routeId: scope.routeId },
+      }]
+    })
+    if (!parts.length || parts.some((part) => !Number.isFinite(part.marks) || part.marks < 0)) continue
+    seen.add(sourceQuestionId)
+    const number = Number(sourceQuestionId.match(/:q(\d+)(?::|$)/i)?.[1] || String(question.sourceRef?.question || '').match(/\d+/)?.[0])
+    if (!Number.isInteger(number) || number < 1) continue
+    const images = [...new Set([...(question.sourceContent?.assetUrls || []), ...(question.sourceRef?.assetUrls || [])])]
+      .filter((url) => /^\/question-assets\/[A-Za-z0-9_-]+\/qp-\d+\.(?:jpg|jpeg|png|webp)$/.test(url))
+    questions.push({ sourceQuestionId, number, parts, images })
+  }
+  return {
+    schemaVersion: 'native-paper-context-v1',
+    paperId,
+    routeId: scope.routeId,
+    stage: scope.stage,
+    // Source availability is not full-paper completion or formal progress.
+    sourceStatus: questions.length ? 'available' : 'unavailable',
+    questions: questions.sort((a, b) => a.number - b.number),
+  }
+}
+
 export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQuestionBankProvider = null, fetchImpl = fetch, libraryRoot = null, topicPdfRenderer = null }) {
   // A single shared server key is sufficient for both the internal account
   // request and the short-lived STEM API token. The legacy identity key is a
@@ -2493,6 +2534,15 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
         return
       }
       const user = identityFromRequest(request, signingKey)
+      const nativePaperMatch = url.pathname.match(/^\/api\/stem\/papers\/([A-Za-z0-9_-]+)\/native-context$/)
+      if (request.method === 'GET' && nativePaperMatch) {
+        sendJson(response, 200, nativePaperContext(currentTopicPracticeQuestionBank(), {
+          paperId: nativePaperMatch[1],
+          routeId: url.searchParams.get('routeId'),
+          stage: url.searchParams.get('stage'),
+        }))
+        return
+      }
       if (request.method === 'POST' && url.pathname === '/api/stem/topic-pdfs') {
         if (typeof topicPdfRenderer !== 'function') {
           throw Object.assign(new Error('Topic PDF rendering is not available on this server.'), { statusCode: 503, code: 'topic_pdf_unavailable' })
