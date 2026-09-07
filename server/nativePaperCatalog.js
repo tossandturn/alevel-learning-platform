@@ -3,6 +3,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import {fileURLToPath} from 'node:url'
 import {courseRoutes} from '../src/data/routeRegistry.js'
+import {getExamPaperProfile} from '../src/data/examStructure.js'
 
 const SUBJECTS=new Set(courseRoutes.map(route=>route.subjectCode))
 const STAGES=new Set(['all','igcse','as','a2','competition','admissions'])
@@ -15,7 +16,9 @@ function localUrl(value,subject){
  return url
 }
 function projectItem(item,subject){
- const profile=item.examProfile||{},declared=Array.isArray(profile.courseRouteIds)?profile.courseRouteIds:Array.isArray(profile.routeIds)?profile.routeIds:[]
+ const variant=String(item.variant||String(item.file||'').match(/_(?:qp|ms)_([1-9]\d?)\.pdf$/i)?.[1]||'')
+ const decoded=/^[1-9]\d?$/.test(variant)?getExamPaperProfile(subject,variant,item.year):null
+ const profile=decoded||item.examProfile||{},declared=Array.isArray(profile.courseRouteIds)?profile.courseRouteIds:Array.isArray(profile.routeIds)?profile.routeIds:[]
  const raw=(Array.isArray(profile.stages)?profile.stages:[]).map(s=>String(s).toLowerCase())
  const known=courseRoutes.filter(route=>route.subjectCode===subject)
  const stages=[...new Set(raw.filter(stage=>STAGES.has(stage)&&stage!=='all'))]
@@ -26,10 +29,18 @@ function projectItem(item,subject){
  // exposes one canonical route per exam. That explicit one-to-one mapping is
  // safe; academic combinations must still match declared courseRouteIds.
  const singleExam=['bpho','amc12','esat','tmua'].includes(subject)&&known.length===1
- const routeIds=known.filter(route=>stages.includes(stageOf(route))&&(declared.includes(route.routeId)||singleExam)).map(route=>route.routeId)
+ let component=Number(profile.paperNumber||String(profile.code||'').split('/')[1]?.[0])||null
+ const physicalComponent=component
+ if(subject==='9709'&&Number(item.year)<=2019){
+  const title=String(profile.title||'').toLowerCase().replace(/&/g,'and').replace(/\s+/g,' ').trim()
+  const pure=title.match(/^pure mathematics ([123])$/),statistics=title.match(/^probability and statistics ([12])$/)
+  component=pure?Number(pure[1]):statistics?Number(statistics[1])+4:/^mechanics(?: 1)?$/.test(title)?4:null
+ }
+ const matched=known.filter(route=>singleExam||Boolean(component)&&route.paperComponents.includes(component)&&(declared.includes(route.routeId)||Boolean(decoded)))
+ const routeIds=matched.map(route=>route.routeId),mappedStages=matched.length?[...new Set(matched.map(stageOf))]:[...new Set(stages)]
  return {id:text(item.id,200),subject,year:Number.isInteger(Number(item.year))&&Number(item.year)>1800?Number(item.year):null,season:text(item.season,40),kind:text(item.kind,10),file:text(item.file),pairKey:text(item.pairKey,200),markSchemeId:text(item.markSchemeId,200),
   paperNumber:text(profile.code,40),title:text(profile.title,160),mode:text(profile.mode,40),durationMinutes:Number(profile.durationMinutes)>0?Number(profile.durationMinutes):null,maxMarks:Number(profile.maxMarks)>0?Number(profile.maxMarks):null,questionCount:null,
-  stages:[...new Set(stages)],routeIds,localUrl:localUrl(item.localUrl,subject)}
+  stages:mappedStages,routeIds,paperComponent:physicalComponent,courseComponent:component,localUrl:localUrl(item.localUrl,subject)}
 }
 function scope(input){
  const subject=String(input.subject||'').toLowerCase(),stage=String(input.stage||'all').toLowerCase(),routeId=String(input.routeId||'')
@@ -61,7 +72,7 @@ export function createNativePaperCatalog({directory=fileURLToPath(new URL('../pu
     const ms=byId.get(item.markSchemeId)
     return {...item,markScheme:ms?.kind==='ms'&&item.pairKey&&ms.pairKey===item.pairKey?{id:ms.id,kind:'ms',file:ms.file,localUrl:ms.localUrl}:null}
    }).sort((a,b)=>(b.year||0)-(a.year||0)||b.file.localeCompare(a.file)||a.id.localeCompare(b.id))
-   const result={signature,version:crypto.createHash('sha256').update(source).digest('hex').slice(0,24),items,byId:new Map(items.map(item=>[item.id,item]))}
+   const result={signature,version:crypto.createHash('sha256').update('native-paper-projection-v2|').update(source).digest('hex').slice(0,24),items,byId:new Map(items.map(item=>[item.id,item]))}
    cache.delete(subject);cache.set(subject,result);while(cache.size>3)cache.delete(cache.keys().next().value)
    return result
   }).finally(()=>pending.delete(key))
