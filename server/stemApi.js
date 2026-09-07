@@ -2395,6 +2395,16 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
         sendJson(response, 200, { schemaVersion: 'native-paper-sources-v1', paperId: result.paperId, routeId: result.routeId, stage: result.stage, questions: result.questions.map(({ number, sourceQuestionId, images }) => ({ number, sourceQuestionId, images })) })
         return
       }
+      const nativePaperMatch = url.pathname.match(/^\/api\/stem\/papers\/([A-Za-z0-9_-]+)\/native-context$/)
+      if (request.method === 'GET' && nativePaperMatch) {
+        // Source metadata needs authentication, not a learning database. In
+        // particular, a guest request must not seed every syllabus table.
+        identityFromRequest(request, signingKey)
+        sendJson(response, 200, nativePaperContext(currentTopicPracticeQuestionBank(), {
+          paperId: nativePaperMatch[1], routeId: url.searchParams.get('routeId'), stage: url.searchParams.get('stage'),
+        }))
+        return
+      }
       if (request.method === 'GET' && url.pathname === '/api/auth/config') {
         const readiness = await nativeAccountReadiness()
         sendJson(response, 200, {
@@ -2560,15 +2570,6 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
         return
       }
       const user = identityFromRequest(request, signingKey)
-      const nativePaperMatch = url.pathname.match(/^\/api\/stem\/papers\/([A-Za-z0-9_-]+)\/native-context$/)
-      if (request.method === 'GET' && nativePaperMatch) {
-        sendJson(response, 200, nativePaperContext(currentTopicPracticeQuestionBank(), {
-          paperId: nativePaperMatch[1],
-          routeId: url.searchParams.get('routeId'),
-          stage: url.searchParams.get('stage'),
-        }))
-        return
-      }
       if (request.method === 'POST' && url.pathname === '/api/stem/topic-pdfs') {
         if (typeof topicPdfRenderer !== 'function') {
           throw Object.assign(new Error('Topic PDF rendering is not available on this server.'), { statusCode: 503, code: 'topic_pdf_unavailable' })

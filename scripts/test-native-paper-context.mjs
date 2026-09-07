@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import http from 'node:http'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import * as api from '../server/stemApi.js'
 import {unifiedQuestionBank} from '../src/data/questionBank.js'
 import {sourceBindingSignature} from '../src/lib/sourceContentContract.js'
@@ -22,7 +25,8 @@ const readable=api.nativePaperContext([sourceOnly],scope)
 assert.equal(readable.questions.length,1,'audited readable source does not require marking parts');assert.equal(readable.questions[0].parts.length,0);assert.ok(readable.questions[0].images.length)
 sourceOnly.sourceContent.complete=false;assert.equal(api.nativePaperContext([sourceOnly],scope).questions.length,0,'unreleased source-only material stays excluded')
 assert.throws(()=>api.nativePaperContext(unifiedQuestionBank,{...scope,stage:'A2'}))
-const signingKey='native-paper-context-test-key',env={STEM_INTERNAL_AUTH_KEY:signingKey,STEM_DB_PATH:':memory:'}
+const noDatabaseDirectory=fs.mkdtempSync(path.join(os.tmpdir(),'stem-native-no-database-')),databasePath=path.join(noDatabaseDirectory,'must-not-be-created.sqlite')
+const signingKey='native-paper-context-test-key',env={STEM_INTERNAL_AUTH_KEY:signingKey,STEM_DB_PATH:databasePath}
 const middleware=api.createStemApi({env})
 const server=http.createServer((req,res)=>middleware(req,res,()=>{res.statusCode=404;res.end()}))
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve))
@@ -38,5 +42,6 @@ try{
  const signature=crypto.createHmac('sha256',signingKey).update(header+'.'+payload).digest('base64url')
  const response=await fetch(url,{headers:{Authorization:'Bearer '+header+'.'+payload+'.'+signature}})
  const body=await response.json();assert.equal(response.status,200,JSON.stringify(body));assert.equal(body.questions.length,7)
+ assert.equal(fs.existsSync(databasePath),false,'source and authenticated read-only context never initialize or seed the learning database')
  console.log('Native paper context: authenticated, route-bound, source-only metadata; independent 6/12 gates preserved.')
-}finally{await new Promise(resolve=>server.close(resolve));api.closeStemDatabaseForTests()}
+}finally{await new Promise(resolve=>server.close(resolve));api.closeStemDatabaseForTests();assert.equal(path.dirname(path.resolve(noDatabaseDirectory)),path.resolve(os.tmpdir()));assert.ok(path.basename(noDatabaseDirectory).startsWith('stem-native-no-database-'));fs.rmSync(noDatabaseDirectory,{recursive:true,force:true})}
