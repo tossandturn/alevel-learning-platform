@@ -2,12 +2,13 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { isHumanReviewedPastPaperItem, isStudentReleasedAiStudyItem, studyQuestionBank, unifiedQuestionBank } from '../src/data/questionBank.js'
-import { canonicalAiMarkingProvenance, canonicalSourcePracticeProvenance } from '../src/lib/sourceContentContract.js'
+import { auditedQuestionAssetEvidence, canonicalAiMarkingProvenance, canonicalSourcePracticeProvenance } from '../src/lib/sourceContentContract.js'
 import { listAiPdfIngestionCandidates, resolveAiPdfIngestionRoot } from './aiPdfIngestionCandidates.js'
 import { issueMarkingCapabilities } from './markingCapability.js'
 import { buildSyllabusPracticeSet, rebindSyllabusPracticeUnit, seedSyllabusTables, syllabusDatabaseInventory, syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
 import { MIN_QUESTION_GROUPS_PER_TEST, MIN_VERIFIED_GROUPS_FOR_PRACTICE } from '../src/lib/practiceConstants.js'
 import { PAPER_STUDY_MODES } from '../src/lib/paperStudyMode.js'
+import { createNativePaperCatalog } from './nativePaperCatalog.js'
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024
 const REBIND_BODY_BYTES = 256 * 1024
@@ -2237,12 +2238,14 @@ export function nativePaperContext(questionBank, { routeId, stage, paperId }) {
         provenance: { ...provenance, routeId: scope.routeId },
       }]
     })
-    if (!parts.length || parts.some((part) => !Number.isFinite(part.marks) || part.marks < 0)) continue
-    seen.add(sourceQuestionId)
+    if (parts.some((part) => !Number.isFinite(part.marks) || part.marks < 0)) continue
     const number = Number(sourceQuestionId.match(/:q(\d+)(?::|$)/i)?.[1] || String(question.sourceRef?.question || '').match(/\d+/)?.[0])
     if (!Number.isInteger(number) || number < 1) continue
-    const images = [...new Set([...(question.sourceContent?.assetUrls || []), ...(question.sourceRef?.assetUrls || [])])]
-      .filter((url) => /^\/question-assets\/[A-Za-z0-9_-]+\/qp-\d+\.(?:jpg|jpeg|png|webp)$/.test(url))
+    const auditedImages = question.sourceContent?.complete === true ? auditedQuestionAssetEvidence(question).map(asset => asset.assetUrl) : []
+    const images = [...new Set(auditedImages.length ? auditedImages : parts.length ? [...(question.sourceContent?.assetUrls || []), ...(question.sourceRef?.assetUrls || [])] : [])]
+      .filter((url) => typeof url === 'string' && /^\/question-assets\/[A-Za-z0-9_-]+\/qp-\d+\.(?:jpg|jpeg|png|webp)$/.test(url) && url.startsWith('/question-assets/' + paperId + '/'))
+    if (!parts.length && !images.length) continue
+    seen.add(sourceQuestionId)
     questions.push({ sourceQuestionId, number, parts, images })
   }
   return {
@@ -2256,7 +2259,8 @@ export function nativePaperContext(questionBank, { routeId, stage, paperId }) {
   }
 }
 
-export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQuestionBankProvider = null, fetchImpl = fetch, libraryRoot = null, topicPdfRenderer = null }) {
+export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQuestionBankProvider = null, fetchImpl = fetch, libraryRoot = null, topicPdfRenderer = null, paperCatalogDirectory }) {
+  const nativePaperCatalog = createNativePaperCatalog({ directory: paperCatalogDirectory })
   // A single shared server key is sufficient for both the internal account
   // request and the short-lived STEM API token. The legacy identity key is a
   // migration fallback only, so every active path uses the same canonical key.
@@ -2380,6 +2384,17 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
     const url = new URL(request.url, 'http://127.0.0.1')
     if (!url.pathname.startsWith('/api/stem/') && !['/api/auth/status', '/api/auth/config', '/api/auth/login', '/api/auth/register', '/api/auth/logout', '/api/auth/wechat'].includes(url.pathname)) return next()
     try {
+      if (request.method === 'GET' && url.pathname === '/api/stem/paper-catalog') {
+        const query = Object.fromEntries(url.searchParams)
+        sendJson(response, 200, query.id ? await nativePaperCatalog.detail(query) : await nativePaperCatalog.list(query))
+        return
+      }
+      const paperSourcesMatch = url.pathname.match(/^\/api\/stem\/papers\/([A-Za-z0-9_-]+)\/source-context$/)
+      if (request.method === 'GET' && paperSourcesMatch) {
+        const result = nativePaperContext(currentTopicPracticeQuestionBank(), { paperId: paperSourcesMatch[1], routeId: url.searchParams.get('routeId'), stage: url.searchParams.get('stage') })
+        sendJson(response, 200, { schemaVersion: 'native-paper-sources-v1', paperId: result.paperId, routeId: result.routeId, stage: result.stage, questions: result.questions.map(({ number, sourceQuestionId, images }) => ({ number, sourceQuestionId, images })) })
+        return
+      }
       if (request.method === 'GET' && url.pathname === '/api/auth/config') {
         const readiness = await nativeAccountReadiness()
         sendJson(response, 200, {

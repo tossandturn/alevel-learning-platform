@@ -3,6 +3,7 @@ import crypto from 'node:crypto'
 import http from 'node:http'
 import * as api from '../server/stemApi.js'
 import {unifiedQuestionBank} from '../src/data/questionBank.js'
+import {sourceBindingSignature} from '../src/lib/sourceContentContract.js'
 assert.equal(typeof api.nativePaperContext,'function','native paper context must be provided by the source authority')
 const scope={routeId:'cie-9702-as-physics',stage:'AS',paperId:'cie-9702-9702_m25_qp_22'}
 const context=api.nativePaperContext(unifiedQuestionBank,scope)
@@ -13,6 +14,13 @@ assert.ok(context.questions.flatMap(q=>q.images).every(url=>url.includes('/qp-')
 assert.doesNotMatch(JSON.stringify(context),/"(?:answer|answerKey|exactAnswer|markPoints|markScheme)"\s*:/)
 const tiny=unifiedQuestionBank.filter(q=>q.sourceRef?.paperId===scope.paperId).slice(0,2)
 assert.equal(api.nativePaperContext(tiny,scope).questions.length,2,'whole-paper source access must not depend on Topic Drill 6/12 gates')
+const sourceOnly=structuredClone(tiny[0]);sourceOnly.parts=[]
+assert.equal(api.nativePaperContext([sourceOnly],scope).questions.length,0,'a stale audit cannot authorize modified source metadata')
+// Test-only source publication with an updated audit and no marking parts.
+sourceOnly.sourceContent.audit.bindingSignature=sourceBindingSignature(sourceOnly)
+const readable=api.nativePaperContext([sourceOnly],scope)
+assert.equal(readable.questions.length,1,'audited readable source does not require marking parts');assert.equal(readable.questions[0].parts.length,0);assert.ok(readable.questions[0].images.length)
+sourceOnly.sourceContent.complete=false;assert.equal(api.nativePaperContext([sourceOnly],scope).questions.length,0,'unreleased source-only material stays excluded')
 assert.throws(()=>api.nativePaperContext(unifiedQuestionBank,{...scope,stage:'A2'}))
 const signingKey='native-paper-context-test-key',env={STEM_INTERNAL_AUTH_KEY:signingKey,STEM_DB_PATH:':memory:'}
 const middleware=api.createStemApi({env})
@@ -20,6 +28,10 @@ const server=http.createServer((req,res)=>middleware(req,res,()=>{res.statusCode
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve))
 const url='http://127.0.0.1:'+server.address().port+'/api/stem/papers/'+scope.paperId+'/native-context?routeId='+scope.routeId+'&stage=AS'
 try{
+ const sourceResponse=await fetch(url.replace('/native-context?','/source-context?'))
+ const sourceBody=await sourceResponse.json();assert.equal(sourceResponse.status,200);assert.equal(sourceBody.schemaVersion,'native-paper-sources-v1')
+ assert.ok(sourceBody.questions.every(q=>q.images.every(image=>image.startsWith('/question-assets/'+scope.paperId+'/'))))
+ assert.doesNotMatch(JSON.stringify(sourceBody),/"(?:parts|provenance|bindingSignature|marks|answer|markScheme)"\s*:/,'public image mapping never carries grading authority or answers')
  assert.equal((await fetch(url)).status,401)
  const header=Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url')
  const payload=Buffer.from(JSON.stringify({iss:'ieltsist.com',aud:'stem.ieltsist.com',sub:'ielts:100',iat:Math.floor(Date.now()/1000),exp:Math.floor(Date.now()/1000)+3600})).toString('base64url')
