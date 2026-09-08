@@ -1122,13 +1122,22 @@ function questionBankSeedSignatureUncached(questionBank = []) {
 function seedCurrentQuestionBank(databaseHandle, questionBank) {
   const signature = questionBankSeedSignature(questionBank)
   if (signature === databaseQuestionBankSignatures.get(databaseHandle)) return
-  seedSyllabusTables(databaseHandle, questionBank)
+  // A source snapshot is one atomic update, not thousands of independent
+  // disk commits. Failed imports must leave the prior inventory intact.
+  databaseHandle.exec('SAVEPOINT stem_source_bank_seed')
+  try {
+    seedSyllabusTables(databaseHandle, questionBank)
+    databaseHandle.exec('RELEASE SAVEPOINT stem_source_bank_seed')
+  } catch (error) {
+    try { databaseHandle.exec('ROLLBACK TO SAVEPOINT stem_source_bank_seed; RELEASE SAVEPOINT stem_source_bank_seed') } catch { /* Preserve the original seed error. */ }
+    throw error
+  }
   databaseQuestionBankSignatures.set(databaseHandle, signature)
 }
 
-function appDatabase(env, questionBank = unifiedQuestionBank) {
+function appDatabase(env, questionBank = unifiedQuestionBank, { synchronizeSource = true } = {}) {
   if (database) {
-    seedCurrentQuestionBank(database, questionBank)
+    if (synchronizeSource) seedCurrentQuestionBank(database, questionBank)
     return database
   }
   if (!globalThis.process?.versions?.node) throw new Error('STEM storage requires Node.js.')
@@ -2454,7 +2463,9 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
       // Focused-retake authority is checked from the owner's persisted attempt
       // before a runtime bank is consulted, so a forged parent cannot trigger
       // source loading or reveal provider behavior.
-      const db = appDatabase(env, baseTopicPracticeQuestionBank)
+      // Opening the shared handle must not reset a synchronized runtime bank
+      // to the static base before a source route synchronizes it again.
+      const db = appDatabase(env, baseTopicPracticeQuestionBank, { synchronizeSource: false })
       let runtimeTopicPracticeQuestionBank = null
       function currentRuntimeTopicPracticeQuestionBank() {
         runtimeTopicPracticeQuestionBank ||= currentTopicPracticeQuestionBank()

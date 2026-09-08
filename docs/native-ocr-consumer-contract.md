@@ -34,6 +34,8 @@ AI source hydration uses the same verified PNG cache and the existing pinned `@n
 
 The present syllabus response still carries ID lists for exact selection preflight. Before publishing tens of thousands of matched groups, add a compact native count projection plus server-side selection preview rather than shipping all group IDs or question objects to the client. Large OCR directories must not be activated just because the loader's capacity increased.
 
+Source synchronization is an atomic SQLite savepoint, including rollback on failure. Opening the general application DB handle must not reseed the static base over a synchronized runtime bank. Otherwise every inventory request alternates base/runtime snapshots and performs thousands of disk commits. `test-stem-disk-seed-cache.mjs` uses a real WAL file and an independent observer: warm reads and unrelated requests must not change `PRAGMA data_version`; an injected source-seed failure must roll back earlier updates. In-memory tests alone cannot detect this disk-write regression.
+
 ## Acceptance
 
 - `npm test`, `npm run lint`, `npm run build` locally; no source compilation on production.
