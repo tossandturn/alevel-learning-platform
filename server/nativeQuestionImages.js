@@ -5,6 +5,24 @@ import { readVerifiedSourcePage } from './nativeSourcePages.js'
 const HASH = /^[a-f0-9]{64}$/
 const fail = (statusCode, code) => { throw Object.assign(new Error('题目原图暂时不可用，请重新加载。'), { statusCode, code }) }
 
+function pixelBounds({ region: [x0, y0, x1, y1], imageSize: [width, height] }) {
+  const left = Math.floor(x0 * width), top = Math.floor(y0 * height)
+  return { left, top, width: Math.ceil(x1 * width) - left, height: Math.ceil(y1 * height) - top }
+}
+
+async function sourceRegionPixels(page, descriptor) {
+  const { createCanvas, loadImage } = await import('@napi-rs/canvas')
+  // Only source-verified bytes are decoded. Never accept image URLs or crop
+  // coordinates from the client; the descriptor is resolved from the bank.
+  const image = await loadImage(page.bytes)
+  if (image.width !== descriptor.imageSize[0] || image.height !== descriptor.imageSize[1]) fail(422, 'native_question_image_invalid')
+  const box = pixelBounds(descriptor), canvas = createCanvas(box.width, box.height)
+  canvas.getContext('2d').drawImage(image, box.left, box.top, box.width, box.height, 0, 0, box.width, box.height)
+  const bytes = await canvas.encode('png')
+  return { bytes, contentType: 'image/png', sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+    sourcePageSha256: descriptor.spec.expectedPageImageSha256, imageSize: [box.width, box.height] }
+}
+
 function regionsFor(question, isReleased) {
   if (!isReleased(question) || question.sourceContent?.schemaVersion !== 'ai-verified-coordinate-source-v1' ||
     question.sourceContent.complete !== true || question.sourceContent.fileComplete !== true) return []
@@ -43,12 +61,18 @@ export function createNativeQuestionImages({ getQuestionBank, libraryRoot, env =
           expectedPdfSha256: region.hash, page: region.page, expectedPageImageSha256: region.pageHash, imageSize: region.imageSize, role: 'question-paper' } }
     })
   }
-  const publicDescriptor = ({ url, schemaVersion, page, region, imageSize }) => ({ url, schemaVersion, page, region, imageSize })
-  function projectSet(result) {
+  const publicDescriptor = (descriptor, { view = 'page' } = {}) => {
+    const { url, schemaVersion, page, region, imageSize } = descriptor
+    if (view !== 'region') return { url, schemaVersion, page, region, imageSize }
+    const box = pixelBounds(descriptor)
+    return { url: url + '&view=region', schemaVersion: 'native-source-region-v2', page, region, imageSize,
+      renderedImageSize: [box.width, box.height] }
+  }
+  function projectSet(result, options) {
     return { ...result, questionGroups: result.questionGroups.map(group => {
       if (group.sourceContent?.assetUrls?.length) return group
       const descriptors = resolve(group.routeId, group.id)
-      return descriptors.length ? { ...group, nativeSourceImages: descriptors.map(publicDescriptor) } : group
+      return descriptors.length ? { ...group, nativeSourceImages: descriptors.map(d => publicDescriptor(d, options)) } : group
     }) }
   }
   async function drain() {
@@ -56,33 +80,36 @@ export function createNativeQuestionImages({ getQuestionBank, libraryRoot, env =
     active = true
     const job = queue.shift()
     try {
-      const value = await pageReader(job.descriptor.spec)
+      const page = await pageReader(job.descriptor.spec)
       if (resolve(job.routeId, job.sourceQuestionId)[job.region]?.v !== job.v) fail(409, 'native_question_image_changed')
-      if (!Buffer.isBuffer(value.bytes) || !value.bytes.length || value.bytes.length > 8 * 1024 * 1024 || value.contentType !== 'image/png' ||
-        crypto.createHash('sha256').update(value.bytes).digest('hex') !== job.descriptor.spec.expectedPageImageSha256) fail(422, 'native_question_image_invalid')
+      if (!Buffer.isBuffer(page.bytes) || !page.bytes.length || page.bytes.length > 8 * 1024 * 1024 || page.contentType !== 'image/png' ||
+        crypto.createHash('sha256').update(page.bytes).digest('hex') !== job.descriptor.spec.expectedPageImageSha256) fail(422, 'native_question_image_invalid')
+      const value = job.view === 'region' ? await sourceRegionPixels(page, job.descriptor) : page
+      if (resolve(job.routeId, job.sourceQuestionId)[job.region]?.v !== job.v) fail(409, 'native_question_image_changed')
       while (cache.size >= 40 || cachedBytes + value.bytes.length > 8 * 1024 * 1024) {
         const first = cache.keys().next().value
         if (first === undefined) break
         cachedBytes -= cache.get(first).bytes.length; cache.delete(first)
       }
-      cache.set(job.v, value); cachedBytes += value.bytes.length; job.resolve(value)
+      cache.set(job.cacheKey, value); cachedBytes += value.bytes.length; job.resolve(value)
     } catch (error) { job.reject(error) }
-    finally { pending.delete(job.v); active = false; drain() }
+    finally { pending.delete(job.cacheKey); active = false; drain() }
   }
   function image(input) {
-    const routeId = String(input.routeId || ''), sourceQuestionId = String(input.sourceQuestionId || ''), region = Number(input.region), v = String(input.v || '')
+    const routeId = String(input.routeId || ''), sourceQuestionId = String(input.sourceQuestionId || ''), region = Number(input.region), v = String(input.v || ''), view = input.view === undefined ? 'page' : String(input.view)
     if (!/^[a-z0-9-]{1,100}$/.test(routeId) || !/^[-A-Za-z0-9_:]{1,200}$/.test(sourceQuestionId) ||
-      !/^\d{1,2}$/.test(String(input.region)) || !Number.isInteger(region) || region < 0 || region >= 20 || !HASH.test(v)) fail(400, 'native_question_image_scope')
+      !/^\d{1,2}$/.test(String(input.region)) || !Number.isInteger(region) || region < 0 || region >= 20 || !HASH.test(v) || !['page', 'region'].includes(view)) fail(400, 'native_question_image_scope')
     const descriptor = resolve(routeId, sourceQuestionId)[region]
     if (!descriptor) fail(404, 'native_question_image_not_found')
     if (descriptor.v !== v) fail(409, 'native_question_image_changed')
-    if (cache.has(v)) {
-      const value = cache.get(v); cache.delete(v); cache.set(v, value); return Promise.resolve(value)
+    const cacheKey = v + ':' + view
+    if (cache.has(cacheKey)) {
+      const value = cache.get(cacheKey); cache.delete(cacheKey); cache.set(cacheKey, value); return Promise.resolve(value)
     }
-    if (pending.has(v)) return pending.get(v)
+    if (pending.has(cacheKey)) return pending.get(cacheKey)
     if (queue.length >= 4) fail(503, 'native_question_image_busy')
-    const promise = new Promise((resolve, reject) => queue.push({ routeId, sourceQuestionId, region, v, descriptor, resolve, reject }))
-    pending.set(v, promise); drain(); return promise
+    const promise = new Promise((resolve, reject) => queue.push({ routeId, sourceQuestionId, region, v, cacheKey, view, descriptor, resolve, reject }))
+    pending.set(cacheKey, promise); drain(); return promise
   }
-  return { projectSet, image, descriptors: (routeId, id) => resolve(routeId, id).map(publicDescriptor) }
+  return { projectSet, image, descriptors: (routeId, id, options) => resolve(routeId, id).map(d => publicDescriptor(d, options)) }
 }

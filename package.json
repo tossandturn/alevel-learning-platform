@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "pretest": "npm run test:catalog-compression && npm run test:native-paper-context && npm run test:remediation-contracts && npm run test:remediation-runtime",
-    "test:catalog-compression": "node scripts/test-stem-catalog-compression.mjs",
+    "test:catalog-compression": "node scripts/test-stem-catalog-compression.mjs && node scripts/test-native-source-region-delivery.mjs",
     "test:native-paper-context": "node scripts/test-native-paper-context.mjs && node scripts/test-native-wechat-entry.mjs && node scripts/test-native-paper-catalog.mjs && node scripts/test-native-runtime-scope.mjs && node scripts/test-native-question-images.mjs && node scripts/test-native-source-page-cache.mjs && node scripts/test-coordinate-source-cache.mjs",
     "test:remediation-contracts": "node scripts/test-9702-syllabus-coverage-contract.mjs && node scripts/test-all-syllabus-coverage-contract.mjs && node scripts/test-topic-drill-readiness-floor.mjs && node scripts/test-secondary-syllabus-mapping.mjs && node scripts/test-full-paper-attempt-binding.mjs && node scripts/test-stem-syllabus-runtime-cache.mjs && node scripts/test-topic-pdf-request-deadline.mjs && node scripts/test-stem-9709-route-consistency.mjs && node scripts/test-native-pencil-bridge.mjs",
     "test:remediation-runtime": "node scripts/test-full-paper-attempt-binding.mjs && node scripts/test-stem-syllabus-runtime-cache.mjs && node scripts/test-stem-disk-seed-cache.mjs",

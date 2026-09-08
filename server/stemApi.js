@@ -2561,7 +2561,9 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
           includeStudyOnly: routeIncludesStudyOnly,
         })
         requireStartableTopicPracticeSet(result)
-        await sendPublicCatalogJson(request, response, 201, { ...nativeQuestionImages.projectSet(result), ownerId: user?.id || null })
+        const view = request.headers['x-stemist-source-images'] === 'region-v2' ? 'region' : 'page'
+        response.setHeader('Vary', [response.getHeader?.('Vary'), 'X-STEMist-Source-Images'].filter(Boolean).join(', '))
+        await sendPublicCatalogJson(request, response, 201, { ...nativeQuestionImages.projectSet(result, { view }), ownerId: user?.id || null })
         return
       }
       if (request.method === 'POST' && url.pathname === '/api/stem/practice-sets/rebind') {
