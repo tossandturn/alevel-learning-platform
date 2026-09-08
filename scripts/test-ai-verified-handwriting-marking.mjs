@@ -401,6 +401,22 @@ try {
   )
   assert.notEqual(questionDescriptor.sha256, questionPageImageSha256, 'a non-full-page crop must not masquerade as the verified full-page bytes')
 
+  assert.match(providerCalls[0].messages[0].content, /marks actually earned/, 'the provider contract must distinguish earned marks from rubric weight')
+  assert.match(providerCalls[0].messages[0].content, /sum of all markPoints\[\]\.marks must equal rawMarks/, 'point totals must reconcile explicitly')
+  providerAssessment = { rawMarks: 0, maxMarks: 2, confidence: 1, reviewRequired: false,
+    summary: 'The selected option is incorrect.', markPoints: [{ id: 'A1', awarded: false, marks: 1,
+      reason: 'The answer did not earn credit.', studentEvidence: 'The student selected B.' }] }
+  const weightedZero = await post(appBase, '/api/ai/mark-handwriting', { ...request, markingGrant }, token)
+  assert.equal(weightedZero.response.status, 422, 'the real false+1 Qwen response shape is ambiguous and remains rejected')
+  assert.equal(weightedZero.payload.code, 'ai_assessment_schema_invalid')
+  assert.equal(Object.hasOwn(weightedZero.payload, 'score'), false, 'invalid zero-score output is not coerced into a grade')
+  providerAssessment.markPoints[0].marks = 0
+  const validZero = await post(appBase, '/api/ai/mark-handwriting', { ...request, markingGrant }, token)
+  assert.equal(validZero.response.status, 200)
+  assert.equal(validZero.payload.score, 0, 'a valid zero score is a real result, not a missing value')
+  assert.equal(validZero.payload.criteria[0].awarded, false)
+  assert.equal(validZero.payload.criteria[0].marks, 0)
+
   providerAssessment = {
     rawMarks: 1,
     maxMarks: 99,

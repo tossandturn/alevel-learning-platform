@@ -1796,6 +1796,11 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
     'Do not award marks for handwriting you cannot read. Set reviewRequired true when the question, diagram, handwriting or mark scheme is incomplete or ambiguous.',
     'Return JSON only with: rawMarks, maxMarks, confidence (0-1), reviewRequired, summary, recognizedWork, correctedSolution, nextAction, markPoints[].',
     'Each markPoints item must contain id, awarded, marks, reason and studentEvidence.',
+    'markPoints[].marks is the integer number of marks actually earned for that point, not its available rubric weight.',
+    'Use awarded=false with marks=0 for an unearned point. Use awarded=true only when marks is a positive integer.',
+    'The sum of all markPoints[].marks must equal rawMarks. rawMarks is an integer from 0 to requestedMaxMarks; maxMarks must equal requestedMaxMarks.',
+    'A zero score is valid: return rawMarks=0 and at least one point with awarded=false and marks=0. Do not omit markPoints when no credit is earned.',
+    'For every point, keep reason and studentEvidence non-empty and grounded in the observed answer, including incorrect or unreadable work; never copy schema instructions as student evidence.',
   ].join('\n')
   let lastError = null
   let lastAttemptedProvider = activeProviders[0]
