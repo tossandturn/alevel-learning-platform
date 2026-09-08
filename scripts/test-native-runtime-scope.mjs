@@ -35,6 +35,8 @@ try{
  const legacyS1=load(fixture('cie-9709-as-p1-p5',2017,6,1,5));assert.equal(legacyS1.length,1);assert.equal(legacyS1[0].paperComponent,5);assert.equal(legacyS1[0].sourceRef.component,6)
  const legacyS2=load(fixture('cie-9709-a2-after-p1-p5-p3-p6',2019,7,1,6));assert.equal(legacyS2.length,1);assert.equal(legacyS2[0].paperComponent,6);assert.equal(legacyS2[0].sourceRef.component,7)
  assert.equal(load(fixture('cie-9709-as-p1-p5',2018,5,1,5)).length,0,'historical M2 is not current S1')
+ assert.equal(load(fixture('cie-9231-as-p1-p3',2019,1)).length,0,'legacy Further full Pure cannot be labelled current AS P1 by its file number')
+ assert.equal(load(fixture('cie-9231-a2-after-p1-p3-p2-p4',2019,2)).length,0,'legacy Further applied Paper 2 is not current Pure 2')
  const a=fixture('cie-9702-a2-physics',2025,4,12),groups=load(a),topic=routeById(a.syllabusRouteId).syllabus.topics[0].id
  const inv=syllabusTopicsInventory({routeId:a.syllabusRouteId,questionBank:groups,includeStudyOnly:false}),row=inv.topics.find(t=>t.id===topic)
  assert.deepEqual(inv.practicePolicy,{schemaVersion:'stem-topic-practice-policy-v1',minSourceGroups:6,minReviewedGroups:12,setSizes:[6,10,15]})

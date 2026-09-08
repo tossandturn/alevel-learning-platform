@@ -275,6 +275,20 @@ function paperMapForYear(subject, year) {
 export function getExamPaperProfile(subject, variant, year = null) {
   const structure = examStructures[subject]
   const paperNumbers = paperNumbersFromVariant(variant)
+  // The 2020 9231 revision introduced AS and replaced two broad papers with
+  // four components. Old Paper 2 is not current Further Pure Mathematics 2.
+  // Keep the source archive, but require reviewed question-level mapping
+  // before assigning a legacy question to a modern component/stage.
+  // Cambridge change record: Images/414957-2020-2022-syllabus.pdf, pp.47–49.
+  if (subject === '9231' && year != null && Number(year) <= 2019) {
+    if (paperNumbers.length !== 1 || ![1, 2].includes(paperNumbers[0])) return null
+    const paperNumber = paperNumbers[0]
+    return { subject, paperNumber, paperNumbers, courseComponent: null, code: `${subject}/${variant || paperNumber}`,
+      title: `Further Mathematics — legacy Paper ${paperNumber}`, qualification: 'Cambridge International A Level',
+      sourceUrl: structure.sourceUrl, syllabusUrl: 'https://www.cambridgeinternational.org/Images/414957-2020-2022-syllabus.pdf',
+      mode: 'reference', durationMinutes: null, maxMarks: null, defaultQuestionCount: null, questionCountRange: [0, 0],
+      stages: ['full'], routeIds: [], courseRouteIds: [], courseRouteId: LEGACY_UNSCOPED_ROUTE_ID, syllabusEra: 'legacy-through-2019' }
+  }
   const papers = paperMapForYear(subject, year)
   if (!structure || !papers || !paperNumbers.length) return null
   const matchedPapers = paperNumbers.map((paperNumber) => papers[paperNumber]).filter(Boolean)
