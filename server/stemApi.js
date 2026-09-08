@@ -10,6 +10,7 @@ import { MIN_QUESTION_GROUPS_PER_TEST, MIN_VERIFIED_GROUPS_FOR_PRACTICE } from '
 import { PAPER_STUDY_MODES } from '../src/lib/paperStudyMode.js'
 import { createNativePaperCatalog } from './nativePaperCatalog.js'
 import { createNativeQuestionImages } from './nativeQuestionImages.js'
+import { sendPublicCatalogJson } from './publicCatalogJson.js'
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024
 const REBIND_BODY_BYTES = 256 * 1024
@@ -2403,13 +2404,13 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
       }
       if (request.method === 'GET' && url.pathname === '/api/stem/paper-catalog') {
         const query = Object.fromEntries(url.searchParams)
-        sendJson(response, 200, query.id ? await nativePaperCatalog.detail(query) : await nativePaperCatalog.list(query))
+        await sendPublicCatalogJson(request, response, 200, query.id ? await nativePaperCatalog.detail(query) : await nativePaperCatalog.list(query))
         return
       }
       const paperSourcesMatch = url.pathname.match(/^\/api\/stem\/papers\/([A-Za-z0-9_-]+)\/source-context$/)
       if (request.method === 'GET' && paperSourcesMatch) {
         const result = nativePaperContext(currentTopicPracticeQuestionBank(), { paperId: paperSourcesMatch[1], routeId: url.searchParams.get('routeId'), stage: url.searchParams.get('stage') })
-        sendJson(response, 200, { schemaVersion: 'native-paper-sources-v1', paperId: result.paperId, routeId: result.routeId, stage: result.stage, questions: result.questions.map(({ number, sourceQuestionId, images }) => ({ number, sourceQuestionId, images })) })
+        await sendPublicCatalogJson(request, response, 200, { schemaVersion: 'native-paper-sources-v1', paperId: result.paperId, routeId: result.routeId, stage: result.stage, questions: result.questions.map(({ number, sourceQuestionId, images }) => ({ number, sourceQuestionId, images })) })
         return
       }
       const nativePaperMatch = url.pathname.match(/^\/api\/stem\/papers\/([A-Za-z0-9_-]+)\/native-context$/)
@@ -2488,7 +2489,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
           ...(databaseById.get(topic.id) || {}),
           points: topic.points || [],
         }))
-        sendJson(response, 200, {
+        await sendPublicCatalogJson(request, response, 200, {
           ...staticInventory,
           topics,
           ready: topics.length > 0 && topics.every((topic) => topic.ready),
@@ -2560,7 +2561,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
           includeStudyOnly: routeIncludesStudyOnly,
         })
         requireStartableTopicPracticeSet(result)
-        sendJson(response, 201, { ...nativeQuestionImages.projectSet(result), ownerId: user?.id || null })
+        await sendPublicCatalogJson(request, response, 201, { ...nativeQuestionImages.projectSet(result), ownerId: user?.id || null })
         return
       }
       if (request.method === 'POST' && url.pathname === '/api/stem/practice-sets/rebind') {
