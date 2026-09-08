@@ -462,7 +462,10 @@ function coordinatePageEvidence(entries, { expectedDocumentSha256 = '', requireR
     if (requireRegion && (entry?.coordinateSpace !== 'normalized-xyxy' || !region)) throw sourceContextFailure(failureCode)
     const existing = byPage.get(page)
     if (existing && existing.pageImageSha256 !== pageImageSha256) throw sourceContextFailure('source_asset_checksum_conflict')
-    byPage.set(page, { page, pageImageSha256, region: unionCoordinateRegions(existing?.region, region) })
+    const imageSize = entry?.imageSize
+    if (imageSize !== undefined && (!Array.isArray(imageSize) || imageSize.length !== 2 || !imageSize.every(n => Number.isInteger(n) && n > 0 && n <= 10000))) throw sourceContextFailure(failureCode)
+    if (existing?.imageSize && imageSize && JSON.stringify(existing.imageSize) !== JSON.stringify(imageSize)) throw sourceContextFailure('source_asset_checksum_conflict')
+    byPage.set(page, { page, pageImageSha256, imageSize: imageSize || existing?.imageSize, region: unionCoordinateRegions(existing?.region, region) })
   }
   return [...byPage.values()].sort((left, right) => left.page - right.page)
 }
@@ -487,6 +490,7 @@ async function coordinateOfficialImages(canonical, { libraryRoot, env, deadlineA
     failureCode: 'source_asset_evidence_missing',
   })
   const markSchemeEvidence = coordinatePageEvidence(part.markSchemeEvidence, {
+    expectedDocumentSha256: answerRef.sha256,
     failureCode: 'mark_scheme_asset_evidence_missing',
   })
   if (!subject || !questionEvidence.length) throw sourceContextFailure('source_asset_evidence_missing')
@@ -500,6 +504,7 @@ async function coordinateOfficialImages(canonical, { libraryRoot, env, deadlineA
       expectedPdfSha256: sourceRef.sha256,
       page: evidence.page,
       expectedPageImageSha256: evidence.pageImageSha256,
+      imageSize: evidence.imageSize,
       role: 'question-paper',
       region: evidence.region,
       renderDpi,
@@ -513,6 +518,7 @@ async function coordinateOfficialImages(canonical, { libraryRoot, env, deadlineA
       expectedPdfSha256: answerRef.sha256,
       page: evidence.page,
       expectedPageImageSha256: evidence.pageImageSha256,
+      imageSize: evidence.imageSize,
       role: 'mark-scheme',
       renderDpi,
       deadlineAt,

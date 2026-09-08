@@ -10,9 +10,9 @@ import { CAMBRIDGE_0580_P1_M25_SYLLABUS_REVIEW_BY_QUESTION_ID } from '../data/re
 import { isAiMarkablePastPaperItem, isHumanReviewedPastPaperItem, isStudentReleasedAiStudyItem, isStudyOnlyPastPaperItem, normalizeImportedQuestion, studyQuestionBank, unifiedQuestionBank } from '../data/questionBank.js'
 import { routeById } from '../data/routeRegistry.js'
 import { canonicalAiMarkingProvenance, canonicalSourcePracticeProvenance } from './sourceContentContract.js'
-import { canonicalSyllabusTopicIdForRoute, syllabusTopicScopeIdsForRoute } from './syllabusPracticeRoutes.js'
+import { canonicalSyllabusTopicIdForRoute, syllabusTopicScopeIdsForRoute, syllabusPracticeComponentsForRoute, SYLLABUS_PRACTICE_ROUTE_IDS } from './syllabusPracticeRoutes.js'
 import { practiceUnitMetrics, withPracticePresentation } from './practicePresentation.js'
-import { MIN_QUESTION_GROUPS_PER_TEST, MIN_VERIFIED_GROUPS_FOR_PRACTICE, selectedTopicPracticeEligibility, topicPracticeEligibility } from './practiceConstants.js'
+import { MIN_QUESTION_GROUPS_PER_TEST, MIN_VERIFIED_GROUPS_FOR_PRACTICE, TOPIC_PRACTICE_SET_SIZES, selectedTopicPracticeEligibility, topicPracticeEligibility } from './practiceConstants.js'
 
 export { supportsSyllabusPracticeRoute } from './syllabusPracticeRoutes.js'
 
@@ -143,8 +143,12 @@ const SYLLABUS_CONFIGS = Object.freeze({
 })
 
 function syllabusConfig(routeId) {
-  return SYLLABUS_CONFIGS[routeId] || null
+  if(SYLLABUS_CONFIGS[routeId])return SYLLABUS_CONFIGS[routeId]
+  const route=routeById(routeId),components=syllabusPracticeComponentsForRoute(routeId)
+  if(!route||!components.length||!route.syllabus?.topics?.length)return null
+  return {routeId,subjectCode:route.subjectCode,stage:route.stage,components,syllabus:routeSyllabus(routeId,components)}
 }
+function allSyllabusConfigs(){return [...new Set([...Object.keys(SYLLABUS_CONFIGS),...SYLLABUS_PRACTICE_ROUTE_IDS])].map(syllabusConfig).filter(Boolean)}
 
 const MATH_9709_COMPONENT_DOMAIN = Object.freeze({
   1: 'pure',
@@ -622,6 +626,8 @@ function topicRowsForRoute(routeId, questionBank, { includeStudyOnly = true } = 
       return [component, {
         indexedQuestionIds: componentIds(() => true),
         verifiedQuestionIds: componentIds((record) => record.eligible),
+        releasedStudyQuestionIds: componentIds((record) => record.releasedStudyEligible),
+        apiReadyQuestionIds: componentIds((record) => recordPracticeAvailable(record, includeStudyOnly)),
         studyQuestionIds: componentIds((record) => recordStudyAvailable(record, includeStudyOnly)),
         pendingReviewQuestionIds: componentIds((record) => !record.eligible),
       }]
@@ -644,6 +650,10 @@ function topicRowsForRoute(routeId, questionBank, { includeStudyOnly = true } = 
       verifiedQuestionCount,
       studyQuestionCount,
       availableQuestionCount,
+      apiReadyQuestionCount: availableQuestionCount,
+      releasedStudyQuestionCount: topicRecords.filter(record=>record.releasedStudyEligible).length,
+      apiStartable: eligibility.ready || eligibility.studyReady,
+      formalScoreReady: eligibility.ready,
       componentCounts,
       questionIdsByComponent,
       indexedQuestionCount,
@@ -683,6 +693,7 @@ export function syllabusTopicsInventory({ routeId, questionBank = unifiedQuestio
   const availableRecordIds = new Set([...verifiedRecords, ...studyRecords].map((record) => record.sourceQuestionId))
   return {
     schemaVersion: SYLLABUS_CATALOG_SCHEMA_VERSION,
+    practicePolicy: {schemaVersion:'stem-topic-practice-policy-v1',minSourceGroups:MIN_QUESTION_GROUPS_PER_TEST,minReviewedGroups:MIN_VERIFIED_GROUPS_FOR_PRACTICE,setSizes:[...TOPIC_PRACTICE_SET_SIZES]},
     routeId,
     qualification: route.qualification,
     qualificationId: route.qualificationId,
@@ -925,6 +936,7 @@ function publicQuestionGroup(record, { forceStudyOnly = false } = {}) {
     // some individual groups were already human-reviewed.
     formalProgressEligible: Boolean(!studyOnly && record.eligible && question.formalProgressEligible !== false),
     sourceContent: {
+      schemaVersion: question.sourceContent?.schemaVersion || '',
       complete: question.sourceContent?.complete === true,
       fileComplete: question.sourceContent?.fileComplete === true,
       semanticStatus: question.sourceContent?.semanticStatus || 'unreviewed',
@@ -1491,7 +1503,7 @@ export function seedSyllabusTables(database, questionBank = []) {
       official_text = excluded.official_text,
       updated_at = excluded.updated_at
   `)
-  for (const config of Object.values(SYLLABUS_CONFIGS)) {
+  for (const config of allSyllabusConfigs()) {
     for (const topic of config.syllabus.topics) {
       insertTopic.run(config.syllabus.routeId, topic.id, topic.syllabusVersion, topic.code, topic.name, topic.order, topic.officialPage, config.syllabus.officialUrl, now)
       for (const syllabusPoint of topic.points) {
@@ -1542,7 +1554,7 @@ export function seedSyllabusTables(database, questionBank = []) {
       updated_at = excluded.updated_at
   `)
   const activeAiVerifiedQuestionGroupIds = new Set()
-  for (const config of Object.values(SYLLABUS_CONFIGS)) {
+  for (const config of allSyllabusConfigs()) {
     const records = effectiveQuestionRecords(questionBank, config)
     for (const record of records) {
     const question = record.question

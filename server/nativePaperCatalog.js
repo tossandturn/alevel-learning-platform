@@ -10,6 +10,23 @@ const STAGES=new Set(['all','igcse','as','a2','competition','admissions'])
 const text=(value,max=260)=>typeof value==='string'?value.slice(0,max):''
 const fail=(statusCode,code,message)=>{throw Object.assign(new Error(message),{statusCode,code})}
 const stageOf=route=>String(route.stage).toLowerCase()
+const ACADEMIC_SUBJECTS=new Set(courseRoutes.filter(r=>['AS','A2','IGCSE'].includes(r.stage)).map(r=>r.subjectCode))
+const SEASON_LABELS={spring:'春季（2–3月）',summer:'夏季（5–6月）',winter:'秋冬季（10–11月）',unspecified:'未注明场次'}
+const safeSeasonKey=value=>/^[a-z0-9][a-z0-9_-]{0,39}$/.test(value)?value:'round-'+crypto.createHash('sha256').update(value).digest('hex').slice(0,16)
+function seasonOf(item,subject){
+ const raw=text(item.season,40).trim(),value=raw.toLowerCase().replace(/[\s/_.-]+/g,'')
+ if(ACADEMIC_SUBJECTS.has(subject)){
+  const key=/^(?:m|mar|march|feb|february|febmar|februarymarch|spring)$/.test(value)?'spring':/^(?:s|may|jun|june|mayjun|mayjune|summer)$/.test(value)?'summer':/^(?:w|oct|october|nov|november|octnov|octobernovember|winter)$/.test(value)?'winter':!value?({m:'spring',s:'summer',w:'winter'}[String(item.file||'').match(/^\d{4}_([msw])\d{2}_/i)?.[1]?.toLowerCase()]||'unspecified'):safeSeasonKey(value)
+  return {seasonKey:key,seasonLabel:SEASON_LABELS[key]||raw}
+ }
+ // Competition/admissions metadata describes rounds or forms, not seasons.
+ return {seasonKey:value?safeSeasonKey(value):'unspecified',seasonLabel:raw||SEASON_LABELS.unspecified}
+}
+function filters(input){
+ const rawYear=String(input.year??'all').trim(),year=['','all'].includes(rawYear)?null:Number(rawYear),season=String(input.season||'all').trim().toLowerCase()
+ if(year!==null&&(!/^\d{4}$/.test(rawYear)||year<=1800)||!/^[a-z0-9][a-z0-9_-]{0,39}$/.test(season))fail(400,'invalid_paper_filters','年份或考试季无效。')
+ return {year,season}
+}
 function localUrl(value,subject){
  const url=text(value,500)
  if(!url.startsWith('/local-pdf/'+subject+'/')||/[\\?#]|\.\.|%2e|%2f|%5c/i.test(url)||!url.endsWith('.pdf'))return ''
@@ -31,14 +48,15 @@ function projectItem(item,subject){
  const singleExam=['bpho','amc12','esat','tmua'].includes(subject)&&known.length===1
  let component=Number(profile.paperNumber||String(profile.code||'').split('/')[1]?.[0])||null
  const physicalComponent=component
- if(subject==='9709'&&Number(item.year)<=2019){
+ if(decoded)component=decoded.courseComponent
+ else if(subject==='9709'&&Number(item.year)<=2019){
   const title=String(profile.title||'').toLowerCase().replace(/&/g,'and').replace(/\s+/g,' ').trim()
   const pure=title.match(/^pure mathematics ([123])$/),statistics=title.match(/^probability and statistics ([12])$/)
   component=pure?Number(pure[1]):statistics?Number(statistics[1])+4:/^mechanics(?: 1)?$/.test(title)?4:null
  }
  const matched=known.filter(route=>singleExam||Boolean(component)&&route.paperComponents.includes(component)&&(declared.includes(route.routeId)||Boolean(decoded)))
  const routeIds=matched.map(route=>route.routeId),mappedStages=matched.length?[...new Set(matched.map(stageOf))]:[...new Set(stages)]
- return {id:text(item.id,200),subject,year:Number.isInteger(Number(item.year))&&Number(item.year)>1800?Number(item.year):null,season:text(item.season,40),kind:text(item.kind,10),file:text(item.file),pairKey:text(item.pairKey,200),markSchemeId:text(item.markSchemeId,200),
+ return {id:text(item.id,200),subject,year:Number.isInteger(Number(item.year))&&Number(item.year)>1800?Number(item.year):null,season:text(item.season,40),...seasonOf(item,subject),kind:text(item.kind,10),file:text(item.file),pairKey:text(item.pairKey,200),markSchemeId:text(item.markSchemeId,200),
   paperNumber:text(profile.code,40),title:text(profile.title,160),mode:text(profile.mode,40),durationMinutes:Number(profile.durationMinutes)>0?Number(profile.durationMinutes):null,maxMarks:Number(profile.maxMarks)>0?Number(profile.maxMarks):null,questionCount:null,
   stages:mappedStages,routeIds,paperComponent:physicalComponent,courseComponent:component,localUrl:localUrl(item.localUrl,subject)}
 }
@@ -72,7 +90,7 @@ export function createNativePaperCatalog({directory=fileURLToPath(new URL('../pu
     const ms=byId.get(item.markSchemeId)
     return {...item,markScheme:ms?.kind==='ms'&&item.pairKey&&ms.pairKey===item.pairKey?{id:ms.id,kind:'ms',file:ms.file,localUrl:ms.localUrl}:null}
    }).sort((a,b)=>(b.year||0)-(a.year||0)||b.file.localeCompare(a.file)||a.id.localeCompare(b.id))
-   const result={signature,version:crypto.createHash('sha256').update('native-paper-projection-v2|').update(source).digest('hex').slice(0,24),items,byId:new Map(items.map(item=>[item.id,item]))}
+   const result={signature,version:crypto.createHash('sha256').update('native-paper-projection-v3-filters|').update(source).digest('hex').slice(0,24),items,byId:new Map(items.map(item=>[item.id,item]))}
    cache.delete(subject);cache.set(subject,result);while(cache.size>3)cache.delete(cache.keys().next().value)
    return result
   }).finally(()=>pending.delete(key))
@@ -80,12 +98,18 @@ export function createNativePaperCatalog({directory=fileURLToPath(new URL('../pu
  }
  return {
   async list(input={}){
-   const selected=scope(input),pageSize=Number(input.pageSize??30),requestedPage=Number(input.page??1),query=String(input.query||'').trim().toLowerCase()
+   const selected=scope(input),filter=filters(input),pageSize=Number(input.pageSize??30),requestedPage=Number(input.page??1),query=String(input.query||'').trim().toLowerCase()
    if(!Number.isInteger(pageSize)||pageSize<1||pageSize>30||!Number.isInteger(requestedPage)||requestedPage<1||requestedPage>10000||query.length>120)fail(400,'invalid_paper_page','分页或搜索条件无效。')
    const catalog=await read(selected.subject)
-   const matched=catalog.items.filter(item=>(selected.stage==='all'||item.stages.includes(selected.stage))&&(!selected.routeId||item.routeIds.includes(selected.routeId))&&(!query||(item.file+' '+item.title+' '+item.year+' '+item.season).toLowerCase().includes(query)))
+   const scoped=catalog.items.filter(item=>(selected.stage==='all'||item.stages.includes(selected.stage))&&(!selected.routeId||item.routeIds.includes(selected.routeId)))
+   const order=['spring','summer','winter','unspecified'],seasons=[...new Map(scoped.map(item=>[item.seasonKey,{value:item.seasonKey,label:item.seasonLabel}])).values()].sort((a,b)=>{
+    const left=order.includes(a.value)?order.indexOf(a.value):10,right=order.includes(b.value)?order.indexOf(b.value):10
+    return left-right||a.label.localeCompare(b.label)
+   })
+   const facets={years:[...new Set(scoped.map(item=>item.year).filter(Boolean))].sort((a,b)=>b-a),seasons}
+   const matched=scoped.filter(item=>(filter.year===null||item.year===filter.year)&&(filter.season==='all'||item.seasonKey===filter.season)&&(!query||(item.file+' '+item.title+' '+item.year+' '+item.season+' '+item.seasonLabel).toLowerCase().includes(query)))
    const total=matched.length,pageCount=Math.ceil(total/pageSize),page=Math.min(requestedPage,Math.max(1,pageCount))
-   return {schemaVersion:'native-paper-catalog-v1',...selected,query,page,pageSize,total,pageCount,subjectTotal:catalog.items.length,pairedTotal:matched.filter(item=>item.markScheme).length,version:catalog.version,items:matched.slice((page-1)*pageSize,page*pageSize)}
+   return {schemaVersion:'native-paper-catalog-v1',filterVersion:'native-paper-filters-v1',...selected,...filter,facets,query,page,pageSize,total,pageCount,subjectTotal:catalog.items.length,pairedTotal:matched.filter(item=>item.markScheme).length,version:catalog.version,items:matched.slice((page-1)*pageSize,page*pageSize)}
   },
   async detail(input={}){
    const selected=scope(input),id=String(input.id||'')

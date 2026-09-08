@@ -9,6 +9,7 @@ import { buildSyllabusPracticeSet, rebindSyllabusPracticeUnit, seedSyllabusTable
 import { MIN_QUESTION_GROUPS_PER_TEST, MIN_VERIFIED_GROUPS_FOR_PRACTICE } from '../src/lib/practiceConstants.js'
 import { PAPER_STUDY_MODES } from '../src/lib/paperStudyMode.js'
 import { createNativePaperCatalog } from './nativePaperCatalog.js'
+import { createNativeQuestionImages } from './nativeQuestionImages.js'
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024
 const REBIND_BODY_BYTES = 256 * 1024
@@ -2261,6 +2262,7 @@ export function nativePaperContext(questionBank, { routeId, stage, paperId }) {
 
 export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQuestionBankProvider = null, fetchImpl = fetch, libraryRoot = null, topicPdfRenderer = null, paperCatalogDirectory }) {
   const nativePaperCatalog = createNativePaperCatalog({ directory: paperCatalogDirectory })
+  const nativeQuestionImages = createNativeQuestionImages({getQuestionBank:()=>currentTopicPracticeQuestionBank(),libraryRoot,env})
   // A single shared server key is sufficient for both the internal account
   // request and the short-lived STEM API token. The legacy identity key is a
   // migration fallback only, so every active path uses the same canonical key.
@@ -2324,8 +2326,9 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
         runtimeTopicPracticeQuestionBank = null
       }
       return mergedQuestionBank
-    } catch {
+    } catch (error) {
       // An invalid runtime artifact must fail closed to the established static study bank.
+      if(error?.code==='AI_PDF_RUNTIME_ARTIFACT_LIMIT_EXCEEDED')throw error
       runtimeTopicPracticeSnapshot = null
       runtimeTopicPracticeQuestionBank = null
       return baseTopicPracticeQuestionBank
@@ -2384,6 +2387,11 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
     const url = new URL(request.url, 'http://127.0.0.1')
     if (!url.pathname.startsWith('/api/stem/') && !['/api/auth/status', '/api/auth/config', '/api/auth/login', '/api/auth/register', '/api/auth/logout', '/api/auth/wechat'].includes(url.pathname)) return next()
     try {
+      if(request.method==='GET'&&url.pathname==='/api/stem/practice-source-image'){
+        const result=await nativeQuestionImages.image(Object.fromEntries(url.searchParams))
+        response.setHeader('Content-Type',result.contentType);response.setHeader('Cache-Control','public, max-age=60, must-revalidate');response.setHeader('ETag','"'+result.sha256+'"');response.setHeader('X-Content-Type-Options','nosniff')
+        response.writeHead(200,{'Content-Length':result.bytes.length});response.end(result.bytes);return
+      }
       if (request.method === 'GET' && url.pathname === '/api/stem/paper-catalog') {
         const query = Object.fromEntries(url.searchParams)
         sendJson(response, 200, query.id ? await nativePaperCatalog.detail(query) : await nativePaperCatalog.list(query))
@@ -2541,7 +2549,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
           includeStudyOnly: routeIncludesStudyOnly,
         })
         requireStartableTopicPracticeSet(result)
-        sendJson(response, 201, { ...result, ownerId: user?.id || null })
+        sendJson(response, 201, { ...nativeQuestionImages.projectSet(result), ownerId: user?.id || null })
         return
       }
       if (request.method === 'POST' && url.pathname === '/api/stem/practice-sets/rebind') {

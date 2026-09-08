@@ -5,9 +5,40 @@ import path from 'node:path'
 import { spawn } from 'node:child_process'
 
 import { buildRenderArgs, resolvePopplerExecutable } from '../scripts/ai-pdf-ingestion/render.mjs'
+import { readVerifiedSourcePage, sourcePageCachePath } from './nativeSourcePages.js'
 
 const SHA256 = /^[a-f0-9]{64}$/i
 const DEFAULT_RENDER_DPI = 180
+let pngWork = Promise.resolve(), queuedPngWork = 0
+
+function boundedPngWork(work) {
+  if (queuedPngWork >= 8) throw sourceFailure('source_page_render_busy')
+  queuedPngWork++
+  const pending = pngWork.then(work)
+  pngWork = pending.catch(() => {})
+  return pending.finally(() => { queuedPngWork-- })
+}
+
+async function encodeVerifiedPng(spec, region, deadlineAt) {
+  rendererTimeoutMs(deadlineAt)
+  const page = await readVerifiedSourcePage(spec)
+  // Existing PDF.js deployments already include this pinned Skia binding.
+  // Only verified local bytes are decoded; loadImage never receives a URL.
+  const { createCanvas, loadImage } = await import('@napi-rs/canvas')
+  rendererTimeoutMs(deadlineAt)
+  const image = await loadImage(page.bytes)
+  if (image.width !== page.imageSize[0] || image.height !== page.imageSize[1]) throw sourceFailure('source_provenance_mismatch')
+  const bounds = region ? cropBounds(region, { width: image.width, height: image.height }) : { left: 0, top: 0, width: image.width, height: image.height }
+  const canvas = createCanvas(bounds.width, bounds.height), context = canvas.getContext('2d')
+  context.fillStyle = '#fff'; context.fillRect(0, 0, bounds.width, bounds.height)
+  context.drawImage(image, bounds.left, bounds.top, bounds.width, bounds.height, 0, 0, bounds.width, bounds.height)
+  const bytes = await canvas.encode('jpeg', 90)
+  rendererTimeoutMs(deadlineAt)
+  return Object.freeze({ role: spec.role, page: spec.page, sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+    sourcePageSha256: spec.expectedPageImageSha256, region: region ? Object.freeze([...region]) : null,
+    imageSize: Object.freeze([bounds.width, bounds.height]), sourcePageImageSize: Object.freeze([...page.imageSize]),
+    dataUrl: `data:image/jpeg;base64,${bytes.toString('base64')}` })
+}
 
 function sourceFailure(code) {
   return Object.assign(new Error('The paired official source images are unavailable for this response.'), {
@@ -175,6 +206,7 @@ export async function renderVerifiedCoordinatePdfPage({
   role,
   region = null,
   renderDpi,
+  imageSize,
   deadlineAt = null,
   env = process.env,
 } = {}) {
@@ -193,6 +225,16 @@ export async function renderVerifiedCoordinatePdfPage({
   const pdfBytes = fs.readFileSync(pdfPath)
   if (crypto.createHash('sha256').update(pdfBytes).digest('hex') !== expectedDocumentHash) {
     throw sourceFailure('source_pdf_checksum_mismatch')
+  }
+
+  // PaddleOCR/PDFium source hashes identify original PNG bytes. If a pinned
+  // page is staged, verify it first and crop those pixels; never compare a
+  // Poppler JPEG to a PNG hash or ignore a mismatched cached page.
+  if (/^\d{4}_[msw]\d{2}_(?:qp|ms)_\d{2}\.pdf$/.test(fileName || '')) {
+    const spec = { libraryRoot, cacheRoot: env.STEM_SOURCE_PAGE_CACHE_ROOT, subject, fileName,
+      expectedPdfSha256: expectedDocumentHash, expectedPageImageSha256: expectedPageHash,
+      page: safePageNumber, imageSize, role: role || 'question-paper', allowMarkScheme: true, allowUnknownSize: true }
+    if (fs.existsSync(sourcePageCachePath(spec))) return boundedPngWork(() => encodeVerifiedPng(spec, normalizedRegion, deadlineAt))
   }
 
   const outputDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'stem-coordinate-marking-'))

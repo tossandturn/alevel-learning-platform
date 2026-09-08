@@ -1,4 +1,6 @@
-const SYLLABUS_PRACTICE_ROUTE_IDS = Object.freeze([
+import { courseRoutes } from '../data/routeRegistry.js'
+
+const EXPLICIT_ROUTE_IDS = [
   'cie-0580-igcse-mathematics',
   'cie-0606-igcse-additional-mathematics',
   'cie-0625-igcse-physics',
@@ -10,9 +12,11 @@ const SYLLABUS_PRACTICE_ROUTE_IDS = Object.freeze([
   'cie-9709-a2-after-p1-p5-p3-p4',
   'cie-9709-a2-after-p1-p5-p3-p6',
   'cie-9709-a2-after-p1-p4-p3-p5',
-])
+]
+const academicRoutes=courseRoutes.filter(route=>['IGCSE','A-Level'].includes(route.qualification))
+const SYLLABUS_PRACTICE_ROUTE_IDS=Object.freeze([...new Set([...EXPLICIT_ROUTE_IDS,...academicRoutes.map(route=>route.routeId)])])
 
-const COMPONENTS_BY_ROUTE = Object.freeze({
+const EXPLICIT_COMPONENTS = Object.freeze({
   'cie-0580-igcse-mathematics': Object.freeze([1, 2, 3, 4]),
   'cie-0606-igcse-additional-mathematics': Object.freeze([1, 2]),
   'cie-0625-igcse-physics': Object.freeze([2]),
@@ -25,6 +29,9 @@ const COMPONENTS_BY_ROUTE = Object.freeze({
   'cie-9709-a2-after-p1-p5-p3-p6': Object.freeze([3, 6]),
   'cie-9709-a2-after-p1-p4-p3-p5': Object.freeze([3, 5]),
 })
+// Full-paper routes include practical components; Topic Drill does not.
+const THEORY_COMPONENTS=Object.freeze({'0580':[1,2,3,4],'0606':[1,2],'0610':[1,2,3,4],'0625':[2],'9231':[1,2,3,4],'9700':[1,2,4],'9701':[1,2,4],'9702':[1,2,4],'9708':[1,2,3,4],'9709':[1,2,3,4,5,6]})
+const COMPONENTS_BY_ROUTE=Object.freeze({...EXPLICIT_COMPONENTS,...Object.fromEntries(academicRoutes.filter(route=>!Object.hasOwn(EXPLICIT_COMPONENTS,route.routeId)).map(route=>[route.routeId,Object.freeze(route.paperComponents.map(Number).filter(component=>THEORY_COMPONENTS[route.subjectCode]?.includes(component)))]))})
 
 const LEGACY_TOPIC_BY_ROUTE = Object.freeze({
   'cie-0580-igcse-mathematics': Object.freeze({

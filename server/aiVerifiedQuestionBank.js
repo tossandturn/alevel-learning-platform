@@ -7,23 +7,13 @@ import {
   resolveArtifactSourcePdfPath,
 } from '../scripts/ai-pdf-ingestion/contract.mjs'
 import { routeById } from '../src/data/routeRegistry.js'
+import { getExamPaperProfile } from '../src/data/examStructure.js'
+import { syllabusPracticeComponentsForRoute } from '../src/lib/syllabusPracticeRoutes.js'
 
-const RUNTIME_ROUTE_COMPONENTS = Object.freeze({
-  'cie-0580-igcse-mathematics': Object.freeze([1, 2, 3, 4]),
-  'cie-0625-igcse-physics': Object.freeze([2]),
-  'cie-9702-as-physics': Object.freeze([1, 2]),
-  'cie-9702-a2-physics': Object.freeze([4]),
-  'cie-9709-as-p1-p2': Object.freeze([1, 2]),
-  'cie-9709-as-p1-p4': Object.freeze([1, 4]),
-  'cie-9709-as-p1-p5': Object.freeze([1, 5]),
-  'cie-9709-a2-after-p1-p5-p3-p4': Object.freeze([3, 4]),
-  'cie-9709-a2-after-p1-p5-p3-p6': Object.freeze([3, 6]),
-  'cie-9709-a2-after-p1-p4-p3-p5': Object.freeze([3, 5]),
-})
-const MIN_RUNTIME_YEAR = 2021
+const MIN_RUNTIME_YEAR = 2017
 const MAX_RUNTIME_YEAR = 2025
 const SHA256 = /^[a-f0-9]{64}$/i
-const MAX_RUNTIME_ARTIFACTS = 2000
+export const MAX_RUNTIME_ARTIFACTS = 10000
 const DEFAULT_RENDER_DPI = 180
 
 function asText(value) {
@@ -117,11 +107,15 @@ function portableFileName(value) {
 }
 
 function paperMetadata(file) {
-  const match = /^(\d{4})_([msw])(\d{2})_(qp|ms)_([1-6])(\d)\.pdf$/i.exec(portableFileName(file))
+  const match = /^(\d{4})_([msw])(\d{2})_(qp|ms)_([1-7])(\d)\.pdf$/i.exec(portableFileName(file))
   if (!match) return null
   const year = 2000 + Number(match[3])
   const subjectCode = match[1]
-  const component = Number(match[5])
+  const sourceComponent = Number(match[5])
+  // The original 2017–2019 Mathematics P6/P7 are S1/S2, while P5
+  // is the retired Mechanics 2. Never relabel a historical P5 as S1.
+  const component = getExamPaperProfile(subjectCode, match[5] + match[6], year)?.courseComponent
+  if (!component || component > 6) return null
   if (year < MIN_RUNTIME_YEAR || year > MAX_RUNTIME_YEAR) return null
   return Object.freeze({
     questionFile: match[0],
@@ -131,6 +125,7 @@ function paperMetadata(file) {
     subjectCode,
     kind: match[4].toLowerCase(),
     component,
+    sourceComponent,
     variant: Number(match[6]),
     season: ({ m: 'Mar', s: 'Jun', w: 'Nov' })[match[2].toLowerCase()],
     year,
@@ -139,7 +134,7 @@ function paperMetadata(file) {
 
 function runtimeRouteConfig(routeId) {
   const route = routeById(String(routeId || ''))
-  const components = RUNTIME_ROUTE_COMPONENTS[route?.routeId]
+  const components = syllabusPracticeComponentsForRoute(route?.routeId)
   if (!route || !components?.length) return null
   const topics = route.syllabus?.topics || []
   return Object.freeze({
@@ -349,7 +344,8 @@ function questionFromArtifact(artifact, candidate, verification, metadata, route
     assetUrls: Object.freeze([]),
     year: metadata.year,
     season: metadata.season,
-    component: metadata.component,
+    component: metadata.sourceComponent,
+    courseComponent: metadata.component,
     sha256: sourceHash,
     page: questionPages[0],
     renderDpi,
@@ -531,7 +527,7 @@ export function questionGroupsFromAiArtifacts(artifacts = [], { libraryRoot } = 
     || left.sourceRef.question.localeCompare(right.sourceRef.question, undefined, { numeric: true })))
 }
 
-function artifactPaths(root) {
+function artifactPaths(root, limit) {
   const resolvedRoot = path.resolve(String(root || ''))
   if (!fs.statSync(resolvedRoot, { throwIfNoEntry: false })?.isDirectory()) return []
   const paths = []
@@ -539,7 +535,7 @@ function artifactPaths(root) {
     const directory = path.join(resolvedRoot, paperDirectory.name)
     for (const entry of fs.readdirSync(directory, { withFileTypes: true }).filter((item) => item.isFile() && item.name.endsWith('.json')).sort((left, right) => left.name.localeCompare(right.name))) {
       paths.push(path.join(directory, entry.name))
-      if (paths.length >= MAX_RUNTIME_ARTIFACTS) return paths
+      if (paths.length > limit) throw Object.assign(new Error('Runtime artifact capacity exceeded; no partial catalog was loaded.'), {code:'AI_PDF_RUNTIME_ARTIFACT_LIMIT_EXCEEDED',statusCode:503})
     }
   }
   return paths
@@ -630,17 +626,19 @@ function readVerifiedCoordinateArtifact(artifactPath, libraryRoot) {
 }
 
 /**
- * Returns only the coordinate-bound, five-year A2 Physics P4 records that
+ * Returns only released, coordinate-bound records on registered 2017–2025
+ * academic routes, including year-aware historical Mathematics components, that
  * still match their local QP/MS source PDFs. The caller may cache this loader
  * safely; artifact or source file changes invalidate its snapshot.
  */
-export function createAiVerifiedQuestionBankLoader({ artifactRoot, libraryRoot } = {}) {
+export function createAiVerifiedQuestionBankLoader({ artifactRoot, libraryRoot, artifactLimit = MAX_RUNTIME_ARTIFACTS } = {}) {
+  if(!Number.isInteger(artifactLimit)||artifactLimit<1||artifactLimit>MAX_RUNTIME_ARTIFACTS)throw new Error('Invalid runtime artifact limit')
   const resolvedArtifactRoot = path.resolve(String(artifactRoot || ''))
   const resolvedLibraryRoot = path.resolve(String(libraryRoot || ''))
   let cached = null
 
   return function loadAiVerifiedQuestionBank({ refresh = false } = {}) {
-    const paths = artifactPaths(resolvedArtifactRoot)
+    const paths = artifactPaths(resolvedArtifactRoot, artifactLimit)
     const artifactSnapshot = paths.map(fileSnapshot).join('|')
     const sourceSnapshot = cached?.sourcePaths?.map(fileSnapshot).join('|') || ''
     if (!refresh && cached && cached.artifactSnapshot === artifactSnapshot && cached.sourceSnapshot === sourceSnapshot) return cached.value

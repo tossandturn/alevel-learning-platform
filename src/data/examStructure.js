@@ -282,6 +282,9 @@ export function getExamPaperProfile(subject, variant, year = null) {
   const isCombined = paperNumbers.length > 1
   const paperNumber = isCombined ? null : paperNumbers[0]
   const paper = matchedPapers[0]
+  const courseComponent = isCombined ? null : subject === '9709' && year != null && Number(year) <= 2019
+    ? ({ 1: 1, 2: 2, 3: 3, 4: 4, 6: 5, 7: 6 })[paperNumber] ?? null
+    : paperNumber
   const routeIds = year != null && subject === '9709' && Number(year) <= 2019
     ? []
     : (structure.routes || []).filter((route) => paperNumbers.some((number) => route.papers.includes(number))).map((route) => route.id)
@@ -296,6 +299,7 @@ export function getExamPaperProfile(subject, variant, year = null) {
     subject,
     paperNumber,
     paperNumbers,
+    courseComponent,
     code: `${subject}/${variant || paperNumber || ''}`,
     sourceUrl: structure.sourceUrl,
     syllabusUrl: structure.syllabusUrl || structure.sourceUrl,
