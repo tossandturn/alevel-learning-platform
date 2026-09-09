@@ -123,7 +123,7 @@ const SYLLABUS_CONFIGS = Object.freeze({
     components: SUPPORTED_0625_COMPONENTS,
   }),
   [CAMBRIDGE_0606_IGCSE_SYLLABUS.routeId]: Object.freeze({
-    syllabus: CAMBRIDGE_0606_IGCSE_SYLLABUS,
+    syllabus: routeSyllabus(CAMBRIDGE_0606_IGCSE_SYLLABUS.routeId),
     subjectCode: '0606',
     stage: 'IGCSE',
     components: Object.freeze([1, 2]),

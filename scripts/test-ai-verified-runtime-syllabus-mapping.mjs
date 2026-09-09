@@ -6,6 +6,7 @@ import path from 'node:path'
 
 import { createAiVerifiedQuestionBankLoader } from '../server/aiVerifiedQuestionBank.js'
 import { routeById } from '../src/data/routeRegistry.js'
+import { CAMBRIDGE_9702_A2_SYLLABUS } from '../src/data/syllabus/cambridge-9702-a2-2025-2027.js'
 import { syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
 import { artifactId, buildAiStudentStudyRelease } from './ai-pdf-ingestion/contract.mjs'
 
@@ -143,11 +144,65 @@ function writeArtifact(artifact, suffix = `${artifact.artifactId.slice('sha256:'
 fs.mkdirSync(libraryRoot, { recursive: true })
 fs.mkdirSync(artifactRoot, { recursive: true })
 
+const route0606 = routeById('cie-0606-igcse-additional-mathematics')
+const calculus0606 = route0606.syllabus.topics.find((topic) => topic.id === 'math-0606-calculus')
+const functions0606 = route0606.syllabus.topics.find((topic) => topic.id === 'math-0606-functions')
+assert.deepEqual(calculus0606.points.map((point) => point.id), ['math-0606-point-calculus-01'], '0606 route projection must attach only the official points whose topicId matches Calculus')
+assert.ok(calculus0606.points.every((point) => point.topicId === calculus0606.id), '0606 route points must not be aggregated across topics')
+assert.ok(routeById('cie-0610-igcse-biology').syllabus.topics.every((topic) => !topic.points?.length), 'the 0606 repair must not populate independent 0610 placeholder topics')
+for (const routeId of ['cie-9700-as-biology', 'cie-9701-as-chemistry']) {
+  const route = routeById(routeId)
+  assert.equal(route.syllabus.version, '2025-2027', `${routeId} must retain the current production syllabus version`)
+  assert.ok(route.syllabus.topics.every((topic) => !topic.points?.length), `${routeId} future-version points must not enter the current placeholder route`)
+}
+
 const a2Route = routeById('cie-9702-a2-physics')
 const a2Primary = a2Route.syllabus.topics.find((topic) => topic.id === 'physics-9702-topic-13')
 const a2Secondary = a2Route.syllabus.topics.find((topic) => topic.id === 'physics-9702-topic-12')
 const a2Unrelated = a2Route.syllabus.topics.find((topic) => topic.id === 'physics-9702-topic-15')
 assert.ok(a2Primary && a2Secondary && a2Unrelated, 'A2 official syllabus topics must be available')
+const sourceA2Primary = CAMBRIDGE_9702_A2_SYLLABUS.topics.find((topic) => topic.id === a2Primary.id)
+assert.strictEqual(a2Primary.points, sourceA2Primary.points, 'non-empty nested point collections on other routes must retain their authoritative identity')
+
+const valid0606 = buildArtifact({
+  routeId: route0606.routeId,
+  subjectCode: '0606',
+  stage: 'IGCSE',
+  fileStem: '0606_w25_qp_21',
+  questionStartPage: 9,
+  topicIds: [calculus0606.id],
+  pointIds: [calculus0606.points[0].id],
+  questionRegionPages: [9],
+  markSchemePage: 8,
+  questionNumber: '7',
+})
+const wrong0606Point = buildArtifact({
+  routeId: route0606.routeId,
+  subjectCode: '0606',
+  stage: 'IGCSE',
+  fileStem: '0606_w25_qp_22',
+  questionStartPage: 9,
+  topicIds: [calculus0606.id],
+  pointIds: ['math-0606-point-calculus-99'],
+  questionRegionPages: [9],
+  markSchemePage: 8,
+  questionNumber: '7',
+})
+const wrong0606Topic = buildArtifact({
+  routeId: route0606.routeId,
+  subjectCode: '0606',
+  stage: 'IGCSE',
+  fileStem: '0606_w25_qp_23',
+  questionStartPage: 9,
+  topicIds: [functions0606.id],
+  pointIds: [calculus0606.points[0].id],
+  questionRegionPages: [9],
+  markSchemePage: 8,
+  questionNumber: '7',
+})
+writeArtifact(valid0606)
+writeArtifact(wrong0606Point)
+writeArtifact(wrong0606Topic)
 
 const a2Question = buildArtifact({
   routeId: 'cie-9702-a2-physics',
@@ -252,7 +307,13 @@ writeArtifact(p4Question)
 try {
   const load = createAiVerifiedQuestionBankLoader({ artifactRoot, libraryRoot })
   const loaded = load()
-  assert.equal(loaded.groups.length, 2, 'only valid coordinate-bound runtime artifacts should enter the bank')
+  assert.equal(loaded.groups.length, 3, 'only valid coordinate-bound runtime artifacts should enter the bank')
+
+  const group0606 = loaded.groups.find((group) => group.routeId === route0606.routeId)
+  assert.ok(group0606, 'a valid 0606 Calculus point binding must pass the unchanged runtime loader')
+  assert.deepEqual(group0606.syllabusMapping.syllabusPointIds, ['math-0606-point-calculus-01'])
+  assert.equal(loaded.groups.some((group) => group.sourceRef?.paper === '0606_w25_qp_22.pdf'), false, 'a non-existent 0606 point ID must remain rejected')
+  assert.equal(loaded.groups.some((group) => group.sourceRef?.paper === '0606_w25_qp_23.pdf'), false, 'a Calculus point attached to the wrong 0606 topic must remain rejected')
 
   const a2Group = loaded.groups.find((group) => group.routeId === 'cie-9702-a2-physics')
   assert.ok(a2Group, '9702 A2 runtime group must load')

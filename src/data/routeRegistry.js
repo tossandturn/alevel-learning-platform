@@ -78,10 +78,16 @@ function cieRoute({ routeId, qualification, stage, subject, subjectId, code, pap
   const officialSyllabus = officialSyllabusForRoute({ routeId, code, stage, paperComponents })
   const officialTopics = officialSyllabus?.topics || officialTopicsForRoute({ routeId, code, stage })
   const syllabusTopics = officialTopics
-    ? officialTopics.map((topic) => Object.freeze({
-      ...topic,
-      title: `${topic.code} ${topic.name}`,
-    }))
+    ? officialTopics.map((topic) => {
+      const points = code === '0606' && !topic.points?.length
+        ? Object.freeze((officialSyllabus?.points || []).filter((point) => point.topicId === topic.id))
+        : topic.points
+      return Object.freeze({
+        ...topic,
+        ...(points === undefined ? {} : { points }),
+        title: `${topic.code} ${topic.name}`,
+      })
+    })
     : freezeTopics(topicKey)
   const assessmentComponents = officialSyllabus?.assessmentComponents?.length
     ? officialSyllabus.assessmentComponents.filter((item) => paperComponents.includes(Number(item.component)))
