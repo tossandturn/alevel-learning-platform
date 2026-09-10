@@ -779,7 +779,7 @@ function questionSortKey(question) {
   ].join('\u0000')
 }
 
-function selectBalancedQuestions(records, topicIds, requestedCount, attemptedIds, seed, components, includeStudyOnly = false) {
+function selectBalancedQuestions(records, topicIds, requestedCount, attemptedIds, seed, components, includeStudyOnly = false, requiredStudyTopicIds = []) {
   const random = seededRandom(seed)
   const eligible = [...new Map(records.filter((record) => (
     recordPracticeAvailable(record, includeStudyOnly)
@@ -788,17 +788,47 @@ function selectBalancedQuestions(records, topicIds, requestedCount, attemptedIds
   )).map((record) => [record.sourceQuestionId, record])).values()]
   const unseen = eligible.filter((record) => !attemptedIds.has(record.sourceQuestionId))
   const seen = eligible.filter((record) => attemptedIds.has(record.sourceQuestionId))
+  const sortAndShuffle = (subset) => shuffle(
+    [...subset].sort((left, right) => (
+      questionSortKey(left.question).localeCompare(questionSortKey(right.question))
+      || left.sourceQuestionId.localeCompare(right.sourceQuestionId)
+    )),
+    random,
+  )
   const prioritizedPool = (items) => {
-    const sortAndShuffle = (subset) => shuffle(
-      [...subset].sort((left, right) => questionSortKey(left.question).localeCompare(questionSortKey(right.question))),
-      random,
-    )
     // A source-backed study item is a backfill, never a replacement for a
     // formal reviewed question in the same selected topic.
     return [
       ...sortAndShuffle(items.filter((record) => record.eligible)),
       ...sortAndShuffle(items.filter((record) => !record.eligible)),
     ]
+  }
+  const selected = []
+  const selectedIds = new Set()
+  const uncoveredStudyTopics = new Set(requiredStudyTopicIds)
+  if (uncoveredStudyTopics.size) {
+    // A study-ready catalog must yield a study-only default set even when its
+    // reviewed records alone could fill the requested capacity.
+    const studyCandidates = [
+      ...sortAndShuffle(unseen.filter((record) => record.studyOnly && recordStudyAvailable(record, includeStudyOnly))),
+      ...sortAndShuffle(seen.filter((record) => record.studyOnly && recordStudyAvailable(record, includeStudyOnly))),
+    ]
+    while (uncoveredStudyTopics.size && selected.length < requestedCount) {
+      let next = null
+      let coverage = 0
+      for (const candidate of studyCandidates) {
+        if (selectedIds.has(candidate.sourceQuestionId)) continue
+        const candidateCoverage = (candidate.mapping.topicIds || []).filter((topicId) => uncoveredStudyTopics.has(topicId)).length
+        if (candidateCoverage > coverage) {
+          next = candidate
+          coverage = candidateCoverage
+        }
+      }
+      if (!next) break
+      selected.push(next)
+      selectedIds.add(next.sourceQuestionId)
+      for (const topicId of next.mapping.topicIds || []) uncoveredStudyTopics.delete(topicId)
+    }
   }
   const pools = new Map(topicIds.map((topicId) => [
     topicId,
@@ -808,8 +838,6 @@ function selectBalancedQuestions(records, topicIds, requestedCount, attemptedIds
     topicId,
     prioritizedPool(seen.filter((record) => record.mapping.topicIds?.includes(topicId))),
   ]))
-  const selected = []
-  const selectedIds = new Set()
   const takeUnique = (pool) => {
     while (pool?.length) {
       const next = pool.shift()
@@ -1277,6 +1305,12 @@ export function buildSyllabusPracticeSet({
     .map((record) => record.sourceQuestionId)
     .filter(Boolean)).size
   const effectiveRequestedCount = explicitSourceQuestionIds.length || requestedCount
+  const requiredStudyTopicIds = explicitSourceQuestionIds.length
+    ? []
+    : topicIds.filter((topicId) => (
+        !topicReadiness.eligibility.byTopic[topicId]?.ready
+        && topicReadiness.eligibility.byTopic[topicId]?.studyReady
+      ))
   const selected = explicitSourceQuestionIds.length
     ? selectExplicitQuestions(records, explicitSourceQuestionIds, topicIds, selectedComponents, includeStudyOnly)
     : selectBalancedQuestions(
@@ -1287,6 +1321,7 @@ export function buildSyllabusPracticeSet({
         seed,
         selectedComponents,
         includeStudyOnly,
+        requiredStudyTopicIds,
       )
   if (!selected.length) {
     const error = new Error(`No source-backed study questions are available for the selected syllabus topic${topicIds.length === 1 ? '' : 's'}.`)
