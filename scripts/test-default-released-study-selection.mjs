@@ -167,6 +167,19 @@ for (const questionCount of [6, 10, 15]) {
   }
 }
 
+const reviewedFormal = reviewedQuestions(TOPIC_A, 12)
+const releasedFormal = releasedStudyClone(reviewedFormal[0], 'released-formal-contamination')
+const formalBank = [...reviewedFormal, releasedFormal]
+const defaultFormal = build(formalBank, { questionCount: 6, seed: 101 })
+assert.equal(defaultFormal.practiceMode, 'verified', 'a formal-ready pool stays verified when the selected set contains reviewed questions only')
+assert.equal(defaultFormal.formalProgressEligible, true)
+const contaminatedFormal = build(formalBank, {
+  sourceQuestionIds: [releasedFormal.sourceQuestionId, ...reviewedFormal.slice(0, 5).map((question) => question.sourceQuestionId)],
+})
+assert.equal(contaminatedFormal.practiceMode, 'study-only', 'selecting a released-study question must downgrade this exact set even when its topic reached twelve reviewed groups')
+assert.equal(contaminatedFormal.formalProgressEligible, false)
+assert.ok(contaminatedFormal.questionGroups.every((group) => group.formalProgressEligible === false))
+
 for (const questionBank of [
   reviewedA,
   [...reviewedA, { ...releasedA[0], studentRelease: { ...releasedA[0].studentRelease, status: 'candidate' } }],

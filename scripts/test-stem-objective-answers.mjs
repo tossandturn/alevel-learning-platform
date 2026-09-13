@@ -44,6 +44,14 @@ assert.deepEqual(objectiveAnswerMetadata({
   paperComponent: 9,
   parts: [{ answerArea: { type: 'multiple-choice', input: 'choice' }, options: CHOICES, marks: 1 }],
 }), { answerFormat: 'single-choice', choiceLabels: CHOICES }, 'explicit source MCQ metadata remains supported outside the component allowlist')
+assert.equal(objectiveAnswerMetadata({
+  subjectCode: '9999',
+  paperComponent: 9,
+  parts: [
+    { answerArea: { type: 'multiple-choice', input: 'choice' }, options: CHOICES, marks: 1 },
+    { answerArea: { type: 'written' }, marks: 1 },
+  ],
+}), null, 'one MCQ-looking part cannot relabel a mixed constructed-response group as single choice')
 
 const nativeProjection = projectNativeObjectivePracticeSet({
   schemaVersion: 'server-syllabus-practice-v2',
@@ -93,6 +101,9 @@ assert.deepEqual(scoreObjectiveQuestion({ question: unreviewedQuestion, selected
   maxScore: 1,
   correctOption: null,
 }, 'an unreviewed key must never score even when the option text is present')
+const ambiguousKeyQuestion = structuredClone(reviewedQuestion)
+ambiguousKeyQuestion.parts[0].answerKey = 'A or C'
+assert.equal(scoreObjectiveQuestion({ question: ambiguousKeyQuestion, selectedOption: 'A' }).available, false, 'a multiple-option phrase must not be truncated into a canonical key')
 
 function tokenFor(subject) {
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
@@ -255,6 +266,25 @@ try {
   const wrongOwner = await post('/api/stem/objective-answers', requestBody, otherHeaders)
   assert.equal(wrongOwner.response.status, 404)
   assert.equal(wrongOwner.body.code, 'attempt_not_found')
+
+  const unknownSourceQuestionId = `${paperId}:q999`
+  const unknownAttemptId = 'objective-unknown-source-0001'
+  const unknownAttempt = await post('/api/stem/attempts', {
+    ...attemptBody,
+    attemptId: unknownAttemptId,
+    attempt: { ...attemptBody.attempt, id: unknownAttemptId, answers: { [unknownSourceQuestionId]: 'B' } },
+  })
+  assert.equal(unknownAttempt.response.status, 201, JSON.stringify(unknownAttempt.body))
+  const unknownResult = await post('/api/stem/objective-answers', {
+    ...requestBody,
+    attemptId: unknownAttemptId,
+    sourceQuestionId: unknownSourceQuestionId,
+    selectedOption: 'B',
+  })
+  assert.equal(unknownResult.response.status, 200, JSON.stringify(unknownResult.body))
+  assert.equal(unknownResult.body.available, false)
+  assert.equal(unknownResult.body.maxScore, 1)
+  assert.equal(unknownResult.body.correctOption, null)
 
   const topicAttemptId = 'objective-topic-attempt-0001'
   const topicAttempt = await post('/api/stem/attempts', {

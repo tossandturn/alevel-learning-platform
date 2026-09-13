@@ -2728,8 +2728,9 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
             code: 'objective_attempt_binding_mismatch',
           })
         }
-        const result = scoreObjectiveQuestion({ question, selectedOption: objective.selectedOption })
-        const metadata = objectiveAnswerMetadata(question || { paperId: objective.paperId })
+        const scoringQuestion = question || { paperId: objective.paperId }
+        const result = scoreObjectiveQuestion({ question: scoringQuestion, selectedOption: objective.selectedOption })
+        const metadata = objectiveAnswerMetadata(scoringQuestion)
         sendJson(response, 200, {
           schemaVersion: OBJECTIVE_RESULT_SCHEMA_VERSION,
           ...objective,

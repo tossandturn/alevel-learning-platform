@@ -36,7 +36,7 @@ function paperIdentity(value = {}) {
 
 function canonicalChoice(value) {
   const candidate = text(value, 20).toUpperCase()
-  return candidate.match(/^([A-D])(?:\b|[.)\s:-])/)?.[1] || (/^[A-D]$/.test(candidate) ? candidate : '')
+  return candidate.match(/^([A-D])[.)]?$/)?.[1] || ''
 }
 
 export function isExplicitSingleChoicePart(part) {
@@ -53,7 +53,9 @@ export function isExplicitSingleChoicePart(part) {
 export function objectivePaperProfile(value = {}) {
   const identity = paperIdentity(value)
   const componentConfirmed = OFFICIAL_SINGLE_CHOICE_COMPONENTS.get(identity.subjectCode)?.has(identity.paperComponent) === true
-  const sourceConfirmed = (value.parts || []).some(isExplicitSingleChoicePart)
+  const sourceConfirmed = Array.isArray(value.parts)
+    && value.parts.length === 1
+    && isExplicitSingleChoicePart(value.parts[0])
   if (!componentConfirmed && !sourceConfirmed) return null
   return Object.freeze({
     ...identity,

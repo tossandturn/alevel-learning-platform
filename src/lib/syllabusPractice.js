@@ -1346,13 +1346,15 @@ export function buildSyllabusPracticeSet({
     error.indexedCount = records.filter((record) => topicIds.some((topicId) => record.mapping.topicIds?.includes(topicId))).length
     throw error
   }
-  const formalProgressEligible = topicReadiness.eligibility.ready
   const selectedStudyOnly = selected.some((record) => record.studyOnly)
-  const practiceMode = formalProgressEligible
-    ? 'verified'
-    : selectedStudyOnly || topicReadiness.eligibility.studyReady
-      ? 'study-only'
-      : 'unavailable'
+  const formalProgressEligible = topicReadiness.eligibility.ready && !selectedStudyOnly
+  const practiceMode = selectedStudyOnly
+    ? 'study-only'
+    : formalProgressEligible
+      ? 'verified'
+      : topicReadiness.eligibility.studyReady
+        ? 'study-only'
+        : 'unavailable'
   const forceStudyOnly = practiceMode === 'study-only'
   const questionGroups = selected.map((record) => publicQuestionGroup(record, { forceStudyOnly }))
   const metrics = questionGroupSetMetrics(questionGroups)
