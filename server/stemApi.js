@@ -11,6 +11,13 @@ import { PAPER_STUDY_MODES } from '../src/lib/paperStudyMode.js'
 import { createNativePaperCatalog } from './nativePaperCatalog.js'
 import { createNativeQuestionImages } from './nativeQuestionImages.js'
 import { sendPublicCatalogJson } from './publicCatalogJson.js'
+import {
+  OBJECTIVE_RESULT_SCHEMA_VERSION,
+  objectiveAnswerMetadata,
+  objectivePaperProfile,
+  projectNativeObjectivePracticeSet,
+  scoreObjectiveQuestion,
+} from './objectiveAnswers.js'
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024
 const REBIND_BODY_BYTES = 256 * 1024
@@ -27,6 +34,9 @@ const LEGACY_SCOPE = 'legacy-unscoped'
 const MAX_COACH_HISTORY_MESSAGES = 80
 const FOCUSED_RETEST_PARENT_TTL_MS = 30 * 24 * 60 * 60 * 1000
 const VALID_PAPER_STUDY_MODES = new Set(Object.values(PAPER_STUDY_MODES))
+const OBJECTIVE_ANSWER_REQUEST_KEYS = new Set([
+  'attemptId', 'mode', 'routeId', 'stage', 'paperId', 'sourceQuestionId', 'selectedOption',
+])
 const ROUTE_STAGES = new Map([
   ['igcse', 'IGCSE'],
   ['as', 'AS'],
@@ -315,6 +325,41 @@ function canonicalAttemptId(value) {
     throw Object.assign(new Error('A valid attemptId is required.'), { statusCode: 400, code: 'attempt_invalid' })
   }
   return attemptId
+}
+
+function canonicalObjectiveAnswerRequest(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)
+    || Object.keys(payload).some((key) => !OBJECTIVE_ANSWER_REQUEST_KEYS.has(key))) {
+    throw Object.assign(new Error('The objective answer request is invalid.'), { statusCode: 400, code: 'objective_request_invalid' })
+  }
+  const attemptId = canonicalAttemptId(payload.attemptId)
+  const mode = asText(payload.mode, 32)
+  if (!['topic', 'full-paper'].includes(mode)) {
+    throw Object.assign(new Error('Objective answer mode must be topic or full-paper.'), { statusCode: 400, code: 'objective_mode_invalid' })
+  }
+  const scope = verifiedRouteScope(payload.routeId, payload.stage)
+  const paperId = asText(payload.paperId, 200)
+  if (!/^[A-Za-z0-9_-]{1,200}$/.test(paperId)) {
+    throw Object.assign(new Error('A valid objective paperId is required.'), { statusCode: 400, code: 'objective_paper_invalid' })
+  }
+  const sourceQuestionId = asText(payload.sourceQuestionId, 320)
+  if (!/^[-A-Za-z0-9_:]{1,320}$/.test(sourceQuestionId)
+    || !sourceQuestionId.startsWith(`${paperId}:q`)
+    || !/^q[1-9]\d*$/.test(sourceQuestionId.slice(paperId.length + 1))) {
+    throw Object.assign(new Error('A canonical objective sourceQuestionId is required.'), { statusCode: 400, code: 'objective_question_invalid' })
+  }
+  const selectedOption = asText(payload.selectedOption, 8).toUpperCase()
+  if (!/^[A-D]$/.test(selectedOption)) {
+    throw Object.assign(new Error('selectedOption must be A, B, C or D.'), { statusCode: 400, code: 'objective_option_invalid' })
+  }
+  return { attemptId, mode, routeId: scope.routeId, stage: scope.stage, paperId, sourceQuestionId, selectedOption }
+}
+
+function persistedObjectiveChoice(snapshot, sourceQuestionId) {
+  const raw = snapshot?.answers?.[sourceQuestionId]
+  const value = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw.choice : raw
+  const selectedOption = asText(value, 8).toUpperCase()
+  return /^[A-D]$/.test(selectedOption) ? selectedOption : ''
 }
 
 function compactAttemptValue(value, key = '', depth = 0) {
@@ -2238,6 +2283,7 @@ export function nativePaperContext(questionBank, { routeId, stage, paperId }) {
     if (question.routeId !== scope.routeId || question.stage !== scope.stage || question.sourceRef?.paperId !== paperId) continue
     const sourceQuestionId = String(question.sourceQuestionId || '')
     if (!sourceQuestionId || seen.has(sourceQuestionId)) continue
+    const objectiveMetadata = objectiveAnswerMetadata(question)
     const parts = (question.parts || []).flatMap((part) => {
       const ai = canonicalAiMarkingProvenance(question, part)
       const provenance = ai || canonicalSourcePracticeProvenance(question, part)
@@ -2247,6 +2293,7 @@ export function nativePaperContext(questionBank, { routeId, stage, paperId }) {
         label: String(part.label || ''),
         marks: Number(part.marks),
         provenance: { ...provenance, routeId: scope.routeId },
+        ...(objectiveMetadata ? objectiveMetadata : {}),
       }]
     })
     if (parts.some((part) => !Number.isFinite(part.marks) || part.marks < 0)) continue
@@ -2257,7 +2304,7 @@ export function nativePaperContext(questionBank, { routeId, stage, paperId }) {
       .filter((url) => typeof url === 'string' && /^\/question-assets\/[A-Za-z0-9_-]+\/qp-\d+\.(?:jpg|jpeg|png|webp)$/.test(url) && url.startsWith('/question-assets/' + paperId + '/'))
     if (!parts.length && !images.length) continue
     seen.add(sourceQuestionId)
-    questions.push({ sourceQuestionId, number, parts, images })
+    questions.push({ sourceQuestionId, number, parts, images, ...(objectiveMetadata ? objectiveMetadata : {}) })
   }
   return {
     schemaVersion: 'native-paper-context-v1',
@@ -2410,7 +2457,18 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
       const paperSourcesMatch = url.pathname.match(/^\/api\/stem\/papers\/([A-Za-z0-9_-]+)\/source-context$/)
       if (request.method === 'GET' && paperSourcesMatch) {
         const result = nativePaperContext(currentTopicPracticeQuestionBank(), { paperId: paperSourcesMatch[1], routeId: url.searchParams.get('routeId'), stage: url.searchParams.get('stage') })
-        await sendPublicCatalogJson(request, response, 200, { schemaVersion: 'native-paper-sources-v1', paperId: result.paperId, routeId: result.routeId, stage: result.stage, questions: result.questions.map(({ number, sourceQuestionId, images }) => ({ number, sourceQuestionId, images })) })
+        await sendPublicCatalogJson(request, response, 200, {
+          schemaVersion: 'native-paper-sources-v1',
+          paperId: result.paperId,
+          routeId: result.routeId,
+          stage: result.stage,
+          questions: result.questions.map(({ number, sourceQuestionId, images, answerFormat, choiceLabels }) => ({
+            number,
+            sourceQuestionId,
+            images,
+            ...(answerFormat ? { answerFormat, choiceLabels } : {}),
+          })),
+        })
         return
       }
       const nativePaperMatch = url.pathname.match(/^\/api\/stem\/papers\/([A-Za-z0-9_-]+)\/native-context$/)
@@ -2563,7 +2621,9 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
         requireStartableTopicPracticeSet(result)
         const view = request.headers['x-stemist-source-images'] === 'region-v2' ? 'region' : 'page'
         response.setHeader('Vary', [response.getHeader?.('Vary'), 'X-STEMist-Source-Images'].filter(Boolean).join(', '))
-        await sendPublicCatalogJson(request, response, 201, { ...nativeQuestionImages.projectSet(result, { view }), ownerId: user?.id || null })
+        const projected = nativeQuestionImages.projectSet(result, { view })
+        const studentView = view === 'region' ? projectNativeObjectivePracticeSet(projected) : projected
+        await sendPublicCatalogJson(request, response, 201, { ...studentView, ownerId: user?.id || null })
         return
       }
       if (request.method === 'POST' && url.pathname === '/api/stem/practice-sets/rebind') {
@@ -2592,6 +2652,98 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
         return
       }
       const user = identityFromRequest(request, signingKey)
+      if (request.method === 'POST' && url.pathname === '/api/stem/objective-answers') {
+        const objective = canonicalObjectiveAnswerRequest(await readJson(request, 16 * 1024))
+        const persistedAttemptRow = db.prepare(`
+          SELECT user_id, attempt_id, mode, route_id, stage, paper_id, binding_json, attempt_json, submission_status, submitted_at, created_at, updated_at
+          FROM student_attempts
+          WHERE user_id = ? AND attempt_id = ?
+        `).get(user.id, objective.attemptId)
+        if (!persistedAttemptRow) {
+          const attemptExists = db.prepare('SELECT 1 FROM student_attempts WHERE attempt_id = ? LIMIT 1').get(objective.attemptId)
+          throw Object.assign(new Error(attemptExists
+            ? 'The objective attempt does not belong to this account.'
+            : 'A server-owned objective attempt is required.'), {
+            statusCode: attemptExists ? 404 : 409,
+            code: attemptExists ? 'attempt_not_found' : 'attempt_not_persisted',
+          })
+        }
+        const persistedAttempt = parseStudentAttemptRow(persistedAttemptRow)
+        const binding = persistedAttempt.binding
+        if (!binding
+          || String(binding.attemptId || persistedAttempt.attemptId) !== objective.attemptId
+          || String(binding.mode || '') !== objective.mode
+          || String(binding.routeId || '') !== objective.routeId
+          || String(binding.stage || '') !== objective.stage
+          || (objective.mode === 'full-paper' && String(binding.paperId || '') !== objective.paperId)) {
+          throw Object.assign(new Error('The objective answer does not match the persisted attempt.'), {
+            statusCode: 409,
+            code: 'objective_attempt_binding_mismatch',
+          })
+        }
+        if (persistedAttempt.submissionStatus !== 'submitted') {
+          throw Object.assign(new Error('Submit the persisted attempt before requesting the official objective result.'), {
+            statusCode: 409,
+            code: 'objective_attempt_not_submitted',
+          })
+        }
+        if (persistedObjectiveChoice(persistedAttempt.snapshot, objective.sourceQuestionId) !== objective.selectedOption) {
+          throw Object.assign(new Error('The objective answer does not match the submitted attempt revision.'), {
+            statusCode: 409,
+            code: 'objective_answer_revision_mismatch',
+          })
+        }
+        if (objective.mode === 'topic') {
+          const boundPart = (binding.parts || []).find((part) => (
+            String(part?.sourceQuestionId || '') === objective.sourceQuestionId
+            && String(part?.paperId || '') === objective.paperId
+          ))
+          if (!boundPart) {
+            throw Object.assign(new Error('The objective question is not part of the persisted topic attempt.'), {
+              statusCode: 409,
+              code: 'objective_attempt_binding_mismatch',
+            })
+          }
+        }
+
+        const matchingQuestions = currentRuntimeTopicPracticeQuestionBank().filter((question) => (
+          String(question?.routeId || '') === objective.routeId
+          && String(question?.stage || '') === objective.stage
+          && String(question?.sourceRef?.paperId || '') === objective.paperId
+          && String(question?.sourceQuestionId || question?.questionGroupId || '') === objective.sourceQuestionId
+        ))
+        const question = matchingQuestions.length === 1 ? matchingQuestions[0] : null
+        const paperProfile = objectivePaperProfile(question || { paperId: objective.paperId })
+        if (!paperProfile) {
+          throw Object.assign(new Error('This source question is not confirmed as a single-choice paper item.'), {
+            statusCode: 422,
+            code: 'objective_format_unavailable',
+          })
+        }
+        if (paperProfile.subjectCode
+          && objective.routeId.startsWith('cie-')
+          && !objective.routeId.startsWith(`cie-${paperProfile.subjectCode}-`)) {
+          throw Object.assign(new Error('The objective paper does not match the persisted route.'), {
+            statusCode: 409,
+            code: 'objective_attempt_binding_mismatch',
+          })
+        }
+        const result = scoreObjectiveQuestion({ question, selectedOption: objective.selectedOption })
+        const metadata = objectiveAnswerMetadata(question || { paperId: objective.paperId })
+        sendJson(response, 200, {
+          schemaVersion: OBJECTIVE_RESULT_SCHEMA_VERSION,
+          ...objective,
+          questionPartId: result.questionPartId,
+          ...metadata,
+          available: result.available,
+          source: result.source,
+          sourceStatus: result.sourceStatus,
+          score: result.score,
+          maxScore: result.maxScore,
+          correctOption: result.correctOption,
+        })
+        return
+      }
       if (request.method === 'POST' && url.pathname === '/api/stem/topic-pdfs') {
         if (typeof topicPdfRenderer !== 'function') {
           throw Object.assign(new Error('Topic PDF rendering is not available on this server.'), { statusCode: 503, code: 'topic_pdf_unavailable' })

@@ -39,7 +39,7 @@ try{
  assert.equal(load(fixture('cie-9231-a2-after-p1-p3-p2-p4',2019,2)).length,0,'legacy Further applied Paper 2 is not current Pure 2')
  const a=fixture('cie-9702-a2-physics',2025,4,12),groups=load(a),topic=routeById(a.syllabusRouteId).syllabus.topics[0].id
  const inv=syllabusTopicsInventory({routeId:a.syllabusRouteId,questionBank:groups,includeStudyOnly:false}),row=inv.topics.find(t=>t.id===topic)
- assert.deepEqual(inv.practicePolicy,{schemaVersion:'stem-topic-practice-policy-v1',minSourceGroups:6,minReviewedGroups:12,setSizes:[6,10,15]})
+ assert.deepEqual(inv.practicePolicy,{schemaVersion:'stem-topic-practice-policy-v1',minSourceGroups:6,minReviewedGroups:12,setSizes:[6,10,15],allowReviewedSubsetStudy:true})
  assert.equal(row.apiStartable,true);assert.equal(row.formalScoreReady,false);assert.equal(row.questionIdsByComponent[4].apiReadyQuestionIds.length,12)
  const set=buildSyllabusPracticeSet({routeId:a.syllabusRouteId,syllabusTopicIds:[topic],components:[4],questionCount:6,questionBank:groups,includeStudyOnly:false});assert.equal(set.practiceMode,'study-only')
  const missing=structuredClone(a);delete missing.verification.questions[0].regions;assert.equal(load(missing).length,0,'missing independent regions still reject the whole artifact')

@@ -259,8 +259,10 @@ async function verifyStudyCountListStart() {
             `${routeId} study-only sets must not expose formal progress eligibility`,
           )
         } else if (componentVerifiedCount < MIN_VERIFIED_GROUPS_FOR_PRACTICE) {
-          assert.equal(practice.statusCode, 409, `${routeId} reviewed-only sets below the two-test floor must fail closed`)
-          assert.equal(practice.payload.code, 'insufficient_verified_questions')
+          assert.equal(practice.statusCode, 201, `${routeId} reviewed subsets at or above six groups must start only in study mode`)
+          assert.equal(practice.payload.practiceMode, 'study-only')
+          assert.equal(practice.payload.formalProgressEligible, false)
+          assert.ok(practice.payload.questionGroups.every((group) => group.studyOnly === true && group.formalProgressEligible === false))
         }
       } else {
         assert.equal(practice.statusCode, 409, `${routeId} count/list evidence below six groups must not start`)

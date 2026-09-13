@@ -636,10 +636,21 @@ function topicRowsForRoute(routeId, questionBank, { includeStudyOnly = true } = 
       const componentRecords = topicRecords.filter((record) => record.paperComponent === component)
       const componentVerified = componentRecords.filter((record) => record.eligible).length
       const componentStudy = componentRecords.filter((record) => recordStudyAvailable(record, includeStudyOnly)).length
+      const componentEligibility = topicPracticeEligibility({
+        verifiedQuestionCount: componentVerified,
+        availableQuestionCount: componentVerified + componentStudy,
+      })
       return [component, {
         verifiedQuestionCount: componentVerified,
         studyQuestionCount: componentStudy,
         availableQuestionCount: componentVerified + componentStudy,
+        ready: componentEligibility.ready,
+        studyReady: componentEligibility.studyReady,
+        reviewedSubsetStudy: componentEligibility.reviewedSubsetStudy,
+        apiStartable: componentEligibility.ready || componentEligibility.studyReady,
+        formalScoreReady: componentEligibility.ready,
+        ctaPolicy: componentEligibility.ctaPolicy,
+        availableSetSizes: componentEligibility.availableSetSizes,
       }]
     }))
     const indexedQuestionCount = topicRecords.length
@@ -665,7 +676,9 @@ function topicRowsForRoute(routeId, questionBank, { includeStudyOnly = true } = 
       sourceGap: eligibility.ready
         ? null
         : eligibility.studyReady
-          ? `Available for study: ${availableQuestionCount} complete source question${availableQuestionCount === 1 ? '' : 's'}; ${studyQuestionCount} stay outside formal mastery while source review is pending. Source-complete QP/MS items are AI-marked automatically.`
+          ? eligibility.reviewedSubsetStudy
+            ? `Available for reviewed study: ${verifiedQuestionCount} reviewed source question${verifiedQuestionCount === 1 ? '' : 's'}; ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} are required for formal progress.`
+            : `Available for study: ${availableQuestionCount} complete source question${availableQuestionCount === 1 ? '' : 's'}; ${studyQuestionCount} stay outside formal mastery while source review is pending. Source-complete QP/MS items are AI-marked automatically.`
           : verifiedQuestionCount > 0
             ? `At least ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} reviewed source question groups are required before a Topic Drill can start; ${reviewedSourceQuestionGap(verifiedQuestionCount)}`
             : availableQuestionCount > 0
@@ -693,7 +706,7 @@ export function syllabusTopicsInventory({ routeId, questionBank = unifiedQuestio
   const availableRecordIds = new Set([...verifiedRecords, ...studyRecords].map((record) => record.sourceQuestionId))
   return {
     schemaVersion: SYLLABUS_CATALOG_SCHEMA_VERSION,
-    practicePolicy: {schemaVersion:'stem-topic-practice-policy-v1',minSourceGroups:MIN_QUESTION_GROUPS_PER_TEST,minReviewedGroups:MIN_VERIFIED_GROUPS_FOR_PRACTICE,setSizes:[...TOPIC_PRACTICE_SET_SIZES]},
+    practicePolicy: {schemaVersion:'stem-topic-practice-policy-v1',minSourceGroups:MIN_QUESTION_GROUPS_PER_TEST,minReviewedGroups:MIN_VERIFIED_GROUPS_FOR_PRACTICE,setSizes:[...TOPIC_PRACTICE_SET_SIZES],allowReviewedSubsetStudy:true},
     routeId,
     qualification: route.qualification,
     qualificationId: route.qualificationId,
@@ -1180,10 +1193,12 @@ export function rebindSyllabusPracticeUnit(unit, {
   }
 
   if (reboundParts.some((part) => !part.id)) return null
-  // A reviewed-only source set below the formal per-topic floor must not be
-  // restored by changing a client-side practiceMode flag. The study path is
-  // reserved for source-study records that separately passed that gate.
-  if (!topicReadiness.eligibility.ready && !hasSelectedStudyOnlyRecord) return null
+  // Six to eleven current reviewed groups may be restored only as non-formal
+  // study. Existing explicitly released source-study units retain their prior
+  // restoration path; a client flag alone cannot synthesize either class.
+  if (!topicReadiness.eligibility.ready
+    && !topicReadiness.eligibility.studyReady
+    && !hasSelectedStudyOnlyRecord) return null
   const paperById = new Map()
   for (const part of reboundParts) {
     const source = part.sourceRef || {}
@@ -1309,7 +1324,7 @@ export function buildSyllabusPracticeSet({
     ? []
     : topicIds.filter((topicId) => (
         !topicReadiness.eligibility.byTopic[topicId]?.ready
-        && topicReadiness.eligibility.byTopic[topicId]?.studyReady
+        && topicReadiness.eligibility.byTopic[topicId]?.releasedStudyReady
       ))
   const selected = explicitSourceQuestionIds.length
     ? selectExplicitQuestions(records, explicitSourceQuestionIds, topicIds, selectedComponents, includeStudyOnly)
@@ -1333,19 +1348,17 @@ export function buildSyllabusPracticeSet({
   }
   const formalProgressEligible = topicReadiness.eligibility.ready
   const selectedStudyOnly = selected.some((record) => record.studyOnly)
-  // A reviewed-only pool below the formal two-test floor must not be
-  // relabelled as study-only. Study mode is valid only when the selected set
-  // actually contains source-backed study records that passed that gate.
-  const practiceMode = selectedStudyOnly
-    ? 'study-only'
-    : formalProgressEligible
-      ? 'verified'
+  const practiceMode = formalProgressEligible
+    ? 'verified'
+    : selectedStudyOnly || topicReadiness.eligibility.studyReady
+      ? 'study-only'
       : 'unavailable'
   const forceStudyOnly = practiceMode === 'study-only'
   const questionGroups = selected.map((record) => publicQuestionGroup(record, { forceStudyOnly }))
   const metrics = questionGroupSetMetrics(questionGroups)
   return {
     schemaVersion: 'syllabus-practice-set-v1',
+    practicePolicy: {schemaVersion:'stem-topic-practice-policy-v1',minSourceGroups:MIN_QUESTION_GROUPS_PER_TEST,minReviewedGroups:MIN_VERIFIED_GROUPS_FOR_PRACTICE,setSizes:[...TOPIC_PRACTICE_SET_SIZES],allowReviewedSubsetStudy:true},
     routeId,
     stage: config.stage,
     subjectCode: config.subjectCode,
@@ -1731,7 +1744,9 @@ export function syllabusDatabaseInventory(database, routeId, { includeStudyOnly 
       sourceGap: eligibility.ready
         ? null
         : eligibility.studyReady
-          ? `Available for study: ${availableQuestionCount} complete source question${availableQuestionCount === 1 ? '' : 's'}; ${studyQuestionCount} stay outside formal mastery while source review is pending.`
+          ? eligibility.reviewedSubsetStudy
+            ? `Available for reviewed study: ${verifiedQuestionCount} reviewed source question${verifiedQuestionCount === 1 ? '' : 's'}; ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} are required for formal progress.`
+            : `Available for study: ${availableQuestionCount} complete source question${availableQuestionCount === 1 ? '' : 's'}; ${studyQuestionCount} stay outside formal mastery while source review is pending.`
           : verifiedQuestionCount > 0
             ? `At least ${MIN_VERIFIED_GROUPS_FOR_PRACTICE} reviewed source question groups are required before a Topic Drill can start; ${reviewedSourceQuestionGap(verifiedQuestionCount)}`
             : availableQuestionCount > 0

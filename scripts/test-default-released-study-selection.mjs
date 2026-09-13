@@ -174,8 +174,9 @@ for (const questionBank of [
   const api = createStemApi({ env: { NODE_ENV: 'production', STEM_DB_PATH: ':memory:' }, questionBank })
   try {
     const response = await call(api, { routeId: ROUTE_ID, syllabusTopicIds: [TOPIC_A], components: [COMPONENT], questionCount: 6, excludeAttempted: false, seed: 101 })
-    assert.equal(response.status, 409)
-    assert.equal(response.body.code, 'insufficient_verified_questions')
+    assert.equal(response.status, 201)
+    assert.equal(response.body.practiceMode, 'study-only')
+    assert.equal(response.body.formalProgressEligible, false)
   } finally {
     closeStemDatabaseForTests()
   }
@@ -188,7 +189,8 @@ assert.equal(explicitStudy.practiceMode, 'study-only')
 const explicitReviewedOrder = reviewedA.slice(0, 6).reverse().map((question) => question.sourceQuestionId)
 const explicitReviewed = build(mixedBank, { sourceQuestionIds: explicitReviewedOrder })
 assert.deepEqual(explicitReviewed.sourceQuestionIds, explicitReviewedOrder)
-assert.equal(explicitReviewed.practiceMode, 'unavailable')
+assert.equal(explicitReviewed.practiceMode, 'study-only')
+assert.equal(explicitReviewed.formalProgressEligible, false)
 
 const componentTwoStudies = Array.from({ length: 6 }, (_, index) => releasedStudyClone(reviewedA[index], `released-p2-${index + 1}`, { component: 2 }))
 const componentBank = [...reviewedA, ...releasedA, ...componentTwoStudies]
@@ -252,8 +254,8 @@ console.log(JSON.stringify({
   scope: 'default released-study selection',
   seeds: SEEDS,
   capacities: [6, 10, 15],
-  reviewedOnlyRejected: true,
-  unreleasedStudyRejected: true,
+  reviewedSubsetStudy: true,
+  unreleasedStudyExcluded: true,
   explicitSelectionPreserved: true,
   providerOrderStable: providerOrders.map((entry) => entry.name),
   componentScopePreserved: true,

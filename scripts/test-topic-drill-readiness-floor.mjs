@@ -48,9 +48,9 @@ try {
   assert.ok(tenGroupTopic, 'the official 9702 AS topic must remain present')
   assert.equal(tenGroupTopic.verifiedQuestionCount, 10, 'the under-floor fixture must expose exactly ten reviewed groups')
   assert.equal(tenGroupTopic.ready, false, 'ten reviewed groups cannot supply two disjoint six-question tests')
-  assert.equal(tenGroupTopic.ctaPolicy, 'hidden', 'an under-floor reviewed topic must not expose a misleading study CTA')
-  assert.deepEqual(tenGroupTopic.availableSetSizes, [], 'an under-floor reviewed topic must not advertise a startable set')
-  assert.match(tenGroupTopic.sourceGap, /12 reviewed source question groups/i)
+  assert.equal(tenGroupTopic.ctaPolicy, 'start-study', 'six to eleven reviewed groups must expose only the explicit study CTA')
+  assert.deepEqual(tenGroupTopic.availableSetSizes, [6, 10], 'reviewed subset study keeps the six-question floor and available-size ceiling')
+  assert.match(tenGroupTopic.sourceGap, /reviewed study/i)
 
   const fiveQuestionAttempt = await call(verifiedApi, {
     method: 'POST',
@@ -79,8 +79,10 @@ try {
       seed: 9702,
     },
   })
-  assert.equal(underFloorAttempt.statusCode, 409, 'ten reviewed groups must fail closed at the HTTP start boundary')
-  assert.equal(underFloorAttempt.payload.code, 'insufficient_verified_questions')
+  assert.equal(underFloorAttempt.statusCode, 201, 'ten reviewed groups may start an explicitly non-formal study set')
+  assert.equal(underFloorAttempt.payload.practiceMode, 'study-only')
+  assert.equal(underFloorAttempt.payload.formalProgressEligible, false)
+  assert.ok(underFloorAttempt.payload.questionGroups.every((group) => group.studyOnly === true && group.formalProgressEligible === false))
 
   const twelveGroupTopic = asInventory.topics.find((topic) => topic.id === 'physics-9702-topic-07')
   assert.ok(twelveGroupTopic, 'the reviewed Waves fixture must remain present')
@@ -105,6 +107,61 @@ try {
   assert.equal(sixQuestionAttempt.payload.questionCount, 6)
   assert.equal(new Set(sixQuestionAttempt.payload.sourceQuestionIds).size, 6, 'the launched test must contain six distinct groups')
   assert.ok(sixQuestionAttempt.payload.questionGroups.every((group) => group.reviewStatus === 'reviewed' && group.studyOnly !== true))
+} finally {
+  closeStemDatabaseForTests()
+}
+
+const p1OnlyInventory = syllabusTopicsInventory({ routeId: 'cie-9702-as-physics', questionBank: unifiedQuestionBank })
+assert.equal(p1OnlyInventory.practicePolicy.allowReviewedSubsetStudy, true)
+const reviewedP1Ids = new Set(unifiedQuestionBank
+  .filter((question) => question.routeId === 'cie-9702-as-physics' && question.paperComponent === 1 && isHumanReviewedPastPaperItem(question))
+  .map((question) => question.sourceQuestionId))
+for (const topic of p1OnlyInventory.topics) {
+  assert.ok((topic.questionIdsByComponent?.[1]?.apiReadyQuestionIds || []).every((id) => reviewedP1Ids.has(id)), `${topic.id} P1 API-ready IDs must stay inside the real reviewed bank`)
+}
+assert.deepEqual(p1OnlyInventory.topics.find((topic) => topic.id === 'physics-9702-topic-01')?.componentCounts?.[1]?.availableSetSizes, [6])
+assert.equal(p1OnlyInventory.topics.find((topic) => topic.id === 'physics-9702-topic-01')?.componentCounts?.[1]?.reviewedSubsetStudy, true)
+assert.deepEqual(p1OnlyInventory.topics.find((topic) => topic.id === 'physics-9702-topic-05')?.componentCounts?.[1]?.availableSetSizes, [6, 10])
+assert.equal(p1OnlyInventory.topics.find((topic) => topic.id === 'physics-9702-topic-02')?.componentCounts?.[1]?.apiStartable, false)
+const p1OnlyApi = createStemApi({ env: { NODE_ENV: 'production', STEM_DB_PATH: ':memory:' } })
+try {
+  for (const [topicId, questionCount] of [
+    ['physics-9702-topic-01', 6],
+    ['physics-9702-topic-05', 10],
+  ]) {
+    const response = await call(p1OnlyApi, {
+      method: 'POST',
+      url: '/api/stem/practice-sets',
+      body: {
+        routeId: 'cie-9702-as-physics',
+        syllabusTopicIds: [topicId],
+        components: [1],
+        questionCount,
+        excludeAttempted: false,
+        seed: 9702,
+      },
+    })
+    assert.equal(response.statusCode, 201, `${topicId} must start a default P1-only reviewed study subset without sourceQuestionIds`)
+    assert.equal(response.payload.practicePolicy.allowReviewedSubsetStudy, true)
+    assert.equal(response.payload.questionCount, questionCount)
+    assert.equal(response.payload.practiceMode, 'study-only')
+    assert.equal(response.payload.formalProgressEligible, false)
+    assert.ok(response.payload.questionGroups.every((group) => group.paperComponent === 1 && group.studyOnly === true && group.formalProgressEligible === false))
+  }
+  const belowSix = await call(p1OnlyApi, {
+    method: 'POST',
+    url: '/api/stem/practice-sets',
+    body: {
+      routeId: 'cie-9702-as-physics',
+      syllabusTopicIds: ['physics-9702-topic-02'],
+      components: [1],
+      questionCount: 6,
+      excludeAttempted: false,
+      seed: 9702,
+    },
+  })
+  assert.equal(belowSix.statusCode, 409, 'a five-question P1 chapter must remain below the start floor')
+  assert.equal(belowSix.payload.code, 'insufficient_verified_questions')
 } finally {
   closeStemDatabaseForTests()
 }

@@ -13,14 +13,19 @@ export function topicPracticeEligibility({ verifiedQuestionCount, availableQuest
   const available = nonNegativeInteger(availableQuestionCount)
   const ready = verified >= MIN_VERIFIED_GROUPS_FOR_PRACTICE
   const hasStudyOnlyInventory = available > verified
-  const studyReady = !ready
+  const releasedStudyReady = !ready
     && hasStudyOnlyInventory
     && available >= MIN_QUESTION_GROUPS_PER_TEST
+  const reviewedSubsetStudy = !ready
+    && verified >= MIN_QUESTION_GROUPS_PER_TEST
+  const studyReady = releasedStudyReady || reviewedSubsetStudy
   const startable = ready || studyReady
 
   return Object.freeze({
     ready,
     studyReady,
+    releasedStudyReady,
+    reviewedSubsetStudy,
     ctaPolicy: ready ? 'start' : studyReady ? 'start-study' : 'hidden',
     availableSetSizes: Object.freeze(startable
       ? TOPIC_PRACTICE_SET_SIZES.filter((size) => size <= available)
@@ -44,10 +49,13 @@ export function selectedTopicPracticeEligibility({
     verifiedQuestionCount: verifiedQuestionCountByTopic?.[topicId],
     availableQuestionCount: availableQuestionCountByTopic?.[topicId],
   })]))
+  const ready = selectedTopicIds.length > 0 && selectedTopicIds.every((topicId) => byTopic[topicId].ready)
+  const startable = selectedTopicIds.length > 0 && selectedTopicIds.every((topicId) => byTopic[topicId].ready || byTopic[topicId].studyReady)
   return Object.freeze({
     topicIds: Object.freeze(selectedTopicIds),
     byTopic: Object.freeze(byTopic),
-    ready: selectedTopicIds.length > 0 && selectedTopicIds.every((topicId) => byTopic[topicId].ready),
+    ready,
+    studyReady: !ready && startable,
   })
 }
 
