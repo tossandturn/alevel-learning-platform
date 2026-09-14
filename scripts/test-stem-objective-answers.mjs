@@ -132,10 +132,20 @@ const partialFocusProjection = projectNativeObjectivePracticeSet({
 })
 assert.equal(partialFocusProjection.questionGroups[0].questionFocus, undefined, 'a partial focus must not hide another original question image')
 
+const sameLengthOtherPaperId = reviewedQuestion.sourceRef.paperId.replace(/.$/, (value) => value === '9' ? '8' : '9')
+assert.equal(sameLengthOtherPaperId.length, reviewedQuestion.sourceRef.paperId.length)
 const misboundFocusProjection = projectNativeObjectivePracticeSet({
-  questionGroups: [{ ...nativeProjection.questionGroups[0], id: 'different-paper:q1', questionFocus: undefined }],
+  questionGroups: [{ ...nativeProjection.questionGroups[0], id: `${sameLengthOtherPaperId}:q1`, questionFocus: undefined }],
 })
 assert.equal(misboundFocusProjection.questionGroups[0].questionFocus, undefined, 'focus metadata must stay bound to the source question paper')
+const zeroQuestionFocusProjection = projectNativeObjectivePracticeSet({
+  questionGroups: [{ ...nativeProjection.questionGroups[0], id: `${reviewedQuestion.sourceRef.paperId}:q0`, questionFocus: undefined }],
+})
+assert.equal(zeroQuestionFocusProjection.questionGroups[0].questionFocus, undefined, 'focus metadata requires a positive canonical question number')
+const mismatchedQuestionNumberProjection = projectNativeObjectivePracticeSet({
+  questionGroups: [{ ...nativeProjection.questionGroups[0], questionNumber: 2, questionFocus: undefined }],
+})
+assert.equal(mismatchedQuestionNumberProjection.questionGroups[0].questionFocus, undefined, 'focus metadata must agree with the projected question number')
 
 const mislabeledChoiceProjection = projectNativeObjectivePracticeSet({
   questionGroups: [{

@@ -124,8 +124,18 @@ function reviewedFocusPage(value, paperId, page) {
 export function nativeQuestionFocus(value = {}) {
   const sourceQuestionId = String(value.sourceQuestionId || value.id || '').trim()
   const paperId = String(value.paperId || value.sourceRef?.paperId || '').trim()
+  const sourceQuestionPrefix = `${paperId}:q`
+  const sourceQuestionNumber = sourceQuestionId.startsWith(sourceQuestionPrefix)
+    ? sourceQuestionId.slice(sourceQuestionPrefix.length)
+    : ''
+  const declaredQuestionNumber = value.questionNumber ?? value.sourceRef?.question
+  const declaredQuestionMatch = declaredQuestionNumber === undefined || declaredQuestionNumber === null || String(declaredQuestionNumber).trim() === ''
+    ? null
+    : String(declaredQuestionNumber).trim().match(/^(?:Q(?:uestion)?\s*)?([1-9]\d*)$/i)
   const manifest = buildSourceRenderManifest(value)
-  if (!sourceQuestionId || sourceQuestionId.length > 240 || !paperId || !/^:q\d+(?::|$)/i.test(sourceQuestionId.slice(paperId.length))
+  if (!sourceQuestionId || sourceQuestionId.length > 240 || !paperId || !/^[1-9]\d*$/.test(sourceQuestionNumber)
+    || (declaredQuestionNumber !== undefined && declaredQuestionNumber !== null && String(declaredQuestionNumber).trim() !== ''
+      && (!declaredQuestionMatch || Number(declaredQuestionMatch[1]) !== Number(sourceQuestionNumber)))
     || !manifest?.pages?.length || manifest.pages.length > 20
     || manifest.pages.some((page) => page.exactRegion !== true)) return null
   const pages = manifest.pages.map((page) => {
