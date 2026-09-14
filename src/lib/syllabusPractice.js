@@ -801,14 +801,11 @@ function selectBalancedQuestions(records, topicIds, requestedCount, attemptedIds
   )).map((record) => [record.sourceQuestionId, record])).values()]
   const unseen = eligible.filter((record) => !attemptedIds.has(record.sourceQuestionId))
   const seen = eligible.filter((record) => attemptedIds.has(record.sourceQuestionId))
-  const sortAndShuffle = (subset) => shuffle(
-    [...subset].sort((left, right) => (
-      questionSortKey(left.question).localeCompare(questionSortKey(right.question))
-      || left.sourceQuestionId.localeCompare(right.sourceQuestionId)
-    )),
-    random,
-  )
   const prioritizedPool = (items) => {
+    const sortAndShuffle = (subset) => shuffle(
+      [...subset].sort((left, right) => questionSortKey(left.question).localeCompare(questionSortKey(right.question))),
+      random,
+    )
     // A source-backed study item is a backfill, never a replacement for a
     // formal reviewed question in the same selected topic.
     return [
@@ -816,8 +813,6 @@ function selectBalancedQuestions(records, topicIds, requestedCount, attemptedIds
       ...sortAndShuffle(items.filter((record) => !record.eligible)),
     ]
   }
-  const selected = []
-  const selectedIds = new Set()
   const pools = new Map(topicIds.map((topicId) => [
     topicId,
     prioritizedPool(unseen.filter((record) => record.mapping.topicIds?.includes(topicId))),
@@ -826,6 +821,8 @@ function selectBalancedQuestions(records, topicIds, requestedCount, attemptedIds
     topicId,
     prioritizedPool(seen.filter((record) => record.mapping.topicIds?.includes(topicId))),
   ]))
+  const selected = []
+  const selectedIds = new Set()
   const takeUnique = (pool) => {
     while (pool?.length) {
       const next = pool.shift()
