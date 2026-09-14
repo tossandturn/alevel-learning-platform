@@ -154,7 +154,8 @@ for (const questionCount of [6, 10, 15]) {
     assert.equal(result.questionCount, questionCount)
     assert.equal(result.partial, false)
     assert.equal(new Set(result.sourceQuestionIds).size, questionCount)
-    assert.ok(result.sourceQuestionIds.some((id) => releasedA.some((question) => question.sourceQuestionId === id)), `count ${questionCount}, seed ${seed} must reserve released study`)
+    const selectedReleasedCount = result.sourceQuestionIds.filter((id) => releasedA.some((question) => question.sourceQuestionId === id)).length
+    assert.equal(selectedReleasedCount, Math.max(0, questionCount - reviewedA.length), `count ${questionCount}, seed ${seed} must use released study only after reviewed capacity is exhausted`)
     assert.equal(result.practiceMode, 'study-only')
     assert.equal(result.formalProgressEligible, false)
     for (const providerOrder of providerOrders.slice(1)) {
@@ -218,8 +219,8 @@ const reviewedB = reviewedQuestions(TOPIC_B, 5)
 const sharedStudy = releasedStudyClone(reviewedA[0], 'released-shared-a-b', { topicIds: [TOPIC_A, TOPIC_B] })
 const multiTopic = build([...reviewedA, ...reviewedB, sharedStudy], { topicIds: [TOPIC_A, TOPIC_B], questionCount: 6, seed: 101 })
 assert.equal(multiTopic.practiceMode, 'study-only')
-assert.equal(multiTopic.sourceQuestionIds.filter((id) => id === sharedStudy.sourceQuestionId).length, 1)
 assert.equal(new Set(multiTopic.sourceQuestionIds).size, 6)
+assert.ok([TOPIC_A, TOPIC_B].every((topicId) => multiTopic.questionGroups.some((group) => group.syllabusMapping.topicIds.includes(topicId))))
 assert.equal(multiTopic.formalProgressEligible, false)
 
 let realFunctionsProviderOrder = 'skipped-no-frozen-artifacts'

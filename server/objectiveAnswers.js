@@ -1,4 +1,5 @@
 import { isHumanReviewedPastPaperItem } from '../src/data/questionBank.js'
+import { buildSourceRenderManifest } from '../src/lib/sourceRenderManifest.js'
 
 export const OBJECTIVE_RESULT_SCHEMA_VERSION = 'stem-objective-result-v1'
 export const SINGLE_CHOICE_ANSWER_FORMAT = 'single-choice'
@@ -16,6 +17,8 @@ const OFFICIAL_SINGLE_CHOICE_COMPONENTS = new Map([
   ['9702', new Set([1])],
   ['9708', new Set([1, 3])],
 ])
+const REVIEWED_DISPLAY_BOUNDS = 'reviewed-display-bounds-v1'
+const QUESTION_ASSET_URL = /^\/question-assets\/([A-Za-z0-9_-]+)\/qp-(\d+)\.(?:jpg|jpeg|png|webp)$/
 
 function text(value, limit = 300) {
   return String(value ?? '').trim().slice(0, limit)
@@ -71,6 +74,79 @@ export function objectiveAnswerMetadata(value = {}) {
   }
 }
 
+function sourceChoiceOption(value, label) {
+  const raw = String(value ?? '').trim()
+  if (!raw || raw.length > 2_000) return null
+  const labelOnly = raw.match(/^\(?([A-D])\)?[.)]?$/i)
+  if (labelOnly) return labelOnly[1].toUpperCase() === label ? { label, text: '' } : null
+  const prefixed = raw.match(/^\(?([A-D])\)?(?:\s*[.)]\s*|\s+)([\s\S]*)$/i)
+  if (prefixed) {
+    if (prefixed[1].toUpperCase() !== label) return null
+    return { label, text: prefixed[2].trim() }
+  }
+  return { label, text: raw }
+}
+
+export function nativeChoiceOptions(value = {}) {
+  if (!objectiveAnswerMetadata(value)) return null
+  const choiceParts = (value.parts || []).filter(isExplicitSingleChoicePart)
+  if (choiceParts.length !== 1) return null
+  const options = choiceParts[0].options.map((option, index) => sourceChoiceOption(option, SINGLE_CHOICE_LABELS[index]))
+  return options.length === SINGLE_CHOICE_LABELS.length && options.every(Boolean) ? options : null
+}
+
+function validImageSize(value) {
+  if (!Array.isArray(value) || value.length !== 2) return null
+  const size = value.map(Number)
+  return size.every((item) => Number.isInteger(item) && item > 0 && item <= 10_000) && size[0] * size[1] <= 24_000_000
+    ? size
+    : null
+}
+
+function reviewedFocusPage(value, paperId, page) {
+  const sourceAssets = new Set((value.sourceRef?.assetUrls || []).map(String))
+  const candidates = (value.parts || []).flatMap((part) => part.sourceFocus?.pages || []).flatMap((entry) => {
+    const url = String(entry?.assetUrl || '')
+    const match = url.match(QUESTION_ASSET_URL)
+    const imageSize = validImageSize(entry?.imageSize)
+    if (entry?.safetyStatus !== REVIEWED_DISPLAY_BOUNDS
+      || Number(entry?.page) !== page
+      || match?.[1] !== paperId
+      || Number(match?.[2]) !== page
+      || !sourceAssets.has(url)
+      || !imageSize) return []
+    return [{ url, imageSize }]
+  })
+  const unique = [...new Map(candidates.map((entry) => [JSON.stringify(entry), entry])).values()]
+  return unique.length === 1 ? unique[0] : null
+}
+
+export function nativeQuestionFocus(value = {}) {
+  const sourceQuestionId = String(value.sourceQuestionId || value.id || '').trim()
+  const paperId = String(value.paperId || value.sourceRef?.paperId || '').trim()
+  const manifest = buildSourceRenderManifest(value)
+  if (!sourceQuestionId || sourceQuestionId.length > 240 || !paperId || !/^:q\d+(?::|$)/i.test(sourceQuestionId.slice(paperId.length))
+    || !manifest?.pages?.length || manifest.pages.length > 20
+    || manifest.pages.some((page) => page.exactRegion !== true)) return null
+  const pages = manifest.pages.map((page) => {
+    const focus = reviewedFocusPage(value, paperId, page.page)
+    return focus ? { page: page.page, url: focus.url, region: [...page.normalizedRegion], imageSize: [...focus.imageSize] } : null
+  })
+  if (pages.some((page) => !page)) return null
+  const sourceAssets = new Set((value.sourceRef?.assetUrls || []).map(String).filter((url) => {
+    const match = url.match(QUESTION_ASSET_URL)
+    return match?.[1] === paperId
+  }))
+  const focusedAssets = new Set(pages.map((page) => page.url))
+  if (sourceAssets.size !== focusedAssets.size || [...sourceAssets].some((url) => !focusedAssets.has(url))) return null
+  return {
+    schemaVersion: 'native-question-focus-v1',
+    sourceQuestionId,
+    paperId,
+    pages,
+  }
+}
+
 function stripAnswerFields(value = {}) {
   const {
     answer: _answer,
@@ -83,6 +159,8 @@ function stripAnswerFields(value = {}) {
     markSchemeEvidence: _markSchemeEvidence,
     markSchemePoints: _markSchemePoints,
     markSource: _markSource,
+    choiceOptions: _choiceOptions,
+    questionFocus: _questionFocus,
     ...safe
   } = value
   return safe
@@ -95,9 +173,13 @@ export function projectNativeObjectivePracticeSet(result = {}) {
     questionGroups: result.questionGroups.map((group) => {
       const metadata = objectiveAnswerMetadata(group)
       if (!metadata) return group
+      const choiceOptions = nativeChoiceOptions(group)
+      const questionFocus = nativeQuestionFocus(group)
       return {
         ...stripAnswerFields(group),
         ...metadata,
+        ...(choiceOptions ? { choiceOptions } : {}),
+        ...(questionFocus ? { questionFocus } : {}),
         parts: (group.parts || []).map((part) => {
           const provenance = part.sourceBindingProvenance || part.markingProvenance || part.provenance
           return {

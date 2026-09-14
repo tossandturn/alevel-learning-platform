@@ -12,6 +12,7 @@ import {
   scoreObjectiveQuestion,
 } from '../server/objectiveAnswers.js'
 import { studyQuestionBank, unifiedQuestionBank } from '../src/data/questionBank.js'
+import { buildSourceRenderManifest } from '../src/lib/sourceRenderManifest.js'
 
 const CHOICES = ['A', 'B', 'C', 'D']
 const signingKey = 'objective-answer-test-signing-key'
@@ -24,6 +25,7 @@ const reviewedQuestion = unifiedQuestionBank.find((question) => (
 ))
 assert.ok(reviewedQuestion, 'the reviewed 9702 Paper 1 fixture must remain available')
 const reviewedPart = reviewedQuestion.parts[0]
+const reviewedRenderManifest = buildSourceRenderManifest(reviewedQuestion)
 const correctOption = String(reviewedPart.answerKey).trim().toUpperCase()
 const wrongOption = CHOICES.find((choice) => choice !== correctOption)
 
@@ -60,12 +62,15 @@ const nativeProjection = projectNativeObjectivePracticeSet({
     routeId: reviewedQuestion.routeId,
     subjectCode: reviewedQuestion.subjectCode,
     paperComponent: reviewedQuestion.paperComponent,
+    sourceRef: reviewedQuestion.sourceRef,
     answerKey: correctOption,
     answerRef: { localUrl: '/must-remain-server-only.pdf' },
     parts: [{
       partId: reviewedPart.partId,
       answerArea: reviewedPart.answerArea,
       options: reviewedPart.options,
+      sourceFocus: reviewedPart.sourceFocus,
+      sourceEvidence: reviewedPart.sourceEvidence,
       marks: reviewedPart.marks,
       answerKey: correctOption,
       markSchemePoints: ['must remain server-only'],
@@ -76,10 +81,79 @@ const nativeProjection = projectNativeObjectivePracticeSet({
 })
 assert.equal(nativeProjection.questionGroups[0].answerFormat, 'single-choice')
 assert.deepEqual(nativeProjection.questionGroups[0].choiceLabels, CHOICES)
+const expectedChoiceOptions = [
+  { label: 'A', text: 'force' },
+  { label: 'B', text: 'momentum' },
+  { label: 'C', text: 'velocity' },
+  { label: 'D', text: 'work' },
+]
+assert.deepEqual(nativeProjection.questionGroups[0].choiceOptions, expectedChoiceOptions)
+assert.deepEqual(nativeProjection.questionGroups[0].questionFocus, {
+  schemaVersion: 'native-question-focus-v1',
+  sourceQuestionId: reviewedQuestion.sourceQuestionId,
+  paperId: reviewedQuestion.sourceRef.paperId,
+  pages: reviewedRenderManifest.pages.map((page) => ({
+    page: page.page,
+    url: reviewedQuestion.sourceRef.assetUrls.find((url) => url.includes(`qp-${String(page.page).padStart(2, '0')}`)),
+    region: [...page.normalizedRegion],
+    imageSize: [...reviewedPart.sourceFocus.pages.find((focusPage) => focusPage.page === page.page).imageSize],
+  })),
+}, 'native practice must reuse the reviewed render manifest rather than guessing a crop')
 assert.equal(nativeProjection.questionGroups[0].parts[0].answerFormat, 'single-choice')
 assert.deepEqual(nativeProjection.questionGroups[0].parts[0].options, reviewedPart.options)
 assert.deepEqual(nativeProjection.questionGroups[0].parts[0].provenance, nativeProjection.questionGroups[0].parts[0].sourceBindingProvenance)
 assert.doesNotMatch(JSON.stringify(nativeProjection), /answerKey|answerRef|markSchemePoints|markSchemeEvidence|server-only/, 'native practice projection must not leak the official key or marking evidence')
+
+const unsafeFocusProjection = projectNativeObjectivePracticeSet({
+  questionGroups: [{
+    ...nativeProjection.questionGroups[0],
+    questionFocus: undefined,
+    parts: nativeProjection.questionGroups[0].parts.map((part) => ({
+      ...part,
+      sourceEvidence: [],
+      sourceFocus: {
+        ...reviewedPart.sourceFocus,
+        pages: reviewedPart.sourceFocus.pages.map((page) => ({ ...page, safetyStatus: 'unreviewed' })),
+      },
+    })),
+  }],
+})
+assert.equal(unsafeFocusProjection.questionGroups[0].questionFocus, undefined, 'unreviewed display bounds must fall back to the original page')
+
+const partialFocusProjection = projectNativeObjectivePracticeSet({
+  questionGroups: [{
+    ...nativeProjection.questionGroups[0],
+    sourceRef: {
+      ...nativeProjection.questionGroups[0].sourceRef,
+      assetUrls: [...nativeProjection.questionGroups[0].sourceRef.assetUrls, `/question-assets/${reviewedQuestion.sourceRef.paperId}/qp-99.jpg`],
+    },
+    questionFocus: undefined,
+  }],
+})
+assert.equal(partialFocusProjection.questionGroups[0].questionFocus, undefined, 'a partial focus must not hide another original question image')
+
+const misboundFocusProjection = projectNativeObjectivePracticeSet({
+  questionGroups: [{ ...nativeProjection.questionGroups[0], id: 'different-paper:q1', questionFocus: undefined }],
+})
+assert.equal(misboundFocusProjection.questionGroups[0].questionFocus, undefined, 'focus metadata must stay bound to the source question paper')
+
+const mislabeledChoiceProjection = projectNativeObjectivePracticeSet({
+  questionGroups: [{
+    ...nativeProjection.questionGroups[0],
+    choiceOptions: undefined,
+    parts: nativeProjection.questionGroups[0].parts.map((part) => ({ ...part, options: ['(B) wrong', 'B ok', 'C ok', 'D ok'] })),
+  }],
+})
+assert.equal(mislabeledChoiceProjection.questionGroups[0].choiceOptions, undefined, 'mislabeled source options must not be rebound by array position')
+
+const labelOnlyChoiceProjection = projectNativeObjectivePracticeSet({
+  questionGroups: [{
+    ...nativeProjection.questionGroups[0],
+    choiceOptions: undefined,
+    parts: nativeProjection.questionGroups[0].parts.map((part) => ({ ...part, options: CHOICES })),
+  }],
+})
+assert.deepEqual(labelOnlyChoiceProjection.questionGroups[0].choiceOptions, CHOICES.map((label) => ({ label, text: '' })), 'diagram-only A-D options remain selectable without invented text')
 
 assert.deepEqual(scoreObjectiveQuestion({ question: reviewedQuestion, selectedOption: correctOption }), {
   questionPartId: reviewedPart.partId,
@@ -141,6 +215,9 @@ const contextQuestion = paperContext.questions.find((question) => question.sourc
 const contextPart = contextQuestion?.parts.find((part) => part.partId === reviewedPart.partId)
 assert.equal(contextQuestion?.answerFormat, 'single-choice')
 assert.deepEqual(contextQuestion?.choiceLabels, CHOICES)
+assert.deepEqual(contextQuestion?.choiceOptions, expectedChoiceOptions)
+assert.deepEqual(contextQuestion?.questionFocus, nativeProjection.questionGroups[0].questionFocus)
+assert.deepEqual(contextQuestion?.questionFocus.pages.map((page) => page.url), contextQuestion?.images, 'authenticated focus must cover every original question image')
 assert.equal(contextPart?.answerFormat, 'single-choice')
 assert.doesNotMatch(JSON.stringify(contextQuestion), /answerKey|correctOption/)
 
@@ -193,12 +270,40 @@ try {
   )), 'native MCQ parts expose canonical source provenance without depending on AI marking flags')
   assert.doesNotMatch(JSON.stringify(practiceBody), /"(?:answerKey|answerRef|markSchemePoints|markSchemeEvidence)"\s*:/)
 
+  const crossTopicP1Response = await fetch(`${baseUrl}/api/stem/practice-sets`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-STEMist-Source-Images': 'region-v2' },
+    body: JSON.stringify({
+      routeId,
+      syllabusTopicIds: ['physics-9702-topic-01', 'physics-9702-topic-02'],
+      questionCount: 6,
+      components: [1],
+      excludeAttempted: false,
+      seed: 9702,
+    }),
+  })
+  const crossTopicP1Body = await crossTopicP1Response.json()
+  assert.equal(crossTopicP1Response.status, 201, JSON.stringify(crossTopicP1Body))
+  assert.equal(crossTopicP1Body.practiceMode, 'study-only')
+  assert.equal(crossTopicP1Body.formalProgressEligible, false)
+  assert.ok(crossTopicP1Body.questionGroups.every((group) => (
+    group.paperComponent === 1
+    && group.answerFormat === 'single-choice'
+    && group.choiceOptions?.map((option) => option.label).join('') === 'ABCD'
+    && group.questionFocus?.schemaVersion === 'native-question-focus-v1'
+    && JSON.stringify(group.questionFocus.pages.map((page) => page.url)) === JSON.stringify(group.sourceContent.assetUrls)
+  )), 'real cross-topic P1 practice must expose complete reviewed focus and ordered source options')
+  assert.doesNotMatch(JSON.stringify(crossTopicP1Body), /"(?:answerKey|answerRef|markSchemePoints|markSchemeEvidence|correctOption)"\s*:/)
+
   const sourceResponse = await fetch(`${baseUrl}/api/stem/papers/${paperId}/source-context?routeId=${routeId}&stage=${stage}`)
   const sourceBody = await sourceResponse.json()
   const sourceQuestion = sourceBody.questions.find((question) => question.sourceQuestionId === sourceQuestionId)
   assert.equal(sourceResponse.status, 200)
   assert.equal(sourceQuestion.answerFormat, 'single-choice')
   assert.deepEqual(sourceQuestion.choiceLabels, CHOICES)
+  assert.deepEqual(sourceQuestion.choiceOptions, expectedChoiceOptions)
+  assert.deepEqual(sourceQuestion.questionFocus, contextQuestion.questionFocus)
+  assert.deepEqual(sourceQuestion.questionFocus.pages.map((page) => page.url), sourceQuestion.images, 'public focus must cover every original question image')
   assert.doesNotMatch(JSON.stringify(sourceBody), /answerKey|correctOption/)
 
   const createdAttempt = await post('/api/stem/attempts', attemptBody)

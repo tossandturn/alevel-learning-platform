@@ -113,6 +113,7 @@ try {
 
 const p1OnlyInventory = syllabusTopicsInventory({ routeId: 'cie-9702-as-physics', questionBank: unifiedQuestionBank })
 assert.equal(p1OnlyInventory.practicePolicy.allowReviewedSubsetStudy, true)
+assert.equal(p1OnlyInventory.practicePolicy.allowCrossTopicStudy, true)
 const reviewedP1Ids = new Set(unifiedQuestionBank
   .filter((question) => question.routeId === 'cie-9702-as-physics' && question.paperComponent === 1 && isHumanReviewedPastPaperItem(question))
   .map((question) => question.sourceQuestionId))
@@ -162,6 +163,24 @@ try {
   })
   assert.equal(belowSix.statusCode, 409, 'a five-question P1 chapter must remain below the start floor')
   assert.equal(belowSix.payload.code, 'insufficient_verified_questions')
+  const crossTopicStudy = await call(p1OnlyApi, {
+    method: 'POST',
+    url: '/api/stem/practice-sets',
+    body: {
+      routeId: 'cie-9702-as-physics',
+      syllabusTopicIds: ['physics-9702-topic-01', 'physics-9702-topic-02'],
+      components: [1],
+      questionCount: 6,
+      excludeAttempted: false,
+      seed: 9702,
+    },
+  })
+  assert.equal(crossTopicStudy.statusCode, 201, 'real P1 7 + 5 API-ready sources must start a six-question cross-topic study set')
+  assert.equal(crossTopicStudy.payload.practicePolicy.allowCrossTopicStudy, true)
+  assert.equal(crossTopicStudy.payload.practiceMode, 'study-only')
+  assert.equal(crossTopicStudy.payload.formalProgressEligible, false)
+  assert.ok(crossTopicStudy.payload.questionGroups.every((group) => group.paperComponent === 1 && group.studyOnly === true && group.formalProgressEligible === false))
+  assert.ok(crossTopicStudy.payload.syllabusTopicIds.every((topicId) => crossTopicStudy.payload.questionGroups.some((group) => group.syllabusMapping.topicIds.includes(topicId))), 'real P1 cross-topic set must cover both selected chapters')
 } finally {
   closeStemDatabaseForTests()
 }

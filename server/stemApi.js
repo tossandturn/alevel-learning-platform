@@ -13,6 +13,8 @@ import { createNativeQuestionImages } from './nativeQuestionImages.js'
 import { sendPublicCatalogJson } from './publicCatalogJson.js'
 import {
   OBJECTIVE_RESULT_SCHEMA_VERSION,
+  nativeChoiceOptions,
+  nativeQuestionFocus,
   objectiveAnswerMetadata,
   objectivePaperProfile,
   projectNativeObjectivePracticeSet,
@@ -2284,6 +2286,8 @@ export function nativePaperContext(questionBank, { routeId, stage, paperId }) {
     const sourceQuestionId = String(question.sourceQuestionId || '')
     if (!sourceQuestionId || seen.has(sourceQuestionId)) continue
     const objectiveMetadata = objectiveAnswerMetadata(question)
+    const choiceOptions = nativeChoiceOptions(question)
+    const questionFocus = nativeQuestionFocus(question)
     const parts = (question.parts || []).flatMap((part) => {
       const ai = canonicalAiMarkingProvenance(question, part)
       const provenance = ai || canonicalSourcePracticeProvenance(question, part)
@@ -2304,7 +2308,15 @@ export function nativePaperContext(questionBank, { routeId, stage, paperId }) {
       .filter((url) => typeof url === 'string' && /^\/question-assets\/[A-Za-z0-9_-]+\/qp-\d+\.(?:jpg|jpeg|png|webp)$/.test(url) && url.startsWith('/question-assets/' + paperId + '/'))
     if (!parts.length && !images.length) continue
     seen.add(sourceQuestionId)
-    questions.push({ sourceQuestionId, number, parts, images, ...(objectiveMetadata ? objectiveMetadata : {}) })
+    questions.push({
+      sourceQuestionId,
+      number,
+      parts,
+      images,
+      ...(objectiveMetadata ? objectiveMetadata : {}),
+      ...(choiceOptions ? { choiceOptions } : {}),
+      ...(questionFocus ? { questionFocus } : {}),
+    })
   }
   return {
     schemaVersion: 'native-paper-context-v1',
@@ -2462,11 +2474,13 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
           paperId: result.paperId,
           routeId: result.routeId,
           stage: result.stage,
-          questions: result.questions.map(({ number, sourceQuestionId, images, answerFormat, choiceLabels }) => ({
+          questions: result.questions.map(({ number, sourceQuestionId, images, answerFormat, choiceLabels, choiceOptions, questionFocus }) => ({
             number,
             sourceQuestionId,
             images,
             ...(answerFormat ? { answerFormat, choiceLabels } : {}),
+            ...(choiceOptions ? { choiceOptions } : {}),
+            ...(questionFocus ? { questionFocus } : {}),
           })),
         })
         return

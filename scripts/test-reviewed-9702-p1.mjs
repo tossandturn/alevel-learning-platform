@@ -8,6 +8,7 @@ import { unifiedQuestionBank } from '../src/data/questionBank.js'
 import { buildSyllabusPracticeSet, syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
 import { reviewedSourceFocusBinding } from '../src/lib/questionContent.js'
 import { CAMBRIDGE_9702_P1_2025_REVIEW_LEDGER } from '../src/data/reviewedQuestionSets/cambridge-9702-p1-2025-review-ledger.js'
+import { nativeChoiceOptions, nativeQuestionFocus } from '../server/objectiveAnswers.js'
 
 const root = path.resolve(import.meta.dirname, '..')
 const routeId = 'cie-9702-as-physics'
@@ -64,6 +65,11 @@ for (const paper of CAMBRIDGE_9702_P1_2025_REVIEW_LEDGER) {
     const focus = reviewedSourceFocusBinding(focusQuestion)
     assert.equal(focus.complete, true, `${questionId}: reviewed QP crop must be available at runtime`)
     assert.ok(focus.pages.every((page) => page.region[0] >= 0 && page.region[1] >= 0 && page.region[2] <= 1020 && page.region[3] <= 1320), `${questionId}: crop must stay inside the QP image`)
+    const nativeFocus = nativeQuestionFocus(focusQuestion)
+    assert.equal(nativeFocus?.schemaVersion, 'native-question-focus-v1', `${questionId}: native focus projection must remain available`)
+    assert.equal(nativeFocus?.sourceQuestionId, questionId)
+    assert.ok(nativeFocus.pages.every((page) => page.url.startsWith(`/question-assets/${paper.paperId}/qp-`) && page.region.every(Number.isFinite) && page.imageSize[0] === 1020 && page.imageSize[1] === 1320), `${questionId}: native focus must preserve the reviewed source page and normalized bounds`)
+    assert.deepEqual(nativeChoiceOptions(focusQuestion)?.map((option) => option.label), ['A', 'B', 'C', 'D'], `${questionId}: native option labels must stay in source order`)
     assert.equal(question.contentAnalysis?.status, 'reviewed', `${questionId}: reviewed content analysis is required`)
     assert.equal(question.contentAnalysis?.syllabusTopicId, row.primaryTopicId, `${questionId}: content analysis topic must match the syllabus mapping`)
     assert.equal(sourceContentManifest.items[questionId]?.complete, true, `${questionId}: runtime source gate must allow the reviewed QP/MS pair`)
@@ -127,5 +133,7 @@ for (const topic of inventory.topics) {
 console.log(JSON.stringify({
   status: 'passed',
   reviewedQuestionGroups: reviewedIds.length,
+  nativeQuestionFocuses: reviewedIds.length,
+  nativeChoiceOptions: reviewedIds.length,
   verifiedByTopic: Object.fromEntries(inventory.topics.map((topic) => [topic.id, topic.verifiedQuestionCount])),
 }, null, 2))

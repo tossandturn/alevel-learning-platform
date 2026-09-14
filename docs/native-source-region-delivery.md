@@ -14,6 +14,19 @@ again after processing and before cache access. AI source hydration is unchanged
 Legacy URLs return the original PNG and old practice-set requests retain version
 1 descriptors. No source PDF/PNG, history or existing session is rewritten.
 
+Human-reviewed page assets use a separate presentation contract. Native
+practice sets and full-paper source/native contexts may expose
+`questionFocus.schemaVersion=native-question-focus-v1` with the canonical
+`sourceQuestionId`, `paperId`, and one entry per original question image:
+`{page,url,region,imageSize}`. The normalized region comes from the existing
+source render manifest and is emitted only when every page retains
+`reviewed-display-bounds-v1`, the exact paper/page asset URL and audited image
+size. Otherwise the field is omitted and the client must show the full original
+page. API-generated `practice-source-image` URLs never enter this legacy focus
+field. Source-confirmed MCQs may also expose exactly four ordered
+`choiceOptions` objects (`{label,text}`); labels must validate as A-D in order,
+and no answer key or correct option is included.
+
 `scripts/test-native-source-region-delivery.mjs` verifies exact decoded pixels,
 geometry, source binding, cache revocation and backwards compatibility. The
 paired native-client test checks decoding, reserved aspect ratio and restoration.

@@ -41,6 +41,7 @@ export function selectedTopicPracticeEligibility({
   topicIds = [],
   verifiedQuestionCountByTopic = {},
   availableQuestionCountByTopic = {},
+  availableQuestionCount = 0,
 } = {}) {
   const selectedTopicIds = [...new Set((Array.isArray(topicIds) ? topicIds : [topicIds])
     .map((topicId) => String(topicId || '').trim())
@@ -50,12 +51,18 @@ export function selectedTopicPracticeEligibility({
     availableQuestionCount: availableQuestionCountByTopic?.[topicId],
   })]))
   const ready = selectedTopicIds.length > 0 && selectedTopicIds.every((topicId) => byTopic[topicId].ready)
-  const startable = selectedTopicIds.length > 0 && selectedTopicIds.every((topicId) => byTopic[topicId].ready || byTopic[topicId].studyReady)
+  const independentlyStartable = selectedTopicIds.length > 0 && selectedTopicIds.every((topicId) => byTopic[topicId].ready || byTopic[topicId].studyReady)
+  const crossTopicStudyReady = !ready
+    && selectedTopicIds.length > 1
+    && nonNegativeInteger(availableQuestionCount) >= MIN_QUESTION_GROUPS_PER_TEST
+    && selectedTopicIds.every((topicId) => nonNegativeInteger(availableQuestionCountByTopic?.[topicId]) > 0)
+  const startable = independentlyStartable || crossTopicStudyReady
   return Object.freeze({
     topicIds: Object.freeze(selectedTopicIds),
     byTopic: Object.freeze(byTopic),
     ready,
     studyReady: !ready && startable,
+    crossTopicStudyReady,
   })
 }
 

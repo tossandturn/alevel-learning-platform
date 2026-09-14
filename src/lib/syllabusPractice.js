@@ -706,7 +706,7 @@ export function syllabusTopicsInventory({ routeId, questionBank = unifiedQuestio
   const availableRecordIds = new Set([...verifiedRecords, ...studyRecords].map((record) => record.sourceQuestionId))
   return {
     schemaVersion: SYLLABUS_CATALOG_SCHEMA_VERSION,
-    practicePolicy: {schemaVersion:'stem-topic-practice-policy-v1',minSourceGroups:MIN_QUESTION_GROUPS_PER_TEST,minReviewedGroups:MIN_VERIFIED_GROUPS_FOR_PRACTICE,setSizes:[...TOPIC_PRACTICE_SET_SIZES],allowReviewedSubsetStudy:true},
+    practicePolicy: {schemaVersion:'stem-topic-practice-policy-v1',minSourceGroups:MIN_QUESTION_GROUPS_PER_TEST,minReviewedGroups:MIN_VERIFIED_GROUPS_FOR_PRACTICE,setSizes:[...TOPIC_PRACTICE_SET_SIZES],allowReviewedSubsetStudy:true,allowCrossTopicStudy:true},
     routeId,
     qualification: route.qualification,
     qualificationId: route.qualificationId,
@@ -792,7 +792,7 @@ function questionSortKey(question) {
   ].join('\u0000')
 }
 
-function selectBalancedQuestions(records, topicIds, requestedCount, attemptedIds, seed, components, includeStudyOnly = false, requiredStudyTopicIds = []) {
+function selectBalancedQuestions(records, topicIds, requestedCount, attemptedIds, seed, components, includeStudyOnly = false) {
   const random = seededRandom(seed)
   const eligible = [...new Map(records.filter((record) => (
     recordPracticeAvailable(record, includeStudyOnly)
@@ -818,31 +818,6 @@ function selectBalancedQuestions(records, topicIds, requestedCount, attemptedIds
   }
   const selected = []
   const selectedIds = new Set()
-  const uncoveredStudyTopics = new Set(requiredStudyTopicIds)
-  if (uncoveredStudyTopics.size) {
-    // A study-ready catalog must yield a study-only default set even when its
-    // reviewed records alone could fill the requested capacity.
-    const studyCandidates = [
-      ...sortAndShuffle(unseen.filter((record) => record.studyOnly && recordStudyAvailable(record, includeStudyOnly))),
-      ...sortAndShuffle(seen.filter((record) => record.studyOnly && recordStudyAvailable(record, includeStudyOnly))),
-    ]
-    while (uncoveredStudyTopics.size && selected.length < requestedCount) {
-      let next = null
-      let coverage = 0
-      for (const candidate of studyCandidates) {
-        if (selectedIds.has(candidate.sourceQuestionId)) continue
-        const candidateCoverage = (candidate.mapping.topicIds || []).filter((topicId) => uncoveredStudyTopics.has(topicId)).length
-        if (candidateCoverage > coverage) {
-          next = candidate
-          coverage = candidateCoverage
-        }
-      }
-      if (!next) break
-      selected.push(next)
-      selectedIds.add(next.sourceQuestionId)
-      for (const topicId of next.mapping.topicIds || []) uncoveredStudyTopics.delete(topicId)
-    }
-  }
   const pools = new Map(topicIds.map((topicId) => [
     topicId,
     prioritizedPool(unseen.filter((record) => record.mapping.topicIds?.includes(topicId))),
@@ -860,6 +835,16 @@ function selectBalancedQuestions(records, topicIds, requestedCount, attemptedIds
       }
     }
     return null
+  }
+  // Reserve source coverage, not a particular review class. This preserves
+  // reviewed-first defaults while ensuring a cross-topic set represents every
+  // selected official topic, falling back to attempted sources only when a
+  // topic has no unseen source left.
+  for (const topicId of topicIds) {
+    if (selected.some((record) => record.mapping.topicIds?.includes(topicId))) continue
+    const next = takeUnique(pools.get(topicId)) || takeUnique(seenPools.get(topicId))
+    if (!next || selected.length >= requestedCount) break
+    selected.push(next)
   }
   while (selected.length < requestedCount) {
     let added = false
@@ -1047,14 +1032,21 @@ function authoritativeFocusedParentPart(unit, parent, config) {
   return parentPart
 }
 
+function syllabusTopicSelection(routeId, values, validTopicIds) {
+  const selectedTopicIds = [...new Set((Array.isArray(values) ? values : String(values || '').split(','))
+    .map((value) => String(value || '').trim())
+    .filter(Boolean))]
+  const topicScopes = selectedTopicIds.map((topicId) => [...new Set(syllabusTopicScopeIdsForRoute(routeId, topicId))])
+  const topicIds = [...new Set(topicScopes.flat())]
+  const valid = selectedTopicIds.length > 0
+    && topicScopes.every((scope) => scope.length > 0 && scope.every((topicId) => validTopicIds.has(topicId)))
+  return { selectedTopicIds, topicScopes, topicIds: valid ? topicIds : [] }
+}
+
 function syllabusTopicsForPersistedUnit(unit, config) {
-  const candidates = String(unit?.syllabusTopic || unit?.knowledgeGroupId || '')
-    .split(',')
-    .map((value) => value.trim())
-    .filter(Boolean)
+  const candidates = String(unit?.syllabusTopic || unit?.knowledgeGroupId || '').split(',')
   const validTopicIds = new Set(config.syllabus.topics.map((topic) => topic.id))
-  const topicIds = [...new Set(candidates.flatMap((topicId) => syllabusTopicScopeIdsForRoute(config.syllabus.routeId, topicId)))]
-  return topicIds.length && topicIds.every((topicId) => validTopicIds.has(topicId)) ? topicIds : []
+  return syllabusTopicSelection(config.syllabus.routeId, candidates, validTopicIds)
 }
 
 function selectedTopicQuestionCounts(records, topicIds) {
@@ -1071,6 +1063,7 @@ function selectedTopicQuestionCounts(records, topicIds) {
 
 function selectedTopicPracticeReadiness(records, topicIds) {
   const counts = selectedTopicQuestionCounts(records, topicIds)
+  const availableQuestionCount = new Set(records.map((record) => record.sourceQuestionId).filter(Boolean)).size
   const verifiedQuestionCountByTopic = Object.fromEntries(topicIds.map((topicId) => [topicId, counts[topicId].verifiedQuestionCount]))
   const availableQuestionCountByTopic = Object.fromEntries(topicIds.map((topicId) => [topicId, counts[topicId].availableQuestionCount]))
   return Object.freeze({
@@ -1081,7 +1074,9 @@ function selectedTopicPracticeReadiness(records, topicIds) {
       topicIds,
       verifiedQuestionCountByTopic,
       availableQuestionCountByTopic,
+      availableQuestionCount,
     }),
+    availableQuestionCount,
   })
 }
 
@@ -1101,7 +1096,8 @@ export function rebindSyllabusPracticeUnit(unit, {
   const config = route && syllabusConfig(route.routeId)
   if (!route || !config || route.stage !== config.stage) return null
 
-  const topicIds = syllabusTopicsForPersistedUnit(unit, config)
+  const topicSelection = syllabusTopicsForPersistedUnit(unit, config)
+  const topicIds = topicSelection.topicIds
   const selectedComponents = [...new Set((Array.isArray(unit.paperComponent) ? unit.paperComponent : [unit.paperComponent])
     .map((value) => Number(value))
     .filter((value) => config.components.includes(value)))]
@@ -1193,6 +1189,14 @@ export function rebindSyllabusPracticeUnit(unit, {
   }
 
   if (reboundParts.some((part) => !part.id)) return null
+  const reboundSourceQuestionIds = new Set(reboundParts.map((part) => part.sourceQuestionId))
+  const coversEverySelectedTopic = unit.focusedRetestOf || (
+    reboundSourceQuestionIds.size >= topicSelection.topicScopes.length
+    && topicSelection.topicScopes.every((topicScope) => (
+      [...reboundSourceQuestionIds].some((sourceQuestionId) => recordsByQuestionId.get(sourceQuestionId)?.mapping.topicIds?.some((topicId) => topicScope.includes(topicId)))
+    ))
+  )
+  if (!coversEverySelectedTopic) return null
   // Six to eleven current reviewed groups may be restored only as non-formal
   // study. Existing explicitly released source-study units retain their prior
   // restoration path; a client flag alone cannot synthesize either class.
@@ -1274,11 +1278,10 @@ export function buildSyllabusPracticeSet({
     error.statusCode = 409
     throw error
   }
-  const topicIds = [...new Set(syllabusTopicIds
-    .flatMap((value) => syllabusTopicScopeIdsForRoute(routeId, String(value || '').trim()))
-    .filter(Boolean))]
   const validTopicIds = new Set(config.syllabus.topics.map((topic) => topic.id))
-  if (!topicIds.length || topicIds.some((topicId) => !validTopicIds.has(topicId))) {
+  const topicSelection = syllabusTopicSelection(routeId, syllabusTopicIds, validTopicIds)
+  const topicIds = topicSelection.topicIds
+  if (!topicIds.length) {
     const error = new Error('Select one or more official syllabus topic IDs.')
     error.code = 'invalid_syllabus_topic'
     error.statusCode = 400
@@ -1320,12 +1323,6 @@ export function buildSyllabusPracticeSet({
     .map((record) => record.sourceQuestionId)
     .filter(Boolean)).size
   const effectiveRequestedCount = explicitSourceQuestionIds.length || requestedCount
-  const requiredStudyTopicIds = explicitSourceQuestionIds.length
-    ? []
-    : topicIds.filter((topicId) => (
-        !topicReadiness.eligibility.byTopic[topicId]?.ready
-        && topicReadiness.eligibility.byTopic[topicId]?.releasedStudyReady
-      ))
   const selected = explicitSourceQuestionIds.length
     ? selectExplicitQuestions(records, explicitSourceQuestionIds, topicIds, selectedComponents, includeStudyOnly)
     : selectBalancedQuestions(
@@ -1336,7 +1333,6 @@ export function buildSyllabusPracticeSet({
         seed,
         selectedComponents,
         includeStudyOnly,
-        requiredStudyTopicIds,
       )
   if (!selected.length) {
     const error = new Error(`No source-backed study questions are available for the selected syllabus topic${topicIds.length === 1 ? '' : 's'}.`)
@@ -1346,9 +1342,14 @@ export function buildSyllabusPracticeSet({
     error.indexedCount = records.filter((record) => topicIds.some((topicId) => record.mapping.topicIds?.includes(topicId))).length
     throw error
   }
+  const coveredSyllabusTopicIds = topicIds.filter((topicId) => selected.some((record) => record.mapping.topicIds?.includes(topicId)))
+  const coversEverySelectedTopic = effectiveRequestedCount >= topicSelection.topicScopes.length
+    && topicSelection.topicScopes.every((topicScope) => selected.some((record) => record.mapping.topicIds?.some((topicId) => topicScope.includes(topicId))))
   const selectedStudyOnly = selected.some((record) => record.studyOnly)
-  const formalProgressEligible = topicReadiness.eligibility.ready && !selectedStudyOnly
-  const practiceMode = selectedStudyOnly
+  const formalProgressEligible = coversEverySelectedTopic && topicReadiness.eligibility.ready && !selectedStudyOnly
+  const practiceMode = !coversEverySelectedTopic
+    ? 'unavailable'
+    : selectedStudyOnly
     ? 'study-only'
     : formalProgressEligible
       ? 'verified'
@@ -1360,7 +1361,7 @@ export function buildSyllabusPracticeSet({
   const metrics = questionGroupSetMetrics(questionGroups)
   return {
     schemaVersion: 'syllabus-practice-set-v1',
-    practicePolicy: {schemaVersion:'stem-topic-practice-policy-v1',minSourceGroups:MIN_QUESTION_GROUPS_PER_TEST,minReviewedGroups:MIN_VERIFIED_GROUPS_FOR_PRACTICE,setSizes:[...TOPIC_PRACTICE_SET_SIZES],allowReviewedSubsetStudy:true},
+    practicePolicy: {schemaVersion:'stem-topic-practice-policy-v1',minSourceGroups:MIN_QUESTION_GROUPS_PER_TEST,minReviewedGroups:MIN_VERIFIED_GROUPS_FOR_PRACTICE,setSizes:[...TOPIC_PRACTICE_SET_SIZES],allowReviewedSubsetStudy:true,allowCrossTopicStudy:true},
     routeId,
     stage: config.stage,
     subjectCode: config.subjectCode,
@@ -1371,9 +1372,10 @@ export function buildSyllabusPracticeSet({
       .map(({ id, code, name, order }) => ({ id, code, name, order })),
     components: selectedComponents,
     requestedCount: effectiveRequestedCount,
-    availableCount: availableRecords.length,
+    availableCount: topicReadiness.availableQuestionCount,
     verifiedAvailableCount,
     verifiedAvailableCountByTopic: topicReadiness.verifiedQuestionCountByTopic,
+    coveredSyllabusTopicIds,
     sourceQuestionCount: metrics.sourceQuestionCount,
     answerPartCount: metrics.answerPartCount,
     paperCount: metrics.paperCount,

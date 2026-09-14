@@ -52,7 +52,7 @@ function call(api, { method, url, body, token = '' }) {
 function reviewedFixture(countByTopic) {
   const reviewed = studyQuestionBank.filter((question) => (
     question.routeId === routeId
-    && [1, 2].includes(Number(question.sourceRef?.component))
+    && Number(question.sourceRef?.component) === 1
     && isHumanReviewedPastPaperItem(question)
   ))
   const required = Object.values(countByTopic).reduce((sum, count) => sum + count, 0)
@@ -94,39 +94,99 @@ function persistedUnitFromSet(set, id = 'syllabus-set:synthetic-parent') {
   }
 }
 
-const fivePlusFiveFixture = reviewedFixture({ [topicIds[0]]: 5, [topicIds[1]]: 5 })
-const fivePlusFiveInventory = syllabusTopicsInventory({ routeId, questionBank: fivePlusFiveFixture, includeStudyOnly: false })
+const sevenPlusFiveFixture = reviewedFixture({ [topicIds[0]]: 7, [topicIds[1]]: 5 })
+const sevenPlusFiveInventory = syllabusTopicsInventory({ routeId, questionBank: sevenPlusFiveFixture, includeStudyOnly: false })
 assert.deepEqual(
-  topicIds.map((topicId) => fivePlusFiveInventory.topics.find((topic) => topic.id === topicId)?.verifiedQuestionCount),
-  [5, 5],
+  topicIds.map((topicId) => sevenPlusFiveInventory.topics.find((topic) => topic.id === topicId)?.verifiedQuestionCount),
+  [7, 5],
   'count/list inventory must retain each selected topic count instead of only a combined total',
 )
 assert.ok(
-  topicIds.every((topicId) => fivePlusFiveInventory.topics.find((topic) => topic.id === topicId)?.ready === false),
-  'count/list must not mark either five-group topic formally ready',
+  topicIds.every((topicId) => sevenPlusFiveInventory.topics.find((topic) => topic.id === topicId)?.ready === false),
+  'count/list must not mark either under-twelve topic formally ready',
 )
+assert.equal(sevenPlusFiveInventory.practicePolicy.allowCrossTopicStudy, true)
 
-const fivePlusFiveSet = buildSyllabusPracticeSet({
+const sevenPlusFiveSet = buildSyllabusPracticeSet({
   routeId,
   syllabusTopicIds: topicIds,
-  components: [1, 2],
+  components: [1],
   questionCount: MIN_QUESTION_GROUPS_PER_TEST,
-  questionBank: fivePlusFiveFixture,
+  questionBank: sevenPlusFiveFixture,
   includeStudyOnly: false,
   excludeAttempted: false,
   seed: 101,
 })
-assert.equal(fivePlusFiveSet.verifiedAvailableCount, 10, 'the synthetic fixture must reproduce the aggregate-count bypass')
-assert.equal(fivePlusFiveSet.practiceMode, 'unavailable', 'two selected five-group topics must not become a verified Topic Drill by aggregation or be relabelled as study-only')
-assert.equal(fivePlusFiveSet.formalProgressEligible, false)
-assert.ok(fivePlusFiveSet.questionGroups.every((group) => group.formalProgressEligible === true), 'individual reviewed source bindings stay intact even though the aggregate set is not startable')
+assert.equal(sevenPlusFiveSet.verifiedAvailableCount, 12, 'the synthetic fixture must reproduce the reported 7 + 5 cross-topic pool')
+assert.equal(sevenPlusFiveSet.practicePolicy.allowCrossTopicStudy, true)
+assert.equal(sevenPlusFiveSet.practiceMode, 'study-only', 'a deduplicated API-ready cross-topic pool may start only as study')
+assert.equal(sevenPlusFiveSet.formalProgressEligible, false)
+assert.ok(sevenPlusFiveSet.questionGroups.every((group) => group.studyOnly === true && group.formalProgressEligible === false))
+assert.ok(sevenPlusFiveSet.questionGroups.every((group) => group.paperComponent === 1), 'P1 cross-topic study must never backfill from P2')
+assert.ok(topicIds.every((topicId) => sevenPlusFiveSet.questionGroups.some((group) => group.syllabusMapping.topicIds.includes(topicId))), 'the default set must cover every selected topic')
 
-const fivePlusFivePersistedUnit = persistedUnitFromSet(fivePlusFiveSet, 'syllabus-set:synthetic-five-plus-five')
-const fivePlusFiveRebound = rebindSyllabusPracticeUnit(fivePlusFivePersistedUnit, {
-  questionBank: fivePlusFiveFixture,
+const sevenPlusFivePersistedUnit = persistedUnitFromSet(sevenPlusFiveSet, 'syllabus-set:synthetic-seven-plus-five')
+const sevenPlusFiveRebound = rebindSyllabusPracticeUnit(sevenPlusFivePersistedUnit, {
+  questionBank: sevenPlusFiveFixture,
   includeStudyOnly: false,
 })
-assert.equal(fivePlusFiveRebound, null, 'a reviewed-only set below either selected topic floor must not be restored as a study-only bypass')
+assert.equal(sevenPlusFiveRebound?.practiceMode, 'study-only', 'an authorized cross-topic study set must restore without becoming formal progress')
+assert.equal(sevenPlusFiveRebound?.formalProgressEligible, false)
+
+const singleFiveSet = buildSyllabusPracticeSet({
+  routeId,
+  syllabusTopicIds: [topicIds[1]],
+  components: [1],
+  questionCount: MIN_QUESTION_GROUPS_PER_TEST,
+  questionBank: sevenPlusFiveFixture,
+  includeStudyOnly: false,
+  excludeAttempted: false,
+  seed: 101,
+})
+assert.equal(singleFiveSet.practiceMode, 'unavailable', 'a single five-question topic must remain blocked')
+
+const sharedFiveFixture = reviewedFixture({ [topicIds[0]]: 5 }).map((question) => ({
+  ...question,
+  syllabusMapping: {
+    ...question.syllabusMapping,
+    secondaryTopicIds: [topicIds[1]],
+    topicIds,
+  },
+}))
+const sharedFiveSet = buildSyllabusPracticeSet({
+  routeId,
+  syllabusTopicIds: topicIds,
+  components: [1],
+  questionCount: MIN_QUESTION_GROUPS_PER_TEST,
+  questionBank: sharedFiveFixture,
+  includeStudyOnly: false,
+  excludeAttempted: false,
+  seed: 101,
+})
+assert.equal(sharedFiveSet.availableCount, 5, 'cross-topic readiness must deduplicate shared source IDs')
+assert.equal(sharedFiveSet.practiceMode, 'unavailable', 'duplicating five sources across two topic memberships must not reach the six-source floor')
+
+const sevenTopicIds = syllabusTopicsInventory({ routeId, questionBank: [], includeStudyOnly: false }).topics.slice(0, 7).map((topic) => topic.id)
+const sixSharedAcrossSevenFixture = reviewedFixture({ [sevenTopicIds[0]]: 6 }).map((question) => ({
+  ...question,
+  syllabusMapping: {
+    ...question.syllabusMapping,
+    primaryTopicId: sevenTopicIds[0],
+    secondaryTopicIds: sevenTopicIds.slice(1),
+    topicIds: sevenTopicIds,
+  },
+}))
+const sixAcrossSevenSet = buildSyllabusPracticeSet({
+  routeId,
+  syllabusTopicIds: sevenTopicIds,
+  components: [1],
+  questionCount: MIN_QUESTION_GROUPS_PER_TEST,
+  questionBank: sixSharedAcrossSevenFixture,
+  includeStudyOnly: false,
+  excludeAttempted: false,
+  seed: 101,
+})
+assert.equal(sixAcrossSevenSet.practiceMode, 'unavailable', 'a six-question request cannot claim coverage of seven selected topics even through shared mappings')
 
 const formalFixture = reviewedFixture({
   [topicIds[0]]: MIN_VERIFIED_GROUPS_FOR_PRACTICE,
@@ -135,7 +195,7 @@ const formalFixture = reviewedFixture({
 const formalSingleTopicSet = buildSyllabusPracticeSet({
   routeId,
   syllabusTopicIds: [topicIds[0]],
-  components: [1, 2],
+  components: [1],
   questionCount: MIN_QUESTION_GROUPS_PER_TEST,
   questionBank: formalFixture,
   includeStudyOnly: false,
@@ -147,28 +207,46 @@ assert.equal(formalSingleTopicSet.formalProgressEligible, true)
 assert.ok(formalSingleTopicSet.questionGroups.every((group) => group.studyOnly === false && group.formalProgressEligible === true))
 
 let providerCalls = 0
-const fivePlusFiveApi = createStemApi({
+const sevenPlusFiveApi = createStemApi({
   env: { NODE_ENV: 'test', STEM_DB_PATH: ':memory:' },
-  questionBank: fivePlusFiveFixture,
+  questionBank: sevenPlusFiveFixture,
 })
 try {
-  const fivePlusFiveStart = await call(fivePlusFiveApi, {
+  const sevenPlusFiveStart = await call(sevenPlusFiveApi, {
     method: 'POST',
     url: '/api/stem/practice-sets',
     body: {
       routeId,
       syllabusTopicIds: topicIds,
-      components: [1, 2],
+      components: [1],
       questionCount: MIN_QUESTION_GROUPS_PER_TEST,
       excludeAttempted: false,
       seed: 101,
     },
   })
-  assert.equal(fivePlusFiveStart.statusCode, 409, 'the start boundary must reject reviewed-only pools that fall below either selected topic floor')
-  assert.equal(fivePlusFiveStart.payload.code, 'insufficient_verified_questions')
+  assert.equal(sevenPlusFiveStart.statusCode, 201, sevenPlusFiveStart.payload?.error)
+  assert.equal(sevenPlusFiveStart.payload.practiceMode, 'study-only')
+  assert.equal(sevenPlusFiveStart.payload.formalProgressEligible, false)
+  assert.ok(topicIds.every((topicId) => sevenPlusFiveStart.payload.questionGroups.some((group) => group.syllabusMapping.topicIds.includes(topicId))))
 
-  const apiInventory = await call(fivePlusFiveApi, { method: 'GET', url: `/api/stem/routes/${routeId}/syllabus-topics` })
+  const singleFiveStart = await call(sevenPlusFiveApi, {
+    method: 'POST',
+    url: '/api/stem/practice-sets',
+    body: {
+      routeId,
+      syllabusTopicIds: [topicIds[1]],
+      components: [1],
+      questionCount: MIN_QUESTION_GROUPS_PER_TEST,
+      excludeAttempted: false,
+      seed: 101,
+    },
+  })
+  assert.equal(singleFiveStart.statusCode, 409, 'single-topic study still requires six distinct sources')
+  assert.equal(singleFiveStart.payload.code, 'insufficient_verified_questions')
+
+  const apiInventory = await call(sevenPlusFiveApi, { method: 'GET', url: `/api/stem/routes/${routeId}/syllabus-topics` })
   assert.equal(apiInventory.statusCode, 200)
+  assert.equal(apiInventory.payload.practicePolicy.allowCrossTopicStudy, true)
   assert.ok(
     topicIds.every((topicId) => apiInventory.payload.topics.find((topic) => topic.id === topicId)?.ready === false),
     `the HTTP count/list route must use the same per-topic formal predicate as start: ${JSON.stringify(topicIds.map((topicId) => apiInventory.payload.topics.find((topic) => topic.id === topicId)))}`,
@@ -201,7 +279,7 @@ try {
     body: {
       routeId,
       syllabusTopicIds: topicIds,
-      components: [1, 2],
+      components: [1],
       questionCount: MIN_QUESTION_GROUPS_PER_TEST,
       excludeAttempted: false,
       seed: 102,
