@@ -399,7 +399,7 @@ function questionFromArtifact(artifact, candidate, verification, metadata, route
       questionId,
       answerId: `${questionId}:answer`,
       verificationStatus: 'ai-verified',
-      verificationMethod: 'independent-ai-qp-ms-v1',
+      verificationMethod: artifact.studentRelease?.review?.method === 'single-model-source-review' ? 'single-ai-source-review-v1' : 'independent-ai-qp-ms-v1',
       artifactId: artifact.artifactId,
       questionDocumentSha256: sourceHash,
       answerDocumentSha256: markSchemeHash,

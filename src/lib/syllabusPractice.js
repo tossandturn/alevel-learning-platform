@@ -952,6 +952,8 @@ function publicQuestionGroup(record, { forceStudyOnly = false } = {}) {
     sourceRef: question.sourceRef,
     answerRef: question.answerRef,
     reviewStatus: question.answerBinding?.verificationStatus || 'machine-indexed',
+    qualityFlag: question.studentRelease?.qualityFlag || '',
+    reviewLabel: question.studentRelease?.qualityFlag === 'aicheck' ? 'AI 审核' : '',
     studyOnly,
     studentStudyEligible: Boolean(record.releasedStudyEligible || record.eligible),
     // A Topic Drill is a single scoring boundary. If the selected pool is

@@ -168,7 +168,12 @@ export function isStudentReleasedAiStudyItem(question) {
     && release?.sourceBinding?.markSchemePdfSha256 === question?.answerRef?.sha256
     && release?.review?.extractionSchemaName === 'ai_pdf_question_extraction_v1'
     && release?.review?.verificationSchemaName === 'ai_pdf_question_verification_v1'
-    && release?.review?.independentPassCount === 2,
+    && (release?.review?.independentPassCount === 2
+      || (release?.review?.method === 'single-model-source-review'
+        && release?.review?.independentPassCount === 1
+        && release?.qualityFlag === 'aicheck'
+        && release?.review?.reviewerProvider
+        && release?.review?.reviewerModel)),
   )
 }
 

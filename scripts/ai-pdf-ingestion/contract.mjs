@@ -154,14 +154,18 @@ export function resolveArtifactSourcePdfPath({ source, absoluteField, relativeFi
   return rootIsSubject ? path.resolve(root, fileName) : path.resolve(root, subject, fileName)
 }
 
-export function buildAiStudentStudyRelease({ artifactId: boundArtifactId, routeId, status, source, extractor, verifier, candidate, verification } = {}) {
+export function buildAiStudentStudyRelease({ artifactId: boundArtifactId, routeId, status, source, extractor, verifier, candidate, verification, sourceReview } = {}) {
   if (status !== AI_PDF_INGESTION_LIFECYCLE.AI_VERIFIED) return null
   if (!reviewContentAllowsStudentRelease(candidate, verification)) return null
   const questionPdfSha256 = normalizeSha256(source?.questionPdfSha256, 'questionPdfSha256')
   const markSchemePdfSha256 = normalizeSha256(source?.markSchemePdfSha256, 'markSchemePdfSha256')
   if (!/^sha256:[a-f0-9]{64}$/.test(String(boundArtifactId || ''))) throw new TypeError('artifactId must be canonical.')
   if (typeof routeId !== 'string' || !routeId.trim()) throw new TypeError('routeId must be non-empty.')
-  if (!validReviewPass(extractor, 'ai_pdf_question_extraction_v1') || !validReviewPass(verifier, 'ai_pdf_question_verification_v1')) {
+  const singleReview = Boolean(sourceReview)
+  if (singleReview && !hasValidSourceReview({ artifactId: boundArtifactId, routeId, source, candidate, verification, sourceReview })) {
+    throw new TypeError('A valid hash-bound AI source review is required for single-model release.')
+  }
+  if (!singleReview && (!validReviewPass(extractor, 'ai_pdf_question_extraction_v1') || !validReviewPass(verifier, 'ai_pdf_question_verification_v1'))) {
     throw new TypeError('Both structured AI review passes are required for student release.')
   }
   const contentSha256 = studyContentSha256({
@@ -172,6 +176,7 @@ export function buildAiStudentStudyRelease({ artifactId: boundArtifactId, routeI
     verifier,
     candidate,
     verification,
+    ...(singleReview ? { sourceReview } : {}),
   })
   return Object.freeze({
     schemaVersion: AI_STUDENT_STUDY_RELEASE_SCHEMA_VERSION,
@@ -179,6 +184,8 @@ export function buildAiStudentStudyRelease({ artifactId: boundArtifactId, routeI
     artifactId: boundArtifactId,
     routeId: routeId.trim(),
     authority: 'ai-provisional',
+    qualityFlag: 'aicheck',
+    postReleaseReview: 'manual',
     studentStudyEligible: true,
     formalProgressEligible: false,
     sourceBinding: Object.freeze({ questionPdfSha256, markSchemePdfSha256 }),
@@ -186,7 +193,8 @@ export function buildAiStudentStudyRelease({ artifactId: boundArtifactId, routeI
     review: Object.freeze({
       extractionSchemaName: 'ai_pdf_question_extraction_v1',
       verificationSchemaName: 'ai_pdf_question_verification_v1',
-      independentPassCount: 2,
+      independentPassCount: singleReview ? 1 : 2,
+      ...(singleReview ? { method: 'single-model-source-review', reviewerProvider: sourceReview.provider, reviewerModel: sourceReview.model } : {}),
     }),
   })
 }
@@ -196,6 +204,7 @@ export function hasValidAiStudentStudyRelease(artifact) {
   const source = artifact?.source
   const questionPdfSha256 = safeSha256(source?.questionPdfSha256)
   const markSchemePdfSha256 = safeSha256(source?.markSchemePdfSha256)
+  const singleReview = release?.review?.method === 'single-model-source-review'
   return Boolean(
     artifact?.status === AI_PDF_INGESTION_LIFECYCLE.AI_VERIFIED
     && release?.schemaVersion === AI_STUDENT_STUDY_RELEASE_SCHEMA_VERSION
@@ -203,6 +212,8 @@ export function hasValidAiStudentStudyRelease(artifact) {
     && release?.artifactId === artifact?.artifactId
     && release?.routeId === artifact?.syllabusRouteId
     && release?.authority === 'ai-provisional'
+    && (!release?.qualityFlag || release.qualityFlag === 'aicheck')
+    && (!release?.postReleaseReview || release.postReleaseReview === 'manual')
     && release?.studentStudyEligible === true
     && release?.formalProgressEligible === false
     && questionPdfSha256
@@ -218,14 +229,44 @@ export function hasValidAiStudentStudyRelease(artifact) {
       verifier: artifact.verifier,
       candidate: artifact.candidate,
       verification: artifact.verification,
+      ...(singleReview ? { sourceReview: artifact.sourceReview } : {}),
     })
     && release?.review?.extractionSchemaName === 'ai_pdf_question_extraction_v1'
     && release?.review?.verificationSchemaName === 'ai_pdf_question_verification_v1'
-    && release?.review?.independentPassCount === 2
-    && validReviewPass(artifact?.extractor, 'ai_pdf_question_extraction_v1')
-    && validReviewPass(artifact?.verifier, 'ai_pdf_question_verification_v1')
+    && (singleReview
+      ? release?.review?.independentPassCount === 1
+        && release.review.reviewerProvider === artifact.sourceReview?.provider
+        && release.review.reviewerModel === artifact.sourceReview?.model
+        && hasValidSourceReview(artifact)
+      : release?.review?.independentPassCount === 2 && validReviewPass(artifact?.extractor, 'ai_pdf_question_extraction_v1') && validReviewPass(artifact?.verifier, 'ai_pdf_question_verification_v1'))
     && reviewContentAllowsStudentRelease(artifact?.candidate, artifact?.verification)
   )
+}
+
+// A single semantic reviewer is sufficient under the user-approved study policy.
+// This receipt binds what was reviewed; runtime reconciliation still validates
+// the source files, coordinates, question structure and mark scheme.
+export function sourceReviewInputSha256({ artifactId, routeId, syllabusRouteId, source, candidate, verification } = {}) {
+  return createHash('sha256').update(canonicalJson({ artifactId, routeId: routeId || syllabusRouteId,
+    source: { questionPdfSha256: safeSha256(source?.questionPdfSha256), markSchemePdfSha256: safeSha256(source?.markSchemePdfSha256) }, candidate, verification }), 'utf8').digest('hex')
+}
+
+function hasValidSourceReview(artifact) {
+  const review = artifact?.sourceReview
+  const confirmations = ['sourceBindingConfirmed', 'wholeQuestionConfirmed', 'partStructureConfirmed', 'marksConfirmed', 'markSchemeEvidenceConfirmed', 'topicMappingConfirmed']
+  if (!review || review.schemaVersion !== 'ai-source-semantic-review.v1' || review.decision !== 'accept'
+    || !String(review.provider || '').trim() || !String(review.model || '').trim()
+    || !Number.isFinite(Date.parse(review.reviewedAt))
+    || typeof review.reviewNote !== 'string' || review.reviewNote.trim().length < 40
+    || !confirmations.every(k => review.confirmations?.[k] === true)
+    || !safeSha256(review.inputSha256) || review.inputSha256 !== sourceReviewInputSha256(artifact)
+    || !Array.isArray(review.evidence)) return false
+  const keys = new Set(review.evidence.filter(e => ['qp','ms'].includes(e.document) && Number.isInteger(e.page) && e.page > 0 && safeSha256(e.pageImageSha256)).map(e => `${e.document}:${e.page}:${safeSha256(e.pageImageSha256)}`))
+  const questions = artifact.candidate?.questions
+  return Array.isArray(questions) && questions.length > 0 && questions.every(q => {
+    const qp = [...(q.regions || []), ...(q.diagramRegions || [])], ms = q.markSchemeEvidence || []
+    return qp.length > 0 && ms.length > 0 && qp.every(e => keys.has(`qp:${e.page}:${safeSha256(e.pageImageSha256)}`)) && ms.every(e => keys.has(`ms:${e.page}:${safeSha256(e.pageImageSha256)}`))
+  })
 }
 
 export function reviewDraftAllowsStudentRelease(document) {
@@ -277,6 +318,12 @@ function validReviewPass(value, schemaName) {
     && value.model.trim()
     && value.schemaName === schemaName,
   )
+}
+
+function validIndependentReviewPair(extractor, verifier) {
+  return validReviewPass(extractor, 'ai_pdf_question_extraction_v1')
+    && validReviewPass(verifier, 'ai_pdf_question_verification_v1')
+    && `${extractor.provider.trim()}:${extractor.model.trim()}`.toLowerCase() !== `${verifier.provider.trim()}:${verifier.model.trim()}`.toLowerCase()
 }
 
 function safeSha256(value) {
