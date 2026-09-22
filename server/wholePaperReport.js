@@ -141,19 +141,6 @@ function boundedText(value, maxLength, fallback = '') {
   return Array.from(result).slice(0, maxLength).join('') || fallback
 }
 
-function selfServiceAiText(value, maxLength, fallback = '') {
-  let result = boundedText(value, maxLength, fallback)
-  if (!result) return result
-  const replacement = /[\u2e80-\u9fff\uf900-\ufaff]/u.test(result)
-    ? 'AI 已标注此处存在不确定性；请补充更清晰或缺失的材料后重试。'
-    : 'AI uncertainty is noted; add clearer or missing material and retry.'
-  return result
-    .replace(/\bhuman review (?:is )?required\b/giu, replacement)
-    .replace(/\b(?:a )?(?:human|teacher|examiner) (?:must|should|needs? to) review(?: this| the)?(?: response| answer| work)?\b/giu, replacement)
-    .replace(/\bneeds? (?:a )?(?:human|teacher|examiner) review\b/giu, replacement)
-    .replace(/(?:需要|必须)(?:人工|老师|教师|考官)(?:审核|复核)/gu, replacement)
-}
-
 function shortLabel(value, maxLength = 100) {
   if (typeof value === 'number' && Number.isFinite(value)) return String(value)
   return boundedText(value, maxLength)
@@ -230,13 +217,13 @@ function uniqueList(values, { maxItems = 100, maxLength = 100, numeric = false }
 }
 
 function evidenceText(value) {
-  if (typeof value === 'string') return selfServiceAiText(value, 1_200)
+  if (typeof value === 'string') return boundedText(value, 1_200)
   if (!value || typeof value !== 'object' || Array.isArray(value)) return ''
   const page = Number(value.page)
   const prefix = Number.isInteger(page) && page > 0 && page <= 100_000 ? `Page ${page}` : ''
   const label = boundedText(value.label ?? value.title, 120)
   const detail = boundedText(value.description ?? value.quote ?? value.text, 1_000)
-  return selfServiceAiText([prefix, label, detail].filter(Boolean).join(' — '), 1_200)
+  return [prefix, label, detail].filter(Boolean).join(' — ')
 }
 
 function criterionText(value) {
@@ -248,7 +235,7 @@ function criterionText(value) {
   if (value.met === true) outcome = 'Met'
   if (value.met === false) outcome = 'Not met'
   if (!outcome) outcome = boundedText(value.outcome ?? value.status, 80)
-  return selfServiceAiText([label, outcome, detail].filter(Boolean).join(' — '), 1_200)
+  return [label, outcome, detail].filter(Boolean).join(' — ')
 }
 
 function normalizedDetails(values, normalizer) {
@@ -268,7 +255,7 @@ function normalizeQuestions(value) {
       ),
       confidence: confidenceLabel(source.confidence),
       reviewRequired: source.reviewRequired === true || (finiteNumber(source.confidence) !== null && Number(source.confidence) < 0.7),
-      reason: selfServiceAiText(source.reason ?? source.rationale, 4_000),
+      reason: boundedText(source.reason ?? source.rationale, 4_000),
       evidence: Object.freeze(normalizedDetails(source.evidence, evidenceText)),
       criteria: Object.freeze(normalizedDetails(source.criteria, criterionText)),
     })
@@ -281,13 +268,13 @@ export function normalizeWholePaperReportInput(input) {
   return Object.freeze({
     title: boundedText(source.title, 100, 'Whole-paper AI marking report'),
     studentLabel: boundedText(source.studentLabel, 120),
-    instructions: selfServiceAiText(source.instructions, 2_000),
+    instructions: boundedText(source.instructions, 2_000),
     mode,
     score: mode.hasUploadedReference ? scorePair(source.provisionalScore, source.maxScore) : null,
     reviewRequired: source.reviewRequired === true,
     missingPages: Object.freeze(uniqueList(source.missingPages, { numeric: true })),
     missingQuestions: Object.freeze(uniqueList(source.missingQuestions, { maxLength: 80 })),
-    summary: selfServiceAiText(source.summary, 12_000),
+    summary: boundedText(source.summary, 12_000),
     questions: Object.freeze(normalizeQuestions(source.questionResults)),
   })
 }

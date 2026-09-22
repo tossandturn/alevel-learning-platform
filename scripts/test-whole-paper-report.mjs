@@ -82,18 +82,22 @@ const selfServiceUncertainty = normalizeWholePaperReportInput({
   title: 'Automatic AI report',
   assessmentMode: 'ai-advisory-unscored',
   reviewRequired: true,
-  summary: 'Human review required. 需要人工复核。A teacher must review this response.',
+  instructions: 'User note: do not rewrite this; no human review required.',
+  summary: 'No human review required. 不需要人工复核。',
   questionResults: [{
     questionLabel: 'Q1', confidence: 0.4, reviewRequired: true,
     rationale: 'An examiner must review the unclear handwriting.',
-    evidence: ['The final line is unclear.'],
+    evidence: ['Quoted source: teacher must review the label wording.'],
     criteria: [{ label: 'Clarity', comment: 'Needs human review.' }],
   }],
 })
 assert.equal(selfServiceUncertainty.reviewRequired, true, 'internal compatibility flag must be retained')
 assert.equal(selfServiceUncertainty.questions[0].reviewRequired, true)
-assert.doesNotMatch(JSON.stringify(selfServiceUncertainty), /human review required|teacher must review|examiner must review|需要人工复核/iu, 'student-visible AI text must not require a human approval step')
-assert.match(JSON.stringify(selfServiceUncertainty), /retry|重试/iu, 'uncertainty copy must offer a self-service retry path')
+assert.equal(selfServiceUncertainty.instructions, 'User note: do not rewrite this; no human review required.', 'user instructions must not be rewritten')
+assert.equal(selfServiceUncertainty.summary, 'No human review required. 不需要人工复核。', 'AI text, including negation, must remain source-faithful')
+assert.equal(selfServiceUncertainty.questions[0].reason, 'An examiner must review the unclear handwriting.')
+assert.deepEqual(selfServiceUncertainty.questions[0].evidence, ['Quoted source: teacher must review the label wording.'], 'evidence quotes must remain unchanged')
+assert.match(selfServiceUncertainty.questions[0].criteria[0], /Needs human review\./u, 'criterion source text must remain unchanged')
 assert.doesNotMatch(JSON.stringify(WHOLE_PAPER_REPORT_STUDENT_COPY), /human review|required.*teacher|teacher.*review|examiner.*review/iu)
 assert.match(JSON.stringify(WHOLE_PAPER_REPORT_STUDENT_COPY), /retry|clearer/iu)
 
