@@ -2,6 +2,8 @@
 
 A local-first Cambridge STEM, Economics and admissions-test practice platform built with React and Vite.
 
+The native whole-paper upload, asynchronous visual-marking, and authenticated PDF-report contract is documented in [docs/native-whole-paper-marking-api.md](docs/native-whole-paper-marking-api.md).
+
 ## Student features
 
 - Dashboard with a persisted target, next-best action, score estimates, mastery and source-library totals.

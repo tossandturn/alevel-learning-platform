@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "pretest": "npm run test:catalog-compression && npm run test:native-paper-context && npm run test:objective-answers && npm run test:remediation-contracts && npm run test:remediation-runtime",
+    "pretest": "npm run test:whole-paper-marking && npm run test:catalog-compression && npm run test:native-paper-context && npm run test:objective-answers && npm run test:remediation-contracts && npm run test:remediation-runtime",
     "test:catalog-compression": "node scripts/test-stem-catalog-compression.mjs && node scripts/test-native-source-region-delivery.mjs",
     "test:native-paper-context": "node scripts/test-native-paper-context.mjs && node scripts/test-native-wechat-entry.mjs && node scripts/test-native-paper-catalog.mjs && node scripts/test-native-runtime-scope.mjs && node scripts/test-native-question-images.mjs && node scripts/test-native-source-page-cache.mjs && node scripts/test-coordinate-source-cache.mjs",
     "test:objective-answers": "node scripts/test-stem-objective-answers.mjs",
@@ -80,6 +80,8 @@
     "test:topic-pdf-request-deadline": "node scripts/test-topic-pdf-request-deadline.mjs",
     "test:topic-pdf-api": "node scripts/test-topic-pdf-api.mjs",
     "test:topic-pdf-client": "node scripts/test-topic-pdf-client.mjs",
+    "test:whole-paper-marking": "node scripts/test-whole-paper-artifacts.mjs && node scripts/test-whole-paper-report.mjs && node scripts/test-whole-paper-ai.mjs && node scripts/test-whole-paper-marking-api.mjs && node scripts/test-whole-paper-marking-recovery.mjs && node scripts/test-whole-paper-overlay.mjs",
+    "prepare:whole-paper-overlay": "node scripts/prepare-whole-paper-marking-overlay.mjs",
     "test:paddle-ocr-review-queue": "node scripts/test-paddle-ocr-review-queue.mjs",
     "test:codex-paddle-review-import": "node scripts/test-codex-paddle-review-import.mjs",
     "test:paddle-postprocess-render": "node scripts/paddle-ocr/test_postprocess_render.mjs",
@@ -138,6 +140,7 @@
   "dependencies": {
     "@napi-rs/canvas": "0.1.100",
     "lucide-react": "^1.28.0",
+    "pdf-lib": "1.17.1",
     "pdfjs-dist": "4.10.38",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"

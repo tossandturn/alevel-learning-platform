@@ -24,6 +24,7 @@ data/*.sqlite
 data/*.sqlite-shm
 data/*.sqlite-wal
 data/ai-pdf-ingestion/
+data/whole-paper-marking/
 
 # Editor directories and files
 .vscode/*

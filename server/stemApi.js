@@ -20,6 +20,7 @@ import {
   projectNativeObjectivePracticeSet,
   scoreObjectiveQuestion,
 } from './objectiveAnswers.js'
+import { createWholePaperMarkingService } from './wholePaperMarking.js'
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024
 const REBIND_BODY_BYTES = 256 * 1024
@@ -2329,7 +2330,7 @@ export function nativePaperContext(questionBank, { routeId, stage, paperId }) {
   }
 }
 
-export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQuestionBankProvider = null, fetchImpl = fetch, libraryRoot = null, topicPdfRenderer = null, paperCatalogDirectory }) {
+export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQuestionBankProvider = null, fetchImpl = fetch, libraryRoot = null, topicPdfRenderer = null, paperCatalogDirectory, wholePaperMarkingOptions = null }) {
   const nativePaperCatalog = createNativePaperCatalog({ directory: paperCatalogDirectory })
   const nativeQuestionImages = createNativeQuestionImages({getQuestionBank:()=>currentTopicPracticeQuestionBank(),libraryRoot,env})
   // A single shared server key is sufficient for both the internal account
@@ -2349,6 +2350,8 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
   const baseTopicPracticeQuestionBank = questionBank === unifiedQuestionBank ? studyQuestionBank : questionBank
   const includeStudyOnly = questionBank === unifiedQuestionBank
   let nativeBridgeProbe = null
+  let wholePaperMarkingService = null
+  let wholePaperMarkingDatabase = null
   let runtimeTopicPracticeSnapshot = null
   let runtimeTopicPracticeQuestionBank = null
   const immutableTopicPracticeBanks = new WeakSet()
@@ -2402,6 +2405,18 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
       runtimeTopicPracticeQuestionBank = null
       return baseTopicPracticeQuestionBank
     }
+  }
+
+  function currentWholePaperMarkingService(database) {
+    if (!wholePaperMarkingService || wholePaperMarkingDatabase !== database) {
+      wholePaperMarkingDatabase = database
+      wholePaperMarkingService = createWholePaperMarkingService({
+        ...(wholePaperMarkingOptions || {}),
+        database,
+        env,
+      })
+    }
+    return wholePaperMarkingService
   }
 
   function currentSyllabusTopicsInventory(routeId, questionBankSnapshot, includeStudyOnlyQuestions) {
@@ -2666,6 +2681,10 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
         return
       }
       const user = identityFromRequest(request, signingKey)
+      if (url.pathname === '/api/stem/paper-marking-jobs' || url.pathname.startsWith('/api/stem/paper-marking-jobs/')) {
+        await currentWholePaperMarkingService(db).handle({ request, response, url, user })
+        return
+      }
       if (request.method === 'POST' && url.pathname === '/api/stem/objective-answers') {
         const objective = canonicalObjectiveAnswerRequest(await readJson(request, 16 * 1024))
         const persistedAttemptRow = db.prepare(`

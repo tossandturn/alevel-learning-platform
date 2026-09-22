@@ -225,7 +225,7 @@ async function temporaryImageUrl(dataUrl, publicBaseUrl) {
   }
 }
 
-async function temporaryProviderImages(dataUrls, publicBaseUrl) {
+export async function temporaryProviderImages(dataUrls, publicBaseUrl) {
   const images = []
   try {
     for (const dataUrl of dataUrls) images.push(await temporaryImageUrl(dataUrl, publicBaseUrl))
@@ -969,7 +969,7 @@ function providerSampling(provider, temperature) {
   return { temperature }
 }
 
-function providerCandidates(provider) {
+export function providerCandidates(provider) {
   const candidates = []
   const seen = new Set()
   let current = provider
@@ -1083,13 +1083,15 @@ function aiResponseSchemaError(error) {
   return schemaError
 }
 
-async function callCompatibleAi(provider, { messages, temperature = 0.2, json = false, metadata = null, operation = 'ai', requestId = '', providerAttempt = 1, fallbackPath = '', fallback = false, telemetry = null, timeoutMs = DEFAULT_AI_PROVIDER_TIMEOUT_MS, totalDeadlineMs = null, deadlineAt = null, validateResponse = null }) {
+export async function callCompatibleAi(provider, { messages, temperature = 0.2, json = false, metadata = null, operation = 'ai', requestId = '', providerAttempt = 1, fallbackPath = '', fallback = false, telemetry = null, timeoutMs = DEFAULT_AI_PROVIDER_TIMEOUT_MS, totalDeadlineMs = null, deadlineAt = null, validateResponse = null, signal = null }) {
   const startedAt = Date.now()
   let statusCode = null
   let schemaStatus = 'not-checked'
   let finalState = provider.apiKey ? 'error' : 'not_configured'
   let requestTimeoutMs = timeoutMs
   let failureClass = null
+  let controller = null
+  let externalAbortHandler = null
   if (!provider.apiKey) {
     emitProviderTelemetry(telemetry, { requestId, operation, provider: provider.name, model: provider.model, providerAttempt, fallbackPath, fallback, timeoutMs: requestTimeoutMs, totalDeadlineMs, statusCode, schemaStatus, finalState, durationMs: Date.now() - startedAt })
     return null
@@ -1099,7 +1101,13 @@ async function callCompatibleAi(provider, { messages, temperature = 0.2, json = 
     requestTimeoutMs = effectiveAiTimeoutMs(timeoutMs, deadlineAt)
     const configuredTimeoutMs = boundedDuration(timeoutMs, DEFAULT_AI_PROVIDER_TIMEOUT_MS, 1, MAX_AI_PROVIDER_TIMEOUT_MS)
     let timeoutReason = requestTimeoutMs < configuredTimeoutMs ? 'total_deadline' : 'provider_timeout'
-    const controller = new AbortController()
+    controller = new AbortController()
+    externalAbortHandler = () => {
+      failureClass ||= 'external_abort'
+      controller.abort()
+    }
+    if (signal?.aborted) externalAbortHandler()
+    else signal?.addEventListener?.('abort', externalAbortHandler, { once: true })
     timeout = setTimeout(() => {
       failureClass = timeoutReason
       controller.abort()
@@ -1156,6 +1164,7 @@ async function callCompatibleAi(provider, { messages, temperature = 0.2, json = 
     throw error
   } finally {
     if (timeout) clearTimeout(timeout)
+    if (externalAbortHandler) signal?.removeEventListener?.('abort', externalAbortHandler)
     emitProviderTelemetry(telemetry, {
       requestId,
       operation,
