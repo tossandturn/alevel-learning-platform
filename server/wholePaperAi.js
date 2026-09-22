@@ -180,6 +180,8 @@ export function createWholePaperAiRunner({ env = process.env, telemetry = null }
       'Route and stage metadata are non-authoritative subject hints only; the uploaded page images remain the evidence.',
       modeInstruction,
       'Abstain and set reviewRequired=true when pages, questions, handwriting, diagrams, or source context are missing or ambiguous.',
+      'Treat the assessment as automatically complete: do not require human, teacher, or examiner approval, and do not end by asking the student to wait for one.',
+      'When reviewRequired is true, state the AI uncertainty and a self-service next step: add clearer or missing pages or references and retry.',
       'Return JSON only with summary, provisionalScore, maxScore, reviewRequired, missingPages, missingQuestions, questionResults.',
       'Each questionResults item must contain questionLabel, provisionalScore, maxScore, confidence, reviewRequired, rationale, evidence, criteria.',
       'Write summary, rationale, and criteria comments in Simplified Chinese while preserving original question labels, mathematical symbols, units, and technical terms.',

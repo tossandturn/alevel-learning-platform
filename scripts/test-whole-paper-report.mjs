@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { createCanvas } from '@napi-rs/canvas'
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
 
-import { normalizeWholePaperReportInput, renderWholePaperReport } from '../server/wholePaperReport.js'
+import { normalizeWholePaperReportInput, renderWholePaperReport, WHOLE_PAPER_REPORT_STUDENT_COPY } from '../server/wholePaperReport.js'
 
 async function inspectPdf(bufferPromise) {
   const buffer = await bufferPromise
@@ -77,6 +77,25 @@ assert.doesNotMatch(normalizedUnreferenced.instructions, /INSTRUCTION-TAIL-MUST-
 assert.doesNotMatch(JSON.stringify(normalizedUnreferenced), /sk-provider-super-secret|private chain of thought/i, 'unknown internal/provider fields must never enter the render model')
 assert.equal(unreferenced.text.trim(), '', 'portable report pages are intentionally rasterized and non-selectable')
 assert.ok(unreferenced.bufferBytes < 1024 * 1024, 'a short English report must stay below 1 MiB')
+
+const selfServiceUncertainty = normalizeWholePaperReportInput({
+  title: 'Automatic AI report',
+  assessmentMode: 'ai-advisory-unscored',
+  reviewRequired: true,
+  summary: 'Human review required. 需要人工复核。A teacher must review this response.',
+  questionResults: [{
+    questionLabel: 'Q1', confidence: 0.4, reviewRequired: true,
+    rationale: 'An examiner must review the unclear handwriting.',
+    evidence: ['The final line is unclear.'],
+    criteria: [{ label: 'Clarity', comment: 'Needs human review.' }],
+  }],
+})
+assert.equal(selfServiceUncertainty.reviewRequired, true, 'internal compatibility flag must be retained')
+assert.equal(selfServiceUncertainty.questions[0].reviewRequired, true)
+assert.doesNotMatch(JSON.stringify(selfServiceUncertainty), /human review required|teacher must review|examiner must review|需要人工复核/iu, 'student-visible AI text must not require a human approval step')
+assert.match(JSON.stringify(selfServiceUncertainty), /retry|重试/iu, 'uncertainty copy must offer a self-service retry path')
+assert.doesNotMatch(JSON.stringify(WHOLE_PAPER_REPORT_STUDENT_COPY), /human review|required.*teacher|teacher.*review|examiner.*review/iu)
+assert.match(JSON.stringify(WHOLE_PAPER_REPORT_STUDENT_COPY), /retry|clearer/iu)
 
 const scoredInput = {
   title: 'A2 Physics whole-paper review',

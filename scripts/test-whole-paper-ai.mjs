@@ -129,6 +129,8 @@ try {
   assert.equal(requests[0].url, '/v1/chat/completions')
   assert.doesNotMatch(requests[0].body.messages[0].content, /IGNORE ALL RULES/i, 'untrusted teacher notes must not enter system instructions')
   assert.match(requests[0].body.messages[0].content, /Simplified Chinese/i)
+  assert.match(requests[0].body.messages[0].content, /do not require human, teacher, or examiner approval/i, 'provider prompt must keep uncertain outcomes self-service')
+  assert.match(requests[0].body.messages[0].content, /clearer or missing pages.*retry/i)
   const requestContext = JSON.parse(requests[0].body.messages[1].content[0].text)
   assert.equal(requestContext.routeId, 'cie-9702-as-physics')
   assert.equal(requestContext.stage, 'AS')

@@ -33,6 +33,15 @@ const COLORS = Object.freeze({
   danger: '#9b2c2c',
 })
 
+export const WHOLE_PAPER_REPORT_STUDENT_COPY = Object.freeze({
+  guidanceTitle: 'AI-generated feedback',
+  guidanceBody: 'This is the completed AI assessment. Any score shown is an AI estimate, not an official grade. Uncertain or incomplete items are labelled so you can add clearer pages or references and retry.',
+  uncertaintyTitle: 'AI uncertainty noted',
+  uncertaintyBody: 'Some findings are uncertain or incomplete. Check the highlighted items, add clearer or missing pages or references if available, then retry for an updated report.',
+  questionUncertainty: 'AI uncertainty: this item may be incomplete or unclear. Add a clearer answer or reference page and retry if needed.',
+  completenessAction: 'To update these findings, add clearer or missing pages or references and retry the AI assessment.',
+})
+
 const REFERENCE_BACKED_MODES = new Set([
   'ai-provisional',
   'reference-backed',
@@ -132,6 +141,19 @@ function boundedText(value, maxLength, fallback = '') {
   return Array.from(result).slice(0, maxLength).join('') || fallback
 }
 
+function selfServiceAiText(value, maxLength, fallback = '') {
+  let result = boundedText(value, maxLength, fallback)
+  if (!result) return result
+  const replacement = /[\u2e80-\u9fff\uf900-\ufaff]/u.test(result)
+    ? 'AI 已标注此处存在不确定性；请补充更清晰或缺失的材料后重试。'
+    : 'AI uncertainty is noted; add clearer or missing material and retry.'
+  return result
+    .replace(/\bhuman review (?:is )?required\b/giu, replacement)
+    .replace(/\b(?:a )?(?:human|teacher|examiner) (?:must|should|needs? to) review(?: this| the)?(?: response| answer| work)?\b/giu, replacement)
+    .replace(/\bneeds? (?:a )?(?:human|teacher|examiner) review\b/giu, replacement)
+    .replace(/(?:需要|必须)(?:人工|老师|教师|考官)(?:审核|复核)/gu, replacement)
+}
+
 function shortLabel(value, maxLength = 100) {
   if (typeof value === 'number' && Number.isFinite(value)) return String(value)
   return boundedText(value, maxLength)
@@ -208,13 +230,13 @@ function uniqueList(values, { maxItems = 100, maxLength = 100, numeric = false }
 }
 
 function evidenceText(value) {
-  if (typeof value === 'string') return boundedText(value, 1_200)
+  if (typeof value === 'string') return selfServiceAiText(value, 1_200)
   if (!value || typeof value !== 'object' || Array.isArray(value)) return ''
   const page = Number(value.page)
   const prefix = Number.isInteger(page) && page > 0 && page <= 100_000 ? `Page ${page}` : ''
   const label = boundedText(value.label ?? value.title, 120)
   const detail = boundedText(value.description ?? value.quote ?? value.text, 1_000)
-  return [prefix, label, detail].filter(Boolean).join(' — ')
+  return selfServiceAiText([prefix, label, detail].filter(Boolean).join(' — '), 1_200)
 }
 
 function criterionText(value) {
@@ -226,7 +248,7 @@ function criterionText(value) {
   if (value.met === true) outcome = 'Met'
   if (value.met === false) outcome = 'Not met'
   if (!outcome) outcome = boundedText(value.outcome ?? value.status, 80)
-  return [label, outcome, detail].filter(Boolean).join(' — ')
+  return selfServiceAiText([label, outcome, detail].filter(Boolean).join(' — '), 1_200)
 }
 
 function normalizedDetails(values, normalizer) {
@@ -246,7 +268,7 @@ function normalizeQuestions(value) {
       ),
       confidence: confidenceLabel(source.confidence),
       reviewRequired: source.reviewRequired === true || (finiteNumber(source.confidence) !== null && Number(source.confidence) < 0.7),
-      reason: boundedText(source.reason ?? source.rationale, 4_000),
+      reason: selfServiceAiText(source.reason ?? source.rationale, 4_000),
       evidence: Object.freeze(normalizedDetails(source.evidence, evidenceText)),
       criteria: Object.freeze(normalizedDetails(source.criteria, criterionText)),
     })
@@ -259,13 +281,13 @@ export function normalizeWholePaperReportInput(input) {
   return Object.freeze({
     title: boundedText(source.title, 100, 'Whole-paper AI marking report'),
     studentLabel: boundedText(source.studentLabel, 120),
-    instructions: boundedText(source.instructions, 2_000),
+    instructions: selfServiceAiText(source.instructions, 2_000),
     mode,
     score: mode.hasUploadedReference ? scorePair(source.provisionalScore, source.maxScore) : null,
     reviewRequired: source.reviewRequired === true,
     missingPages: Object.freeze(uniqueList(source.missingPages, { numeric: true })),
     missingQuestions: Object.freeze(uniqueList(source.missingQuestions, { maxLength: 80 })),
-    summary: boundedText(source.summary, 12_000),
+    summary: selfServiceAiText(source.summary, 12_000),
     questions: Object.freeze(normalizeQuestions(source.questionResults)),
   })
 }
@@ -585,7 +607,7 @@ function renderQuestion(writer, question, mode) {
     })
   }
   if (question.reviewRequired) {
-    writer.text('Human review required for this question.', {
+    writer.text(WHOLE_PAPER_REPORT_STUDENT_COPY.questionUncertainty, {
       font: `700 9.5px ${REPORT_FONT_STACK}`,
       color: COLORS.danger,
       lineHeight: 14,
@@ -629,8 +651,8 @@ export async function renderWholePaperReport(input, fontOptions) {
   })
 
   writer.notice(
-    'AI-generated advice',
-    'This report provides AI-generated guidance. Any score shown is an AI estimate only and is not an official grade. A teacher or examiner should review uncertain, incomplete, or high-stakes conclusions.',
+    WHOLE_PAPER_REPORT_STUDENT_COPY.guidanceTitle,
+    WHOLE_PAPER_REPORT_STUDENT_COPY.guidanceBody,
   )
 
   if (report.mode.hasUploadedReference) {
@@ -653,8 +675,8 @@ export async function renderWholePaperReport(input, fontOptions) {
 
   if (report.reviewRequired) {
     writer.notice(
-      'Human review required',
-      'One or more findings need a teacher or examiner to check the original response and the applicable reference before the feedback is relied upon.',
+      WHOLE_PAPER_REPORT_STUDENT_COPY.uncertaintyTitle,
+      WHOLE_PAPER_REPORT_STUDENT_COPY.uncertaintyBody,
       { warning: true },
     )
   }
@@ -675,6 +697,11 @@ export async function renderWholePaperReport(input, fontOptions) {
         gapAfter: 4,
       })
     }
+    writer.text(WHOLE_PAPER_REPORT_STUDENT_COPY.completenessAction, {
+      color: COLORS.muted,
+      lineHeight: 15,
+      gapAfter: 4,
+    })
   }
 
   if (report.instructions) {
