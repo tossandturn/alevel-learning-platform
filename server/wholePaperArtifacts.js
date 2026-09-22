@@ -2,7 +2,7 @@ import crypto from 'node:crypto'
 import path from 'node:path'
 
 import { createCanvas, loadImage } from '@napi-rs/canvas'
-import { PDFDocument } from 'pdf-lib'
+import { PDFDocument, PDFName, PDFNumber, PDFRawStream } from 'pdf-lib'
 
 export const WHOLE_PAPER_LIMITS = Object.freeze({
   maxAnswerPages: 20,
@@ -15,8 +15,10 @@ export const WHOLE_PAPER_LIMITS = Object.freeze({
   maxAnswerTotalPixels: 60_000_000,
   maxPdfEmbeddedPagePixels: 2_500_000,
   maxPdfEmbeddedPageDimension: 2_000,
+  maxPdfSourceImagePixels: 12_000_000,
   maxRenderedPagePixels: 2_500_000,
   maxRenderedPageDimension: 1_600,
+  maxPdfCanvasAreaBytes: 10_000_000,
 })
 
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
@@ -130,6 +132,9 @@ async function pdfPageCount(bytes) {
     loadingTask = pdfjs.getDocument({
       data: new Uint8Array(bytes),
       disableWorker: true,
+      stopAtErrors: true,
+      maxImageSize: WHOLE_PAPER_LIMITS.maxPdfSourceImagePixels,
+      canvasMaxAreaInBytes: WHOLE_PAPER_LIMITS.maxPdfCanvasAreaBytes,
       isEvalSupported: false,
       useSystemFonts: true,
     })
@@ -145,6 +150,37 @@ async function pdfPageCount(bytes) {
   }
 }
 
+async function inspectPdfSourceImageMetadata(bytes) {
+  let document
+  try {
+    document = await PDFDocument.load(bytes, {
+      ignoreEncryption: false,
+      updateMetadata: false,
+      throwOnInvalidObject: true,
+    })
+    let objectCount = 0
+    let imageCount = 0
+    for (const [, object] of document.context.enumerateIndirectObjects()) {
+      objectCount += 1
+      if (objectCount > 50_000) throw artifactError('asset_pdf_object_limit', 'The PDF contains too many indirect objects.', 413)
+      if (!(object instanceof PDFRawStream) || String(object.dict.get(PDFName.of('Subtype'))) !== '/Image') continue
+      imageCount += 1
+      if (imageCount > 2_000) throw artifactError('asset_pdf_image_count_limit', 'The PDF contains too many image objects.', 413)
+      const width = object.dict.lookupMaybe(PDFName.of('Width'), PDFNumber)?.asNumber()
+      const height = object.dict.lookupMaybe(PDFName.of('Height'), PDFNumber)?.asNumber()
+      if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1) {
+        throw artifactError('asset_pdf_invalid', 'The PDF contains an image with invalid dimensions.', 400)
+      }
+      if (width * height > WHOLE_PAPER_LIMITS.maxPdfSourceImagePixels) {
+        throw artifactError('asset_pdf_image_limit', 'The PDF contains an image above the safe decoded-pixel limit.', 413)
+      }
+    }
+  } catch (error) {
+    if (error?.code) throw error
+    throw artifactError('asset_pdf_invalid', 'The uploaded PDF image metadata could not be validated.', 400)
+  }
+}
+
 export function sha256(bytes) {
   return crypto.createHash('sha256').update(bytes).digest('hex')
 }
@@ -157,6 +193,7 @@ export async function inspectWholePaperAsset({ bytes, role, mediaType } = {}) {
   if (type === PDF_TYPE) {
     if (body.length > WHOLE_PAPER_LIMITS.maxPdfBytes) throw artifactError('asset_size_limit', 'Each PDF must be 10 MiB or smaller.', 413)
     if (!pdfMagic(body)) throw artifactError('asset_type_mismatch', 'The uploaded bytes do not match the declared PDF type.', 400)
+    await inspectPdfSourceImageMetadata(body)
     const pageCount = await pdfPageCount(body)
     const maximum = safeRole === 'answer' ? WHOLE_PAPER_LIMITS.maxAnswerPages : WHOLE_PAPER_LIMITS.maxReferencePages
     if (!Number.isInteger(pageCount) || pageCount < 1) throw artifactError('asset_pdf_invalid', 'The uploaded PDF has no readable pages.', 400)
@@ -269,10 +306,14 @@ function boundedViewport(page) {
 export async function renderPdfToPageImages(bytes, { maxPages = WHOLE_PAPER_LIMITS.maxReferencePages, signal } = {}) {
   const body = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes || [])
   if (!pdfMagic(body)) throw artifactError('asset_pdf_invalid', 'The PDF could not be rendered.', 400)
+  await inspectPdfSourceImageMetadata(body)
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
   const loadingTask = pdfjs.getDocument({
     data: new Uint8Array(body),
     disableWorker: true,
+    stopAtErrors: true,
+    maxImageSize: WHOLE_PAPER_LIMITS.maxPdfSourceImagePixels,
+    canvasMaxAreaInBytes: WHOLE_PAPER_LIMITS.maxPdfCanvasAreaBytes,
     isEvalSupported: false,
     useSystemFonts: false,
     standardFontDataUrl: PDF_STANDARD_FONT_DATA_URL,
@@ -305,6 +346,9 @@ export async function renderPdfToPageImages(bytes, { maxPages = WHOLE_PAPER_LIMI
         await renderTask.promise
       } catch (error) {
         if (signal?.aborted) throw artifactError('marking_cancelled', 'The PDF rendering was cancelled.', 499)
+        if (/image exceeded maximum allowed size/i.test(String(error?.message || ''))) {
+          throw artifactError('asset_pdf_image_limit', 'The PDF contains an image above the safe decoded-pixel limit.', 413)
+        }
         throw error
       } finally {
         signal?.removeEventListener?.('abort', cancelRender)
@@ -324,6 +368,9 @@ export async function renderPdfToPageImages(bytes, { maxPages = WHOLE_PAPER_LIMI
     return Object.freeze(pages)
   } catch (error) {
     if (error?.code) throw error
+    if (/image exceeded maximum allowed size/i.test(String(error?.message || ''))) {
+      throw artifactError('asset_pdf_image_limit', 'The PDF contains an image above the safe decoded-pixel limit.', 413)
+    }
     throw artifactError('asset_pdf_invalid', 'The PDF could not be rendered.', 400)
   } finally {
     try { if (document?.destroy) await document.destroy() }

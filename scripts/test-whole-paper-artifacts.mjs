@@ -3,7 +3,7 @@ import fs from 'node:fs'
 
 import { createCanvas, loadImage } from '@napi-rs/canvas'
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
+import { PDFDocument, PDFName, PDFNumber, PDFRawStream, rgb, StandardFonts } from 'pdf-lib'
 
 import {
   WHOLE_PAPER_LIMITS,
@@ -17,12 +17,12 @@ for (const file of ['server/wholePaperArtifacts.js', 'server/wholePaperReport.js
   assert.doesNotMatch(source, /import[^\n]*PDFDocument[^\n]*from ['"]@napi-rs\/canvas['"]/u, `${file} must not depend on the canvas PDFDocument export missing on Linux`)
 }
 
-function pngFixture(label, width = 480, height = 320) {
+function pngFixture(label, width = 480, height = 320, background = '#ffffff') {
   const canvas = createCanvas(width, height)
   const context = canvas.getContext('2d')
-  context.fillStyle = '#ffffff'
+  context.fillStyle = background
   context.fillRect(0, 0, width, height)
-  context.fillStyle = '#123456'
+  context.fillStyle = background === '#ffffff' ? '#123456' : '#ffffff'
   context.font = 'bold 42px sans-serif'
   context.fillText(label, 36, 100)
   return canvas.toBuffer('image/png')
@@ -47,8 +47,39 @@ async function extremePdfFixture() {
   return Buffer.from(await document.save())
 }
 
-const first = pngFixture('Answer page 1')
-const second = pngFixture('Answer page 2', 320, 480)
+async function oversizedImageXObjectPdfFixture() {
+  const seedCanvas = createCanvas(1, 1)
+  const seedContext = seedCanvas.getContext('2d')
+  seedContext.fillStyle = '#f00'
+  seedContext.fillRect(0, 0, 1, 1)
+  const document = await PDFDocument.create()
+  const image = await document.embedJpg(seedCanvas.toBuffer('image/jpeg'))
+  const page = document.addPage([595, 842])
+  page.drawImage(image, { x: 40, y: 200, width: 500, height: 500 })
+  await document.flush()
+  const imageStream = document.context.lookup(image.ref, PDFRawStream)
+  imageStream.dict.set(PDFName.of('Width'), PDFNumber.of(20_000))
+  imageStream.dict.set(PDFName.of('Height'), PDFNumber.of(20_000))
+  return Buffer.from(await document.save({ useObjectStreams: true }))
+}
+
+async function ordinaryScanPdfFixture() {
+  const scan = createCanvas(1_200, 1_600)
+  const context = scan.getContext('2d')
+  context.fillStyle = '#fff'
+  context.fillRect(0, 0, scan.width, scan.height)
+  context.fillStyle = '#222'
+  context.font = '48px sans-serif'
+  context.fillText('Ordinary scan', 80, 160)
+  const document = await PDFDocument.create()
+  const image = await document.embedJpg(scan.toBuffer('image/jpeg', { quality: 0.86 }))
+  const page = document.addPage([595, 842])
+  page.drawImage(image, { x: 0, y: 0, width: 595, height: 842 })
+  return Buffer.from(await document.save({ useObjectStreams: true }))
+}
+
+const first = pngFixture('Answer page 1', 480, 320, '#00aa44')
+const second = pngFixture('Answer page 2', 320, 480, '#2255cc')
 
 const portraitCanvas = createCanvas(40, 80)
 const portraitContext = portraitCanvas.getContext('2d')
@@ -124,6 +155,14 @@ for (let index = 0; index < mergedPixels.length; index += 4) {
   if (mergedPixels[index] < 245 || mergedPixels[index + 1] < 245 || mergedPixels[index + 2] < 245) mergedNonWhitePixels += 1
 }
 assert.ok(mergedNonWhitePixels > 500, 'the composed source PDF must render the uploaded answer instead of blank pages')
+const secondMergedPreview = await loadImage(mergedPages[1].bytes)
+const secondMergedCanvas = createCanvas(secondMergedPreview.width, secondMergedPreview.height)
+const secondMergedContext = secondMergedCanvas.getContext('2d')
+secondMergedContext.drawImage(secondMergedPreview, 0, 0)
+const firstCenter = mergedContext.getImageData(Math.floor(mergedCanvas.width / 2), Math.floor(mergedCanvas.height / 2), 1, 1).data
+const secondCenter = secondMergedContext.getImageData(Math.floor(secondMergedCanvas.width / 2), Math.floor(secondMergedCanvas.height / 2), 1, 1).data
+assert.ok(firstCenter[1] > firstCenter[2] && firstCenter[1] > firstCenter[0], 'page 1 must preserve the first green upload')
+assert.ok(secondCenter[2] > secondCenter[1] && secondCenter[2] > secondCenter[0], 'page 2 must preserve the second blue upload')
 
 const sourcePdf = await pdfFixture(2)
 const inspectedPdf = await inspectWholePaperAsset({
@@ -137,6 +176,25 @@ const rendered = await renderPdfToPageImages(sourcePdf, { maxPages: WHOLE_PAPER_
 assert.equal(rendered.length, 2, 'PDF answers must be rendered into visual model inputs')
 assert.match(rendered[0].dataUrl, /^data:image\/jpeg;base64,/)
 assert.ok(rendered.every((page) => page.bytes.length > 500 && page.width > 0 && page.height > 0))
+
+const oversizedImagePdf = await oversizedImageXObjectPdfFixture()
+assert.ok(oversizedImagePdf.length < 10_000, 'oversized image fixture must remain tiny and must not allocate its declared decoded pixels')
+await assert.rejects(
+  inspectWholePaperAsset({ bytes: oversizedImagePdf, role: 'answer', mediaType: 'application/pdf' }),
+  (error) => error?.code === 'asset_pdf_image_limit' && error?.statusCode === 413,
+  'oversized PDF image XObjects must fail from metadata before image decode',
+)
+await assert.rejects(
+  renderPdfToPageImages(oversizedImagePdf, { maxPages: 1 }),
+  (error) => error?.code === 'asset_pdf_image_limit' && error?.statusCode === 413,
+  'PDF.js maxImageSize with stopAtErrors must reject instead of silently omitting the image',
+)
+
+const ordinaryScanPdf = await ordinaryScanPdfFixture()
+const inspectedOrdinaryScan = await inspectWholePaperAsset({ bytes: ordinaryScanPdf, role: 'answer', mediaType: 'application/pdf' })
+assert.equal(inspectedOrdinaryScan.pageCount, 1)
+const renderedOrdinaryScan = await renderPdfToPageImages(ordinaryScanPdf, { maxPages: 1 })
+assert.equal(renderedOrdinaryScan.length, 1, 'ordinary bounded scan PDFs must remain renderable')
 
 const extremeRendered = await renderPdfToPageImages(await extremePdfFixture(), { maxPages: 1 })
 assert.equal(extremeRendered.length, 1)
