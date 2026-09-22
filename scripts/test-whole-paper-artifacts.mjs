@@ -50,6 +50,25 @@ async function extremePdfFixture() {
 const first = pngFixture('Answer page 1')
 const second = pngFixture('Answer page 2', 320, 480)
 
+const portraitCanvas = createCanvas(40, 80)
+const portraitContext = portraitCanvas.getContext('2d')
+portraitContext.fillStyle = '#fff'
+portraitContext.fillRect(0, 0, 40, 80)
+portraitContext.fillStyle = '#c00'
+portraitContext.fillRect(4, 6, 12, 24)
+const portraitJpeg = portraitCanvas.toBuffer('image/jpeg')
+const orientation6 = Buffer.from('ffe1002245786966000049492a0008000000010012010300010000000600000000000000', 'hex')
+const rotatedPhoneJpeg = Buffer.concat([portraitJpeg.subarray(0, 2), orientation6, portraitJpeg.subarray(2)])
+const inspectedRotatedPhoneJpeg = await inspectWholePaperAsset({ bytes: rotatedPhoneJpeg, role: 'answer', mediaType: 'image/jpeg' })
+assert.equal(inspectedRotatedPhoneJpeg.width, 80, 'EXIF orientation 6 must use the decoder-rotated width')
+assert.equal(inspectedRotatedPhoneJpeg.height, 40, 'EXIF orientation 6 must use the decoder-rotated height')
+const rotatedPhonePdf = await orderedImagesToPdf([{ bytes: rotatedPhoneJpeg, mediaType: 'image/jpeg' }])
+const rotatedPhoneDocument = await getDocument({ data: new Uint8Array(rotatedPhonePdf), disableWorker: true }).promise
+const rotatedPhonePage = await rotatedPhoneDocument.getPage(1)
+const rotatedPhoneViewport = rotatedPhonePage.getViewport({ scale: 1 })
+assert.ok(rotatedPhoneViewport.width > rotatedPhoneViewport.height, 'the source PDF must preserve the decoder-applied landscape orientation')
+await rotatedPhoneDocument.destroy()
+
 const inspectedImage = await inspectWholePaperAsset({
   bytes: first,
   role: 'answer',

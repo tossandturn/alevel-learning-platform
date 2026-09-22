@@ -181,7 +181,10 @@ export async function inspectWholePaperAsset({ bytes, role, mediaType } = {}) {
   }
   const width = Number(image.width)
   const height = Number(image.height)
-  if (!validImageDimensions({ width, height }) || width !== encodedDimensions.width || height !== encodedDimensions.height) {
+  const decodedDimensionsMatch = width === encodedDimensions.width && height === encodedDimensions.height
+  const decodedDimensionsMatchExifRotation = type === 'image/jpeg'
+    && width === encodedDimensions.height && height === encodedDimensions.width
+  if (!validImageDimensions({ width, height }) || (!decodedDimensionsMatch && !decodedDimensionsMatchExifRotation)) {
     throw artifactError('asset_image_dimensions', 'The uploaded image dimensions are unsupported.', 413)
   }
   return Object.freeze({ mediaType: type, size: body.length, pageCount: 1, width, height, sha256: sha256(body) })
