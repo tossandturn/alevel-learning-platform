@@ -9,6 +9,7 @@ import { buildSyllabusPracticeSet, rebindSyllabusPracticeUnit, seedSyllabusTable
 import { MIN_QUESTION_GROUPS_PER_TEST, MIN_VERIFIED_GROUPS_FOR_PRACTICE } from '../src/lib/practiceConstants.js'
 import { PAPER_STUDY_MODES } from '../src/lib/paperStudyMode.js'
 import { createNativePaperCatalog } from './nativePaperCatalog.js'
+import { createCurriculumPaperCatalog } from './curriculumPaperCatalog.js'
 import { createNativeQuestionImages } from './nativeQuestionImages.js'
 import { sendPublicCatalogJson } from './publicCatalogJson.js'
 import {
@@ -2330,8 +2331,9 @@ export function nativePaperContext(questionBank, { routeId, stage, paperId }) {
   }
 }
 
-export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQuestionBankProvider = null, fetchImpl = fetch, libraryRoot = null, topicPdfRenderer = null, paperCatalogDirectory, wholePaperMarkingOptions = null }) {
+export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQuestionBankProvider = null, fetchImpl = fetch, libraryRoot = null, topicPdfRenderer = null, paperCatalogDirectory, curriculumPaperCatalogOptions = null, wholePaperMarkingOptions = null }) {
   const nativePaperCatalog = createNativePaperCatalog({ directory: paperCatalogDirectory })
+  const curriculumPaperCatalog = createCurriculumPaperCatalog({ ...(curriculumPaperCatalogOptions || {}), env })
   const nativeQuestionImages = createNativeQuestionImages({getQuestionBank:()=>currentTopicPracticeQuestionBank(),libraryRoot,env})
   // A single shared server key is sufficient for both the internal account
   // request and the short-lived STEM API token. The legacy identity key is a
@@ -2471,6 +2473,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
     const url = new URL(request.url, 'http://127.0.0.1')
     if (!url.pathname.startsWith('/api/stem/') && !['/api/auth/status', '/api/auth/config', '/api/auth/login', '/api/auth/register', '/api/auth/logout', '/api/auth/wechat'].includes(url.pathname)) return next()
     try {
+      if (await curriculumPaperCatalog.handle(request, response, url)) return
       if(request.method==='GET'&&url.pathname==='/api/stem/practice-source-image'){
         const result=await nativeQuestionImages.image(Object.fromEntries(url.searchParams))
         response.setHeader('Content-Type',result.contentType);response.setHeader('Cache-Control','public, max-age=60, must-revalidate');response.setHeader('ETag','"'+result.sha256+'"');response.setHeader('X-Content-Type-Options','nosniff')
