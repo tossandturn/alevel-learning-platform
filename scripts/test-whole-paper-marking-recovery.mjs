@@ -8,7 +8,7 @@ import { Readable } from 'node:stream'
 import { createCanvas } from '@napi-rs/canvas'
 
 import { closeStemDatabaseForTests, createStemApi } from '../server/stemApi.js'
-import { wholePaperFailureIsRetryable } from '../server/wholePaperMarking.js'
+import { wholePaperFailureCode, wholePaperFailureIsRetryable } from '../server/wholePaperMarking.js'
 import { renderWholePaperReport } from '../server/wholePaperReport.js'
 
 const signingKey = 'whole-paper-recovery-signing-key'
@@ -100,6 +100,11 @@ assert.equal(wholePaperFailureIsRetryable(Object.assign(new Error('too many pixe
 assert.equal(wholePaperFailureIsRetryable(Object.assign(new Error('rate limited'), { statusCode: 429 })), true)
 assert.equal(wholePaperFailureIsRetryable(Object.assign(new Error('font missing'), { statusCode: 503, retryable: true })), true)
 assert.equal(wholePaperFailureIsRetryable(Object.assign(new Error('immutable binding'), { statusCode: 409, retryable: true })), true, 'explicit retryability must override the status default')
+assert.equal(wholePaperFailureCode(Object.assign(new Error('safe'), { code: 'ai_assessment_schema_invalid', assessmentFailureReason: 'evidence_missing' })), 'ai_assessment_evidence_missing')
+assert.equal(wholePaperFailureCode(Object.assign(new Error('safe'), { code: 'ai_assessment_schema_invalid', assessmentFailureReason: 'evidence_type_invalid' })), 'ai_assessment_evidence_type_invalid')
+assert.equal(wholePaperFailureCode(Object.assign(new Error('safe'), { code: 'ai_assessment_schema_invalid', assessmentFailureReason: 'confidence_invalid' })), 'ai_assessment_confidence_invalid')
+assert.equal(wholePaperFailureCode(Object.assign(new Error('safe'), { code: 'ai_assessment_schema_invalid', assessmentFailureReason: 'total_mismatch' })), 'ai_assessment_total_mismatch')
+assert.equal(wholePaperFailureCode(Object.assign(new Error('safe'), { code: 'ai_assessment_schema_invalid', assessmentFailureReason: 'not_whitelisted' })), 'ai_assessment_schema_invalid', 'unknown diagnostics must not enter the persisted failure code')
 
 try {
   const databasePath = path.join(temporaryRoot, 'restart.sqlite')

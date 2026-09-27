@@ -11,39 +11,70 @@ import {
 const DEFAULT_TIMEOUT_MS = 45_000
 const MAX_TEXT = 2_000
 export const WHOLE_PAPER_AI_MAX_IMAGES = 40
+const ASSESSMENT_FAILURE_REASONS = new Set([
+  'invalid_json',
+  'provider_envelope_invalid',
+  'field_type',
+  'score_range',
+  'confidence_invalid',
+  'rationale_missing',
+  'label_missing',
+  'evidence_type_invalid',
+  'evidence_missing',
+  'empty',
+  'duplicate_question',
+  'summary_missing',
+  'score_pair_missing',
+  'total_mismatch',
+])
 
 function wholePaperError(code, message, { statusCode = 503, retryable = true } = {}) {
   return Object.assign(new Error(message), { code, statusCode, retryable })
 }
 
-function assessmentError(code, message) {
+export function wholePaperAssessmentFailureCode(reason) {
+  const normalized = String(reason || '')
+  return ASSESSMENT_FAILURE_REASONS.has(normalized) ? `ai_assessment_${normalized}` : null
+}
+
+function assessmentError(reason, message) {
+  const failureCode = wholePaperAssessmentFailureCode(reason)
+  if (!failureCode) throw new Error('Unsupported internal assessment failure reason.')
+  const code = reason === 'empty' ? 'ai_assessment_empty' : 'ai_assessment_schema_invalid'
   return Object.assign(wholePaperError(code, message, { statusCode: 502, retryable: true }), {
-    assessmentFailureCode: code,
+    assessmentFailureReason: reason,
   })
+}
+
+function parseWholePaperAssessment(value) {
+  try { return parseStructuredJson(value) }
+  catch { throw assessmentError('invalid_json', 'Whole-paper assessment JSON is invalid.') }
 }
 
 function text(value, maximum = MAX_TEXT) {
   return String(value || '').replace(/\r\n?/g, '\n').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, maximum)
 }
 
-function finiteMark(value) {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0
-}
-
-function safeList(value, maximum = 100) {
-  if (!Array.isArray(value)) return []
-  return value.slice(0, maximum).map((item) => typeof item === 'number' && Number.isFinite(item)
-    ? item
-    : text(item, 120)).filter((item) => item !== '')
+function nullableMark(source, key, label, { allowScores = true, positive = false } = {}) {
+  if (!Object.hasOwn(source, key)) throw assessmentError('field_type', `${label} is required.`)
+  const value = source[key]
+  if (value === null) return null
+  if (typeof value !== 'number' || !Number.isFinite(value)) throw assessmentError('field_type', `${label} must be a number or null.`)
+  if (value < 0 || (positive && value <= 0)) throw assessmentError('score_range', `${label} is outside the allowed range.`)
+  return allowScores ? Number(value) : null
 }
 
 function normalizeCriterion(value, index, { allowScores = true } = {}) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
-  const maxScore = allowScores && finiteMark(value.maxScore) ? Number(value.maxScore) : null
-  const awarded = allowScores && finiteMark(value.awarded) ? Number(value.awarded) : null
-  if (maxScore !== null && awarded !== null && awarded > maxScore) return null
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw assessmentError('field_type', `criteria[${index}] must be an object.`)
+  if (typeof value.label !== 'string' || !text(value.label, 160)) throw assessmentError('label_missing', `criteria[${index}] is missing label.`)
+  if (typeof value.comment !== 'string') throw assessmentError('field_type', `criteria[${index}].comment must be a string.`)
+  const maxScore = nullableMark(value, 'maxScore', `criteria[${index}].maxScore`, { allowScores, positive: true })
+  const awarded = nullableMark(value, 'awarded', `criteria[${index}].awarded`, { allowScores })
+  if ((maxScore === null) !== (awarded === null) || (maxScore !== null && awarded > maxScore)) {
+    throw assessmentError('score_range', `criteria[${index}] has an invalid score pair.`)
+  }
   return {
-    label: text(value.label || `Criterion ${index + 1}`, 160),
+    label: text(value.label, 160),
     awarded,
     maxScore,
     comment: text(value.comment, 800),
@@ -51,36 +82,42 @@ function normalizeCriterion(value, index, { allowScores = true } = {}) {
 }
 
 function normalizeQuestionResult(value, index, { allowScores }) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`questionResults[${index}] must be an object.`)
-  const provisionalScore = allowScores && finiteMark(value.provisionalScore) ? Number(value.provisionalScore) : null
-  const maxScore = allowScores && finiteMark(value.maxScore) && Number(value.maxScore) > 0 ? Number(value.maxScore) : null
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw assessmentError('field_type', `questionResults[${index}] must be an object.`)
+  const provisionalScore = nullableMark(value, 'provisionalScore', `questionResults[${index}].provisionalScore`, { allowScores })
+  const maxScore = nullableMark(value, 'maxScore', `questionResults[${index}].maxScore`, { allowScores, positive: true })
   if ((provisionalScore === null) !== (maxScore === null) || (provisionalScore !== null && provisionalScore > maxScore)) {
-    throw new Error(`questionResults[${index}] has an invalid score range.`)
+    throw assessmentError('score_range', `questionResults[${index}] has an invalid score range.`)
+  }
+  if (typeof value.confidence !== 'number' || !Number.isFinite(value.confidence) || value.confidence < 0 || value.confidence > 1) {
+    throw assessmentError('confidence_invalid', `questionResults[${index}] has invalid confidence.`)
   }
   const confidence = Number(value.confidence)
-  if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) throw new Error(`questionResults[${index}] has invalid confidence.`)
+  if (typeof value.reviewRequired !== 'boolean') throw assessmentError('field_type', `questionResults[${index}].reviewRequired must be boolean.`)
+  if (typeof value.rationale !== 'string') throw assessmentError('field_type', `questionResults[${index}].rationale must be a string.`)
   const rationale = text(value.rationale, 2_000)
-  if (!rationale) throw new Error(`questionResults[${index}] is missing rationale.`)
+  if (!rationale) throw assessmentError('rationale_missing', `questionResults[${index}] is missing rationale.`)
+  if (typeof value.questionLabel !== 'string') throw assessmentError('field_type', `questionResults[${index}].questionLabel must be a string.`)
   const questionLabel = text(value.questionLabel, 120)
-  if (!questionLabel) throw new Error(`questionResults[${index}] is missing questionLabel.`)
-  const evidence = (Array.isArray(value.evidence) ? value.evidence : []).slice(0, 20)
-    .filter((item) => typeof item === 'string')
-    .map((item) => text(item, 600))
-    .filter(Boolean)
-  const criteria = (Array.isArray(value.criteria) ? value.criteria : []).slice(0, 40)
+  if (!questionLabel) throw assessmentError('label_missing', `questionResults[${index}] is missing questionLabel.`)
+  if (!Array.isArray(value.evidence) || value.evidence.some((item) => typeof item !== 'string')) {
+    throw assessmentError('evidence_type_invalid', `questionResults[${index}].evidence must be an array of strings.`)
+  }
+  const evidence = value.evidence.slice(0, 20).map((item) => text(item, 600))
+  if (evidence.some((item) => !item)) throw assessmentError('evidence_missing', `questionResults[${index}] contains blank evidence.`)
+  if (!Array.isArray(value.criteria)) throw assessmentError('field_type', `questionResults[${index}].criteria must be an array.`)
+  const criteria = value.criteria.slice(0, 40)
     .map((criterion, criterionIndex) => normalizeCriterion(criterion, criterionIndex, { allowScores }))
-    .filter(Boolean)
   const hasAnyMark = provisionalScore !== null || maxScore !== null
     || criteria.some((criterion) => criterion.awarded !== null || criterion.maxScore !== null)
   if (hasAnyMark && evidence.length === 0) {
-    throw assessmentError('ai_assessment_schema_invalid', `questionResults[${index}] has marks without student evidence.`)
+    throw assessmentError('evidence_missing', `questionResults[${index}] has marks without student evidence.`)
   }
   return {
     questionLabel,
     provisionalScore,
     maxScore,
     confidence,
-    reviewRequired: Boolean(value.reviewRequired) || confidence < 0.7,
+    reviewRequired: value.reviewRequired || confidence < 0.7,
     rationale,
     evidence,
     criteria,
@@ -88,37 +125,45 @@ function normalizeQuestionResult(value, index, { allowScores }) {
 }
 
 export function normalizeWholePaperAiResult(value, { hasQuestionPaper = false, hasMarkScheme = false } = {}) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Whole-paper assessment must be an object.')
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw assessmentError('field_type', 'Whole-paper assessment must be an object.')
   const allowScores = Boolean(hasQuestionPaper || hasMarkScheme)
-  let provisionalScore = allowScores && finiteMark(value.provisionalScore) ? Number(value.provisionalScore) : null
-  let maxScore = allowScores && finiteMark(value.maxScore) && Number(value.maxScore) > 0 ? Number(value.maxScore) : null
+  let provisionalScore = nullableMark(value, 'provisionalScore', 'provisionalScore', { allowScores })
+  let maxScore = nullableMark(value, 'maxScore', 'maxScore', { allowScores, positive: true })
   if ((provisionalScore === null) !== (maxScore === null) || (provisionalScore !== null && provisionalScore > maxScore)) {
-    provisionalScore = null
-    maxScore = null
+    throw assessmentError('score_range', 'The whole-paper total has an invalid score pair.')
   }
-  const missingPages = safeList(value.missingPages, 100)
-  const missingQuestions = safeList(value.missingQuestions, 100).map(String)
-  const suppliedQuestionResults = Array.isArray(value.questionResults) ? value.questionResults : []
-  if (suppliedQuestionResults.length > 100) throw new Error('Whole-paper assessment contains more than 100 question results.')
+  if (typeof value.reviewRequired !== 'boolean') throw assessmentError('field_type', 'reviewRequired must be boolean.')
+  if (!Array.isArray(value.missingPages) || value.missingPages.some((item) => !Number.isInteger(item) || item < 1)) {
+    throw assessmentError('field_type', 'missingPages must be an array of positive integers.')
+  }
+  if (!Array.isArray(value.missingQuestions) || value.missingQuestions.some((item) => typeof item !== 'string' || !text(item, 120))) {
+    throw assessmentError('field_type', 'missingQuestions must be an array of non-empty strings.')
+  }
+  if (!Array.isArray(value.questionResults)) throw assessmentError('field_type', 'questionResults must be an array.')
+  const missingPages = value.missingPages.slice(0, 100)
+  const missingQuestions = value.missingQuestions.slice(0, 100).map((item) => text(item, 120))
+  const suppliedQuestionResults = value.questionResults
+  if (suppliedQuestionResults.length > 100) throw assessmentError('field_type', 'Whole-paper assessment contains more than 100 question results.')
   let questionResults = suppliedQuestionResults
     .map((item, index) => normalizeQuestionResult(item, index, { allowScores }))
   if (!questionResults.length) {
-    throw assessmentError('ai_assessment_empty', 'Whole-paper assessment contains no question-level results.')
+    throw assessmentError('empty', 'Whole-paper assessment contains no question-level results.')
   }
   if (new Set(questionResults.map((item) => item.questionLabel.toLowerCase())).size !== questionResults.length) {
-    throw new Error('Whole-paper assessment contains duplicate questionLabel values.')
+    throw assessmentError('duplicate_question', 'Whole-paper assessment contains duplicate questionLabel values.')
   }
+  if (typeof value.summary !== 'string') throw assessmentError('field_type', 'summary must be a string.')
   const summary = text(value.summary, 4_000)
-  if (!summary) throw new Error('Whole-paper assessment is missing a summary.')
+  if (!summary) throw assessmentError('summary_missing', 'Whole-paper assessment is missing a summary.')
   const incompleteSource = missingPages.length > 0 || missingQuestions.length > 0
   if (allowScores && provisionalScore !== null && maxScore !== null && !incompleteSource) {
     if (questionResults.some((item) => item.provisionalScore === null || item.maxScore === null)) {
-      throw new Error('Every question result needs a score pair when a complete provisional total is supplied.')
+      throw assessmentError('score_pair_missing', 'Every question result needs a score pair when a complete provisional total is supplied.')
     }
     const questionScore = questionResults.reduce((sum, item) => sum + item.provisionalScore, 0)
     const questionMaximum = questionResults.reduce((sum, item) => sum + item.maxScore, 0)
     if (Math.abs(questionScore - provisionalScore) > 1e-9 || Math.abs(questionMaximum - maxScore) > 1e-9) {
-      throw new Error('Question-level scores do not reconcile with the provisional total.')
+      throw assessmentError('total_mismatch', 'Question-level scores do not reconcile with the provisional total.')
     }
   }
   if (incompleteSource) {
@@ -208,7 +253,14 @@ export function createWholePaperAiRunner({ env = process.env, telemetry = null }
       'Treat the assessment as automatically complete: do not require human, teacher, or examiner approval, and do not end by asking the student to wait for one.',
       'When reviewRequired is true, state the AI uncertainty and a self-service next step: add clearer or missing pages or references and retry.',
       'Return JSON only with summary, provisionalScore, maxScore, reviewRequired, missingPages, missingQuestions, questionResults.',
-      'Each questionResults item must contain questionLabel, provisionalScore, maxScore, confidence, reviewRequired, rationale, evidence, criteria.',
+      'JSON types are strict. Never substitute labels such as "high" for numbers, and never return objects or numbers inside evidence.',
+      'Top-level types: summary is a non-empty string; provisionalScore and maxScore are each a number or null; reviewRequired is boolean; missingPages is an array of positive integers; missingQuestions is an array of non-empty strings; questionResults is a non-empty array.',
+      'Each questionResults item must contain: questionLabel and rationale as non-empty strings; provisionalScore and maxScore are each a number or null; confidence is a number from 0 to 1; reviewRequired is boolean; evidence is an array of non-empty strings that point to visible student work; criteria is an array.',
+      'Each criteria item must contain: label as a non-empty string; awarded and maxScore as a matching number pair or both null; comment as a string. The criteria array may be empty.',
+      'If any question or criterion includes marks, that question evidence array must contain at least one non-empty student-evidence string.',
+      'When a complete top-level score pair is present, every question must have a score pair and the question-level scores and maxima must sum exactly to the top-level provisionalScore and maxScore.',
+      'When missingPages or missingQuestions is non-empty, set the top-level, question-level and criterion score fields to null while preserving grounded qualitative feedback.',
+      'Use JSON null for unavailable scores. Do not use empty strings, numeric strings, confidence labels, or invented zeroes as substitutes.',
       'Write summary, rationale, and criteria comments in Simplified Chinese while preserving original question labels, mathematical symbols, units, and technical terms.',
       'Scores, when allowed, must satisfy 0 <= provisionalScore <= maxScore. Evidence must point to visible student work.',
     ].join('\n')
@@ -220,6 +272,7 @@ export function createWholePaperAiRunner({ env = process.env, telemetry = null }
         continue
       }
       let providerImages = []
+      let validatorEntered = false
       try {
         providerImages = await temporaryProviderImages(dataUrls, provider.imageMode === 'url' ? provider.publicBaseUrl : '')
         const answerOffset = 0
@@ -256,21 +309,32 @@ export function createWholePaperAiRunner({ env = process.env, telemetry = null }
           totalDeadlineMs: Number.isFinite(deadlineAt) ? Math.max(0, deadlineAt - Date.now()) : null,
           deadlineAt,
           signal,
-          validateResponse: (answer) => normalizeWholePaperAiResult(parseStructuredJson(answer), { hasQuestionPaper, hasMarkScheme }),
+          validateResponse: (answer) => {
+            validatorEntered = true
+            return normalizeWholePaperAiResult(parseWholePaperAssessment(answer), { hasQuestionPaper, hasMarkScheme })
+          },
         })
-        const result = normalizeWholePaperAiResult(parseStructuredJson(raw), { hasQuestionPaper, hasMarkScheme })
+        const result = normalizeWholePaperAiResult(parseWholePaperAssessment(raw), { hasQuestionPaper, hasMarkScheme })
         return Object.freeze({ ...result, provider: provider.name, model: provider.model })
       } catch (error) {
+        if (!validatorEntered && error?.code === 'AI_RESPONSE_SCHEMA_INVALID') {
+          error.assessmentFailureReason = 'provider_envelope_invalid'
+        }
         lastError = error
       } finally {
         providerImages.forEach((image) => image.cleanup())
       }
     }
     const timeout = signal?.aborted || /timeout|timed out|abort/i.test(String(lastError?.message || ''))
-    const emptyAssessment = lastError?.assessmentFailureCode === 'ai_assessment_empty'
-    throw wholePaperError(
+    const assessmentFailureReason = wholePaperAssessmentFailureCode(lastError?.assessmentFailureReason)
+      ? String(lastError.assessmentFailureReason)
+      : null
+    const emptyAssessment = assessmentFailureReason === 'empty'
+    const terminalError = wholePaperError(
       timeout ? 'marking_timeout' : emptyAssessment ? 'ai_assessment_empty' : lastError?.code === 'AI_RESPONSE_SCHEMA_INVALID' ? 'ai_assessment_schema_invalid' : 'vision_review_failed',
       timeout ? 'Whole-paper marking timed out.' : emptyAssessment ? 'AI whole-paper marking returned no question-level results.' : 'AI whole-paper marking could not be completed.',
     )
+    if (assessmentFailureReason) terminalError.assessmentFailureReason = assessmentFailureReason
+    throw terminalError
   }
 }

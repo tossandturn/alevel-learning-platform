@@ -10,7 +10,12 @@ import {
   safeArtifactFileName,
   sha256,
 } from './wholePaperArtifacts.js'
-import { createWholePaperAiRunner, normalizeWholePaperAiResult, WHOLE_PAPER_AI_MAX_IMAGES } from './wholePaperAi.js'
+import {
+  createWholePaperAiRunner,
+  normalizeWholePaperAiResult,
+  wholePaperAssessmentFailureCode,
+  WHOLE_PAPER_AI_MAX_IMAGES,
+} from './wholePaperAi.js'
 import { renderWholePaperReport } from './wholePaperReport.js'
 
 export const WHOLE_PAPER_JOB_SCHEMA_VERSION = 'stem-paper-marking-job-v1'
@@ -289,8 +294,10 @@ function safeResult(value, hasQuestionPaper, hasMarkScheme) {
   }
 }
 
-function failureCode(error) {
+export function wholePaperFailureCode(error) {
   const code = text(error?.code, 80)
+  const assessmentCode = wholePaperAssessmentFailureCode(error?.assessmentFailureReason)
+  if (assessmentCode && ['ai_assessment_schema_invalid', 'ai_assessment_empty', 'AI_RESPONSE_SCHEMA_INVALID'].includes(code)) return assessmentCode
   if (code) return code
   return /timeout|timed out|abort/i.test(String(error?.message || '')) ? 'marking_timeout' : 'marking_failed'
 }
@@ -769,7 +776,7 @@ export function createWholePaperMarkingService({
       await Promise.race([pipeline, timeoutPromise])
     } catch (error) {
       controller.abort()
-      const code = failureCode(error)
+      const code = wholePaperFailureCode(error)
       const retryable = wholePaperFailureIsRetryable(error) ? 1 : 0
       const failedAt = nowIso(now)
       database.prepare(`

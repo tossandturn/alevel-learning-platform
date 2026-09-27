@@ -75,10 +75,25 @@ const server = http.createServer((request, response) => {
         }],
       }
     }
+    if (responseMode === 'confidence-label') {
+      assessment = {
+        summary: 'Invalid confidence response.', provisionalScore: 3, maxScore: 4,
+        reviewRequired: false, missingPages: [], missingQuestions: [],
+        questionResults: [{
+          questionLabel: 'Q1', provisionalScore: 3, maxScore: 4, confidence: 'high',
+          reviewRequired: false, rationale: 'Visible.', evidence: ['Student answer page 1'], criteria: [],
+        }],
+      }
+    }
     const finish = () => {
       if (response.destroyed) return
       response.writeHead(200, { 'content-type': 'application/json' })
-      response.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(assessment) } }] }))
+      if (responseMode === 'provider-envelope-invalid') {
+        response.end(JSON.stringify({ choices: [] }))
+        return
+      }
+      const content = responseMode === 'invalid-json' ? '{"summary":' : JSON.stringify(assessment)
+      response.end(JSON.stringify({ choices: [{ message: { content } }] }))
     }
     if (responseMode === 'delayed') setTimeout(finish, 500)
     else finish()
@@ -109,8 +124,8 @@ try {
     () => normalizeWholePaperAiResult({
       ...resultBase,
       questionResults: [
-        { questionLabel: 'Q1', confidence: 0.8, reviewRequired: false, rationale: 'First.', evidence: [], criteria: [] },
-        { questionLabel: 'q1', confidence: 0.8, reviewRequired: false, rationale: 'Duplicate.', evidence: [], criteria: [] },
+        { questionLabel: 'Q1', provisionalScore: null, maxScore: null, confidence: 0.8, reviewRequired: false, rationale: 'First.', evidence: [], criteria: [] },
+        { questionLabel: 'q1', provisionalScore: null, maxScore: null, confidence: 0.8, reviewRequired: false, rationale: 'Duplicate.', evidence: [], criteria: [] },
       ],
     }, { hasQuestionPaper: true, hasMarkScheme: true }),
     /duplicate questionLabel/i,
@@ -118,7 +133,7 @@ try {
   assert.throws(
     () => normalizeWholePaperAiResult({
       ...resultBase,
-      questionResults: Array.from({ length: 101 }, (_, index) => ({ questionLabel: `Q${index + 1}`, confidence: 0.8, reviewRequired: false, rationale: 'Visible.', evidence: [], criteria: [] })),
+      questionResults: Array.from({ length: 101 }, (_, index) => ({ questionLabel: `Q${index + 1}`, provisionalScore: null, maxScore: null, confidence: 0.8, reviewRequired: false, rationale: 'Visible.', evidence: [], criteria: [] })),
     }, { hasQuestionPaper: true, hasMarkScheme: true }),
     /more than 100/i,
   )
@@ -131,10 +146,10 @@ try {
         rationale: 'Claims a score without pointing to student work.', evidence: [], criteria: [],
       }],
     }, { hasQuestionPaper: true, hasMarkScheme: true }),
-    (error) => error?.code === 'ai_assessment_schema_invalid' && error?.retryable === true,
+    (error) => error?.code === 'ai_assessment_schema_invalid' && error?.assessmentFailureReason === 'evidence_missing' && error?.retryable === true,
     'a reference-backed score must not pass without non-empty student evidence',
   )
-  for (const malformedEvidence of [[0], [{}], ['   ']]) {
+  for (const malformedEvidence of [[0], [{}]]) {
     assert.throws(
       () => normalizeWholePaperAiResult({
         summary: 'Malformed evidence fixture.', provisionalScore: 1, maxScore: 1, reviewRequired: false,
@@ -144,10 +159,21 @@ try {
           rationale: 'Claims a score with a non-string evidence placeholder.', evidence: malformedEvidence, criteria: [],
         }],
       }, { hasQuestionPaper: true, hasMarkScheme: true }),
-      (error) => error?.code === 'ai_assessment_schema_invalid' && error?.retryable === true,
+      (error) => error?.code === 'ai_assessment_schema_invalid' && error?.assessmentFailureReason === 'evidence_type_invalid' && error?.retryable === true,
       'numeric, object and whitespace evidence placeholders cannot authorize a score',
     )
   }
+  assert.throws(
+    () => normalizeWholePaperAiResult({
+      summary: 'Blank evidence fixture.', provisionalScore: 1, maxScore: 1, reviewRequired: false,
+      missingPages: [], missingQuestions: [],
+      questionResults: [{
+        questionLabel: 'Q1', provisionalScore: 1, maxScore: 1, confidence: 0.99, reviewRequired: false,
+        rationale: 'Claims a score with blank evidence.', evidence: ['   '], criteria: [],
+      }],
+    }, { hasQuestionPaper: true, hasMarkScheme: true }),
+    (error) => error?.assessmentFailureReason === 'evidence_missing',
+  )
   assert.throws(
     () => normalizeWholePaperAiResult({
       ...resultBase,
@@ -157,7 +183,7 @@ try {
         criteria: [{ label: 'Method', awarded: 1, maxScore: 1, comment: 'Unsupported mark.' }],
       }],
     }, { hasQuestionPaper: true, hasMarkScheme: true }),
-    (error) => error?.code === 'ai_assessment_schema_invalid' && error?.retryable === true,
+    (error) => error?.code === 'ai_assessment_schema_invalid' && error?.assessmentFailureReason === 'evidence_missing' && error?.retryable === true,
     'criterion marks cannot bypass the student-evidence gate when the question score is null',
   )
   assert.throws(
@@ -165,7 +191,7 @@ try {
       ...resultBase,
       questionResults: [],
     }, { hasQuestionPaper: true, hasMarkScheme: true }),
-    (error) => error?.code === 'ai_assessment_empty' && error?.retryable === true,
+    (error) => error?.code === 'ai_assessment_empty' && error?.assessmentFailureReason === 'empty' && error?.retryable === true,
     'an assessment with no question-level results must fail instead of producing an empty completed report',
   )
   const exactMissingQuestion = normalizeWholePaperAiResult({
@@ -214,6 +240,10 @@ try {
   assert.match(requests[0].body.messages[0].content, /Simplified Chinese/i)
   assert.match(requests[0].body.messages[0].content, /do not require human, teacher, or examiner approval/i, 'provider prompt must keep uncertain outcomes self-service')
   assert.match(requests[0].body.messages[0].content, /clearer or missing pages.*retry/i)
+  assert.match(requests[0].body.messages[0].content, /evidence.*array of non-empty strings/i, 'the prompt must forbid evidence objects and numeric placeholders')
+  assert.match(requests[0].body.messages[0].content, /confidence.*number.*0.*1/i, 'the prompt must define numeric confidence')
+  assert.match(requests[0].body.messages[0].content, /provisionalScore.*number or null/i, 'the prompt must define nullable score types')
+  assert.match(requests[0].body.messages[0].content, /question-level scores.*sum.*top-level/i, 'the prompt must define total reconciliation')
   const requestContext = JSON.parse(requests[0].body.messages[1].content[0].text)
   assert.equal(requestContext.routeId, 'cie-9702-as-physics')
   assert.equal(requestContext.stage, 'AS')
@@ -252,22 +282,43 @@ try {
   responseMode = 'mismatch'
   await assert.rejects(
     run({ job: { id: 'job-mismatch' }, answerPages: [page], questionPaperPages: [page], markSchemePages: [page] }),
-    (error) => error?.code === 'ai_assessment_schema_invalid',
+    (error) => error?.code === 'ai_assessment_schema_invalid' && error?.assessmentFailureReason === 'total_mismatch',
     'non-reconciling total and question scores must fail closed',
   )
 
   responseMode = 'empty'
   await assert.rejects(
     run({ job: { id: 'job-empty' }, answerPages: [page], questionPaperPages: [page], markSchemePages: [page] }),
-    (error) => error?.code === 'ai_assessment_empty' && error?.retryable === true,
+    (error) => error?.code === 'ai_assessment_empty' && error?.assessmentFailureReason === 'empty' && error?.retryable === true,
     'the real provider path must preserve the explicit empty-assessment failure code',
   )
 
   responseMode = 'evidence-less'
   await assert.rejects(
     run({ job: { id: 'job-evidence-less' }, answerPages: [page], questionPaperPages: [page], markSchemePages: [page] }),
-    (error) => error?.code === 'ai_assessment_schema_invalid' && error?.retryable === true,
+    (error) => error?.code === 'ai_assessment_schema_invalid' && error?.assessmentFailureReason === 'evidence_missing' && error?.retryable === true,
     'the real provider path must reject scored questions without student evidence',
+  )
+
+  responseMode = 'confidence-label'
+  await assert.rejects(
+    run({ job: { id: 'job-confidence-label' }, answerPages: [page], questionPaperPages: [page], markSchemePages: [page] }),
+    (error) => error?.code === 'ai_assessment_schema_invalid' && error?.assessmentFailureReason === 'confidence_invalid',
+    'the real provider path must identify invalid confidence without recording raw output',
+  )
+
+  responseMode = 'invalid-json'
+  await assert.rejects(
+    run({ job: { id: 'job-invalid-json' }, answerPages: [page], questionPaperPages: [page], markSchemePages: [page] }),
+    (error) => error?.code === 'ai_assessment_schema_invalid' && error?.assessmentFailureReason === 'invalid_json',
+    'invalid JSON must have a fixed safe reason without exposing provider content',
+  )
+
+  responseMode = 'provider-envelope-invalid'
+  await assert.rejects(
+    run({ job: { id: 'job-provider-envelope' }, answerPages: [page], questionPaperPages: [page], markSchemePages: [page] }),
+    (error) => error?.code === 'ai_assessment_schema_invalid' && error?.assessmentFailureReason === 'provider_envelope_invalid',
+    'provider-envelope failures before validation must not be misclassified as a field failure',
   )
 
   await assert.rejects(
