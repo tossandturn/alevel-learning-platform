@@ -21,10 +21,12 @@ const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
 const PDF_TYPE = 'application/pdf'
 const MAX_JSON_BYTES = 128 * 1024
 const DEFAULT_JOB_TIMEOUT_MS = 5 * 60 * 1000
+const DEFAULT_ABORT_DRAIN_MS = 2_000
 const DEFAULT_DRAFT_TTL_MS = 24 * 60 * 60 * 1000
 const DEFAULT_RESULT_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const DEFAULT_USER_STORAGE_BYTES = 160 * 1024 * 1024
 const DEFAULT_ACTIVE_JOBS = 3
+const GENERATED_ATTEMPT_ARTIFACT = /^(?:source|report)-attempt-(\d+)\.pdf$/
 
 function serviceError(code, message, statusCode = 400, retryable = false) {
   return Object.assign(new Error(message), { code, statusCode, retryable })
@@ -120,6 +122,32 @@ function sendJson(response, statusCode, value) {
   response.setHeader('Content-Type', 'application/json; charset=utf-8')
   response.setHeader('Cache-Control', 'private, no-store')
   response.end(JSON.stringify(value))
+}
+
+function parseSingleByteRange(value, totalBytes) {
+  if (typeof value !== 'string' || !Number.isSafeInteger(totalBytes) || totalBytes < 1) return null
+  const match = value.match(/^bytes=(\d*)-(\d*)$/)
+  if (!match || (!match[1] && !match[2])) return null
+  const total = BigInt(totalBytes)
+  try {
+    if (!match[1]) {
+      const suffixLength = BigInt(match[2])
+      if (suffixLength <= 0n) return null
+      const length = suffixLength > total ? total : suffixLength
+      return { start: Number(total - length), end: totalBytes - 1 }
+    }
+    const start = BigInt(match[1])
+    if (start >= total) return null
+    const end = match[2] ? BigInt(match[2]) : total - 1n
+    if (end < start) return null
+    return { start: Number(start), end: Number(end >= total ? total - 1n : end) }
+  } catch {
+    return null
+  }
+}
+
+function strongArtifactEtag(bytes) {
+  return `"sha256-${sha256(bytes)}"`
 }
 
 function normalizeFileSpec(value) {
@@ -281,6 +309,7 @@ export function createWholePaperMarkingService({
   runner,
   reportRenderer = null,
   jobTimeoutMs,
+  abortDrainMs,
   draftTtlMs,
   resultTtlMs,
   maxUserStorageBytes,
@@ -294,6 +323,7 @@ export function createWholePaperMarkingService({
   fs.mkdirSync(root, { recursive: true, mode: 0o700 })
   ensureTables(database)
   const configuredJobTimeout = numericOption(jobTimeoutMs ?? env.STEM_WHOLE_PAPER_JOB_TIMEOUT_MS, DEFAULT_JOB_TIMEOUT_MS, 25, 10 * 60 * 1000)
+  const configuredAbortDrain = numericOption(abortDrainMs ?? env.STEM_WHOLE_PAPER_ABORT_DRAIN_MS, DEFAULT_ABORT_DRAIN_MS, 10, 30_000)
   const configuredDraftTtl = numericOption(draftTtlMs ?? env.STEM_WHOLE_PAPER_DRAFT_TTL_MS, DEFAULT_DRAFT_TTL_MS, 1_000, 30 * 24 * 60 * 60 * 1000)
   const configuredResultTtl = numericOption(resultTtlMs ?? env.STEM_WHOLE_PAPER_RESULT_TTL_MS, DEFAULT_RESULT_TTL_MS, 1_000, 90 * 24 * 60 * 60 * 1000)
   const configuredUserBytes = numericOption(maxUserStorageBytes ?? env.STEM_WHOLE_PAPER_USER_STORAGE_BYTES, DEFAULT_USER_STORAGE_BYTES, WHOLE_PAPER_LIMITS.maxJobBytes, 2 * 1024 * 1024 * 1024)
@@ -593,9 +623,9 @@ export function createWholePaperMarkingService({
     return { statusCode: 200, body: publicJob(ownedJob(user.id, jobId)) }
   }
 
-  function updateProgress(jobId, progress) {
-    database.prepare("UPDATE whole_paper_marking_jobs SET progress_json = ?, updated_at = ? WHERE id = ? AND status = 'processing'")
-      .run(JSON.stringify(progress), nowIso(now), jobId)
+  function updateProgress(job, progress) {
+    database.prepare("UPDATE whole_paper_marking_jobs SET progress_json = ?, updated_at = ? WHERE id = ? AND status = 'processing' AND processing_attempt = ?")
+      .run(JSON.stringify(progress), nowIso(now), job.id, Number(job.processing_attempt))
   }
 
   function readStoredAsset(row) {
@@ -627,14 +657,35 @@ export function createWholePaperMarkingService({
     }
   }
 
+  function removeOlderAttemptArtifacts(directory, currentAttempt) {
+    if (!Number.isSafeInteger(currentAttempt) || currentAttempt < 1) throw serviceError('artifact_cleanup_failed', 'The marking attempt is invalid.', 500, true)
+    let entries
+    try { entries = fs.readdirSync(directory, { withFileTypes: true }) }
+    catch { throw serviceError('artifact_cleanup_failed', 'Old generated marking artifacts could not be inspected.', 500, true) }
+    try {
+      for (const entry of entries) {
+        if (!entry.isFile() || entry.isSymbolicLink()) continue
+        const match = entry.name.match(GENERATED_ATTEMPT_ARTIFACT)
+        if (!match || Number(match[1]) >= currentAttempt) continue
+        const filePath = path.join(directory, entry.name)
+        if (!withinRoot(filePath, directory)) continue
+        const stats = fs.lstatSync(filePath)
+        if (!stats.isFile() || stats.isSymbolicLink()) continue
+        fs.rmSync(filePath, { force: true })
+      }
+    } catch {
+      throw serviceError('artifact_cleanup_failed', 'Old generated marking artifacts could not be removed.', 500, true)
+    }
+  }
+
   async function renderAndCompleteJob({ job, result, directory, sourcePath, completedPages, signal }) {
     const resultJson = JSON.stringify(result)
     const reportingAt = nowIso(now)
     const persisted = database.prepare(`
       UPDATE whole_paper_marking_jobs
       SET result_json = ?, progress_json = ?, source_pdf_key = ?, updated_at = ?
-      WHERE id = ? AND status = 'processing'
-    `).run(resultJson, JSON.stringify({ stage: 'reporting', completedPages, totalPages: completedPages }), storageKey(sourcePath), reportingAt, job.id)
+      WHERE id = ? AND status = 'processing' AND processing_attempt = ?
+    `).run(resultJson, JSON.stringify({ stage: 'reporting', completedPages, totalPages: completedPages }), storageKey(sourcePath), reportingAt, job.id, Number(job.processing_attempt))
     if (!persisted.changes) throw serviceError('job_state_changed', 'The marking job state changed before report generation.', 409, true)
     const report = await renderReport({
       title: job.title || 'Whole-paper AI marking report',
@@ -644,15 +695,15 @@ export function createWholePaperMarkingService({
     })
     if (!Buffer.isBuffer(report) || report.subarray(0, 5).toString('ascii') !== '%PDF-') throw serviceError('report_pdf_invalid', 'The AI report PDF could not be generated.', 500, true)
     if (signal.aborted) throw serviceError('marking_timeout', 'Whole-paper marking timed out.', 504, true)
-    const reportPath = path.join(directory, 'report.pdf')
+    const reportPath = path.join(directory, `report-attempt-${Number(job.processing_attempt)}.pdf`)
     atomicWrite(reportPath, report)
     const completedAt = nowIso(now)
     const update = database.prepare(`
       UPDATE whole_paper_marking_jobs
       SET status = 'completed', progress_json = ?, retryable = 0, failure_code = NULL,
           source_pdf_key = ?, report_pdf_key = ?, updated_at = ?, completed_at = ?
-      WHERE id = ? AND status = 'processing'
-    `).run(JSON.stringify({ stage: 'completed', completedPages, totalPages: completedPages }), storageKey(sourcePath), storageKey(reportPath), completedAt, completedAt, job.id)
+      WHERE id = ? AND status = 'processing' AND processing_attempt = ?
+    `).run(JSON.stringify({ stage: 'completed', completedPages, totalPages: completedPages }), storageKey(sourcePath), storageKey(reportPath), completedAt, completedAt, job.id, Number(job.processing_attempt))
     if (!update.changes) throw serviceError('job_state_changed', 'The marking job state changed before completion.', 409, true)
   }
 
@@ -663,15 +714,18 @@ export function createWholePaperMarkingService({
     const markScheme = rows.find((asset) => asset.role === 'mark-scheme') || null
     const totalVisualPages = rows.reduce((sum, asset) => sum + Number(asset.page_count || 0), 0)
     if (totalVisualPages > WHOLE_PAPER_AI_MAX_IMAGES) throw serviceError('provider_image_limit', 'The job exceeds the visual provider page limit.', 413, false)
-    updateProgress(job.id, { stage: 'preparing-source-pdf', completedPages: 0, totalPages: answerAssets.reduce((sum, asset) => sum + Number(asset.page_count || 0), 0) })
+    updateProgress(job, { stage: 'preparing-source-pdf', completedPages: 0, totalPages: answerAssets.reduce((sum, asset) => sum + Number(asset.page_count || 0), 0) })
     const sourcePdf = answerAssets.length === 1 && answerAssets[0].media_type === PDF_TYPE
       ? Buffer.from(answerAssets[0].bytes)
       : await orderedImagesToPdf(answerAssets.map((asset) => ({ bytes: asset.bytes, mediaType: asset.media_type })), { signal })
     if (signal.aborted) throw serviceError('marking_timeout', 'Whole-paper marking timed out.', 504, true)
     const directory = jobDirectory(job)
-    const sourcePath = path.join(directory, 'source.pdf')
+    const sourcePath = path.join(directory, `source-attempt-${Number(job.processing_attempt)}.pdf`)
     atomicWrite(sourcePath, sourcePdf)
-    database.prepare("UPDATE whole_paper_marking_jobs SET source_pdf_key = ?, updated_at = ? WHERE id = ? AND status = 'processing'").run(storageKey(sourcePath), nowIso(now), job.id)
+    const sourcePersisted = database.prepare("UPDATE whole_paper_marking_jobs SET source_pdf_key = ?, updated_at = ? WHERE id = ? AND status = 'processing' AND processing_attempt = ?")
+      .run(storageKey(sourcePath), nowIso(now), job.id, Number(job.processing_attempt))
+    if (!sourcePersisted.changes) throw serviceError('job_state_changed', 'The marking job state changed before source preparation completed.', 409, true)
+    removeOlderAttemptArtifacts(directory, Number(job.processing_attempt))
     const answerPageCount = answerAssets.reduce((sum, asset) => sum + Number(asset.page_count || 0), 0)
     const storedResult = parseJson(job.result_json)
     if (storedResult?.schemaVersion === RESULT_SCHEMA_VERSION) {
@@ -679,13 +733,13 @@ export function createWholePaperMarkingService({
       await renderAndCompleteJob({ job, result: reusableResult, directory, sourcePath, completedPages: answerPageCount, signal })
       return
     }
-    updateProgress(job.id, { stage: 'rendering-answer-pages', completedPages: 0, totalPages: answerPageCount })
+    updateProgress(job, { stage: 'rendering-answer-pages', completedPages: 0, totalPages: answerPageCount })
     const answerPages = await renderPdfToPageImages(sourcePdf, { maxPages: WHOLE_PAPER_LIMITS.maxAnswerPages, signal })
-    updateProgress(job.id, { stage: 'rendering-references', completedPages: answerPages.length, totalPages: answerPages.length })
+    updateProgress(job, { stage: 'rendering-references', completedPages: answerPages.length, totalPages: answerPages.length })
     const questionPaperPages = questionPaper ? await renderPdfToPageImages(questionPaper.bytes, { maxPages: WHOLE_PAPER_LIMITS.maxReferencePages, signal }) : []
     const markSchemePages = markScheme ? await renderPdfToPageImages(markScheme.bytes, { maxPages: WHOLE_PAPER_LIMITS.maxReferencePages, signal }) : []
     if (signal.aborted) throw serviceError('marking_timeout', 'Whole-paper marking timed out.', 504, true)
-    updateProgress(job.id, { stage: 'ai-review', completedPages: answerPages.length, totalPages: answerPages.length })
+    updateProgress(job, { stage: 'ai-review', completedPages: answerPages.length, totalPages: answerPages.length })
     const rawResult = await runAi({
       job: { id: job.id, title: job.title, studentLabel: job.student_label, instructions: job.instructions, routeId: job.route_id, stage: job.stage, paperId: job.paper_id },
       answerPages,
@@ -710,6 +764,7 @@ export function createWholePaperMarkingService({
       }, configuredJobTimeout)
     })
     const pipeline = runPipeline(job, controller.signal, deadlineAt)
+    const pipelineSettled = pipeline.then(() => true, () => true)
     try {
       await Promise.race([pipeline, timeoutPromise])
     } catch (error) {
@@ -720,12 +775,17 @@ export function createWholePaperMarkingService({
       database.prepare(`
         UPDATE whole_paper_marking_jobs
         SET status = 'failed', progress_json = ?, retryable = ?, failure_code = ?, updated_at = ?, completed_at = ?
-        WHERE id = ? AND status = 'processing'
-      `).run(JSON.stringify({ stage: 'failed', completedPages: 0, totalPages: null }), retryable, code, failedAt, failedAt, job.id)
-      // Do not release the single-worker lock while an aborted renderer/provider
-      // is still live. Real provider fetches receive the abort signal; an
-      // uncooperative injected runner keeps later jobs queued until it settles.
-      await pipeline.catch(() => {})
+        WHERE id = ? AND status = 'processing' AND processing_attempt = ?
+      `).run(JSON.stringify({ stage: 'failed', completedPages: 0, totalPages: null }), retryable, code, failedAt, failedAt, job.id, Number(job.processing_attempt))
+      let drainTimer
+      try {
+        await Promise.race([
+          pipelineSettled,
+          new Promise((resolve) => { drainTimer = setTimeout(resolve, configuredAbortDrain) }),
+        ])
+      } finally {
+        clearTimeout(drainTimer)
+      }
     } finally {
       clearTimeout(timer)
     }
@@ -785,7 +845,7 @@ export function createWholePaperMarkingService({
     return `attachment; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(unicode)}`
   }
 
-  function download(user, jobId, kind, response) {
+  function download(request, user, jobId, kind, response) {
     const job = ownedJob(user.id, jobId)
     const key = kind === 'report' ? job.report_pdf_key : job.source_pdf_key
     if (!key) throw serviceError('artifact_not_ready', 'The requested PDF is not ready.', 409, job.status === 'queued' || job.status === 'processing')
@@ -794,13 +854,35 @@ export function createWholePaperMarkingService({
     try { bytes = fs.readFileSync(filePath) }
     catch { throw serviceError('artifact_not_found', 'The requested PDF is unavailable.', 404) }
     if (bytes.subarray(0, 5).toString('ascii') !== '%PDF-') throw serviceError('artifact_not_found', 'The requested PDF is unavailable.', 404)
-    response.statusCode = 200
+    const etag = strongArtifactEtag(bytes)
     response.setHeader('Content-Type', 'application/pdf')
     response.setHeader('Content-Disposition', disposition(job, kind))
-    response.setHeader('Content-Length', String(bytes.length))
     response.setHeader('Cache-Control', 'private, no-store')
     response.setHeader('X-Content-Type-Options', 'nosniff')
+    response.setHeader('Accept-Ranges', 'bytes')
+    response.setHeader('ETag', etag)
     if (kind === 'report') response.setHeader('X-STEM-Report-Text-Selectable', 'false')
+    const rangeHeader = request.headers?.range
+    const ifRange = request.headers?.['if-range']
+    const shouldApplyRange = rangeHeader !== undefined && (ifRange === undefined || ifRange === etag)
+    if (shouldApplyRange) {
+      const range = parseSingleByteRange(rangeHeader, bytes.length)
+      if (!range) {
+        response.statusCode = 416
+        response.setHeader('Content-Range', `bytes */${bytes.length}`)
+        response.setHeader('Content-Length', '0')
+        response.end()
+        return
+      }
+      const body = bytes.subarray(range.start, range.end + 1)
+      response.statusCode = 206
+      response.setHeader('Content-Range', `bytes ${range.start}-${range.end}/${bytes.length}`)
+      response.setHeader('Content-Length', String(body.length))
+      response.end(body)
+      return
+    }
+    response.statusCode = 200
+    response.setHeader('Content-Length', String(bytes.length))
     response.end(bytes)
   }
 
@@ -848,11 +930,11 @@ export function createWholePaperMarkingService({
       return true
     }
     if (action === 'source.pdf' && request.method === 'GET') {
-      download(user, jobId, 'source', response)
+      download(request, user, jobId, 'source', response)
       return true
     }
     if (action === 'report.pdf' && request.method === 'GET') {
-      download(user, jobId, 'report', response)
+      download(request, user, jobId, 'report', response)
       return true
     }
     throw serviceError('job_route_not_found', 'Whole-paper marking route not found.', 404)

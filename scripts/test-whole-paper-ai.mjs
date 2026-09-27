@@ -11,7 +11,7 @@ const server = http.createServer((request, response) => {
   request.on('end', () => {
     const body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
     requests.push({ url: request.url, headers: request.headers, body })
-    const assessment = responseMode === 'unscored'
+    let assessment = responseMode === 'unscored'
       ? {
           summary: 'The working is readable but no source paper was supplied.',
           provisionalScore: 99,
@@ -19,7 +19,11 @@ const server = http.createServer((request, response) => {
           reviewRequired: true,
           missingPages: [],
           missingQuestions: ['Question mapping unavailable'],
-          questionResults: [],
+          questionResults: [{
+            questionLabel: 'Unmapped response', provisionalScore: null, maxScore: null, confidence: 0.6,
+            reviewRequired: true, rationale: 'The visible answer cannot be mapped without a source paper.',
+            evidence: ['Student answer page 1'], criteria: [],
+          }],
         }
       : responseMode === 'mismatch'
         ? {
@@ -55,6 +59,22 @@ const server = http.createServer((request, response) => {
             },
           ],
         }
+    if (responseMode === 'empty') {
+      assessment = {
+        summary: 'No question feedback was produced.', provisionalScore: null, maxScore: null,
+        reviewRequired: true, missingPages: [], missingQuestions: [], questionResults: [],
+      }
+    }
+    if (responseMode === 'evidence-less') {
+      assessment = {
+        summary: 'Unsupported scored response.', provisionalScore: 3, maxScore: 4,
+        reviewRequired: false, missingPages: [], missingQuestions: [],
+        questionResults: [{
+          questionLabel: 'Q1', provisionalScore: 3, maxScore: 4, confidence: 0.99,
+          reviewRequired: false, rationale: 'Unsupported.', evidence: [], criteria: [],
+        }],
+      }
+    }
     const finish = () => {
       if (response.destroyed) return
       response.writeHead(200, { 'content-type': 'application/json' })
@@ -102,6 +122,69 @@ try {
     }, { hasQuestionPaper: true, hasMarkScheme: true }),
     /more than 100/i,
   )
+  assert.throws(
+    () => normalizeWholePaperAiResult({
+      summary: 'Unsupported score fixture.', provisionalScore: 3, maxScore: 4, reviewRequired: false,
+      missingPages: [], missingQuestions: [],
+      questionResults: [{
+        questionLabel: 'Q1', provisionalScore: 3, maxScore: 4, confidence: 0.99, reviewRequired: false,
+        rationale: 'Claims a score without pointing to student work.', evidence: [], criteria: [],
+      }],
+    }, { hasQuestionPaper: true, hasMarkScheme: true }),
+    (error) => error?.code === 'ai_assessment_schema_invalid' && error?.retryable === true,
+    'a reference-backed score must not pass without non-empty student evidence',
+  )
+  for (const malformedEvidence of [[0], [{}], ['   ']]) {
+    assert.throws(
+      () => normalizeWholePaperAiResult({
+        summary: 'Malformed evidence fixture.', provisionalScore: 1, maxScore: 1, reviewRequired: false,
+        missingPages: [], missingQuestions: [],
+        questionResults: [{
+          questionLabel: 'Q1', provisionalScore: 1, maxScore: 1, confidence: 0.99, reviewRequired: false,
+          rationale: 'Claims a score with a non-string evidence placeholder.', evidence: malformedEvidence, criteria: [],
+        }],
+      }, { hasQuestionPaper: true, hasMarkScheme: true }),
+      (error) => error?.code === 'ai_assessment_schema_invalid' && error?.retryable === true,
+      'numeric, object and whitespace evidence placeholders cannot authorize a score',
+    )
+  }
+  assert.throws(
+    () => normalizeWholePaperAiResult({
+      ...resultBase,
+      questionResults: [{
+        questionLabel: 'Q1', provisionalScore: null, maxScore: null, confidence: 0.9, reviewRequired: false,
+        rationale: 'Criterion-only marks still need student evidence.', evidence: [],
+        criteria: [{ label: 'Method', awarded: 1, maxScore: 1, comment: 'Unsupported mark.' }],
+      }],
+    }, { hasQuestionPaper: true, hasMarkScheme: true }),
+    (error) => error?.code === 'ai_assessment_schema_invalid' && error?.retryable === true,
+    'criterion marks cannot bypass the student-evidence gate when the question score is null',
+  )
+  assert.throws(
+    () => normalizeWholePaperAiResult({
+      ...resultBase,
+      questionResults: [],
+    }, { hasQuestionPaper: true, hasMarkScheme: true }),
+    (error) => error?.code === 'ai_assessment_empty' && error?.retryable === true,
+    'an assessment with no question-level results must fail instead of producing an empty completed report',
+  )
+  const exactMissingQuestion = normalizeWholePaperAiResult({
+    summary: 'One source question is missing.', provisionalScore: 3, maxScore: 4, reviewRequired: true,
+    missingPages: [], missingQuestions: [' 2(A) '],
+    questionResults: [{
+      questionLabel: '2(a)', provisionalScore: 3, maxScore: 4, confidence: 0.9, reviewRequired: false,
+      rationale: 'Visible feedback remains useful.', evidence: ['Student answer page 1'],
+      criteria: [{ label: 'Method', awarded: 3, maxScore: 4, comment: 'Provisional.' }],
+    }],
+  }, { hasQuestionPaper: true, hasMarkScheme: true })
+  assert.equal(exactMissingQuestion.provisionalScore, null)
+  assert.equal(exactMissingQuestion.maxScore, null)
+  assert.equal(exactMissingQuestion.questionResults[0].provisionalScore, null, 'missing source context must not retain a per-question score')
+  assert.equal(exactMissingQuestion.questionResults[0].maxScore, null)
+  assert.equal(exactMissingQuestion.questionResults[0].criteria[0].awarded, null, 'missing source context must not retain criterion marks')
+  assert.equal(exactMissingQuestion.questionResults[0].criteria[0].maxScore, null)
+  assert.equal(exactMissingQuestion.questionResults[0].rationale, 'Visible feedback remains useful.', 'source-faithful feedback must remain visible')
+  assert.equal(exactMissingQuestion.questionResults[0].criteria[0].comment, 'Provisional.', 'non-score criterion feedback must remain visible')
   const scorelessCriteria = normalizeWholePaperAiResult({
     ...resultBase,
     questionResults: [{
@@ -163,12 +246,28 @@ try {
   assert.deepEqual(incomplete.missingPages, [3])
   assert.deepEqual(incomplete.missingQuestions, ['Q4'])
   assert.equal(incomplete.reviewRequired, true)
+  assert.ok(incomplete.questionResults.every((item) => item.provisionalScore === null && item.maxScore === null), 'a missing page cannot be safely mapped to scored questions')
+  assert.ok(incomplete.questionResults.flatMap((item) => item.criteria).every((item) => item.awarded === null && item.maxScore === null), 'criterion marks must be suppressed with incomplete source context')
 
   responseMode = 'mismatch'
   await assert.rejects(
     run({ job: { id: 'job-mismatch' }, answerPages: [page], questionPaperPages: [page], markSchemePages: [page] }),
     (error) => error?.code === 'ai_assessment_schema_invalid',
     'non-reconciling total and question scores must fail closed',
+  )
+
+  responseMode = 'empty'
+  await assert.rejects(
+    run({ job: { id: 'job-empty' }, answerPages: [page], questionPaperPages: [page], markSchemePages: [page] }),
+    (error) => error?.code === 'ai_assessment_empty' && error?.retryable === true,
+    'the real provider path must preserve the explicit empty-assessment failure code',
+  )
+
+  responseMode = 'evidence-less'
+  await assert.rejects(
+    run({ job: { id: 'job-evidence-less' }, answerPages: [page], questionPaperPages: [page], markSchemePages: [page] }),
+    (error) => error?.code === 'ai_assessment_schema_invalid' && error?.retryable === true,
+    'the real provider path must reject scored questions without student evidence',
   )
 
   await assert.rejects(

@@ -16,6 +16,12 @@ function wholePaperError(code, message, { statusCode = 503, retryable = true } =
   return Object.assign(new Error(message), { code, statusCode, retryable })
 }
 
+function assessmentError(code, message) {
+  return Object.assign(wholePaperError(code, message, { statusCode: 502, retryable: true }), {
+    assessmentFailureCode: code,
+  })
+}
+
 function text(value, maximum = MAX_TEXT) {
   return String(value || '').replace(/\r\n?/g, '\n').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, maximum)
 }
@@ -57,6 +63,18 @@ function normalizeQuestionResult(value, index, { allowScores }) {
   if (!rationale) throw new Error(`questionResults[${index}] is missing rationale.`)
   const questionLabel = text(value.questionLabel, 120)
   if (!questionLabel) throw new Error(`questionResults[${index}] is missing questionLabel.`)
+  const evidence = (Array.isArray(value.evidence) ? value.evidence : []).slice(0, 20)
+    .filter((item) => typeof item === 'string')
+    .map((item) => text(item, 600))
+    .filter(Boolean)
+  const criteria = (Array.isArray(value.criteria) ? value.criteria : []).slice(0, 40)
+    .map((criterion, criterionIndex) => normalizeCriterion(criterion, criterionIndex, { allowScores }))
+    .filter(Boolean)
+  const hasAnyMark = provisionalScore !== null || maxScore !== null
+    || criteria.some((criterion) => criterion.awarded !== null || criterion.maxScore !== null)
+  if (hasAnyMark && evidence.length === 0) {
+    throw assessmentError('ai_assessment_schema_invalid', `questionResults[${index}] has marks without student evidence.`)
+  }
   return {
     questionLabel,
     provisionalScore,
@@ -64,10 +82,8 @@ function normalizeQuestionResult(value, index, { allowScores }) {
     confidence,
     reviewRequired: Boolean(value.reviewRequired) || confidence < 0.7,
     rationale,
-    evidence: safeList(value.evidence, 20).map((item) => String(item).slice(0, 600)),
-    criteria: (Array.isArray(value.criteria) ? value.criteria : []).slice(0, 40)
-      .map((criterion, criterionIndex) => normalizeCriterion(criterion, criterionIndex, { allowScores }))
-      .filter(Boolean),
+    evidence,
+    criteria,
   }
 }
 
@@ -84,31 +100,40 @@ export function normalizeWholePaperAiResult(value, { hasQuestionPaper = false, h
   const missingQuestions = safeList(value.missingQuestions, 100).map(String)
   const suppliedQuestionResults = Array.isArray(value.questionResults) ? value.questionResults : []
   if (suppliedQuestionResults.length > 100) throw new Error('Whole-paper assessment contains more than 100 question results.')
-  const questionResults = suppliedQuestionResults
+  let questionResults = suppliedQuestionResults
     .map((item, index) => normalizeQuestionResult(item, index, { allowScores }))
+  if (!questionResults.length) {
+    throw assessmentError('ai_assessment_empty', 'Whole-paper assessment contains no question-level results.')
+  }
   if (new Set(questionResults.map((item) => item.questionLabel.toLowerCase())).size !== questionResults.length) {
     throw new Error('Whole-paper assessment contains duplicate questionLabel values.')
   }
   const summary = text(value.summary, 4_000)
   if (!summary) throw new Error('Whole-paper assessment is missing a summary.')
   const incompleteSource = missingPages.length > 0 || missingQuestions.length > 0
-  if (allowScores && provisionalScore !== null && maxScore !== null) {
-    if (!questionResults.length) throw new Error('A provisional total requires non-empty questionResults.')
-    if (!incompleteSource) {
-      if (questionResults.some((item) => item.provisionalScore === null || item.maxScore === null)) {
-        throw new Error('Every question result needs a score pair when a complete provisional total is supplied.')
-      }
-      const questionScore = questionResults.reduce((sum, item) => sum + item.provisionalScore, 0)
-      const questionMaximum = questionResults.reduce((sum, item) => sum + item.maxScore, 0)
-      if (Math.abs(questionScore - provisionalScore) > 1e-9 || Math.abs(questionMaximum - maxScore) > 1e-9) {
-        throw new Error('Question-level scores do not reconcile with the provisional total.')
-      }
-    } else {
-      // Missing pages/questions make a complete-paper total unsafe. Preserve
-      // visible question feedback but omit the apparently complete total.
-      provisionalScore = null
-      maxScore = null
+  if (allowScores && provisionalScore !== null && maxScore !== null && !incompleteSource) {
+    if (questionResults.some((item) => item.provisionalScore === null || item.maxScore === null)) {
+      throw new Error('Every question result needs a score pair when a complete provisional total is supplied.')
     }
+    const questionScore = questionResults.reduce((sum, item) => sum + item.provisionalScore, 0)
+    const questionMaximum = questionResults.reduce((sum, item) => sum + item.maxScore, 0)
+    if (Math.abs(questionScore - provisionalScore) > 1e-9 || Math.abs(questionMaximum - maxScore) > 1e-9) {
+      throw new Error('Question-level scores do not reconcile with the provisional total.')
+    }
+  }
+  if (incompleteSource) {
+    // A missing page or question can invalidate cross-page allocations. Keep
+    // grounded feedback, but suppress every score instead of guessing which
+    // individual marks remain safe.
+    provisionalScore = null
+    maxScore = null
+    questionResults = questionResults.map((item) => ({
+      ...item,
+      provisionalScore: null,
+      maxScore: null,
+      reviewRequired: true,
+      criteria: item.criteria.map((criterion) => ({ ...criterion, awarded: null, maxScore: null })),
+    }))
   }
   return Object.freeze({
     schemaVersion: 'stem-paper-marking-result-v1',
@@ -242,9 +267,10 @@ export function createWholePaperAiRunner({ env = process.env, telemetry = null }
       }
     }
     const timeout = signal?.aborted || /timeout|timed out|abort/i.test(String(lastError?.message || ''))
+    const emptyAssessment = lastError?.assessmentFailureCode === 'ai_assessment_empty'
     throw wholePaperError(
-      timeout ? 'marking_timeout' : lastError?.code === 'AI_RESPONSE_SCHEMA_INVALID' ? 'ai_assessment_schema_invalid' : 'vision_review_failed',
-      timeout ? 'Whole-paper marking timed out.' : 'AI whole-paper marking could not be completed.',
+      timeout ? 'marking_timeout' : emptyAssessment ? 'ai_assessment_empty' : lastError?.code === 'AI_RESPONSE_SCHEMA_INVALID' ? 'ai_assessment_schema_invalid' : 'vision_review_failed',
+      timeout ? 'Whole-paper marking timed out.' : emptyAssessment ? 'AI whole-paper marking returned no question-level results.' : 'AI whole-paper marking could not be completed.',
     )
   }
 }
