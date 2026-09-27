@@ -912,6 +912,7 @@ function sourceQuestionDisplayLabel(question, part) {
 function publicQuestionGroup(record, { forceStudyOnly = false } = {}) {
   const question = record.question
   const studyOnly = Boolean(forceStudyOnly || record.studyOnly)
+  const releasedStudyQualityFlag = record.releasedStudyEligible ? 'aicheck' : ''
   return {
     id: record.sourceQuestionId,
     questionGroupId: record.questionGroupId,
@@ -933,12 +934,14 @@ function publicQuestionGroup(record, { forceStudyOnly = false } = {}) {
         promptFragment: part.promptFragment || '',
         answerArea: part.answerArea || null,
         options: part.options || [],
-        answerKey: part.answerKey || null,
-        markSchemePoints: part.markSchemePoints || [],
+        // Practice-start responses are prompts, not marking payloads. The
+        // canonical bank remains server-side for scoring and source lookup.
+        answerKey: null,
+        markSchemePoints: [],
         sourcePage: part.sourcePage || question.sourceRef?.pageStart || null,
         answerSourcePage: part.answerSourcePage || question.answerRef?.pageStart || null,
         sourceEvidence: part.sourceEvidence || [],
-        markSchemeEvidence: part.markSchemeEvidence || [],
+        markSchemeEvidence: [],
         sourceFocus: part.sourceFocus || null,
         markingProvenance,
         sourceBindingProvenance,
@@ -952,6 +955,8 @@ function publicQuestionGroup(record, { forceStudyOnly = false } = {}) {
     sourceRef: question.sourceRef,
     answerRef: question.answerRef,
     reviewStatus: question.answerBinding?.verificationStatus || 'machine-indexed',
+    qualityFlag: releasedStudyQualityFlag,
+    reviewLabel: releasedStudyQualityFlag ? 'AI 审核' : '',
     studyOnly,
     studentStudyEligible: Boolean(record.releasedStudyEligible || record.eligible),
     // A Topic Drill is a single scoring boundary. If the selected pool is

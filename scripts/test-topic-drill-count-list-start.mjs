@@ -177,8 +177,78 @@ async function verifyReviewedSourcePrecedence() {
     const questionGroup = practice.payload.questionGroups.find((group) => group.id === reviewedQuestion.sourceQuestionId)
     assert.ok(questionGroup, 'the selected reviewed source group must be present')
     assert.equal(questionGroup.reviewStatus, 'reviewed', 'a coordinate-only release must not replace the matching human-reviewed question')
+    assert.equal(questionGroup.qualityFlag, '', 'human-reviewed formal groups must not be labelled as AI-checked study content')
+    assert.equal(questionGroup.reviewLabel, '', 'human-reviewed formal groups must not show an AI review label')
+    assert.ok(questionGroup.parts.every((part) => part.answerKey === null && part.markSchemePoints.length === 0 && part.markSchemeEvidence.length === 0), 'practice-start payloads must keep answers and mark-scheme evidence server-side')
     assert.equal(questionGroup.sourceRef.sha256, reviewedQuestion.sourceRef.sha256, 'the selected group must retain the reviewed QP binding')
     assert.equal(questionGroup.answerRef.sha256, reviewedQuestion.answerRef.sha256, 'the selected group must retain the reviewed MS binding')
+  } finally {
+    closeStemDatabaseForTests()
+  }
+}
+
+async function verifyReleasedStudyLabels() {
+  const reviewedInventory = syllabusTopicsInventory({
+    routeId: 'cie-0580-igcse-mathematics',
+    questionBank: studyQuestionBank,
+    includeStudyOnly: false,
+  })
+  const topic = reviewedInventory.topics.find((item) => item.id === '0580-igcse-topic-01')
+  const reviewedQuestions = (topic?.questionIdsByComponent?.['1']?.verifiedQuestionIds || [])
+    .map((sourceQuestionId) => studyQuestionBank.find((question) => question.sourceQuestionId === sourceQuestionId))
+    .filter((question) => question && isHumanReviewedPastPaperItem(question))
+    .slice(0, MIN_QUESTION_GROUPS_PER_TEST)
+  assert.equal(reviewedQuestions.length, MIN_QUESTION_GROUPS_PER_TEST)
+
+  const legacyReleased = reviewedQuestions.map(releasedAiShadowOfReviewedQuestion)
+  assert.ok(legacyReleased.every((question) => question.studentRelease?.qualityFlag === undefined), 'fixture must represent legacy valid dual-model releases without a qualityFlag field')
+  assert.ok(legacyReleased.every(isStudentReleasedAiStudyItem), 'legacy dual-model releases must remain valid released study content')
+  const explicitlyFlagged = {
+    ...legacyReleased[0],
+    studentRelease: { ...legacyReleased[0].studentRelease, qualityFlag: 'aicheck' },
+  }
+  assert.equal(isStudentReleasedAiStudyItem(explicitlyFlagged), true, 'an explicit aicheck release remains valid')
+  const mixedReleased = [explicitlyFlagged, ...legacyReleased.slice(1)]
+
+  const tampered = {
+    ...legacyReleased[0],
+    sourceQuestionId: `${legacyReleased[0].sourceQuestionId}:tampered`,
+    questionGroupId: `${legacyReleased[0].questionGroupId}:tampered`,
+    studentRelease: {
+      ...legacyReleased[0].studentRelease,
+      sourceBinding: { ...legacyReleased[0].studentRelease.sourceBinding, questionPdfSha256: 'f'.repeat(64) },
+    },
+  }
+  assert.equal(isStudentReleasedAiStudyItem(tampered), false, 'tampered source binding must not acquire release eligibility or a label')
+  const tamperedInventory = syllabusTopicsInventory({ routeId: tampered.routeId, questionBank: [tampered], includeStudyOnly: false })
+  assert.equal(tamperedInventory.studyQuestionGroupCount, 0)
+
+  const api = createStemApi({
+    env: { NODE_ENV: 'test', STEM_DB_PATH: ':memory:', STEM_ENABLE_STUDY_ONLY_TOPIC_DRILL: '1' },
+    questionBank: [],
+    topicQuestionBankProvider: () => mixedReleased,
+  })
+  try {
+    const practice = await call(api, {
+      method: 'POST',
+      url: '/api/stem/practice-sets',
+      body: {
+        routeId: 'cie-0580-igcse-mathematics',
+        syllabusTopicIds: ['0580-igcse-topic-01'],
+        components: [1],
+        questionCount: MIN_QUESTION_GROUPS_PER_TEST,
+        sourceQuestionIds: mixedReleased.map((question) => question.sourceQuestionId),
+        excludeAttempted: false,
+        seed: 982826,
+      },
+    })
+    assert.equal(practice.statusCode, 201)
+    assert.equal(practice.payload.practiceMode, 'study-only')
+    assert.equal(practice.payload.formalProgressEligible, false)
+    assert.equal(practice.payload.questionGroups.length, MIN_QUESTION_GROUPS_PER_TEST)
+    assert.ok(practice.payload.questionGroups.every((group) => group.qualityFlag === 'aicheck' && group.reviewLabel === 'AI 审核'), 'all valid released-study groups, including legacy dual-model releases, need the honest student label')
+    assert.ok(practice.payload.questionGroups.every((group) => group.studyOnly === true && group.studentStudyEligible === true && group.formalProgressEligible === false))
+    assert.ok(practice.payload.questionGroups.every((group) => group.parts.every((part) => part.answerKey === null && part.markSchemePoints.length === 0 && part.markSchemeEvidence.length === 0)), 'study labels must not regress the answer-hiding contract')
   } finally {
     closeStemDatabaseForTests()
   }
@@ -306,6 +376,7 @@ async function verifyProductionGate() {
 
 await verifyStudyCountListStart()
 await verifyReviewedSourcePrecedence()
+await verifyReleasedStudyLabels()
 await verifyProductionGate()
 
 console.log(JSON.stringify({ status: 'passed', scope: 'topic-drill-count-list-start', routes: routeIds.length }))
