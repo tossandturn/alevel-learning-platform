@@ -25,10 +25,26 @@ export function classifyLocalAP(row, yearStart, yearEnd) {
   if (row.extension !== '.pdf' || !String(row.pdfStatus).startsWith('ok') || row.needsVisualReview) return null;
   const text = String(row.firstTwoPagesText || '').replace(/[®™]/g, '').replace(/\s+/g, ' ').trim();
   const heading = text.slice(0, 800);
-  if (/chief reader|scoring statistics|score distributions|sample student|scoring commentary|course (?:and exam description|overview)|practice\s*exam|progress check|question bank|topic questions|specimen/i.test(heading)) return null;
+  const sourcePath = String(row.relativePath || row.fileName || '');
+  // A bundle spanning several administrations cannot be given one year or one
+  // QP/MS identity. Keep the per-year records only; this also avoids exposing
+  // a duplicate multi-year compilation as a new paper.
+  const fileName = String(row.fileName || sourcePath.split(/[\\/]/).pop() || '');
+  const fileHasYear = /(?:19|20)\d{2}/.test(fileName);
+  if (/(?:19|20)\d{2}[^/]{0,8}(?:19|20)\d{2}/i.test(fileName) || /\d{2}\+\d{2}|\d{4}\s*[-+～至]\s*\d{4}/i.test(fileName)) return null;
+  if (!fileHasYear && /\d{2}\+\d{2}|\d{4}\s*[-+～至]\s*\d{4}/i.test(sourcePath)) return null;
+  if (/chief reader|scoring statistics|score distributions|sample student|scoring commentary|course (?:and exam description|overview)|progress check|question bank|topic questions|specimen/i.test(heading)) return null;
   const cover = heading.split(/©|copyright|college board/i)[0];
-  const kind = /scoring guidelines/i.test(cover) ? 'ms' : /free[- ]response questions/i.test(cover) ? 'qp' : null;
-  if (!kind) return null;
+  const mixedExamPath = /选择题含简答题/i.test(sourcePath);
+  const pathMcq = /multiple[- ]choice|multiple choice|\bmcq\b|选择题/i.test(sourcePath) && (!mixedExamPath || !/^(?:ms|qp)[_-]/i.test(fileName));
+  const multipleChoice = /multiple[- ]choice|multiple choice|\bmcq\b|选择题/i.test(`${fileName} ${heading}`) || pathMcq;
+  const freeResponse = /free[- ]response questions/i.test(cover);
+  const explicitAnswerFile = /(?:^|[/\\])(?:sg|ms)[_-]|scoring guidelines?|scoring guide|答案|评分/i.test(`${fileName} ${sourcePath}`);
+  const combinedExam = /practice\s*exam/i.test(heading) && !explicitAnswerFile;
+  const answerMaterial = !combinedExam && (explicitAnswerFile || /scoring guidelines?|scoring guide|answer key|答案|评分/i.test(heading));
+  const bookletMaterial = /test booklet|question booklet|multiple[- ]choice questions|multiple choice questions|(?:^|[/\\])tb[_-]/i.test(`${fileName} ${heading}`);
+  const kind = answerMaterial && !bookletMaterial ? 'ms' : bookletMaterial || freeResponse || multipleChoice ? 'qp' : null;
+  if (!kind || (!multipleChoice && !freeResponse && !answerMaterial)) return null;
   const year = Number(row.year);
   if (!Number.isInteger(year) || year < yearStart || year > yearEnd || !new RegExp(`\\b${year}\\b`).test(heading)) return null;
   let course = null;
@@ -36,9 +52,14 @@ export function classifyLocalAP(row, yearStart, yearEnd) {
   else if (/physics c\s*:\s*electricity (?:and )?magnetism/i.test(cover)) course = 'physics-c-em';
   else if (/physics\s*1\b/i.test(cover)) course = 'physics-1';
   else if (/physics\s*2\b/i.test(cover)) course = 'physics-2';
+  else if (row.subject === 'ap_physics_c_mechanics') course = 'physics-c-mechanics';
+  else if (row.subject === 'ap_physics_c_electricity_magnetism') course = 'physics-c-em';
+  else if (row.subject === 'ap_physics_1') course = 'physics-1';
+  else if (row.subject === 'ap_physics_2') course = 'physics-2';
   if (!course) return null;
   const set = cover.match(/\bset\s*([12])\b/i);
-  return { course, year, kind, variant: set ? `set-${set[1]}` : 'standard' };
+  const paper = multipleChoice ? 'MCQ' : 'FRQ';
+  return { course, year, kind, ...(paper === 'MCQ' ? { paper } : {}), variant: set ? `set-${set[1]}` : 'standard' };
 }
 
 function fileMetadata(row, name, sourceUrl = null) {
@@ -60,12 +81,13 @@ export function buildCatalog({ ap, apLocal, ib, generatedAt, currentYear }) {
   function addAp(row, meta, origin, sourceUrl) {
     const courseInfo = AP_COURSES.find(c => c.id === meta.course);
     if (!courseInfo) throw new Error('Unknown AP course');
-    const key = `ap-${meta.course}-${meta.year}-frq-${meta.variant}`;
+    const paper = meta.paper || 'FRQ';
+    const key = `ap-${meta.course}-${meta.year}-${paper.toLowerCase()}-${meta.variant}`;
     const group = apGroups.get(key) || {
       id: key, board: 'ap', course: meta.course, courseLabel: courseInfo.label,
       subject: courseInfo.subject, level: '', year: meta.year, session: 'Annual',
-      paper: 'FRQ', variant: meta.variant, title: `${courseInfo.label} ${meta.year} FRQ${meta.variant === 'standard' ? '' : ` ${meta.variant}`}`,
-      section: 'FRQ', fullExam: false, practiceReady: false, pairStatus: 'missing',
+      paper, variant: meta.variant, title: `${courseInfo.label} ${meta.year} ${paper}${meta.variant === 'standard' ? '' : ` ${meta.variant}`}`,
+      section: paper === 'MCQ' ? 'Multiple Choice' : 'FRQ', fullExam: false, practiceReady: false, pairStatus: 'missing',
       questionPaper: null, markScheme: null,
     };
     const slot = meta.kind === 'qp' ? 'questionPaper' : 'markScheme';
@@ -86,7 +108,7 @@ export function buildCatalog({ ap, apLocal, ib, generatedAt, currentYear }) {
   }
   for (const row of apLocal.files) {
     const meta = classifyLocalAP(row, latestAp - 9, latestAp);
-    if (!meta) { audit.excluded.push({ sha256: row.sha256, reason: 'Not a cover-verified recent FRQ or scoring guideline' }); continue; }
+    if (!meta || row.category !== 'actual_past_exam') { audit.excluded.push({ sha256: row.sha256, reason: 'Not a cover-verified recent AP exam paper or MCQ document' }); continue; }
     addAp({ ...row, pages: row.pageCount }, meta, 'user-local', null);
   }
   const papers = [];

@@ -271,11 +271,13 @@ try {
 
   const productionCatalog = createCurriculumPaperCatalog()
   const productionAp = await productionCatalog.list({ board: 'ap' })
+  const productionApAll = await productionCatalog.list({ board: 'ap', pageSize: 100 })
   const productionIb = await productionCatalog.list({ board: 'ib' })
-  assert.deepEqual(productionAp.summary, { papers: 54, downloadable: 0, sourceOnly: 54 })
+  assert.deepEqual(productionAp.summary, { papers: 59, downloadable: 0, sourceOnly: 59 })
   assert.deepEqual(productionIb.summary, { papers: 334, downloadable: 0, sourceOnly: 334 })
   assert.ok(productionAp.items.every(item => item.fullExam === false && item.practiceReady === false))
   assert.ok(productionAp.items.every(item => item.questionPaper.sourceUrl?.startsWith('https://') && item.questionPaper.downloadUrl === null))
+  assert.ok(productionApAll.items.some(item => item.paper === 'MCQ'), 'AP Physics multiple-choice entries remain source-only until distribution rights are verified')
   assert.ok(productionIb.items.every(item => item.questionPaper.sourceUrl === null && item.questionPaper.downloadUrl === null))
 
   console.log(JSON.stringify({

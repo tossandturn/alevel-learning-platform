@@ -1,6 +1,6 @@
 {
   "schemaVersion": "curriculum-paper-source-v1",
-  "generatedAt": "2026-09-24T18:18:46.7940012+08:00",
+  "generatedAt": "2026-09-28T22:29:10.0519946+08:00",
   "sourceWindows": {
     "ap": [
       2017,
@@ -627,6 +627,45 @@
       }
     },
     {
+      "id": "ap-physics-1-2021-mcq-standard",
+      "board": "ap",
+      "course": "physics-1",
+      "courseLabel": "AP Physics 1",
+      "subject": "physics",
+      "level": "",
+      "year": 2021,
+      "session": "Annual",
+      "paper": "MCQ",
+      "variant": "standard",
+      "title": "AP Physics 1 2021 MCQ",
+      "section": "Multiple Choice",
+      "fullExam": false,
+      "practiceReady": false,
+      "pairStatus": "verified",
+      "questionPaper": {
+        "id": "file-0f4a8b3fb9832170372301c8f198afef",
+        "name": "ap-physics-1-2021-mcq-standard-qp.pdf",
+        "bytes": 1745738,
+        "pages": 27,
+        "sha256": "0f4a8b3fb9832170372301c8f198afef7fba432b6227520c280c52f538204ca5",
+        "relativePath": "0f4a8b3fb9832170372301c8f198afef7fba432b6227520c280c52f538204ca5.pdf",
+        "sourceUrl": null,
+        "rightsStatus": "unverified",
+        "integrityStatus": "verified"
+      },
+      "markScheme": {
+        "id": "file-4c04c267b6ef88bc45f8426e7b2231d3",
+        "name": "ap-physics-1-2021-mcq-standard-ms.pdf",
+        "bytes": 1766150,
+        "pages": 28,
+        "sha256": "4c04c267b6ef88bc45f8426e7b2231d393273ff6cdf3661b0662b5cb2bc65fd9",
+        "relativePath": "4c04c267b6ef88bc45f8426e7b2231d393273ff6cdf3661b0662b5cb2bc65fd9.pdf",
+        "sourceUrl": null,
+        "rightsStatus": "unverified",
+        "integrityStatus": "verified"
+      }
+    },
+    {
       "id": "ap-physics-1-2019-frq-standard",
       "board": "ap",
       "course": "physics-1",
@@ -742,6 +781,35 @@
         "rightsStatus": "unverified",
         "integrityStatus": "verified"
       }
+    },
+    {
+      "id": "ap-physics-1-2017-mcq-standard",
+      "board": "ap",
+      "course": "physics-1",
+      "courseLabel": "AP Physics 1",
+      "subject": "physics",
+      "level": "",
+      "year": 2017,
+      "session": "Annual",
+      "paper": "MCQ",
+      "variant": "standard",
+      "title": "AP Physics 1 2017 MCQ",
+      "section": "Multiple Choice",
+      "fullExam": false,
+      "practiceReady": false,
+      "pairStatus": "missing",
+      "questionPaper": {
+        "id": "file-9bc3c27e49b22125386c19c2196e22b5",
+        "name": "ap-physics-1-2017-mcq-standard-qp.pdf",
+        "bytes": 1768660,
+        "pages": 70,
+        "sha256": "9bc3c27e49b22125386c19c2196e22b51dc664017a928657294d1a57b5032f9f",
+        "relativePath": "9bc3c27e49b22125386c19c2196e22b51dc664017a928657294d1a57b5032f9f.pdf",
+        "sourceUrl": null,
+        "rightsStatus": "unverified",
+        "integrityStatus": "verified"
+      },
+      "markScheme": null
     },
     {
       "id": "ap-physics-2-2026-frq-standard",
@@ -1290,6 +1358,35 @@
       }
     },
     {
+      "id": "ap-physics-c-em-2019-mcq-standard",
+      "board": "ap",
+      "course": "physics-c-em",
+      "courseLabel": "AP Physics C: Electricity and Magnetism",
+      "subject": "physics",
+      "level": "",
+      "year": 2019,
+      "session": "Annual",
+      "paper": "MCQ",
+      "variant": "standard",
+      "title": "AP Physics C: Electricity and Magnetism 2019 MCQ",
+      "section": "Multiple Choice",
+      "fullExam": false,
+      "practiceReady": false,
+      "pairStatus": "missing",
+      "questionPaper": {
+        "id": "file-98e340854e5637268245455e9158e7ce",
+        "name": "ap-physics-c-em-2019-mcq-standard-qp.pdf",
+        "bytes": 3076903,
+        "pages": 97,
+        "sha256": "98e340854e5637268245455e9158e7ce50415cba432c7bd583bd3e95da829214",
+        "relativePath": "98e340854e5637268245455e9158e7ce50415cba432c7bd583bd3e95da829214.pdf",
+        "sourceUrl": null,
+        "rightsStatus": "unverified",
+        "integrityStatus": "verified"
+      },
+      "markScheme": null
+    },
+    {
       "id": "ap-physics-c-em-2018-frq-standard",
       "board": "ap",
       "course": "physics-c-em",
@@ -1329,6 +1426,35 @@
       }
     },
     {
+      "id": "ap-physics-c-em-2018-mcq-standard",
+      "board": "ap",
+      "course": "physics-c-em",
+      "courseLabel": "AP Physics C: Electricity and Magnetism",
+      "subject": "physics",
+      "level": "",
+      "year": 2018,
+      "session": "Annual",
+      "paper": "MCQ",
+      "variant": "standard",
+      "title": "AP Physics C: Electricity and Magnetism 2018 MCQ",
+      "section": "Multiple Choice",
+      "fullExam": false,
+      "practiceReady": false,
+      "pairStatus": "missing",
+      "questionPaper": {
+        "id": "file-5050c48b10b885100b7b7a31e033c128",
+        "name": "ap-physics-c-em-2018-mcq-standard-qp.pdf",
+        "bytes": 3371050,
+        "pages": 73,
+        "sha256": "5050c48b10b885100b7b7a31e033c1288e369a9238aac1f40b7b1c75928b119e",
+        "relativePath": "5050c48b10b885100b7b7a31e033c1288e369a9238aac1f40b7b1c75928b119e.pdf",
+        "sourceUrl": null,
+        "rightsStatus": "unverified",
+        "integrityStatus": "verified"
+      },
+      "markScheme": null
+    },
+    {
       "id": "ap-physics-c-em-2017-frq-standard",
       "board": "ap",
       "course": "physics-c-em",
@@ -1366,6 +1492,35 @@
         "rightsStatus": "unverified",
         "integrityStatus": "verified"
       }
+    },
+    {
+      "id": "ap-physics-c-em-2017-mcq-standard",
+      "board": "ap",
+      "course": "physics-c-em",
+      "courseLabel": "AP Physics C: Electricity and Magnetism",
+      "subject": "physics",
+      "level": "",
+      "year": 2017,
+      "session": "Annual",
+      "paper": "MCQ",
+      "variant": "standard",
+      "title": "AP Physics C: Electricity and Magnetism 2017 MCQ",
+      "section": "Multiple Choice",
+      "fullExam": false,
+      "practiceReady": false,
+      "pairStatus": "missing",
+      "questionPaper": {
+        "id": "file-7bf60fbaf644d3bfb3ebad0019c90c5f",
+        "name": "ap-physics-c-em-2017-mcq-standard-qp.pdf",
+        "bytes": 1609743,
+        "pages": 63,
+        "sha256": "7bf60fbaf644d3bfb3ebad0019c90c5f818ac316dffe0b5abdfa68b9dc91f162",
+        "relativePath": "7bf60fbaf644d3bfb3ebad0019c90c5f818ac316dffe0b5abdfa68b9dc91f162.pdf",
+        "sourceUrl": null,
+        "rightsStatus": "unverified",
+        "integrityStatus": "verified"
+      },
+      "markScheme": null
     },
     {
       "id": "ap-physics-c-mechanics-2026-frq-standard",
