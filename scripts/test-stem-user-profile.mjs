@@ -124,6 +124,13 @@ try {
   const aliceAuth = { authorization: `Bearer ${aliceToken}` }
   const bobAuth = { authorization: `Bearer ${bobToken}` }
 
+  const curriculumCatalog = await call(api, { method: 'GET', url: '/api/stem/curriculum-papers?board=ap&pageSize=1' })
+  assert.equal(curriculumCatalog.statusCode, 200, 'the deployed AP/IB curriculum route must remain registered beside profile auth')
+  assert.equal(curriculumCatalog.body.schemaVersion, 'curriculum-papers-v1')
+  assert.equal(curriculumCatalog.body.board, 'ap')
+  assert.equal(curriculumCatalog.body.total, 54)
+  assert.deepEqual(curriculumCatalog.body.summary, { papers: 54, downloadable: 0, sourceOnly: 54 })
+
   const anonymous = await call(api, { method: 'GET', url: '/api/stem/profile' })
   assert.equal(anonymous.statusCode, 401, 'profile reads require a verified identity')
 
