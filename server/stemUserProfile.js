@@ -5,6 +5,7 @@ export const STEM_USER_PROFILE_MAX_BODY_BYTES = 96 * 1024
 const DISPLAY_NAME_MAX_CODEPOINTS = 32
 const ALLOWED_PROFILE_KEYS = new Set(['displayName', 'avatarDataUrl'])
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+const INVISIBLE_DISPLAY_CODEPOINT = /[\p{Z}\p{Default_Ignorable_Code_Point}]/u
 
 function profileError(code, message, statusCode = 400) {
   return Object.assign(new Error(message), { code, statusCode })
@@ -37,7 +38,8 @@ export function normalizeStemDisplayName(value) {
   }
   const displayName = value.trim().normalize('NFC')
   const codepointCount = [...displayName].length
-  if (codepointCount < 1 || codepointCount > DISPLAY_NAME_MAX_CODEPOINTS) {
+  const hasVisibleCodepoint = [...displayName].some((codepoint) => !INVISIBLE_DISPLAY_CODEPOINT.test(codepoint))
+  if (codepointCount < 1 || codepointCount > DISPLAY_NAME_MAX_CODEPOINTS || !hasVisibleCodepoint) {
     throw profileError('profile_display_name_invalid', `Display name must contain 1 to ${DISPLAY_NAME_MAX_CODEPOINTS} Unicode characters.`)
   }
   return displayName
@@ -134,7 +136,7 @@ export function stemUserProfile(database, identity) {
     profile: {
       ownerId,
       displayName: safeStoredDisplayName(row?.display_name),
-      avatarDataUrl: storedAvatar || trustedIdentityAvatar(identity),
+      avatarDataUrl: row ? storedAvatar : trustedIdentityAvatar(identity),
       updatedAt: row?.updated_at || null,
     },
   }

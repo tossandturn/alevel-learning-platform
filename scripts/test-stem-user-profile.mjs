@@ -64,6 +64,10 @@ function decodeToken(token) {
   return JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'))
 }
 
+function decodeTokenHeader(token) {
+  return JSON.parse(Buffer.from(token.split('.')[0], 'base64url').toString('utf8'))
+}
+
 function call(api, { method, url, body, rawBody, headers = {} }) {
   return new Promise((resolve, reject) => {
     const encoded = rawBody == null ? (body === undefined ? null : Buffer.from(JSON.stringify(body))) : Buffer.from(rawBody)
@@ -166,6 +170,12 @@ try {
     ['too many Unicode codepoints', { displayName: '😀'.repeat(33), avatarDataUrl: '' }],
     ['control character', { displayName: 'Bad\nName', avatarDataUrl: '' }],
     ['unpaired surrogate', { displayName: '\ud800', avatarDataUrl: '' }],
+    ['zero-width space only', { displayName: '\u200b', avatarDataUrl: '' }],
+    ['zero-width non-joiner only', { displayName: '\u200c', avatarDataUrl: '' }],
+    ['zero-width joiner only', { displayName: '\u200d', avatarDataUrl: '' }],
+    ['word joiner only', { displayName: '\u2060', avatarDataUrl: '' }],
+    ['BOM only', { displayName: '\ufeff', avatarDataUrl: '' }],
+    ['mixed invisible format characters only', { displayName: ' \u200b\u200c\u200d\u2060\ufeff ', avatarDataUrl: '' }],
     ['external URL', { displayName: 'Name', avatarDataUrl: 'https://example.test/avatar.png' }],
     ['temporary path', { displayName: 'Name', avatarDataUrl: 'wxfile://tmp/avatar.png' }],
     ['SVG data URL', { displayName: 'Name', avatarDataUrl: dataUrl('image/svg+xml', '<svg/>') }],
@@ -177,6 +187,15 @@ try {
     const result = await call(api, { method: 'PUT', url: '/api/stem/profile', headers: aliceAuth, body })
     assert.equal(result.statusCode, expectedStatus, label)
   }
+
+  const emojiJoinerName = await call(api, {
+    method: 'PUT',
+    url: '/api/stem/profile',
+    headers: bobAuth,
+    body: { displayName: '👩‍🔬 Scientist', avatarDataUrl: '' },
+  })
+  assert.equal(emojiJoinerName.statusCode, 200, 'a visible emoji ZWJ sequence must remain valid')
+  assert.equal(emojiJoinerName.body.profile.displayName, '👩‍🔬 Scientist')
 
   for (const [mime, bytes] of [['image/png', pngBytes(3)], ['image/jpeg', jpegBytes()], ['image/webp', webpBytes()]]) {
     const result = await call(api, { method: 'PUT', url: '/api/stem/profile', headers: bobAuth, body: { displayName: 'Bob', avatarDataUrl: dataUrl(mime, bytes) } })
@@ -192,13 +211,42 @@ try {
   })
   assert.equal(oversizedBody.statusCode, 413, 'profile request bodies must have a narrow independent size cap')
 
+  const largeAvatar = dataUrl('image/png', Buffer.concat([pngBytes(4), Buffer.alloc(60 * 1024)]))
+  const largeAvatarSave = await call(api, {
+    method: 'PUT',
+    url: '/api/stem/profile',
+    headers: aliceAuth,
+    body: { displayName: 'Café Student', avatarDataUrl: largeAvatar },
+  })
+  assert.equal(largeAvatarSave.statusCode, 200)
+  const largeAvatarLogin = await call(api, { method: 'POST', url: '/api/auth/login', body: { username: identities.alice.username, password: 'testing123' } })
+  assert.equal(largeAvatarLogin.body.identity.avatarDataUrl, largeAvatar, 'the enriched JSON identity must expose the saved profile avatar')
+  assert.ok(largeAvatarLogin.body.accessToken.length < 2_048, 'a near-limit profile avatar must not inflate the JWT/header')
+  assert.deepEqual(decodeTokenHeader(largeAvatarLogin.body.accessToken), { alg: 'HS256', typ: 'JWT' })
+  const largeAvatarClaims = decodeToken(largeAvatarLogin.body.accessToken)
+  assert.equal(largeAvatarClaims.username, identities.alice.username)
+  assert.deepEqual(largeAvatarClaims.roles, identities.alice.roles)
+  assert.equal(largeAvatarClaims.avatarDataUrl, trustedAvatar)
+  assert.equal(Object.hasOwn(largeAvatarClaims, 'displayName'), false)
+
+  const clearedAvatar = await call(api, {
+    method: 'PUT',
+    url: '/api/stem/profile',
+    headers: aliceAuth,
+    body: { displayName: 'Café Student', avatarDataUrl: '' },
+  })
+  assert.equal(clearedAvatar.statusCode, 200)
+  assert.equal(clearedAvatar.body.profile.avatarDataUrl, '', 'an explicit stored empty avatar must not fall back to the authority avatar')
+  const clearedAvatarRead = await call(api, { method: 'GET', url: '/api/stem/profile', headers: aliceAuth })
+  assert.equal(clearedAvatarRead.body.profile.avatarDataUrl, '', 'GET must preserve an explicitly cleared avatar')
+
   const login = await call(api, { method: 'POST', url: '/api/auth/login', body: { username: identities.alice.username, password: 'testing123' } })
   assert.equal(login.statusCode, 200)
   assert.equal(login.body.identity.id, identities.alice.id)
   assert.equal(login.body.identity.username, identities.alice.username)
   assert.deepEqual(login.body.identity.roles, identities.alice.roles)
   assert.equal(login.body.identity.displayName, 'Café Student')
-  assert.equal(login.body.identity.avatarDataUrl, customAvatar)
+  assert.equal(login.body.identity.avatarDataUrl, '', 'login JSON enrichment must preserve an explicitly cleared avatar')
   const loginClaims = decodeToken(login.body.accessToken)
   assert.equal(Object.hasOwn(loginClaims, 'displayName'), false, 'profile display name must not enter the JWT')
   assert.equal(loginClaims.avatarDataUrl, trustedAvatar, 'stored profile avatar must not enlarge or alter the authority token')
@@ -215,17 +263,17 @@ try {
   const cookie = String(login.headers['set-cookie'] || '').split(';', 1)[0]
   const status = await call(api, { method: 'GET', url: '/api/auth/status', headers: { cookie } })
   assert.equal(status.body.identity.displayName, 'Café Student')
-  assert.equal(status.body.identity.avatarDataUrl, customAvatar)
+  assert.equal(status.body.identity.avatarDataUrl, '', 'status JSON enrichment must preserve an explicitly cleared avatar')
   assert.equal(Object.hasOwn(decodeToken(status.body.accessToken), 'displayName'), false)
 
   const registered = await call(api, { method: 'POST', url: '/api/auth/register', body: { username: identities.alice.username, password: 'testing123' } })
   assert.equal(registered.body.identity.displayName, 'Café Student')
-  assert.equal(registered.body.identity.avatarDataUrl, customAvatar)
+  assert.equal(registered.body.identity.avatarDataUrl, '')
 
   const wechat = await call(api, { method: 'POST', url: '/api/auth/wechat', body: { code: 'valid_wechat_code_123' } })
   assert.equal(wechat.statusCode, 200)
   assert.equal(wechat.body.identity.displayName, 'Café Student')
-  assert.equal(wechat.body.identity.avatarDataUrl, customAvatar)
+  assert.equal(wechat.body.identity.avatarDataUrl, '')
   assert.equal(Object.hasOwn(decodeToken(wechat.body.accessToken), 'displayName'), false)
 
   closeStemDatabaseForTests()
