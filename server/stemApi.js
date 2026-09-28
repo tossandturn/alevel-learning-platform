@@ -21,6 +21,13 @@ import {
   scoreObjectiveQuestion,
 } from './objectiveAnswers.js'
 import { createWholePaperMarkingService } from './wholePaperMarking.js'
+import {
+  STEM_USER_PROFILE_MAX_BODY_BYTES,
+  enrichStemIdentity,
+  ensureStemUserProfileSchema,
+  saveStemUserProfile,
+  stemUserProfile,
+} from './stemUserProfile.js'
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024
 const REBIND_BODY_BYTES = 256 * 1024
@@ -1299,6 +1306,7 @@ function appDatabase(env, questionBank = unifiedQuestionBank, { synchronizeSourc
     );
     CREATE INDEX IF NOT EXISTS idx_stem_sessions_user ON stem_sessions(user_id, expires_at DESC);
   `)
+  ensureStemUserProfileSchema(database)
   ensureColumn(database, 'private_notes', 'deleted_at', 'TEXT')
   migrateStudentAttemptsSchema(database)
   migrateRouteScope(database)
@@ -1997,7 +2005,7 @@ function currentWorkspace(database, user) {
     ORDER BY classrooms.created_at DESC
   `).all(user.id)
   const assignmentRows = assignmentsForWorkspace(database, classes)
-  return { identity: user, classrooms: classes.map((item) => publicClassroom(item, item.role)), assignments: assignmentRows.map(publicAssignment) }
+  return { identity: enrichStemIdentity(database, user), classrooms: classes.map((item) => publicClassroom(item, item.role)), assignments: assignmentRows.map(publicAssignment) }
 }
 
 function timeWindow(url) {
@@ -2681,6 +2689,15 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
         return
       }
       const user = identityFromRequest(request, signingKey)
+      if (request.method === 'GET' && url.pathname === '/api/stem/profile') {
+        sendJson(response, 200, stemUserProfile(db, user))
+        return
+      }
+      if (request.method === 'PUT' && url.pathname === '/api/stem/profile') {
+        const payload = await readJson(request, STEM_USER_PROFILE_MAX_BODY_BYTES)
+        sendJson(response, 200, saveStemUserProfile(db, user, payload))
+        return
+      }
       if (url.pathname === '/api/stem/paper-marking-jobs' || url.pathname.startsWith('/api/stem/paper-marking-jobs/')) {
         await currentWholePaperMarkingService(db).handle({ request, response, url, user })
         return
