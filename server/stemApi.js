@@ -12,6 +12,7 @@ import { createNativePaperCatalog } from './nativePaperCatalog.js'
 import { createCurriculumPaperCatalog } from './curriculumPaperCatalog.js'
 import { createNativeQuestionImages } from './nativeQuestionImages.js'
 import { sendPublicCatalogJson } from './publicCatalogJson.js'
+import { createAnnouncementBoard } from './announcementBoard.js'
 import {
   OBJECTIVE_RESULT_SCHEMA_VERSION,
   nativeChoiceOptions,
@@ -1917,6 +1918,12 @@ function requireSchoolAdminClaim(user) {
   }
 }
 
+function requireAnnouncementPublisher(user) {
+  if (!user.roles.includes('school_admin') && !user.roles.includes('school_owner')) {
+    throw Object.assign(new Error('A server-verified school administrator claim is required to publish announcements.'), { statusCode: 403 })
+  }
+}
+
 function membership(database, classroomId, userId) {
   return database.prepare('SELECT role FROM class_memberships WHERE classroom_id = ? AND user_id = ?').get(classroomId, userId) || null
 }
@@ -2362,6 +2369,8 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
   let nativeBridgeProbe = null
   let wholePaperMarkingService = null
   let wholePaperMarkingDatabase = null
+  let announcementBoard = null
+  let announcementBoardDatabase = null
   let runtimeTopicPracticeSnapshot = null
   let runtimeTopicPracticeQuestionBank = null
   const immutableTopicPracticeBanks = new WeakSet()
@@ -2427,6 +2436,14 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
       })
     }
     return wholePaperMarkingService
+  }
+
+  function currentAnnouncementBoard(database) {
+    if (!announcementBoard || announcementBoardDatabase !== database) {
+      announcementBoardDatabase = database
+      announcementBoard = createAnnouncementBoard({ database })
+    }
+    return announcementBoard
   }
 
   function currentSyllabusTopicsInventory(routeId, questionBankSnapshot, includeStudyOnlyQuestions) {
@@ -2565,6 +2582,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
       // Opening the shared handle must not reset a synchronized runtime bank
       // to the static base before a source route synchronizes it again.
       const db = appDatabase(env, baseTopicPracticeQuestionBank, { synchronizeSource: false })
+      const announcementBoard = currentAnnouncementBoard(db)
       let runtimeTopicPracticeQuestionBank = null
       function currentRuntimeTopicPracticeQuestionBank() {
         runtimeTopicPracticeQuestionBank ||= currentTopicPracticeQuestionBank()
@@ -2603,6 +2621,15 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
         }
         if (!signingKey) throw Object.assign(new Error('STEM account sessions are not configured.'), { statusCode: 503 })
         sendJson(response, 200, { authenticated: true, ...identityToken(user, signingKey), ...currentWorkspace(db, user) })
+        return
+      }
+      if (request.method === 'GET' && url.pathname === '/api/stem/announcements') {
+        const publicUser = request.headers.authorization ? identityFromRequest(request, signingKey) : null
+        sendJson(response, 200, announcementBoard.listPublic({
+          limit: url.searchParams.get('limit'),
+          offset: url.searchParams.get('offset'),
+          userId: publicUser?.id || '',
+        }))
         return
       }
       if (request.method === 'POST' && url.pathname === '/api/auth/wechat') {
@@ -2692,6 +2719,27 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
         return
       }
       const user = identityFromRequest(request, signingKey)
+      if (request.method === 'GET' && url.pathname === '/api/stem/announcements/manage') {
+        requireAnnouncementPublisher(user)
+        sendJson(response, 200, announcementBoard.listManage())
+        return
+      }
+      if (request.method === 'POST' && url.pathname === '/api/stem/announcements') {
+        requireAnnouncementPublisher(user)
+        sendJson(response, 201, { announcement: announcementBoard.create(user, await readJson(request, 32 * 1024)) })
+        return
+      }
+      const announcementReadMatch = url.pathname.match(/^\/api\/stem\/announcements\/([^/]+)\/read$/)
+      if (request.method === 'POST' && announcementReadMatch) {
+        sendJson(response, 200, { receipt: announcementBoard.recordRead(user, decodeURIComponent(announcementReadMatch[1])) })
+        return
+      }
+      const announcementMatch = url.pathname.match(/^\/api\/stem\/announcements\/([^/]+)$/)
+      if (request.method === 'PATCH' && announcementMatch) {
+        requireAnnouncementPublisher(user)
+        sendJson(response, 200, { announcement: announcementBoard.update(user, decodeURIComponent(announcementMatch[1]), await readJson(request, 32 * 1024)) })
+        return
+      }
       if (request.method === 'GET' && url.pathname === '/api/stem/profile') {
         sendJson(response, 200, stemUserProfile(db, user))
         return

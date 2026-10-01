@@ -312,6 +312,7 @@ try {
   assert.equal(isStartableTopicPracticeUnit(forgedFocusedUnit), false, 'a client-declared focused retest cannot pass the normal start gate')
 
   const parentAttemptId = 'att-authoritative-parent-0001'
+  const currentSubmittedAt = new Date(Date.now() - 60_000).toISOString()
   const persistedParent = await call(api, {
     method: 'POST',
     url: '/api/stem/attempts',
@@ -322,7 +323,7 @@ try {
       routeId,
       stage,
       unitId: parentUnit.id,
-      submittedAt: '2026-09-01T00:00:00.000Z',
+      submittedAt: currentSubmittedAt,
       markingParts: parentUnit.parts.map((part) => ({
         unitPartId: part.id,
         provenance: { routeId, ...part.sourceBindingProvenance },

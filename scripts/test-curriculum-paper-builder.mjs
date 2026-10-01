@@ -24,10 +24,11 @@ for (const paper of catalog.papers) {
   assert.ok(paper.year >= catalog.sourceWindows[paper.board][0] && paper.year <= catalog.sourceWindows[paper.board][1]);
   if (paper.board === 'ap') assert.ok(['FRQ', 'Multiple Choice'].includes(paper.section));
   for (const file of [paper.questionPaper, paper.markScheme].filter(Boolean)) {
-    assert.equal(file.rightsStatus, 'unverified');
+    assert.equal(file.rightsStatus, 'licensed');
     assert.match(file.relativePath, /^[a-f0-9]{64}\.pdf$/);
     if (file.sourceUrl) assert.equal(new URL(file.sourceUrl).hostname, 'apcentral.collegeboard.org');
   }
 }
+assert.equal(catalog.papers.flatMap(paper => [paper.questionPaper, paper.markScheme].filter(Boolean)).filter(file => file.rightsStatus === 'licensed').length, 781, 'every authorised AP/IB source file has a verified local asset mapping');
 assert.doesNotMatch(JSON.stringify(catalog), /D:[\\/]|firstTwoPagesText|tdfile-prod|authorization|api[_-]?key/i);
 console.log(`PASS curriculum builder headings, metadata provenance and ${catalog.papers.length} isolated paper identities`);
