@@ -81,7 +81,7 @@ function normalizeCriterion(value, index, { allowScores = true } = {}) {
   }
 }
 
-function normalizeQuestionResult(value, index, { allowScores }) {
+function normalizeQuestionResult(value, index, { allowScores, requireMarkSchemeCriteria = false }) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw assessmentError('field_type', `questionResults[${index}] must be an object.`)
   const provisionalScore = nullableMark(value, 'provisionalScore', `questionResults[${index}].provisionalScore`, { allowScores })
   const maxScore = nullableMark(value, 'maxScore', `questionResults[${index}].maxScore`, { allowScores, positive: true })
@@ -112,6 +112,16 @@ function normalizeQuestionResult(value, index, { allowScores }) {
   if (hasAnyMark && evidence.length === 0) {
     throw assessmentError('evidence_missing', `questionResults[${index}] has marks without student evidence.`)
   }
+  if (requireMarkSchemeCriteria && provisionalScore !== null && maxScore !== null) {
+    if (!criteria.length || criteria.some((criterion) => criterion.awarded === null || criterion.maxScore === null)) {
+      throw assessmentError('score_pair_missing', `questionResults[${index}] needs a scored criterion for every explicit mark-scheme point.`)
+    }
+    const criteriaScore = criteria.reduce((sum, criterion) => sum + criterion.awarded, 0)
+    const criteriaMaximum = criteria.reduce((sum, criterion) => sum + criterion.maxScore, 0)
+    if (Math.abs(criteriaScore - provisionalScore) > 1e-9 || Math.abs(criteriaMaximum - maxScore) > 1e-9) {
+      throw assessmentError('total_mismatch', `questionResults[${index}] does not reconcile with its mark-scheme criteria.`)
+    }
+  }
   return {
     questionLabel,
     provisionalScore,
@@ -124,7 +134,11 @@ function normalizeQuestionResult(value, index, { allowScores }) {
   }
 }
 
-export function normalizeWholePaperAiResult(value, { hasQuestionPaper = false, hasMarkScheme = false } = {}) {
+export function normalizeWholePaperAiResult(value, {
+  hasQuestionPaper = false,
+  hasMarkScheme = false,
+  requireMarkSchemeCriteria = false,
+} = {}) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw assessmentError('field_type', 'Whole-paper assessment must be an object.')
   const allowScores = Boolean(hasQuestionPaper || hasMarkScheme)
   let provisionalScore = nullableMark(value, 'provisionalScore', 'provisionalScore', { allowScores })
@@ -145,7 +159,10 @@ export function normalizeWholePaperAiResult(value, { hasQuestionPaper = false, h
   const suppliedQuestionResults = value.questionResults
   if (suppliedQuestionResults.length > 100) throw assessmentError('field_type', 'Whole-paper assessment contains more than 100 question results.')
   let questionResults = suppliedQuestionResults
-    .map((item, index) => normalizeQuestionResult(item, index, { allowScores }))
+    .map((item, index) => normalizeQuestionResult(item, index, {
+      allowScores,
+      requireMarkSchemeCriteria: Boolean(hasMarkScheme && requireMarkSchemeCriteria),
+    }))
   if (!questionResults.length) {
     throw assessmentError('empty', 'Whole-paper assessment contains no question-level results.')
   }
@@ -256,7 +273,13 @@ export function createWholePaperAiRunner({ env = process.env, telemetry = null }
       'JSON types are strict. Never substitute labels such as "high" for numbers, and never return objects or numbers inside evidence.',
       'Top-level types: summary is a non-empty string; provisionalScore and maxScore are each a number or null; reviewRequired is boolean; missingPages is an array of positive integers; missingQuestions is an array of non-empty strings; questionResults is a non-empty array.',
       'Each questionResults item must contain: questionLabel and rationale as non-empty strings; provisionalScore and maxScore are each a number or null; confidence is a number from 0 to 1; reviewRequired is boolean; evidence is an array of non-empty strings that point to visible student work; criteria is an array.',
-      'Each criteria item must contain: label as a non-empty string; awarded and maxScore as a matching number pair or both null; comment as a string. The criteria array may be empty.',
+      'Each criteria item must contain: label as a non-empty string; awarded and maxScore as a matching number pair or both null; comment as a string. The criteria array may be empty only when no mark scheme was supplied or the score is unavailable.',
+      'When mark-scheme images are supplied, map each explicit mark-scheme point to one criteria item and award each point independently subject to the supplied mark scheme’s exact dependencies, evidence conditions, accepted alternatives, and explicit error-carried-forward or follow-through allowances.',
+      'When the supplied mark scheme uses categories such as B, M, C, or A, apply the definitions and dependencies shown by that scheme: independent points, required visible method, compensatory evidence from later working, and dependent accuracy credit are not interchangeable.',
+      'For example, when visible work satisfies an explicit M1 condition but a later dependent A1 condition fails, award M1 and not A1; do not collapse the whole question to zero.',
+      'Do not invent working requirements, dependencies, or follow-through that the supplied mark scheme does not state. A later error or wrong final answer must not erase an earlier independently satisfied mark; a dependent accuracy mark still requires its stated dependency, and follow-through applies only when the mark scheme explicitly allows it.',
+      'For every scored question with a mark scheme, criteria must be non-empty, every criterion must have a numeric awarded/maxScore pair, and the awarded and maximum criteria totals must equal the question provisionalScore and maxScore exactly.',
+      'If the exact mark-point mapping or dependency cannot be read reliably, use null scores and reviewRequired=true instead of guessing.',
       'If any question or criterion includes marks, that question evidence array must contain at least one non-empty student-evidence string.',
       'When a complete top-level score pair is present, every question must have a score pair and the question-level scores and maxima must sum exactly to the top-level provisionalScore and maxScore.',
       'When missingPages or missingQuestions is non-empty, set the top-level, question-level and criterion score fields to null while preserving grounded qualitative feedback.',
@@ -311,10 +334,18 @@ export function createWholePaperAiRunner({ env = process.env, telemetry = null }
           signal,
           validateResponse: (answer) => {
             validatorEntered = true
-            return normalizeWholePaperAiResult(parseWholePaperAssessment(answer), { hasQuestionPaper, hasMarkScheme })
+            return normalizeWholePaperAiResult(parseWholePaperAssessment(answer), {
+              hasQuestionPaper,
+              hasMarkScheme,
+              requireMarkSchemeCriteria: hasMarkScheme,
+            })
           },
         })
-        const result = normalizeWholePaperAiResult(parseWholePaperAssessment(raw), { hasQuestionPaper, hasMarkScheme })
+        const result = normalizeWholePaperAiResult(parseWholePaperAssessment(raw), {
+          hasQuestionPaper,
+          hasMarkScheme,
+          requireMarkSchemeCriteria: hasMarkScheme,
+        })
         return Object.freeze({ ...result, provider: provider.name, model: provider.model })
       } catch (error) {
         if (!validatorEntered && error?.code === 'AI_RESPONSE_SCHEMA_INVALID') {
