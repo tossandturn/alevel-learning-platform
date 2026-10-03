@@ -11,7 +11,7 @@ const server = http.createServer((request, response) => {
   request.on('end', () => {
     const body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
     requests.push({ url: request.url, headers: request.headers, body })
-    const assessment = responseMode === 'unscored'
+    let assessment = responseMode === 'unscored'
       ? {
           summary: 'The working is readable but no source paper was supplied.',
           provisionalScore: 99,
@@ -19,7 +19,11 @@ const server = http.createServer((request, response) => {
           reviewRequired: true,
           missingPages: [],
           missingQuestions: ['Question mapping unavailable'],
-          questionResults: [],
+          questionResults: [{
+            questionLabel: 'Unmapped response', provisionalScore: null, maxScore: null, confidence: 0.6,
+            reviewRequired: true, rationale: 'The visible answer cannot be mapped without a source paper.',
+            evidence: ['Student answer page 1'], criteria: [],
+          }],
         }
       : responseMode === 'mismatch'
         ? {
@@ -29,7 +33,11 @@ const server = http.createServer((request, response) => {
             reviewRequired: false,
             missingPages: [],
             missingQuestions: [],
-            questionResults: [{ questionLabel: 'Q1', provisionalScore: 3, maxScore: 4, confidence: 0.9, reviewRequired: false, rationale: 'Visible.', evidence: ['Page 1'], criteria: [] }],
+            questionResults: [{
+              questionLabel: 'Q1', provisionalScore: 3, maxScore: 4, confidence: 0.9, reviewRequired: false,
+              rationale: 'Visible.', evidence: ['Page 1'],
+              criteria: [{ label: 'Q1 mark allocation', awarded: 3, maxScore: 4, comment: 'Visible.' }],
+            }],
           }
         : {
           summary: 'Most steps are supported by the uploaded references.',
@@ -47,18 +55,56 @@ const server = http.createServer((request, response) => {
               reviewRequired: false,
               rationale: 'Method shown; final unit is missing.',
               evidence: ['Student answer page 1 shows the substitution.'],
-              criteria: [{ label: 'Method', awarded: 2, maxScore: 2, comment: 'Shown.' }],
+              criteria: [
+                { label: 'Method', awarded: 2, maxScore: 2, comment: 'Shown.' },
+                { label: 'Accuracy', awarded: 1, maxScore: 2, comment: 'One accuracy mark is not earned.' },
+              ],
             },
             {
               questionLabel: 'Q2', provisionalScore: 4, maxScore: 6, confidence: 0.55, reviewRequired: false,
-              rationale: 'A visible step is incomplete.', evidence: ['Student answer page 1'], criteria: [],
+              rationale: 'A visible step is incomplete.', evidence: ['Student answer page 1'],
+              criteria: [
+                { label: 'Method', awarded: 3, maxScore: 4, comment: 'Most method marks are visible.' },
+                { label: 'Accuracy', awarded: 1, maxScore: 2, comment: 'One accuracy mark is earned.' },
+              ],
             },
           ],
         }
+    if (responseMode === 'empty') {
+      assessment = {
+        summary: 'No question feedback was produced.', provisionalScore: null, maxScore: null,
+        reviewRequired: true, missingPages: [], missingQuestions: [], questionResults: [],
+      }
+    }
+    if (responseMode === 'evidence-less') {
+      assessment = {
+        summary: 'Unsupported scored response.', provisionalScore: 3, maxScore: 4,
+        reviewRequired: false, missingPages: [], missingQuestions: [],
+        questionResults: [{
+          questionLabel: 'Q1', provisionalScore: 3, maxScore: 4, confidence: 0.99,
+          reviewRequired: false, rationale: 'Unsupported.', evidence: [], criteria: [],
+        }],
+      }
+    }
+    if (responseMode === 'confidence-label') {
+      assessment = {
+        summary: 'Invalid confidence response.', provisionalScore: 3, maxScore: 4,
+        reviewRequired: false, missingPages: [], missingQuestions: [],
+        questionResults: [{
+          questionLabel: 'Q1', provisionalScore: 3, maxScore: 4, confidence: 'high',
+          reviewRequired: false, rationale: 'Visible.', evidence: ['Student answer page 1'], criteria: [],
+        }],
+      }
+    }
     const finish = () => {
       if (response.destroyed) return
       response.writeHead(200, { 'content-type': 'application/json' })
-      response.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(assessment) } }] }))
+      if (responseMode === 'provider-envelope-invalid') {
+        response.end(JSON.stringify({ choices: [] }))
+        return
+      }
+      const content = responseMode === 'invalid-json' ? '{"summary":' : JSON.stringify(assessment)
+      response.end(JSON.stringify({ choices: [{ message: { content } }] }))
     }
     if (responseMode === 'delayed') setTimeout(finish, 500)
     else finish()
@@ -89,8 +135,8 @@ try {
     () => normalizeWholePaperAiResult({
       ...resultBase,
       questionResults: [
-        { questionLabel: 'Q1', confidence: 0.8, reviewRequired: false, rationale: 'First.', evidence: [], criteria: [] },
-        { questionLabel: 'q1', confidence: 0.8, reviewRequired: false, rationale: 'Duplicate.', evidence: [], criteria: [] },
+        { questionLabel: 'Q1', provisionalScore: null, maxScore: null, confidence: 0.8, reviewRequired: false, rationale: 'First.', evidence: [], criteria: [] },
+        { questionLabel: 'q1', provisionalScore: null, maxScore: null, confidence: 0.8, reviewRequired: false, rationale: 'Duplicate.', evidence: [], criteria: [] },
       ],
     }, { hasQuestionPaper: true, hasMarkScheme: true }),
     /duplicate questionLabel/i,
@@ -98,10 +144,84 @@ try {
   assert.throws(
     () => normalizeWholePaperAiResult({
       ...resultBase,
-      questionResults: Array.from({ length: 101 }, (_, index) => ({ questionLabel: `Q${index + 1}`, confidence: 0.8, reviewRequired: false, rationale: 'Visible.', evidence: [], criteria: [] })),
+      questionResults: Array.from({ length: 101 }, (_, index) => ({ questionLabel: `Q${index + 1}`, provisionalScore: null, maxScore: null, confidence: 0.8, reviewRequired: false, rationale: 'Visible.', evidence: [], criteria: [] })),
     }, { hasQuestionPaper: true, hasMarkScheme: true }),
     /more than 100/i,
   )
+  assert.throws(
+    () => normalizeWholePaperAiResult({
+      summary: 'Unsupported score fixture.', provisionalScore: 3, maxScore: 4, reviewRequired: false,
+      missingPages: [], missingQuestions: [],
+      questionResults: [{
+        questionLabel: 'Q1', provisionalScore: 3, maxScore: 4, confidence: 0.99, reviewRequired: false,
+        rationale: 'Claims a score without pointing to student work.', evidence: [], criteria: [],
+      }],
+    }, { hasQuestionPaper: true, hasMarkScheme: true }),
+    (error) => error?.code === 'ai_assessment_schema_invalid' && error?.assessmentFailureReason === 'evidence_missing' && error?.retryable === true,
+    'a reference-backed score must not pass without non-empty student evidence',
+  )
+  for (const malformedEvidence of [[0], [{}]]) {
+    assert.throws(
+      () => normalizeWholePaperAiResult({
+        summary: 'Malformed evidence fixture.', provisionalScore: 1, maxScore: 1, reviewRequired: false,
+        missingPages: [], missingQuestions: [],
+        questionResults: [{
+          questionLabel: 'Q1', provisionalScore: 1, maxScore: 1, confidence: 0.99, reviewRequired: false,
+          rationale: 'Claims a score with a non-string evidence placeholder.', evidence: malformedEvidence, criteria: [],
+        }],
+      }, { hasQuestionPaper: true, hasMarkScheme: true }),
+      (error) => error?.code === 'ai_assessment_schema_invalid' && error?.assessmentFailureReason === 'evidence_type_invalid' && error?.retryable === true,
+      'numeric, object and whitespace evidence placeholders cannot authorize a score',
+    )
+  }
+  assert.throws(
+    () => normalizeWholePaperAiResult({
+      summary: 'Blank evidence fixture.', provisionalScore: 1, maxScore: 1, reviewRequired: false,
+      missingPages: [], missingQuestions: [],
+      questionResults: [{
+        questionLabel: 'Q1', provisionalScore: 1, maxScore: 1, confidence: 0.99, reviewRequired: false,
+        rationale: 'Claims a score with blank evidence.', evidence: ['   '], criteria: [],
+      }],
+    }, { hasQuestionPaper: true, hasMarkScheme: true }),
+    (error) => error?.assessmentFailureReason === 'evidence_missing',
+  )
+  assert.throws(
+    () => normalizeWholePaperAiResult({
+      ...resultBase,
+      questionResults: [{
+        questionLabel: 'Q1', provisionalScore: null, maxScore: null, confidence: 0.9, reviewRequired: false,
+        rationale: 'Criterion-only marks still need student evidence.', evidence: [],
+        criteria: [{ label: 'Method', awarded: 1, maxScore: 1, comment: 'Unsupported mark.' }],
+      }],
+    }, { hasQuestionPaper: true, hasMarkScheme: true }),
+    (error) => error?.code === 'ai_assessment_schema_invalid' && error?.assessmentFailureReason === 'evidence_missing' && error?.retryable === true,
+    'criterion marks cannot bypass the student-evidence gate when the question score is null',
+  )
+  assert.throws(
+    () => normalizeWholePaperAiResult({
+      ...resultBase,
+      questionResults: [],
+    }, { hasQuestionPaper: true, hasMarkScheme: true }),
+    (error) => error?.code === 'ai_assessment_empty' && error?.assessmentFailureReason === 'empty' && error?.retryable === true,
+    'an assessment with no question-level results must fail instead of producing an empty completed report',
+  )
+  const exactMissingQuestion = normalizeWholePaperAiResult({
+    summary: 'One source question is missing.', provisionalScore: 3, maxScore: 4, reviewRequired: true,
+    missingPages: [], missingQuestions: [' 2(A) '],
+    questionResults: [{
+      questionLabel: '2(a)', provisionalScore: 3, maxScore: 4, confidence: 0.9, reviewRequired: false,
+      rationale: 'Visible feedback remains useful.', evidence: ['Student answer page 1'],
+      criteria: [{ label: 'Method', awarded: 3, maxScore: 4, comment: 'Provisional.' }],
+    }],
+  }, { hasQuestionPaper: true, hasMarkScheme: true })
+  assert.equal(exactMissingQuestion.provisionalScore, null)
+  assert.equal(exactMissingQuestion.maxScore, null)
+  assert.equal(exactMissingQuestion.questionResults[0].provisionalScore, null, 'missing source context must not retain a per-question score')
+  assert.equal(exactMissingQuestion.questionResults[0].maxScore, null)
+  assert.equal(exactMissingQuestion.questionResults[0].criteria[0].awarded, null, 'missing source context must not retain criterion marks')
+  assert.equal(exactMissingQuestion.questionResults[0].criteria[0].maxScore, null)
+  assert.equal(exactMissingQuestion.questionResults[0].rationale, 'Visible feedback remains useful.', 'source-faithful feedback must remain visible')
+  assert.equal(exactMissingQuestion.questionResults[0].criteria[0].comment, 'Provisional.', 'non-score criterion feedback must remain visible')
   const scorelessCriteria = normalizeWholePaperAiResult({
     ...resultBase,
     questionResults: [{
@@ -113,6 +233,50 @@ try {
   assert.equal(scorelessCriteria.questionResults[0].maxScore, null)
   assert.equal(scorelessCriteria.questionResults[0].criteria[0].awarded, null)
   assert.equal(scorelessCriteria.questionResults[0].criteria[0].maxScore, null, 'all score fields must be null without an uploaded reference')
+
+  const independentMarkPointFixture = (questionScore) => ({
+    summary: 'Each explicit mark-scheme point is awarded independently.',
+    provisionalScore: questionScore,
+    maxScore: 2,
+    reviewRequired: false,
+    missingPages: [],
+    missingQuestions: [],
+    questionResults: [
+      {
+        questionLabel: 'Q-method', provisionalScore: questionScore, maxScore: 2, confidence: 0.99, reviewRequired: false,
+        rationale: 'The explicit method condition is visible, but the later dependent accuracy condition fails.',
+        evidence: ['Student answer page shows the credited method before a later error.'],
+        criteria: [
+          { label: 'M1 explicit method condition', awarded: 1, maxScore: 1, comment: 'The visible method satisfies M1.' },
+          { label: 'A1 dependent accuracy condition', awarded: 0, maxScore: 1, comment: 'The later result does not satisfy A1.' },
+        ],
+      },
+    ],
+  })
+  assert.throws(
+    () => normalizeWholePaperAiResult(independentMarkPointFixture(0), {
+      hasQuestionPaper: true,
+      hasMarkScheme: true,
+      requireMarkSchemeCriteria: true,
+    }),
+    (error) => error?.assessmentFailureReason === 'total_mismatch',
+    'a question score must not discard an independently awarded method mark from its criteria',
+  )
+  assert.throws(
+    () => normalizeWholePaperAiResult({
+      ...independentMarkPointFixture(1),
+      questionResults: independentMarkPointFixture(1).questionResults.map((question) => ({ ...question, criteria: [] })),
+    }, { hasQuestionPaper: true, hasMarkScheme: true, requireMarkSchemeCriteria: true }),
+    (error) => error?.assessmentFailureReason === 'score_pair_missing',
+    'the real mark-scheme provider path must not return scored questions without explicit mark-point criteria',
+  )
+  const independentMarkPointResult = normalizeWholePaperAiResult(
+    independentMarkPointFixture(1),
+    { hasQuestionPaper: true, hasMarkScheme: true, requireMarkSchemeCriteria: true },
+  )
+  assert.equal(independentMarkPointResult.provisionalScore, 1)
+  assert.equal(independentMarkPointResult.questionResults[0].provisionalScore, 1)
+  assert.deepEqual(independentMarkPointResult.questionResults[0].criteria.map((criterion) => criterion.awarded), [1, 0])
 
   const run = createWholePaperAiRunner({ env })
   const unscored = await run({
@@ -131,6 +295,18 @@ try {
   assert.match(requests[0].body.messages[0].content, /Simplified Chinese/i)
   assert.match(requests[0].body.messages[0].content, /do not require human, teacher, or examiner approval/i, 'provider prompt must keep uncertain outcomes self-service')
   assert.match(requests[0].body.messages[0].content, /clearer or missing pages.*retry/i)
+  assert.match(requests[0].body.messages[0].content, /evidence.*array of non-empty strings/i, 'the prompt must forbid evidence objects and numeric placeholders')
+  assert.match(requests[0].body.messages[0].content, /confidence.*number.*0.*1/i, 'the prompt must define numeric confidence')
+  assert.match(requests[0].body.messages[0].content, /provisionalScore.*number or null/i, 'the prompt must define nullable score types')
+  assert.match(requests[0].body.messages[0].content, /question-level scores.*sum.*top-level/i, 'the prompt must define total reconciliation')
+  assert.match(requests[0].body.messages[0].content, /map each explicit mark-scheme point.*award each point independently/i, 'the prompt must preserve explicit mark-point credit independently of a later wrong answer')
+  assert.match(requests[0].body.messages[0].content, /later error.*must not erase.*earlier.*mark/i, 'the prompt must prevent all-or-nothing grading after a later arithmetic error')
+  assert.match(requests[0].body.messages[0].content, /dependent accuracy mark.*requires.*stated dependency/i, 'the prompt must preserve mark-scheme dependencies')
+  assert.match(requests[0].body.messages[0].content, /follow-through applies only.*explicitly allows/i, 'the prompt must not invent error-carried-forward credit')
+  assert.match(requests[0].body.messages[0].content, /Do not invent working requirements/i, 'the prompt must not require working that the supplied scheme does not demand')
+  assert.match(requests[0].body.messages[0].content, /categories such as B, M, C, or A.*not interchangeable/i, 'the prompt must respect supplied mark categories instead of treating every point as a generic method mark')
+  assert.match(requests[0].body.messages[0].content, /satisfies an explicit M1.*award M1 and not A1.*not collapse.*zero/i, 'the prompt must preserve an earned method mark when the dependent accuracy mark fails')
+  assert.match(requests[0].body.messages[0].content, /criteria totals must equal the question/i, 'the prompt must reconcile mark-point criteria to each question score')
   const requestContext = JSON.parse(requests[0].body.messages[1].content[0].text)
   assert.equal(requestContext.routeId, 'cie-9702-as-physics')
   assert.equal(requestContext.stage, 'AS')
@@ -163,12 +339,49 @@ try {
   assert.deepEqual(incomplete.missingPages, [3])
   assert.deepEqual(incomplete.missingQuestions, ['Q4'])
   assert.equal(incomplete.reviewRequired, true)
+  assert.ok(incomplete.questionResults.every((item) => item.provisionalScore === null && item.maxScore === null), 'a missing page cannot be safely mapped to scored questions')
+  assert.ok(incomplete.questionResults.flatMap((item) => item.criteria).every((item) => item.awarded === null && item.maxScore === null), 'criterion marks must be suppressed with incomplete source context')
 
   responseMode = 'mismatch'
   await assert.rejects(
     run({ job: { id: 'job-mismatch' }, answerPages: [page], questionPaperPages: [page], markSchemePages: [page] }),
-    (error) => error?.code === 'ai_assessment_schema_invalid',
+    (error) => error?.code === 'ai_assessment_schema_invalid' && error?.assessmentFailureReason === 'total_mismatch',
     'non-reconciling total and question scores must fail closed',
+  )
+
+  responseMode = 'empty'
+  await assert.rejects(
+    run({ job: { id: 'job-empty' }, answerPages: [page], questionPaperPages: [page], markSchemePages: [page] }),
+    (error) => error?.code === 'ai_assessment_empty' && error?.assessmentFailureReason === 'empty' && error?.retryable === true,
+    'the real provider path must preserve the explicit empty-assessment failure code',
+  )
+
+  responseMode = 'evidence-less'
+  await assert.rejects(
+    run({ job: { id: 'job-evidence-less' }, answerPages: [page], questionPaperPages: [page], markSchemePages: [page] }),
+    (error) => error?.code === 'ai_assessment_schema_invalid' && error?.assessmentFailureReason === 'evidence_missing' && error?.retryable === true,
+    'the real provider path must reject scored questions without student evidence',
+  )
+
+  responseMode = 'confidence-label'
+  await assert.rejects(
+    run({ job: { id: 'job-confidence-label' }, answerPages: [page], questionPaperPages: [page], markSchemePages: [page] }),
+    (error) => error?.code === 'ai_assessment_schema_invalid' && error?.assessmentFailureReason === 'confidence_invalid',
+    'the real provider path must identify invalid confidence without recording raw output',
+  )
+
+  responseMode = 'invalid-json'
+  await assert.rejects(
+    run({ job: { id: 'job-invalid-json' }, answerPages: [page], questionPaperPages: [page], markSchemePages: [page] }),
+    (error) => error?.code === 'ai_assessment_schema_invalid' && error?.assessmentFailureReason === 'invalid_json',
+    'invalid JSON must have a fixed safe reason without exposing provider content',
+  )
+
+  responseMode = 'provider-envelope-invalid'
+  await assert.rejects(
+    run({ job: { id: 'job-provider-envelope' }, answerPages: [page], questionPaperPages: [page], markSchemePages: [page] }),
+    (error) => error?.code === 'ai_assessment_schema_invalid' && error?.assessmentFailureReason === 'provider_envelope_invalid',
+    'provider-envelope failures before validation must not be misclassified as a field failure',
   )
 
   await assert.rejects(
