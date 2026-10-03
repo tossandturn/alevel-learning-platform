@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 const SHA1_PATTERN = /^[a-f0-9]{40}$/
 const SHA256_PATTERN = /^[a-f0-9]{64}$/
 const RELEASE_ID_PATTERN = /^[A-Za-z0-9._-]{1,120}$/
@@ -18,10 +20,37 @@ function validTreeIdentity(value) {
   )
 }
 
+function hasOnlyKeys(value, allowed) {
+  return Object.keys(value).every((key) => allowed.has(key))
+}
+
+function isCanonicalAbsolutePath(value) {
+  return (path.posix.isAbsolute(value) && path.posix.resolve(value) === value)
+    || (path.win32.isAbsolute(value) && path.win32.resolve(value) === value)
+}
+
+export function validRuntimeDataBinding(value) {
+  if (value === undefined) return true
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  if (!hasOnlyKeys(value, new Set(['schemaVersion', 'relativePath', 'target']))) return false
+  const target = String(value.target || '')
+  return value.schemaVersion === 'stem-runtime-data-binding.v1'
+    && value.relativePath === 'data'
+    && isCanonicalAbsolutePath(target)
+}
+
 function validSyllabusScope(value) {
   if (value === undefined) return true
-  if (!value || value.schemaVersion !== 'stem-syllabus-release-scope.v1' || !Array.isArray(value.routeIds) || value.routeIds.length === 0) return false
-  const routeIds = value.routeIds.map((routeId) => String(routeId || '').trim())
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+    || !hasOnlyKeys(value, new Set(['schemaVersion', 'routeIds', 'readinessMode', 'aiStudyFormalProgressEligible']))
+    || value.schemaVersion !== 'stem-syllabus-release-scope.v1'
+    || !Array.isArray(value.routeIds) || value.routeIds.length === 0) return false
+  if (value.routeIds.some((routeId) => typeof routeId !== 'string' || routeId !== routeId.trim())) return false
+  const routeIds = value.routeIds
+  const hasReadinessMode = Object.hasOwn(value, 'readinessMode')
+  const hasFormalFlag = Object.hasOwn(value, 'aiStudyFormalProgressEligible')
+  if (hasReadinessMode !== hasFormalFlag) return false
+  if (hasReadinessMode && (!['formal', 'student-study'].includes(value.readinessMode) || value.aiStudyFormalProgressEligible !== false)) return false
   return routeIds.every((routeId) => /^[A-Za-z0-9._:-]{1,120}$/.test(routeId))
     && new Set(routeIds).size === routeIds.length
 }
@@ -65,6 +94,7 @@ export function validateReleaseManifest(manifest, { releaseId = '', now = Date.n
     && typeof manifest.immutableAssets?.identity === 'string'
     && manifest.immutableAssets.identity.length > 0
     && validTreeIdentity(manifest.immutableAssets)
+    && validRuntimeDataBinding(manifest.runtimeData)
     && validSyllabusScope(manifest.syllabusScope),
   )
   return { valid, generatedAtMs: valid ? generatedAtMs : null }

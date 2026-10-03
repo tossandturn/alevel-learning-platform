@@ -8,9 +8,11 @@ import {
   findNestedSymlinks,
   findUnexpectedReleaseEntries,
   MAX_RELEASE_BYTES,
+  RELEASE_TOP_LEVEL_ALLOWLIST,
   pathsOverlap,
   physicalTreeBytes,
 } from './release-content-policy.mjs'
+import { verifiedRuntimeDataBinding } from './runtime-data-binding.mjs'
 
 function option(name) {
   const index = process.argv.indexOf(name)
@@ -32,6 +34,7 @@ const releaseRoot = requiredOption('--release-root')
 const sourceAssets = requiredOption('--assets-dir')
 const sourceCatalog = requiredOption('--catalog-file')
 const sourcePdfLibrary = requiredOption('--pdf-library-root')
+const runtimeDataRoot = option('--runtime-data-root')
 const targetAssets = path.join(releaseRoot, 'public', 'question-assets')
 const targetCatalog = path.join(releaseRoot, 'public', 'data', 'papers.json')
 const sourceSubjectCatalogRoot = path.join(path.dirname(sourceCatalog), 'papers')
@@ -39,7 +42,9 @@ const targetSubjectCatalogRoot = path.join(releaseRoot, 'public', 'data', 'paper
 const verifier = path.join(releaseRoot, 'scripts', 'verify-stem-release.mjs')
 
 assert.ok(fs.existsSync(releaseRoot) && fs.statSync(releaseRoot).isDirectory(), `Release root is missing: ${releaseRoot}`)
-const unexpectedReleaseEntries = findUnexpectedReleaseEntries(releaseRoot)
+const runtimeData = verifiedRuntimeDataBinding(releaseRoot, runtimeDataRoot)
+const runtimeDataEntries = runtimeData ? ['data'] : []
+const unexpectedReleaseEntries = findUnexpectedReleaseEntries(releaseRoot, [...RELEASE_TOP_LEVEL_ALLOWLIST, ...runtimeDataEntries])
 assert.equal(unexpectedReleaseEntries.length, 0, `Release root contains files outside the runtime allowlist: ${unexpectedReleaseEntries.slice(0, 10).join(', ')}`)
 const forbiddenReleaseSensitiveFiles = findForbiddenSensitiveFiles(releaseRoot)
 assert.equal(forbiddenReleaseSensitiveFiles.length, 0, `Release root contains nested sensitive files: ${forbiddenReleaseSensitiveFiles.slice(0, 10).join(', ')}`)
@@ -78,5 +83,6 @@ process.stdout.write(`${JSON.stringify({
   releaseRoot,
   assetsDir: targetAssets,
   catalogFile: targetCatalog,
+  runtimeData,
   releaseBytes,
 }, null, 2)}\n`)

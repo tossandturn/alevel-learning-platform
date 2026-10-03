@@ -3,7 +3,8 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { artifactTreeIdentity } from './release-content-policy.mjs'
-import { releaseIdMatchesCommit, validateBuildIdentity } from './release-manifest-contract.mjs'
+import { releaseIdMatchesCommit, validateBuildIdentity, validateReleaseManifest } from './release-manifest-contract.mjs'
+import { verifiedRuntimeDataBinding } from './runtime-data-binding.mjs'
 
 function option(name) {
   const index = process.argv.indexOf(name)
@@ -31,6 +32,8 @@ const immutableAssetsRoot = path.resolve(requiredOption('--immutable-assets-root
 const commit = requiredOption('--commit').toLowerCase()
 const releaseId = requiredOption('--release-id')
 const packageSha256 = requiredOption('--package-sha256').toLowerCase()
+const runtimeDataRoot = option('--runtime-data-root')
+const readinessMode = String(option('--readiness-mode') || 'formal').trim()
 const requestedSyllabusRouteIds = optionValues('--route')
 const syllabusRouteIds = requestedSyllabusRouteIds.length
   ? requestedSyllabusRouteIds
@@ -51,12 +54,14 @@ assert.ok(fs.existsSync(buildIdentityPath) && fs.statSync(buildIdentityPath).isF
 assert.ok(syllabusRouteIds.length > 0, 'Release must declare at least one syllabus route')
 assert.ok(syllabusRouteIds.every((routeId) => /^[A-Za-z0-9._:-]{1,120}$/.test(routeId)), 'Release syllabus routes must use safe route IDs')
 assert.equal(new Set(syllabusRouteIds).size, syllabusRouteIds.length, 'Release syllabus routes must be unique')
+assert.ok(['formal', 'student-study'].includes(readinessMode), 'readiness mode must be formal or student-study')
 const buildIdentity = JSON.parse(fs.readFileSync(buildIdentityPath, 'utf8'))
 assert.ok(
   validateBuildIdentity(buildIdentity, { commit, requireClean: true }).valid,
   'Release build identity must match the release commit and come from a clean source tree',
 )
 
+const runtimeData = verifiedRuntimeDataBinding(releaseRoot, runtimeDataRoot)
 const releaseTree = artifactTreeIdentity(releaseRoot, { exclude: ['release-manifest.json'] })
 const immutableAssets = artifactTreeIdentity(immutableAssetsRoot)
 const manifest = {
@@ -64,9 +69,12 @@ const manifest = {
   releaseId,
   commit,
   packageSha256,
+  ...(runtimeData ? { runtimeData } : {}),
   syllabusScope: {
     schemaVersion: 'stem-syllabus-release-scope.v1',
     routeIds: syllabusRouteIds,
+    readinessMode,
+    aiStudyFormalProgressEligible: false,
   },
   generatedAt: new Date().toISOString(),
   releaseTree,
@@ -75,6 +83,7 @@ const manifest = {
     ...immutableAssets,
   },
 }
+assert.ok(validateReleaseManifest(manifest, { releaseId }).valid, 'Generated release manifest contract is invalid')
 fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { encoding: 'utf8', flag: 'wx', mode: 0o444 })
 const manifestSha256 = crypto.createHash('sha256').update(fs.readFileSync(manifestPath)).digest('hex')
 console.log(JSON.stringify({
@@ -82,6 +91,8 @@ console.log(JSON.stringify({
   releaseId,
   commit,
   packageSha256,
+  runtimeData,
+  readinessMode,
   manifestSha256,
   releaseFiles: releaseTree.files,
   releaseBytes: releaseTree.bytes,

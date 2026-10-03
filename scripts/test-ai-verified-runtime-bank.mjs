@@ -7,7 +7,8 @@ import path from 'node:path'
 
 import { createAiVerifiedQuestionBankLoader } from '../server/aiVerifiedQuestionBank.js'
 import { closeStemDatabaseForTests, createStemApi } from '../server/stemApi.js'
-import { artifactId, buildAiStudentStudyRelease } from './ai-pdf-ingestion/contract.mjs'
+import { artifactId, buildAiStudentStudyRelease, sourceReviewInputSha256 } from './ai-pdf-ingestion/contract.mjs'
+import { isStudentReleasedAiStudyItem, isHumanReviewedPastPaperItem } from '../src/data/questionBank.js'
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'stem-ai-verified-runtime-bank-'))
 const libraryRoot = path.join(root, 'library', '9702')
@@ -139,6 +140,43 @@ try {
   assert.ok(loaded.documents.every((document) => document.subject === '9702' && document.component === 4))
   assert.ok(loaded.documents.every((document) => document.year >= 2021 && document.year <= 2025))
   assert.ok(loaded.documents.every((document) => document.sha256 && document.bytes > 0))
+
+  // Preserve the already-deployed, explicitly receipt-bound legacy study path.
+  // New AP/IB publication continues to require two independent model passes.
+  const singleArtifact = clone(verifiedArtifact)
+  singleArtifact.sourceReview = {
+    schemaVersion: 'ai-source-semantic-review.v1', decision: 'accept',
+    provider: 'fixture-source-reviewer', model: 'fixture-source-model',
+    reviewedAt: new Date().toISOString(),
+    reviewNote: 'Synthetic review confirms the entire source-bound question, marks, coordinates and paired marking evidence.',
+    confirmations: Object.fromEntries(['sourceBindingConfirmed', 'wholeQuestionConfirmed', 'partStructureConfirmed', 'marksConfirmed', 'markSchemeEvidenceConfirmed', 'topicMappingConfirmed'].map(key => [key, true])),
+    inputSha256: sourceReviewInputSha256(singleArtifact),
+    evidence: [{ document: 'qp', page: 3, pageImageSha256: 'd'.repeat(64) }, { document: 'ms', page: 5, pageImageSha256: 'e'.repeat(64) }],
+  }
+  singleArtifact.studentRelease = buildAiStudentStudyRelease({
+    ...singleArtifact, routeId: singleArtifact.syllabusRouteId,
+  })
+  fs.writeFileSync(verifiedArtifactPath, JSON.stringify(singleArtifact), 'utf8')
+  const singleLoaded = load({ refresh: true })
+  assert.equal(singleLoaded.groups.length, 1)
+  const legacySingleGroup = singleLoaded.groups[0]
+  assert.equal(isStudentReleasedAiStudyItem(legacySingleGroup), true, 'deployed receipt-bound single-review path remains usable only for study')
+  assert.equal(legacySingleGroup.studentRelease.review.independentPassCount, 1)
+  assert.equal(legacySingleGroup.studentRelease.qualityFlag, 'aicheck')
+  assert.equal(isHumanReviewedPastPaperItem(legacySingleGroup), false)
+  for (const field of ['method', 'reviewerProvider', 'reviewerModel']) {
+    const invalidGroup = clone(legacySingleGroup)
+    delete invalidGroup.studentRelease.review[field]
+    assert.equal(isStudentReleasedAiStudyItem(invalidGroup), false, `single-review ${field} is required`)
+  }
+  const invalidFlag = clone(legacySingleGroup)
+  invalidFlag.studentRelease.qualityFlag = 'official'
+  assert.equal(isStudentReleasedAiStudyItem(invalidFlag), false)
+  singleArtifact.sourceReview.inputSha256 = '0'.repeat(64)
+  fs.writeFileSync(verifiedArtifactPath, JSON.stringify(singleArtifact), 'utf8')
+  assert.equal(load({ refresh: true }).groups.length, 0, 'unbound semantic receipts cannot enter the runtime')
+  fs.writeFileSync(verifiedArtifactPath, JSON.stringify(verifiedArtifact), 'utf8')
+  assert.equal(load({ refresh: true }).groups.length, 1)
 
   const databasePath = path.join(root, 'stem.sqlite')
   let runtimeGroups = []

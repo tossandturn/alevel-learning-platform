@@ -768,6 +768,15 @@ function coachQuestionBinding({ paperId, questionId, questionNumber, partId, bin
  * safe to merge into the provider context; it contains no credentials or raw
  * attempt payload.
  */
+export function createCurriculumPracticeAccess({ env = process.env, questionBank = unifiedQuestionBank } = {}) {
+  const signingKey = String(env.STEM_INTERNAL_AUTH_KEY || env.STEM_IDENTITY_SIGNING_KEY || '')
+  return Object.freeze({
+    authenticateRequest: (request) => identityFromRequest(request, signingKey),
+    // AP/IB has separate session tables and never reseeds CIE attempts/mastery.
+    databaseProvider: () => appDatabase(env, questionBank, { synchronizeSource: false }),
+  })
+}
+
 export function createCoachAttemptAuthorizer({ env = process.env, questionBank = unifiedQuestionBank, questionBankProvider = null, databaseProvider = null } = {}) {
   const signingKey = String(env?.STEM_INTERNAL_AUTH_KEY || env?.STEM_IDENTITY_SIGNING_KEY || '')
   return function authorizeCoachRequest(input, payloadArgument) {
