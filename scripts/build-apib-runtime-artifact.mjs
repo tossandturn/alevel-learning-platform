@@ -53,7 +53,7 @@ function topicBindings(record) {
   }
   return [...new Set(binding.essentialKnowledgeIds)].map((sourceId) => ({
     id: `ap-p1-ek-${slug(sourceId)}`,
-    label: `Essential Knowledge ${sourceId}`,
+    label: `Knowledge point ${sourceId}`,
     sourceId,
     dimension: 'official-essential-knowledge',
   }))
