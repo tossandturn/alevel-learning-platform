@@ -48,6 +48,8 @@ export function syllabusPracticeRebindPayload(unit) {
     syllabusTopic: boundedString(unit.syllabusTopic || unit.knowledgeGroupId || unit.topicId, 1024),
     knowledgeGroupId: boundedString(unit.knowledgeGroupId || unit.syllabusTopic || unit.topicId, 512),
     paperComponent: compactComponents(unit.paperComponent),
+    studyMode: boundedString(unit.studyMode, 32),
+    sourcePreference: boundedString(unit.sourcePreference, 40),
     practiceMode: boundedString(unit.practiceMode, 32),
     focusedRetestOf: boundedString(unit.focusedRetestOf, 1024),
     focusedRetestParentAttemptId: boundedString(unit.focusedRetestParentAttemptId, 120),
@@ -55,6 +57,9 @@ export function syllabusPracticeRebindPayload(unit) {
       id: boundedString(part?.id, 512),
       sourceQuestionId: boundedString(part?.sourceQuestionId, 512),
       questionPartId: boundedString(part?.questionPartId || part?.partId, 256),
+      sourceKind: boundedString(part?.sourceKind, 64),
+      originalQuestionId: boundedString(part?.originalQuestionId || part?.originalQuestion?.id, 512),
+      originalCatalogVersion: boundedString(part?.originalCatalogVersion || part?.originalQuestion?.catalogVersion, 64),
       sourceBindingProvenance: compactBinding(part?.sourceBindingProvenance || part?.markingProvenance),
     })),
   }

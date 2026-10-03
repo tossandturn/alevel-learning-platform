@@ -18,10 +18,57 @@ export { supportsSyllabusPracticeRoute } from './syllabusPracticeRoutes.js'
 
 export const SYLLABUS_CATALOG_SCHEMA_VERSION = 'syllabus-catalog-v1'
 export const SYLLABUS_MAPPING_SCHEMA_VERSION = 'question-syllabus-mapping-v1'
+export const SYLLABUS_PRACTICE_STUDY_MODES = Object.freeze({
+  TOPIC_DRILL: 'topic-drill',
+  CHAPTER_STUDY: 'chapter-study',
+})
+export const CHAPTER_STUDY_SOURCE_PREFERENCES = Object.freeze({
+  OFFICIAL_FIRST: 'official-first',
+  ORIGINAL_FOUNDATION_ONLY: 'original-foundation-only',
+})
+
+const CHAPTER_STUDY_POLICY = Object.freeze({
+  mode: SYLLABUS_PRACTICE_STUDY_MODES.CHAPTER_STUDY,
+  minSourceGroups: 1,
+  maxSourceGroups: 15,
+  countPolicy: 'cap-to-available',
+  formalProgressEligible: false,
+  sourcePreferences: Object.freeze(Object.values(CHAPTER_STUDY_SOURCE_PREFERENCES)),
+})
+const SYLLABUS_PRACTICE_POLICY = Object.freeze({
+  schemaVersion: 'stem-topic-practice-policy-v1',
+  minSourceGroups: MIN_QUESTION_GROUPS_PER_TEST,
+  minReviewedGroups: MIN_VERIFIED_GROUPS_FOR_PRACTICE,
+  setSizes: TOPIC_PRACTICE_SET_SIZES,
+  allowReviewedSubsetStudy: true,
+  allowCrossTopicStudy: true,
+  chapterStudy: CHAPTER_STUDY_POLICY,
+})
 
 const SUPPORTED_9702_COMPONENTS = Object.freeze([1, 2])
 const SUPPORTED_9702_A2_COMPONENTS = Object.freeze([4])
 const SUPPORTED_0625_COMPONENTS = Object.freeze([2])
+
+export function normalizeSyllabusPracticeStudyMode(value) {
+  if (value !== undefined && value !== null && typeof value !== 'string') return null
+  const mode = String(value || '').trim() || SYLLABUS_PRACTICE_STUDY_MODES.TOPIC_DRILL
+  return Object.values(SYLLABUS_PRACTICE_STUDY_MODES).includes(mode) ? mode : null
+}
+
+export function normalizeChapterStudySourcePreference(value) {
+  if (value !== undefined && value !== null && typeof value !== 'string') return null
+  const preference = String(value || '').trim() || CHAPTER_STUDY_SOURCE_PREFERENCES.OFFICIAL_FIRST
+  return Object.values(CHAPTER_STUDY_SOURCE_PREFERENCES).includes(preference) ? preference : null
+}
+
+function chapterStudyAvailability(availableQuestionCount) {
+  const available = Math.max(0, Number(availableQuestionCount) || 0)
+  return Object.freeze({
+    mode: SYLLABUS_PRACTICE_STUDY_MODES.CHAPTER_STUDY,
+    available,
+    startable: available > 0,
+  })
+}
 
 function availableSourceQuestionGap(count) {
   return `${count} complete source question${count === 1 ? '' : 's'} ${count === 1 ? 'is' : 'are'} currently available.`
@@ -607,6 +654,7 @@ function topicRowsForRoute(routeId, questionBank, { includeStudyOnly = true } = 
       indexedQuestionCount: 0,
       pendingReviewCount: 0,
       availableSetSizes: [],
+      chapterStudy: chapterStudyAvailability(0),
       ready: false,
       ctaPolicy: 'hidden',
       sourceGap: 'This route has no syllabus-backed question mapping yet.',
@@ -651,6 +699,7 @@ function topicRowsForRoute(routeId, questionBank, { includeStudyOnly = true } = 
         formalScoreReady: componentEligibility.ready,
         ctaPolicy: componentEligibility.ctaPolicy,
         availableSetSizes: componentEligibility.availableSetSizes,
+        chapterStudy: chapterStudyAvailability(componentVerified + componentStudy),
       }]
     }))
     const indexedQuestionCount = topicRecords.length
@@ -670,6 +719,7 @@ function topicRowsForRoute(routeId, questionBank, { includeStudyOnly = true } = 
       indexedQuestionCount,
       pendingReviewCount,
       availableSetSizes: eligibility.availableSetSizes,
+      chapterStudy: chapterStudyAvailability(availableQuestionCount),
       ready: eligibility.ready,
       studyReady: eligibility.studyReady,
       ctaPolicy: eligibility.ctaPolicy,
@@ -706,7 +756,7 @@ export function syllabusTopicsInventory({ routeId, questionBank = unifiedQuestio
   const availableRecordIds = new Set([...verifiedRecords, ...studyRecords].map((record) => record.sourceQuestionId))
   return {
     schemaVersion: SYLLABUS_CATALOG_SCHEMA_VERSION,
-    practicePolicy: {schemaVersion:'stem-topic-practice-policy-v1',minSourceGroups:MIN_QUESTION_GROUPS_PER_TEST,minReviewedGroups:MIN_VERIFIED_GROUPS_FOR_PRACTICE,setSizes:[...TOPIC_PRACTICE_SET_SIZES],allowReviewedSubsetStudy:true,allowCrossTopicStudy:true},
+    practicePolicy: SYLLABUS_PRACTICE_POLICY,
     routeId,
     qualification: route.qualification,
     qualificationId: route.qualificationId,
@@ -1003,6 +1053,9 @@ function authoritativeFocusedParentPart(unit, parent, config) {
   const parentStage = String(parent?.stage || '').trim()
   const parentParts = Array.isArray(parent?.parts) ? parent.parts : []
   const persistedPart = Array.isArray(unit?.parts) ? unit.parts[0] : null
+  const parentMinimumQuestionCount = parent?.studyMode === SYLLABUS_PRACTICE_STUDY_MODES.CHAPTER_STUDY
+    ? 1
+    : MIN_QUESTION_GROUPS_PER_TEST
   const parentSourceQuestionCount = new Set(parentParts
     .map((part) => String(part?.sourceQuestionId || '').trim())
     .filter(Boolean)).size
@@ -1011,7 +1064,7 @@ function authoritativeFocusedParentPart(unit, parent, config) {
     || parentRouteId !== config.syllabus.routeId
     || parentStage !== config.stage
     || parent?.mode !== 'topic'
-    || parentSourceQuestionCount < MIN_QUESTION_GROUPS_PER_TEST
+    || parentSourceQuestionCount < parentMinimumQuestionCount
     || !persistedPart
   ) return null
 
@@ -1085,6 +1138,7 @@ function selectedTopicPracticeReadiness(records, topicIds) {
 export function rebindSyllabusPracticeUnit(unit, {
   questionBank = studyQuestionBank,
   includeStudyOnly = true,
+  originalFoundationGroups = [],
   parentUnit = null,
   focusedRetestParent = null,
 } = {}) {
@@ -1092,6 +1146,11 @@ export function rebindSyllabusPracticeUnit(unit, {
   const route = routeById(unit.routeId)
   const config = route && syllabusConfig(route.routeId)
   if (!route || !config || route.stage !== config.stage) return null
+  const normalizedStudyMode = normalizeSyllabusPracticeStudyMode(unit.studyMode)
+  if (!normalizedStudyMode) return null
+  const chapterStudy = normalizedStudyMode === SYLLABUS_PRACTICE_STUDY_MODES.CHAPTER_STUDY
+  const normalizedSourcePreference = normalizeChapterStudySourcePreference(unit.sourcePreference)
+  if (!normalizedSourcePreference) return null
 
   const topicSelection = syllabusTopicsForPersistedUnit(unit, config)
   const topicIds = topicSelection.topicIds
@@ -1110,8 +1169,11 @@ export function rebindSyllabusPracticeUnit(unit, {
       reboundFocusedParent = authoritativeFocusedParentPart(unit, focusedRetestParent, config)
     } else {
       if (!parentUnit || parentUnit.focusedRetestOf || String(parentUnit.id || '') !== String(unit.focusedRetestOf)) return null
-      const reboundParent = rebindSyllabusPracticeUnit(parentUnit, { questionBank, includeStudyOnly })
-      if (!reboundParent || reboundParent.questionGroupCount < MIN_QUESTION_GROUPS_PER_TEST) return null
+      const reboundParent = rebindSyllabusPracticeUnit(parentUnit, { questionBank, includeStudyOnly, originalFoundationGroups })
+      const parentMinimumQuestionCount = reboundParent?.studyMode === SYLLABUS_PRACTICE_STUDY_MODES.CHAPTER_STUDY
+        ? 1
+        : MIN_QUESTION_GROUPS_PER_TEST
+      if (!reboundParent || reboundParent.questionGroupCount < parentMinimumQuestionCount) return null
       const persistedPart = persistedParts[0]
       reboundFocusedParent = reboundParent.parts.find((part) => (
         part.id === persistedPart.id
@@ -1125,7 +1187,7 @@ export function rebindSyllabusPracticeUnit(unit, {
       if (!reboundFocusedParent || String(unit.id || '') !== `${parentUnit.id}:focused:${reboundFocusedParent.id}`) return null
     }
     if (!reboundFocusedParent) return null
-  } else if (persistedSourceQuestionCount < MIN_QUESTION_GROUPS_PER_TEST) {
+  } else if (!chapterStudy && persistedSourceQuestionCount < MIN_QUESTION_GROUPS_PER_TEST) {
     return null
   }
 
@@ -1134,8 +1196,10 @@ export function rebindSyllabusPracticeUnit(unit, {
       && topicIds.some((topicId) => record.mapping.topicIds?.includes(topicId))
       && selectedComponents.includes(record.paperComponent))
   const topicReadiness = selectedTopicPracticeReadiness(candidateRecords, topicIds)
-  const forceStudyOnly = !topicReadiness.eligibility.ready
+  const forceStudyOnly = chapterStudy || !topicReadiness.eligibility.ready
   const recordsByQuestionId = new Map(candidateRecords.map((record) => [record.sourceQuestionId, record]))
+  const originalGroupsByTopic = originalFoundationGroupMap(originalFoundationGroups, route.routeId, topicSelection.selectedTopicIds)
+  const originalGroupsByQuestionId = new Map([...originalGroupsByTopic.values()].map((group) => [group.id, group]))
   const uniquePartKeys = new Set()
   const reboundParts = []
   let hasSelectedStudyOnlyRecord = false
@@ -1148,11 +1212,37 @@ export function rebindSyllabusPracticeUnit(unit, {
     uniquePartKeys.add(key)
 
     const record = recordsByQuestionId.get(sourceQuestionId)
-    const group = record && publicQuestionGroup(record, { forceStudyOnly })
+    const originalGroup = originalGroupsByQuestionId.get(sourceQuestionId)
+    const group = record ? publicQuestionGroup(record, { forceStudyOnly }) : originalGroup
     const currentPart = group?.parts.find((part) => part.partId === questionPartId)
     const persistedBinding = persistedPart?.sourceBindingProvenance || persistedPart?.markingProvenance
-    if (!record || !group || !currentPart || !samePracticeBinding(persistedBinding, currentPart.sourceBindingProvenance)) return null
-    hasSelectedStudyOnlyRecord ||= record.studyOnly === true
+    if (!group || !currentPart || !samePracticeBinding(persistedBinding, currentPart.sourceBindingProvenance)) return null
+    hasSelectedStudyOnlyRecord ||= Boolean(originalGroup || record?.studyOnly)
+
+    if (originalGroup) {
+      reboundParts.push(Object.freeze({
+        ...currentPart,
+        id: String(persistedPart.id || ''),
+        sourceQuestionId,
+        questionGroupId: group.questionGroupId || sourceQuestionId,
+        questionPartId,
+        sourceKind: 'original-foundation',
+        sourceAuthority: 'original-foundation-catalog',
+        displaySourceLabel: '原创基础练习',
+        originalQuestion: group.originalQuestion,
+        answerContract: group.answerContract,
+        reviewStatus: 'original-authored',
+        studyOnly: true,
+        studentStudyEligible: true,
+        formalProgressEligible: false,
+        practiceAvailable: true,
+        deterministicScoringAvailable: false,
+        serverDeterministicScoringAvailable: true,
+        aiAssistedMarkingAvailable: false,
+        markPoints: [],
+      }))
+      continue
+    }
 
     reboundParts.push(Object.freeze({
       ...currentPart,
@@ -1190,14 +1280,39 @@ export function rebindSyllabusPracticeUnit(unit, {
   const coversEverySelectedTopic = unit.focusedRetestOf || (
     reboundSourceQuestionIds.size >= topicSelection.topicScopes.length
     && topicSelection.topicScopes.every((topicScope) => (
-      [...reboundSourceQuestionIds].some((sourceQuestionId) => recordsByQuestionId.get(sourceQuestionId)?.mapping.topicIds?.some((topicId) => topicScope.includes(topicId)))
+      [...reboundSourceQuestionIds].some((sourceQuestionId) => {
+        const membership = recordsByQuestionId.get(sourceQuestionId)?.mapping.topicIds
+          || originalGroupsByQuestionId.get(sourceQuestionId)?.syllabusMapping.topicIds
+        return membership?.some((topicId) => topicScope.includes(topicId))
+      })
     ))
   )
   if (!coversEverySelectedTopic) return null
+  const reboundOriginalQuestionIds = new Set([...reboundSourceQuestionIds]
+    .filter((sourceQuestionId) => originalGroupsByQuestionId.has(sourceQuestionId)))
+  if (!unit.focusedRetestOf
+    && chapterStudy && normalizedSourcePreference === CHAPTER_STUDY_SOURCE_PREFERENCES.ORIGINAL_FOUNDATION_ONLY
+    && reboundOriginalQuestionIds.size !== reboundSourceQuestionIds.size) return null
+  if (!unit.focusedRetestOf
+    && chapterStudy && normalizedSourcePreference === CHAPTER_STUDY_SOURCE_PREFERENCES.OFFICIAL_FIRST) {
+    const originalTopicIds = new Set([...reboundOriginalQuestionIds]
+      .map((sourceQuestionId) => originalGroupsByQuestionId.get(sourceQuestionId)?.originalQuestion?.topicId)
+      .filter(Boolean))
+    const originalReplacesAvailableOfficial = topicSelection.selectedTopicIds.some((selectedTopicId, index) => {
+      if (!originalTopicIds.has(selectedTopicId)) return false
+      const availableOfficialIds = new Set(candidateRecords
+        .filter((record) => record.mapping.topicIds?.some((topicId) => topicSelection.topicScopes[index].includes(topicId)))
+        .map((record) => record.sourceQuestionId))
+      return [...availableOfficialIds].some((sourceQuestionId) => !reboundSourceQuestionIds.has(sourceQuestionId))
+    })
+    if (originalReplacesAvailableOfficial) return null
+  }
   // Six to eleven current reviewed groups may be restored only as non-formal
-  // study. Existing explicitly released source-study units retain their prior
-  // restoration path; a client flag alone cannot synthesize either class.
-  if (!topicReadiness.eligibility.ready
+  // study. Chapter Study may restore below that floor only after every saved
+  // source part has rebound to the current eligible catalogue and selected
+  // chapter/component scope; the mode never grants formal progress.
+  if (!chapterStudy
+    && !topicReadiness.eligibility.ready
     && !topicReadiness.eligibility.studyReady
     && !hasSelectedStudyOnlyRecord) return null
   const paperById = new Map()
@@ -1216,6 +1331,12 @@ export function rebindSyllabusPracticeUnit(unit, {
     }
   }
   const hasStudyOnlyPart = reboundParts.some((part) => part.studyOnly)
+  const originalFoundationQuestionCount = new Set(reboundParts
+    .filter((part) => part.sourceKind === 'original-foundation')
+    .map((part) => part.sourceQuestionId)).size
+  const officialQuestionCount = new Set(reboundParts
+    .filter((part) => part.sourceKind !== 'original-foundation')
+    .map((part) => part.sourceQuestionId)).size
   const selectedTopicNames = config.syllabus.topics
     .filter((topic) => topicIds.includes(topic.id))
     .map((topic) => topic.name)
@@ -1239,14 +1360,22 @@ export function rebindSyllabusPracticeUnit(unit, {
     title: `${route.stage} ${route.subject} · ${topicLabel}`,
     paperComponent: selectedComponents,
     sourcePaper: [...paperById.values()].map((paper) => paper.file).filter(Boolean).join(', '),
-    difficulty: 'Past paper',
+    difficulty: originalFoundationQuestionCount > 0 && officialQuestionCount === 0 ? 'Foundation' : 'Past paper',
     priority: 'Syllabus set',
-    inventoryStatus: hasStudyOnlyPart ? 'study-source-inventory' : 'verified-source-inventory',
+    inventoryStatus: originalFoundationQuestionCount > 0
+      ? 'original-foundation-inventory'
+      : hasStudyOnlyPart ? 'study-source-inventory' : 'verified-source-inventory',
     parts: Object.freeze(reboundParts),
     questionGroupCount: new Set(reboundParts.map((part) => part.sourceQuestionId)).size,
     referencePapers: Object.freeze([...paperById.values()]),
-    practiceMode: hasStudyOnlyPart ? 'study-only' : 'verified',
-    formalProgressEligible: !hasStudyOnlyPart && topicReadiness.eligibility.ready,
+    studyMode: normalizedStudyMode,
+    sourcePreference: normalizedSourcePreference,
+    sourceMix: Object.freeze({
+      official: officialQuestionCount,
+      originalFoundation: originalFoundationQuestionCount,
+    }),
+    practiceMode: chapterStudy || hasStudyOnlyPart ? 'study-only' : 'verified',
+    formalProgressEligible: !chapterStudy && !hasStudyOnlyPart && topicReadiness.eligibility.ready,
     verifiedAvailableCountByTopic: topicReadiness.verifiedQuestionCountByTopic,
     focusedRetestOf: unit.focusedRetestOf || null,
     focusedRetestParentAttemptId: focusedRetestParent?.attemptId || unit.focusedRetestParentAttemptId || null,
@@ -1256,10 +1385,45 @@ export function rebindSyllabusPracticeUnit(unit, {
   }))
 }
 
+function originalFoundationGroupMap(groups, routeId, selectedTopicIds) {
+  const selected = new Set(selectedTopicIds)
+  const result = new Map()
+  for (const group of Array.isArray(groups) ? groups : []) {
+    const topicId = String(group?.originalQuestion?.topicId || '').trim()
+    if (String(group?.routeId || '') !== routeId || !selected.has(topicId)) continue
+    const valid = group.sourceKind === 'original-foundation'
+      && group.sourceAuthority === 'original-foundation-catalog'
+      && group.displaySourceLabel === '原创基础练习'
+      && String(group.id || '') === String(group.originalQuestion?.id || '')
+      && group.sourceRef === undefined
+      && group.answerRef === undefined
+      && Array.isArray(group.parts)
+      && group.parts.length === 1
+      && group.formalProgressEligible === false
+      && group.studyOnly === true
+    if (!valid) {
+      const error = new Error('The original foundation catalogue returned an invalid question contract.')
+      error.code = 'original_foundation_contract_invalid'
+      error.statusCode = 500
+      throw error
+    }
+    if (result.has(topicId)) {
+      const error = new Error('The original foundation catalogue returned duplicate chapter questions.')
+      error.code = 'original_foundation_contract_invalid'
+      error.statusCode = 500
+      throw error
+    }
+    result.set(topicId, group)
+  }
+  return result
+}
+
 export function buildSyllabusPracticeSet({
   routeId,
   syllabusTopicIds = [],
   questionCount = 10,
+  studyMode = SYLLABUS_PRACTICE_STUDY_MODES.TOPIC_DRILL,
+  sourcePreference = CHAPTER_STUDY_SOURCE_PREFERENCES.OFFICIAL_FIRST,
   components,
   excludeAttempted = true,
   attemptedQuestionIds = [],
@@ -1267,12 +1431,29 @@ export function buildSyllabusPracticeSet({
   seed = Date.now(),
   questionBank = unifiedQuestionBank,
   includeStudyOnly = false,
+  originalFoundationGroups = [],
 } = {}) {
   const config = syllabusConfig(routeId)
   if (!config) {
     const error = new Error('This syllabus practice-set route is not configured yet.')
     error.code = 'syllabus_route_not_configured'
     error.statusCode = 409
+    throw error
+  }
+  const normalizedStudyMode = normalizeSyllabusPracticeStudyMode(studyMode)
+  if (!normalizedStudyMode) {
+    const error = new Error('studyMode must be topic-drill or chapter-study.')
+    error.code = 'invalid_study_mode'
+    error.statusCode = 400
+    throw error
+  }
+  const chapterStudy = normalizedStudyMode === SYLLABUS_PRACTICE_STUDY_MODES.CHAPTER_STUDY
+  const normalizedSourcePreference = normalizeChapterStudySourcePreference(sourcePreference)
+  if (!normalizedSourcePreference
+    || (!chapterStudy && normalizedSourcePreference !== CHAPTER_STUDY_SOURCE_PREFERENCES.OFFICIAL_FIRST)) {
+    const error = new Error('sourcePreference must be official-first or original-foundation-only for Chapter Study.')
+    error.code = 'invalid_source_preference'
+    error.statusCode = 400
     throw error
   }
   const validTopicIds = new Set(config.syllabus.topics.map((topic) => topic.id))
@@ -1320,59 +1501,145 @@ export function buildSyllabusPracticeSet({
     .map((record) => record.sourceQuestionId)
     .filter(Boolean)).size
   const effectiveRequestedCount = explicitSourceQuestionIds.length || requestedCount
-  const selected = explicitSourceQuestionIds.length
+  const originalByTopic = originalFoundationGroupMap(originalFoundationGroups, routeId, topicSelection.selectedTopicIds)
+  const originalOnly = chapterStudy
+    && normalizedSourcePreference === CHAPTER_STUDY_SOURCE_PREFERENCES.ORIGINAL_FOUNDATION_ONLY
+  const availableOriginalGroups = chapterStudy
+    ? topicSelection.selectedTopicIds.map((topicId) => originalByTopic.get(topicId)).filter(Boolean)
+    : []
+  const requiredOriginalGroups = chapterStudy
+    ? topicSelection.selectedTopicIds.flatMap((selectedTopicId, index) => {
+        const topicScope = topicSelection.topicScopes[index]
+        const hasOfficial = !originalOnly && availableRecords.some((record) => (
+          record.mapping.topicIds?.some((topicId) => topicScope.includes(topicId))
+        ))
+        if (hasOfficial) return []
+        const group = originalByTopic.get(selectedTopicId)
+        return group ? [group] : []
+      })
+    : []
+  if (requiredOriginalGroups.length > effectiveRequestedCount) {
+    const error = new Error('questionCount must allow at least one question from every selected chapter.')
+    error.code = 'invalid_question_count'
+    error.statusCode = 400
+    throw error
+  }
+  if (explicitSourceQuestionIds.length && (originalOnly || requiredOriginalGroups.length)) {
+    const error = new Error('Explicit official source-question selection cannot be combined with original foundation fallback.')
+    error.code = 'invalid_source_question_selection'
+    error.statusCode = 400
+    throw error
+  }
+  const selectableOfficialRecords = originalOnly ? [] : availableRecords
+  const officialRequestedCount = Math.max(0, effectiveRequestedCount - requiredOriginalGroups.length)
+  const selectedOfficialRecords = explicitSourceQuestionIds.length
     ? selectExplicitQuestions(records, explicitSourceQuestionIds, topicIds, selectedComponents, includeStudyOnly)
     : selectBalancedQuestions(
-        records,
+        selectableOfficialRecords,
         topicIds,
-        requestedCount,
+        officialRequestedCount,
         excludeAttempted ? attemptedIds : new Set(),
         seed,
         selectedComponents,
         includeStudyOnly,
       )
-  if (!selected.length) {
+  const optionalOriginalGroups = availableOriginalGroups.filter((group) => !requiredOriginalGroups.includes(group))
+  const remainingOriginalSlots = Math.max(0, effectiveRequestedCount - requiredOriginalGroups.length - selectedOfficialRecords.length)
+  const selectedOriginalGroups = [
+    ...requiredOriginalGroups,
+    ...optionalOriginalGroups.slice(0, remainingOriginalSlots),
+  ]
+  const officialAvailableCount = new Set(availableRecords.map((record) => record.sourceQuestionId).filter(Boolean)).size
+  const selectableOfficialAvailableCount = originalOnly ? 0 : officialAvailableCount
+  const originalAvailableCount = availableOriginalGroups.length
+  const availableCount = selectableOfficialAvailableCount + originalAvailableCount
+  const forceStudyOnly = chapterStudy
+    || selectedOfficialRecords.some((record) => record.studyOnly)
+    || !topicReadiness.eligibility.ready
+  const officialQuestionGroups = selectedOfficialRecords.map((record) => publicQuestionGroup(record, { forceStudyOnly }))
+  const questionGroups = [...officialQuestionGroups, ...selectedOriginalGroups]
+  if (!questionGroups.length) {
     const error = new Error(`No source-backed study questions are available for the selected syllabus topic${topicIds.length === 1 ? '' : 's'}.`)
-    error.code = 'insufficient_verified_questions'
+    error.code = chapterStudy ? 'chapter_study_unavailable' : 'insufficient_verified_questions'
     error.statusCode = 409
     error.availableCount = 0
+    if (chapterStudy) {
+      error.available = 0
+      error.count = 0
+      error.limited = true
+    }
     error.indexedCount = records.filter((record) => topicIds.some((topicId) => record.mapping.topicIds?.includes(topicId))).length
     throw error
   }
-  const coveredSyllabusTopicIds = topicIds.filter((topicId) => selected.some((record) => record.mapping.topicIds?.includes(topicId)))
+  const selectedOriginalTopicIds = new Set(selectedOriginalGroups.map((group) => group.originalQuestion.topicId))
+  const coveredSelectedSyllabusTopicIds = topicSelection.selectedTopicIds.filter((selectedTopicId, index) => (
+    selectedOriginalTopicIds.has(selectedTopicId)
+    || selectedOfficialRecords.some((record) => record.mapping.topicIds?.some((topicId) => topicSelection.topicScopes[index].includes(topicId)))
+  ))
+  const coveredSyllabusTopicIds = [...new Set([
+    ...topicIds.filter((topicId) => selectedOfficialRecords.some((record) => record.mapping.topicIds?.includes(topicId))),
+    ...selectedOriginalTopicIds,
+  ])]
   const coversEverySelectedTopic = effectiveRequestedCount >= topicSelection.topicScopes.length
-    && topicSelection.topicScopes.every((topicScope) => selected.some((record) => record.mapping.topicIds?.some((topicId) => topicScope.includes(topicId))))
-  const selectedStudyOnly = selected.some((record) => record.studyOnly)
-  const formalProgressEligible = coversEverySelectedTopic && topicReadiness.eligibility.ready && !selectedStudyOnly
-  const practiceMode = !coversEverySelectedTopic
-    ? 'unavailable'
-    : selectedStudyOnly
+    && coveredSelectedSyllabusTopicIds.length === topicSelection.selectedTopicIds.length
+  if (chapterStudy && !coversEverySelectedTopic) {
+    const error = new Error('Each selected chapter needs at least one eligible source question within the requested component filters and count.')
+    error.code = 'chapter_study_scope_unavailable'
+    error.statusCode = 409
+    error.available = availableCount
+    error.count = 0
+    error.limited = true
+    throw error
+  }
+  const selectedStudyOnly = selectedOriginalGroups.length > 0 || selectedOfficialRecords.some((record) => record.studyOnly)
+  const formalProgressEligible = !chapterStudy && coversEverySelectedTopic && topicReadiness.eligibility.ready && !selectedStudyOnly
+  const practiceMode = chapterStudy
     ? 'study-only'
-    : formalProgressEligible
-      ? 'verified'
-      : topicReadiness.eligibility.studyReady
+    : !coversEverySelectedTopic
+      ? 'unavailable'
+      : selectedStudyOnly
         ? 'study-only'
-        : 'unavailable'
-  const forceStudyOnly = practiceMode === 'study-only'
-  const questionGroups = selected.map((record) => publicQuestionGroup(record, { forceStudyOnly }))
+        : formalProgressEligible
+          ? 'verified'
+          : topicReadiness.eligibility.studyReady
+            ? 'study-only'
+            : 'unavailable'
   const metrics = questionGroupSetMetrics(questionGroups)
+  const limited = questionGroups.length < effectiveRequestedCount
   return {
     schemaVersion: 'syllabus-practice-set-v1',
-    practicePolicy: {schemaVersion:'stem-topic-practice-policy-v1',minSourceGroups:MIN_QUESTION_GROUPS_PER_TEST,minReviewedGroups:MIN_VERIFIED_GROUPS_FOR_PRACTICE,setSizes:[...TOPIC_PRACTICE_SET_SIZES],allowReviewedSubsetStudy:true,allowCrossTopicStudy:true},
+    practicePolicy: SYLLABUS_PRACTICE_POLICY,
+    studyMode: normalizedStudyMode,
+    sourcePreference: normalizedSourcePreference,
     routeId,
     stage: config.stage,
     subjectCode: config.subjectCode,
     syllabusVersion: config.syllabus.syllabusVersion,
+    selectedSyllabusTopicIds: topicSelection.selectedTopicIds,
     syllabusTopicIds: topicIds,
     syllabusTopics: config.syllabus.topics
       .filter((topic) => topicIds.includes(topic.id))
       .map(({ id, code, name, order }) => ({ id, code, name, order })),
     components: selectedComponents,
     requestedCount: effectiveRequestedCount,
-    availableCount: topicReadiness.availableQuestionCount,
+    available: availableCount,
+    count: metrics.sourceQuestionCount,
+    limited,
+    availableCount,
+    sourceAvailability: Object.freeze({
+      official: officialAvailableCount,
+      originalFoundation: originalByTopic.size,
+      total: officialAvailableCount + originalByTopic.size,
+      selectedPool: availableCount,
+    }),
+    sourceMix: Object.freeze({
+      official: officialQuestionGroups.length,
+      originalFoundation: selectedOriginalGroups.length,
+    }),
     verifiedAvailableCount,
     verifiedAvailableCountByTopic: topicReadiness.verifiedQuestionCountByTopic,
     coveredSyllabusTopicIds,
+    coveredSelectedSyllabusTopicIds,
     sourceQuestionCount: metrics.sourceQuestionCount,
     answerPartCount: metrics.answerPartCount,
     paperCount: metrics.paperCount,
@@ -1383,9 +1650,10 @@ export function buildSyllabusPracticeSet({
     questionCount: metrics.sourceQuestionCount,
     practiceMode,
     formalProgressEligible,
-    partial: selected.length < effectiveRequestedCount,
+    partial: limited,
     seed: Number(seed) >>> 0,
-    sourceQuestionIds: selected.map((record) => record.sourceQuestionId),
+    sourceQuestionIds: selectedOfficialRecords.map((record) => record.sourceQuestionId),
+    questionGroupIds: questionGroups.map((group) => group.id),
     questionGroups,
   }
 }
@@ -1739,6 +2007,7 @@ export function syllabusDatabaseInventory(database, routeId, { includeStudyOnly 
       indexedQuestionCount,
       pendingReviewCount,
       availableSetSizes: eligibility.availableSetSizes,
+      chapterStudy: chapterStudyAvailability(availableQuestionCount),
       ready: eligibility.ready,
       studyReady: eligibility.studyReady,
       ctaPolicy: eligibility.ctaPolicy,

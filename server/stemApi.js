@@ -5,7 +5,7 @@ import { isHumanReviewedPastPaperItem, isStudentReleasedAiStudyItem, studyQuesti
 import { auditedQuestionAssetEvidence, canonicalAiMarkingProvenance, canonicalSourcePracticeProvenance } from '../src/lib/sourceContentContract.js'
 import { listAiPdfIngestionCandidates, resolveAiPdfIngestionRoot } from './aiPdfIngestionCandidates.js'
 import { issueMarkingCapabilities } from './markingCapability.js'
-import { buildSyllabusPracticeSet, rebindSyllabusPracticeUnit, seedSyllabusTables, syllabusDatabaseInventory, syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
+import { buildSyllabusPracticeSet, normalizeChapterStudySourcePreference, normalizeSyllabusPracticeStudyMode, rebindSyllabusPracticeUnit, seedSyllabusTables, syllabusDatabaseInventory, syllabusTopicsInventory, SYLLABUS_PRACTICE_STUDY_MODES } from '../src/lib/syllabusPractice.js'
 import { MIN_QUESTION_GROUPS_PER_TEST, MIN_VERIFIED_GROUPS_FOR_PRACTICE } from '../src/lib/practiceConstants.js'
 import { PAPER_STUDY_MODES } from '../src/lib/paperStudyMode.js'
 import { createNativePaperCatalog } from './nativePaperCatalog.js'
@@ -13,6 +13,7 @@ import { createCurriculumPaperCatalog } from './curriculumPaperCatalog.js'
 import { createNativeQuestionImages } from './nativeQuestionImages.js'
 import { sendPublicCatalogJson } from './publicCatalogJson.js'
 import { createAnnouncementBoard } from './announcementBoard.js'
+import { decorateOriginalFoundationInventory, originalFoundationQuestionGroupsForRoute, scoreOriginalFoundationResponse } from './originalFoundationPractice.js'
 import {
   OBJECTIVE_RESULT_SCHEMA_VERSION,
   nativeChoiceOptions,
@@ -140,19 +141,47 @@ function topicPdfRequestPayload(payload) {
 }
 
 function validateTopicPracticeQuestionCount(payload) {
+  const studyMode = normalizeSyllabusPracticeStudyMode(payload?.studyMode)
+  if (!studyMode) {
+    throw Object.assign(new Error('studyMode must be topic-drill or chapter-study.'), {
+      statusCode: 400,
+      code: 'invalid_study_mode',
+    })
+  }
+  const sourcePreference = normalizeChapterStudySourcePreference(payload?.sourcePreference)
+  if (!sourcePreference || (studyMode !== SYLLABUS_PRACTICE_STUDY_MODES.CHAPTER_STUDY && payload?.sourcePreference !== undefined)) {
+    throw Object.assign(new Error('sourcePreference is available only for Chapter Study and must be official-first or original-foundation-only.'), {
+      statusCode: 400,
+      code: 'invalid_source_preference',
+    })
+  }
   const rawQuestionCount = payload?.questionCount
   const questionCount = rawQuestionCount === undefined ? 10 : Number(rawQuestionCount)
-  if (!Number.isInteger(questionCount) || questionCount < MIN_QUESTION_GROUPS_PER_TEST || questionCount > 15) {
-    throw Object.assign(new Error(`Topic Drill sets must contain between ${MIN_QUESTION_GROUPS_PER_TEST} and 15 distinct question groups.`), {
+  const minimumQuestionCount = studyMode === SYLLABUS_PRACTICE_STUDY_MODES.CHAPTER_STUDY
+    ? 1
+    : MIN_QUESTION_GROUPS_PER_TEST
+  if (!Number.isInteger(questionCount) || questionCount < minimumQuestionCount || questionCount > 15) {
+    throw Object.assign(new Error(`${studyMode === SYLLABUS_PRACTICE_STUDY_MODES.CHAPTER_STUDY ? 'Chapter Study' : 'Topic Drill'} sets must request between ${minimumQuestionCount} and 15 distinct question groups.`), {
       statusCode: 400,
       code: 'invalid_question_count',
     })
   }
+  return { studyMode, sourcePreference }
 }
 
 function requireStartableTopicPracticeSet(result) {
-  const selectedQuestionCount = new Set(result?.sourceQuestionIds || []).size
+  const selectedQuestionCount = new Set(result?.questionGroupIds || result?.sourceQuestionIds || []).size
   const availableVerifiedCount = Number(result?.verifiedAvailableCount) || 0
+  if (result?.studyMode === SYLLABUS_PRACTICE_STUDY_MODES.CHAPTER_STUDY) {
+    if (selectedQuestionCount >= 1 && result?.practiceMode === 'study-only' && result?.formalProgressEligible === false) return
+    throw Object.assign(new Error('At least one eligible source-backed question is required to start Chapter Study.'), {
+      statusCode: 409,
+      code: 'chapter_study_unavailable',
+      available: Number(result?.available) || 0,
+      count: 0,
+      limited: true,
+    })
+  }
   if (selectedQuestionCount < MIN_QUESTION_GROUPS_PER_TEST) {
     throw Object.assign(new Error(`At least ${MIN_QUESTION_GROUPS_PER_TEST} distinct source-backed question groups are required to start a Topic Drill.`), {
       statusCode: 409,
@@ -401,7 +430,7 @@ function compactAttemptValue(value, key = '', depth = 0) {
   return result
 }
 
-function compactStudentAttemptSnapshot(payload, { attemptId, routeId, stage, paperId, paperStudyMode, submittedAt }) {
+function compactStudentAttemptSnapshot(payload, { attemptId, routeId, stage, paperId, paperStudyMode, studyMode, sourcePreference, submittedAt }) {
   const source = payload?.attempt && typeof payload.attempt === 'object' ? payload.attempt : {}
   const suppliedScoreResult = source.scoreResult ?? source.result ?? payload.scoreResult ?? payload.result
   const hasClientReportedResult = suppliedScoreResult && typeof suppliedScoreResult === 'object' && !Array.isArray(suppliedScoreResult)
@@ -426,6 +455,8 @@ function compactStudentAttemptSnapshot(payload, { attemptId, routeId, stage, pap
     // The mode is taken from the server-canonical binding, never from a
     // nested client snapshot that could be changed independently.
     paperStudyMode: asText(paperStudyMode, 60),
+    studyMode: asText(studyMode, 32),
+    sourcePreference: asText(sourcePreference, 40),
     pairKey: asText(source.pairKey || payload.pairKey, 240),
     paperRef: source.paperRef || payload.paperRef,
     profile: source.profile || payload.profile,
@@ -535,6 +566,8 @@ function authoritativeFocusedRetestParent(database, user, unit) {
   const binding = parent.binding
   const snapshot = parent.snapshot
   const parentUnitId = asText(snapshot?.unitId, 200)
+  const parentStudyMode = asText(binding?.studyMode || snapshot?.studyMode, 32)
+  const parentSourcePreference = asText(binding?.sourcePreference || snapshot?.sourcePreference, 40)
   const parentParts = Array.isArray(binding?.parts) ? binding.parts : []
   const parentSourceQuestionCount = new Set(parentParts
     .map((part) => String(part?.sourceQuestionId || '').trim())
@@ -543,6 +576,9 @@ function authoritativeFocusedRetestParent(database, user, unit) {
   const now = Date.now()
   const childRouteId = asText(unit?.routeId, 120).toLowerCase()
   const childStage = asText(unit?.stage, 40)
+  const parentMinimumQuestionCount = parentStudyMode === SYLLABUS_PRACTICE_STUDY_MODES.CHAPTER_STUDY
+    ? 1
+    : MIN_QUESTION_GROUPS_PER_TEST
   if (
     parent.submissionStatus !== 'submitted'
     || !Number.isFinite(submittedAtMs)
@@ -555,7 +591,7 @@ function authoritativeFocusedRetestParent(database, user, unit) {
     || binding?.routeId !== childRouteId
     || binding?.stage !== stageForRoute(childRouteId)
     || (childStage && binding?.stage !== childStage)
-    || parentSourceQuestionCount < MIN_QUESTION_GROUPS_PER_TEST
+    || parentSourceQuestionCount < parentMinimumQuestionCount
   ) throw focusedRetestParentUnavailable()
 
   const childBinding = childPart?.sourceBindingProvenance || childPart?.markingProvenance
@@ -573,6 +609,8 @@ function authoritativeFocusedRetestParent(database, user, unit) {
     attemptId: parentAttemptId,
     unitId: parentUnitId,
     mode: binding.mode,
+    studyMode: parentStudyMode,
+    sourcePreference: parentSourcePreference,
     routeId: binding.routeId,
     stage: binding.stage,
     parts: parentParts,
@@ -895,6 +933,38 @@ function canonicalStudentAttemptBinding(payload, questionBank) {
   if (!['topic', 'full-paper'].includes(mode)) {
     throw Object.assign(new Error('Attempt mode must be topic or full-paper.'), { statusCode: 400, code: 'attempt_mode_invalid' })
   }
+  const suppliedStudyMode = payload.studyMode
+  const nestedStudyMode = attempt.studyMode
+  if (suppliedStudyMode !== undefined && nestedStudyMode !== undefined
+    && asText(suppliedStudyMode, 32) !== asText(nestedStudyMode, 32)) {
+    throw Object.assign(new Error('The supplied chapter study modes do not match.'), {
+      statusCode: 409,
+      code: 'attempt_binding_mismatch',
+    })
+  }
+  const suppliedSourcePreference = payload.sourcePreference
+  const nestedSourcePreference = attempt.sourcePreference
+  if (suppliedSourcePreference !== undefined && nestedSourcePreference !== undefined
+    && asText(suppliedSourcePreference, 40) !== asText(nestedSourcePreference, 40)) {
+    throw Object.assign(new Error('The supplied chapter source preferences do not match.'), {
+      statusCode: 409,
+      code: 'attempt_binding_mismatch',
+    })
+  }
+  const studyMode = mode === 'topic'
+    ? normalizeSyllabusPracticeStudyMode(suppliedStudyMode ?? nestedStudyMode)
+    : ''
+  const sourcePreference = mode === 'topic'
+    ? normalizeChapterStudySourcePreference(suppliedSourcePreference ?? nestedSourcePreference)
+    : ''
+  if (mode === 'topic' && (!studyMode || !sourcePreference
+    || (studyMode !== SYLLABUS_PRACTICE_STUDY_MODES.CHAPTER_STUDY
+      && (suppliedSourcePreference !== undefined || nestedSourcePreference !== undefined)))) {
+    throw Object.assign(new Error('The topic attempt has an invalid chapter study contract.'), {
+      statusCode: 400,
+      code: 'attempt_study_mode_invalid',
+    })
+  }
   const routeCandidate = asText(payload.routeId || attempt.routeId, 120)
   const stageCandidate = asText(payload.stage || attempt.stage || stageForRoute(routeCandidate), 40)
   const scope = verifiedRouteScope(routeCandidate, stageCandidate)
@@ -937,6 +1007,34 @@ function canonicalStudentAttemptBinding(payload, questionBank) {
         throw Object.assign(new Error('Every source-bound attempt part must be unique and complete.'), { statusCode: 422, code: 'source_provenance_missing' })
       }
       seen.add(uniqueKey)
+      if (provenance.schemaVersion === 'stem-original-foundation-binding-v1') {
+        const originalGroup = originalFoundationQuestionGroupsForRoute(routeId)
+          .find((group) => group.id === sourceQuestionId)
+        const originalPart = originalGroup?.parts.find((candidate) => candidate.partId === questionPartId)
+        const canonical = originalPart?.sourceBindingProvenance
+        if (!originalGroup || !originalPart || !canonical || !sameFocusedRetestBinding(provenance, canonical)) {
+          throw Object.assign(new Error('The original foundation binding no longer matches the current catalog.'), {
+            statusCode: 409,
+            code: 'source_provenance_mismatch',
+          })
+        }
+        if (originalGroup.routeId !== scope.routeId || originalGroup.stage !== scope.stage || paperId) {
+          throw Object.assign(new Error('Every original foundation part must belong to the attempt route and stage without an official paper binding.'), {
+            statusCode: 409,
+            code: 'attempt_binding_mismatch',
+          })
+        }
+        return {
+          routeId: originalGroup.routeId,
+          stage: originalGroup.stage,
+          paperId: '',
+          sourceQuestionId: canonical.sourceQuestionId,
+          questionPartId: canonical.questionPartId,
+          sourceKind: 'original-foundation',
+          provenance: { routeId: originalGroup.routeId, ...canonical },
+          ...(unitPartId ? { unitPartId } : {}),
+        }
+      }
       const question = questionBank.find((candidate) => candidate?.routeId === routeId && candidate?.sourceQuestionId === sourceQuestionId)
       if (!question) throw Object.assign(new Error('The source-bound attempt part is unavailable.'), { statusCode: 422, code: 'source_question_unreviewed' })
       const part = (question.parts || []).find((candidate) => String(candidate?.partId || candidate?.questionPartId || candidate?.id || '') === questionPartId)
@@ -975,6 +1073,8 @@ function canonicalStudentAttemptBinding(payload, questionBank) {
     stage: scope.stage,
     paperId: mode === 'full-paper' ? paperId : '',
     paperStudyMode,
+    studyMode,
+    sourcePreference,
     parts,
   }
 }
@@ -982,13 +1082,16 @@ function canonicalStudentAttemptBinding(payload, questionBank) {
 function sameCanonicalBinding(left, right) {
   const normalize = (value) => {
     if (!value || typeof value !== 'object') return value || null
-    if (value.mode === 'full-paper' && !value.paperStudyMode) {
-      return { ...value, paperStudyMode: PAPER_STUDY_MODES.PRACTICE }
+    const normalized = { ...value }
+    if (normalized.mode === 'full-paper' && !normalized.paperStudyMode) normalized.paperStudyMode = PAPER_STUDY_MODES.PRACTICE
+    if (normalized.mode !== 'full-paper' && !Object.hasOwn(normalized, 'paperStudyMode')) normalized.paperStudyMode = ''
+    if (normalized.mode === 'topic' && !normalized.studyMode) normalized.studyMode = SYLLABUS_PRACTICE_STUDY_MODES.TOPIC_DRILL
+    if (normalized.mode === 'topic' && !normalized.sourcePreference) normalized.sourcePreference = 'official-first'
+    if (normalized.mode !== 'topic') {
+      if (!Object.hasOwn(normalized, 'studyMode')) normalized.studyMode = ''
+      if (!Object.hasOwn(normalized, 'sourcePreference')) normalized.sourcePreference = ''
     }
-    if (value.mode !== 'full-paper' && !Object.hasOwn(value, 'paperStudyMode')) {
-      return { ...value, paperStudyMode: '' }
-    }
-    return value
+    return normalized
   }
   return JSON.stringify(normalize(left)) === JSON.stringify(normalize(right))
 }
@@ -2613,12 +2716,13 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
           ...(databaseById.get(topic.id) || {}),
           points: topic.points || [],
         }))
-        await sendPublicCatalogJson(request, response, 200, {
+        const inventory = decorateOriginalFoundationInventory({
           ...staticInventory,
           topics,
           ready: topics.length > 0 && topics.every((topic) => topic.ready),
           aggregation: 'sqlite-question-groups-and-syllabus-mappings',
         })
+        await sendPublicCatalogJson(request, response, 200, inventory)
         return
       }
       if (request.method === 'GET' && url.pathname === '/api/auth/status') {
@@ -2677,7 +2781,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
       }
       if (request.method === 'POST' && url.pathname === '/api/stem/practice-sets') {
         const payload = await readJson(request)
-        validateTopicPracticeQuestionCount(payload)
+        const { studyMode, sourcePreference } = validateTopicPracticeQuestionCount(payload)
         const user = request.headers.authorization ? identityFromRequest(request, signingKey) : null
         const routeIncludesStudyOnly = includeStudyOnlyForRoute()
         const topicPracticeQuestionBank = currentRuntimeTopicPracticeQuestionBank()
@@ -2685,6 +2789,8 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
           routeId: payload.routeId,
           syllabusTopicIds: payload.syllabusTopicIds,
           questionCount: payload.questionCount,
+          studyMode,
+          sourcePreference,
           components: payload.components,
           excludeAttempted: payload.excludeAttempted !== false,
           attemptedQuestionIds: payload.attemptedQuestionIds,
@@ -2692,6 +2798,11 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
           seed: payload.seed,
           questionBank: topicPracticeQuestionBank,
           includeStudyOnly: routeIncludesStudyOnly,
+          originalFoundationGroups: originalFoundationQuestionGroupsForRoute(
+            payload.routeId,
+            payload.syllabusTopicIds,
+            { components: payload.components },
+          ),
         })
         requireStartableTopicPracticeSet(result)
         const view = request.headers['x-stemist-source-images'] === 'region-v2' ? 'region' : 'page'
@@ -2699,6 +2810,13 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
         const projected = nativeQuestionImages.projectSet(result, { view })
         const studentView = view === 'region' ? projectNativeObjectivePracticeSet(projected) : projected
         await sendPublicCatalogJson(request, response, 201, { ...studentView, ownerId: user?.id || null })
+        return
+      }
+      if (request.method === 'POST' && url.pathname === '/api/stem/original-foundation/submit') {
+        const payload = await readJson(request, 32 * 1024)
+        const user = request.headers.authorization ? identityFromRequest(request, signingKey) : null
+        const result = scoreOriginalFoundationResponse(payload)
+        sendJson(response, 200, { ...result, ownerId: user?.id || null })
         return
       }
       if (request.method === 'POST' && url.pathname === '/api/stem/practice-sets/rebind') {
@@ -2715,6 +2833,11 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
         const unit = rebindSyllabusPracticeUnit(payload.unit, {
           questionBank: currentRuntimeTopicPracticeQuestionBank(),
           includeStudyOnly: includeStudyOnlyForRoute(),
+          originalFoundationGroups: originalFoundationQuestionGroupsForRoute(
+            payload.unit.routeId,
+            undefined,
+            { components: payload.unit.paperComponent },
+          ),
           focusedRetestParent,
         })
         if (!unit) {
@@ -2937,6 +3060,8 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
           stage: binding.stage,
           paperId: binding.paperId,
           paperStudyMode: binding.paperStudyMode,
+          studyMode: binding.studyMode,
+          sourcePreference: binding.sourcePreference,
           submittedAt,
         })
         const persistedSnapshot = existing?.submissionStatus === 'submitted' && submissionStatus === 'submitted'
@@ -3000,12 +3125,21 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
             code: attemptExists ? 'attempt_not_found' : 'attempt_not_persisted',
           })
         }
+        const persistedAttempt = parseStudentAttemptRow(persistedAttemptRow)
+        if ((Array.isArray(payload.parts) ? payload.parts : []).some((part) => (
+          (part?.provenance || part)?.schemaVersion === 'stem-original-foundation-binding-v1'
+        ))) {
+          throw Object.assign(new Error('Original foundation practice uses its deterministic learning-only scorer, not AI marking.'), {
+            statusCode: 409,
+            code: 'original_foundation_ai_marking_unavailable',
+          })
+        }
         const issued = issueMarkingCapabilities({
           userId: user.id,
           payload,
           questionBank: currentRuntimeTopicPracticeQuestionBank(),
           signingKey: markingCapabilitySigningKey,
-          persistedAttempt: parseStudentAttemptRow(persistedAttemptRow),
+          persistedAttempt,
         })
         if (!issued.ok) throw Object.assign(new Error(issued.message), { statusCode: issued.statusCode || 422, code: issued.code })
         sendJson(response, 201, issued)
@@ -3311,6 +3445,9 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
     } catch (error) {
       sendJson(response, error.statusCode || 500, {
         ...(error.code ? { code: error.code } : {}),
+        ...(Number.isInteger(error.available) ? { available: error.available } : {}),
+        ...(Number.isInteger(error.count) ? { count: error.count } : {}),
+        ...(typeof error.limited === 'boolean' ? { limited: error.limited } : {}),
         error: error.statusCode ? error.message : 'STEM workspace could not complete that request.',
       })
     }
