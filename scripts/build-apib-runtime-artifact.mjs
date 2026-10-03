@@ -18,6 +18,12 @@ export function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex')
 }
 
+function without(value, field) {
+  const copy = structuredClone(value)
+  delete copy[field]
+  return copy
+}
+
 export async function fileSha256(filePath) {
   return sha256(await fs.readFile(filePath))
 }
@@ -84,24 +90,74 @@ export async function buildApIbRuntimeCandidate({ handoffPath, sourceAssetsPath,
   const [handoffBytes, sourceAssetBytes] = await Promise.all([fs.readFile(handoffPath), fs.readFile(sourceAssetsPath)])
   const handoff = JSON.parse(handoffBytes.toString('utf8'))
   const sourceAssets = JSON.parse(sourceAssetBytes.toString('utf8'))
+  const handoffSha256 = sha256(handoffBytes)
   const records = handoff.records.filter((record) => record.reviewStatus === 'candidate_ai_checked_official_bound')
   if (records.length !== 145 || sourceAssets.questionCount !== 145 || sourceAssets.rightsStatus !== 'licensed') {
     throw new Error('AP/IB runtime candidate requires exactly 145 licensed, dual-reviewed, officially bound records')
   }
+  if (sourceAssets.schemaVersion !== 'apib-practice-source-assets.v1'
+    || sourceAssets.handoffSha256 !== handoffSha256
+    || sourceAssets.manifestHash !== sha256(Buffer.from(canonicalJson(without(sourceAssets, 'manifestHash')), 'utf8'))
+    || sourceAssets.release?.candidateOnly !== true
+    || sourceAssets.release?.studentStudyEligible !== false
+    || sourceAssets.release?.formalProgressEligible !== false
+    || sourceAssets.release?.practiceReady !== false) {
+    throw new Error('Source assets are not bound to this exact handoff candidate')
+  }
   const assetIdsByQuestion = new Map(sourceAssets.questions.map((entry) => [entry.questionId, entry.assetIds]))
   const assetById = new Map(sourceAssets.assets.map((asset) => [asset.id, asset]))
-  if (assetById.size !== sourceAssets.assets.length) throw new Error('Duplicate source asset IDs')
+  const selectedQuestionIds = new Set(records.map((record) => record.groupId))
+  if (assetById.size !== sourceAssets.assets.length
+    || sourceAssets.assetCount !== sourceAssets.assets.length
+    || assetIdsByQuestion.size !== sourceAssets.questions.length
+    || assetIdsByQuestion.size !== selectedQuestionIds.size
+    || [...assetIdsByQuestion.keys()].some((questionId) => !selectedQuestionIds.has(questionId))) {
+    throw new Error('Source asset question/index identity is inconsistent')
+  }
 
   const topicById = new Map()
   const publicQuestions = []
   const privateAnswers = []
+  const referencedAssetIds = new Set()
   for (const record of records) {
     if (record.dualModelReview?.aiCheck !== true || record.dualModelReview?.answerCheck !== true) throw new Error(`Independent review missing: ${record.groupId}`)
     const route = routeForCourse(record.course)
     const topics = topicBindings(record)
     topics.forEach((topic) => topicById.set(topic.id, { ...topic, routeId: route.id }))
     const assetIds = assetIdsByQuestion.get(record.groupId)
-    if (!Array.isArray(assetIds) || !assetIds.length || assetIds.some((id) => !assetById.has(id))) throw new Error(`Source asset binding missing: ${record.groupId}`)
+    if (!Array.isArray(assetIds) || !assetIds.length || new Set(assetIds).size !== assetIds.length || assetIds.some((id) => !assetById.has(id))) throw new Error(`Source asset binding missing: ${record.groupId}`)
+    const qpEvidenceByPage = new Map()
+    for (const evidence of record.sourceEvidence.filter((entry) => entry.kind === 'qp')) {
+      const page = Number(evidence.page)
+      if (!Number.isInteger(page) || page < 1 || !/^[a-f0-9]{64}$/.test(String(evidence.sourcePageSha256 || ''))) throw new Error(`Invalid QP page evidence: ${record.groupId}`)
+      if (!qpEvidenceByPage.has(page)) qpEvidenceByPage.set(page, new Set())
+      qpEvidenceByPage.get(page).add(evidence.sourcePageSha256)
+    }
+    if (!qpEvidenceByPage.size || !Array.isArray(record.qpPages)
+      || record.qpPages.some((page) => !qpEvidenceByPage.has(Number(page)))) throw new Error(`Declared QP pages are inconsistent: ${record.groupId}`)
+    for (const assetId of assetIds) {
+      const asset = assetById.get(assetId)
+      const page = Number(asset.page)
+      const region = asset.sourceRegion
+      const relativePath = String(asset.relativePath || '').replaceAll('\\', '/')
+      if (referencedAssetIds.has(assetId)
+        || asset.questionId !== record.groupId
+        || asset.paperId !== record.paperId
+        || asset.kind !== 'qp-region'
+        || /(?:^|[-_])(?:ms|answer|mark)(?:[-_]|$)/i.test(String(asset.role || ''))
+        || !qpEvidenceByPage.has(page)
+        || !qpEvidenceByPage.get(page).has(asset.sourcePageSha256)
+        || !Array.isArray(region) || region.length !== 4
+        || region.some((value) => !Number.isFinite(value) || value < 0 || value > 1)
+        || region[2] <= region[0] || region[3] <= region[1]
+        || !/^[a-f0-9]{64}$/.test(String(asset.sha256 || ''))
+        || !Number.isInteger(asset.width) || asset.width < 1
+        || !Number.isInteger(asset.height) || asset.height < 1
+        || !relativePath || path.posix.isAbsolute(relativePath) || relativePath.split('/').includes('..')) {
+        throw new Error(`Source asset does not match the exact QP binding: ${record.groupId}/${assetId}`)
+      }
+      referencedAssetIds.add(assetId)
+    }
     const options = optionSet(record.options)
     const correctOptions = optionSet(record.correctOptions)
     if (correctOptions.some((option) => !options.includes(option))) throw new Error(`Answer is outside option set: ${record.groupId}`)
@@ -134,6 +190,9 @@ export async function buildApIbRuntimeCandidate({ handoffPath, sourceAssetsPath,
         officialBindingHash: record.officialBinding.bindingHash,
       },
     })
+  }
+  if (referencedAssetIds.size !== assetById.size || [...assetById.keys()].some((assetId) => !referencedAssetIds.has(assetId))) {
+    throw new Error('Unbound or multiply-bound source assets are not allowed')
   }
 
   publicQuestions.sort((left, right) => left.routeId.localeCompare(right.routeId) || left.paperId.localeCompare(right.paperId) || left.questionNumber - right.questionNumber)
@@ -173,7 +232,7 @@ export async function buildApIbRuntimeCandidate({ handoffPath, sourceAssetsPath,
     schemaVersion: 'apib-curriculum-practice-candidate.v1',
     status: 'candidate',
     createdAt,
-    source: { handoffSha256: sha256(handoffBytes), sourceAssetsSha256: sha256(sourceAssetBytes) },
+    source: { handoffSha256, sourceAssetsSha256: sha256(sourceAssetBytes) },
     files,
     routes: routes.map((route) => ({ id: route.id, questionCount: route.questionCount })),
     totals: { questions: publicQuestions.length, topics: topics.length, sourceAssets: sourceAssets.assetCount },
