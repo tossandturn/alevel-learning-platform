@@ -103,6 +103,28 @@ try {
   assert.equal(validated.release.studentStudyEligible, true)
   assert.equal(validated.release.formalProgressEligible, false)
   assert.equal(validated.release.review.independentPassCount, 2)
+
+  // Broader review evidence must not invent an undelivered public question page.
+  const projectionFixture = path.join(scratchRoot, 'delivered-page-projection')
+  await fs.mkdir(projectionFixture)
+  const reviewContext = JSON.parse(await fs.readFile(handoffPath, 'utf8'))
+  const boundAssets = JSON.parse(await fs.readFile(sourceAssetsPath, 'utf8'))
+  const record = reviewContext.records.find((entry) => entry.reviewStatus === 'candidate_ai_checked_official_bound')
+  const contextPage = 999
+  assert.ok(!record.sourceEvidence.some((entry) => entry.kind === 'qp' && Number(entry.page) === contextPage))
+  record.sourceEvidence.push({ ...record.sourceEvidence.find((entry) => entry.kind === 'qp'), page: contextPage })
+  const fixtureHandoff = path.join(projectionFixture, 'handoff.json')
+  await writeJson(projectionFixture, 'handoff.json', reviewContext)
+  boundAssets.handoffSha256 = await fileSha256(fixtureHandoff)
+  boundAssets.manifestHash = sha256(Buffer.from(canonicalJson(without(boundAssets, 'manifestHash')), 'utf8'))
+  await writeJson(projectionFixture, 'source-assets-input.json', boundAssets)
+  const projected = await buildApIbRuntimeCandidate({ handoffPath: fixtureHandoff, sourceAssetsPath: path.join(projectionFixture, 'source-assets-input.json'), outputRoot: path.join(projectionFixture, 'candidate'), createdAt: '2026-10-04T00:00:00.000Z' })
+  const projectedPublic = await readJson(projected.outputRoot, 'public-catalog.json')
+  const publicRecord = projectedPublic.questions.find((entry) => entry.id === record.groupId)
+  const declaredAssets = boundAssets.questions.find((entry) => entry.questionId === record.groupId).assetIds
+  assert.deepEqual(publicRecord.source.pages, [...new Set(boundAssets.assets.filter((entry) => declaredAssets.includes(entry.id)).map((entry) => Number(entry.page)))].sort((a, b) => a - b))
+  assert.ok(!publicRecord.source.pages.includes(contextPage))
+  await validateApIbRuntimeRelease({ releaseRoot: projected.outputRoot, sourceAssetRoot })
   assert.deepEqual(validated.release.sourceIntegrity, {
     schemaVersion: 'apib-png-source-integrity.v1',
     sourceAssetManifestHash: validated.release.sourceAssetManifestHash,

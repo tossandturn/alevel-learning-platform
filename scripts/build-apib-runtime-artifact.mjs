@@ -161,7 +161,12 @@ export async function buildApIbRuntimeCandidate({ handoffPath, sourceAssetsPath,
     const options = optionSet(record.options)
     const correctOptions = optionSet(record.correctOptions)
     if (correctOptions.some((option) => !options.includes(option))) throw new Error(`Answer is outside option set: ${record.groupId}`)
-    const sourcePages = [...new Set(record.sourceEvidence.filter((entry) => entry.kind === 'qp').map((entry) => entry.page))].sort((a, b) => a - b)
+    // Review packets may contain adjacent context pages. Expose only pages actually
+    // represented by this question's exact, independently reviewed QP crops.
+    const sourcePages = [...new Set(assetIds.map((assetId) => Number(assetById.get(assetId).page)))].sort((a, b) => a - b)
+    if (!sourcePages.length || sourcePages.some((page) => !qpEvidenceByPage.has(page))) {
+      throw new Error(`Delivered QP pages are not a reviewed evidence subset: ${record.groupId}`)
+    }
     publicQuestions.push({
       id: record.groupId,
       paperId: record.paperId,
