@@ -11,6 +11,7 @@ import {
   findUnexpectedReleaseEntries,
   MAX_DIST_BYTES,
   MAX_RELEASE_BYTES,
+  RELEASE_TOP_LEVEL_ALLOWLIST,
   pathsOverlap,
   physicalTreeBytes,
 } from './release-content-policy.mjs'
@@ -19,6 +20,7 @@ import {
   validateBuildIdentity,
   validateReleaseManifest,
 } from './release-manifest-contract.mjs'
+import { assertRuntimeDataBinding } from './runtime-data-binding.mjs'
 
 function option(name) {
   const index = process.argv.indexOf(name)
@@ -69,6 +71,15 @@ assert.ok(validateReleaseManifest(releaseManifest, { releaseId: expectedReleaseI
 assert.equal(releaseManifest.commit, expectedCommit, 'Release manifest commit does not match the expected commit')
 assert.equal(releaseManifest.releaseId, expectedReleaseId, 'Release manifest ID does not match the expected release')
 assert.equal(releaseManifest.packageSha256, expectedPackageSha256, 'Release manifest package digest does not match the uploaded package')
+// Check operational links and reject unexpected/sensitive physical entries
+// before hashing the release tree. Never traverse persistent student data.
+const runtimeDataEntries = assertRuntimeDataBinding(releaseRoot, releaseManifest.runtimeData, option('--runtime-data-root'))
+const unexpectedReleaseEntries = findUnexpectedReleaseEntries(releaseRoot, [...RELEASE_TOP_LEVEL_ALLOWLIST, ...runtimeDataEntries])
+assert.equal(unexpectedReleaseEntries.length, 0, `Release root contains files outside the runtime allowlist: ${unexpectedReleaseEntries.slice(0, 10).join(', ')}`)
+const forbiddenSensitiveFiles = findForbiddenSensitiveFiles(releaseRoot)
+assert.equal(forbiddenSensitiveFiles.length, 0, `Release contains nested secrets, keys, databases, dumps, caches or OCR staging files: ${forbiddenSensitiveFiles.slice(0, 10).join(', ')}`)
+const escapingSymlinks = findEscapingSymlinks(releaseRoot, ['public/question-assets', 'dist/question-assets', ...runtimeDataEntries])
+assert.equal(escapingSymlinks.length, 0, `Release contains external symlinks outside declared bindings: ${escapingSymlinks.slice(0, 10).join(', ')}`)
 const releaseRouteIds = Array.isArray(releaseManifest.syllabusScope?.routeIds)
   ? [...new Set(releaseManifest.syllabusScope.routeIds.map((routeId) => String(routeId).trim()).filter(Boolean))]
   : []
@@ -87,12 +98,6 @@ assert.equal(actualReleaseTree.files, releaseManifest.releaseTree?.files, 'Relea
 assert.equal(actualReleaseTree.symlinks, releaseManifest.releaseTree?.symlinks, 'Release symlink count does not match its manifest')
 assert.equal(actualReleaseTree.bytes, releaseManifest.releaseTree?.bytes, 'Release byte count does not match its manifest')
 
-const unexpectedReleaseEntries = findUnexpectedReleaseEntries(releaseRoot)
-assert.equal(unexpectedReleaseEntries.length, 0, `Release root contains files outside the runtime allowlist: ${unexpectedReleaseEntries.slice(0, 10).join(', ')}`)
-const forbiddenSensitiveFiles = findForbiddenSensitiveFiles(releaseRoot)
-assert.equal(forbiddenSensitiveFiles.length, 0, `Release contains nested secrets, keys, databases, dumps, caches or OCR staging files: ${forbiddenSensitiveFiles.slice(0, 10).join(', ')}`)
-const escapingSymlinks = findEscapingSymlinks(releaseRoot, ['public/question-assets', 'dist/question-assets'])
-assert.equal(escapingSymlinks.length, 0, `Release contains external symlinks outside the immutable asset exception: ${escapingSymlinks.slice(0, 10).join(', ')}`)
 assert.ok(fs.existsSync(nodeModulesRoot), 'Release is missing node_modules; install dependencies inside this release')
 assert.ok(!fs.lstatSync(nodeModulesRoot).isSymbolicLink() && fs.statSync(nodeModulesRoot).isDirectory(), 'Release node_modules must be a self-contained directory, not a cross-release symlink')
 assert.ok(fs.existsSync(path.join(nodeModulesRoot, '.package-lock.json')), 'Release node_modules is missing its npm install lock record')
@@ -157,6 +162,17 @@ const paperAudit = spawnSync(process.execPath, [paperAuditScript], {
   maxBuffer: 32 * 1024 * 1024,
 })
 assert.equal(paperAudit.status, 0, `Release paper catalog audit failed:\n${paperAudit.stdout}\n${paperAudit.stderr}`)
+const readinessMode = releaseManifest.syllabusScope.readinessMode ?? 'formal'
+if (readinessMode === 'student-study') {
+  const artifactRoot = option('--ai-artifact-root')
+  assert.ok(artifactRoot, 'AI study release requires --ai-artifact-root')
+  const studyCoverage = spawnSync(process.execPath, [
+    path.join(releaseRoot, 'scripts', 'verify-study-release-coverage.mjs'),
+    '--artifact-root', artifactRoot, '--pdf-library-root', paperLibraryRoot,
+    ...releaseRouteIds.flatMap((routeId) => ['--route', routeId]),
+  ], { cwd: releaseRoot, env, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
+  assert.equal(studyCoverage.status, 0, `Release student-study coverage failed:\n${studyCoverage.stdout}\n${studyCoverage.stderr}`)
+} else {
 const syllabusCoverage = spawnSync(process.execPath, [syllabusCoverageScript], {
   cwd: releaseRoot,
   env,
@@ -174,6 +190,7 @@ const allSyllabusCoverage = spawnSync(process.execPath, [
   maxBuffer: 32 * 1024 * 1024,
 })
 assert.equal(allSyllabusCoverage.status, 0, `Release all-syllabus coverage gate failed:\n${allSyllabusCoverage.stdout}\n${allSyllabusCoverage.stderr}`)
+}
 
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
 const identity = fs.readFileSync(identityPath, 'utf8')

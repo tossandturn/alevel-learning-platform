@@ -8,7 +8,7 @@ import { Readable } from 'node:stream'
 import { createCanvas } from '@napi-rs/canvas'
 
 import { closeStemDatabaseForTests, createStemApi } from '../server/stemApi.js'
-import { wholePaperFailureIsRetryable } from '../server/wholePaperMarking.js'
+import { wholePaperFailureCode, wholePaperFailureIsRetryable } from '../server/wholePaperMarking.js'
 import { renderWholePaperReport } from '../server/wholePaperReport.js'
 
 const signingKey = 'whole-paper-recovery-signing-key'
@@ -83,7 +83,12 @@ function successResult() {
   return {
     assessmentMode: 'ai-advisory-unscored', officialScore: false, formalProgressEligible: false,
     provisionalScore: null, maxScore: null, reviewRequired: true, missingPages: [], missingQuestions: [],
-    summary: 'Recovered job completed from the retained image.', questionResults: [], provider: 'fixture', model: 'fixture',
+    summary: 'Recovered job completed from the retained image.',
+    questionResults: [{
+      questionLabel: 'Q1', provisionalScore: null, maxScore: null, confidence: 0.8, reviewRequired: true,
+      rationale: 'The retained answer page is visible.', evidence: ['Student answer page 1'], criteria: [],
+    }],
+    provider: 'fixture', model: 'fixture',
   }
 }
 
@@ -95,6 +100,11 @@ assert.equal(wholePaperFailureIsRetryable(Object.assign(new Error('too many pixe
 assert.equal(wholePaperFailureIsRetryable(Object.assign(new Error('rate limited'), { statusCode: 429 })), true)
 assert.equal(wholePaperFailureIsRetryable(Object.assign(new Error('font missing'), { statusCode: 503, retryable: true })), true)
 assert.equal(wholePaperFailureIsRetryable(Object.assign(new Error('immutable binding'), { statusCode: 409, retryable: true })), true, 'explicit retryability must override the status default')
+assert.equal(wholePaperFailureCode(Object.assign(new Error('safe'), { code: 'ai_assessment_schema_invalid', assessmentFailureReason: 'evidence_missing' })), 'ai_assessment_evidence_missing')
+assert.equal(wholePaperFailureCode(Object.assign(new Error('safe'), { code: 'ai_assessment_schema_invalid', assessmentFailureReason: 'evidence_type_invalid' })), 'ai_assessment_evidence_type_invalid')
+assert.equal(wholePaperFailureCode(Object.assign(new Error('safe'), { code: 'ai_assessment_schema_invalid', assessmentFailureReason: 'confidence_invalid' })), 'ai_assessment_confidence_invalid')
+assert.equal(wholePaperFailureCode(Object.assign(new Error('safe'), { code: 'ai_assessment_schema_invalid', assessmentFailureReason: 'total_mismatch' })), 'ai_assessment_total_mismatch')
+assert.equal(wholePaperFailureCode(Object.assign(new Error('safe'), { code: 'ai_assessment_schema_invalid', assessmentFailureReason: 'not_whitelisted' })), 'ai_assessment_schema_invalid', 'unknown diagnostics must not enter the persisted failure code')
 
 try {
   const databasePath = path.join(temporaryRoot, 'restart.sqlite')
@@ -188,6 +198,7 @@ try {
     wholePaperMarkingOptions: {
       storageRoot: path.join(temporaryRoot, 'concurrency-assets'),
       jobTimeoutMs: 80,
+      abortDrainMs: 25,
       runner: async ({ job }) => {
         startedJobs.push(job.id)
         if (startedJobs.length === 1) return new Promise((resolve) => { releaseFirstRunner = () => resolve(successResult()) })
@@ -207,12 +218,144 @@ try {
     queuedJobs.push(createdJob.payload.jobId)
   }
   await waitFor(concurrencyApi, queuedJobs[0], 'failed')
-  const secondWhileFirstUnsettled = await call(concurrencyApi, { method: 'GET', url: `/api/stem/paper-marking-jobs/${queuedJobs[1]}` })
-  assert.equal(secondWhileFirstUnsettled.payload.status, 'queued', 'a timed-out but unsettled runner must retain the single-worker lock')
-  assert.equal(startedJobs.length, 1)
-  releaseFirstRunner()
   await waitFor(concurrencyApi, queuedJobs[1], 'completed')
-  assert.equal(startedJobs.length, 2, 'the next job may start only after the prior aborted pipeline settles')
+  assert.equal(startedJobs.length, 2, 'a timed-out uncooperative runner must not hold later jobs in the queue forever')
+  const firstBeforeLateSettle = await call(concurrencyApi, { method: 'GET', url: `/api/stem/paper-marking-jobs/${queuedJobs[0]}` })
+  assert.equal(firstBeforeLateSettle.payload.status, 'failed')
+  releaseFirstRunner()
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  const firstAfterLateSettle = await call(concurrencyApi, { method: 'GET', url: `/api/stem/paper-marking-jobs/${queuedJobs[0]}` })
+  assert.equal(firstAfterLateSettle.payload.status, 'failed', 'a detached late result must not revive its failed job')
+
+  closeStemDatabaseForTests()
+  let releaseOldAttempt
+  let retryRuns = 0
+  const unhandled = []
+  const onUnhandled = (error) => unhandled.push(error)
+  process.on('unhandledRejection', onUnhandled)
+  const sameJobRetryRoot = path.join(temporaryRoot, 'same-job-retry-assets')
+  const sameJobRetryApi = createStemApi({
+    env: { STEM_INTERNAL_AUTH_KEY: signingKey, STEM_DB_PATH: ':memory:' },
+    questionBank: [],
+    wholePaperMarkingOptions: {
+      storageRoot: sameJobRetryRoot,
+      jobTimeoutMs: 80,
+      abortDrainMs: 25,
+      runner: async () => {
+        retryRuns += 1
+        if (retryRuns === 1) return new Promise((resolve) => { releaseOldAttempt = () => resolve({ ...successResult(), summary: 'stale attempt' }) })
+        return { ...successResult(), summary: 'current retry attempt' }
+      },
+    },
+  })
+  try {
+    const retryCreated = await call(sameJobRetryApi, { method: 'POST', url: '/api/stem/paper-marking-jobs', json: createBody('same-job-retry-request-0001', image) })
+    const retryAsset = retryCreated.payload.assets[0]
+    await call(sameJobRetryApi, { method: 'PUT', url: retryAsset.uploadPath, raw: image, contentType: 'image/png' })
+    await call(sameJobRetryApi, {
+      method: 'POST', url: `/api/stem/paper-marking-jobs/${retryCreated.payload.jobId}/submit`,
+      json: { clientRequestId: 'same-job-retry-request-0001', answerAssetIds: [retryAsset.assetId] },
+    })
+    const firstAttemptFailed = await waitFor(sameJobRetryApi, retryCreated.payload.jobId, 'failed')
+    assert.equal(firstAttemptFailed.failureCode, 'marking_timeout')
+    await call(sameJobRetryApi, {
+      method: 'POST', url: `/api/stem/paper-marking-jobs/${retryCreated.payload.jobId}/retry`, json: { clientRequestId: 'same-job-retry-0001' },
+    })
+    const retriedJob = await waitFor(sameJobRetryApi, retryCreated.payload.jobId, 'completed')
+    assert.equal(retriedJob.processingAttempt, 2)
+    assert.equal(retriedJob.result.summary, 'current retry attempt')
+    const retryFilesBeforeLateSettle = fs.readdirSync(sameJobRetryRoot, { recursive: true }).map(String)
+    assert.ok(retryFilesBeforeLateSettle.some((entry) => entry.endsWith('source-attempt-2.pdf')))
+    assert.ok(retryFilesBeforeLateSettle.some((entry) => entry.endsWith('report-attempt-2.pdf')))
+    assert.equal(retryFilesBeforeLateSettle.some((entry) => entry.endsWith('source-attempt-1.pdf')), false, 'a current retry must remove the unreachable source artifact from the lower attempt')
+    assert.equal(retryFilesBeforeLateSettle.some((entry) => entry.endsWith('report-attempt-1.pdf')), false)
+    const currentReportPath = path.join(sameJobRetryRoot, retryFilesBeforeLateSettle.find((entry) => entry.endsWith('report-attempt-2.pdf')))
+    const currentReportHash = crypto.createHash('sha256').update(fs.readFileSync(currentReportPath)).digest('hex')
+    releaseOldAttempt()
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    const afterStaleSuccess = await call(sameJobRetryApi, { method: 'GET', url: `/api/stem/paper-marking-jobs/${retryCreated.payload.jobId}` })
+    assert.equal(afterStaleSuccess.payload.status, 'completed')
+    assert.equal(afterStaleSuccess.payload.processingAttempt, 2)
+    assert.equal(afterStaleSuccess.payload.result.summary, 'current retry attempt', 'late attempt 1 must not overwrite attempt 2')
+    assert.equal(crypto.createHash('sha256').update(fs.readFileSync(currentReportPath)).digest('hex'), currentReportHash, 'late attempt 1 must not overwrite attempt 2 artifacts')
+    assert.equal(fs.readdirSync(sameJobRetryRoot, { recursive: true }).map(String).some((entry) => entry.endsWith('source-attempt-1.pdf')), false, 'a late aborted runner cannot recreate its cleaned source namespace')
+    assert.equal(fs.readdirSync(sameJobRetryRoot, { recursive: true }).map(String).some((entry) => entry.endsWith('report-attempt-1.pdf')), false)
+    assert.deepEqual(unhandled, [], 'detached stale attempts must not emit unhandled rejections')
+  } finally {
+    process.off('unhandledRejection', onUnhandled)
+    releaseOldAttempt?.()
+  }
+
+  closeStemDatabaseForTests()
+  const repeatedFailureRoot = path.join(temporaryRoot, 'repeated-failure-assets')
+  const repeatedFailureApi = createStemApi({
+    env: { STEM_INTERNAL_AUTH_KEY: signingKey, STEM_DB_PATH: ':memory:' },
+    questionBank: [],
+    wholePaperMarkingOptions: {
+      storageRoot: repeatedFailureRoot,
+      runner: async () => { throw Object.assign(new Error('retryable provider fixture'), { code: 'fixture_retryable', statusCode: 503, retryable: true }) },
+    },
+  })
+  const repeatedCreated = await call(repeatedFailureApi, { method: 'POST', url: '/api/stem/paper-marking-jobs', json: createBody('repeated-failure-request-0001', image) })
+  const repeatedAsset = repeatedCreated.payload.assets[0]
+  await call(repeatedFailureApi, { method: 'PUT', url: repeatedAsset.uploadPath, raw: image, contentType: 'image/png' })
+  await call(repeatedFailureApi, {
+    method: 'POST', url: `/api/stem/paper-marking-jobs/${repeatedCreated.payload.jobId}/submit`,
+    json: { clientRequestId: 'repeated-failure-request-0001', answerAssetIds: [repeatedAsset.assetId] },
+  })
+  const firstRepeatedFailure = await waitFor(repeatedFailureApi, repeatedCreated.payload.jobId, 'failed')
+  assert.equal(firstRepeatedFailure.failureCode, 'fixture_retryable')
+  const firstRepeatedFiles = fs.readdirSync(repeatedFailureRoot, { recursive: true }).map(String)
+  const firstSource = firstRepeatedFiles.find((entry) => entry.endsWith('source-attempt-1.pdf'))
+  assert.ok(firstSource)
+  const repeatedJobDirectory = path.dirname(path.join(repeatedFailureRoot, firstSource))
+  const legacySource = path.join(repeatedJobDirectory, 'source.pdf')
+  const legacyReport = path.join(repeatedJobDirectory, 'report.pdf')
+  const lowerFixture = path.join(repeatedJobDirectory, 'source-attempt-0.pdf')
+  const outsideAttemptLikeFile = path.join(repeatedFailureRoot, 'source-attempt-0.pdf')
+  fs.writeFileSync(legacySource, Buffer.from('%PDF-legacy-source'))
+  fs.writeFileSync(legacyReport, Buffer.from('%PDF-legacy-report'))
+  fs.writeFileSync(lowerFixture, Buffer.from('%PDF-generated-lower-attempt'))
+  fs.writeFileSync(outsideAttemptLikeFile, Buffer.from('%PDF-outside-job-directory'))
+  const legacySourceHash = crypto.createHash('sha256').update(fs.readFileSync(legacySource)).digest('hex')
+  const legacyReportHash = crypto.createHash('sha256').update(fs.readFileSync(legacyReport)).digest('hex')
+  for (let attempt = 2; attempt <= 4; attempt += 1) {
+    await call(repeatedFailureApi, {
+      method: 'POST', url: `/api/stem/paper-marking-jobs/${repeatedCreated.payload.jobId}/retry`,
+      json: { clientRequestId: `repeated-failure-retry-000${attempt}` },
+    })
+    const failedAttempt = await waitFor(repeatedFailureApi, repeatedCreated.payload.jobId, 'failed')
+    assert.equal(failedAttempt.processingAttempt, attempt)
+    const files = fs.readdirSync(repeatedJobDirectory, { recursive: true }).map(String)
+    const generated = files.filter((entry) => /(?:^|[\\/])(?:source|report)-attempt-\d+\.pdf$/.test(entry))
+    assert.deepEqual(generated.map((entry) => path.basename(entry)), [`source-attempt-${attempt}.pdf`], 'repeated retryable failures retain only the current generated attempt artifact')
+    assert.ok(files.some((entry) => entry.endsWith('.bin')), 'generated-artifact cleanup must preserve uploaded answer bytes')
+  }
+  assert.equal(fs.existsSync(lowerFixture), false, 'strict lower-attempt generated names are cleaned')
+  assert.equal(fs.readFileSync(outsideAttemptLikeFile).toString(), '%PDF-outside-job-directory', 'cleanup never traverses outside the exact current job directory')
+  assert.equal(crypto.createHash('sha256').update(fs.readFileSync(legacySource)).digest('hex'), legacySourceHash, 'legacy unknown filenames are preserved')
+  assert.equal(crypto.createHash('sha256').update(fs.readFileSync(legacyReport)).digest('hex'), legacyReportHash, 'legacy unknown report filenames are preserved')
+
+  closeStemDatabaseForTests()
+  const emptyAssessmentApi = createStemApi({
+    env: { STEM_INTERNAL_AUTH_KEY: signingKey, STEM_DB_PATH: ':memory:' },
+    questionBank: [],
+    wholePaperMarkingOptions: {
+      storageRoot: path.join(temporaryRoot, 'empty-assessment-assets'),
+      runner: async () => ({ ...successResult(), questionResults: [] }),
+    },
+  })
+  const emptyCreated = await call(emptyAssessmentApi, { method: 'POST', url: '/api/stem/paper-marking-jobs', json: createBody('empty-assessment-request-0001', image) })
+  const emptyAsset = emptyCreated.payload.assets[0]
+  await call(emptyAssessmentApi, { method: 'PUT', url: emptyAsset.uploadPath, raw: image, contentType: 'image/png' })
+  await call(emptyAssessmentApi, {
+    method: 'POST', url: `/api/stem/paper-marking-jobs/${emptyCreated.payload.jobId}/submit`,
+    json: { clientRequestId: 'empty-assessment-request-0001', answerAssetIds: [emptyAsset.assetId] },
+  })
+  const emptyFailed = await waitFor(emptyAssessmentApi, emptyCreated.payload.jobId, 'failed')
+  assert.equal(emptyFailed.failureCode, 'ai_assessment_empty')
+  assert.equal(emptyFailed.retryable, true)
+  assert.equal(emptyFailed.reportPdfPath, null, 'an empty assessment must not generate a completed report')
 
   closeStemDatabaseForTests()
   let chargedProviderRuns = 0
