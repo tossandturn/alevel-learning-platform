@@ -26,6 +26,7 @@ export const CHAPTER_STUDY_SOURCE_PREFERENCES = Object.freeze({
   OFFICIAL_FIRST: 'official-first',
   ORIGINAL_FOUNDATION_ONLY: 'original-foundation-only',
 })
+export const ORIGINAL_FOUNDATION_CATALOGS = Object.freeze({ V1: 'v1', V2: 'v2' })
 
 const CHAPTER_STUDY_POLICY = Object.freeze({
   mode: SYLLABUS_PRACTICE_STUDY_MODES.CHAPTER_STUDY,
@@ -59,6 +60,12 @@ export function normalizeChapterStudySourcePreference(value) {
   if (value !== undefined && value !== null && typeof value !== 'string') return null
   const preference = String(value || '').trim() || CHAPTER_STUDY_SOURCE_PREFERENCES.OFFICIAL_FIRST
   return Object.values(CHAPTER_STUDY_SOURCE_PREFERENCES).includes(preference) ? preference : null
+}
+
+export function normalizeOriginalFoundationCatalogVersion(value) {
+  if (value !== undefined && value !== null && typeof value !== 'string') return null
+  const catalog = String(value || '').trim() || ORIGINAL_FOUNDATION_CATALOGS.V1
+  return Object.values(ORIGINAL_FOUNDATION_CATALOGS).includes(catalog) ? catalog : null
 }
 
 function chapterStudyAvailability(availableQuestionCount) {
@@ -1151,6 +1158,9 @@ export function rebindSyllabusPracticeUnit(unit, {
   const chapterStudy = normalizedStudyMode === SYLLABUS_PRACTICE_STUDY_MODES.CHAPTER_STUDY
   const normalizedSourcePreference = normalizeChapterStudySourcePreference(unit.sourcePreference)
   if (!normalizedSourcePreference) return null
+  const normalizedFoundationCatalog = normalizeOriginalFoundationCatalogVersion(unit.foundationCatalog)
+  if (!normalizedFoundationCatalog
+    || (!chapterStudy && normalizedFoundationCatalog !== ORIGINAL_FOUNDATION_CATALOGS.V1)) return null
 
   const topicSelection = syllabusTopicsForPersistedUnit(unit, config)
   const topicIds = topicSelection.topicIds
@@ -1198,8 +1208,13 @@ export function rebindSyllabusPracticeUnit(unit, {
   const topicReadiness = selectedTopicPracticeReadiness(candidateRecords, topicIds)
   const forceStudyOnly = chapterStudy || !topicReadiness.eligibility.ready
   const recordsByQuestionId = new Map(candidateRecords.map((record) => [record.sourceQuestionId, record]))
-  const originalGroupsByTopic = originalFoundationGroupMap(originalFoundationGroups, route.routeId, topicSelection.selectedTopicIds)
-  const originalGroupsByQuestionId = new Map([...originalGroupsByTopic.values()].map((group) => [group.id, group]))
+  const originalGroupsByTopic = originalFoundationGroupMap(
+    originalFoundationGroups,
+    route.routeId,
+    topicSelection.selectedTopicIds,
+    normalizedFoundationCatalog,
+  )
+  const originalGroupsByQuestionId = new Map([...originalGroupsByTopic.values()].flat().map((group) => [group.id, group]))
   const uniquePartKeys = new Set()
   const reboundParts = []
   let hasSelectedStudyOnlyRecord = false
@@ -1382,12 +1397,16 @@ export function rebindSyllabusPracticeUnit(unit, {
     focusedRetestValidated: Boolean(reboundFocusedParent),
     sourceGateVersion: 'server-syllabus-catalog-v2',
     sourceGateStatus: 'current',
+    ...(normalizedFoundationCatalog === ORIGINAL_FOUNDATION_CATALOGS.V2
+      ? { foundationCatalog: ORIGINAL_FOUNDATION_CATALOGS.V2 }
+      : {}),
   }))
 }
 
-function originalFoundationGroupMap(groups, routeId, selectedTopicIds) {
+function originalFoundationGroupMap(groups, routeId, selectedTopicIds, foundationCatalog = ORIGINAL_FOUNDATION_CATALOGS.V1) {
   const selected = new Set(selectedTopicIds)
   const result = new Map()
+  const seenIds = new Set()
   for (const group of Array.isArray(groups) ? groups : []) {
     const topicId = String(group?.originalQuestion?.topicId || '').trim()
     if (String(group?.routeId || '') !== routeId || !selected.has(topicId)) continue
@@ -1401,19 +1420,46 @@ function originalFoundationGroupMap(groups, routeId, selectedTopicIds) {
       && group.parts.length === 1
       && group.formalProgressEligible === false
       && group.studyOnly === true
+      && group.originalQuestion?.catalogVersion === foundationCatalog
+      && (foundationCatalog !== ORIGINAL_FOUNDATION_CATALOGS.V2 || (
+        group.foundationCatalog === ORIGINAL_FOUNDATION_CATALOGS.V2
+        && ['concept', 'application', 'transfer'].includes(group.itemKind)
+        && ['retrieve', 'apply', 'transfer'].includes(group.skillFocus)
+      ))
     if (!valid) {
       const error = new Error('The original foundation catalogue returned an invalid question contract.')
       error.code = 'original_foundation_contract_invalid'
       error.statusCode = 500
       throw error
     }
-    if (result.has(topicId)) {
-      const error = new Error('The original foundation catalogue returned duplicate chapter questions.')
+    if (seenIds.has(group.id)) {
+      const error = new Error('The original foundation catalogue returned duplicate question IDs.')
       error.code = 'original_foundation_contract_invalid'
       error.statusCode = 500
       throw error
     }
-    result.set(topicId, group)
+    seenIds.add(group.id)
+    const topicGroups = result.get(topicId) || []
+    topicGroups.push(group)
+    result.set(topicId, topicGroups)
+  }
+  for (const topicId of selected) {
+    const topicGroups = result.get(topicId) || []
+    const expectedCount = foundationCatalog === ORIGINAL_FOUNDATION_CATALOGS.V2 ? 3 : 1
+    if (topicGroups.length && topicGroups.length !== expectedCount) {
+      const error = new Error('The original foundation catalogue returned an incomplete chapter set.')
+      error.code = 'original_foundation_contract_invalid'
+      error.statusCode = 500
+      throw error
+    }
+    if (foundationCatalog === ORIGINAL_FOUNDATION_CATALOGS.V2
+      && topicGroups.length
+      && new Set(topicGroups.map((group) => group.itemKind)).size !== 3) {
+      const error = new Error('The original foundation catalogue returned duplicate chapter item kinds.')
+      error.code = 'original_foundation_contract_invalid'
+      error.statusCode = 500
+      throw error
+    }
   }
   return result
 }
@@ -1424,6 +1470,7 @@ export function buildSyllabusPracticeSet({
   questionCount = 10,
   studyMode = SYLLABUS_PRACTICE_STUDY_MODES.TOPIC_DRILL,
   sourcePreference = CHAPTER_STUDY_SOURCE_PREFERENCES.OFFICIAL_FIRST,
+  foundationCatalog = ORIGINAL_FOUNDATION_CATALOGS.V1,
   components,
   excludeAttempted = true,
   attemptedQuestionIds = [],
@@ -1453,6 +1500,14 @@ export function buildSyllabusPracticeSet({
     || (!chapterStudy && normalizedSourcePreference !== CHAPTER_STUDY_SOURCE_PREFERENCES.OFFICIAL_FIRST)) {
     const error = new Error('sourcePreference must be official-first or original-foundation-only for Chapter Study.')
     error.code = 'invalid_source_preference'
+    error.statusCode = 400
+    throw error
+  }
+  const normalizedFoundationCatalog = normalizeOriginalFoundationCatalogVersion(foundationCatalog)
+  if (!normalizedFoundationCatalog
+    || (!chapterStudy && normalizedFoundationCatalog !== ORIGINAL_FOUNDATION_CATALOGS.V1)) {
+    const error = new Error('foundationCatalog v2 is available only for Chapter Study.')
+    error.code = 'invalid_foundation_catalog'
     error.statusCode = 400
     throw error
   }
@@ -1501,11 +1556,24 @@ export function buildSyllabusPracticeSet({
     .map((record) => record.sourceQuestionId)
     .filter(Boolean)).size
   const effectiveRequestedCount = explicitSourceQuestionIds.length || requestedCount
-  const originalByTopic = originalFoundationGroupMap(originalFoundationGroups, routeId, topicSelection.selectedTopicIds)
+  const originalByTopic = originalFoundationGroupMap(
+    originalFoundationGroups,
+    routeId,
+    topicSelection.selectedTopicIds,
+    normalizedFoundationCatalog,
+  )
   const originalOnly = chapterStudy
     && normalizedSourcePreference === CHAPTER_STUDY_SOURCE_PREFERENCES.ORIGINAL_FOUNDATION_ONLY
+  const prioritizedOriginalGroups = (topicId) => {
+    const groups = originalByTopic.get(topicId) || []
+    if (!excludeAttempted) return groups
+    return [
+      ...groups.filter((group) => !attemptedIds.has(group.id)),
+      ...groups.filter((group) => attemptedIds.has(group.id)),
+    ]
+  }
   const availableOriginalGroups = chapterStudy
-    ? topicSelection.selectedTopicIds.map((topicId) => originalByTopic.get(topicId)).filter(Boolean)
+    ? topicSelection.selectedTopicIds.flatMap((topicId) => prioritizedOriginalGroups(topicId))
     : []
   const requiredOriginalGroups = chapterStudy
     ? topicSelection.selectedTopicIds.flatMap((selectedTopicId, index) => {
@@ -1514,7 +1582,7 @@ export function buildSyllabusPracticeSet({
           record.mapping.topicIds?.some((topicId) => topicScope.includes(topicId))
         ))
         if (hasOfficial) return []
-        const group = originalByTopic.get(selectedTopicId)
+        const group = prioritizedOriginalGroups(selectedTopicId)[0]
         return group ? [group] : []
       })
     : []
@@ -1628,8 +1696,8 @@ export function buildSyllabusPracticeSet({
     availableCount,
     sourceAvailability: Object.freeze({
       official: officialAvailableCount,
-      originalFoundation: originalByTopic.size,
-      total: officialAvailableCount + originalByTopic.size,
+      originalFoundation: availableOriginalGroups.length,
+      total: officialAvailableCount + availableOriginalGroups.length,
       selectedPool: availableCount,
     }),
     sourceMix: Object.freeze({
@@ -1655,6 +1723,9 @@ export function buildSyllabusPracticeSet({
     sourceQuestionIds: selectedOfficialRecords.map((record) => record.sourceQuestionId),
     questionGroupIds: questionGroups.map((group) => group.id),
     questionGroups,
+    ...(normalizedFoundationCatalog === ORIGINAL_FOUNDATION_CATALOGS.V2
+      ? { foundationCatalog: ORIGINAL_FOUNDATION_CATALOGS.V2 }
+      : {}),
   }
 }
 

@@ -13,7 +13,7 @@ import { createCurriculumPaperCatalog } from './curriculumPaperCatalog.js'
 import { createNativeQuestionImages } from './nativeQuestionImages.js'
 import { sendPublicCatalogJson } from './publicCatalogJson.js'
 import { createAnnouncementBoard } from './announcementBoard.js'
-import { decorateOriginalFoundationInventory, originalFoundationQuestionGroupsForRoute, scoreOriginalFoundationResponse } from './originalFoundationPractice.js'
+import { decorateOriginalFoundationInventory, normalizeOriginalFoundationCatalog, originalFoundationQuestionGroupsForRoute, scoreOriginalFoundationResponse } from './originalFoundationPractice.js'
 import {
   OBJECTIVE_RESULT_SCHEMA_VERSION,
   nativeChoiceOptions,
@@ -155,6 +155,14 @@ function validateTopicPracticeQuestionCount(payload) {
       code: 'invalid_source_preference',
     })
   }
+  const foundationCatalog = normalizeOriginalFoundationCatalog(payload?.foundationCatalog)
+  if (!foundationCatalog
+    || (studyMode !== SYLLABUS_PRACTICE_STUDY_MODES.CHAPTER_STUDY && payload?.foundationCatalog !== undefined)) {
+    throw Object.assign(new Error('foundationCatalog v2 is available only for Chapter Study.'), {
+      statusCode: 400,
+      code: 'invalid_foundation_catalog',
+    })
+  }
   const rawQuestionCount = payload?.questionCount
   const questionCount = rawQuestionCount === undefined ? 10 : Number(rawQuestionCount)
   const minimumQuestionCount = studyMode === SYLLABUS_PRACTICE_STUDY_MODES.CHAPTER_STUDY
@@ -166,7 +174,7 @@ function validateTopicPracticeQuestionCount(payload) {
       code: 'invalid_question_count',
     })
   }
-  return { studyMode, sourcePreference }
+  return { studyMode, sourcePreference, foundationCatalog }
 }
 
 function requireStartableTopicPracticeSet(result) {
@@ -430,7 +438,7 @@ function compactAttemptValue(value, key = '', depth = 0) {
   return result
 }
 
-function compactStudentAttemptSnapshot(payload, { attemptId, routeId, stage, paperId, paperStudyMode, studyMode, sourcePreference, submittedAt }) {
+function compactStudentAttemptSnapshot(payload, { attemptId, routeId, stage, paperId, paperStudyMode, studyMode, sourcePreference, foundationCatalog, submittedAt }) {
   const source = payload?.attempt && typeof payload.attempt === 'object' ? payload.attempt : {}
   const suppliedScoreResult = source.scoreResult ?? source.result ?? payload.scoreResult ?? payload.result
   const hasClientReportedResult = suppliedScoreResult && typeof suppliedScoreResult === 'object' && !Array.isArray(suppliedScoreResult)
@@ -457,6 +465,7 @@ function compactStudentAttemptSnapshot(payload, { attemptId, routeId, stage, pap
     paperStudyMode: asText(paperStudyMode, 60),
     studyMode: asText(studyMode, 32),
     sourcePreference: asText(sourcePreference, 40),
+    ...(foundationCatalog === 'v2' ? { foundationCatalog: 'v2' } : {}),
     pairKey: asText(source.pairKey || payload.pairKey, 240),
     paperRef: source.paperRef || payload.paperRef,
     profile: source.profile || payload.profile,
@@ -568,6 +577,7 @@ function authoritativeFocusedRetestParent(database, user, unit) {
   const parentUnitId = asText(snapshot?.unitId, 200)
   const parentStudyMode = asText(binding?.studyMode || snapshot?.studyMode, 32)
   const parentSourcePreference = asText(binding?.sourcePreference || snapshot?.sourcePreference, 40)
+  const parentFoundationCatalog = normalizeOriginalFoundationCatalog(binding?.foundationCatalog || snapshot?.foundationCatalog)
   const parentParts = Array.isArray(binding?.parts) ? binding.parts : []
   const parentSourceQuestionCount = new Set(parentParts
     .map((part) => String(part?.sourceQuestionId || '').trim())
@@ -576,6 +586,7 @@ function authoritativeFocusedRetestParent(database, user, unit) {
   const now = Date.now()
   const childRouteId = asText(unit?.routeId, 120).toLowerCase()
   const childStage = asText(unit?.stage, 40)
+  const childFoundationCatalog = normalizeOriginalFoundationCatalog(unit?.foundationCatalog)
   const parentMinimumQuestionCount = parentStudyMode === SYLLABUS_PRACTICE_STUDY_MODES.CHAPTER_STUDY
     ? 1
     : MIN_QUESTION_GROUPS_PER_TEST
@@ -591,6 +602,8 @@ function authoritativeFocusedRetestParent(database, user, unit) {
     || binding?.routeId !== childRouteId
     || binding?.stage !== stageForRoute(childRouteId)
     || (childStage && binding?.stage !== childStage)
+    || !parentFoundationCatalog
+    || childFoundationCatalog !== parentFoundationCatalog
     || parentSourceQuestionCount < parentMinimumQuestionCount
   ) throw focusedRetestParentUnavailable()
 
@@ -611,6 +624,7 @@ function authoritativeFocusedRetestParent(database, user, unit) {
     mode: binding.mode,
     studyMode: parentStudyMode,
     sourcePreference: parentSourcePreference,
+    ...(parentFoundationCatalog === 'v2' ? { foundationCatalog: 'v2' } : {}),
     routeId: binding.routeId,
     stage: binding.stage,
     parts: parentParts,
@@ -951,15 +965,28 @@ function canonicalStudentAttemptBinding(payload, questionBank) {
       code: 'attempt_binding_mismatch',
     })
   }
+  const suppliedFoundationCatalog = payload.foundationCatalog
+  const nestedFoundationCatalog = attempt.foundationCatalog
+  if (suppliedFoundationCatalog !== undefined && nestedFoundationCatalog !== undefined
+    && asText(suppliedFoundationCatalog, 16) !== asText(nestedFoundationCatalog, 16)) {
+    throw Object.assign(new Error('The supplied original foundation catalogs do not match.'), {
+      statusCode: 409,
+      code: 'attempt_binding_mismatch',
+    })
+  }
   const studyMode = mode === 'topic'
     ? normalizeSyllabusPracticeStudyMode(suppliedStudyMode ?? nestedStudyMode)
     : ''
   const sourcePreference = mode === 'topic'
     ? normalizeChapterStudySourcePreference(suppliedSourcePreference ?? nestedSourcePreference)
     : ''
-  if (mode === 'topic' && (!studyMode || !sourcePreference
+  const foundationCatalog = mode === 'topic'
+    ? normalizeOriginalFoundationCatalog(suppliedFoundationCatalog ?? nestedFoundationCatalog)
+    : ''
+  if (mode === 'topic' && (!studyMode || !sourcePreference || !foundationCatalog
     || (studyMode !== SYLLABUS_PRACTICE_STUDY_MODES.CHAPTER_STUDY
-      && (suppliedSourcePreference !== undefined || nestedSourcePreference !== undefined)))) {
+      && (suppliedSourcePreference !== undefined || nestedSourcePreference !== undefined
+        || suppliedFoundationCatalog !== undefined || nestedFoundationCatalog !== undefined)))) {
     throw Object.assign(new Error('The topic attempt has an invalid chapter study contract.'), {
       statusCode: 400,
       code: 'attempt_study_mode_invalid',
@@ -1007,8 +1034,15 @@ function canonicalStudentAttemptBinding(payload, questionBank) {
         throw Object.assign(new Error('Every source-bound attempt part must be unique and complete.'), { statusCode: 422, code: 'source_provenance_missing' })
       }
       seen.add(uniqueKey)
-      if (provenance.schemaVersion === 'stem-original-foundation-binding-v1') {
-        const originalGroup = originalFoundationQuestionGroupsForRoute(routeId)
+      if (['stem-original-foundation-binding-v1', 'stem-original-foundation-binding-v2'].includes(provenance.schemaVersion)) {
+        const bindingCatalog = provenance.schemaVersion.endsWith('-v2') ? 'v2' : 'v1'
+        if (bindingCatalog !== foundationCatalog) {
+          throw Object.assign(new Error('The original foundation binding catalog does not match the attempt capability.'), {
+            statusCode: 409,
+            code: 'attempt_binding_mismatch',
+          })
+        }
+        const originalGroup = originalFoundationQuestionGroupsForRoute(routeId, undefined, { foundationCatalog: bindingCatalog })
           .find((group) => group.id === sourceQuestionId)
         const originalPart = originalGroup?.parts.find((candidate) => candidate.partId === questionPartId)
         const canonical = originalPart?.sourceBindingProvenance
@@ -1075,6 +1109,7 @@ function canonicalStudentAttemptBinding(payload, questionBank) {
     paperStudyMode,
     studyMode,
     sourcePreference,
+    ...(foundationCatalog === 'v2' ? { foundationCatalog: 'v2' } : {}),
     parts,
   }
 }
@@ -2702,6 +2737,13 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
       const syllabusRouteMatch = url.pathname.match(/^\/api\/stem\/routes\/([^/]+)\/syllabus-topics$/)
       if (request.method === 'GET' && syllabusRouteMatch) {
         const routeId = decodeURIComponent(syllabusRouteMatch[1])
+        const foundationCatalog = normalizeOriginalFoundationCatalog(url.searchParams.get('foundationCatalog') ?? undefined)
+        if (!foundationCatalog) {
+          throw Object.assign(new Error('foundationCatalog must be v1 or v2.'), {
+            statusCode: 400,
+            code: 'invalid_foundation_catalog',
+          })
+        }
         const routeIncludesStudyOnly = includeStudyOnlyForRoute()
         const topicPracticeQuestionBank = currentRuntimeTopicPracticeQuestionBank()
         const runtimeDb = appDatabase(env, topicPracticeQuestionBank)
@@ -2721,7 +2763,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
           topics,
           ready: topics.length > 0 && topics.every((topic) => topic.ready),
           aggregation: 'sqlite-question-groups-and-syllabus-mappings',
-        })
+        }, { foundationCatalog })
         await sendPublicCatalogJson(request, response, 200, inventory)
         return
       }
@@ -2781,7 +2823,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
       }
       if (request.method === 'POST' && url.pathname === '/api/stem/practice-sets') {
         const payload = await readJson(request)
-        const { studyMode, sourcePreference } = validateTopicPracticeQuestionCount(payload)
+        const { studyMode, sourcePreference, foundationCatalog } = validateTopicPracticeQuestionCount(payload)
         const user = request.headers.authorization ? identityFromRequest(request, signingKey) : null
         const routeIncludesStudyOnly = includeStudyOnlyForRoute()
         const topicPracticeQuestionBank = currentRuntimeTopicPracticeQuestionBank()
@@ -2791,6 +2833,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
           questionCount: payload.questionCount,
           studyMode,
           sourcePreference,
+          foundationCatalog,
           components: payload.components,
           excludeAttempted: payload.excludeAttempted !== false,
           attemptedQuestionIds: payload.attemptedQuestionIds,
@@ -2801,7 +2844,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
           originalFoundationGroups: originalFoundationQuestionGroupsForRoute(
             payload.routeId,
             payload.syllabusTopicIds,
-            { components: payload.components },
+            { components: payload.components, foundationCatalog },
           ),
         })
         requireStartableTopicPracticeSet(result)
@@ -2836,7 +2879,10 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
           originalFoundationGroups: originalFoundationQuestionGroupsForRoute(
             payload.unit.routeId,
             undefined,
-            { components: payload.unit.paperComponent },
+            {
+              components: payload.unit.paperComponent,
+              foundationCatalog: normalizeOriginalFoundationCatalog(payload.unit.foundationCatalog),
+            },
           ),
           focusedRetestParent,
         })
@@ -3062,6 +3108,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
           paperStudyMode: binding.paperStudyMode,
           studyMode: binding.studyMode,
           sourcePreference: binding.sourcePreference,
+          foundationCatalog: binding.foundationCatalog,
           submittedAt,
         })
         const persistedSnapshot = existing?.submissionStatus === 'submitted' && submissionStatus === 'submitted'
@@ -3127,7 +3174,8 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
         }
         const persistedAttempt = parseStudentAttemptRow(persistedAttemptRow)
         if ((Array.isArray(payload.parts) ? payload.parts : []).some((part) => (
-          (part?.provenance || part)?.schemaVersion === 'stem-original-foundation-binding-v1'
+          ['stem-original-foundation-binding-v1', 'stem-original-foundation-binding-v2']
+            .includes((part?.provenance || part)?.schemaVersion)
         ))) {
           throw Object.assign(new Error('Original foundation practice uses its deterministic learning-only scorer, not AI marking.'), {
             statusCode: 409,

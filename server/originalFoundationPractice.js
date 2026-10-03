@@ -5,10 +5,13 @@ import { SYLLABUS_PRACTICE_ROUTE_IDS } from '../src/lib/syllabusPracticeRoutes.j
 
 export const ORIGINAL_FOUNDATION_SCHEMA_VERSION = 'stem-original-foundation-question-v1'
 export const ORIGINAL_FOUNDATION_CATALOG_VERSION = 'v1'
+export const ORIGINAL_FOUNDATION_V2_SCHEMA_VERSION = 'stem-original-foundation-question-v2'
+export const ORIGINAL_FOUNDATION_V2_CATALOG_VERSION = 'v2'
 export const ORIGINAL_FOUNDATION_SOURCE_KIND = 'original-foundation'
 export const ORIGINAL_FOUNDATION_SOURCE_AUTHORITY = 'original-foundation-catalog'
 export const ORIGINAL_FOUNDATION_DISPLAY_LABEL = '原创基础练习'
 export const ORIGINAL_FOUNDATION_SUBMISSION_ENDPOINT = '/api/stem/original-foundation/submit'
+export const ORIGINAL_FOUNDATION_ITEM_KINDS = Object.freeze(['concept', 'application', 'transfer'])
 
 const ORIGINAL_FOUNDATION_ROUTE_TOPIC_STATEMENTS = Object.freeze({
   'cie-0580-igcse-mathematics:0580-igcse-topic-01': 'Number work uses place value, arithmetic, proportional reasoning and representations such as fractions, percentages and standard form.',
@@ -328,6 +331,165 @@ const ORIGINAL_FOUNDATION_WITHIN_TOPIC_DISTRACTORS = Object.freeze({
   'International economic issues': ['A tariff necessarily lowers the domestic price of an import.', 'Currency appreciation always makes exports cheaper to foreign buyers.', 'The current-account balance and the government budget balance are the same measure.'],
 })
 
+function applicationSpec(prompt, correct, distractors, explanation, nextStep) {
+  return Object.freeze({
+    prompt,
+    correct,
+    distractors: Object.freeze(distractors),
+    explanation,
+    nextStep,
+  })
+}
+
+// Product-design basis for the v2 progression (questions remain original):
+// Cambridge Skills Exercises pair topic-specific knowledge with application /
+// interpretation and suggested answers:
+// https://learning.cambridgeinternational.org/classroom/course/section.php?id=41672
+// IES recommends retrieval quizzes, abstract-to-concrete connections, worked
+// examples interleaved with problem solving, and deep explanatory prompts:
+// https://ies.ed.gov/ncee/wwc/PracticeGuide/1
+const V2_APPLICATION_SPECS = Object.freeze({
+  Number: applicationSpec('A jacket costs $80 and its price rises by 25%. What is the new price?', '$100', ['$85', '$95', '$105'], 'A 25% increase is 0.25 × 80 = 20, so the new price is 80 + 20.', 'Practise converting a percentage change into a multiplier before calculating.'),
+  'Algebra and graphs': applicationSpec('The graphs y = 2x + 1 and y = 7 intersect. What is the x-coordinate of the intersection?', '3', ['2', '4', '7'], 'At the intersection, 2x + 1 = 7, so 2x = 6 and x = 3.', 'Set the two expressions for y equal whenever two graphs intersect.'),
+  'Coordinate geometry': applicationSpec('What is the gradient of the line through (2, 3) and (6, 11)?', '2', ['1/2', '4', '8'], 'Gradient = (11 - 3) / (6 - 2) = 8 / 4 = 2.', 'Write change in y over change in x in the same point order.'),
+  Geometry: applicationSpec('Three angles of a quadrilateral are 70°, 95° and 110°. What is the fourth angle?', '85°', ['75°', '95°', '105°'], 'Interior angles of a quadrilateral total 360°, so the missing angle is 360 - 275 = 85°.', 'State the relevant angle total before subtracting known angles.'),
+  Mensuration: applicationSpec('A cylinder has radius 3 cm and height 5 cm. What is its volume?', '45π cm³', ['15π cm³', '30π cm³', '90π cm³'], 'Cylinder volume is πr²h = π × 3² × 5 = 45π cm³.', 'Square the radius before multiplying by height.'),
+  Trigonometry: applicationSpec('A right triangle has opposite side 6 and adjacent side 8. What is tan θ?', '3/4', ['4/3', '3/5', '5/4'], 'tan θ = opposite / adjacent = 6 / 8 = 3/4.', 'Label opposite and adjacent relative to the chosen angle before forming the ratio.'),
+  'Transformations and vectors': applicationSpec('Point (2, -1) is translated by vector (3, 4). What is its image?', '(5, 3)', ['(-1, 3)', '(5, -5)', '(6, 3)'], 'Add vector components to the coordinates: (2 + 3, -1 + 4) = (5, 3).', 'Apply horizontal and vertical vector components separately.'),
+  Probability: applicationSpec('A fair bag contains 3 red and 2 blue counters. One counter is chosen. What is P(red)?', '3/5', ['2/5', '1/3', '3/2'], 'There are 3 favourable outcomes among 5 equally likely counters.', 'Count favourable outcomes and divide by the total number of outcomes.'),
+  Statistics: applicationSpec('The values are 2, 4, 4, 6 and 9. What is the median?', '4', ['5', '6', '9'], 'The ordered list has five values, so the middle third value is 4.', 'Order the data before locating the middle value.'),
+  Functions: applicationSpec('For f(x) = 2x² - 3, what is f(2)?', '5', ['1', '7', '13'], 'Substitute x = 2: 2(2²) - 3 = 8 - 3 = 5.', 'Use brackets when substituting into powers.'),
+  'Quadratics and polynomials': applicationSpec('For f(x) = x² - 5x + 6, which value is a root?', 'x = 2', ['x = 0', 'x = 1', 'x = 5'], 'f(x) factors as (x - 2)(x - 3), so x = 2 is a root.', 'Factorise or substitute each candidate to test whether f(x) = 0.'),
+  'Equations, inequalities and graphs': applicationSpec('Solve -2x > 6.', 'x < -3', ['x > -3', 'x < 3', 'x > 3'], 'Dividing an inequality by -2 reverses its direction, giving x < -3.', 'Reverse the inequality sign whenever multiplying or dividing by a negative value.'),
+  'Indices, surds and logarithms': applicationSpec('Simplify 2³ × 2⁵.', '2⁸', ['2¹⁵', '4⁸', '2²'], 'For the same base, add exponents: 3 + 5 = 8.', 'Check that the bases match before applying an index law.'),
+  'Factors of polynomials': applicationSpec('Given f(x) = x³ - 4x² + x + 6 and f(2) = 0, which factor must f(x) have?', 'x - 2', ['x + 2', 'x - 6', '2x - 1'], 'The factor theorem gives x - a as a factor when f(a) = 0.', 'Match the tested root a to the factor x - a.'),
+  'Simultaneous equations': applicationSpec('Solve x + y = 7 and x - y = 1. What is x?', '4', ['3', '6', '8'], 'Adding the equations gives 2x = 8, hence x = 4.', 'Choose elimination when coefficients cancel cleanly.'),
+  'Logarithmic and exponential functions': applicationSpec('Solve 2ˣ = 16.', 'x = 4', ['x = 2', 'x = 8', 'x = 14'], 'Since 16 = 2⁴, the exponent is 4.', 'Express both sides with the same base when possible.'),
+  'Straight-line graphs': applicationSpec('A line has gradient 3 and passes through (0, -2). What is its equation?', 'y = 3x - 2', ['y = -2x + 3', 'y = 3x + 2', 'y = x - 6'], 'In y = mx + c, m = 3 and the point at x = 0 gives c = -2.', 'Read the y-intercept from the value of y when x = 0.'),
+  'Circular measure': applicationSpec('A sector has radius 4 m and angle 0.5 rad. What is its arc length?', '2 m', ['1 m', '4 m', '8 m'], 'Arc length s = rθ = 4 × 0.5 = 2 m.', 'Use radians directly in s = rθ.'),
+  'Permutations and combinations': applicationSpec('How many ways can 2 students be chosen from 5 when order does not matter?', '10', ['7', '20', '25'], 'The count is 5C2 = 5! / (2!3!) = 10.', 'Use combinations when rearranging the chosen members does not create a new selection.'),
+  Series: applicationSpec('An arithmetic sequence starts 5, 8, 11, ... What is its 10th term?', '32', ['27', '35', '50'], 'a₁₀ = 5 + 9 × 3 = 32.', 'For an arithmetic sequence use a + (n - 1)d.'),
+  Vectors: applicationSpec('Vector a = (2, -1) and b = (3, 4). What is a + b?', '(5, 3)', ['(1, 5)', '(6, -4)', '(5, -5)'], 'Add corresponding components: (2 + 3, -1 + 4) = (5, 3).', 'Keep horizontal and vertical components aligned.'),
+  Calculus: applicationSpec('For y = x³, what is dy/dx at x = 2?', '12', ['4', '6', '24'], 'dy/dx = 3x², so at x = 2 the gradient is 3 × 4 = 12.', 'Differentiate first, then substitute the required x-value.'),
+  Quadratics: applicationSpec('How many distinct real roots does x² - 4x + 4 = 0 have?', '1', ['0', '2', '4'], 'The discriminant is (-4)² - 4(1)(4) = 0, so there is one repeated real root.', 'Use the sign of the discriminant to classify roots.'),
+  Differentiation: applicationSpec('Differentiate y = 3x⁴ - 2x.', 'dy/dx = 12x³ - 2', ['dy/dx = 7x³', 'dy/dx = 12x⁴ - 2', 'dy/dx = 3x³ - 2'], 'Apply the power rule term by term.', 'Multiply by the old power and reduce the power by one.'),
+  Integration: applicationSpec('Evaluate ∫₀² 2x dx.', '4', ['2', '6', '8'], 'An antiderivative is x²; evaluating from 0 to 2 gives 4.', 'Find an antiderivative before applying the limits.'),
+  Algebra: applicationSpec('What is the remainder when x² + 3x + 5 is divided by x - 2?', '15', ['3', '7', '11'], 'By the remainder theorem, the remainder is f(2) = 4 + 6 + 5 = 15.', 'Substitute the root of the divisor into the polynomial.'),
+  'Numerical solution of equations': applicationSpec('Newton iteration for f(x) uses xₙ₊₁ = xₙ - f(xₙ)/f′(xₙ). If f(2)=3 and f′(2)=6, what is x₁?', '1.5', ['0.5', '2.5', '5'], 'x₁ = 2 - 3/6 = 1.5.', 'Substitute the function and derivative values into the iteration carefully.'),
+  'Forces and equilibrium': applicationSpec('A particle has horizontal forces 12 N right and 7 N left. What additional force gives equilibrium?', '5 N left', ['5 N right', '19 N left', '19 N right'], 'The existing resultant is 5 N right, so equilibrium needs 5 N left.', 'Find the current resultant before adding the balancing force.'),
+  'Kinematics of motion in a straight line': applicationSpec('Velocity increases uniformly from 2 m/s to 8 m/s in 3 s. What is the displacement?', '15 m', ['10 m', '18 m', '30 m'], 'Displacement is the area under the velocity-time graph: average velocity 5 m/s × 3 s = 15 m.', 'For uniform acceleration use average velocity times time.'),
+  Momentum: applicationSpec('A 2 kg object moves at 3 m/s. What is its momentum?', '6 kg m/s', ['1.5 kg m/s', '5 kg m/s', '9 kg m/s'], 'p = mv = 2 × 3 = 6 kg m/s.', 'Include direction when the problem gives vector directions.'),
+  "Newton's laws of motion": applicationSpec('A resultant force of 12 N acts on a 3 kg mass. What is its acceleration?', '4 m/s²', ['0.25 m/s²', '9 m/s²', '36 m/s²'], 'From F = ma, a = 12 / 3 = 4 m/s².', 'Rearrange the force equation before inserting values.'),
+  'Energy, work and power': applicationSpec('A motor transfers 600 J in 20 s. What is its power?', '30 W', ['12 W', '120 W', '12 000 W'], 'P = E/t = 600/20 = 30 W.', 'Power is a rate, so divide energy by time.'),
+  'Representation of data': applicationSpec('A histogram class 10 ≤ x < 15 has frequency 20. What is its frequency density?', '4', ['2', '5', '100'], 'Class width is 5, so frequency density = 20 / 5 = 4.', 'Use frequency divided by class width for unequal-width histograms.'),
+  'Discrete random variables': applicationSpec('X takes values 0 and 1 with probabilities 0.3 and 0.7. What is E(X)?', '0.7', ['0.3', '0.5', '1.0'], 'E(X) = 0(0.3) + 1(0.7) = 0.7.', 'Multiply each value by its probability and add.'),
+  'The normal distribution': applicationSpec('For a normal distribution with mean 50, what is P(X < 50)?', '0.5', ['0', '0.25', '1'], 'A normal distribution is symmetric about its mean, so half the area lies below 50.', 'Use symmetry before standardising when the boundary is the mean.'),
+  'Differential equations': applicationSpec('Which function satisfies dy/dx = 2x and y(0) = 3?', 'y = x² + 3', ['y = 2x + 3', 'y = x²', 'y = 2x² + 3'], 'Integrating 2x gives x² + C, and y(0)=3 gives C=3.', 'Integrate first, then apply the initial condition.'),
+  'Complex numbers': applicationSpec('For z = 3 + 4i, what is |z|?', '5', ['1', '7', '25'], 'The modulus is √(3² + 4²) = 5.', 'Treat the real and imaginary parts as perpendicular components.'),
+  'The Poisson distribution': applicationSpec('Calls arrive at mean 2 per minute under a Poisson model. What is P(X=0) in one minute?', 'e⁻²', ['2e⁻²', '1 - e⁻²', 'e²'], 'P(X=0)=e⁻²2⁰/0!=e⁻².', 'Substitute x=0 carefully into the Poisson probability formula.'),
+  'Linear combinations of random variables': applicationSpec('Independent X and Y have variances 2 and 3. What is Var(2X + Y)?', '11', ['7', '10', '13'], 'Var(2X+Y)=2²Var(X)+Var(Y)=4×2+3=11.', 'Square coefficients when combining independent variances.'),
+  'Continuous random variables': applicationSpec('A density is f(x)=2x for 0≤x≤1. What is P(X≤0.5)?', '0.25', ['0.5', '0.75', '1'], 'Integrate 2x from 0 to 0.5 to obtain x²|₀^0.5 = 0.25.', 'Probability is area under the density over the required interval.'),
+  'Sampling and estimation': applicationSpec('A sample proportion is 0.40 from n=100. What is its estimated standard error?', '√(0.4×0.6/100)', ['0.4×0.6/100', '√(0.4/100)', '√(100/0.24)'], 'The estimated standard error is √[p̂(1-p̂)/n].', 'Identify the estimate and sample size before using the standard-error formula.'),
+  'Hypothesis tests': applicationSpec('A two-sided test gives p = 0.03 at the 5% level. What is the decision?', 'Reject H₀', ['Accept H₀ as proven', 'Increase p to 0.05', 'Use a 50% level'], 'Since p < 0.05, the result lies in the rejection region.', 'Compare the p-value with the preselected significance level.'),
+  'Further Pure Mathematics 1': applicationSpec('A plane transformation has matrix [[2,0],[0,3]]. What is its area scale factor?', '6', ['1', '5', '9'], 'The area scale factor is |det A| = |2×3 - 0| = 6.', 'Calculate the determinant and use its absolute value for area scale.'),
+  'Further Mechanics': applicationSpec('A constant 5 N resultant force acts for 4 s. What is the impulse?', '20 N s', ['1.25 N s', '9 N s', '25 N s'], 'Impulse = Ft = 5 × 4 = 20 N s.', 'For constant force, multiply force by the time interval.'),
+  'Further Probability and Statistics': applicationSpec('An estimator T has E(T)=θ and Var(T)=4/n. Which property is guaranteed?', 'T is unbiased for θ', ['T always equals θ', 'T has zero variance for every n', 'T is biased upward by 4/n'], 'Unbiasedness means the estimator’s expected value equals the target parameter.', 'Separate bias, variance and consistency when evaluating an estimator.'),
+  'Further Pure Mathematics 2': applicationSpec('For z = 1 + i, which is a principal argument?', 'π/4', ['-π/4', 'π/2', '3π/4'], 'The point (1,1) lies in the first quadrant at angle π/4.', 'Use the signs of real and imaginary parts to choose the correct quadrant.'),
+  'Further Mechanics when selected for A Level completion': applicationSpec('A constant 5 N resultant force acts for 4 s. What is the impulse?', '20 N s', ['1.25 N s', '9 N s', '25 N s'], 'Impulse = Ft = 5 × 4 = 20 N s.', 'For constant force, multiply force by the time interval.'),
+  'Further Probability and Statistics when selected for A Level completion': applicationSpec('An estimator T has E(T)=θ and Var(T)=4/n. Which property is guaranteed?', 'T is unbiased for θ', ['T always equals θ', 'T has zero variance for every n', 'T is biased upward by 4/n'], 'Unbiasedness means the estimator’s expected value equals the target parameter.', 'Separate bias, variance and consistency when evaluating an estimator.'),
+  'Motion, forces and energy': applicationSpec('A 4 kg trolley accelerates at 2 m/s². What resultant force acts on it?', '8 N', ['2 N', '6 N', '16 N'], 'F = ma = 4 × 2 = 8 N.', 'Identify mass and acceleration before applying Newton’s second law.'),
+  'Thermal physics': applicationSpec('A pure substance is melting while it is heated at constant pressure. What happens to its temperature during the phase change?', 'It remains constant while internal energy increases.', ['It rises steadily with no energy change.', 'It falls because particles stop moving.', 'It becomes absolute zero.'], 'Energy supplied changes particle potential energy during melting rather than raising temperature.', 'Distinguish energy transfer from temperature change during a phase transition.'),
+  Waves: applicationSpec('A wave has frequency 5 Hz and wavelength 2 m. What is its speed?', '10 m/s', ['2.5 m/s', '7 m/s', '20 m/s'], 'v = fλ = 5 × 2 = 10 m/s.', 'Check that frequency and wavelength use compatible SI units.'),
+  'Electricity and magnetism': applicationSpec('A 2 A current flows through a straight wire for 3 s. How much charge passes?', '6 C', ['1.5 C', '5 C', '9 C'], 'Q = It = 2 × 3 = 6 C.', 'Use current as charge transferred per unit time.'),
+  'Nuclear physics': applicationSpec('A sample has a half-life of 4 h. What fraction remains after 12 h?', '1/8', ['1/2', '1/3', '1/16'], 'Twelve hours is three half-lives, so the remaining fraction is (1/2)³ = 1/8.', 'Count complete half-lives before applying repeated halving.'),
+  'Space physics': applicationSpec('A satellite moves in a circular orbit at constant speed. Which direction is its acceleration?', 'Toward the centre of the orbit', ['Along the tangent in the direction of motion', 'Away from the centre', 'There is no acceleration'], 'Circular motion requires centripetal acceleration toward the centre even when speed is constant.', 'Separate constant speed from constant velocity.'),
+  'Physical quantities and units': applicationSpec('Which SI base-unit expression is equivalent to one newton?', 'kg m s⁻²', ['kg m² s⁻¹', 'kg s⁻²', 'm s⁻¹'], 'From F = ma, force has units kg × m s⁻².', 'Derive units from the defining equation instead of memorising them alone.'),
+  Kinematics: applicationSpec('A car changes velocity from 4 m/s to 10 m/s in 3 s. What is its average acceleration?', '2 m/s²', ['3 m/s²', '4.7 m/s²', '18 m/s²'], 'a = Δv/Δt = (10 - 4)/3 = 2 m/s².', 'Use change in velocity, not final velocity alone.'),
+  Dynamics: applicationSpec('A 10 kg object has forces 50 N right and 20 N left. What is its acceleration?', '3 m/s² right', ['7 m/s² right', '3 m/s² left', '0.3 m/s² right'], 'The resultant is 30 N right, so a = 30/10 = 3 m/s² right.', 'Find the vector resultant before dividing by mass.'),
+  'Forces, density and pressure': applicationSpec('A force of 120 N acts normally on area 0.30 m². What pressure is produced?', '400 Pa', ['36 Pa', '120 Pa', '600 Pa'], 'p = F/A = 120/0.30 = 400 Pa.', 'Convert the area to square metres before dividing.'),
+  'Work, energy and power': applicationSpec('A force of 15 N moves an object 4 m in its direction. How much work is done?', '60 J', ['3.75 J', '19 J', '225 J'], 'W = Fs = 15 × 4 = 60 J.', 'Use the component of force along the displacement.'),
+  'Deformation of solids': applicationSpec('A wire has stress 2.0×10⁸ Pa and strain 1.0×10⁻³ in its linear region. What is Young modulus?', '2.0×10¹¹ Pa', ['2.0×10⁵ Pa', '2.0×10⁸ Pa', '2.0×10⁻¹¹ Pa'], 'E = stress/strain = 2.0×10⁸ / 1.0×10⁻³ = 2.0×10¹¹ Pa.', 'Divide stress by strain and track powers of ten.'),
+  Superposition: applicationSpec('Two pulses overlap with displacements +3 cm and -1 cm. What is the resultant displacement?', '+2 cm', ['-4 cm', '+3 cm', '+4 cm'], 'Superposition adds signed displacements: 3 + (-1) = 2 cm.', 'Keep displacement signs when combining waves.'),
+  Electricity: applicationSpec('A device transfers 24 J when 6 C passes through it. What is the potential difference?', '4 V', ['0.25 V', '18 V', '144 V'], 'V = W/Q = 24/6 = 4 V.', 'Potential difference is energy transferred per unit charge.'),
+  'D.C. circuits': applicationSpec('Two resistors 3 Ω and 5 Ω are connected in series. What is their total resistance?', '8 Ω', ['1.875 Ω', '2 Ω', '15 Ω'], 'Series resistances add: 3 + 5 = 8 Ω.', 'First identify whether the components are in series or parallel.'),
+  'Particle physics': applicationSpec('A particle reaction starts with total charge +1e. What total charge must the products have?', '+1e', ['-1e', '0', '+2e'], 'Electric charge is conserved in particle reactions.', 'Check each conserved quantum number separately.'),
+  'Motion in a circle': applicationSpec('A car moves at 10 m/s around a circle of radius 20 m. What is its centripetal acceleration?', '5 m/s²', ['0.5 m/s²', '10 m/s²', '200 m/s²'], 'a = v²/r = 100/20 = 5 m/s².', 'Square the speed before dividing by radius.'),
+  'Gravitational fields': applicationSpec('A 2 kg mass experiences gravitational force 18 N. What is the field strength?', '9 N/kg', ['4.5 N/kg', '16 N/kg', '36 N/kg'], 'g = F/m = 18/2 = 9 N/kg.', 'Use force per unit mass for gravitational field strength.'),
+  Temperature: applicationSpec('What temperature is 27 °C on the kelvin scale to the nearest kelvin?', '300 K', ['246 K', '273 K', '327 K'], 'T/K = θ/°C + 273, so 27 + 273 = 300 K.', 'Convert Celsius to kelvin before using thermodynamic equations.'),
+  'Ideal gases': applicationSpec('One mole of ideal gas is at 300 K in volume 0.024 m³. Using R=8.31, what pressure is closest?', '1.04×10⁵ Pa', ['1.04×10³ Pa', '5.98×10⁵ Pa', '9.97×10⁶ Pa'], 'p = nRT/V = 8.31×300/0.024 ≈ 1.04×10⁵ Pa.', 'Use kelvin and cubic metres in the ideal-gas equation.'),
+  Thermodynamics: applicationSpec('A gas receives 500 J by heating and does 200 J of work. What is its increase in internal energy?', '300 J', ['200 J', '500 J', '700 J'], 'Using ΔU = Q - W, ΔU = 500 - 200 = 300 J.', 'Choose and state a consistent sign convention for work.'),
+  Oscillations: applicationSpec('In SHM, ω = 4 rad/s and displacement x = 0.20 m. What is acceleration?', '-3.2 m/s²', ['-0.8 m/s²', '+0.8 m/s²', '+3.2 m/s²'], 'a = -ω²x = -16×0.20 = -3.2 m/s².', 'The negative sign shows acceleration toward equilibrium.'),
+  'Electric fields': applicationSpec('A charge 2.0×10⁻⁶ C experiences force 0.010 N. What is the electric field strength?', '5.0×10³ N/C', ['2.0×10⁻⁸ N/C', '2.0×10⁻⁴ N/C', '2.0×10⁴ N/C'], 'E = F/Q = 0.010/(2.0×10⁻⁶) = 5.0×10³ N/C.', 'Divide force by test charge and track powers of ten.'),
+  Capacitance: applicationSpec('A capacitor stores 6.0 mC at 3.0 V. What is its capacitance?', '2.0 mF', ['0.50 mF', '9.0 mF', '18 mF'], 'C = Q/V = 6.0 mC / 3.0 V = 2.0 mF.', 'Use consistent charge units before dividing by voltage.'),
+  'Magnetic fields': applicationSpec('A 0.20 m wire carries 3.0 A perpendicular to a 0.50 T field. What force acts?', '0.30 N', ['0.03 N', '0.70 N', '1.50 N'], 'F = BIL = 0.50×3.0×0.20 = 0.30 N.', 'Use the perpendicular component when the wire is angled to the field.'),
+  'Alternating currents': applicationSpec('A sinusoidal voltage has peak value 100 V. What is its rms value?', 'about 70.7 V', ['50 V', '100 V', '141 V'], 'For a sinusoid, Vrms = Vpeak/√2 ≈ 70.7 V.', 'Distinguish peak, peak-to-peak and rms values.'),
+  'Quantum physics': applicationSpec('What is the photon energy for frequency 5.0×10¹⁴ Hz using h=6.63×10⁻³⁴ J s?', '3.32×10⁻¹⁹ J', ['1.33×10⁻⁴⁸ J', '7.54×10⁻⁷ J', '3.32×10¹⁹ J'], 'E = hf = 6.63×10⁻³⁴×5.0×10¹⁴ ≈ 3.32×10⁻¹⁹ J.', 'Multiply Planck constant by frequency and combine exponents.'),
+  'Medical physics': applicationSpec('An ultrasound pulse returns 120 μs after reflecting from tissue. If sound speed is 1500 m/s, how deep is the boundary?', '0.090 m', ['0.045 m', '0.18 m', '90 m'], 'Depth = vt/2 = 1500×120×10⁻⁶/2 = 0.090 m.', 'Divide the round-trip distance by two.'),
+  'Astronomy and cosmology': applicationSpec('A galaxy has recession speed 14 000 km/s and H₀ = 70 km/s/Mpc. What is its estimated distance?', '200 Mpc', ['20 Mpc', '980 Mpc', '2000 Mpc'], 'From v = H₀d, d = 14 000/70 = 200 Mpc.', 'Rearrange Hubble’s law and keep its compound units consistent.'),
+  'Characteristics and classification': applicationSpec('Two organisms share many derived DNA sequences and a recent common ancestor. Which classification conclusion is best supported?', 'They should be placed in closely related taxonomic groups.', ['They must be the same individual organism.', 'They cannot belong to the same kingdom.', 'DNA evidence is irrelevant to classification.'], 'Shared derived molecular evidence supports a close evolutionary relationship.', 'Compare multiple inherited characteristics before inferring relatedness.'),
+  'Organisation of the organism': applicationSpec('Several similar muscle cells work together to contract the stomach wall. What level of organisation do they form?', 'A tissue', ['An organ system', 'An organelle', 'A whole organism'], 'A group of similar specialised cells performing a function forms a tissue.', 'Use the sequence cell → tissue → organ → organ system.'),
+  'Movement in and out of cells': applicationSpec('A plant cell is placed in a solution with lower water potential than the cell sap. What is the initial net water movement?', 'Water moves out of the cell by osmosis.', ['Water moves into the cell by active transport.', 'Solute moves out through a fully permeable membrane.', 'There is no movement because water potential is irrelevant.'], 'Water moves from higher to lower water potential across a partially permeable membrane.', 'Compare water potentials before predicting osmotic movement.'),
+  'Biological molecules': applicationSpec('A food sample gives a lilac colour in the Biuret test. Which molecule is present?', 'Protein', ['Reducing sugar', 'Lipid', 'Starch'], 'A positive Biuret test indicates peptide bonds in protein.', 'Link each biochemical test to its reagent and positive colour change.'),
+  Enzymes: applicationSpec('An enzyme-controlled reaction slows sharply above 60 °C and does not recover after cooling. What best explains this?', 'The enzyme has denatured and its active site changed shape.', ['The substrate has become an enzyme.', 'The activation energy has become zero.', 'The enzyme has been converted permanently into product.'], 'High temperature can disrupt bonds maintaining the enzyme’s tertiary structure.', 'Distinguish reversible temperature effects from irreversible denaturation.'),
+  'Plant nutrition': applicationSpec('A destarched leaf has one illuminated green region and one covered region. After iodine testing, where should blue-black colour appear?', 'Only in the illuminated green region', ['Only in the covered region', 'Everywhere equally', 'Nowhere, because leaves cannot make starch'], 'Light and chlorophyll are required for photosynthesis that produces carbohydrate stored as starch.', 'Identify which experimental region has every required factor.'),
+  'Human nutrition': applicationSpec('After digestion, where is most glucose absorbed into the blood?', 'Across villi in the small intestine', ['Across the stomach wall only', 'In the large intestine by bile', 'In the oesophagus by peristalsis'], 'Villi provide a large, thin, well-supplied surface for absorption in the small intestine.', 'Relate digestive-organ structure to its specific function.'),
+  Transport: applicationSpec('Why does a large active organism need a mass-transport system rather than diffusion alone?', 'Its small surface-area-to-volume ratio and long internal distances make diffusion too slow.', ['Diffusion cannot occur in living cells.', 'Transport systems stop concentration gradients forming.', 'Large organisms have no exchange surfaces.'], 'Increasing size reduces relative surface area and increases diffusion distance.', 'Use size, surface area and diffusion distance together in explanations.'),
+  'Diseases and immunity': applicationSpec('A bacterial culture is sensitive to an antibiotic, but a viral infection is not. Why?', 'The antibiotic targets bacterial structures or processes that viruses lack.', ['Viruses have thicker cell walls than bacteria.', 'Antibiotics are antibodies made by viruses.', 'Bacteria and viruses have identical cellular machinery.'], 'Antibiotics act on bacterial targets and do not treat viruses lacking those targets.', 'Match a treatment to the biology of the pathogen.'),
+  'Gas exchange': applicationSpec('During exercise, ventilation and blood flow to lungs increase. What is the main gas-exchange benefit?', 'Steeper oxygen and carbon-dioxide concentration gradients are maintained.', ['The alveolar walls become permanently thicker.', 'Diffusion distance increases.', 'Oxygen is moved by active transport across alveoli.'], 'Renewing air and blood maintains gradients that speed diffusion.', 'Explain exchange rate using area, distance and gradient.'),
+  Respiration: applicationSpec('A muscle receives insufficient oxygen during intense exercise. Which process can continue briefly?', 'Anaerobic respiration producing a smaller ATP yield', ['Photosynthesis producing oxygen', 'Aerobic respiration at a higher ATP yield', 'DNA replication replacing ATP'], 'Anaerobic pathways regenerate enough cofactor for limited ATP production without oxygen.', 'Compare ATP yield and products of aerobic and anaerobic pathways.'),
+  Excretion: applicationSpec('Blood urea concentration rises when which organ fails to remove it effectively?', 'The kidney', ['The pancreas', 'The trachea', 'The gall bladder'], 'Kidneys filter blood and excrete urea in urine.', 'Trace each metabolic waste from its production to its excretory route.'),
+  'Coordination and response': applicationSpec('A hand touches a hot surface and withdraws before conscious awareness. Which pathway explains this?', 'A reflex arc through sensory, relay and motor neurones', ['A hormone moving across one synapse', 'An antibody binding the heat', 'Diffusion of an impulse through blood'], 'A reflex arc produces a rapid involuntary response through the nervous system.', 'Follow information from receptor to coordinator to effector.'),
+  Reproduction: applicationSpec('Which outcome is most likely from sexual reproduction?', 'Offspring show genetic variation from combining two gametes.', ['All offspring are clones of one parent.', 'Chromosome number doubles every generation.', 'No genetic information passes to offspring.'], 'Meiosis and random fertilisation generate new allele combinations.', 'Connect gamete formation and fertilisation to variation.'),
+  Inheritance: applicationSpec('Two heterozygous parents Aa × Aa have a child. What is the probability of genotype aa?', '1/4', ['0', '1/2', '3/4'], 'The Punnett outcomes AA, Aa, Aa and aa make aa one of four.', 'List gametes and combine them systematically.'),
+  'Variation and selection': applicationSpec('A pesticide kills most insects, but a few with a heritable resistance allele survive and reproduce. What happens over generations?', 'The resistance allele becomes more common.', ['Every insect deliberately develops resistance.', 'The resistance allele disappears immediately.', 'Only non-heritable changes are passed on.'], 'Differential survival and reproduction increase the frequency of a heritable resistance allele.', 'State the variation, selection pressure and reproductive consequence.'),
+  'Organisms and their environment': applicationSpec('A top predator is removed from a food web. What is a plausible first effect?', 'Populations of some prey may increase.', ['All energy cycling stops instantly.', 'Every producer population must disappear.', 'Decomposers can no longer release nutrients.'], 'Removing predation can reduce mortality of prey and alter connected populations.', 'Trace direct links first, then consider indirect food-web effects.'),
+  'Human influences on ecosystems': applicationSpec('A forest is cleared and burned. Which immediate global-cycle effect is most likely?', 'Stored carbon is released and future carbon uptake is reduced.', ['Atmospheric carbon dioxide must fall.', 'Biodiversity always rises.', 'The water cycle is unaffected.'], 'Combustion releases carbon and fewer trees remain to photosynthesise.', 'Identify both the immediate release and the lost future sink.'),
+  'Biotechnology and genetic modification': applicationSpec('A bacterial plasmid is cut and joined to a human gene before transformation. What is the plasmid acting as?', 'A vector carrying recombinant DNA', ['An antibody', 'A ribosome', 'A monosaccharide'], 'Plasmids can carry inserted DNA into bacterial cells for cloning or expression.', 'Identify the roles of enzyme, vector, host and selected gene.'),
+  'Cell structure': applicationSpec('A secretory cell produces large amounts of protein. Which organelles should be especially abundant?', 'Rough endoplasmic reticulum and Golgi apparatus', ['Cell wall and chloroplast only', 'Lysosomes and centrioles only', 'Smooth ER with no ribosomes only'], 'Ribosomes on rough ER synthesise protein and Golgi modifies and packages it.', 'Link the product made by a cell to the organelles that process it.'),
+  'Cell membranes and transport': applicationSpec('A cell accumulates ions from a lower external concentration to a higher internal concentration. Which process is required?', 'Active transport using carrier proteins and energy', ['Simple diffusion down the gradient', 'Osmosis of the ions', 'Passive movement with no membrane protein'], 'Movement against a concentration gradient requires energy-coupled transport.', 'Compare movement direction with the concentration gradient.'),
+  'The mitotic cell cycle': applicationSpec('A diploid cell completes mitosis and cytokinesis without mutation. What is produced?', 'Two genetically identical diploid daughter cells', ['Four genetically different haploid cells', 'One tetraploid cell only', 'Two cells with half the original chromosome number'], 'Mitosis preserves chromosome number and normally produces identical nuclei.', 'Track DNA replication separately from chromosome-number change.'),
+  'Nucleic acids and protein synthesis': applicationSpec('A DNA template triplet is transcribed. Which molecule carries the complementary codon to a ribosome?', 'mRNA', ['DNA polymerase', 'A lipid', 'Glycogen'], 'Messenger RNA carries transcribed sequence information from DNA for translation.', 'Separate transcription products from translation machinery.'),
+  'Transport in plants': applicationSpec('Radioactively labelled sucrose moves from a mature leaf to a growing root. Which tissue carries it?', 'Phloem', ['Xylem only', 'Epidermis', 'Guard cells'], 'Phloem translocates assimilates from sources to sinks.', 'Identify the transported substance and its source–sink direction.'),
+  'Transport in mammals': applicationSpec('Which vessel feature most directly supports rapid exchange with tissues?', 'A capillary wall one cell thick', ['A thick muscular capillary wall', 'Valves in every artery', 'No branching near cells'], 'Thin capillary walls give a short diffusion distance.', 'Connect vessel structure to pressure, transport or exchange function.'),
+  'Infectious diseases': applicationSpec('An infected person is isolated before they meet others. Which part of disease spread is reduced?', 'Transmission between hosts', ['Mutation of every host gene', 'Antibody specificity', 'The pathogen’s original classification'], 'Isolation reduces opportunities for a pathogen to pass to new hosts.', 'Choose controls that interrupt the relevant transmission route.'),
+  Immunity: applicationSpec('A vaccinated person produces antibodies much faster on later exposure to the same antigen. Which cells explain this?', 'Memory lymphocytes', ['Red blood cells', 'Platelets', 'Ciliated epithelial cells'], 'Memory cells formed in the primary response drive a faster secondary response.', 'Relate vaccination to clonal selection and immune memory.'),
+  'Biology:AS practical skills': applicationSpec('A student tests light intensity on photosynthesis. Which variable should be kept constant to isolate the effect?', 'Temperature', ['Number of bubbles as the dependent variable', 'Light intensity itself', 'The stated hypothesis'], 'Temperature also affects reaction rate and must be controlled.', 'List independent, dependent and control variables before collecting data.'),
+  'Energy and respiration': applicationSpec('A cell blocks oxidative phosphorylation. Which immediate change is expected?', 'ATP production from the electron-transport chain falls.', ['ATP production becomes unlimited.', 'DNA becomes the main respiratory substrate instantly.', 'Oxygen production by mitochondria increases.'], 'Oxidative phosphorylation is a major ATP-producing stage of aerobic respiration.', 'Locate each respiratory stage and its ATP contribution.'),
+  Photosynthesis: applicationSpec('A plant receives light and water but no carbon dioxide. Which process is directly limited?', 'Carbon fixation in the Calvin cycle', ['Water photolysis only', 'Absorption of all photons', 'ATP hydrolysis in every cell'], 'Carbon dioxide supplies carbon for carbohydrate formation in the light-independent stage.', 'Identify which raw material feeds each photosynthetic stage.'),
+  Homeostasis: applicationSpec('Blood glucose rises after a meal. Which response helps restore the set range?', 'Insulin promotes glucose uptake and storage.', ['Glucagon promotes further glucose release.', 'Effectors amplify the rise indefinitely.', 'Receptors stop monitoring glucose.'], 'Insulin lowers blood glucose through uptake and glycogen formation.', 'Trace stimulus, receptor, coordinator and effector in the feedback loop.'),
+  'Control and coordination': applicationSpec('A response must be rapid, localised and short-lived. Which signalling system is most suitable?', 'Nervous signalling along neurones', ['A slow endocrine signal only', 'Passive diffusion through all tissues', 'Inheritance through gametes'], 'Nervous impulses provide rapid targeted communication.', 'Compare response speed, duration and target range.'),
+  'Selection and evolution': applicationSpec('After many generations, a population has a higher frequency of an allele that improves survival. What has occurred?', 'Evolution by natural selection', ['An individual changed its inherited alleles by effort.', 'Only a non-heritable acclimatisation occurred.', 'No population-level change occurred.'], 'A heritable allele-frequency change across generations is evolution.', 'Frame evolution as a population change, not an individual intention.'),
+  'Classification, biodiversity and conservation': applicationSpec('A conservation programme stores seeds from many genetically different individuals. Which diversity is protected most directly?', 'Genetic diversity', ['Only ecosystem diversity', 'Only daily population size', 'No form of biodiversity'], 'Different alleles preserved in the seed bank maintain genetic diversity.', 'Specify whether evidence concerns genes, species or ecosystems.'),
+  'Genetic technology': applicationSpec('PCR is used before sequencing a tiny DNA sample. What is PCR doing?', 'Amplifying the target DNA region', ['Translating DNA into protein', 'Separating lipids by mass', 'Destroying every copy of the target'], 'PCR makes many copies of a selected DNA sequence.', 'Identify template, primers, polymerase and amplification cycles.'),
+  'Biology:A2 planning, analysis and evaluation': applicationSpec('Results have increasing spread as the measured value rises. Which graph addition best communicates uncertainty?', 'Appropriately calculated error bars', ['A decorative title only', 'Deleting all high values', 'Changing units without explanation'], 'Error bars display variability or uncertainty around plotted values.', 'Choose an uncertainty measure that matches the data and repeats.'),
+  'Atomic structure': applicationSpec('An atom has 11 protons and 12 neutrons. What are its atomic and mass numbers?', 'Atomic number 11, mass number 23', ['Atomic number 12, mass number 11', 'Atomic number 23, mass number 12', 'Atomic number 11, mass number 12'], 'Atomic number counts protons; mass number counts protons plus neutrons.', 'Write proton and neutron counts before assigning the two numbers.'),
+  'Atoms, molecules and stoichiometry': applicationSpec('2H₂ + O₂ → 2H₂O. How many moles of water form from 3 mol O₂ with excess H₂?', '6 mol', ['1.5 mol', '3 mol', '9 mol'], 'The mole ratio O₂:H₂O is 1:2, so 3 mol O₂ forms 6 mol H₂O.', 'Use coefficients as mole ratios, then identify the limiting reactant.'),
+  'Chemical bonding': applicationSpec('Which bonding model best explains electrical conduction in molten sodium chloride?', 'Mobile ions carry charge.', ['Fixed ions transfer electrons through the lattice.', 'Neutral molecules release photons.', 'Shared electron pairs move between molecules.'], 'Melting frees ions in an ionic lattice to move and carry current.', 'Relate conductivity to the mobile charged particles present.'),
+  'States of matter': applicationSpec('A gas is compressed at constant temperature. What happens to its pressure?', 'It increases because wall collisions become more frequent.', ['It decreases because particles lose all motion.', 'It stays zero.', 'It becomes independent of volume.'], 'Smaller volume increases collision frequency with container walls.', 'Use the particle model to connect volume with pressure.'),
+  'Chemical energetics': applicationSpec('Breaking bonds requires 500 kJ/mol and forming new bonds releases 650 kJ/mol. What is ΔH?', '-150 kJ/mol', ['+150 kJ/mol', '-1150 kJ/mol', '+1150 kJ/mol'], 'ΔH = energy in - energy out = 500 - 650 = -150 kJ/mol.', 'Separate bond-breaking input from bond-forming release.'),
+  Electrochemistry: applicationSpec('A half-cell has E° = +0.80 V and another +0.34 V. What is E°cell when the first is reduced?', '+0.46 V', ['-0.46 V', '+1.14 V', '+0.27 V'], 'E°cell = E°cathode - E°anode = 0.80 - 0.34 = 0.46 V.', 'Identify reduction and oxidation half-cells before subtracting.'),
+  Equilibria: applicationSpec('For an exothermic equilibrium, temperature is increased. Which direction is favoured?', 'The endothermic reverse direction', ['The exothermic forward direction only', 'Neither direction because equilibrium stops', 'Both directions stop permanently'], 'The system opposes added heat by favouring the endothermic direction.', 'Treat heat as a reactant or product when applying Le Chatelier’s principle.'),
+  'Reaction kinetics': applicationSpec('A catalyst is added to a reaction mixture. Which energy-profile change occurs?', 'A lower activation-energy pathway is available.', ['The enthalpy change becomes zero.', 'Reactant energy permanently increases.', 'The equilibrium constant changes at fixed temperature.'], 'A catalyst changes pathway and activation energy, not reactant/product energy difference.', 'Separate kinetic effects from equilibrium thermodynamics.'),
+  Periodicity: applicationSpec('Across Period 3, first ionisation energy generally rises. What is the main reason?', 'Nuclear charge rises while shielding changes relatively little.', ['Atomic radius always rises sharply.', 'Outer electrons enter lower principal shells.', 'Proton number decreases.'], 'Greater effective nuclear attraction holds the outer electron more strongly.', 'Compare nuclear charge, shielding and distance together.'),
+  'Group 2': applicationSpec('Why does magnesium react less vigorously with water than calcium?', 'Reactivity increases down Group 2 as outer electrons are lost more easily.', ['Magnesium has more occupied electron shells than calcium.', 'Calcium forms only 1+ ions.', 'Reactivity decreases down every metal group.'], 'Increased shielding and radius down the group reduce attraction to outer electrons.', 'Use electron loss and atomic structure to explain group trends.'),
+  'Group 17': applicationSpec('Chlorine water is added to aqueous potassium bromide. What forms?', 'Bromine, because chlorine is the stronger oxidising agent', ['Fluorine, because bromide oxidises chloride', 'No reaction because all halogens are identical', 'Only potassium metal'], 'Chlorine oxidises bromide ions to bromine.', 'Use the Group 17 oxidising-power trend to predict displacement.'),
+  'Nitrogen and sulfur': applicationSpec('In the Haber process, increasing pressure shifts equilibrium toward ammonia. Why?', 'The product side has fewer gas molecules.', ['Ammonia is the only gas present.', 'Pressure changes the equilibrium constant.', 'The catalyst consumes nitrogen.'], 'Higher pressure favours the side with fewer gaseous moles.', 'Count gaseous stoichiometric coefficients on both sides.'),
+  'AS organic chemistry': applicationSpec('Ethene reacts with bromine. What type of reaction occurs?', 'Electrophilic addition', ['Nucleophilic substitution', 'Free-radical substitution', 'Condensation polymer hydrolysis'], 'The electron-rich C=C bond polarises bromine and undergoes addition.', 'Identify the functional group before selecting a mechanism.'),
+  'AS analytical techniques': applicationSpec('An IR spectrum has a broad absorption around 3200–3600 cm⁻¹. Which bond is suggested?', 'O–H', ['C=O only', 'C–Cl only', 'No covalent bond'], 'A broad absorption in this region is characteristic of O–H stretching.', 'Combine IR evidence with other spectra before assigning a whole structure.'),
+  'Chemistry:AS practical skills': applicationSpec('A burette reading changes from 1.20 cm³ to 23.65 cm³. What titre should be recorded?', '22.45 cm³', ['22.4 cm³', '23.65 cm³', '24.85 cm³'], 'Titre = final - initial = 23.65 - 1.20 = 22.45 cm³.', 'Record volumetric readings and calculated titres to appropriate precision.'),
+  'A2 energetics': applicationSpec('At 298 K, ΔH = -40 kJ/mol and ΔS = -0.050 kJ mol⁻¹ K⁻¹. What is ΔG?', '-25.1 kJ/mol', ['-54.9 kJ/mol', '+25.1 kJ/mol', '+54.9 kJ/mol'], 'ΔG = ΔH - TΔS = -40 - 298(-0.050) = -25.1 kJ/mol.', 'Use consistent energy units before calculating TΔS.'),
+  'Transition elements': applicationSpec('A ligand donates a lone pair to a metal ion. What bond forms?', 'A coordinate covalent bond', ['An ionic bond formed by proton transfer', 'A metallic bond with no direction', 'A hydrogen bond only'], 'Both bonding electrons originate from the ligand donor atom.', 'Identify the electron-pair donor and acceptor in a complex.'),
+  'A2 organic chemistry': applicationSpec('A nucleophile attacks a carbonyl carbon. Why is that carbon susceptible?', 'The C=O bond is polar and carbon is δ+.', ['Carbon carries a full negative charge.', 'Oxygen donates the carbon nucleus.', 'The C=O bond is completely non-polar.'], 'Electronegativity polarises the carbonyl bond, making carbon electrophilic.', 'Mark partial charges before drawing a mechanism.'),
+  'A2 analytical techniques': applicationSpec('A proton NMR signal integrates to 3 relative units and is a triplet. Which local pattern is most consistent?', 'Three equivalent H adjacent to two equivalent H', ['One H adjacent to no H', 'Two H adjacent to three H', 'Three H adjacent to three equivalent H'], 'Integration gives three protons; n+1 splitting as a triplet implies two neighbours.', 'Use integration, splitting and chemical shift together.'),
+  'Chemistry:A2 planning, analysis and evaluation': applicationSpec('A temperature-change experiment loses heat to the surroundings. How does this affect the measured exothermic ΔH magnitude?', 'It is underestimated.', ['It is overestimated.', 'It becomes exactly zero.', 'It changes sign to endothermic in every case.'], 'Heat loss makes the observed temperature rise too small, so calculated energy release is too small.', 'Link each experimental limitation to the direction of its effect.'),
+  'Basic economic ideas and resource allocation': applicationSpec('A government uses land to build a hospital instead of housing. What is the opportunity cost?', 'The housing benefits forgone', ['The hospital’s accounting cost only', 'All future government spending', 'No cost because the hospital is useful'], 'Opportunity cost is the value of the next-best alternative forgone.', 'Name the sacrificed alternative rather than only the money spent.'),
+  'The price system and the microeconomy': applicationSpec('Demand increases while supply is unchanged. What happens to equilibrium price and quantity?', 'Both rise', ['Both fall', 'Price rises and quantity falls', 'Price falls and quantity rises'], 'A rightward demand shift moves equilibrium up along the supply curve.', 'Draw both curves and move only the curve named in the scenario.'),
+  'Government microeconomic intervention': applicationSpec('A per-unit tax is imposed on producers. What is the likely immediate market effect?', 'Supply shifts left/up and equilibrium quantity falls.', ['Demand shifts right and quantity rises.', 'Supply shifts right because costs fall.', 'The market price must fall to zero.'], 'A tax raises marginal cost, reducing supply at each price.', 'Identify whether a policy changes demand, supply or a market boundary.'),
+  'The macroeconomy': applicationSpec('Nominal GDP grows 5% while the price level rises 3%. Approximately how much does real GDP grow?', 'About 2%', ['About 3%', 'About 5%', 'About 8%'], 'Approximate real growth equals nominal growth minus inflation: 5% - 3% = 2%.', 'Separate changes in output from changes in the price level.'),
+  'Government macroeconomic intervention': applicationSpec('A central bank raises interest rates to reduce demand-pull inflation. Which channel is intended?', 'Borrowing and spending fall, reducing aggregate demand.', ['Borrowing rises and aggregate demand expands.', 'Productive capacity instantly doubles.', 'The exchange rate must become zero.'], 'Higher interest rates tend to discourage borrowing and interest-sensitive spending.', 'Trace a policy instrument through behaviour to the macroeconomic objective.'),
+  'International economic issues': applicationSpec('A country’s currency appreciates. Which effect is most likely, other things equal?', 'Exports become dearer to foreign buyers.', ['Exports become cheaper to foreign buyers.', 'Imports become dearer in domestic currency.', 'The current account must immediately balance.'], 'Appreciation raises foreign-currency export prices and lowers domestic-currency import prices.', 'Track which currency is used for each price comparison.'),
+})
+
 const OPTION_IDS = Object.freeze(['A', 'B', 'C', 'D'])
 
 function fail(statusCode, code, message) {
@@ -430,7 +592,148 @@ function routeCatalog(routeId) {
 const CATALOG = Object.freeze(SYLLABUS_PRACTICE_ROUTE_IDS.flatMap(routeCatalog))
 const CATALOG_BY_KEY = new Map(CATALOG.map((entry) => [`${entry.routeId}\u0000${entry.topicId}`, entry]))
 
+export function normalizeOriginalFoundationCatalog(value) {
+  if (value !== undefined && value !== null && typeof value !== 'string') return null
+  const catalog = String(value || '').trim() || ORIGINAL_FOUNDATION_CATALOG_VERSION
+  return [ORIGINAL_FOUNDATION_CATALOG_VERSION, ORIGINAL_FOUNDATION_V2_CATALOG_VERSION].includes(catalog) ? catalog : null
+}
+
+function catalogOption(options) {
+  if (options === undefined) return ORIGINAL_FOUNDATION_CATALOG_VERSION
+  const value = typeof options === 'string' ? options : options?.foundationCatalog
+  return normalizeOriginalFoundationCatalog(value)
+}
+
+function applicationFor(entry) {
+  const key = `${entry.subject}:${entry.topicName}`
+  const spec = V2_APPLICATION_SPECS[key] || V2_APPLICATION_SPECS[entry.topicName]
+  if (!spec) throw new Error(`Missing curated v2 application for ${entry.routeId}/${entry.topicId} (${entry.topicName}).`)
+  return spec
+}
+
+function v2Feedback(entry, { misconceptionId = null } = {}) {
+  return Object.freeze({
+    schemaVersion: 'stem-original-foundation-feedback-v2',
+    correctSummary: `Correct: ${entry.solution.summary}`,
+    incorrectSummary: `Review the ${entry.topicName} reasoning and try the next step.`,
+    explanation: entry.solution.explanation,
+    nextStep: entry.solution.nextStep,
+    misconceptionId,
+  })
+}
+
+function v2EntryFrom(entry, itemKind) {
+  const skillFocus = itemKind === 'concept' ? 'retrieve' : itemKind === 'application' ? 'apply' : 'transfer'
+  const id = `original-foundation:${entry.routeId}:${entry.topicId}:v2:${itemKind}`
+  const correctText = entry.options.find((option) => option.id === entry.correctOptionId)?.text || ''
+  const misconceptions = entry.options.filter((option) => option.id !== entry.correctOptionId)
+  const application = applicationFor(entry)
+  let prompt
+  let correct
+  let distractors
+  let explanation
+  let nextStep
+  let misconceptionId = null
+  let applicationBasis
+  let transferBasis
+  if (itemKind === 'concept') {
+    prompt = entry.prompt
+    correct = correctText
+    distractors = misconceptions.map((option) => option.text)
+    explanation = entry.solution.summary
+    nextStep = `Explain the ${entry.topicName} idea in your own words before moving to the application item.`
+  } else if (itemKind === 'application') {
+    prompt = application.prompt
+    correct = application.correct
+    distractors = [...application.distractors]
+    explanation = application.explanation
+    nextStep = application.nextStep
+    applicationBasis = 'curated-scenario'
+  } else {
+    const misconception = misconceptions[stableNumber(id) % misconceptions.length]
+    misconceptionId = `${id}:misconception:${misconception.id.toLowerCase()}`
+    prompt = `A learner says, “${misconception.text}” Which response best corrects the claim?`
+    correct = `Correction: ${correctText}`
+    distractors = [
+      `Correction: ${misconception.text}`,
+      ...misconceptions.filter((option) => option.id !== misconception.id).slice(0, 2).map((option) => `Correction: ${option.text}`),
+    ]
+    explanation = `The claim is incorrect. ${entry.solution.summary}`
+    nextStep = `State why the original claim fails, then apply the corrected ${entry.topicName} idea to a new example.`
+    transferBasis = 'misconception-correction'
+  }
+  const options = Object.freeze(orderedOptions(id, correct, distractors))
+  const correctOption = options.find((option) => option.text === correct)
+  if (!correctOption || options.length !== 4) throw new Error(`${id} failed its four-option contract.`)
+  const solution = Object.freeze({
+    summary: `Correct answer: ${correct}`,
+    explanation,
+    nextStep,
+    markPoints: Object.freeze([Object.freeze({
+      id: `${id}:M1`,
+      marks: 1,
+      description: itemKind === 'concept'
+        ? 'Retrieve the correct foundation concept.'
+        : itemKind === 'application'
+          ? 'Apply the topic correctly to the concrete scenario or data.'
+          : 'Identify and correct the misconception.',
+    })]),
+  })
+  const candidate = {
+    schemaVersion: ORIGINAL_FOUNDATION_V2_SCHEMA_VERSION,
+    catalogVersion: ORIGINAL_FOUNDATION_V2_CATALOG_VERSION,
+    foundationCatalog: ORIGINAL_FOUNDATION_V2_CATALOG_VERSION,
+    itemKind,
+    skillFocus,
+    id,
+    routeId: entry.routeId,
+    stage: entry.stage,
+    subject: entry.subject,
+    subjectCode: entry.subjectCode,
+    topicId: entry.topicId,
+    topicName: entry.topicName,
+    sourceKind: entry.sourceKind,
+    sourceAuthority: entry.sourceAuthority,
+    displaySourceLabel: entry.displaySourceLabel,
+    foundationBasis: 'curated-foundation',
+    distractorBasis: 'curated-within-topic',
+    prompt,
+    answerType: 'single-choice',
+    options,
+    correctOptionId: correctOption.id,
+    solution,
+    feedback: null,
+    misconceptionId,
+    maxScore: 1,
+    scoreScope: 'original-learning-only',
+    formalProgressEligible: false,
+    countsTowardFormalGrade: false,
+    ...(applicationBasis ? { applicationBasis } : {}),
+    ...(transferBasis ? { transferBasis } : {}),
+  }
+  candidate.feedback = v2Feedback(candidate, { misconceptionId })
+  return Object.freeze(candidate)
+}
+
+const V2_CATALOG = Object.freeze(CATALOG.flatMap((entry) => (
+  ORIGINAL_FOUNDATION_ITEM_KINDS.map((itemKind) => v2EntryFrom(entry, itemKind))
+)))
+const V2_CATALOG_BY_KEY = new Map(V2_CATALOG.map((entry) => [`${entry.routeId}\u0000${entry.topicId}\u0000${entry.itemKind}`, entry]))
+const V2_CATALOG_BY_ID = new Map(V2_CATALOG.map((entry) => [entry.id, entry]))
+
 function publicAnswerContract(entry) {
+  if (entry.catalogVersion === ORIGINAL_FOUNDATION_V2_CATALOG_VERSION) {
+    return Object.freeze({
+      schemaVersion: 'stem-original-foundation-answer-contract-v2',
+      id: `${entry.id}:answer:v2`,
+      foundationCatalog: ORIGINAL_FOUNDATION_V2_CATALOG_VERSION,
+      responseType: 'single-choice',
+      submissionEndpoint: ORIGINAL_FOUNDATION_SUBMISSION_ENDPOINT,
+      maxScore: entry.maxScore,
+      scoreScope: entry.scoreScope,
+      reveal: 'after-submission',
+    })
+  }
   return Object.freeze({
     schemaVersion: 'stem-original-foundation-answer-contract-v1',
     id: `${entry.id}:answer:v1`,
@@ -442,18 +745,25 @@ function publicAnswerContract(entry) {
   })
 }
 
-export function originalFoundationCatalogEntries() {
+export function originalFoundationCatalogEntries(options) {
+  const catalog = catalogOption(options)
+  if (catalog === ORIGINAL_FOUNDATION_V2_CATALOG_VERSION) return V2_CATALOG
   return CATALOG
 }
 
-export function originalFoundationQuestion(routeId, topicId) {
+export function originalFoundationQuestion(routeId, topicId, options) {
+  const catalog = catalogOption(options)
+  if (catalog === ORIGINAL_FOUNDATION_V2_CATALOG_VERSION) {
+    const itemKind = String(options?.itemKind || 'concept')
+    return V2_CATALOG_BY_KEY.get(`${String(routeId || '')}\u0000${String(topicId || '')}\u0000${itemKind}`) || null
+  }
   return CATALOG_BY_KEY.get(`${String(routeId || '')}\u0000${String(topicId || '')}`) || null
 }
 
-export function publicOriginalFoundationQuestion(routeId, topicId) {
-  const entry = originalFoundationQuestion(routeId, topicId)
+export function publicOriginalFoundationQuestion(routeId, topicId, options) {
+  const entry = originalFoundationQuestion(routeId, topicId, options)
   if (!entry) return null
-  return Object.freeze({
+  const projected = {
     schemaVersion: entry.schemaVersion,
     catalogVersion: entry.catalogVersion,
     id: entry.id,
@@ -474,12 +784,28 @@ export function publicOriginalFoundationQuestion(routeId, topicId) {
     answerContract: publicAnswerContract(entry),
     formalProgressEligible: false,
     countsTowardFormalGrade: false,
-  })
+  }
+  if (entry.catalogVersion === ORIGINAL_FOUNDATION_V2_CATALOG_VERSION) {
+    projected.foundationCatalog = entry.foundationCatalog
+    projected.itemKind = entry.itemKind
+    projected.skillFocus = entry.skillFocus
+    projected.misconceptionId = entry.misconceptionId
+  }
+  return Object.freeze(projected)
 }
 
-export function originalFoundationQuestionGroup(routeId, topicId, { components = [] } = {}) {
-  const question = publicOriginalFoundationQuestion(routeId, topicId)
+export function originalFoundationQuestionGroup(routeId, topicId, {
+  components = [],
+  foundationCatalog = ORIGINAL_FOUNDATION_CATALOG_VERSION,
+  itemKind = 'concept',
+} = {}) {
+  const normalizedCatalog = normalizeOriginalFoundationCatalog(foundationCatalog)
+  const question = publicOriginalFoundationQuestion(routeId, topicId, {
+    foundationCatalog: normalizedCatalog,
+    itemKind,
+  })
   if (!question) return null
+  const v2 = normalizedCatalog === ORIGINAL_FOUNDATION_V2_CATALOG_VERSION
   const partId = `${question.id}:part-1`
   const bindingSignature = `original:${crypto.createHash('sha256').update(JSON.stringify([
     question.id,
@@ -488,7 +814,7 @@ export function originalFoundationQuestionGroup(routeId, topicId, { components =
     question.options,
   ])).digest('hex')}`
   const sourceBindingProvenance = Object.freeze({
-    schemaVersion: 'stem-original-foundation-binding-v1',
+    schemaVersion: v2 ? 'stem-original-foundation-binding-v2' : 'stem-original-foundation-binding-v1',
     sourceQuestionId: question.id,
     questionPartId: partId,
     bindingSignature,
@@ -523,13 +849,18 @@ export function originalFoundationQuestionGroup(routeId, topicId, { components =
       displaySourceLabel: ORIGINAL_FOUNDATION_DISPLAY_LABEL,
       originalQuestionId: question.id,
       originalCatalogVersion: question.catalogVersion,
+      ...(v2 ? {
+        foundationCatalog: ORIGINAL_FOUNDATION_V2_CATALOG_VERSION,
+        itemKind: question.itemKind,
+        skillFocus: question.skillFocus,
+      } : {}),
     })]),
     reviewStatus: 'original-authored',
     studyOnly: true,
     studentStudyEligible: true,
     formalProgressEligible: false,
     syllabusMapping: Object.freeze({
-      schemaVersion: 'original-foundation-syllabus-mapping-v1',
+      schemaVersion: v2 ? 'original-foundation-syllabus-mapping-v2' : 'original-foundation-syllabus-mapping-v1',
       questionGroupId: question.id,
       primaryTopicId: question.topicId,
       secondaryTopicIds: Object.freeze([]),
@@ -543,21 +874,45 @@ export function originalFoundationQuestionGroup(routeId, topicId, { components =
     displaySourceLabel: ORIGINAL_FOUNDATION_DISPLAY_LABEL,
     originalQuestion: question,
     answerContract: question.answerContract,
+    ...(v2 ? {
+      foundationCatalog: ORIGINAL_FOUNDATION_V2_CATALOG_VERSION,
+      itemKind: question.itemKind,
+      skillFocus: question.skillFocus,
+    } : {}),
   })
 }
 
-export function originalFoundationQuestionGroupsForRoute(routeId, topicIds, { components = [] } = {}) {
+export function originalFoundationQuestionGroupsForRoute(routeId, topicIds, {
+  components = [],
+  foundationCatalog = ORIGINAL_FOUNDATION_CATALOG_VERSION,
+} = {}) {
+  const normalizedCatalog = normalizeOriginalFoundationCatalog(foundationCatalog)
   const requestedTopicIds = topicIds === undefined
     ? (routeById(routeId)?.syllabus?.topics || []).map((topic) => topic.id)
     : (Array.isArray(topicIds) ? topicIds : [topicIds])
   return [...new Set(requestedTopicIds.map((topicId) => String(topicId || '')).filter(Boolean))]
-    .map((topicId) => originalFoundationQuestionGroup(routeId, topicId, { components }))
+    .flatMap((topicId) => (
+      normalizedCatalog === ORIGINAL_FOUNDATION_V2_CATALOG_VERSION
+        ? ORIGINAL_FOUNDATION_ITEM_KINDS.map((itemKind) => originalFoundationQuestionGroup(routeId, topicId, {
+            components,
+            foundationCatalog: normalizedCatalog,
+            itemKind,
+          }))
+        : [originalFoundationQuestionGroup(routeId, topicId, { components })]
+    ))
     .filter(Boolean)
 }
 
-export function decorateOriginalFoundationInventory(inventory) {
+export function decorateOriginalFoundationInventory(inventory, {
+  foundationCatalog = ORIGINAL_FOUNDATION_CATALOG_VERSION,
+} = {}) {
+  const normalizedCatalog = normalizeOriginalFoundationCatalog(foundationCatalog)
+  const v2 = normalizedCatalog === ORIGINAL_FOUNDATION_V2_CATALOG_VERSION
   const topics = (inventory?.topics || []).map((topic) => {
-    const originalAvailable = originalFoundationQuestion(inventory.routeId, topic.id) ? 1 : 0
+    const originalAvailable = originalFoundationQuestion(inventory.routeId, topic.id, {
+      foundationCatalog: normalizedCatalog,
+      itemKind: 'concept',
+    }) ? (v2 ? ORIGINAL_FOUNDATION_ITEM_KINDS.length : 1) : 0
     const decorate = (chapterStudy = {}) => {
       const officialAvailable = Math.max(0, Number(chapterStudy.available) || 0)
       const available = officialAvailable + originalAvailable
@@ -585,22 +940,36 @@ export function decorateOriginalFoundationInventory(inventory) {
     topics,
     chapterStudy: Object.freeze({
       mode: 'chapter-study',
-      catalogVersion: ORIGINAL_FOUNDATION_CATALOG_VERSION,
+      catalogVersion: normalizedCatalog,
       topicCount: topics.length,
       startableTopicCount: topics.filter((topic) => topic.chapterStudy.startable).length,
       gapTopicIds: Object.freeze(gapTopicIds),
+      ...(v2 ? { foundationCatalog: ORIGINAL_FOUNDATION_V2_CATALOG_VERSION } : {}),
     }),
   }
 }
 
 export function scoreOriginalFoundationResponse(input = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)
-    || Object.keys(input).some((key) => !['routeId', 'syllabusTopicId', 'questionId', 'response'].includes(key))) {
+    || Object.keys(input).some((key) => !['foundationCatalog', 'routeId', 'syllabusTopicId', 'questionId', 'response'].includes(key))) {
     fail(400, 'original_foundation_response_invalid', 'The original foundation submission has unsupported fields.')
   }
   const { routeId, syllabusTopicId, questionId, response } = input
-  const entry = originalFoundationQuestion(routeId, syllabusTopicId)
+  const requestedCatalog = normalizeOriginalFoundationCatalog(input.foundationCatalog)
+  if (!requestedCatalog) fail(400, 'original_foundation_response_invalid', 'foundationCatalog must be v1 or v2.')
+  const idCatalog = V2_CATALOG_BY_ID.has(String(questionId || ''))
+    ? ORIGINAL_FOUNDATION_V2_CATALOG_VERSION
+    : ORIGINAL_FOUNDATION_CATALOG_VERSION
+  if (requestedCatalog !== idCatalog) {
+    fail(409, 'original_foundation_catalog_mismatch', 'The original foundation catalog capability does not match this question ID.')
+  }
+  const entry = requestedCatalog === ORIGINAL_FOUNDATION_V2_CATALOG_VERSION
+    ? V2_CATALOG_BY_ID.get(String(questionId || ''))
+    : originalFoundationQuestion(routeId, syllabusTopicId)
   if (!entry || entry.id !== String(questionId || '')) {
+    fail(404, 'original_foundation_question_not_found', 'This original foundation question is not available for the selected chapter.')
+  }
+  if (entry.routeId !== String(routeId || '') || entry.topicId !== String(syllabusTopicId || '')) {
     fail(404, 'original_foundation_question_not_found', 'This original foundation question is not available for the selected chapter.')
   }
   if (!response || typeof response !== 'object' || Array.isArray(response)
@@ -612,6 +981,49 @@ export function scoreOriginalFoundationResponse(input = {}) {
     fail(400, 'original_foundation_response_invalid', 'selectedOptionId must identify one of this question’s options.')
   }
   const correct = selectedOptionId === entry.correctOptionId
+  if (requestedCatalog === ORIGINAL_FOUNDATION_V2_CATALOG_VERSION) {
+    return Object.freeze({
+      schemaVersion: 'stem-original-foundation-result-v2',
+      foundationCatalog: ORIGINAL_FOUNDATION_V2_CATALOG_VERSION,
+      catalogVersion: entry.catalogVersion,
+      routeId: entry.routeId,
+      syllabusTopicId: entry.topicId,
+      questionId: entry.id,
+      itemKind: entry.itemKind,
+      skillFocus: entry.skillFocus,
+      sourceKind: entry.sourceKind,
+      displaySourceLabel: entry.displaySourceLabel,
+      submitted: true,
+      selectedOptionId,
+      correct,
+      score: correct ? 1 : 0,
+      maxScore: entry.maxScore,
+      scoreScope: entry.scoreScope,
+      formalProgressEligible: false,
+      countsTowardFormalGrade: false,
+      correctOptionId: entry.correctOptionId,
+      solution: Object.freeze({
+        summary: entry.solution.summary,
+        explanation: entry.solution.explanation,
+        nextStep: entry.solution.nextStep,
+        markPoints: Object.freeze(entry.solution.markPoints.map((point) => Object.freeze({
+          id: point.id,
+          awarded: correct,
+          marks: correct ? point.marks : 0,
+          maxMarks: point.marks,
+          reason: correct ? point.description : entry.feedback.incorrectSummary,
+        }))),
+      }),
+      feedback: Object.freeze({
+        schemaVersion: entry.feedback.schemaVersion,
+        outcome: correct ? 'correct' : 'incorrect',
+        misconceptionId: entry.misconceptionId || null,
+        summary: correct ? entry.feedback.correctSummary : entry.feedback.incorrectSummary,
+        explanation: entry.feedback.explanation,
+        nextStep: entry.feedback.nextStep,
+      }),
+    })
+  }
   return Object.freeze({
     schemaVersion: 'stem-original-foundation-result-v1',
     routeId: entry.routeId,

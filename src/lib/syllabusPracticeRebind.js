@@ -51,6 +51,7 @@ export function syllabusPracticeRebindPayload(unit) {
     studyMode: boundedString(unit.studyMode, 32),
     sourcePreference: boundedString(unit.sourcePreference, 40),
     practiceMode: boundedString(unit.practiceMode, 32),
+    ...(boundedString(unit.foundationCatalog, 16) ? { foundationCatalog: boundedString(unit.foundationCatalog, 16) } : {}),
     focusedRetestOf: boundedString(unit.focusedRetestOf, 1024),
     focusedRetestParentAttemptId: boundedString(unit.focusedRetestParentAttemptId, 120),
     parts: (Array.isArray(unit.parts) ? unit.parts : []).map((part) => ({
@@ -60,6 +61,9 @@ export function syllabusPracticeRebindPayload(unit) {
       sourceKind: boundedString(part?.sourceKind, 64),
       originalQuestionId: boundedString(part?.originalQuestionId || part?.originalQuestion?.id, 512),
       originalCatalogVersion: boundedString(part?.originalCatalogVersion || part?.originalQuestion?.catalogVersion, 64),
+      ...(boundedString(part?.foundationCatalog, 16) ? { foundationCatalog: boundedString(part.foundationCatalog, 16) } : {}),
+      ...(boundedString(part?.itemKind, 32) ? { itemKind: boundedString(part.itemKind, 32) } : {}),
+      ...(boundedString(part?.skillFocus, 32) ? { skillFocus: boundedString(part.skillFocus, 32) } : {}),
       sourceBindingProvenance: compactBinding(part?.sourceBindingProvenance || part?.markingProvenance),
     })),
   }
