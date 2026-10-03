@@ -80,7 +80,7 @@
     "test:topic-pdf-request-deadline": "node scripts/test-topic-pdf-request-deadline.mjs",
     "test:topic-pdf-api": "node scripts/test-topic-pdf-api.mjs",
     "test:topic-pdf-client": "node scripts/test-topic-pdf-client.mjs",
-    "test:whole-paper-marking": "node scripts/test-whole-paper-artifacts.mjs && node scripts/test-whole-paper-report.mjs && node scripts/test-whole-paper-ai.mjs && node scripts/test-whole-paper-marking-api.mjs && node scripts/test-whole-paper-marking-recovery.mjs && node scripts/test-whole-paper-overlay.mjs && node scripts/test-whole-paper-range.mjs",
+    "test:whole-paper-marking": "node scripts/test-whole-paper-artifacts.mjs && node scripts/test-whole-paper-report.mjs && node scripts/test-whole-paper-ai.mjs && node scripts/test-whole-paper-marking-api.mjs && node scripts/test-whole-paper-marking-progress.mjs && node scripts/test-whole-paper-marking-recovery.mjs && node scripts/test-whole-paper-overlay.mjs && node scripts/test-whole-paper-range.mjs",
     "prepare:whole-paper-overlay": "node scripts/prepare-whole-paper-marking-overlay.mjs",
     "test:paddle-ocr-review-queue": "node scripts/test-paddle-ocr-review-queue.mjs",
     "test:codex-paddle-review-import": "node scripts/test-codex-paddle-review-import.mjs",

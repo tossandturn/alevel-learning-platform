@@ -31,7 +31,23 @@ const DEFAULT_DRAFT_TTL_MS = 24 * 60 * 60 * 1000
 const DEFAULT_RESULT_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const DEFAULT_USER_STORAGE_BYTES = 160 * 1024 * 1024
 const DEFAULT_ACTIVE_JOBS = 3
+const ETA_HISTORY_MIN_SAMPLES = 3
+const ETA_HISTORY_SAMPLE_LIMIT = 40
 const GENERATED_ATTEMPT_ARTIFACT = /^(?:source|report)-attempt-(\d+)\.pdf$/
+const PROGRESS_STAGE_VIEW = Object.freeze({
+  'awaiting-upload': Object.freeze({ phase: 'uploading', label: 'Waiting for uploads' }),
+  queued: Object.freeze({ phase: 'queued', label: 'Queued for marking' }),
+  starting: Object.freeze({ phase: 'preparing', label: 'Starting marking' }),
+  'preparing-source-pdf': Object.freeze({ phase: 'preparing', label: 'Preparing documents' }),
+  'rendering-answer-pages': Object.freeze({ phase: 'preparing', label: 'Rendering answer pages' }),
+  'rendering-references': Object.freeze({ phase: 'preparing', label: 'Rendering reference pages' }),
+  'ai-review': Object.freeze({ phase: 'analyzing', label: 'AI analysis in progress' }),
+  'ai-result-received': Object.freeze({ phase: 'analysis-received', label: 'AI analysis received' }),
+  reporting: Object.freeze({ phase: 'reporting', label: 'Generating report' }),
+  completed: Object.freeze({ phase: 'completed', label: 'Marking complete' }),
+  failed: Object.freeze({ phase: 'failed', label: 'Marking failed' }),
+  cancelled: Object.freeze({ phase: 'cancelled', label: 'Marking cancelled' }),
+})
 
 function serviceError(code, message, statusCode = 400, retryable = false) {
   return Object.assign(new Error(message), { code, statusCode, retryable })
@@ -39,6 +55,27 @@ function serviceError(code, message, statusCode = 400, retryable = false) {
 
 function nowIso(now) {
   return new Date(now()).toISOString()
+}
+
+function parsedTime(value) {
+  const milliseconds = Date.parse(String(value || ''))
+  return Number.isFinite(milliseconds) ? milliseconds : null
+}
+
+function elapsedSeconds(start, end) {
+  const startAt = parsedTime(start)
+  const endAt = typeof end === 'number' && Number.isFinite(end) ? end : parsedTime(end)
+  if (startAt == null || endAt == null) return 0
+  return Math.max(0, Math.floor((endAt - startAt) / 1000))
+}
+
+function percentile(sorted, fraction) {
+  if (!sorted.length) return null
+  const offset = Math.max(0, Math.min(sorted.length - 1, (sorted.length - 1) * fraction))
+  const lower = Math.floor(offset)
+  const upper = Math.ceil(offset)
+  if (lower === upper) return sorted[lower]
+  return sorted[lower] + (sorted[upper] - sorted[lower]) * (offset - lower)
 }
 
 function text(value, maximum) {
@@ -321,6 +358,7 @@ export function createWholePaperMarkingService({
   resultTtlMs,
   maxUserStorageBytes,
   maxActiveJobs,
+  progressObserver = null,
   now = Date.now,
 } = {}) {
   if (!database?.prepare || !database?.exec) throw new Error('Whole-paper marking requires the STEM SQLite database.')
@@ -342,15 +380,46 @@ export function createWholePaperMarkingService({
         fontPath: env.STEM_WHOLE_PAPER_CJK_FONT_PATH || undefined,
         fontSha256: env.STEM_WHOLE_PAPER_CJK_FONT_SHA256 || '',
       })
+  const observeProgress = typeof progressObserver === 'function' ? progressObserver : null
   let active = false
   let cleanupAt = 0
+
+  function storedProgress(stage, fields = {}, previous = {}, at = nowIso(now)) {
+    const completedPages = Object.hasOwn(fields, 'completedPages') ? fields.completedPages : previous.completedPages
+    const totalPages = Object.hasOwn(fields, 'totalPages') ? fields.totalPages : previous.totalPages
+    const acceptedAt = fields.acceptedAt || previous.acceptedAt || null
+    const analysisReceivedAt = fields.analysisReceivedAt || previous.analysisReceivedAt || null
+    return {
+      stage,
+      completedPages: Number.isSafeInteger(Number(completedPages)) ? Math.max(0, Number(completedPages)) : 0,
+      totalPages: totalPages == null || !Number.isSafeInteger(Number(totalPages)) ? null : Math.max(0, Number(totalPages)),
+      ...(acceptedAt ? { acceptedAt } : {}),
+      ...(analysisReceivedAt ? { analysisReceivedAt } : {}),
+      phaseStartedAt: at,
+    }
+  }
+
+  function notifyProgress(job, status, progress) {
+    if (!observeProgress) return
+    try {
+      const pending = observeProgress(Object.freeze({
+        jobId: String(job.id),
+        status,
+        processingAttempt: Number(job.processing_attempt) || 0,
+        stage: progress.stage,
+        completedPages: progress.completedPages,
+        totalPages: progress.totalPages,
+      }))
+      if (pending?.catch) void pending.catch(() => {})
+    } catch { /* Observability must never change marking state. */ }
+  }
 
   const recoveredAt = nowIso(now)
   database.prepare(`
     UPDATE whole_paper_marking_jobs
     SET status = 'failed', progress_json = ?, retryable = 1, failure_code = 'worker_restarted', updated_at = ?, completed_at = ?
     WHERE status = 'processing'
-  `).run(JSON.stringify({ stage: 'failed', completedPages: 0, totalPages: null }), recoveredAt, recoveredAt)
+  `).run(JSON.stringify(storedProgress('failed', {}, {}, recoveredAt)), recoveredAt, recoveredAt)
 
   function jobDirectory(job) {
     const owner = crypto.createHash('sha256').update(String(job.user_id)).digest('hex').slice(0, 24)
@@ -396,8 +465,108 @@ export function createWholePaperMarkingService({
     }
   }
 
+  function progressPageCounts(assets) {
+    function pagesFor(role) {
+      const matching = assets.filter((asset) => asset.role === role)
+      if (!matching.length) return role === 'answer' ? null : 0
+      if (matching.some((asset) => asset.status !== 'uploaded' || asset.page_count == null)) return null
+      return matching.reduce((sum, asset) => sum + Math.max(0, Number(asset.page_count) || 0), 0)
+    }
+    const answerPages = pagesFor('answer')
+    const questionPaperPages = pagesFor('question-paper')
+    const markSchemePages = pagesFor('mark-scheme')
+    const referencePages = questionPaperPages == null || markSchemePages == null
+      ? null
+      : questionPaperPages + markSchemePages
+    return {
+      answerPages,
+      referencePages,
+      totalPages: answerPages == null || referencePages == null ? null : answerPages + referencePages,
+    }
+  }
+
+  function processingEta(totalPages, processingElapsedSeconds) {
+    if (!Number.isSafeInteger(totalPages) || totalPages < 1) return null
+    const samples = database.prepare(`
+      SELECT j.started_at, j.completed_at, COALESCE(SUM(a.page_count), 0) AS page_count
+      FROM whole_paper_marking_jobs j
+      JOIN whole_paper_marking_assets a ON a.job_id = j.id
+      WHERE j.status = 'completed' AND j.started_at IS NOT NULL AND j.completed_at IS NOT NULL
+      GROUP BY j.id, j.started_at, j.completed_at
+      HAVING COALESCE(SUM(a.page_count), 0) > 0
+      ORDER BY j.completed_at DESC
+      LIMIT ?
+    `).all(ETA_HISTORY_SAMPLE_LIMIT)
+      .map((sample) => {
+        const startedAt = parsedTime(sample.started_at)
+        const completedAt = parsedTime(sample.completed_at)
+        const samplePages = Number(sample.page_count)
+        if (startedAt == null || completedAt == null || completedAt <= startedAt || !Number.isSafeInteger(samplePages) || samplePages < 1) return null
+        // Normalize successful processing duration by rendered page count. Queue wait is
+        // deliberately excluded because this service does not expose or invent queue rank.
+        return ((completedAt - startedAt) / 1000) * (totalPages / samplePages)
+      })
+      .filter((duration) => Number.isFinite(duration) && duration > 0)
+      .sort((left, right) => left - right)
+    if (samples.length < ETA_HISTORY_MIN_SAMPLES) return null
+    const lowerTotal = percentile(samples, 0.2)
+    const medianTotal = percentile(samples, 0.5)
+    const upperTotal = percentile(samples, 0.8)
+    const elapsed = Math.max(0, Number(processingElapsedSeconds) || 0)
+    if (![lowerTotal, medianTotal, upperTotal].every(Number.isFinite) || elapsed >= upperTotal) return null
+    const minimum = Math.max(1, Math.ceil(lowerTotal - elapsed))
+    const maximum = Math.max(minimum, Math.ceil(upperTotal - elapsed))
+    const remaining = Math.min(maximum, Math.max(minimum, Math.ceil(medianTotal - elapsed)))
+    return {
+      estimatedRemainingSeconds: remaining,
+      estimatedRemainingRangeSeconds: { minimum, maximum },
+      isEstimate: true,
+      estimateScope: 'processing-only',
+    }
+  }
+
+  function publicProgress(row, assets) {
+    const raw = parseJson(row.progress_json, {}) || {}
+    const stage = text(raw.stage, 80) || (JOB_STATUSES.has(row.status) ? row.status : 'failed')
+    const stageView = PROGRESS_STAGE_VIEW[stage] || PROGRESS_STAGE_VIEW[row.status] || PROGRESS_STAGE_VIEW.failed
+    const pages = progressPageCounts(assets)
+    const rawTotalPages = raw.totalPages == null || !Number.isSafeInteger(Number(raw.totalPages)) ? null : Math.max(0, Number(raw.totalPages))
+    const totalPages = pages.totalPages ?? rawTotalPages
+    let completedPages = Number.isSafeInteger(Number(raw.completedPages)) ? Math.max(0, Number(raw.completedPages)) : 0
+    if (stage === 'completed' && totalPages != null) completedPages = totalPages
+    if (totalPages != null) completedPages = Math.min(completedPages, totalPages)
+    const currentAt = now()
+    const terminalAt = ['completed', 'failed'].includes(row.status) && parsedTime(row.completed_at) != null
+      ? parsedTime(row.completed_at)
+      : currentAt
+    const acceptedAt = raw.acceptedAt || row.submitted_at || row.started_at
+    const totalElapsed = row.status === 'draft' ? 0 : elapsedSeconds(acceptedAt, terminalAt)
+    const processingElapsed = ['draft', 'queued'].includes(row.status) || !row.started_at
+      ? null
+      : elapsedSeconds(row.started_at, terminalAt)
+    const estimate = row.status === 'processing'
+      ? processingEta(totalPages, processingElapsed)
+      : null
+    return {
+      stage,
+      phase: stageView.phase,
+      label: stageView.label,
+      elapsedSeconds: totalElapsed,
+      processingElapsedSeconds: processingElapsed,
+      completedPages,
+      totalPages,
+      answerPages: pages.answerPages,
+      referencePages: pages.referencePages,
+      estimatedRemainingSeconds: estimate?.estimatedRemainingSeconds ?? null,
+      estimatedRemainingRangeSeconds: estimate?.estimatedRemainingRangeSeconds ?? null,
+      isEstimate: estimate?.isEstimate ?? false,
+      estimateScope: estimate?.estimateScope ?? null,
+    }
+  }
+
   function publicJob(row, { duplicate = false } = {}) {
-    const assets = assetRows(row.id).map((asset) => publicAsset(asset, row.id))
+    const storedAssets = assetRows(row.id)
+    const assets = storedAssets.map((asset) => publicAsset(asset, row.id))
     const result = parseJson(row.result_json)
     const expiresAt = row.status === 'draft'
       ? new Date(Date.parse(row.updated_at) + configuredDraftTtl).toISOString()
@@ -415,7 +584,7 @@ export function createWholePaperMarkingService({
       routeId: row.route_id || null,
       stage: row.stage || null,
       paperId: row.paper_id || null,
-      progress: parseJson(row.progress_json, { stage: row.status }),
+      progress: publicProgress(row, storedAssets),
       assets,
       processingAttempt: Number(row.processing_attempt) || 0,
       retryable: Boolean(row.retryable),
@@ -490,7 +659,7 @@ export function createWholePaperMarkingService({
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?)
       `).run(jobId, user.id, normalized.clientRequestId, hash, normalized.title, normalized.studentLabel, normalized.instructions,
         normalized.routeId, normalized.stage, normalized.paperId,
-        JSON.stringify({ stage: 'awaiting-upload', completedPages: 0, totalPages: null }), createdAt, createdAt)
+        JSON.stringify(storedProgress('awaiting-upload', {}, {}, createdAt)), createdAt, createdAt)
       for (const file of normalized.files) {
         database.prepare(`
           INSERT INTO whole_paper_marking_assets
@@ -583,14 +752,21 @@ export function createWholePaperMarkingService({
       throw serviceError('job_already_submitted', 'This job is already bound to a different submission.', 409)
     }
     const submittedAt = nowIso(now)
+    const queuedProgress = storedProgress('queued', {
+      completedPages: 0,
+      totalPages: assets.reduce((sum, asset) => sum + Number(asset.page_count || 0), 0),
+      acceptedAt: submittedAt,
+    }, {}, submittedAt)
     database.prepare(`
       UPDATE whole_paper_marking_jobs
       SET status = 'queued', progress_json = ?, submission_hash = ?, retryable = 0, failure_code = NULL,
           submitted_at = ?, updated_at = ?
       WHERE id = ? AND user_id = ? AND status = 'draft'
-    `).run(JSON.stringify({ stage: 'queued', completedPages: 0, totalPages: assets.filter((asset) => asset.role === 'answer').reduce((sum, asset) => sum + Number(asset.page_count || 0), 0) }), hash, submittedAt, submittedAt, jobId, user.id)
+    `).run(JSON.stringify(queuedProgress), hash, submittedAt, submittedAt, jobId, user.id)
+    const queuedJob = ownedJob(user.id, jobId)
+    notifyProgress(queuedJob, 'queued', queuedProgress)
     schedulePump()
-    return { statusCode: 202, body: publicJob(ownedJob(user.id, jobId)) }
+    return { statusCode: 202, body: publicJob(queuedJob) }
   }
 
   function retryJob(user, jobId, payload) {
@@ -602,14 +778,21 @@ export function createWholePaperMarkingService({
     }
     if (job.status !== 'failed' || !job.retryable) throw serviceError('job_not_retryable', 'This job is not in a retryable failed state.', 409)
     const updatedAt = nowIso(now)
+    const queuedProgress = storedProgress('queued', {
+      completedPages: 0,
+      totalPages: assetRows(jobId).reduce((sum, asset) => sum + Number(asset.page_count || 0), 0),
+      acceptedAt: updatedAt,
+    }, {}, updatedAt)
     database.prepare(`
       UPDATE whole_paper_marking_jobs
       SET status = 'queued', progress_json = ?, last_retry_request_id = ?, retryable = 0, failure_code = NULL,
           report_pdf_key = NULL, updated_at = ?, completed_at = NULL
       WHERE id = ? AND user_id = ? AND status = 'failed'
-    `).run(JSON.stringify({ stage: 'queued', completedPages: 0, totalPages: null }), clientRequestId, updatedAt, jobId, user.id)
+    `).run(JSON.stringify(queuedProgress), clientRequestId, updatedAt, jobId, user.id)
+    const queuedJob = ownedJob(user.id, jobId)
+    notifyProgress(queuedJob, 'queued', queuedProgress)
     schedulePump()
-    return { statusCode: 202, body: publicJob(ownedJob(user.id, jobId)) }
+    return { statusCode: 202, body: publicJob(queuedJob) }
   }
 
   function cancelJob(user, jobId, payload) {
@@ -621,18 +804,27 @@ export function createWholePaperMarkingService({
     }
     if (job.status !== 'draft') throw serviceError('job_not_cancellable', 'Only an unsubmitted draft can be cancelled.', 409)
     const cancelledAt = nowIso(now)
+    const cancelledProgress = storedProgress('cancelled', {}, parseJson(job.progress_json, {}), cancelledAt)
     database.prepare(`
       UPDATE whole_paper_marking_jobs
       SET status = 'failed', progress_json = ?, retryable = 0, failure_code = 'cancelled', cancel_request_id = ?,
           updated_at = ?, completed_at = ?
       WHERE id = ? AND user_id = ? AND status = 'draft'
-    `).run(JSON.stringify({ stage: 'cancelled', completedPages: 0, totalPages: null }), clientRequestId, cancelledAt, cancelledAt, jobId, user.id)
-    return { statusCode: 200, body: publicJob(ownedJob(user.id, jobId)) }
+    `).run(JSON.stringify(cancelledProgress), clientRequestId, cancelledAt, cancelledAt, jobId, user.id)
+    const cancelledJob = ownedJob(user.id, jobId)
+    notifyProgress(cancelledJob, 'failed', cancelledProgress)
+    return { statusCode: 200, body: publicJob(cancelledJob) }
   }
 
   function updateProgress(job, progress) {
-    database.prepare("UPDATE whole_paper_marking_jobs SET progress_json = ?, updated_at = ? WHERE id = ? AND status = 'processing' AND processing_attempt = ?")
-      .run(JSON.stringify(progress), nowIso(now), job.id, Number(job.processing_attempt))
+    const current = database.prepare('SELECT status, processing_attempt, progress_json FROM whole_paper_marking_jobs WHERE id = ?').get(job.id)
+    if (current?.status !== 'processing' || Number(current.processing_attempt) !== Number(job.processing_attempt)) return false
+    const updatedAt = nowIso(now)
+    const next = storedProgress(progress.stage, progress, parseJson(current.progress_json, {}), updatedAt)
+    const update = database.prepare("UPDATE whole_paper_marking_jobs SET progress_json = ?, updated_at = ? WHERE id = ? AND status = 'processing' AND processing_attempt = ?")
+      .run(JSON.stringify(next), updatedAt, job.id, Number(job.processing_attempt))
+    if (update.changes) notifyProgress(job, 'processing', next)
+    return Boolean(update.changes)
   }
 
   function readStoredAsset(row) {
@@ -685,15 +877,35 @@ export function createWholePaperMarkingService({
     }
   }
 
-  async function renderAndCompleteJob({ job, result, directory, sourcePath, completedPages, signal }) {
+  async function renderAndCompleteJob({ job, result, directory, sourcePath, completedPages, totalPages, signal }) {
+    if (signal.aborted) throw serviceError('marking_timeout', 'Whole-paper marking timed out.', 504, true)
     const resultJson = JSON.stringify(result)
-    const reportingAt = nowIso(now)
-    const persisted = database.prepare(`
+    const current = database.prepare('SELECT status, processing_attempt, progress_json FROM whole_paper_marking_jobs WHERE id = ?').get(job.id)
+    if (current?.status !== 'processing' || Number(current.processing_attempt) !== Number(job.processing_attempt)) {
+      throw serviceError('job_state_changed', 'The marking job state changed before the AI result was recorded.', 409, true)
+    }
+    const analysisReceivedAt = nowIso(now)
+    const receivedProgress = storedProgress('ai-result-received', {
+      completedPages,
+      totalPages,
+      analysisReceivedAt,
+    }, parseJson(current.progress_json, {}), analysisReceivedAt)
+    const received = database.prepare(`
       UPDATE whole_paper_marking_jobs
       SET result_json = ?, progress_json = ?, source_pdf_key = ?, updated_at = ?
       WHERE id = ? AND status = 'processing' AND processing_attempt = ?
-    `).run(resultJson, JSON.stringify({ stage: 'reporting', completedPages, totalPages: completedPages }), storageKey(sourcePath), reportingAt, job.id, Number(job.processing_attempt))
+    `).run(resultJson, JSON.stringify(receivedProgress), storageKey(sourcePath), analysisReceivedAt, job.id, Number(job.processing_attempt))
+    if (!received.changes) throw serviceError('job_state_changed', 'The marking job state changed before the AI result was recorded.', 409, true)
+    notifyProgress(job, 'processing', receivedProgress)
+    const reportingAt = nowIso(now)
+    const reportingProgress = storedProgress('reporting', { completedPages, totalPages }, receivedProgress, reportingAt)
+    const persisted = database.prepare(`
+      UPDATE whole_paper_marking_jobs
+      SET progress_json = ?, updated_at = ?
+      WHERE id = ? AND status = 'processing' AND processing_attempt = ?
+    `).run(JSON.stringify(reportingProgress), reportingAt, job.id, Number(job.processing_attempt))
     if (!persisted.changes) throw serviceError('job_state_changed', 'The marking job state changed before report generation.', 409, true)
+    notifyProgress(job, 'processing', reportingProgress)
     const report = await renderReport({
       title: job.title || 'Whole-paper AI marking report',
       studentLabel: job.student_label,
@@ -705,13 +917,15 @@ export function createWholePaperMarkingService({
     const reportPath = path.join(directory, `report-attempt-${Number(job.processing_attempt)}.pdf`)
     atomicWrite(reportPath, report)
     const completedAt = nowIso(now)
+    const completedProgress = storedProgress('completed', { completedPages, totalPages }, reportingProgress, completedAt)
     const update = database.prepare(`
       UPDATE whole_paper_marking_jobs
       SET status = 'completed', progress_json = ?, retryable = 0, failure_code = NULL,
           source_pdf_key = ?, report_pdf_key = ?, updated_at = ?, completed_at = ?
       WHERE id = ? AND status = 'processing' AND processing_attempt = ?
-    `).run(JSON.stringify({ stage: 'completed', completedPages, totalPages: completedPages }), storageKey(sourcePath), storageKey(reportPath), completedAt, completedAt, job.id, Number(job.processing_attempt))
+    `).run(JSON.stringify(completedProgress), storageKey(sourcePath), storageKey(reportPath), completedAt, completedAt, job.id, Number(job.processing_attempt))
     if (!update.changes) throw serviceError('job_state_changed', 'The marking job state changed before completion.', 409, true)
+    notifyProgress(job, 'completed', completedProgress)
   }
 
   async function runPipeline(job, signal, deadlineAt) {
@@ -721,7 +935,7 @@ export function createWholePaperMarkingService({
     const markScheme = rows.find((asset) => asset.role === 'mark-scheme') || null
     const totalVisualPages = rows.reduce((sum, asset) => sum + Number(asset.page_count || 0), 0)
     if (totalVisualPages > WHOLE_PAPER_AI_MAX_IMAGES) throw serviceError('provider_image_limit', 'The job exceeds the visual provider page limit.', 413, false)
-    updateProgress(job, { stage: 'preparing-source-pdf', completedPages: 0, totalPages: answerAssets.reduce((sum, asset) => sum + Number(asset.page_count || 0), 0) })
+    updateProgress(job, { stage: 'preparing-source-pdf', completedPages: 0, totalPages: totalVisualPages })
     const sourcePdf = answerAssets.length === 1 && answerAssets[0].media_type === PDF_TYPE
       ? Buffer.from(answerAssets[0].bytes)
       : await orderedImagesToPdf(answerAssets.map((asset) => ({ bytes: asset.bytes, mediaType: asset.media_type })), { signal })
@@ -733,20 +947,24 @@ export function createWholePaperMarkingService({
       .run(storageKey(sourcePath), nowIso(now), job.id, Number(job.processing_attempt))
     if (!sourcePersisted.changes) throw serviceError('job_state_changed', 'The marking job state changed before source preparation completed.', 409, true)
     removeOlderAttemptArtifacts(directory, Number(job.processing_attempt))
-    const answerPageCount = answerAssets.reduce((sum, asset) => sum + Number(asset.page_count || 0), 0)
     const storedResult = parseJson(job.result_json)
     if (storedResult?.schemaVersion === RESULT_SCHEMA_VERSION) {
       const reusableResult = safeResult(storedResult, Boolean(questionPaper), Boolean(markScheme))
-      await renderAndCompleteJob({ job, result: reusableResult, directory, sourcePath, completedPages: answerPageCount, signal })
+      await renderAndCompleteJob({ job, result: reusableResult, directory, sourcePath, completedPages: totalVisualPages, totalPages: totalVisualPages, signal })
       return
     }
-    updateProgress(job, { stage: 'rendering-answer-pages', completedPages: 0, totalPages: answerPageCount })
+    updateProgress(job, { stage: 'rendering-answer-pages', completedPages: 0, totalPages: totalVisualPages })
     const answerPages = await renderPdfToPageImages(sourcePdf, { maxPages: WHOLE_PAPER_LIMITS.maxAnswerPages, signal })
-    updateProgress(job, { stage: 'rendering-references', completedPages: answerPages.length, totalPages: answerPages.length })
-    const questionPaperPages = questionPaper ? await renderPdfToPageImages(questionPaper.bytes, { maxPages: WHOLE_PAPER_LIMITS.maxReferencePages, signal }) : []
-    const markSchemePages = markScheme ? await renderPdfToPageImages(markScheme.bytes, { maxPages: WHOLE_PAPER_LIMITS.maxReferencePages, signal }) : []
+    let questionPaperPages = []
+    let markSchemePages = []
+    if (questionPaper || markScheme) {
+      updateProgress(job, { stage: 'rendering-references', completedPages: answerPages.length, totalPages: totalVisualPages })
+      questionPaperPages = questionPaper ? await renderPdfToPageImages(questionPaper.bytes, { maxPages: WHOLE_PAPER_LIMITS.maxReferencePages, signal }) : []
+      markSchemePages = markScheme ? await renderPdfToPageImages(markScheme.bytes, { maxPages: WHOLE_PAPER_LIMITS.maxReferencePages, signal }) : []
+    }
     if (signal.aborted) throw serviceError('marking_timeout', 'Whole-paper marking timed out.', 504, true)
-    updateProgress(job, { stage: 'ai-review', completedPages: answerPages.length, totalPages: answerPages.length })
+    const renderedPages = answerPages.length + questionPaperPages.length + markSchemePages.length
+    updateProgress(job, { stage: 'ai-review', completedPages: renderedPages, totalPages: totalVisualPages })
     const rawResult = await runAi({
       job: { id: job.id, title: job.title, studentLabel: job.student_label, instructions: job.instructions, routeId: job.route_id, stage: job.stage, paperId: job.paper_id },
       answerPages,
@@ -757,7 +975,7 @@ export function createWholePaperMarkingService({
     })
     if (signal.aborted) throw serviceError('marking_timeout', 'Whole-paper marking timed out.', 504, true)
     const result = safeResult(rawResult, Boolean(questionPaper), Boolean(markScheme))
-    await renderAndCompleteJob({ job, result, directory, sourcePath, completedPages: answerPages.length, signal })
+    await renderAndCompleteJob({ job, result, directory, sourcePath, completedPages: renderedPages, totalPages: totalVisualPages, signal })
   }
 
   async function processJob(job) {
@@ -779,11 +997,15 @@ export function createWholePaperMarkingService({
       const code = wholePaperFailureCode(error)
       const retryable = wholePaperFailureIsRetryable(error) ? 1 : 0
       const failedAt = nowIso(now)
-      database.prepare(`
+      const current = database.prepare('SELECT progress_json FROM whole_paper_marking_jobs WHERE id = ? AND status = \'processing\' AND processing_attempt = ?').get(job.id, Number(job.processing_attempt))
+      const previousProgress = parseJson(current?.progress_json, {})
+      const failedProgress = storedProgress('failed', {}, previousProgress, failedAt)
+      const failed = database.prepare(`
         UPDATE whole_paper_marking_jobs
         SET status = 'failed', progress_json = ?, retryable = ?, failure_code = ?, updated_at = ?, completed_at = ?
         WHERE id = ? AND status = 'processing' AND processing_attempt = ?
-      `).run(JSON.stringify({ stage: 'failed', completedPages: 0, totalPages: null }), retryable, code, failedAt, failedAt, job.id, Number(job.processing_attempt))
+      `).run(JSON.stringify(failedProgress), retryable, code, failedAt, failedAt, job.id, Number(job.processing_attempt))
+      if (failed.changes) notifyProgress(job, 'failed', failedProgress)
       let drainTimer
       try {
         await Promise.race([
@@ -806,14 +1028,21 @@ export function createWholePaperMarkingService({
         const queued = database.prepare("SELECT * FROM whole_paper_marking_jobs WHERE status = 'queued' ORDER BY submitted_at, created_at, id LIMIT 1").get()
         if (!queued) break
         const startedAt = nowIso(now)
+        const queuedProgress = parseJson(queued.progress_json, {})
+        const startingProgress = storedProgress('starting', {
+          completedPages: 0,
+          totalPages: queuedProgress.totalPages,
+        }, queuedProgress, startedAt)
         const claimed = database.prepare(`
           UPDATE whole_paper_marking_jobs
           SET status = 'processing', progress_json = ?, processing_attempt = processing_attempt + 1,
               started_at = ?, updated_at = ?, retryable = 0, failure_code = NULL
           WHERE id = ? AND status = 'queued'
-        `).run(JSON.stringify({ stage: 'starting', completedPages: 0, totalPages: null }), startedAt, startedAt, queued.id)
+        `).run(JSON.stringify(startingProgress), startedAt, startedAt, queued.id)
         if (!claimed.changes) continue
-        await processJob(database.prepare('SELECT * FROM whole_paper_marking_jobs WHERE id = ?').get(queued.id))
+        const processingJob = database.prepare('SELECT * FROM whole_paper_marking_jobs WHERE id = ?').get(queued.id)
+        notifyProgress(processingJob, 'processing', startingProgress)
+        await processJob(processingJob)
       }
     } finally {
       active = false
