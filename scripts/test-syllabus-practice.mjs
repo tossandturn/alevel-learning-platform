@@ -7,12 +7,15 @@ import { courseRoutes } from '../src/data/routeRegistry.js'
 import importedQuestionIndex from '../src/data/importedQuestionIndex.json' with { type: 'json' }
 import paperCatalog from '../public/data/papers.json' with { type: 'json' }
 import { closeStemDatabaseForTests, createStemApi } from '../server/stemApi.js'
+import { isHumanReviewedPastPaperItem, unifiedQuestionBank } from '../src/data/questionBank.js'
 import { attemptedSourceQuestionIds } from '../src/lib/attemptAudit.js'
+import { topicPracticeEligibility } from '../src/lib/practiceConstants.js'
 import { buildSyllabusPracticeSet, syllabusMappingCandidates, syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
 import { validateSyllabusInventoryPayload } from '../src/hooks/useSyllabusInventory.js'
 
 const routeId = 'cie-9702-as-physics'
 const igcsePhysicsRouteId = 'cie-0625-igcse-physics'
+const heldCorrectionId = 'cie-9702-9702_s25_qp_22:q1'
 const signingKey = 'test-syllabus-key'
 const route = courseRoutes.find((item) => item.routeId === routeId)
 assert.ok(route, '9702 AS route must exist')
@@ -144,9 +147,25 @@ assert.throws(
 
 const candidates = syllabusMappingCandidates()
 assert.equal(candidates.length, 147, 'the current 2023-2025 P1/P2 index must expose its real candidate count')
-assert.equal(candidates.filter((candidate) => candidate.reviewStatus === 'reviewed').length, 120, 'only the manually reviewed P1/P2 source batches may enter the reviewed inventory')
-assert.equal(candidates.filter((candidate) => candidate.reviewStatus === 'pending').length, 27, 'machine-indexed P2 groups must remain pending until source-semantic review')
-assert.equal(candidates.filter((candidate) => candidate.reviewStatus === 'rejected').length, 0, 'the reviewed P2 reconstruction must resolve the former false rejection')
+const reviewedCandidates = candidates.filter((candidate) => candidate.reviewStatus === 'reviewed')
+const rejectedCandidates = candidates.filter((candidate) => candidate.reviewStatus === 'rejected')
+const formallyEligibleRouteIds = new Set(unifiedQuestionBank
+  .filter((question) => question.routeId === routeId && isHumanReviewedPastPaperItem(question))
+  .map((question) => question.sourceQuestionId))
+assert.deepEqual(
+  reviewedCandidates.map((candidate) => candidate.questionGroupId).sort(),
+  [...formallyEligibleRouteIds].sort(),
+  'only distinct groups passing the immutable formal eligibility predicate may enter the reviewed inventory',
+)
+assert.equal(candidates.filter((candidate) => candidate.reviewStatus === 'pending').length, candidates.length - reviewedCandidates.length - rejectedCandidates.length, 'every non-reviewed, non-rejected candidate must remain pending')
+assert.equal(rejectedCandidates.length, 0, 'the reviewed P2 reconstruction must resolve the former false rejection')
+const heldCorrection = candidates.find((candidate) => candidate.questionGroupId === heldCorrectionId)
+assert.ok(heldCorrection, 'the corrected Q1 must remain represented in the source-mapping inventory')
+assert.equal(heldCorrection.reviewStatus, 'pending', 'AI source correction must not restore human-reviewed status')
+assert.equal(heldCorrection.verificationStatus, 'quarantined')
+assert.equal(heldCorrection.semanticStatus, 'semantic-quarantined')
+assert.equal(heldCorrection.sourceContentComplete, false)
+assert.equal(formallyEligibleRouteIds.has(heldCorrectionId), false, 'the held correction must not be formally eligible')
 const reviewedP2Groups = candidates.filter((candidate) => candidate.questionPaperId === 'cie-9702-9702_m25_qp_22')
 assert.equal(reviewedP2Groups.length, 7, 'M25/22 must retain exactly seven question groups')
 assert.ok(reviewedP2Groups.every((candidate) => candidate.reviewStatus === 'reviewed' && candidate.sourceContentComplete), 'each reconstructed M25/22 group must have reviewed QP/MS source evidence before release')
@@ -219,17 +238,31 @@ const uniqueVerifiedQuestionIds = (topics) => new Set(
   topics.flatMap((topic) => Object.values(topic.questionIdsByComponent || {})
     .flatMap((component) => component.verifiedQuestionIds || [])),
 )
+function assertSharedReadinessPolicy(inventory, label) {
+  for (const topic of inventory.topics) {
+    const expected = topicPracticeEligibility({
+      verifiedQuestionCount: topic.verifiedQuestionCount,
+      availableQuestionCount: topic.availableQuestionCount,
+    })
+    assert.equal(topic.ready, expected.ready, `${label}/${topic.id}: formal readiness must use the shared 12-group gate`)
+    assert.equal(topic.ctaPolicy, expected.ctaPolicy, `${label}/${topic.id}: CTA must use the shared 6/12 policy`)
+    assert.deepEqual(topic.availableSetSizes, expected.availableSetSizes, `${label}/${topic.id}: set sizes must follow actual startability`)
+  }
+  assert.equal(inventory.ready, inventory.topics.every((topic) => topic.ready), `${label}: route readiness must require every official topic`)
+}
 
 const localInventory = syllabusTopicsInventory({ routeId, includeStudyOnly: false })
 assert.equal(localInventory.topics.length, 11)
 assert.equal(uniqueIndexedQuestionIds(localInventory.topics).size, 147, 'secondary topic memberships must not duplicate unique indexed sourceQuestionIds')
 assert.equal(localInventory.indexedQuestionGroupCount, 147)
 assert.equal(localInventory.unmappedQuestionGroupCount, 0)
-assert.equal(uniqueVerifiedQuestionIds(localInventory.topics).size, 120, 'secondary topic memberships must not duplicate unique reviewed sourceQuestionIds')
+assert.deepEqual([...uniqueVerifiedQuestionIds(localInventory.topics)].sort(), [...formallyEligibleRouteIds].sort(), 'secondary topic memberships must match distinct formally eligible sourceQuestionIds')
 assert.ok(localInventory.topics.every((topic) => topic.verifiedQuestionCount >= 10), 'every official AS theory topic must retain its reviewed source inventory')
-assert.equal(localInventory.ready, true, 'the AS route must become available only after every official topic reaches two six-question tests')
-assert.equal(localInventory.topics.filter((topic) => topic.ctaPolicy === 'start').length, 11, 'reviewed mappings must raise the qualifying topic count')
-assert.equal(localInventory.topics.filter((topic) => topic.ctaPolicy === 'hidden').length, 0, 'under-floor reviewed topics must not become study-mode fallbacks')
+assertSharedReadinessPolicy(localInventory, 'local')
+assert.equal(localInventory.ready, false, 'the AS route must remain formally blocked while one topic has only eleven reviewed groups')
+assert.equal(localInventory.topics.filter((topic) => topic.ctaPolicy === 'start').length, 10)
+assert.equal(localInventory.topics.filter((topic) => topic.ctaPolicy === 'start-study').length, 1, 'the under-formal topic must retain reviewed-subset study access')
+assert.equal(localInventory.topics.filter((topic) => topic.ctaPolicy === 'hidden').length, 0)
 
 const api = createStemApi({
   env: { STEM_IDENTITY_SIGNING_KEY: signingKey, STEM_DB_PATH: ':memory:' },
@@ -253,11 +286,13 @@ try {
   assert.equal(uniqueIndexedQuestionIds(inventory.topics).size, 147, 'API inventory must deduplicate secondary memberships by sourceQuestionId')
   assert.equal(inventory.indexedQuestionGroupCount, 147)
   assert.equal(inventory.unmappedQuestionGroupCount, 0)
-  assert.equal(uniqueVerifiedQuestionIds(inventory.topics).size, 120, 'API inventory must deduplicate reviewed secondary memberships by sourceQuestionId')
+  assert.deepEqual([...uniqueVerifiedQuestionIds(inventory.topics)].sort(), [...formallyEligibleRouteIds].sort(), 'API inventory must expose the exact distinct formally eligible sourceQuestionIds')
   assert.ok(inventory.topics.every((topic) => topic.verifiedQuestionCount >= 10), 'API inventory must use the current canonical reviewed bank')
-  assert.equal(inventory.ready, true, 'API inventory must expose a ready route only after every topic reaches the two-test floor')
-  assert.equal(inventory.topics.filter((topic) => topic.ctaPolicy === 'start').length, 11, 'API formal readiness must expose every topic reaching the reviewed floor')
-  assert.equal(inventory.topics.filter((topic) => topic.ctaPolicy === 'hidden').length, 0, 'API must not relabel under-floor reviewed topics as study practice')
+  assertSharedReadinessPolicy(inventory, 'api')
+  assert.equal(inventory.ready, false, 'API inventory must not claim formal route readiness below the 12-group topic floor')
+  assert.equal(inventory.topics.filter((topic) => topic.ctaPolicy === 'start').length, 10)
+  assert.equal(inventory.topics.filter((topic) => topic.ctaPolicy === 'start-study').length, 1, 'API must expose the actual reviewed-subset study policy below the formal floor')
+  assert.equal(inventory.topics.filter((topic) => topic.ctaPolicy === 'hidden').length, 0)
   assert.equal(inventory.officialPaperCount, 46)
   assert.equal(inventory.officialPairedPaperCount, 46)
   assert.ok(inventory.topics.every((topic) => topic.points.length > 0), 'API must return official syllabus points')

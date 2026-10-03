@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { courseRoutes } from '../src/data/routeRegistry.js'
 import { learningPlan } from '../src/data/learningPlan.js'
+import { isHumanReviewedPastPaperItem, unifiedQuestionBank } from '../src/data/questionBank.js'
 import { topicLearningContent, topicLearningContentSourceNote } from '../src/data/topicLearningContent.js'
 import { coachPracticeOptions, verifiedPracticeQuestionGroups } from '../src/lib/verifiedPracticeCatalog.js'
 
@@ -44,10 +45,14 @@ for (const route of courseRoutes) {
 }
 
 assert.ok(topicCount >= 60, `expected the registered learning map to expose at least 60 topics, got ${topicCount}`)
-assert.equal(
-  verifiedPracticeQuestionGroups.length,
-  238,
-  'learning content must expose exactly the current canonical verified question inventory',
+const formallyEligibleIds = new Set(unifiedQuestionBank
+  .filter(isHumanReviewedPastPaperItem)
+  .map((question) => question.sourceQuestionId))
+assert.deepEqual(
+  new Set(verifiedPracticeQuestionGroups.map((question) => question.sourceQuestionId)),
+  formallyEligibleIds,
+  'learning content must expose exactly the current canonical formally eligible inventory',
 )
+assert.equal(formallyEligibleIds.has('cie-9702-9702_s25_qp_22:q1'), false, 'the corrected quarantined Q1 must not be exposed as verified learning content')
 
 console.log(`Topic learning content checks passed for ${topicCount} practice topics and ${courseRoutes.reduce((sum, route) => sum + route.syllabus.topics.length, 0)} route topics`)

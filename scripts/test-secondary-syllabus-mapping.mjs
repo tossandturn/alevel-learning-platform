@@ -1,22 +1,39 @@
 import assert from 'node:assert/strict'
 
-import { unifiedQuestionBank } from '../src/data/questionBank.js'
+import { isHumanReviewedPastPaperItem, unifiedQuestionBank } from '../src/data/questionBank.js'
+import { topicPracticeEligibility } from '../src/lib/practiceConstants.js'
 import { syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
 import { buildCoachPractice, coachPracticeOptions } from '../src/lib/verifiedPracticeCatalog.js'
 
 const routeId = 'cie-9702-as-physics'
+const heldCorrectionId = 'cie-9702-9702_s25_qp_22:q1'
+const reviewedRouteQuestions = unifiedQuestionBank.filter((question) => (
+  question.routeId === routeId && isHumanReviewedPastPaperItem(question)
+))
+const reviewedRouteIds = new Set(reviewedRouteQuestions.map((question) => question.sourceQuestionId))
 const inventory = syllabusTopicsInventory({ routeId, questionBank: unifiedQuestionBank })
-const count = (topicId) => inventory.topics.find((topic) => topic.id === topicId)?.verifiedQuestionCount
+const mappedTopicIds = (question) => new Set([
+  question.syllabusMapping?.primaryTopicId,
+  ...(question.syllabusMapping?.secondaryTopicIds || []),
+  ...(question.syllabusMapping?.topicIds || []),
+].filter(Boolean))
 
-assert.equal(inventory.verifiedQuestionGroupCount, 120, 'secondary mappings must not duplicate route-level reviewed groups')
-assert.equal(count('physics-9702-topic-03'), 13, 'reviewed secondary mechanics mappings must count toward Dynamics')
-assert.equal(count('physics-9702-topic-04'), 15, 'reviewed secondary pressure mappings must count toward Forces, density and pressure')
-assert.equal(count('physics-9702-topic-05'), 18, 'reviewed secondary energy mappings must count toward Work, energy and power')
-assert.equal(count('physics-9702-topic-06'), 12, 'reviewed deformation mappings must close the final 9702 AS topic floor')
-assert.equal(count('physics-9702-topic-09'), 15, 'reviewed secondary circuit mappings must count toward Electricity')
-assert.equal(count('physics-9702-topic-10'), 12, 'reviewed secondary circuit mappings must count toward D.C. circuits')
-assert.equal(inventory.topics.filter((topic) => topic.ready).length, 11, 'reviewed mappings should raise the ready-topic count to every official 9702 AS topic')
-assert.equal(inventory.topics.filter((topic) => topic.ctaPolicy === 'start').length, 11)
+assert.equal(inventory.verifiedQuestionGroupCount, reviewedRouteIds.size, 'secondary mappings must not duplicate route-level formally eligible groups')
+assert.equal(reviewedRouteIds.has(heldCorrectionId), false, 'the corrected AI-only Q1 must remain outside formal inventory')
+for (const topic of inventory.topics) {
+  const expectedIds = new Set(reviewedRouteQuestions
+    .filter((question) => mappedTopicIds(question).has(topic.id))
+    .map((question) => question.sourceQuestionId))
+  assert.equal(topic.verifiedQuestionCount, expectedIds.size, `${topic.id}: secondary mappings must count each eligible source group once`)
+  const expectedPolicy = topicPracticeEligibility({
+    verifiedQuestionCount: expectedIds.size,
+    availableQuestionCount: expectedIds.size,
+  })
+  assert.equal(topic.ready, expectedPolicy.ready, `${topic.id}: formal readiness must use the shared 12-group policy`)
+  assert.equal(topic.ctaPolicy, expectedPolicy.ctaPolicy, `${topic.id}: CTA must use the shared 6/12 policy`)
+}
+assert.equal(inventory.ready, inventory.topics.every((topic) => topic.ready), 'route readiness must require every official topic to clear the formal floor')
+assert.equal(inventory.topics.filter((topic) => topic.ctaPolicy === 'start-study').length, 1, 'the single under-formal topic must retain reviewed-subset study access')
 
 const legacyPhysicsOption = coachPracticeOptions().find((option) => option.routeId === routeId)
 assert.ok(legacyPhysicsOption, 'AI Practice must retain the exact 9702 AS route')
@@ -29,13 +46,14 @@ assert.deepEqual(
 )
 const secondaryTopicPractice = buildCoachPractice({
   routeId,
-  knowledgeGroupId: 'physics-9702-topic-01',
-  questionCount: 10,
+  knowledgeGroupId: 'physics-9702-topic-04',
+  questionCount: 15,
 })
 assert.ok(
-  secondaryTopicPractice.parts.some((part) => part.sourceQuestionId === 'cie-9702-9702_s25_qp_22:q1'),
+  secondaryTopicPractice.parts.some((part) => part.sourceQuestionId === 'cie-9702-9702_m24_qp_22:q2'),
   'a reviewed secondary membership must be selectable through the AI Practice catalog as well as the server Topic Drill',
 )
+assert.equal(secondaryTopicPractice.parts.some((part) => part.sourceQuestionId === heldCorrectionId), false, 'the quarantined correction must never enter AI Practice through its former secondary membership')
 
 const reviewedSecondaryQuestion = unifiedQuestionBank.find((question) => (
   question.routeId === routeId

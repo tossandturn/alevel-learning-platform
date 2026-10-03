@@ -9,7 +9,8 @@ import { execFileSync } from 'node:child_process'
 import { createAiApi } from './server/aiApi.js'
 import { createAiVerifiedQuestionBankLoader } from './server/aiVerifiedQuestionBank.js'
 import { resolveAiPdfIngestionRoot } from './server/aiPdfIngestionCandidates.js'
-import { createCoachAttemptAuthorizer, createStemApi } from './server/stemApi.js'
+import { createCoachAttemptAuthorizer, createCurriculumPracticeAccess, createStemApi } from './server/stemApi.js'
+import { createCurriculumPracticeApi } from './server/curriculumPracticeApi.js'
 import { createTopicPdfRenderer } from './server/topicPdfRenderer.js'
 import { isPaperAvailableToStudents } from './src/lib/paperGovernance.js'
 import { mergeRuntimeEnv } from './src/lib/runtimeEnv.js'
@@ -504,6 +505,17 @@ function localCieLibrary(env) {
     timeoutMs: env.STEM_TOPIC_PDF_TIMEOUT_MS,
   })
   const stemApi = createStemApi({ env, topicQuestionBankProvider: runtimeAiGroups, libraryRoot, topicPdfRenderer })
+  const curriculumReleaseRoot = env.STEM_CURRICULUM_PRACTICE_RELEASE_ROOT || '/home/ubuntu/alevel-physics/curriculum-practice/current'
+  const curriculumPracticeApi = createCurriculumPracticeApi({
+    releaseRoot: curriculumReleaseRoot,
+    sourceAssetRoot: env.STEM_CURRICULUM_PRACTICE_SOURCE_ROOT || path.join(curriculumReleaseRoot, 'source'),
+    ...createCurriculumPracticeAccess({ env }),
+  })
+  const curriculumPracticeMiddleware = (request, response, next) => {
+    void curriculumPracticeApi.handle(request, response).then((handled) => {
+      if (!handled) next()
+    }).catch(next)
+  }
   const aiApi = createAiApi({
     env,
     libraryRoot,
@@ -518,6 +530,7 @@ function localCieLibrary(env) {
       server.middlewares.use(createMissingBuiltAssetMiddleware({ assetRoot: path.resolve(server.config.root, server.config.build.outDir || 'dist') }))
       server.middlewares.use(sendHealth)
       server.middlewares.use(sendPublicAsset)
+      server.middlewares.use(curriculumPracticeMiddleware)
       server.middlewares.use(stemApi)
       server.middlewares.use(aiApi)
       server.middlewares.use((request, response, next) => {
@@ -529,6 +542,7 @@ function localCieLibrary(env) {
       server.middlewares.use(createMissingBuiltAssetMiddleware({ assetRoot: path.resolve(server.config.root, server.config.build.outDir || 'dist') }))
       server.middlewares.use(sendHealth)
       server.middlewares.use(sendPublicAsset)
+      server.middlewares.use(curriculumPracticeMiddleware)
       server.middlewares.use(stemApi)
       server.middlewares.use(aiApi)
       server.middlewares.use((request, response, next) => {

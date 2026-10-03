@@ -3,6 +3,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { execFileSync, spawnSync } from 'node:child_process'
+import { isHumanReviewedPastPaperItem, unifiedQuestionBank } from '../src/data/questionBank.js'
+import { syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
 import { canonicalTextSha256, canonicalUtf8LfText } from './canonical-text.mjs'
 
 const repoRoot = path.resolve(import.meta.dirname, '..')
@@ -117,6 +119,8 @@ function runReleaseVerification(releaseRoot) {
     maxBuffer: 32 * 1024 * 1024,
   })
   assert.equal(manifest.status, 0, `git archive release manifest must generate:\n${manifest.stdout}\n${manifest.stderr}`)
+  const writtenManifest = JSON.parse(fs.readFileSync(path.join(releaseRoot, 'release-manifest.json'), 'utf8'))
+  assert.equal(writtenManifest.syllabusScope?.readinessMode, 'formal', 'the default release fixture must retain the strict formal readiness mode')
   const result = spawnSync(process.execPath, [
     path.join(releaseRoot, 'scripts', 'verify-stem-release.mjs'),
     '--release-root',
@@ -145,7 +149,45 @@ function runReleaseVerification(releaseRoot) {
   assert.equal(coverage.status, 0, `git archive coverage report must be readable:\n${coverage.stdout}\n${coverage.stderr}`)
   const coverageReport = JSON.parse(coverage.stdout)
   assert.equal(coverageReport.routeReady, false, 'the strict all-route report must continue to expose unfinished routes')
-  assert.equal(result.status, 0, `a release scoped to the ready 9702 AS route must verify successfully:\n${result.stdout}\n${result.stderr}`)
+
+  const routeId = 'cie-9702-as-physics'
+  const expectedInventory = syllabusTopicsInventory({ routeId, questionBank: unifiedQuestionBank })
+  const expectedEligibleIds = new Set(unifiedQuestionBank
+    .filter((question) => question.routeId === routeId && isHumanReviewedPastPaperItem(question))
+    .map((question) => question.sourceQuestionId))
+  const expectedUnderFloorIds = expectedInventory.topics
+    .filter((topic) => !topic.ready)
+    .map((topic) => topic.id)
+  assert.equal(expectedInventory.verifiedQuestionGroupCount, expectedEligibleIds.size, 'formal inventory must deduplicate the immutable eligibility predicate')
+  assert.equal(expectedEligibleIds.has('cie-9702-9702_s25_qp_22:q1'), false, 'the corrected quarantined Q1 must stay outside release eligibility')
+  assert.ok(expectedUnderFloorIds.length > 0, 'the production-derived fixture must prove the strict formal route is not ready')
+
+  const strictCoverage = spawnSync(process.execPath, [
+    path.join(releaseRoot, 'scripts', 'verify-9702-syllabus-coverage.mjs'),
+  ], {
+    cwd: releaseRoot,
+    env: { ...process.env },
+    encoding: 'utf8',
+    maxBuffer: 32 * 1024 * 1024,
+  })
+  assert.equal(strictCoverage.status, 1, `strict formal coverage must block the incomplete route:\n${strictCoverage.stdout}\n${strictCoverage.stderr}`)
+  const strictCoverageReport = JSON.parse(strictCoverage.stdout)
+  assert.equal(strictCoverageReport.verifiedQuestionGroupCount, expectedEligibleIds.size)
+  assert.deepEqual(
+    strictCoverageReport.topics.filter((topic) => !topic.ready).map((topic) => topic.id),
+    expectedUnderFloorIds,
+    'the strict release gate must report the actual under-floor topics from the immutable formal bank',
+  )
+
+  assert.equal(result.status, 1, `formal release verification must stop at the expected coverage gate:\n${result.stdout}\n${result.stderr}`)
+  const verifierFailure = canonicalUtf8LfText(`${result.stdout}\n${result.stderr}`)
+  assert.match(verifierFailure, /Release 9702 syllabus coverage gate failed:/, 'the release verifier must reach and fail specifically at the final formal coverage gate')
+  assert.ok(
+    verifierFailure.includes(canonicalUtf8LfText(strictCoverage.stdout).trim()),
+    'the verifier failure must embed the real strict coverage report rather than accepting a stubbed failure',
+  )
+  assert.doesNotMatch(verifierFailure, /Release (?:source audit|paper catalog audit) failed:/, 'all integrity and source checks before formal coverage must pass')
+  assert.doesNotMatch(verifierFailure, /"ok"\s*:\s*true/, 'a formally blocked release must not emit a success result')
 }
 
 try {

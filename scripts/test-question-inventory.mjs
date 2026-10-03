@@ -2,9 +2,9 @@ import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { unifiedQuestionBank } from '../src/data/questionBank.js'
+import { isHumanReviewedPastPaperItem, unifiedQuestionBank } from '../src/data/questionBank.js'
 import { courseRoutes } from '../src/data/routeRegistry.js'
-import { MIN_QUESTION_GROUPS_PER_TEST, MIN_VERIFIED_GROUPS_FOR_PRACTICE } from '../src/lib/practiceConstants.js'
+import { MIN_QUESTION_GROUPS_PER_TEST, MIN_VERIFIED_GROUPS_FOR_PRACTICE, topicPracticeEligibility } from '../src/lib/practiceConstants.js'
 import { syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
 import { SYLLABUS_PRACTICE_ROUTE_IDS } from '../src/lib/syllabusPracticeRoutes.js'
 
@@ -14,6 +14,9 @@ const output = execFileSync(process.execPath, ['scripts/question-inventory-matri
   encoding: 'utf8',
 })
 const matrix = JSON.parse(output)
+const formallyEligibleIds = new Set(unifiedQuestionBank
+  .filter(isHumanReviewedPastPaperItem)
+  .map((question) => question.sourceQuestionId))
 
 assert.equal(matrix.schemaVersion, 'stem-question-inventory-v1')
 for (const routeId of SYLLABUS_PRACTICE_ROUTE_IDS) {
@@ -29,7 +32,7 @@ assert.ok(matrix.totals.indexedQuestionGroups > 0, 'the imported index must not 
 assert.equal(matrix.totals.effectiveFileQuarantined, matrix.totals.indexQuarantined + matrix.totals.sourceAdditionalQuarantined, 'file quarantine totals must be decomposable without overlap')
 assert.equal(matrix.totals.effectivePracticeQuarantinedQuestionGroups + matrix.totals.effectivePracticeAvailableQuestionGroups, matrix.totals.indexedQuestionGroups, 'practice gate must partition the imported index')
 assert.equal(matrix.totals.semanticVerifiedQuestionGroups, matrix.totals.effectivePracticeAvailableQuestionGroups, 'runtime practice must use the same semantic gate as the manifest')
-assert.ok(matrix.totals.effectivePracticeAvailableQuestionGroups >= 238, 'reviewed practice inventory must retain the eight newly reviewed groups')
+assert.equal(matrix.totals.effectivePracticeAvailableQuestionGroups, formallyEligibleIds.size, 'matrix totals must match the distinct immutable formal bank')
 assert.equal(matrix.totals.minimumGroupsForReadyRouteOrTopic, MIN_VERIFIED_GROUPS_FOR_PRACTICE)
 
 const cambridge0580 = matrix.routes.find((route) => route.routeId === 'cie-0580-igcse-mathematics')
@@ -45,30 +48,44 @@ assert.ok(cambridge0580.topicMatrix
 
 const cambridge9702 = matrix.routes.find((route) => route.routeId === 'cie-9702-as-physics')
 assert.ok(cambridge9702, '9702 AS Physics route must be present in the inventory matrix')
-assert.equal(cambridge9702.practiceAvailableQuestionGroups, 120)
-assert.equal(cambridge9702.semanticVerifiedQuestionGroups, 120)
-assert.equal(cambridge9702.ready, true, '9702 AS must become ready only after every official topic reaches the formal readiness floor')
-assert.equal(cambridge9702.ctaPolicy, 'start', 'a complete 9702 inventory must expose its formal Topic Drill route')
-assert.equal(cambridge9702.readyTopics, 11, 'reviewed mappings must count toward every official 9702 topic')
+const formallyEligible9702Ids = new Set(unifiedQuestionBank
+  .filter((question) => question.routeId === cambridge9702.routeId && isHumanReviewedPastPaperItem(question))
+  .map((question) => question.sourceQuestionId))
+const syllabus9702 = syllabusTopicsInventory({ routeId: cambridge9702.routeId, questionBank: unifiedQuestionBank })
+assert.equal(formallyEligible9702Ids.has('cie-9702-9702_s25_qp_22:q1'), false, 'the corrected quarantined Q1 must remain outside the formal bank')
+assert.equal(cambridge9702.practiceAvailableQuestionGroups, formallyEligible9702Ids.size)
+assert.equal(cambridge9702.semanticVerifiedQuestionGroups, formallyEligible9702Ids.size)
+assert.equal(cambridge9702.ready, syllabus9702.ready, 'matrix and syllabus inventory must agree on formal route readiness')
+const expected9702RouteCta = syllabus9702.ready
+  ? 'start'
+  : syllabus9702.topics.some((topic) => topic.ctaPolicy !== 'hidden') ? 'start-study' : 'hidden'
+assert.equal(cambridge9702.ctaPolicy, expected9702RouteCta, 'route CTA must truthfully fall back to study while any formal topic remains under floor')
+assert.equal(cambridge9702.readyTopics, syllabus9702.topics.filter((topic) => topic.ready).length, 'matrix and syllabus inventory must agree on formally ready topics')
 assert.equal(cambridge9702.topicMatrix.length, 11)
 const underFloor9702Topics = cambridge9702.topicMatrix
   .filter((topic) => topic.practiceAvailableQuestionGroups < MIN_VERIFIED_GROUPS_FOR_PRACTICE)
-assert.equal(underFloor9702Topics.length, 0)
+const underFloorSyllabusTopicIds = syllabus9702.topics
+  .filter((topic) => !topic.ready)
+  .map((topic) => topic.id)
+assert.ok(underFloor9702Topics.length > 0, 'the current quarantined correction must leave at least one topic below the formal 12-group floor')
+assert.deepEqual(underFloor9702Topics.map((topic) => topic.topicId), underFloorSyllabusTopicIds, 'matrix and runtime inventory must identify the same under-floor topics')
 assert.ok(
-  underFloor9702Topics.every((topic) => (
-    topic.practiceAvailableQuestionGroups < MIN_VERIFIED_GROUPS_FOR_PRACTICE
-    && topic.ready === false
-    && topic.ctaPolicy === 'hidden'
-  )),
-  'each under-floor 9702 topic must remain hidden below the formal readiness floor',
+  underFloor9702Topics.every((topic) => {
+    const expected = topicPracticeEligibility({
+      verifiedQuestionCount: topic.practiceAvailableQuestionGroups,
+      availableQuestionCount: topic.practiceAvailableQuestionGroups,
+    })
+    return topic.ready === expected.ready && topic.ctaPolicy === expected.ctaPolicy
+  }),
+  'each under-floor 9702 topic must use the shared reviewed-subset study policy without becoming formally ready',
 )
 const wavesTopic = cambridge9702.topicMatrix.find((topic) => topic.topicId === 'physics-9702-topic-07')
 assert.ok(wavesTopic, 'the Waves topic must remain in the official 9702 inventory')
 assert.equal(wavesTopic.practiceAvailableQuestionGroups, 18, 'reviewed secondary mappings must be counted once in the Waves topic')
 assert.equal(wavesTopic.ready, true)
 assert.equal(wavesTopic.ctaPolicy, 'start')
-assert.equal(cambridge9702.topicMatrix.filter((topic) => topic.ctaPolicy === 'start').length, 11)
-assert.equal(cambridge9702.topicMatrix.filter((topic) => topic.ctaPolicy === 'start-study').length, 0)
+assert.equal(cambridge9702.topicMatrix.filter((topic) => topic.ctaPolicy === 'start').length, syllabus9702.topics.filter((topic) => topic.ctaPolicy === 'start').length)
+assert.equal(cambridge9702.topicMatrix.filter((topic) => topic.ctaPolicy === 'start-study').length, syllabus9702.topics.filter((topic) => topic.ctaPolicy === 'start-study').length)
 
 const audit = JSON.parse(execFileSync(process.execPath, ['scripts/audit-question-bank.mjs'], {
   cwd: projectRoot,
@@ -79,21 +96,22 @@ const audited9702Topics = Object.entries(audit.inventory)
   .filter(([key]) => key.startsWith('cambridge-9702 | AS | '))
 assert.equal(
   audited9702Topics.filter(([, count]) => Number(count) >= MIN_VERIFIED_GROUPS_FOR_PRACTICE).length,
-  11,
-  'the source audit and syllabus gate must agree on all eleven 9702 AS ready topics',
+  cambridge9702.readyTopics,
+  'the source audit and syllabus gate must agree on the current formally ready 9702 AS topics',
 )
-const syllabus9702 = syllabusTopicsInventory({ routeId: cambridge9702.routeId, questionBank: unifiedQuestionBank })
 const underFloorSyllabus9702Topics = syllabus9702.topics
   .filter((topic) => topic.verifiedQuestionCount < MIN_VERIFIED_GROUPS_FOR_PRACTICE)
-assert.equal(underFloorSyllabus9702Topics.length, 0)
 assert.ok(
-  underFloorSyllabus9702Topics.every((topic) => (
-    topic.ready === false
-    && topic.ctaPolicy === 'hidden'
-    && Array.isArray(topic.availableSetSizes)
-    && topic.availableSetSizes.length === 0
-  )),
-  'under-floor 9702 topics must not advertise a formal Topic Drill set',
+  underFloorSyllabus9702Topics.every((topic) => {
+    const expected = topicPracticeEligibility({
+      verifiedQuestionCount: topic.verifiedQuestionCount,
+      availableQuestionCount: topic.availableQuestionCount,
+    })
+    return topic.ready === false
+      && topic.ctaPolicy === expected.ctaPolicy
+      && JSON.stringify(topic.availableSetSizes) === JSON.stringify(expected.availableSetSizes)
+  }),
+  'under-floor 9702 topics must remain non-formal while advertising only shared-policy study set sizes',
 )
 
 const appSource = execFileSync(process.execPath, ['-e', "process.stdout.write(require('node:fs').readFileSync('src/App.jsx','utf8'))"], {

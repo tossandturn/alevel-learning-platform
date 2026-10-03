@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import importedQuestionIndex from '../src/data/importedQuestionIndex.json' with { type: 'json' }
 import sourceContentManifest from '../src/data/sourceContentManifest.json' with { type: 'json' }
-import { unifiedQuestionBank } from '../src/data/questionBank.js'
+import { isHumanReviewedPastPaperItem, unifiedQuestionBank } from '../src/data/questionBank.js'
 import { buildSyllabusPracticeSet, syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
 import { reviewedSourceFocusBinding } from '../src/lib/questionContent.js'
 import { CAMBRIDGE_9702_P1_2025_REVIEW_LEDGER } from '../src/data/reviewedQuestionSets/cambridge-9702-p1-2025-review-ledger.js'
@@ -100,7 +100,11 @@ assert.equal(
 )
 
 const inventory = syllabusTopicsInventory({ routeId, questionBank: unifiedQuestionBank })
-assert.equal(inventory.verifiedQuestionGroupCount, 120, '9702 AS inventory must expose the reviewed P1 and P2 source batches')
+const formallyEligibleRouteIds = new Set(unifiedQuestionBank
+  .filter((question) => question.routeId === routeId && isHumanReviewedPastPaperItem(question))
+  .map((question) => question.sourceQuestionId))
+assert.equal(inventory.verifiedQuestionGroupCount, formallyEligibleRouteIds.size, '9702 AS inventory must expose each formally eligible P1/P2 source group exactly once')
+assert.equal(formallyEligibleRouteIds.has('cie-9702-9702_s25_qp_22:q1'), false, 'the corrected quarantined Q1 must remain outside formal P1/P2 inventory')
 assert.ok(inventory.topics.every((topic) => topic.verifiedQuestionCount >= 10), 'every official 9702 AS topic requires at least ten reviewed groups before release')
 
 for (const topic of inventory.topics) {

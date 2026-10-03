@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import importedQuestionIndex from '../src/data/importedQuestionIndex.json' with { type: 'json' }
 import * as syllabusPractice from '../src/lib/syllabusPractice.js'
-import { isAiMarkablePastPaperItem, studyQuestionBank, unifiedQuestionBank } from '../src/data/questionBank.js'
+import { isAiMarkablePastPaperItem, isHumanReviewedPastPaperItem, studyQuestionBank, unifiedQuestionBank } from '../src/data/questionBank.js'
 import { sourceContentStatus } from '../src/lib/questionContent.js'
 import { normaliseQuestionGroup } from '../src/data/questionParts.js'
 import { isScoredAttempt, sourceBindingSnapshotForUnit } from '../src/lib/attemptAudit.js'
@@ -378,11 +378,16 @@ const physics = syllabusTopicsInventory({
   routeId: 'cie-9702-as-physics',
   questionBank: studyQuestionBank,
 })
-assert.equal(physics.verifiedQuestionGroupCount, 120)
+const formallyEligiblePhysicsIds = new Set(studyQuestionBank
+  .filter((question) => question.routeId === 'cie-9702-as-physics' && isHumanReviewedPastPaperItem(question))
+  .map((question) => question.sourceQuestionId))
+assert.equal(physics.verifiedQuestionGroupCount, formallyEligiblePhysicsIds.size, 'study inventory must preserve the exact distinct formal subset')
+assert.equal(formallyEligiblePhysicsIds.has('cie-9702-9702_s25_qp_22:q1'), false, 'the corrected quarantined Q1 must not be counted as formal study inventory')
+assert.equal(studyQuestionBank.some((question) => question.sourceQuestionId === 'cie-9702-9702_s25_qp_22:q1'), false, 'the explicitly non-study-eligible correction must remain outside the study bank too')
 assert.ok(physics.availableQuestionGroupCount > physics.verifiedQuestionGroupCount)
 assert.ok(physics.topics.every((topic) => topic.verifiedQuestionCount >= 10))
 
-const physicsFormalFirst = buildSyllabusPracticeSet({
+const physicsReviewedSubsetStudy = buildSyllabusPracticeSet({
   routeId: 'cie-9702-as-physics',
   syllabusTopicIds: ['physics-9702-topic-01'],
   components: [1, 2],
@@ -391,7 +396,10 @@ const physicsFormalFirst = buildSyllabusPracticeSet({
   includeStudyOnly: true,
   seed: 1,
 })
-assert.ok(physicsFormalFirst.questionGroups.every((group) => group.studyOnly !== true), 'formal reviewed questions must be selected before study-only backfill')
+assert.equal(physicsReviewedSubsetStudy.practiceMode, 'study-only', 'an under-12 topic must remain study-mode even when its source subset is human reviewed')
+assert.ok(physicsReviewedSubsetStudy.questionGroups.every((group) => formallyEligiblePhysicsIds.has(group.id)), 'reviewed sources must be selected before any machine-indexed study backfill')
+assert.ok(physicsReviewedSubsetStudy.questionGroups.every((group) => group.studyOnly === true), 'reviewed-subset study must not create formal mastery evidence below the readiness floor')
+assert.equal(physicsReviewedSubsetStudy.questionGroups.some((group) => group.id === 'cie-9702-9702_s25_qp_22:q1'), false, 'reviewed-subset selection must not resurrect the quarantined correction')
 
 console.log(JSON.stringify({
   igcse0580: {

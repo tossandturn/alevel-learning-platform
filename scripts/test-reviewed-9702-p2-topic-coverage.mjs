@@ -4,7 +4,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import index from '../src/data/importedQuestionIndex.json' with { type: 'json' }
 import manifest from '../src/data/sourceContentManifest.json' with { type: 'json' }
-import { unifiedQuestionBank } from '../src/data/questionBank.js'
+import { isHumanReviewedPastPaperItem, unifiedQuestionBank } from '../src/data/questionBank.js'
+import { topicPracticeEligibility } from '../src/lib/practiceConstants.js'
 import { buildSyllabusPracticeSet, syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
 import {
   CAMBRIDGE_9702_P2_TOPIC_COVERAGE_REVIEW_LEDGERS,
@@ -19,6 +20,12 @@ const ledgerSha256 = canonicalTextFileSha256(ledgerPath)
 const questionById = new Map(index.questions.map((question) => [question.questionId, question]))
 const answerById = new Map(index.answers.map((answer) => [answer.answerId, answer]))
 const bindingById = new Map(index.bindings.map((binding) => [binding.questionId, binding]))
+const heldCorrectionId = 'cie-9702-9702_s25_qp_22:q1'
+const heldCorrection = Object.freeze({
+  totalMarks: 10,
+  partMarks: [2, 3, 1, 3, 1],
+  reviewedAt: '2026-09-25T15:18:38+08:00',
+})
 const exactReviewedMarkPoints = new Map([
   ['cie-9702-9702_m24_qp_22:q1:part-c', ['power = intensity x area', 'power = 950 x 2.2 x 10^-4', 'power = 0.21 W']],
   ['cie-9702-9702_s25_qp_24:q5:part-b(ii)', ['current in metal wire = 3.3 - 1.5 = 1.8 A', 'I = Anvq; 1.8 = 1.4 x 10^-9 x 3.4 x 10^28 x v x 1.6 x 10^-19', 'v = 0.24 m s^-1']],
@@ -34,7 +41,6 @@ const exactReviewedMarkPoints = new Map([
   ['cie-9702-9702_w25_qp_24:q3:part-d', ['all gravitational potential energy has been converted to, or is equal to, elastic potential energy, so there is no kinetic energy', 'kinetic energy is zero, so speed is zero']],
 ])
 const newlyReviewedGroups = new Map([
-  ['cie-9702-9702_s25_qp_22:q1', { totalMarks: 17, primaryTopicId: 'physics-9702-topic-05', secondaryTopicIds: ['physics-9702-topic-01'], reviewedAt: '2026-09-02T17:41:59+08:00' }],
   ['cie-9702-9702_m24_qp_22:q2', { totalMarks: 11, primaryTopicId: 'physics-9702-topic-02', secondaryTopicIds: ['physics-9702-topic-04'], reviewedAt: '2026-09-02T17:41:59+08:00' }],
   ['cie-9702-9702_s25_qp_21:q4', { totalMarks: 8, primaryTopicId: 'physics-9702-topic-08', secondaryTopicIds: ['physics-9702-topic-07'], reviewedAt: '2026-09-02T17:41:59+08:00' }],
   ['cie-9702-9702_s25_qp_23:q6', { totalMarks: 8, primaryTopicId: 'physics-9702-topic-08', secondaryTopicIds: ['physics-9702-topic-07'], reviewedAt: '2026-09-02T17:41:59+08:00' }],
@@ -43,7 +49,8 @@ const newlyReviewedGroups = new Map([
   ['cie-9702-9702_s25_qp_23:q2', { totalMarks: 9, primaryTopicId: 'physics-9702-topic-06', secondaryTopicIds: ['physics-9702-topic-04'], reviewedAt: '2026-09-02T19:03:24+08:00' }],
   ['cie-9702-9702_w25_qp_22:q3', { totalMarks: 9, primaryTopicId: 'physics-9702-topic-06', secondaryTopicIds: ['physics-9702-topic-04', 'physics-9702-topic-05'], reviewedAt: '2026-09-02T19:03:24+08:00' }],
 ])
-const reviewedIds = []
+const historicalReviewedIds = []
+const eligibleReviewedIds = []
 
 function assetFile(url) {
   const pathname = new URL(String(url), 'https://test.invalid').pathname
@@ -73,13 +80,61 @@ for (const paperReview of CAMBRIDGE_9702_P2_TOPIC_COVERAGE_REVIEW_LEDGERS) {
 
   for (const reviewedQuestion of paperReview.questions) {
     const questionId = `${paperReview.paperId}:q${reviewedQuestion.questionNumber}`
-    reviewedIds.push(questionId)
+    historicalReviewedIds.push(questionId)
     const question = questionById.get(questionId)
     const binding = bindingById.get(questionId)
     const answer = answerById.get(binding?.answerId)
     const artifactQuestion = artifact.questions.find((candidate) => candidate.questionId === questionId)
     const artifactAnswer = artifact.answers.find((candidate) => candidate.answerId === binding?.answerId)
     assert.ok(question && answer && binding && artifactQuestion && artifactAnswer, `${questionId}: reviewed entities must exist`)
+    if (questionId === heldCorrectionId) {
+      assert.equal(reviewedQuestion.totalMarks, 17, `${questionId}: the historical visual-review ledger must remain an auditable superseded snapshot`)
+      assert.equal(artifactQuestion.totalMarks, reviewedQuestion.totalMarks, `${questionId}: the generated historical review artifact must remain pinned to its ledger`)
+      assert.equal(question.questionGroupStatus, 'quarantined', `${questionId}: the corrected record must fail closed without human re-approval`)
+      assert.equal(question.totalMarks, heldCorrection.totalMarks, `${questionId}: OR alternatives must not be added as separate marks`)
+      assert.equal(question.marks, heldCorrection.totalMarks)
+      assert.deepEqual(question.parts.map((part) => part.marks), heldCorrection.partMarks, `${questionId}: corrected part allocations must sum to the official ten marks`)
+      assert.equal(question.parts.reduce((sum, part) => sum + part.marks, 0), heldCorrection.totalMarks)
+      assert.equal(answer.answerParts.reduce((sum, part) => sum + part.marks, 0), heldCorrection.totalMarks)
+      assert.equal(answer.markPoints.length, heldCorrection.totalMarks)
+      assert.equal(question.studentStudyEligible, false)
+      assert.equal(question.formalProgressEligible, false)
+      assert.equal(question.syllabusMapping.mappingMethod, 'ai-source-correction')
+      assert.equal(question.syllabusMapping.reviewStatus, 'quarantined')
+      assert.equal(question.syllabusMapping.reviewedAt, heldCorrection.reviewedAt)
+      assert.equal(binding.verificationStatus, 'quarantined')
+      assert.equal(binding.reviewedAt, heldCorrection.reviewedAt)
+      assert.equal(binding.reviewEvidence?.manualVisualReview, false)
+      assert.equal(binding.reviewEvidence?.correctionAuthority, 'AI source review; not human approval')
+      assert.match(binding.reviewEvidence?.correctionReason || '', /OR alternatives are not additive marks/)
+      assert.deepEqual(
+        question.sourceRef.assetUrls.map((url) => Number(url.match(/qp-(\d+)\./)?.[1])),
+        reviewedQuestion.questionPages,
+        `${questionId}: the correction must retain its QP pages`,
+      )
+      assert.deepEqual(
+        answer.answerRef.assetUrls.map((url) => Number(url.match(/ms-(\d+)\./)?.[1])),
+        reviewedQuestion.markSchemePages,
+        `${questionId}: the correction must retain its MS pages`,
+      )
+      assert.ok(question.parts.every((part) => {
+        const answerPart = answer.answerParts.find((candidate) => candidate.partId === part.partId)
+        const allocation = binding.reviewEvidence.partAllocations.find((candidate) => candidate.partId === part.partId)
+        const questionEvidence = part.sourceEvidence[0]
+        return questionEvidence?.assetSha256 === actualAssetSha256(questionEvidence.assetUrl)
+          && answerPart?.markSchemeEvidence?.length === part.marks
+          && answerPart.markSchemeEvidence.every((evidence) => evidence.assetSha256 === actualAssetSha256(evidence.assetUrl))
+          && allocation?.markPointCount === part.marks
+          && allocation?.markSchemeEvidence?.length === part.marks
+      }), `${questionId}: corrected marks must retain byte-verified QP/MS evidence`)
+      assert.equal(manifest.items[questionId]?.fileComplete, true)
+      assert.equal(manifest.items[questionId]?.complete, false)
+      assert.equal(manifest.items[questionId]?.semanticStatus, 'semantic-quarantined')
+      assert.ok(manifest.items[questionId]?.reasons?.includes('index-quarantined'))
+      assert.equal(unifiedQuestionBank.some((candidate) => candidate.sourceQuestionId === questionId), false, `${questionId}: quarantined correction must not enter the formal runtime bank`)
+      continue
+    }
+    eligibleReviewedIds.push(questionId)
     assert.deepEqual(question, artifactQuestion, `${questionId}: generated question must be canonical`)
     assert.deepEqual(answer, artifactAnswer, `${questionId}: generated answer must be canonical`)
     assert.equal(binding.verificationStatus, 'reviewed')
@@ -143,15 +198,40 @@ for (const paperReview of CAMBRIDGE_9702_P2_TOPIC_COVERAGE_REVIEW_LEDGERS) {
   }
 }
 
-assert.equal(new Set(reviewedIds).size, 33, 'supplemental review IDs must be unique')
-assert.equal(unifiedQuestionBank.filter((question) => reviewedIds.includes(question.sourceQuestionId)).length, 33, 'every supplemental group must enter the canonical gated bank')
+assert.equal(new Set(historicalReviewedIds).size, 33, 'historical supplemental review IDs must remain unique')
+assert.equal(eligibleReviewedIds.length, 32, 'the one superseded AI correction must remain excluded until renewed human review')
+assert.equal(unifiedQuestionBank.filter((question) => eligibleReviewedIds.includes(question.sourceQuestionId)).length, eligibleReviewedIds.length, 'every still-valid supplemental group must enter the canonical gated bank')
 
 const inventory = syllabusTopicsInventory({ routeId: 'cie-9702-as-physics', questionBank: unifiedQuestionBank })
-assert.equal(inventory.verifiedQuestionGroupCount, 120)
-assert.deepEqual(inventory.topics.map((topic) => topic.verifiedQuestionCount), [12, 12, 13, 15, 18, 12, 18, 12, 15, 12, 12])
-assert.equal(inventory.topics.filter((topic) => topic.ready && topic.ctaPolicy === 'start').length, 11)
-assert.equal(inventory.topics.filter((topic) => !topic.ready && topic.ctaPolicy === 'hidden').length, 0)
-assert.equal(inventory.ready, true, 'the route must become ready only after every official topic can supply two six-question tests')
+const formallyEligibleQuestions = unifiedQuestionBank.filter((question) => (
+  question.routeId === inventory.routeId && isHumanReviewedPastPaperItem(question)
+))
+const formallyEligibleIds = new Set(formallyEligibleQuestions.map((question) => question.sourceQuestionId))
+const mappedTopicIds = (question) => new Set([
+  question.syllabusMapping?.primaryTopicId,
+  ...(question.syllabusMapping?.secondaryTopicIds || []),
+  ...(question.syllabusMapping?.topicIds || []),
+].filter(Boolean))
+assert.equal(inventory.verifiedQuestionGroupCount, formallyEligibleIds.size)
+assert.equal(formallyEligibleIds.has(heldCorrectionId), false)
+for (const topic of inventory.topics) {
+  const expectedIds = new Set(formallyEligibleQuestions
+    .filter((question) => mappedTopicIds(question).has(topic.id))
+    .map((question) => question.sourceQuestionId))
+  assert.equal(topic.verifiedQuestionCount, expectedIds.size, `${topic.id}: inventory must deduplicate current eligible primary and secondary memberships`)
+  const expectedPolicy = topicPracticeEligibility({
+    verifiedQuestionCount: expectedIds.size,
+    availableQuestionCount: expectedIds.size,
+  })
+  assert.equal(topic.ready, expectedPolicy.ready)
+  assert.equal(topic.ctaPolicy, expectedPolicy.ctaPolicy)
+  assert.deepEqual(topic.availableSetSizes, expectedPolicy.availableSetSizes)
+}
+assert.equal(inventory.topics.find((topic) => topic.id === 'physics-9702-topic-01')?.verifiedQuestionCount, 11, 'the held secondary membership must no longer satisfy formal Topic 1 readiness')
+assert.equal(inventory.topics.find((topic) => topic.id === 'physics-9702-topic-05')?.verifiedQuestionCount, 17, 'the held primary membership must no longer inflate Topic 5')
+assert.equal(inventory.topics.filter((topic) => topic.ready && topic.ctaPolicy === 'start').length, 10)
+assert.equal(inventory.topics.filter((topic) => !topic.ready && topic.ctaPolicy === 'start-study').length, 1)
+assert.equal(inventory.ready, false, 'the route must remain formally blocked while any official topic is below twelve reviewed groups')
 assert.deepEqual(
   inventory.topics.find((topic) => topic.id === 'physics-9702-topic-07')?.availableSetSizes,
   [6, 10, 15],
@@ -170,6 +250,7 @@ for (const topic of inventory.topics) {
   assert.equal(set.questionCount, 10, `${topic.id}: reviewed P1/P2 inventory must build a ten-question set`)
   assert.ok(set.questionGroups.every((group) => [1, 2].includes(group.paperComponent)), `${topic.id}: P3 practical questions must remain outside theory Topic Drill`)
   assert.equal(set.questionGroups.some((group) => group.paperComponent === 3), false)
+  assert.equal(set.questionGroups.some((group) => group.id === heldCorrectionId), false, `${topic.id}: no formal set may contain the held correction`)
 }
 
 const workspaceSource = fs.readFileSync(path.join(root, 'src', 'components', 'PracticeWorkspace.jsx'), 'utf8')
@@ -177,7 +258,7 @@ assert.match(workspaceSource, /!activePart\.sourceRef\?\.paperId && <h2>/, 'offi
 
 console.log(JSON.stringify({
   status: 'passed',
-  supplementalReviewedGroups: reviewedIds.length,
+  supplementalReviewedGroups: eligibleReviewedIds.length,
   verifiedQuestionGroups: inventory.verifiedQuestionGroupCount,
   verifiedByTopic: Object.fromEntries(inventory.topics.map((topic) => [topic.id, topic.verifiedQuestionCount])),
 }, null, 2))
