@@ -75,6 +75,7 @@ try {
     const sourceBytes = Buffer.from(await source.arrayBuffer())
     assert.equal(source.status, 200)
     assert.equal(source.headers.get('etag'), `"${sourceRegion.sha256}"`)
+    assert.equal(source.headers.get('cache-control'), 'public, max-age=0, must-revalidate')
     assert.equal(sourceBytes.length, sourceRegion.bytes)
     assert.equal(crypto.createHash('sha256').update(sourceBytes).digest('hex'), sourceRegion.sha256)
     assert.equal(databaseCalls, 0, 'public source image must not open the student database')

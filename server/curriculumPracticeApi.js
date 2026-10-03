@@ -206,7 +206,7 @@ export function createCurriculumPracticeApi({
         response.setHeader('Content-Type', asset.contentType)
         response.setHeader('Content-Length', String(asset.bytes))
         response.setHeader('ETag', `"${asset.sha256}"`)
-        response.setHeader('Cache-Control', 'private, max-age=3600, immutable')
+        response.setHeader('Cache-Control', 'public, max-age=0, must-revalidate')
         response.setHeader('X-Content-Type-Options', 'nosniff')
         if (request.method === 'HEAD') response.end()
         else fs.createReadStream(asset.filePath).pipe(response)
