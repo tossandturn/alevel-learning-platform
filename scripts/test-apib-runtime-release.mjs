@@ -9,14 +9,20 @@ import { createCurriculumPracticeReleaseLoader } from '../server/curriculumPract
 
 const workRoot = 'D:\\CodexWork\\ap-ib-ocr-delta-20261003'
 const handoffPath = path.join(workRoot, 'reports', '2026-10-04', 'apib-question-review-handoff-v2.json')
-const sourceAssetsPath = path.join(workRoot, 'runtime-candidate', '2026-10-04', 'source-assets.json')
-const sourceAssetRoot = path.join(workRoot, 'runtime-candidate', '2026-10-04', 'assets')
+const sourceAssetsPath = path.join(workRoot, 'runtime-candidate', '2026-10-04', 'source-assets-v7.json')
+const sourceAssetRoot = path.join(workRoot, 'runtime-candidate', '2026-10-04', 'assets-v7')
+const boundaryAuditPath = path.join(workRoot, 'runtime-candidate', '2026-10-04', 'source-asset-boundary-audit-v7.json')
 const scratchRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'apib-runtime-release-'))
 
 try {
+  const boundaryAudit = JSON.parse(await fs.readFile(boundaryAuditPath, 'utf8'))
+  assert.equal(boundaryAudit.status, 'PASS')
+  assert.equal(boundaryAudit.passCount, 145)
+  assert.equal(boundaryAudit.blockedCount, 0)
+  assert.equal(boundaryAudit.sourceAssetManifestSha256, await fileSha256(sourceAssetsPath))
   const built = await buildApIbRuntimeCandidate({ handoffPath, sourceAssetsPath, outputRoot: scratchRoot, createdAt: '2026-10-04T00:00:00.000Z' })
   assert.equal(built.candidate.totals.questions, 145)
-  assert.equal(built.candidate.totals.sourceAssets, 197)
+  assert.equal(built.candidate.totals.sourceAssets, 206)
   const validated = await validateApIbRuntimeRelease({ releaseRoot: scratchRoot, sourceAssetRoot, write: true, validatedAt: '2026-10-04T00:01:00.000Z' })
   assert.equal(validated.release.studentStudyEligible, true)
   assert.equal(validated.release.formalProgressEligible, false)
@@ -58,7 +64,7 @@ try {
   await fs.writeFile(path.join(tamperedRoot, 'public-catalog.json'), JSON.stringify(tampered), 'utf8')
   assert.throws(() => createCurriculumPracticeReleaseLoader({ releaseRoot: tamperedRoot, sourceAssetRoot })(), (error) => error.code === 'curriculum_practice_release_unavailable')
 
-  console.log(JSON.stringify({ status: 'PASS', questions: 145, sourceAssets: 197, releaseHash: validated.release.releaseHash, publicAnswerLeak: false, pngGeometryVerified: true, symlinkEscapeRejected: true, tamperRejected: true }))
+  console.log(JSON.stringify({ status: 'PASS', questions: 145, sourceAssets: 206, boundaryAudit: '145/145', releaseHash: validated.release.releaseHash, publicAnswerLeak: false, pngGeometryVerified: true, symlinkEscapeRejected: true, tamperRejected: true }))
 } finally {
   await fs.rm(scratchRoot, { recursive: true, force: true })
 }

@@ -12,8 +12,8 @@ import { createCurriculumPracticeApi } from '../server/curriculumPracticeApi.js'
 
 const workRoot = 'D:\\CodexWork\\ap-ib-ocr-delta-20261003'
 const handoffPath = path.join(workRoot, 'reports', '2026-10-04', 'apib-question-review-handoff-v2.json')
-const sourceAssetsPath = path.join(workRoot, 'runtime-candidate', '2026-10-04', 'source-assets.json')
-const sourceAssetRoot = path.join(workRoot, 'runtime-candidate', '2026-10-04', 'assets')
+const sourceAssetsPath = path.join(workRoot, 'runtime-candidate', '2026-10-04', 'source-assets-v7.json')
+const sourceAssetRoot = path.join(workRoot, 'runtime-candidate', '2026-10-04', 'assets-v7')
 const scratchRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'curriculum-practice-api-'))
 const database = new DatabaseSync(':memory:')
 let databaseCalls = 0
