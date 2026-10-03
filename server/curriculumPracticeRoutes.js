@@ -78,6 +78,7 @@ function loadRelease({ releaseRoot, sourceAssetRoot }) {
   const root = path.resolve(String(releaseRoot || ''))
   const assetRoot = path.resolve(String(sourceAssetRoot || ''))
   if (!root || !assetRoot) throw releaseError()
+  if (fs.statSync(path.join(root, 'BLOCKED.json'), { throwIfNoEntry: false })?.isFile()) throw releaseError()
   let realAssetRoot
   try { realAssetRoot = fs.realpathSync(assetRoot) } catch { throw releaseError() }
   const paths = Object.fromEntries(Object.entries(RELEASE_FILES).map(([key, name]) => [key, path.join(root, name)]))

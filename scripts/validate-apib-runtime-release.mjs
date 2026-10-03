@@ -48,6 +48,7 @@ function assertNoForbiddenPublicFields(value, label = 'public') {
 }
 
 export async function validateApIbRuntimeRelease({ releaseRoot, sourceAssetRoot, write = false, validatedAt = null }) {
+  assert.equal((await fs.stat(path.join(releaseRoot, 'BLOCKED.json'), { throwIfNoEntry: false }))?.isFile() || false, false, 'blocked release roots must never validate')
   const candidatePath = path.join(releaseRoot, 'candidate-manifest.json')
   const publicPath = path.join(releaseRoot, 'public-catalog.json')
   const privatePath = path.join(releaseRoot, 'private-answer-index.json')

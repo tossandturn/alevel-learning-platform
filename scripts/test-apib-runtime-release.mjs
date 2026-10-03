@@ -64,7 +64,16 @@ try {
   await fs.writeFile(path.join(tamperedRoot, 'public-catalog.json'), JSON.stringify(tampered), 'utf8')
   assert.throws(() => createCurriculumPracticeReleaseLoader({ releaseRoot: tamperedRoot, sourceAssetRoot })(), (error) => error.code === 'curriculum_practice_release_unavailable')
 
-  console.log(JSON.stringify({ status: 'PASS', questions: 145, sourceAssets: 206, boundaryAudit: '145/145', releaseHash: validated.release.releaseHash, publicAnswerLeak: false, pngGeometryVerified: true, symlinkEscapeRejected: true, tamperRejected: true }))
+  const blockedRoot = path.join(scratchRoot, 'blocked')
+  await fs.mkdir(blockedRoot)
+  for (const name of ['release-manifest.json', 'candidate-manifest.json', 'public-catalog.json', 'private-answer-index.json', 'source-assets.json']) {
+    await fs.copyFile(path.join(scratchRoot, name), path.join(blockedRoot, name))
+  }
+  await fs.writeFile(path.join(blockedRoot, 'BLOCKED.json'), JSON.stringify({ status: 'BLOCKED' }), 'utf8')
+  assert.throws(() => createCurriculumPracticeReleaseLoader({ releaseRoot: blockedRoot, sourceAssetRoot })(), (error) => error.code === 'curriculum_practice_release_unavailable')
+  await assert.rejects(() => validateApIbRuntimeRelease({ releaseRoot: blockedRoot, sourceAssetRoot }), /blocked release roots/)
+
+  console.log(JSON.stringify({ status: 'PASS', questions: 145, sourceAssets: 206, boundaryAudit: '145/145', releaseHash: validated.release.releaseHash, publicAnswerLeak: false, pngGeometryVerified: true, symlinkEscapeRejected: true, blockedRootRejected: true, tamperRejected: true }))
 } finally {
   await fs.rm(scratchRoot, { recursive: true, force: true })
 }
