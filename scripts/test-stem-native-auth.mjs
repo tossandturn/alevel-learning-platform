@@ -47,6 +47,15 @@ const fetchImpl = async (url, options) => {
       headers: { 'content-type': 'application/json' },
     })
   }
+  if (payload.mode === 'wechat' && payload.code === 'conflict-wechat-code') {
+    return new Response(JSON.stringify({
+      code: 'wechat_identity_conflict',
+      error: 'This WeChat identity is linked to conflicting accounts.',
+    }), {
+      status: 409,
+      headers: { 'content-type': 'application/json' },
+    })
+  }
   return new Response(JSON.stringify({
     identity: {
       id: 'ielts:42',
@@ -170,13 +179,23 @@ try {
   assert.equal(calls[1].url, 'http://127.0.0.1:4321/api/stem/internal/authenticate')
   assert.doesNotMatch(JSON.stringify(invalid.body), /not-the-password|provider-access-token/i, 'a failed response must not echo credentials or provider tokens')
 
+  const wechatConflict = await call(api, {
+    method: 'POST',
+    url: '/api/auth/wechat',
+    body: { code: 'conflict-wechat-code' },
+  })
+  assert.equal(wechatConflict.statusCode, 409)
+  assert.equal(wechatConflict.body.code, 'wechat_identity_conflict', 'the app must receive a stable recovery code for a protected WeChat identity conflict')
+  assert.match(wechatConflict.body.error, /WeChat account link needs confirmation/i)
+  assert.doesNotMatch(JSON.stringify(wechatConflict.body), /conflict-wechat-code|provider-access-token/i)
+
   const signedIn = await call(api, {
     method: 'POST',
     url: '/api/auth/login',
     body: { username: 'shared_student', password: 'testing123' },
   })
   assert.equal(signedIn.statusCode, 200, 'a valid same-account sign-in must complete on the STEM origin')
-  assert.equal(calls.length, 3)
+  assert.equal(calls.length, 4, 'the protected WeChat conflict still reaches the shared identity service before a valid password sign-in')
   assert.equal(signedIn.body.identity.id, 'ielts:42')
   assert.equal(signedIn.body.identity.username, 'shared_student')
   assert.match(signedIn.body.accessToken, /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/, 'STEM must issue its short-lived in-memory identity token')

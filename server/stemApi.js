@@ -1880,14 +1880,22 @@ async function authenticateNativeAccount({ mode, username, password, code, env, 
       if (response.status >= 500) {
         throw nativeAuthBridgeError('native_auth_bridge_unavailable', 'The shared account service is unavailable. Try again shortly.')
       }
+      const wechatIdentityConflict = mode === 'wechat'
+        && response.status === 409
+        && payload?.code === 'wechat_identity_conflict'
       const message = response.status === 401
         ? 'Invalid username or password.'
-        : response.status === 409
-          ? 'Username already exists.'
-          : response.status === 400
-            ? String(payload.error || 'Check your account details.')
-            : 'The shared account service is unavailable. Try again shortly.'
-      throw Object.assign(new Error(message), { statusCode: response.status === 401 || response.status === 409 || response.status === 400 ? response.status : 503 })
+        : wechatIdentityConflict
+          ? 'The WeChat account link needs confirmation. Your learning records are protected. Please try again after the subject update.'
+          : response.status === 409
+            ? 'Username already exists.'
+            : response.status === 400
+              ? String(payload.error || 'Check your account details.')
+              : 'The shared account service is unavailable. Try again shortly.'
+      throw Object.assign(new Error(message), {
+        statusCode: response.status === 401 || response.status === 409 || response.status === 400 ? response.status : 503,
+        ...(wechatIdentityConflict ? { code: 'wechat_identity_conflict' } : {}),
+      })
     }
     const identity = payload?.identity
     const id = asText(identity?.id, 80)
