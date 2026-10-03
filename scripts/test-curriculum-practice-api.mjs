@@ -71,12 +71,15 @@ try {
     assert.equal(databaseCalls, 0, 'public question must not open the student database')
 
     const sourceRegion = question.body.question.source.regions[0]
+    assert.ok(sourceRegion.url.endsWith('/'+sourceRegion.sha256+'.png'), 'source URL must bind immutable cache bytes to the full content digest')
     const source = await fetch(base + sourceRegion.url)
     const sourceBytes = Buffer.from(await source.arrayBuffer())
     assert.equal(source.status, 200)
     assert.equal(source.headers.get('etag'), `"${sourceRegion.sha256}"`)
     assert.equal(sourceBytes.length, sourceRegion.bytes)
     assert.equal(crypto.createHash('sha256').update(sourceBytes).digest('hex'), sourceRegion.sha256)
+    assert.equal((await fetch(base+sourceRegion.url.replace(sourceRegion.sha256,'0'.repeat(64)))).status,404,'a mismatched digest cannot serve current pixels under an old immutable URL')
+    assert.equal((await fetch(base+sourceRegion.url.slice(0,sourceRegion.url.lastIndexOf('/')))).status,404,'unversioned source URLs must not be accepted')
     assert.equal(databaseCalls, 0, 'public source image must not open the student database')
 
     const zeroCount = await json('/api/stem/curriculum-practice/sessions', {
@@ -209,7 +212,8 @@ try {
     try {
       const encodedQuestion = await fetch(`${encodedBase}/api/stem/curriculum-practice/questions/${encodeURIComponent(encodedQuestionId)}`)
       assert.equal(encodedQuestion.status, 200)
-      const encodedSource = await fetch(`${encodedBase}/api/stem/curriculum-practice/source/${encodeURIComponent(encodedQuestionId)}/${encodeURIComponent(encodedAssetId)}`)
+      const encodedRegion = (await encodedQuestion.json()).question.source.regions[0]
+      const encodedSource = await fetch(`${encodedBase}/api/stem/curriculum-practice/source/${encodeURIComponent(encodedQuestionId)}/${encodeURIComponent(encodedAssetId)}/${encodedRegion.sha256}.png`)
       assert.equal(encodedSource.status, 200)
       const encodedSlash = await fetch(`${encodedBase}/api/stem/curriculum-practice/questions/${encodeURIComponent('ap/test')}`)
       assert.equal(encodedSlash.status, 400)

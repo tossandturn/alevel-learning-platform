@@ -110,7 +110,7 @@ function publicQuestion(question, release) {
         if (!metadata || !asset) throw codedError(503, 'curriculum_practice_source_unavailable', 'A released source image is unavailable.')
         return {
           assetId,
-          url: `${API_ROOT}/source/${encodeURIComponent(question.id)}/${encodeURIComponent(assetId)}`,
+          url: `${API_ROOT}/source/${encodeURIComponent(question.id)}/${encodeURIComponent(assetId)}/${asset.sha256}.png`,
           sha256: asset.sha256,
           bytes: asset.bytes,
           width: asset.width,
@@ -197,11 +197,11 @@ export function createCurriculumPracticeApi({
         return true
       }
 
-      const sourceMatch = url.pathname.match(new RegExp(`^${API_ROOT}/source/([^/]+)/([^/]+)$`))
+      const sourceMatch = url.pathname.match(new RegExp(`^${API_ROOT}/source/([^/]+)/([^/]+)/([a-f0-9]{64})\\.png$`))
       if ((request.method === 'GET' || request.method === 'HEAD') && sourceMatch) {
         if (sourceRequiresAuthentication) await requiredUser(authenticateRequest, request)
         const asset = release.resolveSourceAsset(pathId(sourceMatch[1], 'questionId'), pathId(sourceMatch[2], 'assetId'))
-        if (!asset) throw codedError(404, 'curriculum_practice_source_not_found', 'Source image not found.')
+        if (!asset || asset.sha256 !== sourceMatch[3]) throw codedError(404, 'curriculum_practice_source_not_found', 'Source image not found.')
         response.statusCode = 200
         response.setHeader('Content-Type', asset.contentType)
         response.setHeader('Content-Length', String(asset.bytes))
