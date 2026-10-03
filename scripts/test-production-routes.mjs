@@ -45,12 +45,12 @@ async function assertLocalPdfRangeContract(baseUrl, sourcePdf) {
   const sourcePdfBytes = fs.readFileSync(sourcePdf)
   const sourcePdfSha256 = crypto.createHash('sha256').update(sourcePdfBytes).digest('hex')
   const sourcePdfEtag = `"${sourcePdfSha256}"`
-  const sourceUrl = `${baseUrl}/local-pdf/9702/9702_m25_qp_42.pdf`
+  const sourceUrl = `${baseUrl}/local-pdf/9709/9709_w25_qp_25.pdf`
 
   const sourcePdfResponse = await fetch(sourceUrl)
   assert.equal(sourcePdfResponse.status, 200)
   assert.match(sourcePdfResponse.headers.get('content-type') || '', /application\/pdf/i)
-  assert.equal(sourcePdfResponse.headers.get('content-disposition'), 'inline; filename="9702_m25_qp_42.pdf"')
+  assert.equal(sourcePdfResponse.headers.get('content-disposition'), 'inline; filename="9709_w25_qp_25.pdf"')
   assert.equal(sourcePdfResponse.headers.get('accept-ranges'), 'bytes')
   assert.equal(sourcePdfResponse.headers.get('etag'), sourcePdfEtag, 'full CIE PDF responses must expose the verified strong content validator')
   assert.equal(Number(sourcePdfResponse.headers.get('content-length')), sourcePdfBytes.length)
@@ -72,7 +72,12 @@ async function assertLocalPdfRangeContract(baseUrl, sourcePdf) {
   assert.equal(matchingIfRange.headers.get('content-range'), `bytes 5-9/${sourcePdfBytes.length}`)
   assert.deepEqual(Buffer.from(await matchingIfRange.arrayBuffer()), sourcePdfBytes.subarray(5, 10))
 
-  for (const staleValidator of [`"${'0'.repeat(64)}"`, `W/${sourcePdfEtag}`]) {
+  for (const staleValidator of [
+    `"${'0'.repeat(64)}"`,
+    `W/${sourcePdfEtag}`,
+    'Wed, 21 Oct 2015 07:28:00 GMT',
+    'not-a-validator',
+  ]) {
     const staleIfRange = await fetch(sourceUrl, {
       headers: { Range: 'bytes=5-9', 'If-Range': staleValidator },
     })
@@ -96,7 +101,7 @@ async function assertLocalPdfRangeContract(baseUrl, sourcePdf) {
 
 async function localPdfRangeOnly() {
   const libraryRoot = resolveLibraryRoot({ cwd: root, env: process.env })
-  const sourcePdf = path.join(libraryRoot, '9702', '9702_m25_qp_42.pdf')
+  const sourcePdf = path.join(libraryRoot, '9709', '9709_w25_qp_25.pdf')
   assert.ok(fs.existsSync(sourcePdf), `the governed local PDF fixture is missing: ${sourcePdf}`)
   const scratchRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'stem-local-pdf-range-'))
   const env = {
@@ -131,7 +136,7 @@ async function localPdfRangeOnly() {
 async function main() {
   const port = await freePort()
   const libraryRoot = resolveLibraryRoot({ cwd: root, env: process.env })
-  const sourcePdf = path.join(libraryRoot, '9702', '9702_m25_qp_42.pdf')
+  const sourcePdf = path.join(libraryRoot, '9709', '9709_w25_qp_25.pdf')
   assert.ok(fs.existsSync(sourcePdf), `the governed local PDF fixture is missing: ${sourcePdf}`)
   const scratchParent = fs.mkdtempSync(path.join(os.tmpdir(), 'stem-production-routes-'))
   const { commit, sourceState } = resolveProductionBuildIdentity({ cwd: root, env: process.env })
@@ -300,7 +305,7 @@ async function main() {
 
     console.log(JSON.stringify({
       ok: true,
-      routes: ['/healthz', '/api/health', '/robots.txt', '/sitemap.xml', '/data/study-question-index/manifest.json', '/question-assets/cie-0580-0580_m25_qp_12/qp-03.jpg', '/local-pdf/9702/9702_m25_qp_42.pdf'],
+      routes: ['/healthz', '/api/health', '/robots.txt', '/sitemap.xml', '/data/study-question-index/manifest.json', '/question-assets/cie-0580-0580_m25_qp_12/qp-03.jpg', '/local-pdf/9709/9709_w25_qp_25.pdf'],
       hashedAsset: assetPath,
       cacheControl: asset.headers.get('cache-control'),
       securityHeaders: true,
