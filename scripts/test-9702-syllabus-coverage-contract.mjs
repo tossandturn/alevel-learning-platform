@@ -7,6 +7,7 @@ import {
   MIN_QUESTION_GROUPS_PER_TEST,
   MIN_TESTS_PER_TOPIC,
   MIN_VERIFIED_GROUPS_FOR_PRACTICE,
+  topicPracticeEligibility,
 } from '../src/lib/practiceConstants.js'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -25,16 +26,18 @@ const strictResult = spawnSync(process.execPath, [coveragePath], {
   cwd: projectRoot,
   encoding: 'utf8',
 })
-assert.equal(
+assert.notEqual(
   strictResult.status,
   0,
-  `the production coverage command must pass once every official 9702 AS topic reaches the formal floor.\nstdout:\n${strictResult.stdout}\nstderr:\n${strictResult.stderr}`,
+  `the production coverage command must fail while any official 9702 AS topic remains below the formal floor.\nstdout:\n${strictResult.stdout}\nstderr:\n${strictResult.stderr}`,
 )
 const strictReport = JSON.parse(strictResult.stdout)
-assert.equal(strictReport.status, 'ready')
-assert.equal(strictReport.formalReadiness.routeReady, true)
-assert.equal(strictReport.formalReadiness.readyTopicCount, 11)
-assert.equal(strictReport.formalReadiness.underFloorTopicCount, 0)
+assert.equal(strictReport.status, 'partial')
+assert.equal(strictReport.minimumQuestionGroupsPerTest, MIN_QUESTION_GROUPS_PER_TEST)
+assert.equal(strictReport.minimumReviewedGroupsPerTopic, MIN_VERIFIED_GROUPS_FOR_PRACTICE)
+assert.equal(strictReport.formalReadiness.routeReady, false)
+assert.ok(strictReport.formalReadiness.readyTopicCount < 11)
+assert.ok(strictReport.formalReadiness.underFloorTopicCount > 0)
 
 const result = spawnSync(process.execPath, [coveragePath, '--report-only'], {
   cwd: projectRoot,
@@ -43,31 +46,42 @@ const result = spawnSync(process.execPath, [coveragePath, '--report-only'], {
 assert.equal(
   result.status,
   0,
-  `9702 coverage verification must validate the complete reviewed inventory.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
+  `9702 report-only coverage must remain inspectable while formal coverage is partial.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`,
 )
 
 const report = JSON.parse(result.stdout)
-assert.equal(report.status, 'ready', 'the route should report full coverage once every official topic reaches the formal floor')
-assert.equal(report.formalReadiness.routeReady, true)
-assert.equal(report.formalReadiness.underFloorTopicCount, 0)
+assert.equal(report.status, 'partial')
+assert.equal(report.formalReadiness.routeReady, false)
+assert.ok(report.formalReadiness.underFloorTopicCount > 0)
+assert.equal(report.formalReadiness.underFloorTopicCount, strictReport.formalReadiness.underFloorTopicCount)
 
 const underFloorTopics = report.topics.filter((topic) => topic.verifiedQuestionCount < MIN_VERIFIED_GROUPS_FOR_PRACTICE)
-assert.equal(underFloorTopics.length, 0)
+assert.ok(underFloorTopics.length > 0, 'the restored source truth must retain a negative proof for the formal gate')
 assert.ok(
-  underFloorTopics.every((topic) => (
-    topic.ready === false
-    && topic.ctaPolicy === 'hidden'
-    && Array.isArray(topic.availableSetSizes)
-    && topic.availableSetSizes.length === 0
-  )),
-  'every under-floor topic must remain hidden and advertise no formal set size',
+  underFloorTopics.every((topic) => {
+    const policy = topicPracticeEligibility(topic)
+    return topic.ready === false
+      && topic.studyReady === policy.studyReady
+      && topic.apiStartable === (policy.ready || policy.studyReady)
+      && topic.ctaPolicy === policy.ctaPolicy
+      && JSON.stringify(topic.availableSetSizes) === JSON.stringify(policy.availableSetSizes)
+  }),
+  'every under-formal topic must preserve the shared study-only/hidden policy without becoming formally ready',
 )
+const reviewedSubsetTopics = underFloorTopics.filter((topic) => topic.verifiedQuestionCount >= MIN_QUESTION_GROUPS_PER_TEST)
+assert.ok(reviewedSubsetTopics.length > 0, 'the fixture must exercise reviewed subset study between the 6 and 12 gates')
+assert.ok(reviewedSubsetTopics.every((topic) => (
+  topic.ready === false
+  && topic.studyReady === true
+  && topic.apiStartable === true
+  && topic.ctaPolicy === 'start-study'
+  && topic.availableSetSizes.includes(MIN_QUESTION_GROUPS_PER_TEST)
+)), '6-11 reviewed groups may start study-only practice but must not become formally ready')
 
 const readyTopics = report.topics.filter((topic) => topic.verifiedQuestionCount >= MIN_VERIFIED_GROUPS_FOR_PRACTICE)
 assert.ok(readyTopics.length > 0, 'the fixture must retain a qualifying topic')
-assert.equal(readyTopics.length, 11, 'reviewed mappings must raise the ready-topic count to all eleven topics')
 assert.ok(
-  readyTopics.every((topic) => topic.ready === true && topic.ctaPolicy === 'start'),
+  readyTopics.every((topic) => topic.ready === true && topic.studyReady === false && topic.ctaPolicy === 'start'),
   'topics at or above the formal floor must remain startable',
 )
 
