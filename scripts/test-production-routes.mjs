@@ -2,12 +2,13 @@ import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
+import http from 'node:http'
 import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 
 import { resolveLibraryRoot } from '../server/pdfLibrary.js'
-import { releaseBuildIdentity } from '../vite.config.js'
+import { releaseBuildIdentity, sendLocalPdf } from '../vite.config.js'
 import { artifactTreeIdentity } from './release-content-policy.mjs'
 import { resolveProductionBuildIdentity } from './productionRouteBuildIdentity.mjs'
 
@@ -38,6 +39,93 @@ async function waitFor(url, child) {
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
   throw new Error(`Vite did not become ready: ${url}`)
+}
+
+async function assertLocalPdfRangeContract(baseUrl, sourcePdf) {
+  const sourcePdfBytes = fs.readFileSync(sourcePdf)
+  const sourcePdfSha256 = crypto.createHash('sha256').update(sourcePdfBytes).digest('hex')
+  const sourcePdfEtag = `"${sourcePdfSha256}"`
+  const sourceUrl = `${baseUrl}/local-pdf/9702/9702_m25_qp_42.pdf`
+
+  const sourcePdfResponse = await fetch(sourceUrl)
+  assert.equal(sourcePdfResponse.status, 200)
+  assert.match(sourcePdfResponse.headers.get('content-type') || '', /application\/pdf/i)
+  assert.equal(sourcePdfResponse.headers.get('content-disposition'), 'inline; filename="9702_m25_qp_42.pdf"')
+  assert.equal(sourcePdfResponse.headers.get('accept-ranges'), 'bytes')
+  assert.equal(sourcePdfResponse.headers.get('etag'), sourcePdfEtag, 'full CIE PDF responses must expose the verified strong content validator')
+  assert.equal(Number(sourcePdfResponse.headers.get('content-length')), sourcePdfBytes.length)
+  assert.deepEqual(Buffer.from(await sourcePdfResponse.arrayBuffer()), sourcePdfBytes)
+
+  const initialRange = await fetch(sourceUrl, { headers: { Range: 'bytes=0-4' } })
+  assert.equal(initialRange.status, 206)
+  assert.equal(initialRange.headers.get('accept-ranges'), 'bytes')
+  assert.equal(initialRange.headers.get('etag'), sourcePdfEtag)
+  assert.equal(initialRange.headers.get('content-range'), `bytes 0-4/${sourcePdfBytes.length}`)
+  assert.equal(Number(initialRange.headers.get('content-length')), 5)
+  assert.equal(Buffer.from(await initialRange.arrayBuffer()).toString('ascii'), '%PDF-')
+
+  const matchingIfRange = await fetch(sourceUrl, {
+    headers: { Range: 'bytes=5-9', 'If-Range': sourcePdfEtag },
+  })
+  assert.equal(matchingIfRange.status, 206)
+  assert.equal(matchingIfRange.headers.get('etag'), sourcePdfEtag)
+  assert.equal(matchingIfRange.headers.get('content-range'), `bytes 5-9/${sourcePdfBytes.length}`)
+  assert.deepEqual(Buffer.from(await matchingIfRange.arrayBuffer()), sourcePdfBytes.subarray(5, 10))
+
+  for (const staleValidator of [`"${'0'.repeat(64)}"`, `W/${sourcePdfEtag}`]) {
+    const staleIfRange = await fetch(sourceUrl, {
+      headers: { Range: 'bytes=5-9', 'If-Range': staleValidator },
+    })
+    assert.equal(staleIfRange.status, 200, 'stale or weak If-Range must receive the complete current representation')
+    assert.equal(staleIfRange.headers.get('etag'), sourcePdfEtag)
+    assert.equal(staleIfRange.headers.get('content-range'), null)
+    assert.equal(Number(staleIfRange.headers.get('content-length')), sourcePdfBytes.length)
+    assert.deepEqual(Buffer.from(await staleIfRange.arrayBuffer()), sourcePdfBytes)
+  }
+
+  const unsatisfiedRange = await fetch(sourceUrl, {
+    headers: { Range: `bytes=${sourcePdfBytes.length}-` },
+  })
+  assert.equal(unsatisfiedRange.status, 416)
+  assert.equal(unsatisfiedRange.headers.get('accept-ranges'), 'bytes')
+  assert.equal(unsatisfiedRange.headers.get('etag'), sourcePdfEtag)
+  assert.equal(unsatisfiedRange.headers.get('content-range'), `bytes */${sourcePdfBytes.length}`)
+
+  return { sourcePdfEtag, sourcePdfBytes: sourcePdfBytes.length }
+}
+
+async function localPdfRangeOnly() {
+  const libraryRoot = resolveLibraryRoot({ cwd: root, env: process.env })
+  const sourcePdf = path.join(libraryRoot, '9702', '9702_m25_qp_42.pdf')
+  assert.ok(fs.existsSync(sourcePdf), `the governed local PDF fixture is missing: ${sourcePdf}`)
+  const scratchRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'stem-local-pdf-range-'))
+  const env = {
+    ...process.env,
+    CIE_LIBRARY_ROOT: libraryRoot,
+    STEM_PDF_ACCESS_LOG_PATH: path.join(scratchRoot, 'pdf-access.log'),
+  }
+  const server = http.createServer((request, response) => {
+    void sendLocalPdf(request, response, () => {
+      response.statusCode = 404
+      response.end('Not found')
+    }, env).catch((error) => {
+      response.statusCode = 500
+      response.end(error?.message || 'Local PDF test failure')
+    })
+  })
+  await new Promise((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', resolve)
+  })
+  const address = server.address()
+  const baseUrl = `http://127.0.0.1:${address.port}`
+  try {
+    const result = await assertLocalPdfRangeContract(baseUrl, sourcePdf)
+    console.log(JSON.stringify({ ok: true, scope: 'local-pdf-range', ...result }))
+  } finally {
+    await new Promise((resolve) => server.close(resolve))
+    fs.rmSync(scratchRoot, { recursive: true, force: true })
+  }
 }
 
 async function main() {
@@ -192,11 +280,7 @@ async function main() {
     assert.equal(Number(questionAsset.headers.get('content-length')), questionAssetBytes, 'public image assets must expose an exact Content-Length for proxy framing')
     assert.equal((await questionAsset.arrayBuffer()).byteLength, questionAssetBytes)
 
-    const sourcePdfResponse = await fetch(`${baseUrl}/local-pdf/9702/9702_m25_qp_42.pdf`)
-    assert.equal(sourcePdfResponse.status, 200)
-    assert.match(sourcePdfResponse.headers.get('content-type') || '', /application\/pdf/i)
-    assert.equal(sourcePdfResponse.headers.get('content-disposition'), 'inline; filename="9702_m25_qp_42.pdf"')
-    assert.ok((await sourcePdfResponse.arrayBuffer()).byteLength > 0)
+    await assertLocalPdfRangeContract(baseUrl, sourcePdf)
 
     const index = await fetch(`${baseUrl}/`)
     assert.equal(index.status, 200)
@@ -230,7 +314,8 @@ async function main() {
   }
 }
 
-main().catch((error) => {
+const run = process.argv.includes('--local-pdf-range-only') ? localPdfRangeOnly : main
+run().catch((error) => {
   console.error(error.stack || error)
   process.exitCode = 1
 })

@@ -86,7 +86,7 @@ function recordPdfAccess(env, item, { outcome, statusCode, ranged }) {
     })
 }
 
-async function sendLocalPdf(request, response, next, env, runtimePdfDocuments = () => []) {
+export async function sendLocalPdf(request, response, next, env, runtimePdfDocuments = () => []) {
   const requestUrl = new URL(request.url, 'http://127.0.0.1')
   const segments = requestUrl.pathname.split('/').filter(Boolean).map(decodeURIComponent)
   if (segments[0] !== 'local-pdf') return next()
@@ -125,27 +125,38 @@ async function sendLocalPdf(request, response, next, env, runtimePdfDocuments = 
     return
   }
 
-  const range = request.headers.range
+  const requestedRange = request.headers.range
   const stat = fs.statSync(filePath)
   if (stat.size !== Number(catalogItem.bytes)) {
-    recordPdfAccess(env, catalogItem, { outcome: 'integrity-denied', statusCode: 409, ranged: Boolean(range) })
+    recordPdfAccess(env, catalogItem, { outcome: 'integrity-denied', statusCode: 409, ranged: Boolean(requestedRange) })
     response.statusCode = 409
     response.setHeader('Cache-Control', 'no-store')
     response.end('PDF integrity check failed')
     return
   }
   if (!(await verifiedPdfChecksum(filePath, catalogItem.sha256))) {
-    recordPdfAccess(env, catalogItem, { outcome: 'checksum-denied', statusCode: 409, ranged: Boolean(range) })
+    recordPdfAccess(env, catalogItem, { outcome: 'checksum-denied', statusCode: 409, ranged: Boolean(requestedRange) })
     response.statusCode = 409
     response.setHeader('Cache-Control', 'no-store')
     response.end('PDF integrity check failed')
     return
   }
 
+  const etag = `"${catalogItem.sha256}"`
+  const ifRange = request.headers['if-range']
+  // This route emits no Last-Modified validator. A range may be combined with
+  // cached bytes only when If-Range is the exact strong content validator.
+  // Weak, stale, date, and malformed validators receive the full current PDF.
+  const range = requestedRange !== undefined
+    && (ifRange === undefined || typeof ifRange === 'string' && ifRange.trim() === etag)
+    ? requestedRange
+    : null
+
   response.setHeader('Content-Type', 'application/pdf')
   response.setHeader('Accept-Ranges', 'bytes')
   response.setHeader('Content-Disposition', `inline; filename="${fileName}"`)
   response.setHeader('Cache-Control', 'private, max-age=3600')
+  response.setHeader('ETag', etag)
 
   if (!range) {
     response.setHeader('Content-Length', stat.size)
