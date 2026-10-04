@@ -49,10 +49,12 @@ assert.deepEqual(
 )
 
 const route = routeById(routeId)
+const cellStructure = route.syllabus.topics.find((topic) => topic.id === '9700-as-topic-01')
 const mammalTransport = route.syllabus.topics.find((topic) => topic.id === '9700-as-topic-08')
 const gasExchange = route.syllabus.topics.find((topic) => topic.id === topicId)
 const infectiousDiseases = route.syllabus.topics.find((topic) => topic.id === '9700-as-topic-10')
 const immunity = route.syllabus.topics.find((topic) => topic.id === '9700-as-topic-11')
+assert.equal(cellStructure.points.length, 12, 'chapter 1 official source mapping must remain isolated')
 assert.equal(mammalTransport.points.length, 17, 'chapter 8 official source mapping must remain unchanged')
 assert.equal(gasExchange.points.length, 7, 'chapter 9 must expose the seven official current outcomes')
 assert.equal(infectiousDiseases.points.length, 6, 'chapter 10 official source mapping must remain isolated')
@@ -64,10 +66,10 @@ assert.ok(gasExchange.points.every((point) => (
   && point.allowedPaperComponents?.includes(2)
 )))
 assert.equal(
-  route.syllabus.topics.filter((topic) => !['9700-as-topic-08', topicId, '9700-as-topic-10', '9700-as-topic-11'].includes(topic.id))
+  route.syllabus.topics.filter((topic) => !['9700-as-topic-01', '9700-as-topic-08', topicId, '9700-as-topic-10', '9700-as-topic-11'].includes(topic.id))
     .filter((topic) => topic.points?.length).length,
   0,
-  'the four partial official catalogs must not populate the other eight AS Biology chapters',
+  'the five partial official catalogs must not populate the other seven AS Biology chapters',
 )
 
 const answers = new Map(artifacts.map((artifact) => {
