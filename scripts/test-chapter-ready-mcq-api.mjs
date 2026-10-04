@@ -10,9 +10,13 @@ import { canonicalAiMarkingProvenance } from '../src/lib/sourceContentContract.j
 
 const routeId = 'cie-9700-as-biology'
 const stage = 'AS'
-const topicId = '9700-as-topic-08'
+const gasExchangeMode = process.argv.includes('--gas-exchange')
+const topicId = process.env.STEM_CHAPTER_READY_TOPIC_ID || (gasExchangeMode ? '9700-as-topic-09' : '9700-as-topic-08')
+const expectedQuestionCount = Number(process.env.STEM_CHAPTER_READY_QUESTION_COUNT || 6)
 const artifactRoot = path.resolve(process.env.STEM_CHAPTER_READY_PROMOTED_ROOT
-  || 'data/ai-pdf-ingestion/chapter-ready-9700-as-mammal-transport-qwen-20261004-v2')
+  || (gasExchangeMode
+    ? 'data/ai-pdf-ingestion/chapter-ready-9700-as-gas-exchange-qwen-20261004-v1'
+    : 'data/ai-pdf-ingestion/chapter-ready-9700-as-mammal-transport-qwen-20261004-v2'))
 const libraryRoot = path.resolve(process.env.CIE_LIBRARY_ROOT || 'D:/CodexWork/cie-fraft-fetcher/output/pdf')
 
 function artifactFiles(root) {
@@ -24,8 +28,8 @@ function artifactFiles(root) {
 
 const artifacts = artifactFiles(artifactRoot).map((file) => JSON.parse(fs.readFileSync(file, 'utf8')))
 const groups = createAiVerifiedQuestionBankLoader({ artifactRoot, libraryRoot })().groups
-assert.equal(artifacts.length, 6)
-assert.equal(groups.length, 6)
+assert.equal(artifacts.length, expectedQuestionCount)
+assert.equal(groups.length, expectedQuestionCount)
 const answers = Object.fromEntries(artifacts.map((artifact) => {
   const question = artifact.candidate.questions[0]
   return [question.sourceQuestionId, { choice: question.parts[0].answerKey }]
@@ -78,8 +82,8 @@ try {
   const chapter = inventory.body.topics.find((topic) => topic.id === topicId)
   assert.ok(chapter)
   assert.equal(chapter.verifiedQuestionCount, 0)
-  assert.equal(chapter.studyQuestionCount, 6)
-  assert.equal(chapter.availableQuestionCount, 6)
+  assert.equal(chapter.studyQuestionCount, expectedQuestionCount)
+  assert.equal(chapter.availableQuestionCount, expectedQuestionCount)
   assert.equal(chapter.studyReady, true)
   assert.equal(chapter.ready, false)
 
@@ -89,7 +93,7 @@ try {
       routeId,
       syllabusTopicIds: [topicId],
       components: [1],
-      questionCount: 6,
+      questionCount: expectedQuestionCount,
       sourceQuestionIds: groups.map((group) => group.sourceQuestionId),
       excludeAttempted: false,
     },
@@ -97,7 +101,7 @@ try {
   assert.equal(practice.status, 201, JSON.stringify(practice.body))
   assert.equal(practice.body.practiceMode, 'study-only')
   assert.equal(practice.body.formalProgressEligible, false)
-  assert.equal(practice.body.questionGroups.length, 6)
+  assert.equal(practice.body.questionGroups.length, expectedQuestionCount)
   const projectedGroups = practice.body.questionGroups.map((group) => ({
     sourceQuestionId: group.sourceQuestionId,
     answerFormat: group.answerFormat,

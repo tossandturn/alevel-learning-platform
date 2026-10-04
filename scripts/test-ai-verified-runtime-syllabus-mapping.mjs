@@ -152,10 +152,19 @@ assert.ok(calculus0606.points.every((point) => point.topicId === calculus0606.id
 assert.ok(routeById('cie-0610-igcse-biology').syllabus.topics.every((topic) => !topic.points?.length), 'the 0606 repair must not populate independent 0610 placeholder topics')
 const route9700 = routeById('cie-9700-as-biology')
 const mammalTransport9700 = route9700.syllabus.topics.find((topic) => topic.id === '9700-as-topic-08')
+const gasExchange9700 = route9700.syllabus.topics.find((topic) => topic.id === '9700-as-topic-09')
 assert.equal(route9700.syllabus.version, '2025-2027', '9700 AS must retain the current production syllabus version')
 assert.equal(mammalTransport9700.points.length, 17, 'only the source-reviewed current mammalian-transport catalog may populate its route topic')
 assert.ok(mammalTransport9700.points.every((point) => point.id.startsWith('biology-9700-2025-8-') && point.topicId === mammalTransport9700.id))
-assert.ok(route9700.syllabus.topics.filter((topic) => topic !== mammalTransport9700).every((topic) => !topic.points?.length), 'the partial source catalog must preserve the other 11 AS Biology topics')
+assert.equal(gasExchange9700.points.length, 7, 'only the source-reviewed current gas-exchange catalog may populate its route topic')
+assert.ok(gasExchange9700.points.every((point) => point.id.startsWith('biology-9700-2025-9-') && point.topicId === gasExchange9700.id))
+assert.equal(new Set([...mammalTransport9700.points, ...gasExchange9700.points].map((point) => point.id)).size, 24, 'chapter 8 and 9 source point IDs must remain disjoint')
+assert.ok(
+  route9700.syllabus.topics
+    .filter((topic) => topic !== mammalTransport9700 && topic !== gasExchange9700)
+    .every((topic) => !topic.points?.length),
+  'the partial source catalogs must preserve the other 10 AS Biology topics',
+)
 const route9701 = routeById('cie-9701-as-chemistry')
 assert.equal(route9701.syllabus.version, '2025-2027')
 assert.ok(route9701.syllabus.topics.every((topic) => !topic.points?.length), 'future-version Chemistry points must not enter the current placeholder route')
