@@ -12,6 +12,7 @@ import { cambridge9709SyllabusForRoute, cambridge9709TopicsForRoute } from './sy
 import { attach9700AsMammalTransport } from './syllabus/biology-9700-as-mammal-transport-bridge.js'
 import { attach9700AsGasExchange } from './syllabus/biology-9700-as-gas-exchange-bridge.js'
 import { attach9700AsInfectiousDiseases } from './syllabus/biology-9700-as-infectious-diseases-bridge.js'
+import { attach9700AsImmunity } from './syllabus/biology-9700-as-immunity-bridge.js'
 
 export const LEGACY_UNSCOPED_ROUTE_ID = 'legacy-unscoped'
 
@@ -92,9 +93,12 @@ function cieRoute({ routeId, qualification, stage, subject, subjectId, code, pap
       })
     })
     : freezeTopics(topicKey)
-  const sourceBackedTopics = attach9700AsInfectiousDiseases(
+  const sourceBackedTopics = attach9700AsImmunity(
     routeId,
-    attach9700AsGasExchange(routeId, attach9700AsMammalTransport(routeId, syllabusTopics)),
+    attach9700AsInfectiousDiseases(
+      routeId,
+      attach9700AsGasExchange(routeId, attach9700AsMammalTransport(routeId, syllabusTopics)),
+    ),
   )
   const assessmentComponents = officialSyllabus?.assessmentComponents?.length
     ? officialSyllabus.assessmentComponents.filter((item) => paperComponents.includes(Number(item.component)))
