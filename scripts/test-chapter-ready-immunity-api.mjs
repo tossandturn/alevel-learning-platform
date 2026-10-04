@@ -8,7 +8,7 @@ const result = spawnSync(process.execPath, [path.resolve('scripts/test-chapter-r
     STEM_CHAPTER_READY_TOPIC_ID: '9700-as-topic-11',
     STEM_CHAPTER_READY_PROMOTED_ROOT: process.env.STEM_CHAPTER_READY_IMMUNITY_ROOT
       || process.env.STEM_CHAPTER_READY_PROMOTED_ROOT
-      || 'data/ai-pdf-ingestion/chapter-ready-9700-as-immunity-qwen-20261004-v1',
+      || 'data/ai-pdf-ingestion/chapter-ready-9700-as-immunity-qwen-20261005-v2',
     STEM_CHAPTER_READY_QUESTION_COUNT: '6',
   },
   stdio: 'inherit',

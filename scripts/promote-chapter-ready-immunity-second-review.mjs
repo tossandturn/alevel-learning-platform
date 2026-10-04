@@ -13,8 +13,14 @@ import { createAiVerifiedQuestionBankLoader } from '../server/aiVerifiedQuestion
 
 const ROUTE_ID = 'cie-9700-as-biology'
 const TOPIC_ID = '9700-as-topic-11'
-const OUTPUT_ROOT = path.resolve('data/ai-pdf-ingestion/chapter-ready-9700-as-immunity-qwen-20261004-v1')
-const EVIDENCE_ROOT = path.resolve('.candidate-evidence/9700-as-immunity-promotion-20261004-v1')
+const geometryFixV2 = process.argv.includes('--q40-geometry-fix-v2')
+const BASELINE_OUTPUT_ROOT = path.resolve('data/ai-pdf-ingestion/chapter-ready-9700-as-immunity-qwen-20261004-v1')
+const OUTPUT_ROOT = path.resolve(geometryFixV2
+  ? 'data/ai-pdf-ingestion/chapter-ready-9700-as-immunity-qwen-20261005-v2'
+  : 'data/ai-pdf-ingestion/chapter-ready-9700-as-immunity-qwen-20261004-v1')
+const EVIDENCE_ROOT = path.resolve(geometryFixV2
+  ? '.candidate-evidence/9700-as-immunity-promotion-20261005-v2'
+  : '.candidate-evidence/9700-as-immunity-promotion-20261004-v1')
 const PAGE_CACHE_ROOT = path.join(EVIDENCE_ROOT, 'page-cache')
 const LIBRARY_ROOT = path.resolve(process.env.CIE_LIBRARY_ROOT || 'D:/CodexWork/cie-fraft-fetcher/output/pdf')
 const INITIAL_PRIMARY = path.resolve('.candidate-evidence/9700-as-immunity-primary-20261004-v2')
@@ -22,12 +28,19 @@ const INITIAL_REVIEW = path.resolve('.candidate-evidence/9700-as-immunity-qwen-2
 const INITIAL_FOLLOWUP = path.resolve('.candidate-evidence/9700-as-immunity-qwen-20261004-followup1')
 const REPLACEMENT_PRIMARY = path.resolve('.candidate-evidence/9700-as-immunity-replacement-primary-20261004-v1')
 const REPLACEMENT_REVIEW = path.resolve('.candidate-evidence/9700-as-immunity-replacement-qwen-20261004-v1')
+const GEOMETRY_PRIMARY = path.resolve('.candidate-evidence/9700-as-immunity-q40-geometry-primary-20261005-v1')
+const GEOMETRY_REVIEW = path.resolve('.candidate-evidence/9700-as-immunity-q40-geometry-qwen-20261005-v1')
+const GEOMETRY_SOURCE_QUESTION_ID = 'cie-9700-9700_s25_qp_12:q40'
 
 const selections = Object.freeze([
   Object.freeze({ sourceQuestionId: 'cie-9700-9700_s25_qp_11:q40', primaryRoot: INITIAL_PRIMARY, reviewRoot: INITIAL_REVIEW }),
   Object.freeze({ sourceQuestionId: 'cie-9700-9700_s25_qp_13:q36', primaryRoot: INITIAL_PRIMARY, reviewRoot: INITIAL_REVIEW }),
   Object.freeze({ sourceQuestionId: 'cie-9700-9700_s25_qp_14:q40', primaryRoot: INITIAL_PRIMARY, reviewRoot: INITIAL_REVIEW }),
-  Object.freeze({ sourceQuestionId: 'cie-9700-9700_s25_qp_12:q40', primaryRoot: INITIAL_PRIMARY, reviewRoot: INITIAL_FOLLOWUP }),
+  Object.freeze({
+    sourceQuestionId: GEOMETRY_SOURCE_QUESTION_ID,
+    primaryRoot: geometryFixV2 ? GEOMETRY_PRIMARY : INITIAL_PRIMARY,
+    reviewRoot: geometryFixV2 ? GEOMETRY_REVIEW : INITIAL_FOLLOWUP,
+  }),
   Object.freeze({ sourceQuestionId: 'cie-9700-9700_s25_qp_13:q39', primaryRoot: INITIAL_PRIMARY, reviewRoot: INITIAL_FOLLOWUP }),
   Object.freeze({ sourceQuestionId: 'cie-9700-9700_s25_qp_13:q38', primaryRoot: REPLACEMENT_PRIMARY, reviewRoot: REPLACEMENT_REVIEW }),
 ])
@@ -86,6 +99,9 @@ function cachePage({ document, pdfSha256, sourcePage }) {
 function outputPathFor(artifact, sourceQuestionId) {
   return path.join(OUTPUT_ROOT, artifact.paperId, `${sourceQuestionId.split(':').at(-1)}.json`)
 }
+function baselinePathFor(artifact, sourceQuestionId) {
+  return path.join(BASELINE_OUTPUT_ROOT, artifact.paperId, `${sourceQuestionId.split(':').at(-1)}.json`)
+}
 
 function main() {
   if (fs.existsSync(OUTPUT_ROOT)) throw new Error(`Refuse to overwrite candidate artifact root: ${OUTPUT_ROOT}`)
@@ -96,8 +112,30 @@ function main() {
   const cachedPages = new Map()
   for (const selection of selections) {
     const { file: sourceFile, artifact: originalArtifact } = sourceArtifact(selection)
-    const artifact = structuredClone(originalArtifact)
     const record = primaryRecord(selection)
+    if (geometryFixV2 && selection.sourceQuestionId !== GEOMETRY_SOURCE_QUESTION_ID) {
+      const artifact = readJson(baselinePathFor(originalArtifact, selection.sourceQuestionId))
+      const source = baselinePathFor(artifact, selection.sourceQuestionId)
+      const destination = outputPathFor(artifact, selection.sourceQuestionId)
+      fs.mkdirSync(path.dirname(destination), { recursive: true })
+      fs.copyFileSync(source, destination, fs.constants.COPYFILE_EXCL)
+      assert.equal(sha256File(destination), sha256File(source), `${selection.sourceQuestionId} must remain byte-identical to v1.`)
+      const pages = [
+        cachePage({ document: 'qp', pdfSha256: artifact.source.questionPdfSha256, sourcePage: record.sourcePages.qp }),
+        cachePage({ document: 'ms', pdfSha256: artifact.source.markSchemePdfSha256, sourcePage: record.sourcePages.ms }),
+      ]
+      for (const page of pages) cachedPages.set(`${page.pdfSha256}:${page.page}:${page.pageImageSha256}`, page)
+      outputs.push({
+        sourceQuestionId: selection.sourceQuestionId, artifactId: artifact.artifactId,
+        file: destination, sha256: sha256File(destination), preservedFrom: source,
+        primaryTopicId: artifact.candidate.questions[0].tags.primaryTopicId,
+        syllabusPointIds: artifact.candidate.questions[0].tags.syllabusPointIds,
+        independentPassCount: artifact.studentRelease.review.independentPassCount,
+        formalProgressEligible: artifact.studentRelease.formalProgressEligible,
+      })
+      continue
+    }
+    const artifact = structuredClone(originalArtifact)
     const reviewFile = receiptPath(selection)
     const receipt = readJson(reviewFile)
     assert.equal(receipt.status, 'PASS_SECOND_MODEL')
@@ -139,9 +177,14 @@ function main() {
     && group.paperComponent === 1 && group.studentStudyEligible === true && group.formalProgressEligible === false
     && group.parts.every((part) => part.answerKey == null)))
   const summary = {
-    schemaVersion: 'chapter-ready-promotion-summary.v1', status: 'PASS_CANDIDATE_NOT_DEPLOYED',
+    schemaVersion: geometryFixV2 ? 'chapter-ready-promotion-summary.v2' : 'chapter-ready-promotion-summary.v1', status: 'PASS_CANDIDATE_NOT_DEPLOYED',
     routeId: ROUTE_ID, topicId: TOPIC_ID, promotedArtifacts: outputs.length, runtimeGroups: groups.length,
     studentStudyEligible: true, formalProgressEligible: false, minimumStartGroups: 6, formalReadyGroups: 12,
+    geometryFix: geometryFixV2 ? {
+      sourceQuestionId: GEOMETRY_SOURCE_QUESTION_ID,
+      independentlyReverified: true,
+      preservedArtifactCount: outputs.filter((output) => output.preservedFrom).length,
+    } : null,
     outputRoot: OUTPUT_ROOT, outputs,
     cachedPages: [...cachedPages.values()].sort((left, right) => left.file.localeCompare(right.file)),
   }

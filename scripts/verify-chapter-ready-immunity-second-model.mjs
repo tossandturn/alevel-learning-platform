@@ -5,8 +5,18 @@ import path from 'node:path'
 import { callStructuredWithFallback, providersFromEnvironment } from './ai-pdf-ingestion/provider-fallback.mjs'
 
 const replacementBatch = process.argv.includes('--replacement-batch')
-const batch = replacementBatch
+const geometryFixBatch = process.argv.includes('--q40-geometry-fix')
+if (replacementBatch && geometryFixBatch) throw new Error('Verification batch flags are mutually exclusive.')
+const batch = geometryFixBatch
   ? Object.freeze({
+      kind: 'q40-geometry-fix',
+      primaryRoot: '.candidate-evidence/9700-as-immunity-q40-geometry-primary-20261005-v1',
+      outputRoot: '.candidate-evidence/9700-as-immunity-q40-geometry-qwen-20261005-v1',
+      followupRoot: null,
+      callLimit: 1,
+    })
+  : replacementBatch
+    ? Object.freeze({
       kind: 'replacement-candidates',
       primaryRoot: '.candidate-evidence/9700-as-immunity-replacement-primary-20261004-v1',
       outputRoot: '.candidate-evidence/9700-as-immunity-replacement-qwen-20261004-v1',
@@ -25,7 +35,7 @@ const ARTIFACT_ROOT = path.join(PRIMARY_ROOT, 'artifacts')
 const PRIMARY_SUMMARY = path.join(PRIMARY_ROOT, 'summary.json')
 const SYLLABUS_SOURCE = path.resolve('src/data/syllabus/biology-9700-as-immunity-source.json')
 const DEFAULT_OUTPUT_ROOT = path.resolve(batch.outputRoot)
-const FOLLOWUP_OUTPUT_ROOT = path.resolve(batch.followupRoot)
+const FOLLOWUP_OUTPUT_ROOT = batch.followupRoot ? path.resolve(batch.followupRoot) : null
 const ROUTE_ID = 'cie-9700-as-biology'
 const TOPIC_ID = '9700-as-topic-11'
 const REQUIRED_PROVIDER = 'qwen'
@@ -93,16 +103,18 @@ function safeProviderError(error) {
   }
 }
 
-function resultSchema({ sourceQuestionId, questionNumber, pointIds }) {
+function resultSchema({ sourceQuestionId, questionNumber, pointIds, requireGeometryConfirmation = false }) {
+  const required = [
+    'sourceQuestionId', 'questionNumber', 'reviewDecision', 'questionIdentityConfirmed',
+    'wholeQuestionConfirmed', 'optionLabels', 'independentDerivedAnswer',
+    'markSchemeAnswer', 'marks', 'diagramRegionCount', 'primaryTopicId',
+    'syllabusPointIds', 'reasoning', 'disagreementReasons',
+  ]
+  if (requireGeometryConfirmation) required.push('graphRegionComplete', 'answerTableRegionComplete', 'diagramRegionsExcludeUnrelatedContent')
   return {
     type: 'object',
     additionalProperties: false,
-    required: [
-      'sourceQuestionId', 'questionNumber', 'reviewDecision', 'questionIdentityConfirmed',
-      'wholeQuestionConfirmed', 'optionLabels', 'independentDerivedAnswer',
-      'markSchemeAnswer', 'marks', 'diagramRegionCount', 'primaryTopicId',
-      'syllabusPointIds', 'reasoning', 'disagreementReasons',
-    ],
+    required,
     properties: {
       sourceQuestionId: { type: 'string', enum: [sourceQuestionId] },
       questionNumber: { type: 'string', enum: [String(questionNumber)] },
@@ -133,6 +145,11 @@ function resultSchema({ sourceQuestionId, questionNumber, pointIds }) {
         maxItems: 8,
         items: { type: 'string', minLength: 1, maxLength: 240 },
       },
+      ...(requireGeometryConfirmation ? {
+        graphRegionComplete: { type: 'boolean' },
+        answerTableRegionComplete: { type: 'boolean' },
+        diagramRegionsExcludeUnrelatedContent: { type: 'boolean' },
+      } : {}),
     },
   }
 }
@@ -160,6 +177,8 @@ function comparison({ artifact, question, value }) {
     diagramRegionCountMatches: value.diagramRegionCount === question.diagramRegions.length,
     topicMatches: value.primaryTopicId === question.tags.primaryTopicId,
     syllabusPointsMatch: sameSet(value.syllabusPointIds, question.tags.syllabusPointIds),
+    geometryBindingConfirmed: !geometryFixBatch || (value.graphRegionComplete === true
+      && value.answerTableRegionComplete === true && value.diagramRegionsExcludeUnrelatedContent === true),
     noProviderDisagreement: value.disagreementReasons.length === 0,
     originalReviewIsSinglePass: artifact.studentRelease?.review?.method === 'single-model-source-review'
       && artifact.studentRelease?.review?.independentPassCount === 1,
@@ -200,12 +219,13 @@ function followupSourceIds() {
 async function main() {
   const dryRun = process.argv.includes('--dry-run')
   const followup = process.argv.includes('--followup-blocked')
+  if (geometryFixBatch && followup) throw new Error('The Q40 geometry fix permits exactly one independent review call and no follow-up.')
   const outputRoot = path.resolve(followup ? FOLLOWUP_OUTPUT_ROOT : DEFAULT_OUTPUT_ROOT)
   const primarySummary = readJson(PRIMARY_SUMMARY)
   const syllabus = readJson(SYLLABUS_SOURCE)
   let artifacts = artifactFiles(ARTIFACT_ROOT).map((file) => ({ file, artifact: readJson(file) }))
     .sort((left, right) => left.artifact.candidate.questions[0].sourceQuestionId.localeCompare(right.artifact.candidate.questions[0].sourceQuestionId))
-  if (primarySummary.status !== 'PASS_PRIMARY_REVIEW_PENDING_INDEPENDENT_PROVIDER'
+  if (primarySummary.status !== 'PASS_PRIMARY_REVIEW_PENDING_INDEPENDENT_PROVIDER' || primarySummary.batchKind !== batch.kind
     || primarySummary.questions !== CALL_LIMIT || primarySummary.runtimeGroups !== CALL_LIMIT || primarySummary.providerCalls !== 0) {
     throw new Error('The pinned primary preparation summary is invalid.')
   }
@@ -271,16 +291,25 @@ async function main() {
       },
       mappingRule: 'Select only official outcomes directly tested by the printed question. Exclude same-chapter background facts not required by the stem, options or decision.',
       visualCountRule: 'Count every retained diagram, graph, chart or table needed to answer as one visual object. Ordinary text and option lists are not visual objects.',
+      ...(geometryFixBatch ? {
+        questionRegion: question.regions[0],
+        diagramRegions: question.diagramRegions,
+        questionPageSize: artifact.source.pageSizes[String(record.geometry.qp.page)],
+        geometryReviewRule: 'Confirm the graph region retains both axes, all labels, both curves and the time-of-injection arrow without the answer table. Confirm the table region retains the G/H header, every A-D row, all borders and small surrounding whitespace without unrelated lower-page whitespace.',
+      } : {}),
     }
     const clarification = followup ? FOLLOWUP_CLARIFICATIONS[sourceQuestionId] || '' : ''
     const passInstruction = followup
       ? `This is the single permitted clarification pass. Reinspect both images from scratch. ${clarification}`
       : 'This is a blind initial review. Do not rely on any prior extraction, answer or mapping.'
+    const geometryInstruction = geometryFixBatch
+      ? ' Also verify the supplied normalized graph and answer-table regions against the complete question image; set every geometry confirmation to true only when no required label, row or border is clipped and no unrelated content is retained.'
+      : ''
     const input = [
-      { role: 'system', content: [{ type: 'input_text', text: `Act as an independent second-model reviewer. ${passInstruction} reviewDecision is a review verdict and must be exactly accept or block; put A-D only in independentDerivedAnswer and markSchemeAnswer. Solve the MCQ independently, read the exact mark-scheme row, and verify identity, completeness, marks, visual count and direct official mapping. Fail closed on ambiguity.` }] },
+      { role: 'system', content: [{ type: 'input_text', text: `Act as an independent second-model reviewer. ${passInstruction} reviewDecision is a review verdict and must be exactly accept or block; put A-D only in independentDerivedAnswer and markSchemeAnswer. Solve the MCQ independently, read the exact mark-scheme row, and verify identity, completeness, marks, visual count and direct official mapping.${geometryInstruction} Fail closed on ambiguity.` }] },
       { role: 'user', content: [{ type: 'input_text', text: JSON.stringify(requestIdentity) }, { type: 'input_image', image_url: dataUrl(qpPath) }, { type: 'input_image', image_url: dataUrl(msPath) }] },
     ]
-    const schema = resultSchema({ sourceQuestionId, questionNumber: question.questionNumber, pointIds })
+    const schema = resultSchema({ sourceQuestionId, questionNumber: question.questionNumber, pointIds, requireGeometryConfirmation: geometryFixBatch })
     const inputSha256 = canonicalInputHash({ requestIdentity, schema, reviewPass: plan.reviewPass })
     const startedAt = Date.now()
     let receipt

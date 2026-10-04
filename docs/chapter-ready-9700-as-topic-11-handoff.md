@@ -1,6 +1,6 @@
 # 9700 AS Topic 11 chapter-ready candidate
 
-Status: `PASS_CANDIDATE_NOT_DEPLOYED`
+Status: `PASS_CANDIDATE_NOT_DEPLOYED` (v2 source-geometry correction)
 
 Baseline commit: `e4725ea9f86d9099c8753c91992c863fabc870a7`
 
@@ -14,12 +14,20 @@ Baseline commit: `e4725ea9f86d9099c8753c91992c863fabc870a7`
 - All six questions are whole 2025 Paper 1 MCQs.
 - This batch covers only directly mapped outcomes in the selected questions, not complete outcome or historical-paper coverage.
 
+## Q40 geometry correction
+
+- Root visual acceptance found the v1 second region for `cie-9700-9700_s25_qp_12:q40` started below the printed table header and omitted rows A/B.
+- The corrected graph region is normalized `[0.17, 0.165, 0.82, 0.44]`, equivalent to source pixels `252,347,1221,927` on the pinned 1488x2105 page. It retains both axes, all labels, both curves, the 0-20 day scale and the time-of-injection arrow without the answer table.
+- The corrected answer-table region is normalized `[0.10, 0.458, 0.69, 0.615]`, equivalent to source pixels `148,964,1027,1295`. It retains the G/H header, every A-D row, all borders and surrounding whitespace without the lower-page blank area.
+- Q40 was rebound from the original full QP question crop and exact MS row, then independently reviewed once by Qwen. The other five promoted artifact files are byte-identical to v1.
+
 ## Independent verification
 
 - Primary source review: `openai / codex-current-session`, one source-bound pass
 - Independent verifier: `qwen / qwen3-vl-plus`
 - Initial batch: 6 calls plus one clarification round of 3 calls
 - Replacement batch: 1 call, no clarification
+- Q40 geometry correction: 1 new call, no retry or clarification; 1 attempt, 60 second limit, 2500 output-token limit
 - Every call used one complete QP crop and one exact MS crop, one attempt, a 60 second limit and at most 2500 output tokens.
 - `reviewDecision` was strictly limited to `accept` or `block` and separated from A-D answer fields. Raw provider results are retained.
 - Final clean set: 6 distinct whole Paper 1 MCQs with source identity, independent answer, exact MS answer, marks, direct official mapping and visual count passing.
@@ -34,7 +42,8 @@ Provider receipts:
 - `.candidate-evidence/9700-as-immunity-qwen-20261004-v1/`
 - `.candidate-evidence/9700-as-immunity-qwen-20261004-followup1/`
 - `.candidate-evidence/9700-as-immunity-replacement-qwen-20261004-v1/`
-- Promotion summary: `.candidate-evidence/9700-as-immunity-promotion-20261004-v1/promotion-summary.json`
+- `.candidate-evidence/9700-as-immunity-q40-geometry-qwen-20261005-v1/`
+- Promotion summary: `.candidate-evidence/9700-as-immunity-promotion-20261005-v2/promotion-summary.json`
 
 All paths above are relative to:
 
@@ -44,14 +53,14 @@ All paths above are relative to:
 
 Append this directory as a new batch. Do not replace or rewrite existing production artifact files:
 
-`data\ai-pdf-ingestion\chapter-ready-9700-as-immunity-qwen-20261004-v1`
+`data\ai-pdf-ingestion\chapter-ready-9700-as-immunity-qwen-20261005-v2`
 
 | Source question | Candidate SHA-256 |
 | --- | --- |
 | `cie-9700-9700_s25_qp_11:q40` | `609236310afe25b5f72f587a7b98d716fd11b6c493daac4af5e84282a5bd42c7` |
 | `cie-9700-9700_s25_qp_13:q36` | `ac6d2de22f569c0971f346b43dd7789a0deeb7b7ceac36efda351dc0c15b5cd7` |
 | `cie-9700-9700_s25_qp_14:q40` | `39ee02b3eeeca717527e2022d3422a8454b1e8f956216560ae337ab35bfd995f` |
-| `cie-9700-9700_s25_qp_12:q40` | `7a5333dfe95a40d406c7cb613bd6c2560aa42c640e3fe0a43f5b775ce1ef79cc` |
+| `cie-9700-9700_s25_qp_12:q40` | `013e2a300e6c68d8462a88bff21f32ef9d6f9539cedc21d8675b81592c2bcf6d` |
 | `cie-9700-9700_s25_qp_13:q39` | `81dc4312124f75ed6c70aeea19043267555e21af9b2dda57b875f2e7b94b1a67` |
 | `cie-9700-9700_s25_qp_13:q38` | `1d7abfd51db79ca5633ddc744ab0312c1382249e2084dee8cd5bc5ab598a914c` |
 
@@ -78,7 +87,7 @@ Pinned full-page cache files:
 
 The `page-cache` paths above are relative to:
 
-`.candidate-evidence\9700-as-immunity-promotion-20261004-v1`
+`.candidate-evidence\9700-as-immunity-promotion-20261005-v2`
 
 ## Backend and client boundary
 
@@ -89,6 +98,7 @@ The `page-cache` paths above are relative to:
 ## Activation constraints
 
 - Add only the six candidate artifacts and nine required page-cache entries.
+- Use the v2 output root; do not activate the superseded v1 Q40 artifact.
 - Preserve all existing production artifacts byte-for-byte.
 - Keep the held receipt and excluded question out of runtime data.
 - Do not mark these questions formally reviewed or formal-progress eligible.

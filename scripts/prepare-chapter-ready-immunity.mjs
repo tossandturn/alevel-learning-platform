@@ -16,9 +16,13 @@ import { locateMcqRow } from './chapter-ready-ms-row-geometry.mjs'
 const WORK_ROOT = path.resolve('D:/CodexWork/stem-ocr-work')
 const LIBRARY_ROOT = path.resolve(process.env.CIE_LIBRARY_ROOT || 'D:/CodexWork/cie-fraft-fetcher/output/pdf')
 const replacementBatch = process.argv.includes('--replacement-batch')
-const OUTPUT_ROOT = path.resolve(replacementBatch
-  ? '.candidate-evidence/9700-as-immunity-replacement-primary-20261004-v1'
-  : '.candidate-evidence/9700-as-immunity-primary-20261004-v2')
+const geometryFixBatch = process.argv.includes('--q40-geometry-fix')
+assert.equal(replacementBatch && geometryFixBatch, false, 'Preparation batch flags are mutually exclusive.')
+const OUTPUT_ROOT = path.resolve(geometryFixBatch
+  ? '.candidate-evidence/9700-as-immunity-q40-geometry-primary-20261005-v1'
+  : replacementBatch
+    ? '.candidate-evidence/9700-as-immunity-replacement-primary-20261004-v1'
+    : '.candidate-evidence/9700-as-immunity-primary-20261004-v2')
 const ARTIFACT_ROOT = path.join(OUTPUT_ROOT, 'artifacts')
 const CROP_ROOT = path.join(OUTPUT_ROOT, 'crops')
 const PYTHON = 'C:/Users/10604/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe'
@@ -60,8 +64,8 @@ const primarySelections = Object.freeze([
     page: 19,
     qpBounds: [0.06, 0.07, 0.94, 0.79],
     visualBounds: [
-      [0.20, 0.18, 0.82, 0.49],
-      [0.10, 0.55, 0.70, 0.76],
+      [0.17, 0.165, 0.82, 0.44],
+      [0.10, 0.458, 0.69, 0.615],
     ],
     correctOption: 'B',
     syllabusPointIds: [points.immunityTypes],
@@ -127,7 +131,11 @@ const replacementSelections = Object.freeze([
   },
 ])
 
-const selections = replacementBatch ? replacementSelections : primarySelections
+const selections = geometryFixBatch
+  ? primarySelections.filter((selection) => selection.fileStem === '9700_s25_qp_12' && selection.questionNumber === '40')
+  : replacementBatch
+    ? replacementSelections
+    : primarySelections
 
 function readJson(file) {
   return JSON.parse(fs.readFileSync(file, 'utf8'))
@@ -356,7 +364,7 @@ function main() {
   const summary = {
     schemaVersion: 'chapter-ready-primary-preparation.v1',
     status: 'PASS_PRIMARY_REVIEW_PENDING_INDEPENDENT_PROVIDER',
-    batchKind: replacementBatch ? 'replacement-candidates' : 'initial-candidates',
+    batchKind: geometryFixBatch ? 'q40-geometry-fix' : replacementBatch ? 'replacement-candidates' : 'initial-candidates',
     routeId: ROUTE_ID,
     topicId: TOPIC_ID,
     questions: results.length,

@@ -16,7 +16,8 @@ import { syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
 const routeId = 'cie-9700-as-biology'
 const topicId = '9700-as-topic-11'
 const artifactRoot = path.resolve(process.env.STEM_CHAPTER_READY_IMMUNITY_ROOT
-  || 'data/ai-pdf-ingestion/chapter-ready-9700-as-immunity-qwen-20261004-v1')
+  || 'data/ai-pdf-ingestion/chapter-ready-9700-as-immunity-qwen-20261005-v2')
+const baselineArtifactRoot = path.resolve('data/ai-pdf-ingestion/chapter-ready-9700-as-immunity-qwen-20261004-v1')
 const libraryRoot = path.resolve(process.env.CIE_LIBRARY_ROOT || 'D:/CodexWork/cie-fraft-fetcher/output/pdf')
 const expectedSourceQuestionIds = Object.freeze([
   'cie-9700-9700_s25_qp_11:q40',
@@ -34,9 +35,38 @@ function artifactFiles(root) {
     .map((entry) => path.join(entry.parentPath, entry.name)).sort()
 }
 
+function artifactFile(root, sourceQuestionId) {
+  const [paperId, questionId] = sourceQuestionId.split(':')
+  return path.join(root, paperId, `${questionId}.json`)
+}
+
 const artifacts = artifactFiles(artifactRoot).map((file) => JSON.parse(fs.readFileSync(file, 'utf8')))
 assert.equal(artifacts.length, 6)
 assert.deepEqual(artifacts.map((artifact) => artifact.candidate.questions[0].sourceQuestionId).sort(), [...expectedSourceQuestionIds].sort())
+for (const sourceQuestionId of expectedSourceQuestionIds.filter((id) => id !== 'cie-9700-9700_s25_qp_12:q40')) {
+  assert.deepEqual(fs.readFileSync(artifactFile(artifactRoot, sourceQuestionId)), fs.readFileSync(artifactFile(baselineArtifactRoot, sourceQuestionId)), `${sourceQuestionId} must remain byte-identical to v1.`)
+}
+assert.notDeepEqual(
+  fs.readFileSync(artifactFile(artifactRoot, 'cie-9700-9700_s25_qp_12:q40')),
+  fs.readFileSync(artifactFile(baselineArtifactRoot, 'cie-9700-9700_s25_qp_12:q40')),
+  'Q40 must be rebound to the corrected geometry and new independent review.',
+)
+
+const q40GeometryArtifact = artifacts.find((artifact) => artifact.candidate.questions[0].sourceQuestionId === 'cie-9700-9700_s25_qp_12:q40')
+const q40PageHash = q40GeometryArtifact.source.pageImageHashes['19']
+const expectedQ40DiagramRegions = [
+  { page: 19, pageImageSha256: q40PageHash, x0: 0.17, y0: 0.165, x1: 0.82, y1: 0.44 },
+  { page: 19, pageImageSha256: q40PageHash, x0: 0.1, y0: 0.458, x1: 0.69, y1: 0.615 },
+]
+assert.deepEqual(q40GeometryArtifact.candidate.questions[0].diagramRegions, expectedQ40DiagramRegions)
+assert.deepEqual(q40GeometryArtifact.verification.questions[0].diagramRegions, expectedQ40DiagramRegions)
+const q40PageSize = q40GeometryArtifact.source.pageSizes['19']
+const q40TableRegion = expectedQ40DiagramRegions[1]
+assert.ok(q40TableRegion.x0 * q40PageSize.width <= 156
+  && q40TableRegion.y0 * q40PageSize.height <= 972
+  && q40TableRegion.x1 * q40PageSize.width >= 1020
+  && q40TableRegion.y1 * q40PageSize.height >= 1285,
+'Q40 table region must retain the header, all A-D rows, borders and surrounding whitespace.')
 
 const route = routeById(routeId)
 const expectedPointCounts = Object.freeze({
