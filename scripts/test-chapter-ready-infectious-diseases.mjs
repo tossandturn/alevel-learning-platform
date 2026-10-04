@@ -14,23 +14,23 @@ import { routeById } from '../src/data/routeRegistry.js'
 import { syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
 
 const routeId = 'cie-9700-as-biology'
-const topicId = '9700-as-topic-09'
-const artifactRoot = path.resolve(process.env.STEM_CHAPTER_READY_GAS_EXCHANGE_ROOT
-  || 'data/ai-pdf-ingestion/chapter-ready-9700-as-gas-exchange-qwen-20261004-v1')
+const topicId = '9700-as-topic-10'
+const artifactRoot = path.resolve(process.env.STEM_CHAPTER_READY_INFECTIOUS_DISEASES_ROOT
+  || 'data/ai-pdf-ingestion/chapter-ready-9700-as-infectious-diseases-qwen-20261004-v1')
 const libraryRoot = path.resolve(process.env.CIE_LIBRARY_ROOT || 'D:/CodexWork/cie-fraft-fetcher/output/pdf')
 const expectedSourceQuestionIds = Object.freeze([
-  'cie-9700-9700_s25_qp_11:q33',
-  'cie-9700-9700_s25_qp_11:q34',
-  'cie-9700-9700_s25_qp_12:q36',
-  'cie-9700-9700_s25_qp_13:q34',
-  'cie-9700-9700_w24_qp_11:q34',
-  'cie-9700-9700_w24_qp_13:q36',
+  'cie-9700-9700_s25_qp_11:q37',
+  'cie-9700-9700_s25_qp_11:q38',
+  'cie-9700-9700_s25_qp_12:q38',
+  'cie-9700-9700_s25_qp_13:q40',
+  'cie-9700-9700_s25_qp_14:q38',
+  'cie-9700-9700_s24_qp_12:q35',
 ])
 const heldSourceQuestionIds = Object.freeze([
-  'cie-9700-9700_s25_qp_11:q35',
-  'cie-9700-9700_s25_qp_12:q35',
-  'cie-9700-9700_s25_qp_13:q35',
-  'cie-9700-9700_s25_qp_14:q36',
+  'cie-9700-9700_s25_qp_11:q36',
+  'cie-9700-9700_s25_qp_12:q37',
+  'cie-9700-9700_s25_qp_13:q37',
+  'cie-9700-9700_s25_qp_14:q37',
 ])
 
 function artifactFiles(root) {
@@ -40,8 +40,7 @@ function artifactFiles(root) {
     .sort()
 }
 
-const files = artifactFiles(artifactRoot)
-const artifacts = files.map((file) => JSON.parse(fs.readFileSync(file, 'utf8')))
+const artifacts = artifactFiles(artifactRoot).map((file) => JSON.parse(fs.readFileSync(file, 'utf8')))
 assert.equal(artifacts.length, 6)
 assert.deepEqual(
   artifacts.map((artifact) => artifact.candidate.questions[0].sourceQuestionId).sort(),
@@ -50,19 +49,20 @@ assert.deepEqual(
 
 const route = routeById(routeId)
 const mammalTransport = route.syllabus.topics.find((topic) => topic.id === '9700-as-topic-08')
-const gasExchange = route.syllabus.topics.find((topic) => topic.id === topicId)
-const infectiousDiseases = route.syllabus.topics.find((topic) => topic.id === '9700-as-topic-10')
+const gasExchange = route.syllabus.topics.find((topic) => topic.id === '9700-as-topic-09')
+const infectiousDiseases = route.syllabus.topics.find((topic) => topic.id === topicId)
 assert.equal(mammalTransport.points.length, 17, 'chapter 8 official source mapping must remain unchanged')
-assert.equal(gasExchange.points.length, 7, 'chapter 9 must expose the seven official current outcomes')
-assert.equal(infectiousDiseases.points.length, 6, 'chapter 10 official source mapping must remain isolated')
-assert.ok(gasExchange.points.every((point) => (
+assert.equal(gasExchange.points.length, 7, 'chapter 9 official source mapping must remain unchanged')
+assert.equal(infectiousDiseases.points.length, 6, 'chapter 10 must expose the six current official outcomes')
+assert.ok(infectiousDiseases.points.every((point) => (
   point.topicId === topicId
   && point.stage === 'AS'
   && point.allowedPaperComponents?.includes(1)
   && point.allowedPaperComponents?.includes(2)
 )))
 assert.equal(
-  route.syllabus.topics.filter((topic) => !['9700-as-topic-08', topicId, '9700-as-topic-10'].includes(topic.id))
+  route.syllabus.topics
+    .filter((topic) => !['9700-as-topic-08', '9700-as-topic-09', topicId].includes(topic.id))
     .filter((topic) => topic.points?.length).length,
   0,
   'the three partial official catalogs must not populate the other nine AS Biology chapters',
@@ -104,7 +104,11 @@ assert.ok(groups.every((group) => (
   && group.parts.length === 1
   && group.parts[0].answerKey === null
   && group.parts[0].options.length === 0
+  && group.parts[0].sourceEvidence.length > 0
+  && group.parts[0].sourceEvidence.every((entry) => entry.coordinateSpace === 'normalized-xyxy')
 )))
+assert.equal(groups.find((group) => group.sourceQuestionId === 'cie-9700-9700_s25_qp_14:q38').diagramRegions.length, 1)
+assert.ok(groups.filter((group) => group.sourceQuestionId !== 'cie-9700-9700_s25_qp_14:q38').every((group) => group.diagramRegions.length === 0))
 
 for (const group of groups) {
   const expected = answers.get(group.sourceQuestionId)
@@ -185,7 +189,7 @@ assert.equal(scoreObjectiveQuestion({
 }).available, false)
 
 const futurePointArtifact = structuredClone(artifacts[0])
-const futurePointId = 'biology-9700-2099-9-1-99'
+const futurePointId = 'biology-9700-2099-10-1-99'
 for (const document of [futurePointArtifact.candidate, futurePointArtifact.verification]) {
   const question = document.questions[0]
   question.tags.syllabusPointIds = [futurePointId]
@@ -205,7 +209,7 @@ assert.equal(hasValidAiStudentStudyRelease(futurePointArtifact), true)
 assert.equal(questionGroupsFromAiArtifacts([futurePointArtifact], { libraryRoot }).length, 0)
 
 console.log(JSON.stringify({
-  status: 'PASS_CHAPTER_READY_GAS_EXCHANGE',
+  status: 'PASS_CHAPTER_READY_INFECTIOUS_DISEASES',
   routeId,
   topicId,
   studyGroups: groups.length,
