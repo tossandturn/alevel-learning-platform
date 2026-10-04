@@ -150,11 +150,15 @@ const functions0606 = route0606.syllabus.topics.find((topic) => topic.id === 'ma
 assert.deepEqual(calculus0606.points.map((point) => point.id), ['math-0606-point-calculus-01'], '0606 route projection must attach only the official points whose topicId matches Calculus')
 assert.ok(calculus0606.points.every((point) => point.topicId === calculus0606.id), '0606 route points must not be aggregated across topics')
 assert.ok(routeById('cie-0610-igcse-biology').syllabus.topics.every((topic) => !topic.points?.length), 'the 0606 repair must not populate independent 0610 placeholder topics')
-for (const routeId of ['cie-9700-as-biology', 'cie-9701-as-chemistry']) {
-  const route = routeById(routeId)
-  assert.equal(route.syllabus.version, '2025-2027', `${routeId} must retain the current production syllabus version`)
-  assert.ok(route.syllabus.topics.every((topic) => !topic.points?.length), `${routeId} future-version points must not enter the current placeholder route`)
-}
+const route9700 = routeById('cie-9700-as-biology')
+const mammalTransport9700 = route9700.syllabus.topics.find((topic) => topic.id === '9700-as-topic-08')
+assert.equal(route9700.syllabus.version, '2025-2027', '9700 AS must retain the current production syllabus version')
+assert.equal(mammalTransport9700.points.length, 17, 'only the source-reviewed current mammalian-transport catalog may populate its route topic')
+assert.ok(mammalTransport9700.points.every((point) => point.id.startsWith('biology-9700-2025-8-') && point.topicId === mammalTransport9700.id))
+assert.ok(route9700.syllabus.topics.filter((topic) => topic !== mammalTransport9700).every((topic) => !topic.points?.length), 'the partial source catalog must preserve the other 11 AS Biology topics')
+const route9701 = routeById('cie-9701-as-chemistry')
+assert.equal(route9701.syllabus.version, '2025-2027')
+assert.ok(route9701.syllabus.topics.every((topic) => !topic.points?.length), 'future-version Chemistry points must not enter the current placeholder route')
 
 const a2Route = routeById('cie-9702-a2-physics')
 const a2Primary = a2Route.syllabus.topics.find((topic) => topic.id === 'physics-9702-topic-13')

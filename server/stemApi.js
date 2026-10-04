@@ -3016,7 +3016,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
           })
         }
         const scoringQuestion = question || { paperId: objective.paperId }
-        const result = scoreObjectiveQuestion({ question: scoringQuestion, selectedOption: objective.selectedOption })
+        const result = scoreObjectiveQuestion({ question: scoringQuestion, selectedOption: objective.selectedOption, mode: objective.mode })
         const metadata = objectiveAnswerMetadata(scoringQuestion)
         sendJson(response, 200, {
           schemaVersion: OBJECTIVE_RESULT_SCHEMA_VERSION,
@@ -3026,6 +3026,11 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
           available: result.available,
           source: result.source,
           sourceStatus: result.sourceStatus,
+          ...(result.qualityFlag === 'aicheck' ? {
+            qualityFlag: 'aicheck',
+            reviewLabel: 'AI 审核',
+            formalProgressEligible: false,
+          } : {}),
           score: result.score,
           maxScore: result.maxScore,
           correctOption: result.correctOption,

@@ -1,5 +1,6 @@
 import { isHumanReviewedPastPaperItem } from '../src/data/questionBank.js'
 import { buildSourceRenderManifest } from '../src/lib/sourceRenderManifest.js'
+import { aiStudyObjectiveKey } from './aiStudyObjectiveKeys.js'
 
 export const OBJECTIVE_RESULT_SCHEMA_VERSION = 'stem-objective-result-v1'
 export const SINGLE_CHOICE_ANSWER_FORMAT = 'single-choice'
@@ -203,12 +204,27 @@ export function projectNativeObjectivePracticeSet(result = {}) {
   }
 }
 
-export function scoreObjectiveQuestion({ question, selectedOption } = {}) {
+export function scoreObjectiveQuestion({ question, selectedOption, mode = 'topic' } = {}) {
   const metadata = objectiveAnswerMetadata(question || {})
   const choiceParts = (question?.parts || []).filter(isExplicitSingleChoicePart)
   const part = choiceParts.length === 1 ? choiceParts[0] : null
   const correctOption = canonicalChoice(part?.answerKey)
   const selected = canonicalChoice(selectedOption)
+  const aiKey = aiStudyObjectiveKey(question)
+  if (mode === 'topic' && metadata && selected && aiKey) {
+    return {
+      questionPartId: aiKey.questionPartId,
+      available: true,
+      source: 'ai-reviewed-mark-scheme',
+      sourceStatus: 'ai-checked-official-key',
+      qualityFlag: 'aicheck',
+      reviewLabel: 'AI 审核',
+      formalProgressEligible: false,
+      score: selected === aiKey.correctOption ? 1 : 0,
+      maxScore: 1,
+      correctOption: aiKey.correctOption,
+    }
+  }
   const available = Boolean(
     metadata
     && selected

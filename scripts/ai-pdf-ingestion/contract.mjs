@@ -3,6 +3,7 @@ import path from 'node:path'
 
 export const AI_PDF_INGESTION_SCHEMA_VERSION = 'ai-pdf-ingestion.v1'
 export const AI_STUDENT_STUDY_RELEASE_SCHEMA_VERSION = 'ai-student-study-release.v1'
+export const AI_INDEPENDENT_SOURCE_REVIEW_SCHEMA_VERSION = 'ai-independent-source-review.v1'
 
 export const AI_PDF_INGESTION_LIFECYCLE = Object.freeze({
   INGESTED: 'ingested',
@@ -154,7 +155,7 @@ export function resolveArtifactSourcePdfPath({ source, absoluteField, relativeFi
   return rootIsSubject ? path.resolve(root, fileName) : path.resolve(root, subject, fileName)
 }
 
-export function buildAiStudentStudyRelease({ artifactId: boundArtifactId, routeId, status, source, extractor, verifier, candidate, verification, sourceReview } = {}) {
+export function buildAiStudentStudyRelease({ artifactId: boundArtifactId, routeId, status, source, extractor, verifier, candidate, verification, sourceReview, independentReview } = {}) {
   if (status !== AI_PDF_INGESTION_LIFECYCLE.AI_VERIFIED) return null
   if (!reviewContentAllowsStudentRelease(candidate, verification)) return null
   const questionPdfSha256 = normalizeSha256(source?.questionPdfSha256, 'questionPdfSha256')
@@ -162,8 +163,23 @@ export function buildAiStudentStudyRelease({ artifactId: boundArtifactId, routeI
   if (!/^sha256:[a-f0-9]{64}$/.test(String(boundArtifactId || ''))) throw new TypeError('artifactId must be canonical.')
   if (typeof routeId !== 'string' || !routeId.trim()) throw new TypeError('routeId must be non-empty.')
   const singleReview = Boolean(sourceReview)
+  const supplementedReview = singleReview && Boolean(independentReview)
   if (singleReview && !hasValidSourceReview({ artifactId: boundArtifactId, routeId, source, candidate, verification, sourceReview })) {
     throw new TypeError('A valid hash-bound AI source review is required for single-model release.')
+  }
+  if (independentReview && !singleReview) {
+    throw new TypeError('An independent source review must supplement a valid original source review.')
+  }
+  if (supplementedReview && !hasValidIndependentSourceReview({
+    artifactId: boundArtifactId,
+    syllabusRouteId: routeId,
+    source,
+    candidate,
+    verification,
+    sourceReview,
+    independentReview,
+  })) {
+    throw new TypeError('A valid independently bound source review is required for two-pass release.')
   }
   if (!singleReview && (!validReviewPass(extractor, 'ai_pdf_question_extraction_v1') || !validReviewPass(verifier, 'ai_pdf_question_verification_v1'))) {
     throw new TypeError('Both structured AI review passes are required for student release.')
@@ -177,6 +193,7 @@ export function buildAiStudentStudyRelease({ artifactId: boundArtifactId, routeI
     candidate,
     verification,
     ...(singleReview ? { sourceReview } : {}),
+    ...(supplementedReview ? { independentReview } : {}),
   })
   return Object.freeze({
     schemaVersion: AI_STUDENT_STUDY_RELEASE_SCHEMA_VERSION,
@@ -193,8 +210,18 @@ export function buildAiStudentStudyRelease({ artifactId: boundArtifactId, routeI
     review: Object.freeze({
       extractionSchemaName: 'ai_pdf_question_extraction_v1',
       verificationSchemaName: 'ai_pdf_question_verification_v1',
-      independentPassCount: singleReview ? 1 : 2,
-      ...(singleReview ? { method: 'single-model-source-review', reviewerProvider: sourceReview.provider, reviewerModel: sourceReview.model } : {}),
+      independentPassCount: supplementedReview || !singleReview ? 2 : 1,
+      ...(supplementedReview ? {
+        method: 'single-model-plus-independent-source-review',
+        reviewerProvider: sourceReview.provider,
+        reviewerModel: sourceReview.model,
+        independentVerifierProvider: independentReview.provider,
+        independentVerifierModel: independentReview.model,
+      } : singleReview ? {
+        method: 'single-model-source-review',
+        reviewerProvider: sourceReview.provider,
+        reviewerModel: sourceReview.model,
+      } : {}),
     }),
   })
 }
@@ -205,6 +232,7 @@ export function hasValidAiStudentStudyRelease(artifact) {
   const questionPdfSha256 = safeSha256(source?.questionPdfSha256)
   const markSchemePdfSha256 = safeSha256(source?.markSchemePdfSha256)
   const singleReview = release?.review?.method === 'single-model-source-review'
+  const supplementedReview = release?.review?.method === 'single-model-plus-independent-source-review'
   return Boolean(
     artifact?.status === AI_PDF_INGESTION_LIFECYCLE.AI_VERIFIED
     && release?.schemaVersion === AI_STUDENT_STUDY_RELEASE_SCHEMA_VERSION
@@ -229,11 +257,20 @@ export function hasValidAiStudentStudyRelease(artifact) {
       verifier: artifact.verifier,
       candidate: artifact.candidate,
       verification: artifact.verification,
-      ...(singleReview ? { sourceReview: artifact.sourceReview } : {}),
+      ...(singleReview || supplementedReview ? { sourceReview: artifact.sourceReview } : {}),
+      ...(supplementedReview ? { independentReview: artifact.independentReview } : {}),
     })
     && release?.review?.extractionSchemaName === 'ai_pdf_question_extraction_v1'
     && release?.review?.verificationSchemaName === 'ai_pdf_question_verification_v1'
-    && (singleReview
+    && (supplementedReview
+      ? release?.review?.independentPassCount === 2
+        && release.review.reviewerProvider === artifact.sourceReview?.provider
+        && release.review.reviewerModel === artifact.sourceReview?.model
+        && release.review.independentVerifierProvider === artifact.independentReview?.provider
+        && release.review.independentVerifierModel === artifact.independentReview?.model
+        && hasValidSourceReview(artifact)
+        && hasValidIndependentSourceReview(artifact)
+      : singleReview
       ? release?.review?.independentPassCount === 1
         && release.review.reviewerProvider === artifact.sourceReview?.provider
         && release.review.reviewerModel === artifact.sourceReview?.model
@@ -249,6 +286,24 @@ export function hasValidAiStudentStudyRelease(artifact) {
 export function sourceReviewInputSha256({ artifactId, routeId, syllabusRouteId, source, candidate, verification } = {}) {
   return createHash('sha256').update(canonicalJson({ artifactId, routeId: routeId || syllabusRouteId,
     source: { questionPdfSha256: safeSha256(source?.questionPdfSha256), markSchemePdfSha256: safeSha256(source?.markSchemePdfSha256) }, candidate, verification }), 'utf8').digest('hex')
+}
+
+export function independentSourceReviewBindingSha256({ artifactId, routeId, syllabusRouteId, source, candidate, verification, sourceReview, independentReview } = {}) {
+  const review = independentReview && typeof independentReview === 'object'
+    ? Object.fromEntries(Object.entries(independentReview).filter(([key]) => key !== 'bindingSha256'))
+    : independentReview
+  return createHash('sha256').update(canonicalJson({
+    artifactId,
+    routeId: routeId || syllabusRouteId,
+    source: {
+      questionPdfSha256: safeSha256(source?.questionPdfSha256),
+      markSchemePdfSha256: safeSha256(source?.markSchemePdfSha256),
+    },
+    candidate,
+    verification,
+    sourceReview,
+    independentReview: review,
+  }), 'utf8').digest('hex')
 }
 
 function hasValidSourceReview(artifact) {
@@ -267,6 +322,51 @@ function hasValidSourceReview(artifact) {
     const qp = [...(q.regions || []), ...(q.diagramRegions || [])], ms = q.markSchemeEvidence || []
     return qp.length > 0 && ms.length > 0 && qp.every(e => keys.has(`qp:${e.page}:${safeSha256(e.pageImageSha256)}`)) && ms.every(e => keys.has(`ms:${e.page}:${safeSha256(e.pageImageSha256)}`))
   })
+}
+
+function hasValidIndependentSourceReview(artifact) {
+  const review = artifact?.independentReview
+  const sourceReview = artifact?.sourceReview
+  const questions = artifact?.candidate?.questions
+  if (!review || review.schemaVersion !== AI_INDEPENDENT_SOURCE_REVIEW_SCHEMA_VERSION
+    || review.decision !== 'accept'
+    || !String(review.provider || '').trim() || !String(review.model || '').trim()
+    || !Number.isFinite(Date.parse(review.reviewedAt))
+    || !safeSha256(review.inputSha256)
+    || !safeSha256(review.bindingSha256)
+    || `${review.provider}:${review.model}`.toLowerCase() === `${sourceReview?.provider}:${sourceReview?.model}`.toLowerCase()
+    || !Array.isArray(questions) || questions.length !== 1) return false
+  const question = questions[0]
+  const part = Array.isArray(question?.parts) && question.parts.length === 1 ? question.parts[0] : null
+  const result = review.result
+  const evidence = review.evidence
+  if (!part || !result || !evidence
+    || result.decision !== 'accept'
+    || typeof result.reasoning !== 'string' || !result.reasoning.trim()
+    || review.sourceQuestionId !== question.sourceQuestionId
+    || result.sourceQuestionId !== question.sourceQuestionId
+    || String(result.questionNumber) !== String(question.questionNumber)
+    || result.questionIdentityConfirmed !== true || result.wholeQuestionConfirmed !== true
+    || JSON.stringify(result.optionLabels) !== JSON.stringify(['A', 'B', 'C', 'D'])
+    || result.independentDerivedAnswer !== part.answerKey
+    || result.markSchemeAnswer !== part.answerKey
+    || result.independentDerivedAnswer !== result.markSchemeAnswer
+    || result.marks !== part.marks
+    || result.diagramRegionCount !== (question.diagramRegions || []).length
+    || result.primaryTopicId !== question.tags?.primaryTopicId
+    || !sameStringSet(result.syllabusPointIds, question.tags?.syllabusPointIds)
+    || !Array.isArray(result.disagreementReasons) || result.disagreementReasons.length !== 0
+    || safeSha256(evidence.questionPdfSha256) !== safeSha256(artifact.source?.questionPdfSha256)
+    || safeSha256(evidence.markSchemePdfSha256) !== safeSha256(artifact.source?.markSchemePdfSha256)
+    || !safeSha256(evidence.qpCropSha256) || !safeSha256(evidence.msCropSha256)) return false
+  return review.bindingSha256 === independentSourceReviewBindingSha256(artifact)
+}
+
+function sameStringSet(left, right) {
+  if (!Array.isArray(left) || !Array.isArray(right)) return false
+  const a = [...new Set(left.map((value) => String(value || '').trim()).filter(Boolean))].sort()
+  const b = [...new Set(right.map((value) => String(value || '').trim()).filter(Boolean))].sort()
+  return JSON.stringify(a) === JSON.stringify(b)
 }
 
 export function reviewDraftAllowsStudentRelease(document) {

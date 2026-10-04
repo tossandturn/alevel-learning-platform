@@ -9,6 +9,7 @@ import { CAMBRIDGE_9702_A2_TOPICS } from './syllabus/cambridge-9702-a2-2025-2027
 import { CAMBRIDGE_9702_A2_SYLLABUS } from './syllabus/cambridge-9702-a2-2025-2027.js'
 import { CAMBRIDGE_9709_AS_P1_S1_TOPICS } from './syllabus/cambridge-9709-as-p1-s1-2026-2027.js'
 import { cambridge9709SyllabusForRoute, cambridge9709TopicsForRoute } from './syllabus/cambridge-9709-2026-2027.js'
+import { attach9700AsMammalTransport } from './syllabus/biology-9700-as-mammal-transport-bridge.js'
 
 export const LEGACY_UNSCOPED_ROUTE_ID = 'legacy-unscoped'
 
@@ -89,6 +90,7 @@ function cieRoute({ routeId, qualification, stage, subject, subjectId, code, pap
       })
     })
     : freezeTopics(topicKey)
+  const sourceBackedTopics = attach9700AsMammalTransport(routeId, syllabusTopics)
   const assessmentComponents = officialSyllabus?.assessmentComponents?.length
     ? officialSyllabus.assessmentComponents.filter((item) => paperComponents.includes(Number(item.component)))
     : paperComponents.map((component) => ({
@@ -97,7 +99,7 @@ function cieRoute({ routeId, qualification, stage, subject, subjectId, code, pap
       track: 'theory',
       label: paperComponentLabels[component] || `Paper ${component}`,
     }))
-  const fallbackComponentScope = [...new Map(syllabusTopics
+  const fallbackComponentScope = [...new Map(sourceBackedTopics
     .filter((topic) => topic.componentScope?.component != null)
     .map((topic) => [Number(topic.componentScope.component), topic.componentScope])).values()]
   return Object.freeze({
@@ -120,7 +122,7 @@ function cieRoute({ routeId, qualification, stage, subject, subjectId, code, pap
         ...scope,
         notes: Object.freeze(Array.isArray(scope.notes) ? [...scope.notes] : []),
       }))),
-      topics: Object.freeze(syllabusTopics),
+      topics: Object.freeze(sourceBackedTopics),
     }),
   })
 }

@@ -9,6 +9,7 @@ import {
 import { routeById } from '../src/data/routeRegistry.js'
 import { getExamPaperProfile } from '../src/data/examStructure.js'
 import { syllabusPracticeComponentsForRoute } from '../src/lib/syllabusPracticeRoutes.js'
+import { registerAiStudyObjectiveKey, aiStudyObjectiveKey } from './aiStudyObjectiveKeys.js'
 
 const MIN_RUNTIME_YEAR = 2017
 const MAX_RUNTIME_YEAR = 2025
@@ -362,7 +363,7 @@ function questionFromArtifact(artifact, candidate, verification, metadata, route
   })
   const bindingSignature = `ai:${artifact.artifactId}:${routeConfig.routeId}:${number}`
   const studentStudyEligible = hasValidAiStudentStudyRelease(artifact)
-  return Object.freeze({
+  const group = Object.freeze({
     examFamilyId: 'cambridge',
     qualificationId: `cambridge-${routeConfig.subjectCode}`,
     specificationId: routeConfig.specificationId,
@@ -448,6 +449,7 @@ function questionFromArtifact(artifact, candidate, verification, metadata, route
       mappingStatus: 'ai-verified',
     }),
   })
+  return registerAiStudyObjectiveKey(group, artifact, candidate)
 }
 
 export function questionGroupsFromAiArtifacts(artifacts = [], { libraryRoot } = {}) {
@@ -497,6 +499,7 @@ export function questionGroupsFromAiArtifacts(artifacts = [], { libraryRoot } = 
       const deduplicationKey = `${group.routeId}:${group.sourceQuestionId}`
       if (conflicted.has(deduplicationKey)) continue
       const fingerprint = JSON.stringify({
+        privateObjectiveKeyFingerprint: aiStudyObjectiveKey(group)?.fingerprint || null,
         artifactId: group.artifactId,
         sourceQuestionId: group.sourceQuestionId,
         pages: group.pages,
