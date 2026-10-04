@@ -5,6 +5,7 @@ import path from 'node:path'
 import { artifactTreeIdentity } from './release-content-policy.mjs'
 import { releaseIdMatchesCommit, validateBuildIdentity, validateReleaseManifest } from './release-manifest-contract.mjs'
 import { verifiedRuntimeDataBinding } from './runtime-data-binding.mjs'
+import { parseStudyTopicScopes } from './study-release-policy.mjs'
 
 function option(name) {
   const index = process.argv.indexOf(name)
@@ -21,6 +22,14 @@ function optionValues(name) {
   return [...new Set(values)]
 }
 
+function rawOptionValues(name) {
+  const values = []
+  for (let index = 0; index < process.argv.length; index += 1) {
+    if (process.argv[index] === name) values.push(String(process.argv[index + 1] || ''))
+  }
+  return values
+}
+
 function requiredOption(name) {
   const value = String(option(name) || '').trim()
   assert.ok(value, `Pass ${name} <value>`)
@@ -35,6 +44,10 @@ const packageSha256 = requiredOption('--package-sha256').toLowerCase()
 const runtimeDataRoot = option('--runtime-data-root')
 const readinessMode = String(option('--readiness-mode') || 'formal').trim()
 const requestedSyllabusRouteIds = optionValues('--route')
+const requestedTopicScopeEntries = [
+  ...rawOptionValues('--topic-scope'),
+  ...rawOptionValues('--topic'),
+]
 const syllabusRouteIds = requestedSyllabusRouteIds.length
   ? requestedSyllabusRouteIds
   : String(process.env.STEM_RELEASE_ROUTES || 'cie-9702-as-physics')
@@ -55,6 +68,8 @@ assert.ok(syllabusRouteIds.length > 0, 'Release must declare at least one syllab
 assert.ok(syllabusRouteIds.every((routeId) => /^[A-Za-z0-9._:-]{1,120}$/.test(routeId)), 'Release syllabus routes must use safe route IDs')
 assert.equal(new Set(syllabusRouteIds).size, syllabusRouteIds.length, 'Release syllabus routes must be unique')
 assert.ok(['formal', 'student-study'].includes(readinessMode), 'readiness mode must be formal or student-study')
+assert.ok(readinessMode === 'student-study' || requestedTopicScopeEntries.length === 0, 'Topic scoping is allowed only in student-study mode')
+const topicScopes = parseStudyTopicScopes(requestedTopicScopeEntries, syllabusRouteIds)
 const buildIdentity = JSON.parse(fs.readFileSync(buildIdentityPath, 'utf8'))
 assert.ok(
   validateBuildIdentity(buildIdentity, { commit, requireClean: true }).valid,
@@ -75,6 +90,7 @@ const manifest = {
     routeIds: syllabusRouteIds,
     readinessMode,
     aiStudyFormalProgressEligible: false,
+    ...(requestedTopicScopeEntries.length ? { topicScopes } : {}),
   },
   generatedAt: new Date().toISOString(),
   releaseTree,
@@ -93,6 +109,7 @@ console.log(JSON.stringify({
   packageSha256,
   runtimeData,
   readinessMode,
+  topicScopes,
   manifestSha256,
   releaseFiles: releaseTree.files,
   releaseBytes: releaseTree.bytes,

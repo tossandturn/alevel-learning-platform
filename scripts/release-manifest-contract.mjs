@@ -39,10 +39,31 @@ export function validRuntimeDataBinding(value) {
     && isCanonicalAbsolutePath(target)
 }
 
+function validTopicScopes(value, routeIds, readinessMode) {
+  if (value === undefined) return true
+  if (readinessMode !== 'student-study' || !value || typeof value !== 'object' || Array.isArray(value)) return false
+  const entries = Object.entries(value)
+  if (entries.length === 0) return false
+  const declaredRoutes = new Set(routeIds)
+  return entries.every(([routeId, topicIds]) => (
+    routeId === routeId.trim()
+    && /^[A-Za-z0-9._:-]{1,120}$/.test(routeId)
+    && declaredRoutes.has(routeId)
+    && Array.isArray(topicIds)
+    && topicIds.length > 0
+    && topicIds.every((topicId) => (
+      typeof topicId === 'string'
+      && topicId === topicId.trim()
+      && /^[A-Za-z0-9._-]{1,160}$/.test(topicId)
+    ))
+    && new Set(topicIds).size === topicIds.length
+  ))
+}
+
 function validSyllabusScope(value) {
   if (value === undefined) return true
   if (!value || typeof value !== 'object' || Array.isArray(value)
-    || !hasOnlyKeys(value, new Set(['schemaVersion', 'routeIds', 'readinessMode', 'aiStudyFormalProgressEligible']))
+    || !hasOnlyKeys(value, new Set(['schemaVersion', 'routeIds', 'readinessMode', 'aiStudyFormalProgressEligible', 'topicScopes']))
     || value.schemaVersion !== 'stem-syllabus-release-scope.v1'
     || !Array.isArray(value.routeIds) || value.routeIds.length === 0) return false
   if (value.routeIds.some((routeId) => typeof routeId !== 'string' || routeId !== routeId.trim())) return false
@@ -53,6 +74,7 @@ function validSyllabusScope(value) {
   if (hasReadinessMode && (!['formal', 'student-study'].includes(value.readinessMode) || value.aiStudyFormalProgressEligible !== false)) return false
   return routeIds.every((routeId) => /^[A-Za-z0-9._:-]{1,120}$/.test(routeId))
     && new Set(routeIds).size === routeIds.length
+    && validTopicScopes(value.topicScopes, routeIds, value.readinessMode)
 }
 
 export function releaseIdMatchesCommit(releaseId, commit) {

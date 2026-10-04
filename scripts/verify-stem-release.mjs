@@ -83,6 +83,7 @@ assert.equal(escapingSymlinks.length, 0, `Release contains external symlinks out
 const releaseRouteIds = Array.isArray(releaseManifest.syllabusScope?.routeIds)
   ? [...new Set(releaseManifest.syllabusScope.routeIds.map((routeId) => String(routeId).trim()).filter(Boolean))]
   : []
+const releaseTopicScopes = releaseManifest.syllabusScope?.topicScopes || {}
 assert.equal(releaseManifest.syllabusScope?.schemaVersion, 'stem-syllabus-release-scope.v1', 'Release must declare its syllabus scope')
 assert.ok(releaseRouteIds.length > 0, 'Release syllabus scope must contain at least one route')
 assert.equal(releaseRouteIds.length, releaseManifest.syllabusScope.routeIds.length, 'Release syllabus scope routes must be unique and non-empty')
@@ -170,6 +171,9 @@ if (readinessMode === 'student-study') {
     path.join(releaseRoot, 'scripts', 'verify-study-release-coverage.mjs'),
     '--artifact-root', artifactRoot, '--pdf-library-root', paperLibraryRoot,
     ...releaseRouteIds.flatMap((routeId) => ['--route', routeId]),
+    ...Object.entries(releaseTopicScopes).flatMap(([routeId, topicIds]) => (
+      topicIds.flatMap((topicId) => ['--topic', `${routeId}:${topicId}`])
+    )),
   ], { cwd: releaseRoot, env, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
   assert.equal(studyCoverage.status, 0, `Release student-study coverage failed:\n${studyCoverage.stdout}\n${studyCoverage.stderr}`)
 } else {

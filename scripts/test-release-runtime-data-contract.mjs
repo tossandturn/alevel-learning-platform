@@ -82,7 +82,12 @@ function runPrepare(release, sources, runtimeDataRoot = '') {
   return spawnSync(process.execPath, args, { encoding: 'utf8' })
 }
 
-function runWriter(release, { runtimeDataRoot = '', readinessMode } = {}) {
+function runWriter(release, {
+  runtimeDataRoot = '',
+  readinessMode,
+  routes = ['cie-9702-as-physics'],
+  topicScopes = [],
+} = {}) {
   const args = [
     writerScript,
     '--release-root', release.releaseRoot,
@@ -90,7 +95,8 @@ function runWriter(release, { runtimeDataRoot = '', readinessMode } = {}) {
     '--commit', commit,
     '--release-id', path.basename(release.releaseRoot),
     '--package-sha256', packageSha256,
-    '--route', 'cie-9702-as-physics',
+    ...routes.flatMap((routeId) => ['--route', routeId]),
+    ...topicScopes.flatMap((topicScope) => ['--topic-scope', topicScope]),
   ]
   if (runtimeDataRoot) args.push('--runtime-data-root', runtimeDataRoot)
   if (readinessMode !== undefined) args.push('--readiness-mode', readinessMode)
@@ -176,6 +182,33 @@ try {
   assert.equal(studyManifest.syllabusScope.aiStudyFormalProgressEligible, false)
   assert.equal(validateReleaseManifest(studyManifest).valid, true)
   assert.equal(studyManifest.releaseTree.symlinks, 1, 'the manifest must bind the data link without hashing its contents')
+
+  const scopedRelease = createRelease('writer-scoped-study', { dataTarget: externalDataRoot })
+  const scopedTopics = ['08', '09', '10', '11'].map((suffix) => `cie-9700-as-biology:9700-as-topic-${suffix}`)
+  const scopedWrite = runWriter(scopedRelease, {
+    runtimeDataRoot: externalDataRoot,
+    readinessMode: 'student-study',
+    routes: ['cie-9700-as-biology', 'cie-9702-as-physics'],
+    topicScopes: scopedTopics,
+  })
+  assert.equal(scopedWrite.status, 0, output(scopedWrite))
+  const scopedManifest = JSON.parse(fs.readFileSync(path.join(scopedRelease.releaseRoot, 'release-manifest.json'), 'utf8'))
+  assert.deepEqual(scopedManifest.syllabusScope.topicScopes, {
+    'cie-9700-as-biology': ['9700-as-topic-08', '9700-as-topic-09', '9700-as-topic-10', '9700-as-topic-11'],
+  })
+  assert.deepEqual(scopedManifest.syllabusScope.routeIds, ['cie-9700-as-biology', 'cie-9702-as-physics'])
+  assert.equal(validateReleaseManifest(scopedManifest).valid, true)
+
+  for (const [label, options] of [
+    ['formal-topic-scope', { readinessMode: 'formal', topicScopes: [scopedTopics[0]] }],
+    ['duplicate-topic-scope', { readinessMode: 'student-study', topicScopes: [scopedTopics[0], scopedTopics[0]], routes: ['cie-9700-as-biology'] }],
+    ['foreign-topic-scope', { readinessMode: 'student-study', topicScopes: [scopedTopics[0]], routes: ['cie-9702-as-physics'] }],
+  ]) {
+    const invalidScopedRelease = createRelease(`writer-${label}`)
+    const result = runWriter(invalidScopedRelease, options)
+    assert.notEqual(result.status, 0, `${label} must fail`)
+    assert.equal(fs.existsSync(path.join(invalidScopedRelease.releaseRoot, 'release-manifest.json')), false)
+  }
 
   for (const [label, release, options] of [
     ['undeclared', createRelease('writer-undeclared', { dataTarget: externalDataRoot }), {}],
