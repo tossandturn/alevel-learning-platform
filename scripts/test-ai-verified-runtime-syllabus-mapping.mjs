@@ -152,6 +152,7 @@ assert.ok(calculus0606.points.every((point) => point.topicId === calculus0606.id
 assert.ok(routeById('cie-0610-igcse-biology').syllabus.topics.every((topic) => !topic.points?.length), 'the 0606 repair must not populate independent 0610 placeholder topics')
 const route9700 = routeById('cie-9700-as-biology')
 const cellStructure9700 = route9700.syllabus.topics.find((topic) => topic.id === '9700-as-topic-01')
+const biologicalMolecules9700 = route9700.syllabus.topics.find((topic) => topic.id === '9700-as-topic-02')
 const mammalTransport9700 = route9700.syllabus.topics.find((topic) => topic.id === '9700-as-topic-08')
 const gasExchange9700 = route9700.syllabus.topics.find((topic) => topic.id === '9700-as-topic-09')
 const infectiousDiseases9700 = route9700.syllabus.topics.find((topic) => topic.id === '9700-as-topic-10')
@@ -159,6 +160,8 @@ const immunity9700 = route9700.syllabus.topics.find((topic) => topic.id === '970
 assert.equal(route9700.syllabus.version, '2025-2027', '9700 AS must retain the current production syllabus version')
 assert.equal(cellStructure9700.points.length, 12, 'only the source-reviewed current cell-structure catalog may populate its route topic')
 assert.ok(cellStructure9700.points.every((point) => point.id.startsWith('biology-9700-2025-1-') && point.topicId === cellStructure9700.id))
+assert.equal(biologicalMolecules9700.points.length, 23, 'only the source-reviewed current biological-molecules catalog may populate its route topic')
+assert.ok(biologicalMolecules9700.points.every((point) => point.id.startsWith('biology-9700-2025-2-') && point.topicId === biologicalMolecules9700.id))
 assert.equal(mammalTransport9700.points.length, 17, 'only the source-reviewed current mammalian-transport catalog may populate its route topic')
 assert.ok(mammalTransport9700.points.every((point) => point.id.startsWith('biology-9700-2025-8-') && point.topicId === mammalTransport9700.id))
 assert.equal(gasExchange9700.points.length, 7, 'only the source-reviewed current gas-exchange catalog may populate its route topic')
@@ -167,12 +170,12 @@ assert.equal(infectiousDiseases9700.points.length, 6, 'only the source-reviewed 
 assert.ok(infectiousDiseases9700.points.every((point) => point.id.startsWith('biology-9700-2025-10-') && point.topicId === infectiousDiseases9700.id))
 assert.equal(immunity9700.points.length, 10, 'only the source-reviewed current immunity catalog may populate its route topic')
 assert.ok(immunity9700.points.every((point) => point.id.startsWith('biology-9700-2025-11-') && point.topicId === immunity9700.id))
-assert.equal(new Set([...cellStructure9700.points, ...mammalTransport9700.points, ...gasExchange9700.points, ...infectiousDiseases9700.points, ...immunity9700.points].map((point) => point.id)).size, 52, 'chapter 1, 8, 9, 10 and 11 source point IDs must remain disjoint')
+assert.equal(new Set([...cellStructure9700.points, ...biologicalMolecules9700.points, ...mammalTransport9700.points, ...gasExchange9700.points, ...infectiousDiseases9700.points, ...immunity9700.points].map((point) => point.id)).size, 75, 'chapter 1, 2, 8, 9, 10 and 11 source point IDs must remain disjoint')
 assert.ok(
   route9700.syllabus.topics
-    .filter((topic) => topic !== cellStructure9700 && topic !== mammalTransport9700 && topic !== gasExchange9700 && topic !== infectiousDiseases9700 && topic !== immunity9700)
+    .filter((topic) => topic !== cellStructure9700 && topic !== biologicalMolecules9700 && topic !== mammalTransport9700 && topic !== gasExchange9700 && topic !== infectiousDiseases9700 && topic !== immunity9700)
     .every((topic) => !topic.points?.length),
-  'the partial source catalogs must preserve the other 8 AS Biology topics',
+  'the partial source catalogs must preserve the other 6 AS Biology topics',
 )
 const route9701 = routeById('cie-9701-as-chemistry')
 assert.equal(route9701.syllabus.version, '2025-2027')

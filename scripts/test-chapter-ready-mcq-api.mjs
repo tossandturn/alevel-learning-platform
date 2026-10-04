@@ -13,6 +13,8 @@ const stage = 'AS'
 const gasExchangeMode = process.argv.includes('--gas-exchange')
 const topicId = process.env.STEM_CHAPTER_READY_TOPIC_ID || (gasExchangeMode ? '9700-as-topic-09' : '9700-as-topic-08')
 const expectedQuestionCount = Number(process.env.STEM_CHAPTER_READY_QUESTION_COUNT || 6)
+const chapterStudyMode = process.env.STEM_CHAPTER_READY_STUDY_MODE === 'chapter-study'
+const expectedStudyReady = process.env.STEM_CHAPTER_READY_EXPECT_STUDY_READY !== 'false'
 const artifactRoot = path.resolve(process.env.STEM_CHAPTER_READY_PROMOTED_ROOT
   || (gasExchangeMode
     ? 'data/ai-pdf-ingestion/chapter-ready-9700-as-gas-exchange-qwen-20261004-v1'
@@ -84,8 +86,12 @@ try {
   assert.equal(chapter.verifiedQuestionCount, 0)
   assert.equal(chapter.studyQuestionCount, expectedQuestionCount)
   assert.equal(chapter.availableQuestionCount, expectedQuestionCount)
-  assert.equal(chapter.studyReady, true)
+  assert.equal(chapter.studyReady, expectedStudyReady)
   assert.equal(chapter.ready, false)
+  if (chapterStudyMode) {
+    assert.ok(chapter.chapterStudy.available >= expectedQuestionCount)
+    assert.equal(chapter.chapterStudy.startable, true)
+  }
 
   const practice = await request('/api/stem/practice-sets', {
     method: 'POST',
@@ -96,12 +102,22 @@ try {
       questionCount: expectedQuestionCount,
       sourceQuestionIds: groups.map((group) => group.sourceQuestionId),
       excludeAttempted: false,
+      ...(chapterStudyMode ? {
+        studyMode: 'chapter-study',
+        sourcePreference: 'official-first',
+        foundationCatalog: 'v2',
+      } : {}),
     },
   })
   assert.equal(practice.status, 201, JSON.stringify(practice.body))
   assert.equal(practice.body.practiceMode, 'study-only')
   assert.equal(practice.body.formalProgressEligible, false)
   assert.equal(practice.body.questionGroups.length, expectedQuestionCount)
+  if (chapterStudyMode) {
+    assert.ok(practice.body.available >= expectedQuestionCount)
+    assert.equal(practice.body.count, expectedQuestionCount)
+    assert.equal(practice.body.limited, false)
+  }
   const projectedGroups = practice.body.questionGroups.map((group) => ({
     sourceQuestionId: group.sourceQuestionId,
     answerFormat: group.answerFormat,

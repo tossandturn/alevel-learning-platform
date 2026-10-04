@@ -79,6 +79,7 @@ assert.deepEqual(
 const route = routeById(routeId)
 const expectedPointCounts = Object.freeze({
   [topicId]: 12,
+  '9700-as-topic-02': 23,
   '9700-as-topic-08': 17,
   '9700-as-topic-09': 7,
   '9700-as-topic-10': 6,

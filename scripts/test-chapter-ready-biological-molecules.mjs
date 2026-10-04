@@ -12,23 +12,27 @@ import {
 } from './ai-pdf-ingestion/contract.mjs'
 import { routeById } from '../src/data/routeRegistry.js'
 import { syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
+import { assertStudyReleaseInventory } from './study-release-policy.mjs'
 
 const routeId = 'cie-9700-as-biology'
-const topicId = '9700-as-topic-11'
-const artifactRoot = path.resolve(process.env.STEM_CHAPTER_READY_IMMUNITY_ROOT
-  || 'data/ai-pdf-ingestion/chapter-ready-9700-as-immunity-qwen-20261005-v2')
-const baselineArtifactRoot = path.resolve(process.env.STEM_CHAPTER_READY_IMMUNITY_BASELINE_ROOT
-  || 'data/ai-pdf-ingestion/chapter-ready-9700-as-immunity-qwen-20261004-v1')
+const topicId = '9700-as-topic-02'
+const artifactRoot = path.resolve(process.env.STEM_CHAPTER_READY_BIOLOGICAL_MOLECULES_ROOT
+  || 'data/ai-pdf-ingestion/chapter-ready-9700-as-biological-molecules-qwen-20261005-v3')
 const libraryRoot = path.resolve(process.env.CIE_LIBRARY_ROOT || 'D:/CodexWork/cie-fraft-fetcher/output/pdf')
 const expectedSourceQuestionIds = Object.freeze([
-  'cie-9700-9700_s25_qp_11:q40',
-  'cie-9700-9700_s25_qp_12:q40',
-  'cie-9700-9700_s25_qp_13:q36',
-  'cie-9700-9700_s25_qp_13:q38',
-  'cie-9700-9700_s25_qp_13:q39',
-  'cie-9700-9700_s25_qp_14:q40',
+  'cie-9700-9700_s25_qp_11:q8',
+  'cie-9700-9700_s25_qp_11:q9',
+  'cie-9700-9700_s25_qp_12:q10',
+  'cie-9700-9700_s25_qp_13:q9',
+  'cie-9700-9700_s25_qp_13:q14',
+  'cie-9700-9700_s25_qp_14:q13',
 ])
-const heldSourceQuestionIds = Object.freeze(['cie-9700-9700_s25_qp_14:q39'])
+const heldSourceQuestionIds = Object.freeze([
+  'cie-9700-9700_s25_qp_11:q7',
+  'cie-9700-9700_s25_qp_11:q10',
+  'cie-9700-9700_s25_qp_14:q11',
+  'cie-9700-9700_s25_qp_13:q12',
+])
 
 function artifactFiles(root) {
   return fs.readdirSync(root, { recursive: true, withFileTypes: true })
@@ -36,53 +40,58 @@ function artifactFiles(root) {
     .map((entry) => path.join(entry.parentPath, entry.name)).sort()
 }
 
-function artifactFile(root, sourceQuestionId) {
-  const [paperId, questionId] = sourceQuestionId.split(':')
-  return path.join(root, paperId, `${questionId}.json`)
-}
-
 const artifacts = artifactFiles(artifactRoot).map((file) => JSON.parse(fs.readFileSync(file, 'utf8')))
 assert.equal(artifacts.length, 6)
 assert.deepEqual(artifacts.map((artifact) => artifact.candidate.questions[0].sourceQuestionId).sort(), [...expectedSourceQuestionIds].sort())
-for (const sourceQuestionId of expectedSourceQuestionIds.filter((id) => id !== 'cie-9700-9700_s25_qp_12:q40')) {
-  assert.deepEqual(fs.readFileSync(artifactFile(artifactRoot, sourceQuestionId)), fs.readFileSync(artifactFile(baselineArtifactRoot, sourceQuestionId)), `${sourceQuestionId} must remain byte-identical to v1.`)
-}
-assert.notDeepEqual(
-  fs.readFileSync(artifactFile(artifactRoot, 'cie-9700-9700_s25_qp_12:q40')),
-  fs.readFileSync(artifactFile(baselineArtifactRoot, 'cie-9700-9700_s25_qp_12:q40')),
-  'Q40 must be rebound to the corrected geometry and new independent review.',
+
+const q8TableArtifact = artifacts.find((artifact) => artifact.candidate.questions[0].sourceQuestionId === 'cie-9700-9700_s25_qp_11:q8')
+const q8TableHash = q8TableArtifact.source.pageImageHashes['5']
+const expectedQ8TableRegion = { page: 5, pageImageSha256: q8TableHash, x0: 0.1, y0: 0.095, x1: 0.56, y1: 0.275 }
+assert.deepEqual(q8TableArtifact.candidate.questions[0].diagramRegions, [expectedQ8TableRegion])
+assert.deepEqual(q8TableArtifact.verification.questions[0].diagramRegions, [expectedQ8TableRegion])
+const q8TablePageSize = q8TableArtifact.source.pageSizes['5']
+assert.deepEqual(
+  [
+    Math.floor(expectedQ8TableRegion.x0 * q8TablePageSize.width),
+    Math.floor(expectedQ8TableRegion.y0 * q8TablePageSize.height),
+    Math.ceil(expectedQ8TableRegion.x1 * q8TablePageSize.width),
+    Math.ceil(expectedQ8TableRegion.y1 * q8TablePageSize.height),
+  ],
+  [148, 199, 834, 579],
+  'Q11/8 region must retain the header, every A-D row and all borders.',
 )
 
-const q40GeometryArtifact = artifacts.find((artifact) => artifact.candidate.questions[0].sourceQuestionId === 'cie-9700-9700_s25_qp_12:q40')
-const q40PageHash = q40GeometryArtifact.source.pageImageHashes['19']
-const expectedQ40DiagramRegions = [
-  { page: 19, pageImageSha256: q40PageHash, x0: 0.17, y0: 0.165, x1: 0.82, y1: 0.44 },
-  { page: 19, pageImageSha256: q40PageHash, x0: 0.1, y0: 0.458, x1: 0.69, y1: 0.615 },
-]
-assert.deepEqual(q40GeometryArtifact.candidate.questions[0].diagramRegions, expectedQ40DiagramRegions)
-assert.deepEqual(q40GeometryArtifact.verification.questions[0].diagramRegions, expectedQ40DiagramRegions)
-const q40PageSize = q40GeometryArtifact.source.pageSizes['19']
-const q40TableRegion = expectedQ40DiagramRegions[1]
-assert.ok(q40TableRegion.x0 * q40PageSize.width <= 156
-  && q40TableRegion.y0 * q40PageSize.height <= 972
-  && q40TableRegion.x1 * q40PageSize.width >= 1020
-  && q40TableRegion.y1 * q40PageSize.height >= 1285,
-'Q40 table region must retain the header, all A-D rows, borders and surrounding whitespace.')
+const q13WaterArtifact = artifacts.find((artifact) => artifact.candidate.questions[0].sourceQuestionId === 'cie-9700-9700_s25_qp_14:q13')
+const q13WaterHash = q13WaterArtifact.source.pageImageHashes['6']
+const expectedQ13WaterRegion = { page: 6, pageImageSha256: q13WaterHash, x0: 0.1, y0: 0.68, x1: 0.55, y1: 0.84 }
+assert.deepEqual(q13WaterArtifact.candidate.questions[0].diagramRegions, [expectedQ13WaterRegion])
+assert.deepEqual(q13WaterArtifact.verification.questions[0].diagramRegions, [expectedQ13WaterRegion])
+const q13WaterPageSize = q13WaterArtifact.source.pageSizes['6']
+assert.deepEqual(
+  [
+    Math.floor(expectedQ13WaterRegion.x0 * q13WaterPageSize.width),
+    Math.floor(expectedQ13WaterRegion.y0 * q13WaterPageSize.height),
+    Math.ceil(expectedQ13WaterRegion.x1 * q13WaterPageSize.width),
+    Math.ceil(expectedQ13WaterRegion.y1 * q13WaterPageSize.height),
+  ],
+  [148, 1431, 819, 1769],
+  'Q14/13 region must retain the complete header, every A-D row and all table borders.',
+)
 
 const route = routeById(routeId)
 const expectedPointCounts = Object.freeze({
   '9700-as-topic-01': 12,
-  '9700-as-topic-02': 23,
+  [topicId]: 23,
   '9700-as-topic-08': 17,
   '9700-as-topic-09': 7,
   '9700-as-topic-10': 6,
-  [topicId]: 10,
+  '9700-as-topic-11': 10,
 })
 for (const [id, count] of Object.entries(expectedPointCounts)) {
   assert.equal(route.syllabus.topics.find((topic) => topic.id === id).points.length, count)
 }
-const immunity = route.syllabus.topics.find((topic) => topic.id === topicId)
-assert.ok(immunity.points.every((point) => point.topicId === topicId && point.stage === 'AS'
+const biologicalMolecules = route.syllabus.topics.find((topic) => topic.id === topicId)
+assert.ok(biologicalMolecules.points.every((point) => point.topicId === topicId && point.stage === 'AS'
   && point.allowedPaperComponents?.includes(1) && point.allowedPaperComponents?.includes(2)))
 assert.equal(route.syllabus.topics.filter((topic) => !Object.hasOwn(expectedPointCounts, topic.id))
   .filter((topic) => topic.points?.length).length, 0)
@@ -114,9 +123,9 @@ assert.ok(groups.every((group) => group.routeId === routeId && group.knowledgeGr
   && group.parts.length === 1 && group.parts[0].answerKey === null && group.parts[0].options.length === 0
   && group.parts[0].sourceEvidence.length > 0
   && group.parts[0].sourceEvidence.every((entry) => entry.coordinateSpace === 'normalized-xyxy')))
-assert.equal(groups.find((group) => group.sourceQuestionId === 'cie-9700-9700_s25_qp_12:q40').diagramRegions.length, 2)
-assert.equal(groups.find((group) => group.sourceQuestionId === 'cie-9700-9700_s25_qp_13:q36').diagramRegions.length, 1)
-assert.ok(groups.filter((group) => !['cie-9700-9700_s25_qp_12:q40', 'cie-9700-9700_s25_qp_13:q36'].includes(group.sourceQuestionId))
+assert.equal(groups.find((group) => group.sourceQuestionId === 'cie-9700-9700_s25_qp_11:q8').diagramRegions.length, 1)
+assert.equal(groups.find((group) => group.sourceQuestionId === 'cie-9700-9700_s25_qp_14:q13').diagramRegions.length, 1)
+assert.ok(groups.filter((group) => !['cie-9700-9700_s25_qp_11:q8', 'cie-9700-9700_s25_qp_14:q13'].includes(group.sourceQuestionId))
   .every((group) => group.diagramRegions.length === 0))
 
 for (const group of groups) {
@@ -137,14 +146,20 @@ for (const group of groups) {
   assert.ok(!JSON.stringify(group).includes(`"correctOption":"${expected}"`))
 }
 
-const chapter = syllabusTopicsInventory({ routeId, questionBank: groups }).topics.find((topic) => topic.id === topicId)
+const inventory = syllabusTopicsInventory({ routeId, questionBank: groups })
+const chapter = inventory.topics.find((topic) => topic.id === topicId)
 assert.equal(chapter.availableQuestionCount, 6)
 assert.equal(chapter.studyQuestionCount, 6)
 assert.equal(chapter.verifiedQuestionCount, 0)
+assert.equal(chapter.chapterStudy.available, 6)
+assert.equal(chapter.chapterStudy.startable, true)
 assert.equal(chapter.studyReady, true)
 assert.equal(chapter.ready, false)
 assert.equal(chapter.ctaPolicy, 'start-study')
 assert.deepEqual(chapter.availableSetSizes, [6])
+const releaseReport = assertStudyReleaseInventory(inventory, routeId, [topicId])
+assert.equal(releaseReport.topics, 1)
+assert.equal(releaseReport.minimumStudyGroups, 6)
 assert.ok(artifacts.every((artifact) => artifact.studentRelease.review.independentPassCount === 2
   && artifact.studentRelease.review.method === 'single-model-plus-independent-source-review'
   && artifact.studentRelease.formalProgressEligible === false
@@ -174,7 +189,7 @@ const [sameModelLegacyGroup] = questionGroupsFromAiArtifacts([sameModelLegacyArt
 assert.equal(scoreObjectiveQuestion({ question: sameModelLegacyGroup, selectedOption: answers.get(sameModelLegacyGroup.sourceQuestionId), mode: 'topic' }).available, false)
 
 const futurePointArtifact = structuredClone(artifacts[0])
-const futurePointId = 'biology-9700-2099-11-1-99'
+const futurePointId = 'biology-9700-2099-2-1-99'
 for (const document of [futurePointArtifact.candidate, futurePointArtifact.verification]) {
   const question = document.questions[0]
   question.tags.syllabusPointIds = [futurePointId]
@@ -188,6 +203,7 @@ assert.equal(hasValidAiStudentStudyRelease(futurePointArtifact), true)
 assert.equal(questionGroupsFromAiArtifacts([futurePointArtifact], { libraryRoot }).length, 0)
 
 console.log(JSON.stringify({
-  status: 'PASS_CHAPTER_READY_IMMUNITY', routeId, topicId, studyGroups: groups.length,
+  status: 'PASS_CHAPTER_READY_BIOLOGICAL_MOLECULES', routeId, topicId, studyGroups: groups.length,
+  minimumReleaseStudyGroups: 6, releaseEligible: true, chapterStudyStartable: chapter.chapterStudy.startable,
   formalReviewedGroups: chapter.verifiedQuestionCount, ctaPolicy: chapter.ctaPolicy, formalProgressEligible: false,
 }))
