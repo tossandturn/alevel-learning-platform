@@ -84,8 +84,10 @@ function summaryFromBody(body) {
 export function isSafeAnnouncementRoute(value) {
   try {
     if (typeof value !== 'string' || value.length < 2 || value.length > MAX_ACTION_URL_LENGTH || !value.startsWith('/') || value.startsWith('//') || value.includes('\\')) return false
+    const literalPath = value.split('?', 1)[0]
+    if (!ALLOWED_ACTION_PATHS.has(literalPath)) return false
     const parsed = new URL(value, 'https://stemist.invalid')
-    if (parsed.origin !== 'https://stemist.invalid' || parsed.hash || !ALLOWED_ACTION_PATHS.has(parsed.pathname)) return false
+    if (parsed.origin !== 'https://stemist.invalid' || parsed.hash || parsed.pathname !== literalPath) return false
     for (const [key, routeValue] of parsed.searchParams) {
       if (!ALLOWED_ACTION_QUERY_KEYS.has(key) || routeValue.length > 100 || /[\u0000-\u001f\u007f]/.test(routeValue)) return false
     }
@@ -119,11 +121,11 @@ function normalizeStatus(value, { allowArchived = true } = {}) {
   return status
 }
 
-function normalizeExpiresAt(value, now) {
+function normalizeExpiresAt(value, now, { allowPast = false } = {}) {
   if (value == null || value === '') return null
   if (typeof value !== 'string' || value.length > 80) throw boardError('announcement_expiry_invalid', 'expiry must be an ISO timestamp.')
   const timestamp = Date.parse(value)
-  if (!Number.isFinite(timestamp) || timestamp <= Date.parse(now)) throw boardError('announcement_expiry_invalid', 'expiry must be in the future.')
+  if (!Number.isFinite(timestamp) || (!allowPast && timestamp <= Date.parse(now))) throw boardError('announcement_expiry_invalid', 'expiry must be in the future.')
   return new Date(timestamp).toISOString()
 }
 
@@ -255,15 +257,18 @@ function patchPayload(payload, current, now) {
   if (!isPlainObject(payload)) throw boardError('announcement_payload_invalid', 'announcement payload must be an object.')
   const allowed = new Set(['title', 'summary', 'body', 'category', 'pinned', 'status', 'action', 'expiresAt'])
   if (!Object.keys(payload).length || Object.keys(payload).some((key) => !allowed.has(key))) throw boardError('announcement_payload_invalid', 'announcement fields are not supported.')
+  const status = Object.hasOwn(payload, 'status') ? normalizeStatus(payload.status) : current.status
   const next = {
     title: Object.hasOwn(payload, 'title') ? singleLine(payload.title, MAX_TITLE_LENGTH, 'title', { required: true }) : current.title,
     body: Object.hasOwn(payload, 'body') ? bodyText(payload.body, { required: true }) : current.body,
     summary: Object.hasOwn(payload, 'summary') ? singleLine(payload.summary, MAX_SUMMARY_LENGTH, 'summary', { required: true }) : current.summary,
     category: Object.hasOwn(payload, 'category') ? normalizeCategory(payload.category) : current.category,
     pinned: Object.hasOwn(payload, 'pinned') ? payload.pinned === true : Boolean(current.pinned),
-    status: Object.hasOwn(payload, 'status') ? normalizeStatus(payload.status) : current.status,
+    status,
     action: Object.hasOwn(payload, 'action') ? normalizeAction(payload.action) : (current.action_label && current.action_url ? { label: current.action_label, url: current.action_url } : null),
-    expiresAt: Object.hasOwn(payload, 'expiresAt') ? normalizeExpiresAt(payload.expiresAt, now) : current.expires_at || null,
+    expiresAt: Object.hasOwn(payload, 'expiresAt')
+      ? normalizeExpiresAt(payload.expiresAt, now, { allowPast: status !== 'published' })
+      : current.expires_at || null,
   }
   if (next.status === 'published' && next.expiresAt && Date.parse(next.expiresAt) <= Date.parse(now)) throw boardError('announcement_expiry_invalid', 'expiry must be in the future.')
   return next

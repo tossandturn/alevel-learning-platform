@@ -53,6 +53,11 @@ try {
 
   const studentManage = await call(api, { method: 'GET', url: '/api/stem/announcements/manage', token: studentToken })
   assert.equal(studentManage.statusCode, 403)
+  const studentPublish = await call(api, {
+    method: 'POST', url: '/api/stem/announcements', token: studentToken,
+    body: { title: 'Forbidden', summary: 'No permission', body: 'Students cannot publish.', status: 'published' },
+  })
+  assert.equal(studentPublish.statusCode, 403)
 
   const invalid = await call(api, {
     method: 'POST', url: '/api/stem/announcements', token: adminToken,
@@ -60,6 +65,18 @@ try {
   })
   assert.equal(invalid.statusCode, 400)
   assert.equal(invalid.body.code, 'announcement_action_invalid')
+
+  for (const url of ['/pages/stem/../practice/index', '/pages/%2e%2e/pages/practice/index']) {
+    const nonLiteralRoute = await call(api, {
+      method: 'POST', url: '/api/stem/announcements', token: adminToken,
+      body: {
+        title: 'Invalid route', summary: 'Blocked', body: 'Dot-segment routes must remain rejected.', status: 'published',
+        action: { label: 'Open', url },
+      },
+    })
+    assert.equal(nonLiteralRoute.statusCode, 400, url)
+    assert.equal(nonLiteralRoute.body.code, 'announcement_action_invalid', url)
+  }
 
   const created = await call(api, {
     method: 'POST', url: '/api/stem/announcements', token: adminToken,
@@ -71,6 +88,66 @@ try {
   assert.equal(created.statusCode, 201)
   assert.equal(created.body.announcement.status, 'published')
   assert.equal(created.body.announcement.action.url, '/pages/practice/index?category=alevel')
+
+  const lifecycleExpiresAt = new Date(Date.now() + 1_200).toISOString()
+  const lifecycleDraft = await call(api, {
+    method: 'POST', url: '/api/stem/announcements', token: adminToken,
+    body: {
+      title: 'Lifecycle draft', summary: 'Draft lifecycle', body: 'Initial body.', category: 'service', status: 'draft',
+      expiresAt: lifecycleExpiresAt,
+    },
+  })
+  assert.equal(lifecycleDraft.statusCode, 201)
+  const lifecyclePublished = await call(api, {
+    method: 'PATCH', url: `/api/stem/announcements/${lifecycleDraft.body.announcement.id}`, token: adminToken,
+    body: {
+      title: 'Lifecycle published', body: 'Edited body.', status: 'published',
+      action: { label: 'Open practice', url: '/pages/practice/index?category=alevel' },
+    },
+  })
+  assert.equal(lifecyclePublished.statusCode, 200)
+  assert.equal(lifecyclePublished.body.announcement.status, 'published')
+  assert.equal(lifecyclePublished.body.announcement.title, 'Lifecycle published')
+  const lifecyclePinned = await call(api, {
+    method: 'PATCH', url: `/api/stem/announcements/${lifecycleDraft.body.announcement.id}`, token: adminToken,
+    body: { pinned: true },
+  })
+  assert.equal(lifecyclePinned.statusCode, 200)
+  assert.equal(lifecyclePinned.body.announcement.pinned, true)
+  const expiringDraft = await call(api, {
+    method: 'POST', url: '/api/stem/announcements', token: adminToken,
+    body: { title: 'Expiring draft', summary: 'Draft expiry', body: 'Draft body.', category: 'service', status: 'draft', expiresAt: lifecycleExpiresAt },
+  })
+  assert.equal(expiringDraft.statusCode, 201)
+  const lifecycleVisible = await call(api, { method: 'GET', url: '/api/stem/announcements?limit=10' })
+  assert.equal(lifecycleVisible.body.items.some((item) => item.id === lifecycleDraft.body.announcement.id && item.pinned), true)
+
+  await new Promise((resolve) => setTimeout(resolve, Math.max(0, Date.parse(lifecycleExpiresAt) - Date.now() + 80)))
+  const lifecycleExpired = await call(api, { method: 'GET', url: '/api/stem/announcements?limit=10' })
+  assert.equal(lifecycleExpired.body.items.some((item) => item.id === lifecycleDraft.body.announcement.id), false)
+  const expiredRepublish = await call(api, {
+    method: 'PATCH', url: `/api/stem/announcements/${lifecycleDraft.body.announcement.id}`, token: adminToken,
+    body: { status: 'published', expiresAt: lifecycleExpiresAt },
+  })
+  assert.equal(expiredRepublish.statusCode, 400)
+  assert.equal(expiredRepublish.body.code, 'announcement_expiry_invalid')
+  const expiredArchive = await call(api, {
+    method: 'PATCH', url: `/api/stem/announcements/${lifecycleDraft.body.announcement.id}`, token: adminToken,
+    body: { status: 'archived', expiresAt: lifecycleExpiresAt },
+  })
+  assert.equal(expiredArchive.statusCode, 200)
+  assert.equal(expiredArchive.body.announcement.status, 'archived')
+  const expiredDraftUpdate = await call(api, {
+    method: 'PATCH', url: `/api/stem/announcements/${expiringDraft.body.announcement.id}`, token: adminToken,
+    body: { status: 'draft', expiresAt: lifecycleExpiresAt },
+  })
+  assert.equal(expiredDraftUpdate.statusCode, 200)
+  const invalidArchivedExpiry = await call(api, {
+    method: 'PATCH', url: `/api/stem/announcements/${lifecycleDraft.body.announcement.id}`, token: adminToken,
+    body: { status: 'archived', expiresAt: 'not-an-iso-timestamp' },
+  })
+  assert.equal(invalidArchivedExpiry.statusCode, 400)
+  assert.equal(invalidArchivedExpiry.body.code, 'announcement_expiry_invalid')
 
   const draft = await call(api, {
     method: 'POST', url: '/api/stem/announcements', token: adminToken,
@@ -116,6 +193,16 @@ try {
   assert.equal(archived.statusCode, 200)
   const hidden = await call(api, { method: 'GET', url: '/api/stem/announcements?limit=10' })
   assert.equal(hidden.body.items.some((item) => item.id === created.body.announcement.id), false)
+
+  closeStemDatabaseForTests()
+  const reopenedApi = createStemApi({ env: { STEM_INTERNAL_AUTH_KEY: signingKey, STEM_DB_PATH: databasePath, STEM_SESSION_SECURE: '0' }, questionBank: [] })
+  const reopenedManager = await call(reopenedApi, { method: 'GET', url: '/api/stem/announcements/manage', token: adminToken })
+  assert.equal(reopenedManager.statusCode, 200)
+  const persistedLifecycle = reopenedManager.body.items.find((item) => item.id === lifecycleDraft.body.announcement.id)
+  assert.equal(persistedLifecycle.status, 'archived')
+  assert.equal(persistedLifecycle.pinned, true)
+  assert.equal(persistedLifecycle.title, 'Lifecycle published')
+  assert.equal(persistedLifecycle.action.url, '/pages/practice/index?category=alevel')
   console.log('STEM announcements: publishing permissions, public visibility, read receipts and archive flow passed.')
 } finally {
   closeStemDatabaseForTests()
