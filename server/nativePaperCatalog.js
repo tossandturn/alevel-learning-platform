@@ -40,6 +40,7 @@ function localUrl(value,subject){
  if(!url.startsWith('/local-pdf/'+subject+'/')||/[\\?#]|\.\.|%2e|%2f|%5c/i.test(url)||!url.endsWith('.pdf'))return ''
  return url
 }
+function fileIntegrity(item){return{bytes:Number.isSafeInteger(item.bytes)&&item.bytes>0&&item.bytes<=32*1024*1024?item.bytes:0,sha256:/^[a-f0-9]{64}$/.test(String(item.sha256||''))?item.sha256:''}}
 function projectItem(item,subject){
  const variant=String(item.variant||String(item.file||'').match(/_(?:qp|ms)_([1-9]\d?)\.pdf$/i)?.[1]||'')
  const decoded=/^[1-9]\d?$/.test(variant)?getExamPaperProfile(subject,variant,item.year):null
@@ -68,7 +69,7 @@ function projectItem(item,subject){
  const routeIds=matched.map(route=>route.routeId),mappedStages=matched.length?[...new Set(matched.map(stageOf))]:[...new Set(stages)]
  return {id:text(item.id,200),subject,year:Number.isInteger(Number(item.year))&&Number(item.year)>1800?Number(item.year):null,season:text(item.season,40),...seasonOf(item,subject),kind:text(item.kind,10),file:text(item.file),pairKey:text(item.pairKey,200),markSchemeId:text(item.markSchemeId,200),
   paperNumber:text(profile.code,40),title:text(profile.title,160),mode:text(profile.mode,40),durationMinutes:Number(profile.durationMinutes)>0?Number(profile.durationMinutes):null,maxMarks:Number(profile.maxMarks)>0?Number(profile.maxMarks):null,questionCount:null,
-  stages:mappedStages,routeIds,paperComponent:physicalComponent,courseComponent:component,localUrl:localUrl(item.localUrl,subject)}
+  stages:mappedStages,routeIds,paperComponent:physicalComponent,courseComponent:component,localUrl:localUrl(item.localUrl,subject),...fileIntegrity(item)}
 }
 function scope(input){
  const subject=String(input.subject||'').toLowerCase(),stage=String(input.stage||'all').toLowerCase(),routeId=String(input.routeId||'')
@@ -98,7 +99,7 @@ export function createNativePaperCatalog({directory=fileURLToPath(new URL('../pu
    const byId=new Map(records.map(item=>[item.id,item]))
    const items=records.filter(item=>item.kind==='qp').map(item=>{
     const ms=byId.get(item.markSchemeId)
-    return {...item,markScheme:ms?.kind==='ms'&&item.pairKey&&ms.pairKey===item.pairKey?{id:ms.id,kind:'ms',file:ms.file,localUrl:ms.localUrl}:null}
+    return {...item,markScheme:ms?.kind==='ms'&&item.pairKey&&ms.pairKey===item.pairKey?{id:ms.id,kind:'ms',file:ms.file,localUrl:ms.localUrl,bytes:ms.bytes,sha256:ms.sha256}:null}
    }).sort((a,b)=>(b.year||0)-(a.year||0)||b.file.localeCompare(a.file)||a.id.localeCompare(b.id))
    const result={signature,version:crypto.createHash('sha256').update('native-paper-projection-v4-components|').update(source).digest('hex').slice(0,24),items,byId:new Map(items.map(item=>[item.id,item]))}
    cache.delete(subject);cache.set(subject,result);while(cache.size>3)cache.delete(cache.keys().next().value)

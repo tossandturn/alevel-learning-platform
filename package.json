@@ -14,6 +14,7 @@
     "test:9702-syllabus-coverage-contract": "node scripts/test-9702-syllabus-coverage-contract.mjs",
     "test:all-syllabus-coverage-contract": "node scripts/test-all-syllabus-coverage-contract.mjs",
     "catalog": "node scripts/generate-paper-catalog.mjs",
+    "test:paper-source-increment": "node scripts/test-paper-source-increment.mjs && node scripts/test-native-paper-catalog-2026.mjs",
     "papers:audit": "node scripts/audit-paper-catalog.mjs",
     "papers:audit-report": "node scripts/audit-paper-catalog.mjs --write-report",
     "test:paper-governance": "node scripts/test-paper-catalog-governance.mjs",

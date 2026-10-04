@@ -10,6 +10,7 @@ import {
   paperGovernanceForItem,
 } from '../src/lib/paperGovernance.js'
 import { PAPER_GOVERNANCE_OVERRIDES } from '../src/data/paperGovernanceOverrides.js'
+import {loadPaperSourceIncrement} from './load-paper-source-increment.mjs'
 
 const projectRoot = path.resolve(import.meta.dirname, '..')
 const sourceRoot = path.resolve(process.env.CIE_SOURCE_ROOT || 'D:/CodexWork/cie-fraft-fetcher/output')
@@ -201,6 +202,14 @@ if (fs.existsSync(extraManifestPath)) {
   }
 }
 
+// Approved PDF-only increments are build inputs, not a one-off edit of generated
+// catalogs. Fail closed when their material is unavailable instead of dropping a year.
+const increment=loadPaperSourceIncrement({manifestPath:path.join(projectRoot,'src/data/paperSourceIncrement2026.json'),pdfRoot})
+const incrementSummary={year:2026,files:increment.length,bytes:increment.reduce((sum,item)=>sum+item.bytes,0),questionPapers:increment.filter(item=>item.kind==='qp').length,sourceOnly:true,bySubject:{}}
+for(const item of increment){const summary=incrementSummary.bySubject[item.subject]||{files:0,bytes:0};summary.files++;summary.bytes+=item.bytes;incrementSummary.bySubject[item.subject]=summary}
+fs.writeFileSync(path.join(projectRoot,'src/data/paperSourceIncrementSummary.js'),`// Generated from the verified PDF-only increment; contains no per-paper records.\nexport const PAPER_SOURCE_INCREMENT_SUMMARY = Object.freeze(${JSON.stringify(incrementSummary,null,2)})\n`,'utf8')
+const preparedIds=new Map(prepared.map((item,index)=>[item.id,index]))
+for(const item of increment){const index=preparedIds.get(item.id);if(index===undefined){preparedIds.set(item.id,prepared.length);prepared.push(item)}else{if(prepared[index].sha256!==item.sha256)throw new Error(`Conflicting source increment: ${item.file}`);prepared[index]={...prepared[index],...item}}}
 const byPairAndKind = new Map(prepared.map((item) => [`${item.pairKey}:${item.kind}`, item.id]))
 const markSchemesBySession = new Map()
 for (const item of prepared.filter((entry) => entry.kind === 'ms')) {
@@ -247,7 +256,7 @@ const items = preGovernanceItems.map((item) => {
     governance: paperGovernanceForItem(item, {
       duplicateOf: firstByChecksum.get(item.sha256) === item.id ? null : firstByChecksum.get(item.sha256),
       answerStatus,
-      override: PAPER_GOVERNANCE_OVERRIDES[item.id] || null,
+      override: PAPER_GOVERNANCE_OVERRIDES[item.id] || (item.sourceOnly?{reasonCode:'source-only-2026-pending-ocr'}:null),
     }),
   }
 })

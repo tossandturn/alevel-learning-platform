@@ -7,6 +7,7 @@ import { courseRoutes } from '../src/data/routeRegistry.js'
 import { MIN_QUESTION_GROUPS_PER_TEST, MIN_VERIFIED_GROUPS_FOR_PRACTICE, topicPracticeEligibility } from '../src/lib/practiceConstants.js'
 import { syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
 import { SYLLABUS_PRACTICE_ROUTE_IDS } from '../src/lib/syllabusPracticeRoutes.js'
+import {PAPER_SOURCE_INCREMENT_SUMMARY} from '../src/data/paperSourceIncrementSummary.js'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const output = execFileSync(process.execPath, ['scripts/question-inventory-matrix.mjs'], {
@@ -27,7 +28,7 @@ for (const routeId of SYLLABUS_PRACTICE_ROUTE_IDS) {
   const matrixTopicIds = matrixRoute.topicMatrix.map((topic) => topic.topicId).sort()
   assert.deepEqual(matrixTopicIds, officialTopicIds, `${routeId} inventory must include every official syllabus topic exactly once`)
 }
-assert.equal(matrix.totals.catalogItems, 10689)
+assert.equal(matrix.totals.catalogItems, 10689+PAPER_SOURCE_INCREMENT_SUMMARY.files)
 assert.ok(matrix.totals.indexedQuestionGroups > 0, 'the imported index must not be empty')
 assert.equal(matrix.totals.effectiveFileQuarantined, matrix.totals.indexQuarantined + matrix.totals.sourceAdditionalQuarantined, 'file quarantine totals must be decomposable without overlap')
 assert.equal(matrix.totals.effectivePracticeQuarantinedQuestionGroups + matrix.totals.effectivePracticeAvailableQuestionGroups, matrix.totals.indexedQuestionGroups, 'practice gate must partition the imported index')

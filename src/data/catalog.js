@@ -1,5 +1,6 @@
 import { curriculumPracticeUnits } from './curriculumContent.js'
 import { LEGACY_UNSCOPED_ROUTE_ID, resolveRouteId, routeById, routesForSubject } from './routeRegistry.js'
+import {PAPER_SOURCE_INCREMENT_SUMMARY} from './paperSourceIncrementSummary.js'
 
 const IMPORTED_PDF_LIBRARY = [
   {
@@ -136,6 +137,7 @@ export const importedPdfLibrary = Object.freeze(IMPORTED_PDF_LIBRARY.map((librar
   const route = routeById(routeId)
   return Object.freeze({
     ...library,
+    files:library.files+(PAPER_SOURCE_INCREMENT_SUMMARY.bySubject[library.subjectCode]?.files||0),
     routeId,
     routeIds: Object.freeze(routeIds),
     stage: route?.stage || LEGACY_UNSCOPED_ROUTE_ID,

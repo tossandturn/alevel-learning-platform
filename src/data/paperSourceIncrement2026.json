@@ -1,0 +1,3742 @@
+{
+  "schemaVersion": "cie-verified-source-increment.v1",
+  "year": 2026,
+  "sourceOnly": true,
+  "formalProgressEligible": false,
+  "evidence": {
+    "preparationSha256": "649ab14c2d34203515c4e6bc7b19fc792ca7db4e43d2781e5317c85598e1bb7a",
+    "reviewedDeltaSha256": "2259a151e5806d40be92e98b7290d6876bc3901619bf4218966af326577e95eb",
+    "sourceListingSha256": "127a86319689a63e57d82f8704946c0b6c0d52eff9c07e6b6943da1c878ccfd5",
+    "parserProofSha256": "082e9bd3c3335e5ad55c35347b2fd97bb640a3eff9e20332324e9032c6fafb88"
+  },
+  "items": [
+    {
+      "subject": "0580",
+      "kind": "qp",
+      "file": "0580_m26_qp_12.pdf",
+      "bytes": 108703,
+      "sha256": "d59974afbb6f1974f088ddea2d9b50e44f9f5768fd4797dc055009cbaec90572",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_m26_qp_12.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "qp",
+      "file": "0580_m26_qp_22.pdf",
+      "bytes": 112706,
+      "sha256": "547e13c8384be55e08f00611afcae140b51fb276133c3f70eb9cabc5fe9a4479",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_m26_qp_22.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "qp",
+      "file": "0580_m26_qp_32.pdf",
+      "bytes": 106861,
+      "sha256": "2fad6e2b343b0f60e3f657041de5c7f3c1f9eb095477e1ea6be761619d57ca94",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_m26_qp_32.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "qp",
+      "file": "0580_m26_qp_42.pdf",
+      "bytes": 111705,
+      "sha256": "4cf29423c0eb5c6064c0920469e6eaccc0f5586c51cb6ae53178fb28ea326e9b",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_m26_qp_42.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "ms",
+      "file": "0580_m26_ms_12.pdf",
+      "bytes": 1549789,
+      "sha256": "06f11406f43128d2632d3846aba35f9548b82a6839e53c5be6aeef697ad27eeb",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_m26_ms_12.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "ms",
+      "file": "0580_m26_ms_22.pdf",
+      "bytes": 1152056,
+      "sha256": "19e013106fc03faff28cf36929b8f89ce5088b3e0b213142a4fd938daa5964e6",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_m26_ms_22.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "ms",
+      "file": "0580_m26_ms_32.pdf",
+      "bytes": 1454525,
+      "sha256": "0eb2852d19a10c70521555dcbeaf8f6ad12eb25fbf90b8a91e9b4a494d0fd833",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_m26_ms_32.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "ms",
+      "file": "0580_m26_ms_42.pdf",
+      "bytes": 1115871,
+      "sha256": "f7fd346aa093b064e4e3afb7a38b16b8726dff9aec66e9947b19e6fa3a134c0b",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_m26_ms_42.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "qp",
+      "file": "0580_s26_qp_11.pdf",
+      "bytes": 171349,
+      "sha256": "19300814f1a03055e2615695ac4accee87db5a035e312533f8a1f449f819ce57",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_s26_qp_11.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "qp",
+      "file": "0580_s26_qp_12.pdf",
+      "bytes": 111040,
+      "sha256": "0fa7a78bb7b9b3027b4627b34972fc5fe0e8e27db1a76f3396244cd64f60b080",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_s26_qp_12.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "qp",
+      "file": "0580_s26_qp_13.pdf",
+      "bytes": 149445,
+      "sha256": "875ebf88ccd91fe9c06a82167dad762564eb791d974d9c3e0900842784ad5210",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_s26_qp_13.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "qp",
+      "file": "0580_s26_qp_21.pdf",
+      "bytes": 179955,
+      "sha256": "b5f4a887b839538112633657bda494b52c3a52c17b73074c7656c5a849b42baf",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_s26_qp_21.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "qp",
+      "file": "0580_s26_qp_22.pdf",
+      "bytes": 142289,
+      "sha256": "99bfecd60db17fb0bce85b513e25fc0d18c25c47c2db70abc06c4c88f613ef4b",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_s26_qp_22.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "qp",
+      "file": "0580_s26_qp_23.pdf",
+      "bytes": 120406,
+      "sha256": "3bd9f6dd35509a72d64d5f47669000782f3412969ef2c1900c929bba477cf121",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_s26_qp_23.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "qp",
+      "file": "0580_s26_qp_31.pdf",
+      "bytes": 137928,
+      "sha256": "20515c6db54a65c0a49ddbb7e05a155245e764728276cf0b63366a8248132b86",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_s26_qp_31.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "qp",
+      "file": "0580_s26_qp_32.pdf",
+      "bytes": 112435,
+      "sha256": "205b2e9bc3bbaf018ea481b9532dedd8a0524f6f172b63460637e297e125b1b6",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_s26_qp_32.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "qp",
+      "file": "0580_s26_qp_33.pdf",
+      "bytes": 244088,
+      "sha256": "8a736ea76988699ff95bbdbba66d62a1263e3ede950d3dbe5dcd553ee6ebd4c0",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_s26_qp_33.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "qp",
+      "file": "0580_s26_qp_42.pdf",
+      "bytes": 147848,
+      "sha256": "335886638a2b2888771a1ab28e2caa46b9fbbb4a72a501ed00f9a3e159e64d49",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_s26_qp_42.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "qp",
+      "file": "0580_s26_qp_43.pdf",
+      "bytes": 179328,
+      "sha256": "50aac05b54ee7afc46f50de271eaec0c743f0cc76954ba74f4cfc329d7684781",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_s26_qp_43.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "ms",
+      "file": "0580_s26_ms_11.pdf",
+      "bytes": 1546532,
+      "sha256": "48cf969f9a8ad5c2ee9f1dfede37bc7cb6a0d2e6c7879eb271bed0c6b96c7a20",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_s26_ms_11.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "ms",
+      "file": "0580_s26_ms_12.pdf",
+      "bytes": 1652643,
+      "sha256": "158139128c3a53b12ee4c4240c4918d2acaacbd69d1b4f59bd3a8b6d96519335",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_s26_ms_12.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "ms",
+      "file": "0580_s26_ms_13.pdf",
+      "bytes": 1504338,
+      "sha256": "cccb461d7679f8b4c36244bd7e59c446cd5caf4b57f825b70d51551598a79ddf",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_s26_ms_13.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "ms",
+      "file": "0580_s26_ms_21.pdf",
+      "bytes": 722007,
+      "sha256": "867307653ff89e19da9957063f43f1abc86397dbb60611c528dcd1b9192e316e",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_s26_ms_21.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "ms",
+      "file": "0580_s26_ms_22.pdf",
+      "bytes": 905156,
+      "sha256": "6f05dd34ce409a01bf95f065f7e03b6de8cd7338f9d5d198fc84ca2e5f3409f5",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_s26_ms_22.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "ms",
+      "file": "0580_s26_ms_23.pdf",
+      "bytes": 495736,
+      "sha256": "4abaecdc3138bf4a95ea2f96618c85987fb6fdf7c56d461adf213d4df66a4163",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_s26_ms_23.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "ms",
+      "file": "0580_s26_ms_31.pdf",
+      "bytes": 1535605,
+      "sha256": "8e00941eac4cd9828f6019dcb9009ff81a4916c296776836c795e35e35f6d0c6",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_s26_ms_31.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "ms",
+      "file": "0580_s26_ms_32.pdf",
+      "bytes": 1608594,
+      "sha256": "72038ed80a88047cface2fde78f9ba2bf858d73f7640c8500092ab52510ebae7",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_s26_ms_32.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "ms",
+      "file": "0580_s26_ms_33.pdf",
+      "bytes": 1721753,
+      "sha256": "9fc9cd00e7efd1060bfd749226340c7e04bcc1aab68c1b3d97574a5cc3860a70",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_s26_ms_33.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "ms",
+      "file": "0580_s26_ms_42.pdf",
+      "bytes": 428695,
+      "sha256": "ecefd234b35247dacd63089e547d34263ff7cfbcf98b5a3f5b2be33fe32b1448",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_s26_ms_42.pdf"
+    },
+    {
+      "subject": "0580",
+      "kind": "ms",
+      "file": "0580_s26_ms_43.pdf",
+      "bytes": 551887,
+      "sha256": "9b978e0f0dbecc3c88dc670a26d654699906227f4973fdb863578a3e82912681",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0580_s26_ms_43.pdf"
+    },
+    {
+      "subject": "0606",
+      "kind": "qp",
+      "file": "0606_m26_qp_12.pdf",
+      "bytes": 103655,
+      "sha256": "5d1e637ac22478104126dde27b400cc83ab5dd4a9c2f38c2b6e15585ff422860",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m26_qp_12.pdf"
+    },
+    {
+      "subject": "0606",
+      "kind": "ms",
+      "file": "0606_m26_ms_12.pdf",
+      "bytes": 506677,
+      "sha256": "e66c38d13267e22f37ef0282a2cf16ecd06a513188aa554014708d03785dca58",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_m26_ms_12.pdf"
+    },
+    {
+      "subject": "0606",
+      "kind": "qp",
+      "file": "0606_s26_qp_11.pdf",
+      "bytes": 103183,
+      "sha256": "2e4d92182cbcb7db4913114bac94b4b05f984d3678d36fc39f37aec57725629c",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_s26_qp_11.pdf"
+    },
+    {
+      "subject": "0606",
+      "kind": "qp",
+      "file": "0606_s26_qp_12.pdf",
+      "bytes": 105988,
+      "sha256": "6544b5f0e268858a4612ef66ff8f210fa4b21d5aba7502fcee99374532d7ccef",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_s26_qp_12.pdf"
+    },
+    {
+      "subject": "0606",
+      "kind": "qp",
+      "file": "0606_s26_qp_13.pdf",
+      "bytes": 108123,
+      "sha256": "7d75dd2b1dba4040d28926f327652d42c596b9b5271f431e0a02dae351e0fd04",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_s26_qp_13.pdf"
+    },
+    {
+      "subject": "0606",
+      "kind": "qp",
+      "file": "0606_s26_qp_21.pdf",
+      "bytes": 105435,
+      "sha256": "49eb5dd6688be210ac0754cd5d7ab0aab55c2256b089491d09fe88a1c898387f",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_s26_qp_21.pdf"
+    },
+    {
+      "subject": "0606",
+      "kind": "qp",
+      "file": "0606_s26_qp_22.pdf",
+      "bytes": 105784,
+      "sha256": "af7fa2a47c361f7a891e9fc42bca46d1fb0ca61d55510b6ab250f60be324580a",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_s26_qp_22.pdf"
+    },
+    {
+      "subject": "0606",
+      "kind": "ms",
+      "file": "0606_s26_ms_11.pdf",
+      "bytes": 1072250,
+      "sha256": "863d7e70bd31a2281976481a7f7cbb8321f86faafea4edc051a642e34ea22171",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_s26_ms_11.pdf"
+    },
+    {
+      "subject": "0606",
+      "kind": "ms",
+      "file": "0606_s26_ms_12.pdf",
+      "bytes": 1576604,
+      "sha256": "9b99f1146a21bf8a82cdb52b0ef9793b0a46f057f63c3d206cf8f5394780da0b",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_s26_ms_12.pdf"
+    },
+    {
+      "subject": "0606",
+      "kind": "ms",
+      "file": "0606_s26_ms_13.pdf",
+      "bytes": 1069735,
+      "sha256": "200af67fdc3e62bbeac9e45babdf3df80d137dbac7705a706412ce079cf26b92",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_s26_ms_13.pdf"
+    },
+    {
+      "subject": "0606",
+      "kind": "ms",
+      "file": "0606_s26_ms_21.pdf",
+      "bytes": 1674106,
+      "sha256": "a0d605db519ceec513f6632aba676e17c296ad8e56f23ddd7030df1ba1fae26e",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_s26_ms_21.pdf"
+    },
+    {
+      "subject": "0606",
+      "kind": "ms",
+      "file": "0606_s26_ms_22.pdf",
+      "bytes": 1147155,
+      "sha256": "0d2bca92c01d6ab9bebceadf5b335d147a42ffa26ad8dfb29c3714511db7bf7f",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0606_s26_ms_22.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "qp",
+      "file": "0610_m26_qp_12.pdf",
+      "bytes": 251939,
+      "sha256": "379373b9d160dfef3515dc71f598b03aff8f206390db06a5637230807a41eb31",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_m26_qp_12.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "qp",
+      "file": "0610_m26_qp_22.pdf",
+      "bytes": 254258,
+      "sha256": "b517287492f1064de8a6a17caa89420fe5e43836d6630920e82e09c9dac8ffbe",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_m26_qp_22.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "qp",
+      "file": "0610_m26_qp_32.pdf",
+      "bytes": 426386,
+      "sha256": "466bfa34bfb2f8710483190194e80e11a3ac7d139ca309616d9e9f2fcf6c071e",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_m26_qp_32.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "qp",
+      "file": "0610_m26_qp_42.pdf",
+      "bytes": 2039862,
+      "sha256": "06237d4fdae3c41d3c52ebc7201354fd232e679843e96b203223e16b4625a430",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_m26_qp_42.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "qp",
+      "file": "0610_m26_qp_52.pdf",
+      "bytes": 341093,
+      "sha256": "f5133a705a1ba1fdafe8de316ef4062ac58cd89a74701afeebabcf4c34424cf4",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_m26_qp_52.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "qp",
+      "file": "0610_m26_qp_62.pdf",
+      "bytes": 342878,
+      "sha256": "9cf8269c3e954cc5200526f82266d2819b15ab0cc42fc5b3539cab415f156fab",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_m26_qp_62.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "ms",
+      "file": "0610_m26_ms_12.pdf",
+      "bytes": 135010,
+      "sha256": "dfb9f91ea2a2efed21d00146f694465cd5429c9644b0f1b0cc7cd5633c722961",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_m26_ms_12.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "ms",
+      "file": "0610_m26_ms_22.pdf",
+      "bytes": 135009,
+      "sha256": "5102bf73d61e1ad248164c4e36d06d2d56400f4b8404d191e1425612fc54f9c3",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_m26_ms_22.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "ms",
+      "file": "0610_m26_ms_32.pdf",
+      "bytes": 785383,
+      "sha256": "7bae9268c6a825a678cbbf622b7a5f19687dc3a0e2b5aedee44e1cf41381dd3b",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_m26_ms_32.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "ms",
+      "file": "0610_m26_ms_42.pdf",
+      "bytes": 758167,
+      "sha256": "9012963585957e3e1eaded4bc8985b1b620b5a255e11678ca0d918dcde89f358",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_m26_ms_42.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "ms",
+      "file": "0610_m26_ms_52.pdf",
+      "bytes": 785569,
+      "sha256": "8086047a0742c39c39b9f561aa77c6e3047abbbbc46317d61346ffc4adfab455",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_m26_ms_52.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "ms",
+      "file": "0610_m26_ms_62.pdf",
+      "bytes": 775964,
+      "sha256": "9fa98e76a7e8788baa6aa6d642d16b7262b83d5bdb81988772cb23b1f8fa438d",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_m26_ms_62.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "ci",
+      "file": "0610_m26_ci_52.pdf",
+      "bytes": 129791,
+      "sha256": "45d2662be5a86a1efbaee4564b6835b4b71b6211b3c67b2a7352cf213f0529e1",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_m26_ci_52.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "qp",
+      "file": "0610_s26_qp_11.pdf",
+      "bytes": 1073897,
+      "sha256": "caf1a118686d1a021e28eceaeb46b77908bdf8e737b28177c463d61e5fe978aa",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_qp_11.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "qp",
+      "file": "0610_s26_qp_12.pdf",
+      "bytes": 419296,
+      "sha256": "ce84431ea7682609b411dc6f4ba00939bdb3ced7453adc49fc5730f9abad2f3a",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_qp_12.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "qp",
+      "file": "0610_s26_qp_13.pdf",
+      "bytes": 148469,
+      "sha256": "11ae0900c69ecf0837c0195f6d2e4fbd9403d769575ba5741def504b289211a0",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_qp_13.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "qp",
+      "file": "0610_s26_qp_21.pdf",
+      "bytes": 314345,
+      "sha256": "8fd2094d8fe61ecd992ba57195cc47d05777ce607b4ef1d740fc33f1dd6b58f5",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_qp_21.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "qp",
+      "file": "0610_s26_qp_22.pdf",
+      "bytes": 170392,
+      "sha256": "910acfda39f6383e998cf6dbc3dc086a69dee9f58586ce1cf6e2ae6bc05d9bbd",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_qp_22.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "qp",
+      "file": "0610_s26_qp_31.pdf",
+      "bytes": 2643199,
+      "sha256": "9803c008aae5b91c0d6b87d02e00b44b1ad4f41a5ec8a5a253abd0be39b72fe5",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_qp_31.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "qp",
+      "file": "0610_s26_qp_32.pdf",
+      "bytes": 2818966,
+      "sha256": "4bce53e42faecace8e80d356b477d64fd921459d72a08df21bc234bec7e96801",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_qp_32.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "qp",
+      "file": "0610_s26_qp_33.pdf",
+      "bytes": 2888147,
+      "sha256": "9695717d06b9cc8e86e019bdfdd9d7d5e40d26bcd8b9e7c2aa24b53c6859de56",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_qp_33.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "qp",
+      "file": "0610_s26_qp_41.pdf",
+      "bytes": 173480,
+      "sha256": "12a848d69afbe79b7d75d3d01c49b1d9f18328c552709c93024915a51509727a",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_qp_41.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "qp",
+      "file": "0610_s26_qp_42.pdf",
+      "bytes": 791969,
+      "sha256": "a1312d0bfaab5af80908da824077e6ab5f3f59461b24fd7f997279096b2b60e6",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_qp_42.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "qp",
+      "file": "0610_s26_qp_43.pdf",
+      "bytes": 5711278,
+      "sha256": "7116171f0dbd476816a361152db06172e2e73626f9cb4a6d74ecc7b1657f84b5",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_qp_43.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "qp",
+      "file": "0610_s26_qp_51.pdf",
+      "bytes": 501461,
+      "sha256": "8965936e7e3acbc1856126315d616130afbeb0e80a8dee92f6bf9100f0f43357",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_qp_51.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "qp",
+      "file": "0610_s26_qp_52.pdf",
+      "bytes": 432401,
+      "sha256": "274be6de1f499df5ab66e567513857f20bf29d982eed7486c1fd093e8a27a1df",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_qp_52.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "qp",
+      "file": "0610_s26_qp_53.pdf",
+      "bytes": 903250,
+      "sha256": "2ee9907c1c08f962a5bc079d62bb173abd66d36b75645fd4c92b5ec588f68c69",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_qp_53.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "qp",
+      "file": "0610_s26_qp_61.pdf",
+      "bytes": 533741,
+      "sha256": "538ad495989b74112199f2fe9c0c90a89aacdb3320da99d628068521ac6c0b83",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_qp_61.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "qp",
+      "file": "0610_s26_qp_62.pdf",
+      "bytes": 431958,
+      "sha256": "4d6d37607b5b9e875ea1afcdd6fd5f33d1064aae22a4d74857776f097691e321",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_qp_62.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "qp",
+      "file": "0610_s26_qp_63.pdf",
+      "bytes": 903161,
+      "sha256": "470cf37cccd5ec684f704443abc578455cb63f8fcde77057ee1957519e5ef09b",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_qp_63.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "ms",
+      "file": "0610_s26_ms_11.pdf",
+      "bytes": 107176,
+      "sha256": "faf394f211332870371024699678bba15d67e7c77498f17cd4da9bc48104b17a",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_ms_11.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "ms",
+      "file": "0610_s26_ms_12.pdf",
+      "bytes": 107179,
+      "sha256": "0abd08cb43caa461a44cfeec1200d1fdcc9d87c7f4dee798b22775a7562b5d9b",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_ms_12.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "ms",
+      "file": "0610_s26_ms_13.pdf",
+      "bytes": 107186,
+      "sha256": "7faebf28788c044b9b69ca64ae81e25a528e410c7b4c142e328b3c7d0f86631c",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_ms_13.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "ms",
+      "file": "0610_s26_ms_21.pdf",
+      "bytes": 107193,
+      "sha256": "4c2d12e9e09661e2b25a7e6b692d5311e022042d755004280d0f42b9cfb5bfa5",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_ms_21.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "ms",
+      "file": "0610_s26_ms_22.pdf",
+      "bytes": 107193,
+      "sha256": "94ffdc60f9ca158859a95db93f6aeeff62dc786b05d3b2fecc6a4ed48e097ddd",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_ms_22.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "ms",
+      "file": "0610_s26_ms_31.pdf",
+      "bytes": 719929,
+      "sha256": "558b75a5025ab2b820d743bd100842de15d2793b73af711ca4124e11b646e39f",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_ms_31.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "ms",
+      "file": "0610_s26_ms_32.pdf",
+      "bytes": 726718,
+      "sha256": "04ac8cec2daf1f292b2f92fd6f2168e967b1aaec170c9d6c39731c21cd924fc6",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_ms_32.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "ms",
+      "file": "0610_s26_ms_33.pdf",
+      "bytes": 726936,
+      "sha256": "dd3c1af53329bc51c12695525da0df43017abab0529dfd5586b32afb9cb60d1d",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_ms_33.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "ms",
+      "file": "0610_s26_ms_41.pdf",
+      "bytes": 733561,
+      "sha256": "8f905bd56ace5414445a44e813c98fa060df339addaf866c3faa511712fec7eb",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_ms_41.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "ms",
+      "file": "0610_s26_ms_42.pdf",
+      "bytes": 737031,
+      "sha256": "b293ac0149433b15a1a83c2b6c77916d836972f577f963e75420da76e78417d0",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_ms_42.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "ms",
+      "file": "0610_s26_ms_43.pdf",
+      "bytes": 730340,
+      "sha256": "d7ca0510288af489f3ffdc815fadc49d60bc90e216a7c05b4cb676ec2719e877",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_ms_43.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "ms",
+      "file": "0610_s26_ms_51.pdf",
+      "bytes": 786556,
+      "sha256": "c4e042c0ea932ee2760b3b120ed4ba11dd4911ab080eb19cb6af2ffddc78b3f8",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_ms_51.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "ms",
+      "file": "0610_s26_ms_52.pdf",
+      "bytes": 731534,
+      "sha256": "5d6a267bd535fad9e6e7cff4c470a43adf88478cdad8dfea4d629c3b112de833",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_ms_52.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "ms",
+      "file": "0610_s26_ms_53.pdf",
+      "bytes": 724221,
+      "sha256": "c0dd6bfbbb0b593f7fec51010f2f940a0b6ff6e8902c04410c45c6cebda13301",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_ms_53.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "ms",
+      "file": "0610_s26_ms_61.pdf",
+      "bytes": 784178,
+      "sha256": "7e8599896879d22da34ee5b569cdf2eda59b2b274804d3e08227caffa41b2f82",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_ms_61.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "ms",
+      "file": "0610_s26_ms_62.pdf",
+      "bytes": 733088,
+      "sha256": "5cb8e8067dd6412e37ac2f5a7aee828e43c392225c0e00d7742d4785a1f29cbb",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_ms_62.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "ms",
+      "file": "0610_s26_ms_63.pdf",
+      "bytes": 748252,
+      "sha256": "b2868187418ab5a183315225e4a0ee8feaf33d17c52851814dd05ab1adb08e66",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_ms_63.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "ci",
+      "file": "0610_s26_ci_51.pdf",
+      "bytes": 129538,
+      "sha256": "7111c003b59c01400600c522b217c1a456b63ca988e53bc2cfdc8c248e0a272c",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_ci_51.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "ci",
+      "file": "0610_s26_ci_52.pdf",
+      "bytes": 143063,
+      "sha256": "06fe66225b4e0d13097b5782c0218b0203242c9e10906883754c4c96a88f01e8",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_ci_52.pdf"
+    },
+    {
+      "subject": "0610",
+      "kind": "ci",
+      "file": "0610_s26_ci_53.pdf",
+      "bytes": 130207,
+      "sha256": "5639968fc3b3bfff25d611d76df8407458a2d1141b4ee890ec5246e4682f37f4",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0610_s26_ci_53.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "qp",
+      "file": "0625_m26_qp_12.pdf",
+      "bytes": 182540,
+      "sha256": "99aa6234dbd0ed14da8ab52bad857b855e409a00168856a7f266ca36fce0d178",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_m26_qp_12.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "qp",
+      "file": "0625_m26_qp_22.pdf",
+      "bytes": 225395,
+      "sha256": "ba36229e989012948aedd7f63214b7d0071dec268447295de378985f096bac18",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_m26_qp_22.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "qp",
+      "file": "0625_m26_qp_32.pdf",
+      "bytes": 346710,
+      "sha256": "6d2a9ee84f69f1509ad5435c2d7c1a2fc173ac8d402310691bb5538bc4f07f7e",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_m26_qp_32.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "qp",
+      "file": "0625_m26_qp_42.pdf",
+      "bytes": 209954,
+      "sha256": "16e877a16b6d64405c0362fa7ef7d9e6cce9056cae00565657d5d479683b3627",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_m26_qp_42.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "qp",
+      "file": "0625_m26_qp_52.pdf",
+      "bytes": 90452,
+      "sha256": "35cac8b37758801f51bf7312dee24de07b66a3c84c03606829ef16df049ea1f1",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_m26_qp_52.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "qp",
+      "file": "0625_m26_qp_62.pdf",
+      "bytes": 96073,
+      "sha256": "1e1a7b70b45010f98ee990d8d3d9c5c99f222413ccfdfa49268ff7f003e246fc",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_m26_qp_62.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ms",
+      "file": "0625_m26_ms_12.pdf",
+      "bytes": 135061,
+      "sha256": "041a4b76073c41c624a3fc7034b00ec71e93bb2a0fb45979950a5d5a40b12682",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_m26_ms_12.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ms",
+      "file": "0625_m26_ms_22.pdf",
+      "bytes": 135077,
+      "sha256": "1abf4c34c3586899d0071ebb715305c3d47b021420abe1c786234529b4eda65e",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_m26_ms_22.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ms",
+      "file": "0625_m26_ms_32.pdf",
+      "bytes": 319756,
+      "sha256": "dd083a247c01c87d3d6f137f0b52f04c843161f99d36a3ab6d7af9a2724ee1ca",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_m26_ms_32.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ms",
+      "file": "0625_m26_ms_42.pdf",
+      "bytes": 367888,
+      "sha256": "b60b9114aa8a726953663a10c556044259ac02f8a237388f1f27280d6d1f4243",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_m26_ms_42.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ms",
+      "file": "0625_m26_ms_52.pdf",
+      "bytes": 301547,
+      "sha256": "459e3161ae9eac73e03304a99e3a94d8bef18d78610ea0ffdb98e97dfa7cff69",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_m26_ms_52.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ms",
+      "file": "0625_m26_ms_62.pdf",
+      "bytes": 292071,
+      "sha256": "e5162dfd090d4d3bd268809c3d3e8ae3766873caea9d08164bce2604037b8b3f",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_m26_ms_62.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ci",
+      "file": "0625_m26_ci_52.pdf",
+      "bytes": 138568,
+      "sha256": "d24194742b34c5a4ee4363bb50e7c67b8aac4b63103c774384933d2d236e9249",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_m26_ci_52.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "qp",
+      "file": "0625_s26_qp_11.pdf",
+      "bytes": 211299,
+      "sha256": "01302cbd7c5018c44f1cff92130180afa6ec2ee0870333a1cbc08c4c5128793f",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_qp_11.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "qp",
+      "file": "0625_s26_qp_12.pdf",
+      "bytes": 187978,
+      "sha256": "a3089d74839bb54deefdab8b2d1e4302b0bb97fe19acecb4f2b7fab0a4d51e91",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_qp_12.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "qp",
+      "file": "0625_s26_qp_13.pdf",
+      "bytes": 188156,
+      "sha256": "106cc4d82daf7d566d8a233467a16c67e8626ec42c88a23a4d1dd4b599c0c3b3",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_qp_13.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "qp",
+      "file": "0625_s26_qp_21.pdf",
+      "bytes": 284438,
+      "sha256": "f07b3ab86ee8298d7eaeb9f74fad9811293f6c57b1012f28de778321725d29eb",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_qp_21.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "qp",
+      "file": "0625_s26_qp_22.pdf",
+      "bytes": 219801,
+      "sha256": "b28cf3fa1c676070348024f702a4a7330a165855510e1229f90dfb682080caa4",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_qp_22.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "qp",
+      "file": "0625_s26_qp_23.pdf",
+      "bytes": 236181,
+      "sha256": "c08565b7dced80bbf3dc32cc35e3a3a03dd26975d5797ba76e0e949a3cc7b577",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_qp_23.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "qp",
+      "file": "0625_s26_qp_31.pdf",
+      "bytes": 128959,
+      "sha256": "44358b092f8e3f8140beb20a9cce566d5da9e045008f7745fa379235fac86b90",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_qp_31.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "qp",
+      "file": "0625_s26_qp_32.pdf",
+      "bytes": 103702,
+      "sha256": "d7a9ee81f3e57e290ce4e41437848116a95984a53f38c4a5c89f6d296d4a15a9",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_qp_32.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "qp",
+      "file": "0625_s26_qp_33.pdf",
+      "bytes": 103872,
+      "sha256": "d36ce7370286eeb1373a105efd25fb85bdc031e42b19a61b59de37a9639f3028",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_qp_33.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "qp",
+      "file": "0625_s26_qp_41.pdf",
+      "bytes": 173652,
+      "sha256": "add1c62db856e27ad9e7504539ba2d675bfca0b9166ef489fade95f4a8520508",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_qp_41.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "qp",
+      "file": "0625_s26_qp_42.pdf",
+      "bytes": 114108,
+      "sha256": "43f784dc5bc980064576ce7f805878cebbdb75648df2ddf43356b9cb5ea650e7",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_qp_42.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "qp",
+      "file": "0625_s26_qp_43.pdf",
+      "bytes": 106340,
+      "sha256": "a193f9eb176c9b2d92161e7f274810a56e0d3c7b321cd1744420b9507e9a991d",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_qp_43.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "qp",
+      "file": "0625_s26_qp_51.pdf",
+      "bytes": 84639,
+      "sha256": "c6e69027a218012f1f1191f1c9930dfde6c672b8069f04975b3553bb68aee2d5",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_qp_51.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "qp",
+      "file": "0625_s26_qp_52.pdf",
+      "bytes": 86213,
+      "sha256": "c6ccd48b6fbafa722dde9cb6ad051567519cc2a61580a61ee3fedfd98c1b53c1",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_qp_52.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "qp",
+      "file": "0625_s26_qp_53.pdf",
+      "bytes": 85827,
+      "sha256": "8604a56dbd61d002358b313da4b800ad17ee9c2e1abeaaa0f85c4078654117e3",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_qp_53.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "qp",
+      "file": "0625_s26_qp_61.pdf",
+      "bytes": 115948,
+      "sha256": "0fd6dc1abbc40ce74d65102bf07dd36d1a3440542f94e6d81b6e23865e431685",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_qp_61.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "qp",
+      "file": "0625_s26_qp_62.pdf",
+      "bytes": 98500,
+      "sha256": "064284d3b1681469ea12f76deb10f91480078441f74430007de56396b47a32b9",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_qp_62.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "qp",
+      "file": "0625_s26_qp_63.pdf",
+      "bytes": 192615,
+      "sha256": "17d931f703ca0455f2a8d613b0bcde23b730a9899313fb66e9c509078ad5a37e",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_qp_63.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ms",
+      "file": "0625_s26_ms_11.pdf",
+      "bytes": 107263,
+      "sha256": "47ea8b8ef8958b3194da2f61224d6d2ac9af268a5d570687b2ff750f108faa96",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_ms_11.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ms",
+      "file": "0625_s26_ms_12.pdf",
+      "bytes": 107269,
+      "sha256": "3f94e75c43e28e4491ed87c757224b90002cc5f3e2179b67be149431635681b9",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_ms_12.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ms",
+      "file": "0625_s26_ms_13.pdf",
+      "bytes": 107271,
+      "sha256": "5392c81dfca740340fc5ab9e4751bcfd0b92f26b582219317f8e155ce7877109",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_ms_13.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ms",
+      "file": "0625_s26_ms_21.pdf",
+      "bytes": 107291,
+      "sha256": "805c30e2da8f1996f4974a821a8d89c00e657118626c743a1e869927dc0dd74e",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_ms_21.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ms",
+      "file": "0625_s26_ms_22.pdf",
+      "bytes": 107303,
+      "sha256": "493780b591b09bdca9eafa9a3610f825aba3afc92a00069eaab5e75e81039a83",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_ms_22.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ms",
+      "file": "0625_s26_ms_23.pdf",
+      "bytes": 107300,
+      "sha256": "d4c0d97799ca45c01ea46f0b6177646989c9282715bb6275504b8118bdf79f17",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_ms_23.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ms",
+      "file": "0625_s26_ms_31.pdf",
+      "bytes": 386333,
+      "sha256": "779df39911ed3feba5e506fed4886f09a2b495e15cb50d6e823365b0d94171a8",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_ms_31.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ms",
+      "file": "0625_s26_ms_32.pdf",
+      "bytes": 345240,
+      "sha256": "3262449e8c7f67441be19c1fc903d5af69f7b2fef8dae22aa4ddfc6b7b3683be",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_ms_32.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ms",
+      "file": "0625_s26_ms_33.pdf",
+      "bytes": 345430,
+      "sha256": "d216a3bdb5b0f16182441c03c84466330c9816f16d3c773d6737ba125bebc9b2",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_ms_33.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ms",
+      "file": "0625_s26_ms_41.pdf",
+      "bytes": 360514,
+      "sha256": "abfead737483279696bb01fc33e1cb648ecad8cbb4ef62b3c4482d10da324fbc",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_ms_41.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ms",
+      "file": "0625_s26_ms_42.pdf",
+      "bytes": 342422,
+      "sha256": "2930a223380efd927b365f9013f60e68299ece692e1ae0abe23edb347876ccf0",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_ms_42.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ms",
+      "file": "0625_s26_ms_43.pdf",
+      "bytes": 325459,
+      "sha256": "25a02a9a234e491d65af7f2d38745e46aacfd1e11a7641ae628267aa36b331e9",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_ms_43.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ms",
+      "file": "0625_s26_ms_51.pdf",
+      "bytes": 306199,
+      "sha256": "dddb334c2186f64a0cac297dc9baaea81c223a276168daedc9895c333c82fc3c",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_ms_51.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ms",
+      "file": "0625_s26_ms_52.pdf",
+      "bytes": 304238,
+      "sha256": "2aeae6b26c42e49f6aa2681439c45ee02ca66f3d0e0225344e1f59e2bc07238b",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_ms_52.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ms",
+      "file": "0625_s26_ms_53.pdf",
+      "bytes": 304251,
+      "sha256": "8743c5098e4041ab13dd55dd6d0abc08834b600085c800b3c73476ac17b88939",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_ms_53.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ms",
+      "file": "0625_s26_ms_61.pdf",
+      "bytes": 316337,
+      "sha256": "3ac30f3de3bfcb085bc3a11a306efbea7d2f751ae691bed349191c552f38632f",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_ms_61.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ms",
+      "file": "0625_s26_ms_62.pdf",
+      "bytes": 302919,
+      "sha256": "801c22d804bc440912e361c1e660bd02f63c7f526442cc5bedf87b4a7f879a9a",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_ms_62.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ms",
+      "file": "0625_s26_ms_63.pdf",
+      "bytes": 303316,
+      "sha256": "c4aea1e6ed0fe10e2390422a9e1652329d05dd90155de02302644b8117444855",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_ms_63.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ci",
+      "file": "0625_s26_ci_51.pdf",
+      "bytes": 119626,
+      "sha256": "e941156499166765de21e7a632562d88e562577b5a8a41dbae6f54a18de0aa2d",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_ci_51.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ci",
+      "file": "0625_s26_ci_52.pdf",
+      "bytes": 137033,
+      "sha256": "8f98b486653a5215758334874bba2f19d437e32cdb57a1482e0f57aaeeca31c7",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_ci_52.pdf"
+    },
+    {
+      "subject": "0625",
+      "kind": "ci",
+      "file": "0625_s26_ci_53.pdf",
+      "bytes": 140470,
+      "sha256": "73423065a06c552e4ac835c8520b809b601f8aa2d83e3a9d68bcceeeb247f6a1",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/0625_s26_ci_53.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "qp",
+      "file": "9231_s26_qp_11.pdf",
+      "bytes": 105145,
+      "sha256": "a3b68d964a6fd47199d967b41360495db2fcdf4368ec092efdd2861b2ecd1424",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_qp_11.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "qp",
+      "file": "9231_s26_qp_12.pdf",
+      "bytes": 104504,
+      "sha256": "c6eab5d2f5d6a119ea943a1d6d6d4fb57698915aa4a4aad628160c21acae62d4",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_qp_12.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "qp",
+      "file": "9231_s26_qp_13.pdf",
+      "bytes": 107223,
+      "sha256": "0eab01729cfa4ed408542c82ca55cc7f141bc0659b95d0da5444b9bf10179a59",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_qp_13.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "qp",
+      "file": "9231_s26_qp_14.pdf",
+      "bytes": 101903,
+      "sha256": "994e340f0d3c54738d2de76964cdcd0f86f0bd4e21c11f1b09cd1dfa666ebfe6",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_qp_14.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "qp",
+      "file": "9231_s26_qp_21.pdf",
+      "bytes": 100941,
+      "sha256": "5b6ea10d574d983d68784abb48ef1572a936c8af61c5258d785ce469d0b820ca",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_qp_21.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "qp",
+      "file": "9231_s26_qp_22.pdf",
+      "bytes": 100374,
+      "sha256": "a3bc1c4b471c4685894bb7abc9bc8c165144a4285c3ee78ef0561bbd4b99d989",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_qp_22.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "qp",
+      "file": "9231_s26_qp_23.pdf",
+      "bytes": 106658,
+      "sha256": "86c3fd8df2a84f4a8453b66382f3fdee3940db3c85956c5aabc0950fa743fdbf",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_qp_23.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "qp",
+      "file": "9231_s26_qp_24.pdf",
+      "bytes": 99902,
+      "sha256": "54c9136728d0295057c33348342df119260fbd6cf540b041a85861f779a3eb9e",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_qp_24.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "qp",
+      "file": "9231_s26_qp_31.pdf",
+      "bytes": 101807,
+      "sha256": "71cef798e143e46ca7d4c767fcd9c8037b26043ce1f457770aeabe3abefc68fc",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_qp_31.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "qp",
+      "file": "9231_s26_qp_32.pdf",
+      "bytes": 101633,
+      "sha256": "849071612cb9abf587b4a59ce1a1c8fa9613549bdfc7576ace046945910e071f",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_qp_32.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "qp",
+      "file": "9231_s26_qp_33.pdf",
+      "bytes": 100866,
+      "sha256": "4042ed4ef17a11b6a46c2a975f512b88179adbde02a5d8978f88be83586af6c4",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_qp_33.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "qp",
+      "file": "9231_s26_qp_34.pdf",
+      "bytes": 102286,
+      "sha256": "0a8b867070210b8a199f0e11102014659f33be9148850280e70bc41b5b6ac437",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_qp_34.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "qp",
+      "file": "9231_s26_qp_41.pdf",
+      "bytes": 100989,
+      "sha256": "c4d13bf5cc11311eeb713bd37da6a55a750d6521617a2e49a621bf5be5dcf8a5",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_qp_41.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "qp",
+      "file": "9231_s26_qp_42.pdf",
+      "bytes": 100769,
+      "sha256": "c9657cbda736fb7ad30bcde6629972880f1617828a900b2c95ba0775d6db2ad2",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_qp_42.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "qp",
+      "file": "9231_s26_qp_43.pdf",
+      "bytes": 95418,
+      "sha256": "6950b797591f0ad86d8c9f0b1b12d22c639f9bf97f77ebd6c17aaeae468f9c7a",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_qp_43.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "qp",
+      "file": "9231_s26_qp_44.pdf",
+      "bytes": 95679,
+      "sha256": "c3b154612558be3fbd2eb570196693b5593989312981f3cb86428d517830ce5f",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_qp_44.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "ms",
+      "file": "9231_s26_ms_11.pdf",
+      "bytes": 678642,
+      "sha256": "a1e1b9cab339768dbd438b7bd54a4be0c404ce0a7f8635295c26aef6e7b860cd",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_ms_11.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "ms",
+      "file": "9231_s26_ms_12.pdf",
+      "bytes": 678898,
+      "sha256": "c8c52be622a5122d713662e5c3ffc7d7efa143588f68a470eae66128bc2b571d",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_ms_12.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "ms",
+      "file": "9231_s26_ms_13.pdf",
+      "bytes": 558774,
+      "sha256": "c1f160ce4fb76bee7163ed7e7bf126694b85094fc3accdfed37219e34debd44e",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_ms_13.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "ms",
+      "file": "9231_s26_ms_14.pdf",
+      "bytes": 636901,
+      "sha256": "e49a3afca7314cb91a93555ca77d05c634fab9b9c501d947d3139d98545a66ee",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_ms_14.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "ms",
+      "file": "9231_s26_ms_21.pdf",
+      "bytes": 600608,
+      "sha256": "9344ad53bfe7ce6d2c58d3977ebce3b1b62fc63d64a321367fe2dc4941ec249c",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_ms_21.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "ms",
+      "file": "9231_s26_ms_22.pdf",
+      "bytes": 600561,
+      "sha256": "1515fe8bceb22ae2bf3c13cd7b155b74d16d291a55641a27bacda49c1da4ffaf",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_ms_22.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "ms",
+      "file": "9231_s26_ms_23.pdf",
+      "bytes": 556018,
+      "sha256": "cb28fe8e846aa584bae49fce41903782065cc0323cbe33d5d77f623f2a59f526",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_ms_23.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "ms",
+      "file": "9231_s26_ms_24.pdf",
+      "bytes": 541308,
+      "sha256": "18e805ffcc846bb35ef6756400f4eedf88eae3f782711e7609dff027d96a6d9f",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_ms_24.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "ms",
+      "file": "9231_s26_ms_31.pdf",
+      "bytes": 1369076,
+      "sha256": "b7a569671bbc03a47783534969c943860ba169352c16599ae9babe06fb6186fd",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_ms_31.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "ms",
+      "file": "9231_s26_ms_32.pdf",
+      "bytes": 1356822,
+      "sha256": "53f75c88829a438add7a689bb48fd4630a42f49d8e3e2cf1cf4d0fd6123b7776",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_ms_32.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "ms",
+      "file": "9231_s26_ms_33.pdf",
+      "bytes": 1171285,
+      "sha256": "6505fae8c60f2cd4d4a275647c618a2b9a71d0fd25b3e50d9e336aa8a58354ea",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_ms_33.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "ms",
+      "file": "9231_s26_ms_34.pdf",
+      "bytes": 1326708,
+      "sha256": "8135c0bd3e865699db287003cd663b82088e90592ca4f51be541977b94c9ec91",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_ms_34.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "ms",
+      "file": "9231_s26_ms_41.pdf",
+      "bytes": 1032626,
+      "sha256": "3caa0e4c7dc7ced737fafe3be18d0ba8c05a17e65e3ca7032fe72a84a92464b4",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_ms_41.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "ms",
+      "file": "9231_s26_ms_42.pdf",
+      "bytes": 1032976,
+      "sha256": "d7d190bf275602e1763ec1b61dc34e0e8a9f46b5f3972cb5e90029786bc73f90",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_ms_42.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "ms",
+      "file": "9231_s26_ms_43.pdf",
+      "bytes": 1013131,
+      "sha256": "a11928aac2ac8a31c21801d13199471e8345bc79e243f323e961edb38228cf1b",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_ms_43.pdf"
+    },
+    {
+      "subject": "9231",
+      "kind": "ms",
+      "file": "9231_s26_ms_44.pdf",
+      "bytes": 1050936,
+      "sha256": "ba9782ff1549526917a28a781653f6eb0bbf6d4b4fdc5333e58c0f3171219805",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9231_s26_ms_44.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_m26_qp_12.pdf",
+      "bytes": 4607395,
+      "sha256": "d98c9248162c12fb0bff9a0096475f63b2f2e62656dee762573e542340482b3b",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_m26_qp_12.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_m26_qp_22.pdf",
+      "bytes": 1822925,
+      "sha256": "3d77c31e1afcf93f9b1e21848f807005be5bb9598798d124ab9fca24f6944d4e",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_m26_qp_22.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_m26_qp_33.pdf",
+      "bytes": 773954,
+      "sha256": "8d94c6d6624dedf41903d9b963f484ba2a4051d4a1e88fc346b3ef96038372ec",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_m26_qp_33.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_m26_qp_42.pdf",
+      "bytes": 1630229,
+      "sha256": "2b8bce7108a05bee6038e436c12c15f15f95041b1d37284578021570e537b568",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_m26_qp_42.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_m26_qp_52.pdf",
+      "bytes": 2854313,
+      "sha256": "2ef6f26ce42c9bddcc0e7423b60a0e777017f8147c7ef76de88fc386245f88d3",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_m26_qp_52.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_m26_ms_12.pdf",
+      "bytes": 121773,
+      "sha256": "192554175f41afc3809a3cae1d51f895fd55969a9c55b24055836d4badb11284",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_m26_ms_12.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_m26_ms_22.pdf",
+      "bytes": 328689,
+      "sha256": "fe5b000de0e171a6a6c565eac0f9101331a42b24a6e9b5ef756ba48839149b44",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_m26_ms_22.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_m26_ms_33.pdf",
+      "bytes": 269304,
+      "sha256": "3f0e52acb7523da15b534cba4d8ed3fc91a26729ccacaf2c5a099aa319be0c94",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_m26_ms_33.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_m26_ms_42.pdf",
+      "bytes": 341759,
+      "sha256": "46dc7824b952344638b385c5299ee19964a39f73db41f1d669c051cb1c3fe3f0",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_m26_ms_42.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_m26_ms_52.pdf",
+      "bytes": 305257,
+      "sha256": "840b119b01099c264cb389666b74a1792796ea0440d93ad518f65b81e088f4a1",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_m26_ms_52.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ci",
+      "file": "9700_m26_ci_33.pdf",
+      "bytes": 135738,
+      "sha256": "fa369b301acadc2f6b8a6df88f84c0fd7687668bb91a8f7406f7d008f780ac4d",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_m26_ci_33.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_s26_qp_11.pdf",
+      "bytes": 1459859,
+      "sha256": "97e473f7ce64fa4a4c10b515f9e9b8e15f7e94f9547c96f3466485897df4ec4a",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_qp_11.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_s26_qp_12.pdf",
+      "bytes": 2337692,
+      "sha256": "87195bd96ef0d2e240deb629adde2d36402d80a7d638c997f38a157de516a673",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_qp_12.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_s26_qp_13.pdf",
+      "bytes": 725400,
+      "sha256": "ab5cc1b9abde89365d7eb39aa7efe9139cc3e00b0ec5c126d12a18f77e9cc409",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_qp_13.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_s26_qp_14.pdf",
+      "bytes": 839143,
+      "sha256": "d0b82b6d1aa26bd6bbb304d5cec100d9b5c3f32c384fe466d191c3c18192ee06",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_qp_14.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_s26_qp_21.pdf",
+      "bytes": 3243552,
+      "sha256": "15b2880521a7cac5399d26c78ef01d1e55bbfc9372aeaf8f9fb31b2ead62bc62",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_qp_21.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_s26_qp_22.pdf",
+      "bytes": 691391,
+      "sha256": "f4d8431d1814177dd20e380df938b78f9a9fb0ae9605dcf4565bef29beb68c2e",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_qp_22.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_s26_qp_23.pdf",
+      "bytes": 2004674,
+      "sha256": "10879a8aedfe1e549867bb50b0d219bee537d7678e5633093e28e0181edf92fc",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_qp_23.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_s26_qp_24.pdf",
+      "bytes": 2536270,
+      "sha256": "8dab60032f00aa64a2112fee620a4ec6e639d253b706d5386029a722a9f5d568",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_qp_24.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_s26_qp_31.pdf",
+      "bytes": 613696,
+      "sha256": "ee9df42ff5bdd7daeef829e8b203b37446d303fac5213d82aa0c4f506c4c0b30",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_qp_31.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_s26_qp_32.pdf",
+      "bytes": 2799899,
+      "sha256": "d280f17a4e4f422f27a9a865d8f35a89fb89e1259d121c4037ea5c3f25a7354c",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_qp_32.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_s26_qp_33.pdf",
+      "bytes": 1979056,
+      "sha256": "e633b952432587545b3881dd397e2041c5dacc812c89f7527dc5cc00182dad30",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_qp_33.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_s26_qp_34.pdf",
+      "bytes": 1258826,
+      "sha256": "f7c4c9f9cc14a0ad1ff8deafa86426a1957493d199eefd529dcb89d0983b6ef4",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_qp_34.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_s26_qp_35.pdf",
+      "bytes": 1047929,
+      "sha256": "5b7b452efe3a59a9b3b757a7b6c6b3ed099db9a686dc59d19a4fa690ed7fac59",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_qp_35.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_s26_qp_37.pdf",
+      "bytes": 1978971,
+      "sha256": "a3f08908ead589a6016122904051fadf6dd33943434055442d629f525b30c3fc",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_qp_37.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_s26_qp_38.pdf",
+      "bytes": 1259105,
+      "sha256": "ffbfa8f05e26bb569afea1e782091cbd062fd5ba96f3227a8d09ca1eb2b70510",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_qp_38.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_s26_qp_41.pdf",
+      "bytes": 2267927,
+      "sha256": "5a6f5fe1d62a43cbd5d22aa224e573463a38e4d53d9b0903e2767a66bd2d8873",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_qp_41.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_s26_qp_42.pdf",
+      "bytes": 566430,
+      "sha256": "216d3c10ee129924c979f711aefcc6836f5ddb08ecd6bf388304fb9141bab54d",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_qp_42.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_s26_qp_43.pdf",
+      "bytes": 2325902,
+      "sha256": "d7bf5ede4140a7747a319f63d9c239ae0f0182cc4e8a06d719693a7610c11e02",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_qp_43.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_s26_qp_44.pdf",
+      "bytes": 2652366,
+      "sha256": "5ceb28cb8b9bc432ad2bb1dc038ff37f42f240f27c4b8fa85a2e19569db5469f",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_qp_44.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_s26_qp_51.pdf",
+      "bytes": 1298322,
+      "sha256": "11a97066ffa3ca382e311c5b7f4b4faeeae2506c5ef58763430a9c8ac127fff9",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_qp_51.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_s26_qp_52.pdf",
+      "bytes": 755045,
+      "sha256": "b9eebc987de856328cc91625c80a1e789881f78f54f1a44e3c5ec320d40c924e",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_qp_52.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_s26_qp_53.pdf",
+      "bytes": 117160,
+      "sha256": "5bef464ea43dfeae6dabcbb2bc956c2b854cad015858da357b1f343767d318aa",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_qp_53.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "qp",
+      "file": "9700_s26_qp_54.pdf",
+      "bytes": 1506387,
+      "sha256": "ce57c96e68e7d6aa0bb7499606abe825157bc5a24abe472b36db6fa6202dab50",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_qp_54.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_s26_ms_11.pdf",
+      "bytes": 100746,
+      "sha256": "3e05da2122fe13c651ecd37c634bea61aae91545d05dc10c76a978bce30ca8c0",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ms_11.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_s26_ms_12.pdf",
+      "bytes": 100744,
+      "sha256": "8580bd3a89693e3945f0c52b37dc897595dc1b887de3d39f573d45c37fc51d18",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ms_12.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_s26_ms_13.pdf",
+      "bytes": 100725,
+      "sha256": "6067d54f57c212b223122f8d49c67001e8f9f2d124788d170da1c2ca88c79db7",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ms_13.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_s26_ms_14.pdf",
+      "bytes": 100969,
+      "sha256": "ddaacc1cea85c0444dfcd956fabd278f667e90c4334a36bf70ba19b03babd92c",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ms_14.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_s26_ms_21.pdf",
+      "bytes": 308281,
+      "sha256": "498b08a7a212eee120e6e4291c31a30ab0377faaa23102053e4bbdc9f6474e56",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ms_21.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_s26_ms_22.pdf",
+      "bytes": 349121,
+      "sha256": "800a1f121984445f900daea6a8775660e42c1a43dea1ad9f5578123aa6aca2d8",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ms_22.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_s26_ms_23.pdf",
+      "bytes": 313027,
+      "sha256": "064d2f274244a3e16768c658b389a5070847f99154cd1ef07f0b90fa1df4f248",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ms_23.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_s26_ms_24.pdf",
+      "bytes": 452143,
+      "sha256": "0faea037f776ff01ba6df111bdf745d495604cb1fae3489c7c133b68a23f4360",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ms_24.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_s26_ms_31.pdf",
+      "bytes": 253221,
+      "sha256": "7c8295b381072eaa1ec5d518aac7e6aa379e028535ea32979816b7a47a2a8f29",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ms_31.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_s26_ms_32.pdf",
+      "bytes": 259947,
+      "sha256": "5f85c41d2ee272e6fbef39042dcf806f0a1e8facd0150c18eff4fa4d3cd82ba8",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ms_32.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_s26_ms_33.pdf",
+      "bytes": 250557,
+      "sha256": "04b3f5cf77d5795554d504f04c1db50ddfcded4a7c425eefc41676fc5c2dc1db",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ms_33.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_s26_ms_34.pdf",
+      "bytes": 241130,
+      "sha256": "6389fc1a90e77b2348b5d0c3e3606bd3f78e169d19b8e6640b7c9b56d75ac168",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ms_34.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_s26_ms_35.pdf",
+      "bytes": 239498,
+      "sha256": "0d17b638c7dd3cb7105eb9d4439328474f7e1ff9d44970ecb21ddbb8822c6298",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ms_35.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_s26_ms_37.pdf",
+      "bytes": 250542,
+      "sha256": "929aca99ab3a52da950abb06b26e61892edb544cf9c7fbfa430a9121a8c2229c",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ms_37.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_s26_ms_38.pdf",
+      "bytes": 241423,
+      "sha256": "735907a20c97a03ef6df6f776a691ad648652a3d8f8eb9bab8f88b01ebe0f94f",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ms_38.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_s26_ms_41.pdf",
+      "bytes": 353490,
+      "sha256": "8a96d9c5902ecf1fab4c494fa87a5ba72edee41e8d586ae3b2b4d80ac1278dfb",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ms_41.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_s26_ms_42.pdf",
+      "bytes": 336021,
+      "sha256": "05c52334a0154c61d9b59f2e97b068ca8ed78c8c70e012dc33b9afe5e8b2c2f3",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ms_42.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_s26_ms_43.pdf",
+      "bytes": 320973,
+      "sha256": "facd7d20a4f5e6a94a732a2731665fe1eceaabc9e9cbf7e55d2b2ed63c30f25a",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ms_43.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_s26_ms_44.pdf",
+      "bytes": 316998,
+      "sha256": "e1112560bdf2c67926de45c3d6e06a869bbf7fa46fe2620151bbfb72c10a2ef5",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ms_44.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_s26_ms_51.pdf",
+      "bytes": 341921,
+      "sha256": "0619eee3c731e2e853a22a8830c34b38202c92d5f6f39867a068bc9084a5e27f",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ms_51.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_s26_ms_52.pdf",
+      "bytes": 321916,
+      "sha256": "3bd942539e5ae5cfad8bb5c57f2ee4d51ff7e440f291d33144c992a17392360c",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ms_52.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_s26_ms_53.pdf",
+      "bytes": 314414,
+      "sha256": "a5255724f6ab742b212eda8845061869a27d0f44d4bc1ede2dba413dfd2bd56e",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ms_53.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ms",
+      "file": "9700_s26_ms_54.pdf",
+      "bytes": 378619,
+      "sha256": "af281f5fbbc75bdfb57001b5bab2d9698b64f6babcdfbee6e52e31573cc6c295",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ms_54.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ci",
+      "file": "9700_s26_ci_31.pdf",
+      "bytes": 136577,
+      "sha256": "9ff0345a6b9f0269c3e14f55428c916dc115e63786927ce7f9699bcafd3d1c51",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ci_31.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ci",
+      "file": "9700_s26_ci_32.pdf",
+      "bytes": 136490,
+      "sha256": "885bc04df62eda50d6ea67167b47128d5dd24da8a3ca8dd0d2ab3223378a7910",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ci_32.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ci",
+      "file": "9700_s26_ci_33.pdf",
+      "bytes": 136115,
+      "sha256": "fdd7d34e3ca762f0a78c8d1398e9185a0214c4ad4a81cc240a5c0f9f6a3890db",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ci_33.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ci",
+      "file": "9700_s26_ci_34.pdf",
+      "bytes": 136833,
+      "sha256": "ed21cb95e9641e7368c4a9caa416b74ce3bce6eb3fcc5fd795179235846b8f66",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ci_34.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ci",
+      "file": "9700_s26_ci_35.pdf",
+      "bytes": 136019,
+      "sha256": "f60572d6f7ea64cd6b8a49922a4c0ea3aff957d4160177874be3dc92f4f554ea",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ci_35.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ci",
+      "file": "9700_s26_ci_37.pdf",
+      "bytes": 136504,
+      "sha256": "16b30392a28315dffa9eb1ad2c9c1f281d9a1e0e1ce57e87f95eb85b5053e48f",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ci_37.pdf"
+    },
+    {
+      "subject": "9700",
+      "kind": "ci",
+      "file": "9700_s26_ci_38.pdf",
+      "bytes": 136838,
+      "sha256": "742b135ab03a206b370fbb0b238ab2d901149aa6c454c70c5aca7c9d94a526ed",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9700_s26_ci_38.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_m26_qp_12.pdf",
+      "bytes": 289784,
+      "sha256": "3b6612c4e863d608e82003c8f175cdcc971f061b9ead89b12c1a6671b0dd3bc4",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_m26_qp_12.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_m26_qp_22.pdf",
+      "bytes": 107984,
+      "sha256": "710ca10d9c6d389490f2b88326fbd4dc423fa82ba6990629e1e5fb001c23d7bb",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_m26_qp_22.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_m26_qp_33.pdf",
+      "bytes": 107347,
+      "sha256": "9842a17c5e465b95c43aa77d50ced83b004fa52d29cdf6f5784aea6f504f04d8",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_m26_qp_33.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_m26_qp_42.pdf",
+      "bytes": 141242,
+      "sha256": "a95d09671117ac8c4cbe2c69a1ba846ab4132622b78aa6200fa32a4cf6c7b7e5",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_m26_qp_42.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_m26_qp_52.pdf",
+      "bytes": 181711,
+      "sha256": "e5ed2ea16c25140d3fd23c92be7f32ef08981ba134e57ff19a562566e2512f04",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_m26_qp_52.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_m26_ms_12.pdf",
+      "bytes": 121590,
+      "sha256": "3fedd9877422a558a9eb4fe960c46192866482e7e02a6df59691a61cfb3a5d84",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_m26_ms_12.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_m26_ms_22.pdf",
+      "bytes": 292262,
+      "sha256": "a5c7efb2527819fd2c94407990e5baf8e3fc90c57abfd53e1012b7ce9b93b3c8",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_m26_ms_22.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_m26_ms_33.pdf",
+      "bytes": 344440,
+      "sha256": "0ff7e8d8db36ad9b4dfe8e5ba5550275a096840b2ac42bce3c73311c80b736fe",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_m26_ms_33.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_m26_ms_42.pdf",
+      "bytes": 982640,
+      "sha256": "c37740227f49b0992295dfce870a445999f416325e58c38606b7ae1bb6572278",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_m26_ms_42.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_m26_ms_52.pdf",
+      "bytes": 269876,
+      "sha256": "dad097f362ab6d5d81db1a45676d9a0cb9066b7e25286ed00d1cc6b3eff86401",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_m26_ms_52.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ci",
+      "file": "9701_m26_ci_33.pdf",
+      "bytes": 153474,
+      "sha256": "09db1e86473473d993d6579635f2bbfd273ed893920ca00a4bea8d6826863e15",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_m26_ci_33.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_s26_qp_11.pdf",
+      "bytes": 165214,
+      "sha256": "17da9a01a58e306b696dc9087584817534a9b8ed335a6e61c399c54a88f815e9",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_qp_11.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_s26_qp_12.pdf",
+      "bytes": 229077,
+      "sha256": "e6e1a3423b47c79f80b2d08cbae623baa923c6d6f0de40ab4632444b7346eaf9",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_qp_12.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_s26_qp_13.pdf",
+      "bytes": 240416,
+      "sha256": "c1cb691e528e043b3ea83bc3b53463983c93675f997f170d64d7fd071d16b64f",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_qp_13.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_s26_qp_14.pdf",
+      "bytes": 244507,
+      "sha256": "6b474be38217624da7cc70aacdd0080669789ff9cc5a45416e27316bf70723a1",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_qp_14.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_s26_qp_21.pdf",
+      "bytes": 104455,
+      "sha256": "71feea03693f2746c515ad1432beb98c445030cbfb59bb10c1eccaa9a86a59ac",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_qp_21.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_s26_qp_22.pdf",
+      "bytes": 105336,
+      "sha256": "4ea75fc6c4f60979fb46963976661b4f04973064c6b73303e418562c1e762c76",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_qp_22.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_s26_qp_23.pdf",
+      "bytes": 105641,
+      "sha256": "8782db3031dfbc34ca9528cf7426c942e71fd308d4fc844b8e53c3e51e88d581",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_qp_23.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_s26_qp_24.pdf",
+      "bytes": 109855,
+      "sha256": "e36498ad07b9f91b6ef028a0ecfe0ea1bdc6b5dce774b0a393ebdbed3d7c4bd2",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_qp_24.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_s26_qp_31.pdf",
+      "bytes": 97370,
+      "sha256": "bc0eaa688467f14d9ecc6a11254cef252cad5f3f194e6417662197e6b31269a5",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_qp_31.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_s26_qp_32.pdf",
+      "bytes": 101083,
+      "sha256": "27b79720de9388a4c8022c6d48a9df476a5c437e2b75869884d0e78a4069d7a9",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_qp_32.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_s26_qp_33.pdf",
+      "bytes": 98763,
+      "sha256": "44600794c37eaee32616d7734d5dec49339cd949d6995bb03edafe5faa7b23c0",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_qp_33.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_s26_qp_34.pdf",
+      "bytes": 98201,
+      "sha256": "8bdaa339ac02a537e222f97c3cf998ba8520054a696c05f4f917108f15343385",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_qp_34.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_s26_qp_35.pdf",
+      "bytes": 104607,
+      "sha256": "24eeeaf68f2eecd4c74dd2f0c27e78983b3bf9e6209be74eefce611f6671cb6d",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_qp_35.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_s26_qp_37.pdf",
+      "bytes": 98898,
+      "sha256": "cbbd413fa803965dfa4d29be1c7aa638e8e9715acb341be0e9ae67a1421c27b4",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_qp_37.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_s26_qp_38.pdf",
+      "bytes": 98413,
+      "sha256": "d9e5d979366c535a93859640b922f6a932a0d40af385ff3cef90fe543226f052",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_qp_38.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_s26_qp_41.pdf",
+      "bytes": 265063,
+      "sha256": "f7d74b0df0bfdeab2e3703bdb83ac2720c7be0d7ca383d5c47b5c386241715af",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_qp_41.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_s26_qp_42.pdf",
+      "bytes": 134825,
+      "sha256": "d49fe55ddb39d365e7cebecbba81f245685eee6b4355d3868d17e935e4b92c08",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_qp_42.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_s26_qp_43.pdf",
+      "bytes": 125785,
+      "sha256": "9653e79eae86e8aacd92ad0a33e953262e41aa8177ddb5135e89bf2d033cd3d8",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_qp_43.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_s26_qp_44.pdf",
+      "bytes": 136023,
+      "sha256": "0748fb0ab7ee4369cab0499ebca92ea9e3986ce43203fbcb2e18dc2cc13b7733",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_qp_44.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_s26_qp_51.pdf",
+      "bytes": 599100,
+      "sha256": "c6f7a4077e6070bb37f2e25281653e7db6c716ea5328c5f93faf6029f17d2f05",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_qp_51.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_s26_qp_52.pdf",
+      "bytes": 97050,
+      "sha256": "dd96e4826421f57246b5b6c66fd9bef30b5036d64dafc02f2ff807535e50a411",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_qp_52.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_s26_qp_53.pdf",
+      "bytes": 599027,
+      "sha256": "2985a6fbc0fc63323e3603f8a0bcd79f99c556091d704afff2b8ccd0cb008d01",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_qp_53.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "qp",
+      "file": "9701_s26_qp_54.pdf",
+      "bytes": 100478,
+      "sha256": "f209a6e8e833c270159b344ec15981975e5382726b18be022f0e061f5b27bb2f",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_qp_54.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_s26_ms_11.pdf",
+      "bytes": 100569,
+      "sha256": "55c9cf3ad153cd7d88c3f92a179f4c1005f074bb4f9b8e752e4436de91fc6d6a",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ms_11.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_s26_ms_12.pdf",
+      "bytes": 100571,
+      "sha256": "f6612e6a7c4fe144910bdf97637cec446a22f55db059768e4120481c78efb4d7",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ms_12.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_s26_ms_13.pdf",
+      "bytes": 100570,
+      "sha256": "952643814c110a8143ffc98666626849346373652d9e630adb437f31e576c679",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ms_13.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_s26_ms_14.pdf",
+      "bytes": 100800,
+      "sha256": "1146031b4a473f763f40cbc96f2bbad7e1cf2538e0a7095fbd7e312ab395d99c",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ms_14.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_s26_ms_21.pdf",
+      "bytes": 432120,
+      "sha256": "18d7f6a95f3a74e29f278176501c01d6c0e680fc0daaf680bb76931ca55a31a7",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ms_21.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_s26_ms_22.pdf",
+      "bytes": 427564,
+      "sha256": "4a1c86c3741c89a00ae8c73a697c0ce6f0f3567d3f186c191cb447ceb4cb8912",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ms_22.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_s26_ms_23.pdf",
+      "bytes": 397369,
+      "sha256": "8df079ceaada1ca28d586397d905ec61c81c71dfa9691b528cfd4d7e69c167d1",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ms_23.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_s26_ms_24.pdf",
+      "bytes": 1848341,
+      "sha256": "6d17a50a6d3525af7b38c02d9e9e7347f3c6365145dea22bbb4a6a5f7e478e01",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ms_24.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_s26_ms_31.pdf",
+      "bytes": 364221,
+      "sha256": "4ce473832dd888a65e4d0ce40eb86605797ea03125c849c7487529b218ec21fa",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ms_31.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_s26_ms_32.pdf",
+      "bytes": 349898,
+      "sha256": "33d250cd0d0ed24bc2238123e57d51eec60d6cd889609c4689ced3191278024f",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ms_32.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_s26_ms_33.pdf",
+      "bytes": 394568,
+      "sha256": "83dc959a1ca6b7549bd3f26c6d5b8c80f93413edb0f649a563c931a448f58e3a",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ms_33.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_s26_ms_34.pdf",
+      "bytes": 330044,
+      "sha256": "7fda5e2ba284adaf83bdfb3807bd606b0a5db193236e66262d90ce27d4ff3a3f",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ms_34.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_s26_ms_35.pdf",
+      "bytes": 329029,
+      "sha256": "ceeb34fa2726c425c53d40ae983f74c03e465ada3bb5a57c9e09e88848d79ee1",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ms_35.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_s26_ms_37.pdf",
+      "bytes": 394529,
+      "sha256": "decc4e01479e3dcaa1f7f2fbf738a31097cd3b5db1ed0a35c1389b038aa3878d",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ms_37.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_s26_ms_38.pdf",
+      "bytes": 330177,
+      "sha256": "cad43a645e4552689a3b0f90e5e6d1b2ed4d82d0b218277fc98b94fc90e86206",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ms_38.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_s26_ms_41.pdf",
+      "bytes": 534762,
+      "sha256": "26bde580fd206a2047ec22221fa84a042a88b229de9dc49c256587da0973c76c",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ms_41.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_s26_ms_42.pdf",
+      "bytes": 520821,
+      "sha256": "a922febbb5f9a5fffda7b2b168d8181f68f857b586d9182f30ff443d98b34adb",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ms_42.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_s26_ms_43.pdf",
+      "bytes": 534816,
+      "sha256": "f9d931d5b608143240a15c225c90a0d4dbd6e36296a87a51707000accdd587e5",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ms_43.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_s26_ms_44.pdf",
+      "bytes": 448486,
+      "sha256": "2d648957de2caa4ca5204024ccdf81640102406261f820bb1e045f4c95b20a15",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ms_44.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_s26_ms_51.pdf",
+      "bytes": 330614,
+      "sha256": "e6c5aad0961628263801350d8fac2191e5de8eac39adc1abc9e514dc0f4888a9",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ms_51.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_s26_ms_52.pdf",
+      "bytes": 352426,
+      "sha256": "9e9ee009433035f00f322d1e71658c3277d7ff7cb98caefefd540d3899ac781f",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ms_52.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_s26_ms_53.pdf",
+      "bytes": 330735,
+      "sha256": "302b47fdf5192f570127acbe50b74120aeabb740c5346acfc2a93a28ab7c56dd",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ms_53.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ms",
+      "file": "9701_s26_ms_54.pdf",
+      "bytes": 376645,
+      "sha256": "3ddb3c332fe60c1214e374058edd7f546ac9b2708dbcded1c74be380f27c2a0d",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ms_54.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ci",
+      "file": "9701_s26_ci_31.pdf",
+      "bytes": 141066,
+      "sha256": "af58434ae7b04d85f584a5abf483d0e9c665552fd3597af8dce04f063c0339c0",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ci_31.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ci",
+      "file": "9701_s26_ci_32.pdf",
+      "bytes": 133013,
+      "sha256": "1105109978f94899e8b1fef78c9983c54b73d767e7873fcd32075011c3bec6b3",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ci_32.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ci",
+      "file": "9701_s26_ci_33.pdf",
+      "bytes": 134732,
+      "sha256": "f4cb0b0fab4b331772e175bfd55bb2f440a78174e5b551a35d401ca934ac8dec",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ci_33.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ci",
+      "file": "9701_s26_ci_34.pdf",
+      "bytes": 150487,
+      "sha256": "53598af11f50471b2069450c07a49b48807c7f454739abf0c827d1ba5e026054",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ci_34.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ci",
+      "file": "9701_s26_ci_35.pdf",
+      "bytes": 147713,
+      "sha256": "0e6f927030a0354e16aa495462d296a38387b2afb5e262e0c983a1ea235a5e69",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ci_35.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ci",
+      "file": "9701_s26_ci_37.pdf",
+      "bytes": 148406,
+      "sha256": "a28fe4d1a9d1eac41924baac1f2766f1e79bed03ed17da02e8cd99206490327c",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ci_37.pdf"
+    },
+    {
+      "subject": "9701",
+      "kind": "ci",
+      "file": "9701_s26_ci_38.pdf",
+      "bytes": 150612,
+      "sha256": "abbf55dd1ca246001fa0b65e80f06c3cb88cc6af712b443bd3f9e1811b337807",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9701_s26_ci_38.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "qp",
+      "file": "9702_m26_qp_12.pdf",
+      "bytes": 283183,
+      "sha256": "fcf54e7aedb2325eb361d04512dec3907aacc1db3c8f96ff10528fd8d774339d",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m26_qp_12.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "qp",
+      "file": "9702_m26_qp_22.pdf",
+      "bytes": 101572,
+      "sha256": "cc4a8008e060f47a77770b6146fa75fbaafc942c220a587894418138b2a1bda9",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m26_qp_22.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "qp",
+      "file": "9702_m26_qp_33.pdf",
+      "bytes": 1139140,
+      "sha256": "78dbc49538746c1547b82c5471183d7b0b1a0e3264585d81d21f9c95f467afb0",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m26_qp_33.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "qp",
+      "file": "9702_m26_qp_42.pdf",
+      "bytes": 122756,
+      "sha256": "f795c5dbde871d8fe0ed58898ef1dca427699f3defe59bfa10ef7fa6fb4257aa",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m26_qp_42.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "qp",
+      "file": "9702_m26_qp_52.pdf",
+      "bytes": 73373,
+      "sha256": "d352c93c173e87c35b50b6b97b5f5635c9c635b8e0ec1351a8af6480e5b41bca",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m26_qp_52.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ms",
+      "file": "9702_m26_ms_12.pdf",
+      "bytes": 121317,
+      "sha256": "2c0265a81cdacfc22ed3aba37136a8a6f19d02fac547904b6d1c29a759eb16c4",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m26_ms_12.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ms",
+      "file": "9702_m26_ms_22.pdf",
+      "bytes": 302114,
+      "sha256": "45190ffc7c48eeb89f33e886026f6ee9e12554296c994093adcb15826ec118a6",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m26_ms_22.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ms",
+      "file": "9702_m26_ms_33.pdf",
+      "bytes": 296365,
+      "sha256": "d5104df91de6888c47de3bc5432400c01085e8d90b01f48334e410c14002d594",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m26_ms_33.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ms",
+      "file": "9702_m26_ms_42.pdf",
+      "bytes": 311353,
+      "sha256": "45681de7d87a9d4d9bb3ad4da64ff7f2189c2da0955fbc41a872f5fcb92799e6",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m26_ms_42.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ms",
+      "file": "9702_m26_ms_52.pdf",
+      "bytes": 291318,
+      "sha256": "19ae5bbf07acbdbc46d2f2976c4733a5b3daffdbf2f161ede0fdbbf980c12796",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m26_ms_52.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ci",
+      "file": "9702_m26_ci_33.pdf",
+      "bytes": 135060,
+      "sha256": "a5436f2779ceeb59679295f08dd2518f858f13c0f32f02ccfae7d70f1bdc674a",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_m26_ci_33.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "qp",
+      "file": "9702_s26_qp_11.pdf",
+      "bytes": 243284,
+      "sha256": "9d8f8de011a5c94d851537edc5a25859ca3690f1ab97e2124168bebcfa824885",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_qp_11.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "qp",
+      "file": "9702_s26_qp_12.pdf",
+      "bytes": 216727,
+      "sha256": "d27af02ad51f269d3d8eb900d69db4973766e567cd1c1e4966454baf1c38307b",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_qp_12.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "qp",
+      "file": "9702_s26_qp_13.pdf",
+      "bytes": 245632,
+      "sha256": "f9426614b4c02b6a850fd708a047c9572be13a49196189813dc546396d645deb",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_qp_13.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "qp",
+      "file": "9702_s26_qp_14.pdf",
+      "bytes": 233076,
+      "sha256": "7e3c0fb73e28491409238b2c0328ff2cfdc69d885094c9b0fd35c28c367c0d91",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_qp_14.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "qp",
+      "file": "9702_s26_qp_22.pdf",
+      "bytes": 111132,
+      "sha256": "c5472e90936b4a5ff23d3347ba52b49e6fce32643fdd28361b40dc299d1754e5",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_qp_22.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "qp",
+      "file": "9702_s26_qp_23.pdf",
+      "bytes": 95867,
+      "sha256": "72c53e98614d0b69522f6aa8ac6184778f93c9dd69d1710185f77ffa6ece5f86",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_qp_23.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "qp",
+      "file": "9702_s26_qp_24.pdf",
+      "bytes": 98931,
+      "sha256": "6b11ffb2fba4869096da0c599cbd2509468a8e83064da851d28171904c23db20",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_qp_24.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "qp",
+      "file": "9702_s26_qp_31.pdf",
+      "bytes": 144540,
+      "sha256": "99fb9380393d7789dab6970d5e56c49640906414c2a5b6e3385804547e4afb73",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_qp_31.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "qp",
+      "file": "9702_s26_qp_32.pdf",
+      "bytes": 90242,
+      "sha256": "e3751bc48cb9f35510e737f8966fd6ede5a6bf0866f73afde63351cf45f48be1",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_qp_32.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "qp",
+      "file": "9702_s26_qp_33.pdf",
+      "bytes": 83749,
+      "sha256": "0ffcd80b774ef0aebb121e6ead169dcae2fd554f22f61f1499386ee567dde39f",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_qp_33.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "qp",
+      "file": "9702_s26_qp_34.pdf",
+      "bytes": 86620,
+      "sha256": "eef9c95c51741cf014a39c336002a76bb40c06a57b7ff49d0ab9ed37a189ee98",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_qp_34.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "qp",
+      "file": "9702_s26_qp_35.pdf",
+      "bytes": 85561,
+      "sha256": "0bae7fa1c393272942ac7b0521cc3de66261e85f6ddeefa5f757e50d0eac8df0",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_qp_35.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "qp",
+      "file": "9702_s26_qp_37.pdf",
+      "bytes": 83633,
+      "sha256": "1dc9dc6aa1d115b294ea3d5f6aaddc461a99f926e2f99c0b0e19628b1c181e19",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_qp_37.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "qp",
+      "file": "9702_s26_qp_38.pdf",
+      "bytes": 86468,
+      "sha256": "c4ecd89fda7d4df3d1141fe5bbfee2a685d0c96e77d5881e40209f5d7c78e9d9",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_qp_38.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "qp",
+      "file": "9702_s26_qp_41.pdf",
+      "bytes": 123820,
+      "sha256": "ae58d4c1668cf6cb6685623e7c17bf9c749819aca344c5b099d71fd4b898b7b8",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_qp_41.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "qp",
+      "file": "9702_s26_qp_42.pdf",
+      "bytes": 219242,
+      "sha256": "0b8b31b5f4ef3f298cb01e9854ab7721438b831c243df262b086dc7ca3750444",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_qp_42.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "qp",
+      "file": "9702_s26_qp_43.pdf",
+      "bytes": 123172,
+      "sha256": "99e86af9f1aee7a7510a1bf44c0bfd1e0a775f0b307804ba7ec7a23375552d02",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_qp_43.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "qp",
+      "file": "9702_s26_qp_44.pdf",
+      "bytes": 126286,
+      "sha256": "a2ed6cdd7d10269286fbaa43126e18da92859a45e34be15236fa203256f02cc6",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_qp_44.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "qp",
+      "file": "9702_s26_qp_51.pdf",
+      "bytes": 74156,
+      "sha256": "cef2882915b928ce1fc4601b5b72ff16171937aa38308272286dbc0ad756809f",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_qp_51.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "qp",
+      "file": "9702_s26_qp_52.pdf",
+      "bytes": 131482,
+      "sha256": "1c317cb369e6597e6d17fb2bde1c09773eeafbab0e8e11eccfd6d35016e07021",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_qp_52.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "qp",
+      "file": "9702_s26_qp_53.pdf",
+      "bytes": 73936,
+      "sha256": "d1c39865ea355b77301d1ce61874ea910f16a02b31350f3ead1c1db38af2fa89",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_qp_53.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "qp",
+      "file": "9702_s26_qp_54.pdf",
+      "bytes": 72715,
+      "sha256": "b63e2804b1878bb58bcde51fe78ed8c9b136e8098294262d79da32bac60bd3a2",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_qp_54.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ms",
+      "file": "9702_s26_ms_11.pdf",
+      "bytes": 100280,
+      "sha256": "295640b16ecbad75f574d3742bfa0f5e72c940c5f6de6c1ef4301765dfef4ab2",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ms_11.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ms",
+      "file": "9702_s26_ms_12.pdf",
+      "bytes": 100273,
+      "sha256": "b8514d40b6bcdc6987b6040ae5eb5961b02420536617dbc7782e1b074274e2bf",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ms_12.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ms",
+      "file": "9702_s26_ms_13.pdf",
+      "bytes": 100286,
+      "sha256": "26cb6c704278ee498ec58d73a0dd00a24b3891c3045bdfd5caa9c6c74d198deb",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ms_13.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ms",
+      "file": "9702_s26_ms_14.pdf",
+      "bytes": 100509,
+      "sha256": "b74520684a2f533783e5504d571542a9a4ca16e1503d70a533718953189ed4e3",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ms_14.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ms",
+      "file": "9702_s26_ms_22.pdf",
+      "bytes": 410645,
+      "sha256": "cd0ff5531fc685e58a88b3f6033867deae13ce79d132ebe487db7cf91399a5b9",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ms_22.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ms",
+      "file": "9702_s26_ms_23.pdf",
+      "bytes": 309905,
+      "sha256": "6527935c2eda5bb0a2e31472d77dfb4f608b96420fca4fb14510a6066d5061d5",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ms_23.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ms",
+      "file": "9702_s26_ms_24.pdf",
+      "bytes": 314421,
+      "sha256": "645640bca4fb0d2de3aa53058c7df3c7c4163cbea398df783ca24e08fd434aae",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ms_24.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ms",
+      "file": "9702_s26_ms_31.pdf",
+      "bytes": 335109,
+      "sha256": "5ed0335c4fc40948b7eec55633321f17ad686d2b875d8b72a18a3b49f5bc4f07",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ms_31.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ms",
+      "file": "9702_s26_ms_32.pdf",
+      "bytes": 329750,
+      "sha256": "77e708bd83e359bf4c7ae618becd32e4bf5f248b4c2896e12c38a77c53f4a9a4",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ms_32.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ms",
+      "file": "9702_s26_ms_33.pdf",
+      "bytes": 321133,
+      "sha256": "de0cd16e9da61aebf1bb08eba717a7b96ce30f4d3036bec92f091b2a909eaea7",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ms_33.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ms",
+      "file": "9702_s26_ms_34.pdf",
+      "bytes": 312731,
+      "sha256": "53893fd33841ae0f7f581aed24d0a5ef2b91efcf04becb9de77acdb63080bd53",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ms_34.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ms",
+      "file": "9702_s26_ms_35.pdf",
+      "bytes": 328831,
+      "sha256": "498a4771d9bb13f96fc3f1aaa6d8f647e331179f0d1433ca4e597beda81ee16d",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ms_35.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ms",
+      "file": "9702_s26_ms_37.pdf",
+      "bytes": 321123,
+      "sha256": "145c5ffd39f6c5622104975d4c3d06c5ae0cbd496c6a02da4df6eaca5e5d2b10",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ms_37.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ms",
+      "file": "9702_s26_ms_38.pdf",
+      "bytes": 313039,
+      "sha256": "80028eddaa9aed6d53533a70531276d280a4a114cb49d3adce51c1ed1c75bf32",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ms_38.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ms",
+      "file": "9702_s26_ms_41.pdf",
+      "bytes": 343121,
+      "sha256": "600ac6351fbf71081a39fe5307b3d1169f984b0424e49ae1e899934738e3b111",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ms_41.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ms",
+      "file": "9702_s26_ms_42.pdf",
+      "bytes": 347676,
+      "sha256": "c04c54b0b4a47f893fc2330f428c2985eb42da0d5abfe722a7af0b7c97fee601",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ms_42.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ms",
+      "file": "9702_s26_ms_43.pdf",
+      "bytes": 343164,
+      "sha256": "fdac73570f689697081a6bc1b987d404ee06ffed18b04f1dba2ea4593c8a4838",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ms_43.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ms",
+      "file": "9702_s26_ms_44.pdf",
+      "bytes": 354902,
+      "sha256": "9172908e6049d583361fbcb2def58c8b90054370d7629e2fd327fd8df3848d36",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ms_44.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ms",
+      "file": "9702_s26_ms_51.pdf",
+      "bytes": 305923,
+      "sha256": "0cbac74078eb2379534323a232f109224dd85d18d49d90ef2d22e1eec8235351",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ms_51.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ms",
+      "file": "9702_s26_ms_52.pdf",
+      "bytes": 312744,
+      "sha256": "82a9ec2b3f8cff7e50054b10d23881adabd47e85169cdcc279d7a65d835e8954",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ms_52.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ms",
+      "file": "9702_s26_ms_53.pdf",
+      "bytes": 306154,
+      "sha256": "dd09d558b4c30b545c759e3d5fc317503033760491eb3c9e5f833fcb0662b36e",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ms_53.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ms",
+      "file": "9702_s26_ms_54.pdf",
+      "bytes": 302266,
+      "sha256": "c5b3f06a81e0a8b16ccb6db241fb8dba8bfd0d1273a221c7af7b06118c59ef33",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ms_54.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ci",
+      "file": "9702_s26_ci_31.pdf",
+      "bytes": 134260,
+      "sha256": "2c836ecfdf78c85c7419d35d07dc32c5468fdb166491462baa79c1b515f5229d",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ci_31.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ci",
+      "file": "9702_s26_ci_32.pdf",
+      "bytes": 134557,
+      "sha256": "6f13a903b1ab9ff7ec04d222575d57dd59075c002a978db3e13b5376a8110447",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ci_32.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ci",
+      "file": "9702_s26_ci_33.pdf",
+      "bytes": 138766,
+      "sha256": "01c0347789e3d82dd5f6433540c55a3d3ba55dcaf313ff23a2482ce0d7048d15",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ci_33.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ci",
+      "file": "9702_s26_ci_34.pdf",
+      "bytes": 131031,
+      "sha256": "43442d68ef107fecccb5e86e99fd8c98d3f193167b644e3b3b6769077b515025",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ci_34.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ci",
+      "file": "9702_s26_ci_35.pdf",
+      "bytes": 118223,
+      "sha256": "ccbfee3742d1067cddff573f56df78a67e9619132032fe4f127be2d4407e8280",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ci_35.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ci",
+      "file": "9702_s26_ci_37.pdf",
+      "bytes": 138776,
+      "sha256": "fce9cc32aa943e988774b38258a4a889e1d1ba980b4213b1a973bd1fbd6c40ca",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ci_37.pdf"
+    },
+    {
+      "subject": "9702",
+      "kind": "ci",
+      "file": "9702_s26_ci_38.pdf",
+      "bytes": 131448,
+      "sha256": "90ce607f7736bd0e6fc3327096bdcd4d671998e0878313f901eebae393b80684",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9702_s26_ci_38.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "qp",
+      "file": "9708_m26_qp_12.pdf",
+      "bytes": 111285,
+      "sha256": "0335a81e5e8733961ec260a98ddd61e2e2996699381f62689ccb70a3b657c160",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_m26_qp_12.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "qp",
+      "file": "9708_m26_qp_22.pdf",
+      "bytes": 124122,
+      "sha256": "8b622e5f805a6031ba53ea4c61517368d63a0ce79cdc788e5f9036e7e1f5d4bc",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_m26_qp_22.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "qp",
+      "file": "9708_m26_qp_32.pdf",
+      "bytes": 123260,
+      "sha256": "1f62f0ebe0cf547c95017e7cec95d01f5ad14e03c30e15c162ec784d1eb9386a",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_m26_qp_32.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "qp",
+      "file": "9708_m26_qp_42.pdf",
+      "bytes": 120842,
+      "sha256": "85b369442fef7c6f7d95b46e759006116ba723b73ec346d041a3c5a11bae7684",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_m26_qp_42.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "ms",
+      "file": "9708_m26_ms_12.pdf",
+      "bytes": 121017,
+      "sha256": "cefabdf0783999ac982fb7b4cbacb3b5a39029e1429a33482b46d00c9a9ae201",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_m26_ms_12.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "ms",
+      "file": "9708_m26_ms_22.pdf",
+      "bytes": 337307,
+      "sha256": "10ce7ac6661b99c17cfeda6f0e02a2d8db093ff55518c33b8e72b11e61eaeb2b",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_m26_ms_22.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "ms",
+      "file": "9708_m26_ms_32.pdf",
+      "bytes": 121031,
+      "sha256": "3ed47a0660d2f17ba6ee469197971f69243b589e6e05ca2d4e0a3efa6efca1a2",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_m26_ms_32.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "ms",
+      "file": "9708_m26_ms_42.pdf",
+      "bytes": 336599,
+      "sha256": "d4f4aa97b93e545cd84b676a446d7346e3735023405ffee37f57fa02290e349b",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_m26_ms_42.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "qp",
+      "file": "9708_s26_qp_11.pdf",
+      "bytes": 112463,
+      "sha256": "e902b5cf49c85833b2ea255eeadc9330d9f7ef27af7e09eaeb2c03d4e109811a",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_qp_11.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "qp",
+      "file": "9708_s26_qp_12.pdf",
+      "bytes": 108549,
+      "sha256": "db6cf5e60784161418c29ee5325518ef40bb7e12233f8151667e2bc047730718",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_qp_12.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "qp",
+      "file": "9708_s26_qp_13.pdf",
+      "bytes": 132295,
+      "sha256": "a2c1bb755600d53e69d578cb62a4a4968aee3a6705f8edf8590f292f6c462062",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_qp_13.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "qp",
+      "file": "9708_s26_qp_14.pdf",
+      "bytes": 110317,
+      "sha256": "af9b7e4362e38acd1e67cd10da8dabe7636b032978780a155d17be1e28e528e6",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_qp_14.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "qp",
+      "file": "9708_s26_qp_21.pdf",
+      "bytes": 109857,
+      "sha256": "e580cf446a028e5c71a72c1d23cc30868142c0780c4132753e32524424480e5c",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_qp_21.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "qp",
+      "file": "9708_s26_qp_22.pdf",
+      "bytes": 131196,
+      "sha256": "27404bc8e379fb496fa9eab282c0290f3058a9a58ac3aab88259d11c05539ec4",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_qp_22.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "qp",
+      "file": "9708_s26_qp_23.pdf",
+      "bytes": 133081,
+      "sha256": "e7508400b2c36e14afe7d7cc2e44c75439b04f8edf9f5263e46854e0fb0443e7",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_qp_23.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "qp",
+      "file": "9708_s26_qp_24.pdf",
+      "bytes": 122635,
+      "sha256": "016fd18bc88d6fb67e4efdb9c53473e5b435f703da8f823f2325a0d9f822fe60",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_qp_24.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "qp",
+      "file": "9708_s26_qp_31.pdf",
+      "bytes": 114894,
+      "sha256": "795675105664823e4cffd1d4925411ae532f6e6fc1b944ae8a11b2db0166d540",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_qp_31.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "qp",
+      "file": "9708_s26_qp_32.pdf",
+      "bytes": 120254,
+      "sha256": "96e26045a3bbe3eb66288711dc9fc743b8db44edb0cd5e95e9a507dc2868ac43",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_qp_32.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "qp",
+      "file": "9708_s26_qp_33.pdf",
+      "bytes": 115002,
+      "sha256": "c5eab43ddc7efbadd66f16fe8d312735df88336c9ced31abf52cbaa88dca43ad",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_qp_33.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "qp",
+      "file": "9708_s26_qp_34.pdf",
+      "bytes": 115967,
+      "sha256": "c22b72c0a6484f0b51f21712038fae359f62c4b3ce04a38c20e4f6d6de743616",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_qp_34.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "qp",
+      "file": "9708_s26_qp_41.pdf",
+      "bytes": 122441,
+      "sha256": "684634edeb6135a2a1bee4e041ce38fb609831bc1b411d0bca12c9394a2423b4",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_qp_41.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "qp",
+      "file": "9708_s26_qp_42.pdf",
+      "bytes": 123222,
+      "sha256": "5a02e14bfe0b2a98308dd44897019a3921da456be2ff17add380765d8478b259",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_qp_42.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "qp",
+      "file": "9708_s26_qp_43.pdf",
+      "bytes": 122313,
+      "sha256": "8b6081a2fcb3c3492c763f698c47197b5c01c4ddb0705d20557f4d37cfcd778b",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_qp_43.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "qp",
+      "file": "9708_s26_qp_44.pdf",
+      "bytes": 123521,
+      "sha256": "8f0568946523a35fa29b5e33d1ea4b3fff695cd1fa4376f070b0eab62627a19c",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_qp_44.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "ms",
+      "file": "9708_s26_ms_11.pdf",
+      "bytes": 99972,
+      "sha256": "53d480cf75dd353c9a901c042b7f6be961bd1dcd17bbb9976d9a6aef6f197157",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_ms_11.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "ms",
+      "file": "9708_s26_ms_12.pdf",
+      "bytes": 99975,
+      "sha256": "a628d402137ba5bff7f73dd12c0636974bfa42cab7f7e404783b5d78d6e9131a",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_ms_12.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "ms",
+      "file": "9708_s26_ms_13.pdf",
+      "bytes": 99967,
+      "sha256": "323f01e451f46905622fd331404429b6365c2cb65802493ab34078f80d08a751",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_ms_13.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "ms",
+      "file": "9708_s26_ms_14.pdf",
+      "bytes": 100204,
+      "sha256": "88e516a2259fa9a4c652fe02413c8f4dfd2b286a8cc9965b4229c6d4aa287a6a",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_ms_14.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "ms",
+      "file": "9708_s26_ms_21.pdf",
+      "bytes": 348951,
+      "sha256": "da8b1c9159022a901d2bb0ddc5463245168cf50eaf9a1dcb1378ac3ec1e3b4c5",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_ms_21.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "ms",
+      "file": "9708_s26_ms_22.pdf",
+      "bytes": 364700,
+      "sha256": "720f70cea289d168d5e992d00c1314de8699f1d2a8ca4232444b607002d647a1",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_ms_22.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "ms",
+      "file": "9708_s26_ms_23.pdf",
+      "bytes": 347391,
+      "sha256": "bd03024a1fec1c7f5a6ee69d1211291cfcdd0ab5d65b9ff93f741585818bfb2b",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_ms_23.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "ms",
+      "file": "9708_s26_ms_24.pdf",
+      "bytes": 406986,
+      "sha256": "cfc79e14245f80b0da6fd5f25ab9a00b8d11c81c57bd744cdc7f3c9afb8fa812",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_ms_24.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "ms",
+      "file": "9708_s26_ms_31.pdf",
+      "bytes": 99979,
+      "sha256": "361a6a9e2a43f7f50915a1b4b910fcecfb4b942b27058ff03c515124ed86b137",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_ms_31.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "ms",
+      "file": "9708_s26_ms_32.pdf",
+      "bytes": 99993,
+      "sha256": "00da426194c81d6b5e1841191fe062294d83405fb9236825bed85708e91ee1e0",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_ms_32.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "ms",
+      "file": "9708_s26_ms_33.pdf",
+      "bytes": 99984,
+      "sha256": "6be25d3d04fa4b79358c4166c89f33f827c0e7abd20752680b46d82e068d72f8",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_ms_33.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "ms",
+      "file": "9708_s26_ms_34.pdf",
+      "bytes": 100213,
+      "sha256": "b14956cf0fadd580d1bda82839b0b2c7720127e105def11814699b435a17588c",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_ms_34.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "ms",
+      "file": "9708_s26_ms_41.pdf",
+      "bytes": 280847,
+      "sha256": "c8b2249bf9642c638509c0ed1f44f5b0fcb5a590983fb50b2bbdb73c50d47857",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_ms_41.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "ms",
+      "file": "9708_s26_ms_42.pdf",
+      "bytes": 292860,
+      "sha256": "da541bccd68ff171aa81df79d155437c4471075dd800bff6153b038071120551",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_ms_42.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "ms",
+      "file": "9708_s26_ms_43.pdf",
+      "bytes": 415774,
+      "sha256": "e3eeb4f8f4d0ed70f961dd42d5886315a66dec0c7357a031694fb28ce0f6d0a7",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_ms_43.pdf"
+    },
+    {
+      "subject": "9708",
+      "kind": "ms",
+      "file": "9708_s26_ms_44.pdf",
+      "bytes": 293367,
+      "sha256": "e9531e6550f40ea0640c814dd2136c7edc9e231252420c8538dedf28657e762a",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9708_s26_ms_44.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_m26_qp_12.pdf",
+      "bytes": 101095,
+      "sha256": "47a6c66a3223cc5d8ac920040ac8a845d9887d4011cefde42e923d403aea9652",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_m26_qp_12.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_m26_qp_22.pdf",
+      "bytes": 96297,
+      "sha256": "722fc03a321cc9f34ac4a0a1e0441fa3c891078a0135d499413bd0a67d9f23ec",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_m26_qp_22.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_m26_qp_32.pdf",
+      "bytes": 109421,
+      "sha256": "48afa00e4e00b23dd3d8b1cd726e4bd4bc459c56fb549856b188e9a9efeb81ce",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_m26_qp_32.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_m26_qp_42.pdf",
+      "bytes": 90944,
+      "sha256": "e3a67f509d6947b2d6d492f441dfb83476d1ed9cca132d84450add80448406b0",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_m26_qp_42.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_m26_qp_52.pdf",
+      "bytes": 173328,
+      "sha256": "35ffd0b71e777ef729746fe0e14774108f4228697faa4e6c25c683708e29331c",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_m26_qp_52.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_m26_qp_62.pdf",
+      "bytes": 91681,
+      "sha256": "da53b1b2de6c6094061771e1da1dc2f65af1486dc5c0816a557df14af8f95a4b",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_m26_qp_62.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_m26_ms_12.pdf",
+      "bytes": 431061,
+      "sha256": "17390c93189ee991ab6d7c83b955ac553977ad39f30899f465225f03306fe663",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_m26_ms_12.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_m26_ms_22.pdf",
+      "bytes": 398023,
+      "sha256": "e5821e7df5a0613898442ec0043afa3e3d3eb2865933269d20d21791da73515d",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_m26_ms_22.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_m26_ms_32.pdf",
+      "bytes": 618655,
+      "sha256": "b44d3ff79fcb28931f874b0a45a2151583f05f8d04fc0a8b2b19804cc6275e5b",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_m26_ms_32.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_m26_ms_42.pdf",
+      "bytes": 490747,
+      "sha256": "a59e5c1b7648a28fa4a7e190403eadf88e6d974e970b3d4479af4a139328e304",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_m26_ms_42.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_m26_ms_52.pdf",
+      "bytes": 790351,
+      "sha256": "e81394ca12697d8895be02fe25d0cfe603a68814431d27793803d0b1ed11fdd2",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_m26_ms_52.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_m26_ms_62.pdf",
+      "bytes": 397476,
+      "sha256": "8b3daa7d51fc8baae5a1a089fd92134d3f81180af846d1d7b2247af93343eedf",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_m26_ms_62.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_s26_qp_11.pdf",
+      "bytes": 105992,
+      "sha256": "357180dbca707399ff8765445cb46296601e7cf0c8131e43819d3c156c12c9e6",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_qp_11.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_s26_qp_12.pdf",
+      "bytes": 198530,
+      "sha256": "112a77fb36a47e528a09a64a13b075c519bba7596edd4856809e02dd3207f58b",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_qp_12.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_s26_qp_13.pdf",
+      "bytes": 101493,
+      "sha256": "8d7cb42bf374811b09fddea0474c274e8e9fa5660fbb887ca037424c3a786e8d",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_qp_13.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_s26_qp_15.pdf",
+      "bytes": 102072,
+      "sha256": "1c1dc71d85bac54a11b9c96ecdf8e7f5032752fc690e5ca44c3ffe691abeeebc",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_qp_15.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_s26_qp_21.pdf",
+      "bytes": 92568,
+      "sha256": "4e56d455dc949e7b7d5a25e7eb6a9ed5b7ae27bcdbbe38537a87b3c062ddcb92",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_qp_21.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_s26_qp_22.pdf",
+      "bytes": 96623,
+      "sha256": "59e6d9caf08faf8c3b44efeaef7de872e33d1dd23ea85a5db5461b0f99357006",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_qp_22.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_s26_qp_23.pdf",
+      "bytes": 97280,
+      "sha256": "9c26fd8f5a29d7cd7300ae11cfe107148d53b4a825c787ca1de434d620d61c84",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_qp_23.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_s26_qp_25.pdf",
+      "bytes": 97058,
+      "sha256": "0affdfca33431e5e2984bb019ff45d99f4fe53ece6f03c04e73fbd0e5502f0e4",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_qp_25.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_s26_qp_31.pdf",
+      "bytes": 106126,
+      "sha256": "554ee9840aa74f1e9ac351d99610865a80edf3561845b1b2d14bd02abe3b09ee",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_qp_31.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_s26_qp_32.pdf",
+      "bytes": 203340,
+      "sha256": "d8b35f44a7b11ba5bf625145e8b4378bd6b64a6994bc3b50bbc4d337b59d7b6b",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_qp_32.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_s26_qp_33.pdf",
+      "bytes": 103758,
+      "sha256": "8be863e889fc54c3facfede9e4454f9e09c3aa946e959dc8559e9da69a682903",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_qp_33.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_s26_qp_35.pdf",
+      "bytes": 107256,
+      "sha256": "554ca2bebe4469f6ced522e02cf38e893c139c1f8f6b52ff4738b1034e8d9934",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_qp_35.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_s26_qp_41.pdf",
+      "bytes": 90859,
+      "sha256": "90d80260b80af0c18df0be3105c436243e00a18abb883dbf85ed43a171f21c06",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_qp_41.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_s26_qp_42.pdf",
+      "bytes": 99274,
+      "sha256": "0629474fef3d0466e16db879ec5853c80591a57f33f69cf9248774c5412c89e5",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_qp_42.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_s26_qp_43.pdf",
+      "bytes": 92327,
+      "sha256": "353f1e93826a86d95a0fd7d37d860933be0d950a76b63ead358c77aea8b28f47",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_qp_43.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_s26_qp_45.pdf",
+      "bytes": 93097,
+      "sha256": "22946c256ba977f00df425864e287c8f55a312b65ca6e3c69730f9ab3736ace2",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_qp_45.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_s26_qp_51.pdf",
+      "bytes": 90422,
+      "sha256": "bed76b67ae76eef5594cf071f35373b9112060b9da4687f0a7c8a1d4c84fbd48",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_qp_51.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_s26_qp_52.pdf",
+      "bytes": 87154,
+      "sha256": "13654e19906961553dc4e586d13721b5d10f09857cc67ca0417460edbe3348e0",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_qp_52.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_s26_qp_53.pdf",
+      "bytes": 145607,
+      "sha256": "0c2e55340b971880a73e861660ed887741d4db79bfbe6510070b791330926919",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_qp_53.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_s26_qp_55.pdf",
+      "bytes": 190287,
+      "sha256": "e6e5556c6460f2849d57b238b34fc793caac56fb290d36745704b672aa44cf46",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_qp_55.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_s26_qp_61.pdf",
+      "bytes": 91599,
+      "sha256": "f71ab2d6357b1c3eaf62ffd7218bfd1e01966d4aa828c07aab38fb7d8c7787fb",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_qp_61.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_s26_qp_62.pdf",
+      "bytes": 97957,
+      "sha256": "f2925b07daf03392858223706aa9725bad0c3f536a3c528b825cea79f1dedecc",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_qp_62.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_s26_qp_63.pdf",
+      "bytes": 90822,
+      "sha256": "3a428cf0402bc02267508e9d3b0b191d4214822e573550bf07e658846879a193",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_qp_63.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "qp",
+      "file": "9709_s26_qp_65.pdf",
+      "bytes": 90843,
+      "sha256": "02ca0853b81c09a2b713ef68a287e9ec27d39a19bd6f9083cfce6277b6e8b80a",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_qp_65.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_s26_ms_11.pdf",
+      "bytes": 461700,
+      "sha256": "48f5a1f98203442d7cb56294058c7e65d6af13678b21fd51b12ade652f25dba7",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_ms_11.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_s26_ms_12.pdf",
+      "bytes": 472976,
+      "sha256": "f63046e66bb2526d1ae22362db0ec2316bd5a87479b563d818d1b1df4f6fab42",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_ms_12.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_s26_ms_13.pdf",
+      "bytes": 486248,
+      "sha256": "372528234e09076d59c079d2b67f1f8780ef6830cc0dbcaf72562c2a5f3b2b22",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_ms_13.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_s26_ms_15.pdf",
+      "bytes": 473161,
+      "sha256": "214e474f45b2b8ea07623d6f1127c3b61b9c2a48f66ea659c6bd0c3e06469806",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_ms_15.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_s26_ms_21.pdf",
+      "bytes": 393559,
+      "sha256": "83e925bb3f4cf02bd0c208f29e5acfa543ff4f83b1ebd597bb19a444a68ed0cd",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_ms_21.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_s26_ms_22.pdf",
+      "bytes": 452274,
+      "sha256": "99fb0ddf10c05c7562076ca6f27e55d461e9caa75edf61b4a704fcf4a3f4dcc9",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_ms_22.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_s26_ms_23.pdf",
+      "bytes": 452621,
+      "sha256": "6a77507fe8e67ad19c89b48926d2e630ff6af8df183d099df328a3552a5b00aa",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_ms_23.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_s26_ms_25.pdf",
+      "bytes": 452276,
+      "sha256": "633aa9471c2c08e12ea15a55366e30e0d30fea9d327de2ab33352cb186471f7f",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_ms_25.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_s26_ms_31.pdf",
+      "bytes": 504850,
+      "sha256": "ce9fe863540b03ac100427edb81bd6b37d614413a18fc03e0b1f29aae20e0ab0",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_ms_31.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_s26_ms_32.pdf",
+      "bytes": 562868,
+      "sha256": "e63c1b53dda26d0cd4287aea7fcbe5384888a2f29e4f18d8a1fbbfb1d9a26b1d",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_ms_32.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_s26_ms_33.pdf",
+      "bytes": 620957,
+      "sha256": "8c6d726e524a5d029a991aa7a3dbcf2e9bbe8496cb332d832f6eb0b1ae56a983",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_ms_33.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_s26_ms_35.pdf",
+      "bytes": 695278,
+      "sha256": "f640c1b18292d437fcb77ad5101f40f9f4ae5fc462d1ab72b8738e8926a8c335",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_ms_35.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_s26_ms_41.pdf",
+      "bytes": 520114,
+      "sha256": "1d29a02d6e26f28076c7ecd3c8d5348a8039cabe044d31a4ac3b815511b81a68",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_ms_41.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_s26_ms_42.pdf",
+      "bytes": 489410,
+      "sha256": "492c7daf95e41c515409d4d0faa5e7b389a95186f19b070f776040c2a9a61bfe",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_ms_42.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_s26_ms_43.pdf",
+      "bytes": 545661,
+      "sha256": "d2588ade6e7c07d0a014e719dea91dda947f16db776e0045cb0499c8bc00067a",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_ms_43.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_s26_ms_45.pdf",
+      "bytes": 468243,
+      "sha256": "23676277369d5b3d6eeadd556a2cb5082c0cd75b409114ff34ceda2bed603023",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_ms_45.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_s26_ms_51.pdf",
+      "bytes": 705744,
+      "sha256": "cacf9508069910cd825a83852f3105eb6224d1a644457b13f700f7902c1a5657",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_ms_51.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_s26_ms_52.pdf",
+      "bytes": 634176,
+      "sha256": "81738453145903e9e67ae00a206161983027074733d19d5ab2337ba0333c2f51",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_ms_52.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_s26_ms_53.pdf",
+      "bytes": 675520,
+      "sha256": "0a1033176542e19369ddafab6af1f7453cc89c3f8ffba3b3c24af39ca7a03bfa",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_ms_53.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_s26_ms_55.pdf",
+      "bytes": 1507383,
+      "sha256": "9a76d6105a470495806c0749e802b448c01dc24c78a938c12eef1587d5e98c36",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_ms_55.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_s26_ms_61.pdf",
+      "bytes": 399269,
+      "sha256": "5455f66b5433cf9bd0e81673b593471d9592d38ccfdd6409caa24f13a1d8392d",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_ms_61.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_s26_ms_62.pdf",
+      "bytes": 426686,
+      "sha256": "f4361a51620a23222016736e11adc1942c0ff9629d2cd1d483320a4b2271e49c",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_ms_62.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_s26_ms_63.pdf",
+      "bytes": 406638,
+      "sha256": "151dc5f36fd4cd726bd652513671adf43e550f3986d5a4a35ffb5c3f40fabad7",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_ms_63.pdf"
+    },
+    {
+      "subject": "9709",
+      "kind": "ms",
+      "file": "9709_s26_ms_65.pdf",
+      "bytes": 398351,
+      "sha256": "7ff369dd8fa2f8f4c3b2c2fcb967dd2e33092db2c6ae66e71eb5a2aa300de52a",
+      "sourceUrl": "https://cie.fraft.cn/obj/Common/Fetch/redir/9709_s26_ms_65.pdf"
+    }
+  ]
+}
