@@ -99,6 +99,7 @@
     "test:chapter-ready-infectious-diseases": "node scripts/test-chapter-ready-infectious-diseases.mjs && node scripts/test-chapter-ready-infectious-diseases-api.mjs",
     "test:chapter-ready-immunity": "node scripts/test-chapter-ready-immunity.mjs && node scripts/test-chapter-ready-immunity-api.mjs",
     "test:chapter-study": "node scripts/test-original-foundation-catalog.mjs && node scripts/test-original-foundation-v2-catalog.mjs && node scripts/test-chapter-study-contract.mjs && node scripts/test-chapter-study-v2-contract.mjs",
+    "test:chapter-independent-start": "node scripts/test-chapter-independent-start-contract.mjs",
     "test:paper-catalog-browser": "node scripts/test-paper-catalog-browser.mjs",
     "test:pdf-library-root": "node scripts/test-pdf-library-root.mjs",
     "test:performance": "npm run catalog && node scripts/test-performance-budget.mjs",
