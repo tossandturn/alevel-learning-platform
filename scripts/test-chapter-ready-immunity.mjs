@@ -17,7 +17,8 @@ const routeId = 'cie-9700-as-biology'
 const topicId = '9700-as-topic-11'
 const artifactRoot = path.resolve(process.env.STEM_CHAPTER_READY_IMMUNITY_ROOT
   || 'data/ai-pdf-ingestion/chapter-ready-9700-as-immunity-qwen-20261005-v2')
-const baselineArtifactRoot = path.resolve('data/ai-pdf-ingestion/chapter-ready-9700-as-immunity-qwen-20261004-v1')
+const baselineArtifactRoot = path.resolve(process.env.STEM_CHAPTER_READY_IMMUNITY_BASELINE_ROOT
+  || 'data/ai-pdf-ingestion/chapter-ready-9700-as-immunity-qwen-20261004-v1')
 const libraryRoot = path.resolve(process.env.CIE_LIBRARY_ROOT || 'D:/CodexWork/cie-fraft-fetcher/output/pdf')
 const expectedSourceQuestionIds = Object.freeze([
   'cie-9700-9700_s25_qp_11:q40',
