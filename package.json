@@ -103,6 +103,7 @@
     "test:chapter-ready-enzymes": "node scripts/test-chapter-ready-enzymes.mjs && node scripts/test-chapter-ready-enzymes-api.mjs",
     "test:chapter-ready-cell-membranes": "node scripts/test-chapter-ready-cell-membranes.mjs && node scripts/test-chapter-ready-cell-membranes-api.mjs",
     "test:chapter-ready-cell-membranes-glyphfix": "node scripts/test-chapter-ready-source-page-renderer.mjs && node scripts/test-chapter-ready-cell-membranes-glyphfix.mjs && node scripts/test-chapter-ready-cell-membranes-api.mjs --glyphfix",
+    "test:chapter-ready-mitotic-cell-cycle": "node scripts/test-chapter-ready-independent-review-schema-order.mjs && node scripts/test-chapter-ready-modality-eligibility.mjs && node scripts/test-chapter-ready-qp-only-proof.mjs && node scripts/test-chapter-ready-mitotic-cell-cycle.mjs && node scripts/test-chapter-ready-mitotic-cell-cycle-api.mjs",
     "test:chapter-study": "node scripts/test-original-foundation-catalog.mjs && node scripts/test-original-foundation-v2-catalog.mjs && node scripts/test-chapter-study-contract.mjs && node scripts/test-chapter-study-v2-contract.mjs",
     "test:chapter-independent-start": "node scripts/test-chapter-independent-start-contract.mjs",
     "test:paper-catalog-browser": "node scripts/test-paper-catalog-browser.mjs",
