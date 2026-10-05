@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "pretest": "npm run test:whole-paper-marking && npm run test:catalog-compression && npm run test:native-paper-context && npm run test:objective-answers && npm run test:remediation-contracts && npm run test:remediation-runtime",
+    "pretest": "npm run test:whole-paper-marking && npm run test:catalog-compression && npm run test:native-paper-context && npm run test:objective-answers && npm run test:remediation-contracts && npm run test:remediation-runtime && npm run test:coach-help-intents",
     "test:catalog-compression": "node scripts/test-stem-catalog-compression.mjs && node scripts/test-native-source-region-delivery.mjs",
     "test:native-paper-context": "node scripts/test-native-paper-context.mjs && node scripts/test-native-wechat-entry.mjs && node scripts/test-native-paper-catalog.mjs && node scripts/test-native-runtime-scope.mjs && node scripts/test-native-question-images.mjs && node scripts/test-native-source-page-cache.mjs && node scripts/test-coordinate-source-cache.mjs",
     "test:objective-answers": "node scripts/test-stem-objective-answers.mjs",
@@ -145,7 +145,7 @@
     "test:curriculum-download-assets": "node scripts/test-prepare-curriculum-download-assets.mjs",
     "test:shared-workspace": "node scripts/test-shared-workspace.mjs",
     "test:coach-history": "node scripts/test-coach-history-client.mjs && node scripts/test-stem-coach-conversations.mjs",
-    "test:coach-help-intents": "node scripts/test-coach-client-help-intents.mjs",
+    "test:coach-help-intents": "node scripts/test-coach-client-help-intents.mjs && node scripts/test-coach-math-implication.mjs",
     "test:vocabulary-contract": "node scripts/test-vocabulary-contract.mjs",
     "qa:browser": "node scripts/qa-source-gate.cjs && node scripts/qa-reviewed-9702.cjs && node scripts/qa-practice-student-hierarchy.cjs && node scripts/qa-ai-first-mistakes-syllabus.cjs",
     "qa:student-hierarchy": "node scripts/qa-practice-student-hierarchy.cjs",
