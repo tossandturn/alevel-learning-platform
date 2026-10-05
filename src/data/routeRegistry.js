@@ -14,6 +14,7 @@ import { attach9700AsBiologicalMolecules } from './syllabus/biology-9700-as-biol
 import { attach9700AsEnzymes } from './syllabus/biology-9700-as-enzymes-bridge.js'
 import { attach9700AsCellMembranes } from './syllabus/biology-9700-as-cell-membranes-bridge.js'
 import { attach9700AsMitoticCellCycle } from './syllabus/biology-9700-as-mitotic-cell-cycle-bridge.js'
+import { attach9700AsNucleicAcids } from './syllabus/biology-9700-as-nucleic-acids-bridge.js'
 import { attach9700AsMammalTransport } from './syllabus/biology-9700-as-mammal-transport-bridge.js'
 import { attach9700AsGasExchange } from './syllabus/biology-9700-as-gas-exchange-bridge.js'
 import { attach9700AsInfectiousDiseases } from './syllabus/biology-9700-as-infectious-diseases-bridge.js'
@@ -104,7 +105,7 @@ function cieRoute({ routeId, qualification, stage, subject, subjectId, code, pap
       routeId,
       attach9700AsGasExchange(routeId, attach9700AsMammalTransport(
         routeId,
-        attach9700AsCellStructure(routeId, attach9700AsBiologicalMolecules(routeId, attach9700AsEnzymes(routeId, attach9700AsCellMembranes(routeId, attach9700AsMitoticCellCycle(routeId, syllabusTopics))))),
+        attach9700AsCellStructure(routeId, attach9700AsBiologicalMolecules(routeId, attach9700AsEnzymes(routeId, attach9700AsCellMembranes(routeId, attach9700AsMitoticCellCycle(routeId, attach9700AsNucleicAcids(routeId, syllabusTopics)))))),
       )),
     ),
   )

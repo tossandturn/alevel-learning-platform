@@ -53,6 +53,7 @@ const biologicalMolecules = route.syllabus.topics.find((topic) => topic.id === '
 const enzymes = route.syllabus.topics.find((topic) => topic.id === '9700-as-topic-03')
 const cellMembranes = route.syllabus.topics.find((topic) => topic.id === '9700-as-topic-04')
 const mitoticCellCycle = route.syllabus.topics.find((topic) => topic.id === '9700-as-topic-05')
+const nucleicAcids = route.syllabus.topics.find((topic) => topic.id === '9700-as-topic-06')
 const mammalTransport = route.syllabus.topics.find((topic) => topic.id === '9700-as-topic-08')
 const gasExchange = route.syllabus.topics.find((topic) => topic.id === '9700-as-topic-09')
 const infectiousDiseases = route.syllabus.topics.find((topic) => topic.id === topicId)
@@ -62,6 +63,7 @@ assert.equal(biologicalMolecules.points.length, 23, 'chapter 2 official source m
 assert.equal(enzymes.points.length, 8, 'chapter 3 official source mapping must remain isolated')
 assert.equal(cellMembranes.points.length, 10, 'chapter 4 official source mapping must remain isolated')
 assert.equal(mitoticCellCycle.points.length, 8, 'chapter 5 official source mapping must remain isolated')
+assert.equal(nucleicAcids.points.length, 12, 'chapter 6 official source mapping must remain isolated')
 assert.equal(mammalTransport.points.length, 17, 'chapter 8 official source mapping must remain unchanged')
 assert.equal(gasExchange.points.length, 7, 'chapter 9 official source mapping must remain unchanged')
 assert.equal(infectiousDiseases.points.length, 6, 'chapter 10 must expose the six current official outcomes')
@@ -74,10 +76,10 @@ assert.ok(infectiousDiseases.points.every((point) => (
 )))
 assert.equal(
   route.syllabus.topics
-    .filter((topic) => !['9700-as-topic-01', '9700-as-topic-02', '9700-as-topic-03', '9700-as-topic-04', '9700-as-topic-05', '9700-as-topic-08', '9700-as-topic-09', topicId, '9700-as-topic-11'].includes(topic.id))
+    .filter((topic) => !['9700-as-topic-01', '9700-as-topic-02', '9700-as-topic-03', '9700-as-topic-04', '9700-as-topic-05', '9700-as-topic-06', '9700-as-topic-08', '9700-as-topic-09', topicId, '9700-as-topic-11'].includes(topic.id))
     .filter((topic) => topic.points?.length).length,
   0,
-  'the nine partial official catalogs must not populate the other three AS Biology chapters',
+  'the ten partial official catalogs must not populate the other two AS Biology chapters',
 )
 
 const answers = new Map(artifacts.map((artifact) => {

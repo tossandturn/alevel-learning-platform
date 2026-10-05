@@ -15,21 +15,17 @@ import { syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
 import { assertStudyReleaseInventory } from './study-release-policy.mjs'
 
 const routeId = 'cie-9700-as-biology'
-const topicId = '9700-as-topic-04'
-const artifactRoot = path.resolve(process.env.STEM_CHAPTER_READY_CELL_MEMBRANES_ROOT
-  || 'data/ai-pdf-ingestion/chapter-ready-9700-as-cell-membranes-qwen-20261005-v1')
+const topicId = '9700-as-topic-06'
+const artifactRoot = path.resolve(process.env.STEM_CHAPTER_READY_NUCLEIC_ACIDS_ROOT
+  || 'data/ai-pdf-ingestion/chapter-ready-9700-as-nucleic-acids-qwen-20261005-v1')
 const libraryRoot = path.resolve(process.env.CIE_LIBRARY_ROOT || 'D:/CodexWork/cie-fraft-fetcher/output/pdf')
 const expectedSourceQuestionIds = Object.freeze([
-  'cie-9700-9700_s25_qp_11:q17',
-  'cie-9700-9700_s25_qp_11:q18',
-  'cie-9700-9700_s25_qp_12:q19',
-  'cie-9700-9700_s25_qp_12:q20',
-  'cie-9700-9700_s25_qp_14:q17',
-  'cie-9700-9700_s25_qp_14:q18',
-])
-const heldSourceQuestionIds = Object.freeze([
-  'cie-9700-9700_s25_qp_12:q17',
-  'cie-9700-9700_s25_qp_12:q18',
+  'cie-9700-9700_s25_qp_11:q23',
+  'cie-9700-9700_s25_qp_11:q24',
+  'cie-9700-9700_s25_qp_11:q25',
+  'cie-9700-9700_s25_qp_13:q23',
+  'cie-9700-9700_s25_qp_14:q24',
+  'cie-9700-9700_s25_qp_14:q26',
 ])
 
 function artifactFiles(root) {
@@ -44,18 +40,25 @@ assert.deepEqual(artifacts.map((artifact) => artifact.candidate.questions[0].sou
 
 const expectedVisuals = Object.freeze([
   Object.freeze({
-    sourceQuestionId: 'cie-9700-9700_s25_qp_12:q19',
-    page: 9,
-    region: Object.freeze({ x0: 0.18, y0: 0.10, x1: 0.80, y1: 0.40 }),
-    pixels: Object.freeze([267, 210, 1191, 842]),
-    message: 'Q12/19 region must retain both axes, labels, plotted points and the osmosis curve.',
+    sourceQuestionId: 'cie-9700-9700_s25_qp_11:q25',
+    page: 10,
+    region: Object.freeze({ x0: 0.11, y0: 0.535, x1: 0.59, y1: 0.72 }),
+    pixels: Object.freeze([163, 1126, 878, 1516]),
+    message: 'Q11/25 region must retain both table headers, all A-D rows and borders.',
   }),
   Object.freeze({
-    sourceQuestionId: 'cie-9700-9700_s25_qp_12:q20',
-    page: 10,
-    region: Object.freeze({ x0: 0.10, y0: 0.105, x1: 0.90, y1: 0.31 }),
-    pixels: Object.freeze([148, 221, 1340, 653]),
-    message: 'Q12/20 region must retain all three agar cubes and every dimension label.',
+    sourceQuestionId: 'cie-9700-9700_s25_qp_14:q24',
+    page: 12,
+    region: Object.freeze({ x0: 0.11, y0: 0.29, x1: 0.55, y1: 0.50 }),
+    pixels: Object.freeze([163, 610, 819, 1053]),
+    message: 'Q14/24 region must retain both full table headers, all A-D rows and borders.',
+  }),
+  Object.freeze({
+    sourceQuestionId: 'cie-9700-9700_s25_qp_14:q26',
+    page: 13,
+    region: Object.freeze({ x0: 0.12, y0: 0.10, x1: 0.88, y1: 0.40 }),
+    pixels: Object.freeze([178, 210, 1310, 842]),
+    message: 'Q14/26 region must retain the complete P-Q-R-S transcription diagram and labels.',
   }),
 ])
 for (const expected of expectedVisuals) {
@@ -78,9 +81,9 @@ const expectedPointCounts = Object.freeze({
   '9700-as-topic-01': 12,
   '9700-as-topic-02': 23,
   '9700-as-topic-03': 8,
-  [topicId]: 10,
+  '9700-as-topic-04': 10,
   '9700-as-topic-05': 8,
-  '9700-as-topic-06': 12,
+  [topicId]: 12,
   '9700-as-topic-08': 17,
   '9700-as-topic-09': 7,
   '9700-as-topic-10': 6,
@@ -89,8 +92,8 @@ const expectedPointCounts = Object.freeze({
 for (const [id, count] of Object.entries(expectedPointCounts)) {
   assert.equal(route.syllabus.topics.find((topic) => topic.id === id).points.length, count)
 }
-const cellMembranes = route.syllabus.topics.find((topic) => topic.id === topicId)
-assert.ok(cellMembranes.points.every((point) => point.topicId === topicId && point.stage === 'AS'
+const nucleicAcids = route.syllabus.topics.find((topic) => topic.id === topicId)
+assert.ok(nucleicAcids.points.every((point) => point.topicId === topicId && point.stage === 'AS'
   && point.allowedPaperComponents?.includes(1) && point.allowedPaperComponents?.includes(2)))
 assert.equal(route.syllabus.topics.filter((topic) => !Object.hasOwn(expectedPointCounts, topic.id))
   .filter((topic) => topic.points?.length).length, 0)
@@ -116,7 +119,6 @@ for (const group of singlePassGroups) {
 const groups = createAiVerifiedQuestionBankLoader({ artifactRoot, libraryRoot })().groups
 assert.equal(groups.length, 6)
 assert.equal(new Set(groups.map((group) => group.sourceQuestionId)).size, 6)
-assert.ok(heldSourceQuestionIds.every((id) => !groups.some((group) => group.sourceQuestionId === id)))
 assert.ok(groups.every((group) => group.routeId === routeId && group.knowledgeGroupId === topicId
   && group.paperComponent === 1 && group.studentStudyEligible === true && group.formalProgressEligible === false
   && group.parts.length === 1 && group.parts[0].answerKey === null && group.parts[0].options.length === 0
@@ -187,7 +189,7 @@ const [sameModelLegacyGroup] = questionGroupsFromAiArtifacts([sameModelLegacyArt
 assert.equal(scoreObjectiveQuestion({ question: sameModelLegacyGroup, selectedOption: answers.get(sameModelLegacyGroup.sourceQuestionId), mode: 'topic' }).available, false)
 
 const futurePointArtifact = structuredClone(artifacts[0])
-const futurePointId = 'biology-9700-2099-4-1-99'
+const futurePointId = 'biology-9700-2099-6-1-99'
 for (const document of [futurePointArtifact.candidate, futurePointArtifact.verification]) {
   const question = document.questions[0]
   question.tags.syllabusPointIds = [futurePointId]
@@ -201,7 +203,7 @@ assert.equal(hasValidAiStudentStudyRelease(futurePointArtifact), true)
 assert.equal(questionGroupsFromAiArtifacts([futurePointArtifact], { libraryRoot }).length, 0)
 
 console.log(JSON.stringify({
-  status: 'PASS_CHAPTER_READY_CELL_MEMBRANES', routeId, topicId, studyGroups: groups.length,
+  status: 'PASS_CHAPTER_READY_NUCLEIC_ACIDS', routeId, topicId, studyGroups: groups.length,
   minimumReleaseStudyGroups: 6, releaseEligible: true, chapterStudyStartable: chapter.chapterStudy.startable,
   formalReviewedGroups: chapter.verifiedQuestionCount, ctaPolicy: chapter.ctaPolicy, formalProgressEligible: false,
 }))
