@@ -787,6 +787,9 @@ export function createCoachAttemptAuthorizer({ env = process.env, questionBank =
     const payload = input?.request && input?.payload ? input.payload : payloadArgument
     const context = payload?.context && typeof payload.context === 'object' ? payload.context : {}
     const attemptId = asText(context.attemptId || payload?.attemptId, 120)
+    const authOnlyTavernAttempt = payload?.feature === 'tavern'
+      && Boolean(asText(payload?.attemptId, 120))
+      && !asText(context.attemptId, 120)
     const explicitFullPaperContext = isExplicitFullPaperCoachContext(context)
     if (!attemptId) {
       if (explicitFullPaperContext) throw coachAuthorizationError(409, 'coach_attempt_required', 'Open Coach from a persisted paper attempt.')
@@ -815,7 +818,7 @@ export function createCoachAttemptAuthorizer({ env = process.env, questionBank =
       WHERE user_id = ? AND attempt_id = ?
     `).get(user.id, attemptId)
     if (!row) {
-      if (explicitFullPaperContext) throw coachAuthorizationError(404, 'coach_attempt_not_found', 'This Coach attempt is not available.')
+      if (explicitFullPaperContext || authOnlyTavernAttempt) throw coachAuthorizationError(404, 'coach_attempt_not_found', 'This Coach attempt is not available.')
       return null
     }
 
@@ -897,6 +900,28 @@ export function createCoachAttemptAuthorizer({ env = process.env, questionBank =
     }
     if (persistedStudyMode === 'exam-simulation' && submissionStatus !== 'submitted') {
       throw coachAuthorizationError(403, 'coach_exam_in_progress', 'AI Coach is unavailable until the exam simulation is submitted.')
+    }
+    if (authOnlyTavernAttempt) {
+      const assessmentState = submissionStatus === 'submitted' ? 'submitted-review' : 'bound-practice'
+      return {
+        userId: user.id,
+        attemptId,
+        mode: persistedMode,
+        routeId: persistedRouteId,
+        stage: persistedStage,
+        paperStudyMode: persistedStudyMode,
+        submissionStatus,
+        submitted: submissionStatus === 'submitted',
+        responseStatus: null,
+        coachAccess: {
+          binding: 'authoritative-attempt',
+          assessmentState,
+          solutionAllowed: true,
+          paperStudyMode: persistedStudyMode,
+          submissionStatus,
+          authOnly: true,
+        },
+      }
     }
 
     const questionId = coachQuestionId(context)

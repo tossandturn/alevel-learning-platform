@@ -473,6 +473,9 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
       coachAssessmentState: 'standalone-learning',
       coachCheckWorkRequested: false,
       answerStatus: 'complete',
+      coachFeatureVersion: 'stem-coach-features-v1.0.0',
+      coachFeature: null,
+      coachPersona: null,
     }, 'the non-stream Coach route must invoke the configured provider and return its answer')
   } finally {
     await Promise.all([close(nonStreamAppServer), close(nonStreamProviderServer)])
@@ -914,7 +917,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   )
   assert.match(
     aiSource,
-    /function coachUnavailablePayload[\s\S]{0,700}answer: localGuidance \? localAnswer : ''[\s\S]{0,300}recoveryHint:[\s\S]{0,300}retryable: true[\s\S]{0,300}coachPolicyResponseFields/,
+    /function coachUnavailablePayload[\s\S]{0,800}answer: localGuidance \? localAnswer : ''[\s\S]{0,300}recoveryHint:[\s\S]{0,300}retryable: true[\s\S]{0,300}coachResponseFields/,
     'an unavailable provider must use one shared fail-closed recovery payload instead of a completed AI answer',
   )
   assert.match(

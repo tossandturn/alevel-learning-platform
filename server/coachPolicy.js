@@ -67,16 +67,25 @@ function requestedHelpIntent({ typedIntent, message, hintLevel }) {
   return { helpIntent: 'hint', intentSource: 'default-hint', checkWorkRequested: false }
 }
 
-export function resolveCoachRequestPolicy({ typedIntent = '', message = '', hintLevel = 1, context = {}, authorization = null, verifiedSubmitted = false } = {}) {
-  const requested = requestedHelpIntent({ typedIntent, message, hintLevel })
+export function resolveCoachRequestPolicy({ typedIntent = '', message = '', hintLevel = 1, context = {}, authorization = null, verifiedSubmitted = false, feature = null } = {}) {
+  const inferred = requestedHelpIntent({ typedIntent, message, hintLevel })
+  const requested = feature?.feature === 'steps'
+    ? { helpIntent: 'hint', intentSource: 'feature-steps', checkWorkRequested: inferred.checkWorkRequested }
+    : feature?.feature === 'answers' && inferred.intentSource !== 'natural-language-negation'
+      ? { helpIntent: 'worked-solution', intentSource: 'feature-answers', checkWorkRequested: inferred.checkWorkRequested }
+      : feature?.feature === 'tavern'
+        ? { helpIntent: 'tavern-chat', intentSource: 'feature-tavern', checkWorkRequested: false }
+        : inferred
   const assessment = trustedAssessmentState(authorization) || untrustedAssessmentState(context, verifiedSubmitted)
   const requestedDepth = Math.min(5, Math.max(1, Number(hintLevel) || 1))
-  const helpDepth = requested.helpIntent === 'worked-solution'
+  const helpDepth = requested.helpIntent === 'tavern-chat'
+    ? 1
+    : requested.helpIntent === 'worked-solution'
     ? 5
     : requested.helpIntent === 'check-work'
       ? Math.max(4, requestedDepth)
       : Math.min(4, requestedDepth)
-  const solutionAllowed = assessment.solutionAllowed && requested.helpIntent !== 'hint'
+  const solutionAllowed = assessment.solutionAllowed && !['hint', 'tavern-chat'].includes(requested.helpIntent)
   return Object.freeze({
     policyVersion: COACH_POLICY_VERSION,
     helpIntent: requested.helpIntent,
@@ -101,13 +110,18 @@ export function coachPolicyResponseFields(policy, answerStatus) {
   }
 }
 
-export function buildCoachSystemPrompt({ policy = null, context = {}, verifiedSubmitted = false, hintLevel = 1 } = {}) {
-  const resolved = policy || resolveCoachRequestPolicy({ context, verifiedSubmitted, hintLevel })
+export function buildCoachSystemPrompt({ policy = null, context = {}, verifiedSubmitted = false, hintLevel = 1, feature = null } = {}) {
+  const resolved = policy || resolveCoachRequestPolicy({ context, verifiedSubmitted, hintLevel, feature })
   const subject = context?.subject && typeof context.subject === 'object'
     ? cleanText(context.subject.name || context.subject.code, 100)
     : cleanText(context?.subject, 100)
   const stage = cleanText(context?.stage, 40)
-  const helpInstruction = resolved.solutionAllowed && resolved.helpIntent === 'worked-solution'
+  const featureId = feature?.feature || null
+  const helpInstruction = featureId === 'steps'
+    ? 'Feature steps is strict guidance mode. Give the key concept, a useful method or direction, and exactly one next action. Never provide a final numeric or letter answer, final result, or a complete worked solution, even if the request asks for it.'
+    : featureId === 'answers' && resolved.solutionAllowed
+      ? 'Feature answers is direct solution mode. Identify the question briefly when useful, give a neat complete worked solution, clearly label the final answer, and finish with a concise check of units, signs, conditions or reasonableness. Do not ask for consent or divert to hints.'
+      : resolved.solutionAllowed && resolved.helpIntent === 'worked-solution'
     ? `The student explicitly requested and consented to a worked solution in an allowed learning/review mode. Give a complete teaching solution and final result when the visible data are sufficient.${resolved.checkWorkRequested ? ' Also check the submitted work and identify the first wrong or unsupported step.' : ''}`
     : resolved.solutionAllowed && resolved.helpIntent === 'check-work'
       ? 'Check the student work, give a clear verdict, identify the first wrong or unsupported step, and show the corrected method and result when the visible data are sufficient.'
