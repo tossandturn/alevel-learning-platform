@@ -7,9 +7,12 @@ import { createAiVerifiedQuestionBankLoader } from '../server/aiVerifiedQuestion
 import { scoreObjectiveQuestion } from '../server/objectiveAnswers.js'
 import { hasValidAiStudentStudyRelease, sourceReviewInputSha256 } from './ai-pdf-ingestion/contract.mjs'
 
-const oldRoot = path.resolve('data/ai-pdf-ingestion/chapter-ready-9700-as-cell-membranes-qwen-20261005-v1')
-const newRoot = path.resolve('data/ai-pdf-ingestion/chapter-ready-9700-as-cell-membranes-qwen-20261005-v2')
-const evidenceRoot = path.resolve('.candidate-evidence/9700-as-cell-membranes-promotion-20261005-v2')
+const oldRoot = path.resolve(process.env.STEM_CHAPTER_READY_CELL_MEMBRANES_LEGACY_ROOT
+  || 'data/ai-pdf-ingestion/chapter-ready-9700-as-cell-membranes-qwen-20261005-v1')
+const newRoot = path.resolve(process.env.STEM_CHAPTER_READY_CELL_MEMBRANES_ROOT
+  || 'data/ai-pdf-ingestion/chapter-ready-9700-as-cell-membranes-qwen-20261005-v2')
+const evidenceRoot = path.resolve(process.env.STEM_CHAPTER_READY_CELL_MEMBRANES_EVIDENCE_ROOT
+  || '.candidate-evidence/9700-as-cell-membranes-promotion-20261005-v2')
 const summary = JSON.parse(fs.readFileSync(path.join(evidenceRoot, 'promotion-summary.json'), 'utf8'))
 const acceptance = JSON.parse(fs.readFileSync(path.join(evidenceRoot, 'root-acceptance.json'), 'utf8'))
 const libraryRoot = path.resolve(process.env.CIE_LIBRARY_ROOT || 'D:/CodexWork/cie-fraft-fetcher/output/pdf')
