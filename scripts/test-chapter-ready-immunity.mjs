@@ -74,6 +74,7 @@ const expectedPointCounts = Object.freeze({
   '9700-as-topic-01': 12,
   '9700-as-topic-02': 23,
   '9700-as-topic-03': 8,
+  '9700-as-topic-04': 10,
   '9700-as-topic-08': 17,
   '9700-as-topic-09': 7,
   '9700-as-topic-10': 6,

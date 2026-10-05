@@ -101,6 +101,7 @@
     "test:chapter-ready-cell-structure": "node scripts/test-chapter-ready-cell-structure.mjs && node scripts/test-chapter-ready-cell-structure-api.mjs",
     "test:chapter-ready-biological-molecules": "node scripts/test-chapter-ready-biological-molecules.mjs && node scripts/test-chapter-ready-biological-molecules-api.mjs",
     "test:chapter-ready-enzymes": "node scripts/test-chapter-ready-enzymes.mjs && node scripts/test-chapter-ready-enzymes-api.mjs",
+    "test:chapter-ready-cell-membranes": "node scripts/test-chapter-ready-cell-membranes.mjs && node scripts/test-chapter-ready-cell-membranes-api.mjs",
     "test:chapter-study": "node scripts/test-original-foundation-catalog.mjs && node scripts/test-original-foundation-v2-catalog.mjs && node scripts/test-chapter-study-contract.mjs && node scripts/test-chapter-study-v2-contract.mjs",
     "test:chapter-independent-start": "node scripts/test-chapter-independent-start-contract.mjs",
     "test:paper-catalog-browser": "node scripts/test-paper-catalog-browser.mjs",
