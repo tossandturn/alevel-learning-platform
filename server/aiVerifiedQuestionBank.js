@@ -8,6 +8,7 @@ import {
 } from '../scripts/ai-pdf-ingestion/contract.mjs'
 import { routeById } from '../src/data/routeRegistry.js'
 import { getExamPaperProfile } from '../src/data/examStructure.js'
+import { STEM_AI_PART_EVIDENCE_BINDING_SCHEMA_VERSION } from '../src/lib/sourceContentContract.js'
 import { syllabusPracticeComponentsForRoute } from '../src/lib/syllabusPracticeRoutes.js'
 import { registerAiStudyObjectiveKey, aiStudyObjectiveKey } from './aiStudyObjectiveKeys.js'
 
@@ -162,6 +163,14 @@ function artifactRouteConfig(artifact, metadata) {
   return config
 }
 
+function normalizedPartLabels(value) {
+  if (value === undefined) return Object.freeze([])
+  if (!Array.isArray(value)) return null
+  const labels = value.map((entry) => asText(entry))
+  if (labels.some((label) => !label) || new Set(labels).size !== labels.length) return null
+  return Object.freeze(labels)
+}
+
 function validRegion(region, pageSizes, pageImageHashes) {
   const page = Number(region?.page)
   const bounds = ['x0', 'y0', 'x1', 'y1'].map((key) => Number(region?.[key]))
@@ -170,7 +179,9 @@ function validRegion(region, pageSizes, pageImageHashes) {
   const [x0, y0, x1, y1] = bounds
   if (![x0, y0, x1, y1].every(Number.isFinite) || x0 < 0 || y0 < 0 || x1 > 1 || y1 > 1 || x0 >= x1 || y0 >= y1) return null
   const pageImageSha256 = normalizedHash(region?.pageImageSha256)
+  const partLabels = normalizedPartLabels(region?.partLabels)
   if (!pageImageSha256) return null
+  if (!partLabels) return null
   if (pageImageHashes !== undefined && pageImageHashes !== null
     && normalizedHash(pageImageHashes?.[page]) !== pageImageSha256) return null
   return Object.freeze({
@@ -178,16 +189,41 @@ function validRegion(region, pageSizes, pageImageHashes) {
     pageImageSha256,
     region: Object.freeze([x0, y0, x1, y1]),
     imageSize: Object.freeze([Number(size.width), Number(size.height)]),
+    partLabels,
+    ...(typeof region?.containsQuestionStem === 'boolean' ? { containsQuestionStem: region.containsQuestionStem } : {}),
   })
 }
 
 function validMarkSchemeEvidence(evidence, pageSizes, pageImageHashes) {
   const page = Number(evidence?.page)
   const pageImageSha256 = normalizedHash(evidence?.pageImageSha256)
+  const partLabels = normalizedPartLabels(evidence?.partLabels)
   if (!Number.isInteger(page) || page < 1 || !pageSizes?.[page] || !pageImageSha256) return null
+  if (!partLabels) return null
   if (pageImageHashes !== undefined && pageImageHashes !== null
     && normalizedHash(pageImageHashes?.[page]) !== pageImageSha256) return null
-  return Object.freeze({ page, pageImageSha256 })
+  const coordinateKeys = ['x0', 'y0', 'x1', 'y1']
+  const hasCoordinate = coordinateKeys.some((key) => evidence?.[key] !== undefined && evidence?.[key] !== null)
+  let region = null
+  if (hasCoordinate) {
+    if (!coordinateKeys.every((key) => evidence?.[key] !== undefined && evidence?.[key] !== null)) return null
+    const normalized = validRegion(evidence, pageSizes, pageImageHashes)
+    if (!normalized) return null
+    region = normalized.region
+  }
+  const marks = evidence?.marks === undefined ? null : Number(evidence.marks)
+  if (marks !== null && (!Number.isInteger(marks) || marks <= 0)) return null
+  return Object.freeze({
+    page,
+    pageImageSha256,
+    partLabels,
+    ...(region ? {
+      coordinateSpace: 'normalized-xyxy',
+      region,
+      imageSize: Object.freeze([Number(pageSizes[page].width), Number(pageSizes[page].height)]),
+    } : {}),
+    ...(marks !== null ? { marks } : {}),
+  })
 }
 
 function validRenderDpi(value) {
@@ -204,7 +240,7 @@ function samePartMarks(candidateParts, verifiedParts) {
     && part.label === right[index].label && part.marks === right[index].marks)
 }
 
-function evidenceForRegion(region, sourceHash) {
+function evidenceForRegion(region, sourceHash, evidenceRole = '') {
   return Object.freeze({
     page: region.page,
     documentSha256: sourceHash,
@@ -212,6 +248,22 @@ function evidenceForRegion(region, sourceHash) {
     coordinateSpace: 'normalized-xyxy',
     region: region.region,
     imageSize: region.imageSize,
+    ...(region.partLabels?.length ? { partLabels: region.partLabels } : {}),
+    ...(evidenceRole ? { evidenceRole } : {}),
+  })
+}
+
+function evidenceForMarkScheme(entry, markSchemeHash, evidenceRole = '') {
+  return Object.freeze({
+    page: entry.page,
+    documentSha256: markSchemeHash,
+    pageImageSha256: entry.pageImageSha256,
+    ...(entry.coordinateSpace ? { coordinateSpace: entry.coordinateSpace } : {}),
+    ...(entry.region ? { region: entry.region } : {}),
+    ...(entry.imageSize ? { imageSize: entry.imageSize } : {}),
+    ...(entry.partLabels?.length ? { partLabels: entry.partLabels } : {}),
+    ...(Number.isInteger(entry.marks) ? { marks: entry.marks } : {}),
+    ...(evidenceRole ? { evidenceRole } : {}),
   })
 }
 
@@ -228,7 +280,7 @@ function sameIdList(left, right) {
 }
 
 function regionKey(region) {
-  return [region.page, ...(region.region || []), region.pageImageSha256].join(':')
+  return [region.page, ...(region.region || []), region.pageImageSha256, ...(region.partLabels || [])].join(':')
 }
 
 function sameRegionCollection(left, right) {
@@ -246,6 +298,69 @@ function normalizedEvidence(value, pageSizes, pageImageHashes) {
   if (!Array.isArray(value) || value.length === 0) return null
   const evidence = value.map((entry) => validMarkSchemeEvidence(entry, pageSizes, pageImageHashes))
   return evidence.some((entry) => !entry) ? null : evidence
+}
+
+function normalizedPartPageBinding(part) {
+  const binding = part?.partPageBinding
+  const questionPage = Number(binding?.questionPage)
+  const markSchemePage = Number(binding?.markSchemePage)
+  return binding?.schemaVersion === 'reviewed-part-page-binding-v1'
+    && Number.isInteger(questionPage) && questionPage > 0
+    && Number.isInteger(markSchemePage) && markSchemePage > 0
+    ? Object.freeze({ schemaVersion: binding.schemaVersion, questionPage, markSchemePage })
+    : null
+}
+
+function sameSingleLabel(labels, label) {
+  return Array.isArray(labels) && labels.length === 1 && labels[0] === label
+}
+
+function exactPartEvidenceBindings({ candidate, verification, candidateRegions, candidateDiagrams, markSchemeEvidence }) {
+  const candidateVersion = asText(candidate?.partEvidenceSchemaVersion)
+  const verificationVersion = asText(verification?.partEvidenceSchemaVersion)
+  const optedIn = Boolean(candidateVersion || verificationVersion)
+  if (!optedIn) return Object.freeze({ optedIn: false, byLabel: new Map() })
+  if (candidateVersion !== STEM_AI_PART_EVIDENCE_BINDING_SCHEMA_VERSION
+    || verificationVersion !== STEM_AI_PART_EVIDENCE_BINDING_SCHEMA_VERSION) return null
+
+  const candidateParts = Array.isArray(candidate?.parts) ? candidate.parts : []
+  const verificationParts = Array.isArray(verification?.parts) ? verification.parts : []
+  const labels = candidateParts.map((part) => asText(part?.label))
+  const knownLabels = new Set(labels)
+  if (!labels.length || labels.some((label) => !label) || knownLabels.size !== labels.length) return null
+  if (candidateRegions.some((region) => !sameSingleLabel(region.partLabels, region.partLabels?.[0]) || !knownLabels.has(region.partLabels[0]))) return null
+  if (candidateDiagrams.some((region) => !region.partLabels?.length || region.partLabels.some((label) => !knownLabels.has(label)))) return null
+  if (markSchemeEvidence.some((entry) => !sameSingleLabel(entry.partLabels, entry.partLabels?.[0])
+    || !knownLabels.has(entry.partLabels[0]) || !entry.region || !Number.isInteger(entry.marks))) return null
+
+  const byLabel = new Map()
+  for (const [index, part] of candidateParts.entries()) {
+    const label = labels[index]
+    const verifiedPart = verificationParts[index]
+    const candidatePageBinding = normalizedPartPageBinding(part)
+    const verificationPageBinding = normalizedPartPageBinding(verifiedPart)
+    const qpMatches = candidateRegions.filter((region) => sameSingleLabel(region.partLabels, label))
+    const msMatches = markSchemeEvidence.filter((entry) => sameSingleLabel(entry.partLabels, label))
+    if (!candidatePageBinding || !verificationPageBinding
+      || asText(verifiedPart?.label) !== label
+      || Number(verifiedPart?.marks) !== Number(part?.marks)
+      || JSON.stringify(candidatePageBinding) !== JSON.stringify(verificationPageBinding)
+      || qpMatches.length !== 1
+      || msMatches.length !== 1
+      || qpMatches[0].page !== candidatePageBinding.questionPage
+      || msMatches[0].page !== candidatePageBinding.markSchemePage
+      || msMatches[0].marks !== Number(part.marks)) return null
+    byLabel.set(label, Object.freeze({
+      schemaVersion: STEM_AI_PART_EVIDENCE_BINDING_SCHEMA_VERSION,
+      partLabel: label,
+      questionPage: candidatePageBinding.questionPage,
+      markSchemePage: candidatePageBinding.markSchemePage,
+      questionRegion: qpMatches[0],
+      markSchemeRegion: msMatches[0],
+      sharedDiagramRegions: Object.freeze(candidateDiagrams.filter((region) => region.partLabels.includes(label))),
+    }))
+  }
+  return Object.freeze({ optedIn: true, byLabel })
 }
 
 function questionFromArtifact(artifact, candidate, verification, metadata, routeConfig) {
@@ -312,26 +427,54 @@ function questionFromArtifact(artifact, candidate, verification, metadata, route
     || !sameRegionCollection(diagramRegions, verificationDiagrams)) return null
   if (!verifiedEvidence || JSON.stringify(markSchemeEvidence) !== JSON.stringify(verifiedEvidence)) return null
   if (JSON.stringify(questionPages) !== JSON.stringify(verificationPages)) return null
+  const exactBindings = exactPartEvidenceBindings({
+    candidate,
+    verification,
+    candidateRegions,
+    candidateDiagrams: diagramRegions,
+    markSchemeEvidence,
+  })
+  if (!exactBindings) return null
   const questionId = `${metadata.paperId}:q${number}`
-  const parts = candidate.parts.map((part) => Object.freeze({
-    partId: `${questionId}:part-${asText(part.label)}`,
-    label: asText(part.label),
-    promptFragment: asText(part.ocrText),
-    marks: Number(part.marks),
-    questionDeclaredMarks: Number(part.marks),
-    markSource: 'ai-verified-qp-ms-v1',
-    answerArea: Object.freeze({ type: 'handwritten' }),
-    options: Object.freeze([]),
-    markSchemePoints: Object.freeze([]),
-    answerKey: null,
-    answerText: '',
-    sourcePage: questionPages[0],
-    answerSourcePage: markSchemeEvidence[0].page,
-    sourceEvidence: Object.freeze(regions.map((region) => evidenceForRegion(region, sourceHash))),
-    markSchemeEvidence: Object.freeze(markSchemeEvidence),
-    sourceRegion: null,
-    sourceFocus: null,
-  }))
+  const parts = candidate.parts.map((part) => {
+    const label = asText(part.label)
+    const exact = exactBindings.byLabel.get(label)
+    const sourceEvidence = exact
+      ? [
+          evidenceForRegion(exact.questionRegion, sourceHash, 'question-part'),
+          ...exact.sharedDiagramRegions.map((region) => evidenceForRegion(region, sourceHash, 'shared-diagram')),
+        ]
+      : regions.map((region) => evidenceForRegion(region, sourceHash))
+    const partMarkSchemeEvidence = exact
+      ? [evidenceForMarkScheme(exact.markSchemeRegion, markSchemeHash, 'mark-scheme-part')]
+      : markSchemeEvidence.map((entry) => evidenceForMarkScheme(entry, markSchemeHash))
+    return Object.freeze({
+      partId: `${questionId}:part-${label}`,
+      label,
+      promptFragment: asText(part.ocrText),
+      marks: Number(part.marks),
+      questionDeclaredMarks: Number(part.marks),
+      markSource: 'ai-verified-qp-ms-v1',
+      answerArea: Object.freeze({ type: 'handwritten' }),
+      options: Object.freeze([]),
+      markSchemePoints: Object.freeze([]),
+      answerKey: null,
+      answerText: '',
+      sourcePage: exact?.questionPage || questionPages[0],
+      answerSourcePage: exact?.markSchemePage || markSchemeEvidence[0].page,
+      sourceEvidence: Object.freeze(sourceEvidence),
+      markSchemeEvidence: Object.freeze(partMarkSchemeEvidence),
+      partEvidenceBinding: exact ? Object.freeze({
+        schemaVersion: exact.schemaVersion,
+        status: 'exact',
+        partLabel: exact.partLabel,
+        questionPage: exact.questionPage,
+        markSchemePage: exact.markSchemePage,
+      }) : null,
+      sourceRegion: null,
+      sourceFocus: null,
+    })
+  })
   const totalMarks = parts.reduce((sum, part) => sum + part.marks, 0)
   if (!totalMarks) return null
   const sourceRef = Object.freeze({
@@ -392,6 +535,7 @@ function questionFromArtifact(artifact, candidate, verification, metadata, route
       coordinateSpace: 'normalized-xyxy',
       region: region.region,
       imageSize: region.imageSize,
+      ...(region.partLabels?.length ? { partLabels: region.partLabels } : {}),
     }))),
     sourceRef,
     answerRef,

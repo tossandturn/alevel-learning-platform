@@ -9,6 +9,7 @@ import {
   auditedQuestionAssetEvidence,
   canonicalAiMarkingProvenance,
   documentPageFromAssetUrl,
+  exactPartEvidenceFieldsMatch,
   requiredMarkSchemeAssetEvidence,
   requiredSourceAssetEvidence,
   STEM_AI_COORDINATE_SOURCE_BINDING_SCHEMA_VERSION,
@@ -645,6 +646,7 @@ export function canonicalHandwritingMarkingContext(payload = {}, { questionBank 
       && JSON.stringify(sourceEvidence.region || null) === JSON.stringify(canonicalProvenance.sourceEvidence.region || null)
       && Number(sourceEvidence.markSchemePage) === Number(canonicalProvenance.sourceEvidence.markSchemePage)
       && String(sourceEvidence.markSchemePageImageSha256 || '') === String(canonicalProvenance.sourceEvidence.markSchemePageImageSha256 || '')
+      && exactPartEvidenceFieldsMatch(sourceEvidence, canonicalProvenance.sourceEvidence)
     ))
   if (reviewSchemaVersion !== canonicalProvenance.reviewSchemaVersion
     || bindingSignature !== canonicalProvenance.bindingSignature

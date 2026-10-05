@@ -1,6 +1,6 @@
 import crypto from 'node:crypto'
 import { isAiMarkablePastPaperItem } from '../src/data/questionBank.js'
-import { canonicalAiMarkingProvenance } from '../src/lib/sourceContentContract.js'
+import { canonicalAiMarkingProvenance, exactPartEvidenceFieldsMatch } from '../src/lib/sourceContentContract.js'
 
 export const MARKING_CAPABILITY_ISSUER = 'stem.ieltsist.com'
 export const MARKING_CAPABILITY_AUDIENCE = 'stem-ai'
@@ -96,7 +96,8 @@ function matchingCanonicalProvenance(provided, canonical) {
     && Number(sourceEvidence.page) === Number(expectedEvidence.page)
     && sourceEvidence.assetUrl === expectedEvidence.assetUrl
     && sourceEvidence.assetSha256 === expectedEvidence.assetSha256
-    && sourceEvidence.quote === expectedEvidence.quote,
+    && sourceEvidence.quote === expectedEvidence.quote
+    && exactPartEvidenceFieldsMatch(sourceEvidence, expectedEvidence),
   )
 }
 
@@ -271,6 +272,7 @@ export function verifyMarkingCapability({ request, payload = {}, identitySigning
     && sourceEvidence.assetUrl === grantEvidence.assetUrl
     && sourceEvidence.assetSha256 === grantEvidence.assetSha256
     && sourceEvidence.quote === grantEvidence.quote
+    && exactPartEvidenceFieldsMatch(sourceEvidence, grantEvidence)
   if (!matches) return rejected('marking_capability_mismatch', 'This AI marking capability does not match the submitted response.')
   return Object.freeze({ ok: true, userId: identity.id, claims: grant })
 }

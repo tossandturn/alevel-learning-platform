@@ -2,7 +2,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { isHumanReviewedPastPaperItem, isStudentReleasedAiStudyItem, studyQuestionBank, unifiedQuestionBank } from '../src/data/questionBank.js'
-import { auditedQuestionAssetEvidence, canonicalAiMarkingProvenance, canonicalSourcePracticeProvenance } from '../src/lib/sourceContentContract.js'
+import { auditedQuestionAssetEvidence, canonicalAiMarkingProvenance, canonicalSourcePracticeProvenance, exactPartEvidenceFieldsMatch } from '../src/lib/sourceContentContract.js'
 import { listAiPdfIngestionCandidates, resolveAiPdfIngestionRoot } from './aiPdfIngestionCandidates.js'
 import { issueMarkingCapabilities } from './markingCapability.js'
 import { buildSyllabusPracticeSet, normalizeChapterStudySourcePreference, normalizeSyllabusPracticeStudyMode, rebindSyllabusPracticeUnit, seedSyllabusTables, syllabusDatabaseInventory, syllabusTopicsInventory, SYLLABUS_PRACTICE_STUDY_MODES } from '../src/lib/syllabusPractice.js'
@@ -927,6 +927,7 @@ function canonicalAttemptProvenanceMatches(provided, canonical) {
     && (!expectedEvidence.region || JSON.stringify(sourceEvidence.region) === JSON.stringify(expectedEvidence.region))
     && (!expectedEvidence.markSchemePage || Number(sourceEvidence.markSchemePage) === Number(expectedEvidence.markSchemePage))
     && (!expectedEvidence.markSchemePageImageSha256 || sourceEvidence.markSchemePageImageSha256 === expectedEvidence.markSchemePageImageSha256)
+    && exactPartEvidenceFieldsMatch(sourceEvidence, expectedEvidence)
   )
 }
 
