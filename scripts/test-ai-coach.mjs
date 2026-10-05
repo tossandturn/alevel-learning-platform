@@ -466,6 +466,13 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
       providerStatus: 'connected',
       answer: 'non-stream answer',
       model: 'qwen-test-non-stream',
+      coachPolicyVersion: 'stem-coach-policy-v2.0.0',
+      coachHelpIntent: 'hint',
+      coachHelpDepth: 3,
+      coachSolutionAllowed: false,
+      coachAssessmentState: 'standalone-learning',
+      coachCheckWorkRequested: false,
+      answerStatus: 'complete',
     }, 'the non-stream Coach route must invoke the configured provider and return its answer')
   } finally {
     await Promise.all([close(nonStreamAppServer), close(nonStreamProviderServer)])
@@ -905,7 +912,16 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
     /const ownerChanged = hydratedStorageOwnerRef\.current !== storageOwnerId[\s\S]{0,2500}if \(ownerChanged\) setOpen\(false\)/,
     'opening a saved Coach conversation must retain the drawer; only an account switch may close it',
   )
-  assert.match(aiSource, /providerStatus: 'not_configured'[\s\S]{0,300}retryable: true/, 'an unavailable streamed provider must expose a retry action')
+  assert.match(
+    aiSource,
+    /function coachUnavailablePayload[\s\S]{0,700}answer: localGuidance \? localAnswer : ''[\s\S]{0,300}recoveryHint:[\s\S]{0,300}retryable: true[\s\S]{0,300}coachPolicyResponseFields/,
+    'an unavailable provider must use one shared fail-closed recovery payload instead of a completed AI answer',
+  )
+  assert.match(
+    aiSource,
+    /if \(!activeProviders\.length\)[\s\S]{0,500}coachUnavailablePayload\([\s\S]{0,400}providerStatus: 'not_configured'/,
+    'an unavailable streamed provider must expose the shared retryable recovery contract',
+  )
   assert.match(viteSource, /createCoachAttemptAuthorizer\(\{ env, questionBankProvider: runtimeAiGroups \}\)/, 'the Coach authorizer must revalidate dynamic reviewed source bindings')
   assert.match(appSource, /disabled=\{Boolean\(accountDialogMode \|\| accountPopoverOpen\)\}/, 'account overlays must disable the floating Coach layer')
   assert.match(coachSource, /if \(disabled\) return null/, 'account overlays must remove the Coach DOM entirely instead of merely moving it behind a modal')
