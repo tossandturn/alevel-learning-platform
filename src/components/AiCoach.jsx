@@ -3,6 +3,13 @@ import { flushSync } from 'react-dom'
 import { BrainCircuit, Camera, FileText, History, ImagePlus, MonitorUp, RefreshCcw, Send, Sparkles, Upload, Wrench, X } from 'lucide-react'
 import { resolveCoachIntent } from '../lib/coachIntent'
 import {
+  buildCoachHelpRequest,
+  coachHelpDisplayMessage,
+  coachHelpPolicy,
+  coachResponseOutcome,
+  COACH_HELP_INTENTS,
+} from '../lib/coachHelpIntent'
+import {
   buildCoachConversationId,
   buildCoachRetryRequest,
   buildCoachStorageKey,
@@ -159,6 +166,7 @@ export function AiCoach({
     }
     return mergeCoachContext(context, persisted)
   }, [context, selectedConversation])
+  const helpPolicy = useMemo(() => coachHelpPolicy(activeContext), [activeContext])
   const conversationId = selectedConversation?.conversationId || baseConversationId
   const storageKey = buildCoachStorageKey(conversationId, storageOwnerId)
   const historyScope = sharedIdentityToken && sharedOwnerId ? `${storageKey}:${sharedOwnerId}` : ''
@@ -521,13 +529,22 @@ export function AiCoach({
       : imageDataUrls
     ).map((attachment, index) => asImageAttachment(attachment, index)).slice(0, MAX_COACH_IMAGE_ATTACHMENTS)
     const attachments = attachmentItems.map(attachmentDataUrl).filter(Boolean)
+    const helpRequest = buildCoachHelpRequest({
+      helpIntent: options.helpIntent,
+      message: clean,
+      context: contextRef.current,
+      hasAttachments: attachments.length > 0,
+    })
+    const requestMessage = helpRequest.message
+    const requestLevel = helpRequest.helpIntent ? helpRequest.hintLevel : level
     const retryAssistantId = String(options.retryAssistantId || '')
     const retryWarning = String(options.retryWarning || '')
-    if ((!clean && !attachments.length) || loading) return
+    if ((!requestMessage && !attachments.length) || loading) return
     const studentMessage = {
       id: `coach-user-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
       role: 'user',
-      content: clean || 'Please check the attached work.',
+      content: coachHelpDisplayMessage(helpRequest.helpIntent, clean),
+      ...(helpRequest.helpIntent ? { helpIntent: helpRequest.helpIntent } : {}),
       imageDataUrls: attachments,
       attachmentCount: attachments.length,
       createdAt: new Date().toISOString(),
@@ -538,7 +555,7 @@ export function AiCoach({
       : messages.slice(-10).map(({ role, content }) => ({ role, content }))
     const intent = Object.hasOwn(options, 'intent')
       ? options.intent
-      : attachments.length ? null : resolveCoachIntent(clean, previous)
+      : attachments.length ? null : resolveCoachIntent(requestMessage, previous)
     const assistantId = retryAssistantId || `coach-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`
     const updateAssistant = (patch) => {
       const updatedAt = new Date().toISOString()
@@ -559,7 +576,7 @@ export function AiCoach({
       })
     }
     if (retryAssistantId) {
-      updateAssistant({ content: 'Retrying Coach response...', mode: 'streaming', status: 'retrying', hintLevel: level, warning: retryWarning })
+      updateAssistant({ content: 'Retrying Coach response...', mode: 'streaming', status: 'retrying', hintLevel: requestLevel, warning: retryWarning })
     } else {
       setMessages((current) => {
         const next = [...current, studentMessage]
@@ -571,7 +588,7 @@ export function AiCoach({
     setLoading(true)
     setError('')
     setRetryRequest(null)
-    lastRequestRef.current = { assistantId, message: studentMessage.content, level, attachments, previous, intent }
+    lastRequestRef.current = { assistantId, message: clean, level: requestLevel, attachments, previous, intent, helpIntent: helpRequest.helpIntent }
     requestAbortRef.current?.abort()
     const controller = new AbortController()
     requestAbortRef.current = controller
@@ -589,7 +606,7 @@ export function AiCoach({
       }
 
       const coachContext = mergeCoachContext(contextRef.current, persistedCoachContextRef.current)
-      updateAssistant({ content: 'Preparing Coach response...', mode: 'streaming', status: 'streaming', hintLevel: level, warning: retryWarning })
+      updateAssistant({ content: 'Preparing Coach response...', mode: 'streaming', status: 'streaming', hintLevel: requestLevel, warning: retryWarning })
       const response = await fetch('/api/ai/coach/stream', {
         method: 'POST',
         headers: {
@@ -597,10 +614,11 @@ export function AiCoach({
           ...(sharedIdentityToken ? { Authorization: `Bearer ${sharedIdentityToken}` } : {}),
         },
         body: JSON.stringify({
-          message: studentMessage.content,
+          message: requestMessage,
           history: previous,
           context: intent?.type === 'clarify-practice' ? { ...coachContext, agentIntent: intent } : coachContext,
-          hintLevel: level,
+          hintLevel: requestLevel,
+          ...(helpRequest.helpIntent ? { helpIntent: helpRequest.helpIntent } : {}),
           imageDataUrls: attachments,
         }),
         signal: controller.signal,
@@ -612,23 +630,24 @@ export function AiCoach({
       }
       if (!contentType.includes('text/event-stream')) {
         const payload = await response.json().catch(() => ({}))
-        const answer = String(payload.answer || '').trim() || 'AI Coach returned an empty response.'
-        const retryable = Boolean(payload.retryable)
-        const partial = Boolean(payload.partial) || payload.mode === 'interrupted'
+        const outcome = coachResponseOutcome(payload, '', {
+          hasAttachments: attachments.length > 0,
+          helpIntent: helpRequest.helpIntent,
+        })
         updateAssistant({
-          content: answer,
-          mode: partial ? 'interrupted' : payload.mode || 'ai',
-          status: retryable ? (partial ? 'interrupted' : 'failed') : payload.mode === 'offline' ? 'fallback' : 'completed',
+          content: outcome.content,
+          mode: outcome.mode,
+          status: outcome.status,
           warning: payload.warning || '',
         })
-        if (retryable) {
-          setRetryRequest({ assistantId, message: studentMessage.content, level, attachments, previous, intent, unavailableAttachmentCount: 0 })
-          setError(payload.warning || (partial
+        if (outcome.retryable) {
+          setRetryRequest({ assistantId, message: clean, level: requestLevel, attachments, previous, intent, helpIntent: helpRequest.helpIntent, unavailableAttachmentCount: 0 })
+          setDraft(clean)
+          setError(payload.warning || (outcome.status === 'interrupted'
             ? 'The connection was interrupted. The partial response was kept; retry to continue.'
             : 'AI Coach is temporarily unavailable. Retry to continue.'))
         }
         streamCompleted = true
-        if (payload.mode === 'offline') setError(payload.warning || 'AI Coach is offline. This response is only a controlled offline hint.')
       } else {
         const reader = response.body?.getReader()
         if (!reader) throw new Error('AI Coach returned no stream body.')
@@ -641,7 +660,7 @@ export function AiCoach({
           const { eventName, payload } = parsed
           if (eventName === 'delta') {
             streamedAnswer += String(payload.text || '')
-            updateAssistant({ content: streamedAnswer, mode: 'ai', status: 'streaming', hintLevel: level, warning: retryWarning })
+            updateAssistant({ content: streamedAnswer, mode: 'ai', status: 'streaming', hintLevel: requestLevel, warning: retryWarning })
           }
           if (eventName === 'reset') {
             streamedAnswer = ''
@@ -649,22 +668,24 @@ export function AiCoach({
           }
           if (eventName === 'done') {
             streamCompleted = true
-            const retryable = Boolean(payload.retryable)
-            const partial = Boolean(payload.partial) || payload.mode === 'interrupted'
+            const outcome = coachResponseOutcome(payload, streamedAnswer, {
+              hasAttachments: attachments.length > 0,
+              helpIntent: helpRequest.helpIntent,
+            })
             updateAssistant({
-              content: String(payload.answer || streamedAnswer || '').trim() || 'AI Coach returned an empty response.',
-              mode: partial ? 'interrupted' : payload.mode || 'ai',
-              status: retryable ? (partial ? 'interrupted' : 'failed') : payload.mode === 'offline' ? 'fallback' : 'completed',
-              hintLevel: level,
+              content: outcome.content,
+              mode: outcome.mode,
+              status: outcome.status,
+              hintLevel: requestLevel,
               warning: payload.warning || retryWarning,
             })
-            if (retryable) {
-              setRetryRequest({ assistantId, message: studentMessage.content, level, attachments, previous, intent, unavailableAttachmentCount: 0 })
-              setError(payload.warning || (partial
+            if (outcome.retryable) {
+              setRetryRequest({ assistantId, message: clean, level: requestLevel, attachments, previous, intent, helpIntent: helpRequest.helpIntent, unavailableAttachmentCount: 0 })
+              setDraft(clean)
+              setError(payload.warning || (outcome.status === 'interrupted'
                 ? 'The connection was interrupted. The partial response was kept; retry to continue.'
                 : 'AI Coach is temporarily unavailable. Retry to continue.'))
             }
-            if (payload.mode === 'offline') setError(payload.warning || 'AI Coach is offline. This response is only a controlled offline hint.')
           }
           if (eventName === 'meta' && payload.mode) updateAssistant({ mode: payload.mode, provider: payload.provider || '' })
         }
@@ -679,8 +700,7 @@ export function AiCoach({
         if (buffer) consumeEvent(buffer)
         if (!streamCompleted) throw new Error('The response stream ended before completion.')
       }
-      setImageDataUrls([])
-      if (/hint|提示|下一步|截图|手写/i.test(clean)) setHintLevel((current) => Math.min(5, current + 1))
+      if (helpRequest.helpIntent === COACH_HELP_INTENTS.HINT || /hint|提示|下一步|截图|手写/i.test(clean)) setHintLevel((current) => Math.min(5, current + 1))
     } catch (requestError) {
       const failure = coachStreamFailureState({
         error: requestError,
@@ -694,11 +714,12 @@ export function AiCoach({
         content: failure.content,
         mode: failure.mode,
         status: failure.status,
-        hintLevel: level,
+        hintLevel: requestLevel,
         warning: failure.warning || retryWarning,
       })
       if (failure.retryable) {
-        setRetryRequest({ assistantId, message: studentMessage.content, level, attachments, previous, intent, unavailableAttachmentCount: 0 })
+        setRetryRequest({ assistantId, message: clean, level: requestLevel, attachments, previous, intent, helpIntent: helpRequest.helpIntent, unavailableAttachmentCount: 0 })
+        setDraft(clean)
         setError(failure.status === 'interrupted'
           ? 'The connection was interrupted. The partial response was kept; retry to continue.'
           : failure.warning || 'AI Coach is temporarily unavailable.')
@@ -722,6 +743,7 @@ export function AiCoach({
       attachments: retry.attachments,
       history: retry.previous,
       intent: retry.intent,
+      helpIntent: retry.helpIntent,
       retryAssistantId: retry.assistantId,
       retryWarning,
     })
@@ -958,7 +980,19 @@ export function AiCoach({
         <div className="ai-coach__context">
           <span>{activeContext.stage || 'Cambridge practice'}</span>
           <strong>{activeContext.question?.prompt || selectedConversation?.title || 'Choose a question and ask about the next step.'}</strong>
-          {!activeContext.submitted && <small>Before submission, Coach gives progressive hints without revealing the final answer.</small>}
+          <small role={helpPolicy.solutionDisabled ? 'status' : undefined}>{helpPolicy.solutionDisabledReason || 'Choose a hint, a complete worked answer, or a check of your own method.'}</small>
+        </div>
+
+        <div className="ai-coach__quick-actions" role="group" aria-label="Choose Coach help depth">
+          <button type="button" disabled={loading || preparingImages} onClick={() => ask(draft, 2, { helpIntent: COACH_HELP_INTENTS.HINT })}>Hint</button>
+          <button
+            type="button"
+            disabled={loading || preparingImages || helpPolicy.solutionDisabled}
+            aria-disabled={helpPolicy.solutionDisabled}
+            title={helpPolicy.solutionDisabledReason || 'Show a complete worked answer'}
+            onClick={() => ask(draft, 5, { helpIntent: COACH_HELP_INTENTS.WORKED_SOLUTION })}
+          >Full answer</button>
+          <button type="button" disabled={loading || preparingImages} onClick={() => ask(draft, 4, { helpIntent: COACH_HELP_INTENTS.CHECK_WORK })}>Check work</button>
         </div>
 
         <details className="ai-coach__tools">
@@ -968,9 +1002,7 @@ export function AiCoach({
             <button ref={captureButtonRef} type="button" className="ai-coach__screenshot" aria-label="Capture question area" disabled={capturing} onClick={captureCurrentPage}><MonitorUp size={13} />{capturing ? 'Capturing...' : 'Capture question area'}</button>
             <button type="button" className="ai-coach__screenshot" aria-label="Provide screenshot or upload photo" disabled={preparingImages || imageDataUrls.length >= MAX_COACH_IMAGE_ATTACHMENTS} onClick={() => screenshotInputRef.current?.click()}><Upload size={13} />{preparingImages ? 'Preparing...' : `Upload photo (${imageDataUrls.length}/${MAX_COACH_IMAGE_ATTACHMENTS})`}</button>
             {canOpenBphoSpc && <button type="button" onClick={() => ask('打开最新的 BPhO SPC 真题，带答案。')}><FileText size={13} />Latest BPhO SPC</button>}
-            <button type="button" onClick={() => ask('Give me a hint for the next step.', hintLevel)}>Hint {hintLevel}/5</button>
-            <button type="button" onClick={() => ask('Check my method and identify the first issue.', 3)}>Check method</button>
-            {hasImageAttachments && <button type="button" onClick={() => ask('Read my attached work. Give me the first issue and one next step, without giving the final answer.', hintLevel)}><ImagePlus size={13} />Review {imageDataUrls.length > 1 ? 'photos' : 'photo'}</button>}
+            {hasImageAttachments && <button type="button" onClick={() => ask(draft, 4, { helpIntent: COACH_HELP_INTENTS.CHECK_WORK })}><ImagePlus size={13} />Check {imageDataUrls.length > 1 ? 'photos' : 'photo'}</button>}
             <button type="button" onClick={() => ask('What should I practise next based on this response?', 2)}>Next practice</button>
           </div>
         </details>
@@ -994,7 +1026,7 @@ export function AiCoach({
               {!message.imageDataUrls?.length && message.attachmentCount > 0 ? <small>{message.attachmentCount} photos were attached to this message.</small> : null}
               {message.warning && <small>{message.warning}</small>}
               {message.role === 'assistant' && message.mode === 'local' && <small>Local hint first. Ask for a detailed explanation to use AI Coach.</small>}
-              {message.role === 'assistant' && message.mode === 'offline' && <small>Offline hint only; retry when AI Coach is available.</small>}
+              {message.role === 'assistant' && message.mode === 'offline' && <small>No answer was completed. Your input is preserved for retry.</small>}
               {message.role === 'assistant' && retryRequest?.assistantId === message.id && <>
                 {retryRequest.unavailableAttachmentCount > 0 && <small>Original photos are not kept in account history. Retry can continue with the saved question and text context.</small>}
                 <button type="button" className="ai-message__retry" disabled={loading} onClick={retryLastRequest}><RefreshCcw size={13} />Retry</button>
@@ -1009,7 +1041,7 @@ export function AiCoach({
           <div className="ai-coach__photo-actions" aria-label="Photograph or upload a question">
             <button type="button" disabled={preparingImages || loading || imageDataUrls.length >= MAX_COACH_IMAGE_ATTACHMENTS} onClick={() => cameraInputRef.current?.click()}><Camera size={16} />Take photo</button>
             <button type="button" disabled={preparingImages || loading || imageDataUrls.length >= MAX_COACH_IMAGE_ATTACHMENTS} onClick={() => screenshotInputRef.current?.click()}><Upload size={16} />Upload photo</button>
-            {hasImageAttachments && <button type="button" className="ai-coach__analyze-photo" disabled={preparingImages || loading} onClick={() => ask('Analyze this photographed question. Read the full question and diagrams, identify what it asks, list the relevant concepts and known values, then explain the next step without inventing missing text.', 3)}><Sparkles size={16} />Analyze question</button>}
+            {hasImageAttachments && <button type="button" className="ai-coach__analyze-photo" disabled={preparingImages || loading || helpPolicy.solutionDisabled} title={helpPolicy.solutionDisabledReason || 'Explain and solve the photographed question'} onClick={() => ask(draft, 5, { helpIntent: COACH_HELP_INTENTS.WORKED_SOLUTION })}><Sparkles size={16} />Explain &amp; solve photo</button>}
           </div>
           {hasImageAttachmentTray && <div className="ai-coach__attachments" role="status" aria-live="polite">
             <span className="ai-coach__attachment-summary"><strong>{readyImageAttachments.length}/{MAX_COACH_IMAGE_ATTACHMENTS}</strong> photos ready</span>

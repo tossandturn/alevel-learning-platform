@@ -901,7 +901,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   assert.match(coachSource, /\/api\/ai\/coach\/stream/)
   assert.match(coachSource, /text\/event-stream/)
   assert.match(coachSource, /Authorization:\s*`Bearer \$\{sharedIdentityToken\}`/, 'Coach provider requests must carry the in-memory STEM identity token in the request header')
-  assert.match(coachSource, /payload\.retryable/, 'a retryable streamed terminal result must restore the Coach Retry action')
+  assert.match(coachSource, /outcome\.retryable/, 'a retryable streamed terminal result must restore the Coach Retry action')
   assert.match(
     coachSource,
     /if \(!selectedConversation\) return context[\s\S]{0,700}return mergeCoachContext\(context, persisted\)/,
@@ -940,7 +940,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   assert.match(coachSource, /capture="environment"/, 'Coach must expose a native camera capture input for photographing a question')
   assert.match(coachSource, /Take photo/, 'Coach must expose a clearly labelled take-photo action')
   assert.match(coachSource, /Upload photo/, 'Coach must expose a clearly labelled upload-photo action')
-  assert.match(coachSource, /Analyze (?:this )?question/, 'Coach must expose a visible action to analyze an attached question photo')
+  assert.match(coachSource, /Explain &amp; solve photo|Analyze (?:this )?question/, 'Coach must expose a visible action to explain and solve an attached question photo')
   assert.match(coachSource, /onPaste=\{attachClipboardImages\}/, 'Coach must accept pasted clipboard images from the dialog')
   assert.match(coachSource, /clipboardData\?\.items/, 'Coach paste handling must read clipboard image items without persisting clipboard text')
   assert.match(coachSource, /Pasted image/, 'pasted photos must receive a visible fallback filename')
