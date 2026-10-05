@@ -4,7 +4,14 @@ import path from 'node:path'
 
 import { callStructuredWithFallback, providersFromEnvironment } from './ai-pdf-ingestion/provider-fallback.mjs'
 
-const batch = Object.freeze({
+const GLYPH_FIX_MODE = process.argv.includes('--glyphfix-q20')
+const batch = Object.freeze(GLYPH_FIX_MODE ? {
+  kind: 'glyph-correction-q20',
+  primaryRoot: '.candidate-evidence/9700-as-cell-membranes-glyphfix-primary-20261005-v1',
+  outputRoot: '.candidate-evidence/9700-as-cell-membranes-glyphfix-qwen-20261005-v1',
+  followupRoot: '.candidate-evidence/9700-as-cell-membranes-glyphfix-qwen-20261005-followup1',
+  callLimit: 1,
+} : {
   kind: 'initial-candidates',
   primaryRoot: '.candidate-evidence/9700-as-cell-membranes-primary-20261005-v2',
   outputRoot: '.candidate-evidence/9700-as-cell-membranes-qwen-20261005-v1',
@@ -22,7 +29,7 @@ const TOPIC_ID = '9700-as-topic-04'
 const REQUIRED_PROVIDER = 'qwen'
 const REQUIRED_MODEL = 'qwen3-vl-plus'
 const CALL_LIMIT = batch.callLimit
-const FOLLOWUP_LIMIT = 3
+const FOLLOWUP_LIMIT = GLYPH_FIX_MODE ? 1 : 3
 const IMAGE_LIMIT_PER_CALL = 2
 const MAX_ATTEMPTS = 1
 const TIMEOUT_MS = 60_000
@@ -33,9 +40,13 @@ const FOLLOWUP_CLARIFICATIONS = Object.freeze({
   'cie-9700-9700_s25_qp_12:q17': 'The official item asks which mechanisms are used among bacteria and yeast collectively, not whether both taxa use every listed mechanism. Re-derive in that framing and independently compare with the exact published MS row; do not accept only because the key is official. Map membrane fluidity roles to 4.1.3.',
   'cie-9700-9700_s25_qp_12:q18': 'The geometry contract counts each separately retained coordinate region: concentration scale, photomicrograph strip and A-D answer table, for a total of three. The printed investigation uses plant tissue observations to estimate solution position and requires interpreting water movement effects, so outcomes 4.2.5 and 4.2.6 are both direct.',
   'cie-9700-9700_s25_qp_12:q19': 'The graph is an investigation used to estimate equal water potential and asks the resulting net water movement, so outcomes 4.2.5 and 4.2.6 are both direct.',
-  'cie-9700-9700_s25_qp_12:q20': 'The printed agar-block experiment requires both surface-area-to-volume calculation and its effect on diffusion, so outcomes 4.2.3 and 4.2.4 are both direct.',
+  'cie-9700-9700_s25_qp_12:q20': GLYPH_FIX_MODE
+    ? 'Reinspect the freshly Poppler-rendered source crop. Confirm that every dimension uses a multiplication sign, show the cube SA:V arithmetic before choosing an answer, and block if the proof, answer, exact MS row, visual count or direct 4.2.3/4.2.4 mapping conflicts. primaryTopicId must be the chapter route topic ID 9700-as-topic-04; the biology-9700-2025-4-2-03 and -04 identifiers belong only in syllabusPointIds.'
+    : 'The printed agar-block experiment requires both surface-area-to-volume calculation and its effect on diffusion, so outcomes 4.2.3 and 4.2.4 are both direct.',
 })
-const FOLLOWUP_SOURCE_IDS = new Set([
+const FOLLOWUP_SOURCE_IDS = new Set(GLYPH_FIX_MODE ? [
+  'cie-9700-9700_s25_qp_12:q20',
+] : [
   'cie-9700-9700_s25_qp_11:q17',
   'cie-9700-9700_s25_qp_11:q18',
   'cie-9700-9700_s25_qp_12:q17',
@@ -96,47 +107,64 @@ function safeProviderError(error) {
 }
 
 function resultSchema({ sourceQuestionId, questionNumber, pointIds, requireGeometryConfirmation = false }) {
-  const required = [
+  const baseRequired = [
     'sourceQuestionId', 'questionNumber', 'reviewDecision', 'questionIdentityConfirmed',
     'wholeQuestionConfirmed', 'optionLabels', 'independentDerivedAnswer',
     'markSchemeAnswer', 'marks', 'diagramRegionCount', 'primaryTopicId',
     'syllabusPointIds', 'reasoning', 'disagreementReasons',
   ]
+  const required = GLYPH_FIX_MODE
+    ? ['conciseProof', 'independentDerivedAnswer', 'markSchemeAnswer', 'reviewDecision', ...baseRequired.filter((name) => !['independentDerivedAnswer', 'markSchemeAnswer', 'reviewDecision'].includes(name))]
+    : baseRequired
   if (requireGeometryConfirmation) required.push('graphRegionComplete', 'answerTableRegionComplete', 'diagramRegionsExcludeUnrelatedContent')
+  const commonProperties = {
+    sourceQuestionId: { type: 'string', enum: [sourceQuestionId] },
+    questionNumber: { type: 'string', enum: [String(questionNumber)] },
+    questionIdentityConfirmed: { type: 'boolean' },
+    wholeQuestionConfirmed: { type: 'boolean' },
+    optionLabels: {
+      type: 'array',
+      minItems: 4,
+      maxItems: 4,
+      prefixItems: ['A', 'B', 'C', 'D'].map((label) => ({ type: 'string', enum: [label] })),
+      items: false,
+    },
+    marks: { type: 'integer', enum: [1] },
+    diagramRegionCount: { type: 'integer', minimum: 0, maximum: 4 },
+    primaryTopicId: { type: 'string', enum: [TOPIC_ID] },
+    syllabusPointIds: {
+      type: 'array',
+      minItems: 1,
+      uniqueItems: true,
+      items: { type: 'string', enum: pointIds },
+    },
+    reasoning: { type: 'string', minLength: 1, maxLength: 1_200 },
+    disagreementReasons: {
+      type: 'array',
+      maxItems: 8,
+      items: { type: 'string', minLength: 1, maxLength: 240 },
+    },
+  }
   return {
     type: 'object',
     additionalProperties: false,
     required,
-    properties: {
-      sourceQuestionId: { type: 'string', enum: [sourceQuestionId] },
-      questionNumber: { type: 'string', enum: [String(questionNumber)] },
-      reviewDecision: { type: 'string', enum: ['accept', 'block'] },
-      questionIdentityConfirmed: { type: 'boolean' },
-      wholeQuestionConfirmed: { type: 'boolean' },
-      optionLabels: {
-        type: 'array',
-        minItems: 4,
-        maxItems: 4,
-        prefixItems: ['A', 'B', 'C', 'D'].map((label) => ({ type: 'string', enum: [label] })),
-        items: false,
-      },
+    properties: GLYPH_FIX_MODE ? {
+      conciseProof: { type: 'string', minLength: 1, maxLength: 480 },
       independentDerivedAnswer: { type: 'string', enum: ['A', 'B', 'C', 'D'] },
       markSchemeAnswer: { type: 'string', enum: ['A', 'B', 'C', 'D'] },
-      marks: { type: 'integer', enum: [1] },
-      diagramRegionCount: { type: 'integer', minimum: 0, maximum: 4 },
-      primaryTopicId: { type: 'string', enum: [TOPIC_ID] },
-      syllabusPointIds: {
-        type: 'array',
-        minItems: 1,
-        uniqueItems: true,
-        items: { type: 'string', enum: pointIds },
-      },
-      reasoning: { type: 'string', minLength: 1, maxLength: 1_200 },
-      disagreementReasons: {
-        type: 'array',
-        maxItems: 8,
-        items: { type: 'string', minLength: 1, maxLength: 240 },
-      },
+      reviewDecision: { type: 'string', enum: ['accept', 'block'] },
+      ...commonProperties,
+      ...(requireGeometryConfirmation ? {
+        graphRegionComplete: { type: 'boolean' },
+        answerTableRegionComplete: { type: 'boolean' },
+        diagramRegionsExcludeUnrelatedContent: { type: 'boolean' },
+      } : {}),
+    } : {
+      reviewDecision: { type: 'string', enum: ['accept', 'block'] },
+      ...commonProperties,
+      independentDerivedAnswer: { type: 'string', enum: ['A', 'B', 'C', 'D'] },
+      markSchemeAnswer: { type: 'string', enum: ['A', 'B', 'C', 'D'] },
       ...(requireGeometryConfirmation ? {
         graphRegionComplete: { type: 'boolean' },
         answerTableRegionComplete: { type: 'boolean' },
@@ -170,6 +198,7 @@ function comparison({ artifact, question, value }) {
     topicMatches: value.primaryTopicId === question.tags.primaryTopicId,
     syllabusPointsMatch: sameSet(value.syllabusPointIds, question.tags.syllabusPointIds),
     noProviderDisagreement: value.disagreementReasons.length === 0,
+    ...(GLYPH_FIX_MODE ? { conciseProofPresent: typeof value.conciseProof === 'string' && value.conciseProof.trim().length > 0 } : {}),
     originalReviewIsSinglePass: artifact.studentRelease?.review?.method === 'single-model-source-review'
       && artifact.studentRelease?.review?.independentPassCount === 1,
     reviewerIsIndependent: artifact.studentRelease?.review?.reviewerProvider !== REQUIRED_PROVIDER
@@ -271,6 +300,7 @@ async function main() {
       markSchemePage: record.geometry.ms.page,
       questionPageImageSha256: record.sourcePages.qp.sha256,
       markSchemePageImageSha256: record.sourcePages.ms.sha256,
+      questionPageRenderer: record.sourcePages.qp.renderer || artifact.source.pageRenderers?.[String(record.geometry.qp.page)] || 'paddle-source-page',
       qpCropSha256: record.crops.qp.sha256,
       msCropSha256: record.crops.ms.sha256,
       officialSyllabus: {
@@ -282,13 +312,24 @@ async function main() {
       },
       mappingRule: 'Select only official outcomes directly tested by the printed question. Exclude same-chapter background facts not required by the stem, options or decision.',
       visualCountRule: 'Count every retained diagram, graph, chart or table needed to answer as one visual object. Ordinary text and option lists are not visual objects.',
+      ...(GLYPH_FIX_MODE ? {
+        glyphCorrection: {
+          expectedPageImageSha256: 'aa56d92bafd98b136fde78ed7c5e0fbae4e249e1713570c9df2dd3660672348e',
+          expectedDimensions: [1488, 2105],
+          diagramRegion: [0.10, 0.105, 0.90, 0.31],
+          requiredVisibleContent: 'All three cubes and the labels 2 cm × 2 cm × 2 cm, 4 cm × 4 cm × 4 cm, and 5 cm × 5 cm × 5 cm.',
+        },
+      } : {}),
     }
     const clarification = followup ? FOLLOWUP_CLARIFICATIONS[sourceQuestionId] || '' : ''
     const passInstruction = followup
       ? `This is the single permitted clarification pass. Reinspect both images from scratch. ${clarification}`
       : 'This is a blind initial review. Do not rely on any prior extraction, answer or mapping.'
+    const glyphInstruction = GLYPH_FIX_MODE
+      ? 'Inspect the complete QP crop first. In conciseProof, identify the fastest cube and show the surface-area-to-volume arithmetic before emitting either answer field or the decision. Do not defer to the mark scheme and do not let the mark-scheme key override conflicting visual or mathematical reasoning. Then inspect the exact MS crop and compare. All multiplication signs and all three dimension labels must be legible; any rationale conflict must block.'
+      : ''
     const input = [
-      { role: 'system', content: [{ type: 'input_text', text: `Act as an independent second-model reviewer. ${passInstruction} reviewDecision is a review verdict and must be exactly accept or block; put A-D only in independentDerivedAnswer and markSchemeAnswer. Solve the MCQ independently, read the exact mark-scheme row, and verify identity, completeness, marks, visual count and direct official mapping. Fail closed on ambiguity.` }] },
+      { role: 'system', content: [{ type: 'input_text', text: `Act as an independent second-model reviewer. ${passInstruction} ${glyphInstruction} reviewDecision is a review verdict and must be exactly accept or block; put A-D only in independentDerivedAnswer and markSchemeAnswer. Solve the MCQ independently, read the exact mark-scheme row, and verify identity, completeness, marks, visual count and direct official mapping. Fail closed on ambiguity.` }] },
       { role: 'user', content: [{ type: 'input_text', text: JSON.stringify(requestIdentity) }, { type: 'input_image', image_url: dataUrl(qpPath) }, { type: 'input_image', image_url: dataUrl(msPath) }] },
     ]
     const schema = resultSchema({ sourceQuestionId, questionNumber: question.questionNumber, pointIds })
@@ -297,7 +338,7 @@ async function main() {
     let receipt
     try {
       const outcome = await callStructuredWithFallback({ providers: [qwen], request: {
-        schemaName: 'chapter_ready_cell_membranes_second_model_v1', schema, input,
+        schemaName: GLYPH_FIX_MODE ? 'chapter_ready_cell_membranes_glyphfix_second_model_v2' : 'chapter_ready_cell_membranes_second_model_v1', schema, input,
         maxAttempts: MAX_ATTEMPTS, maxOutputTokens: MAX_OUTPUT_TOKENS, timeoutMs: TIMEOUT_MS, deadlineAt: Date.now() + TIMEOUT_MS,
       } })
       const normalizedResult = standardResult(outcome.value)

@@ -12,12 +12,17 @@ import {
 } from './ai-pdf-ingestion/contract.mjs'
 import { createAiVerifiedQuestionBankLoader } from '../server/aiVerifiedQuestionBank.js'
 import { locateMcqRow } from './chapter-ready-ms-row-geometry.mjs'
+import { renderCandidateSourcePage } from './chapter-ready-source-page-renderer.mjs'
 
 const WORK_ROOT = path.resolve('D:/CodexWork/stem-ocr-work')
 const LIBRARY_ROOT = path.resolve(process.env.CIE_LIBRARY_ROOT || 'D:/CodexWork/cie-fraft-fetcher/output/pdf')
-const OUTPUT_ROOT = path.resolve('.candidate-evidence/9700-as-cell-membranes-primary-20261005-v2')
+const GLYPH_FIX_MODE = process.argv.includes('--glyphfix-q20')
+const OUTPUT_ROOT = path.resolve(GLYPH_FIX_MODE
+  ? '.candidate-evidence/9700-as-cell-membranes-glyphfix-primary-20261005-v1'
+  : '.candidate-evidence/9700-as-cell-membranes-primary-20261005-v2')
 const ARTIFACT_ROOT = path.join(OUTPUT_ROOT, 'artifacts')
 const CROP_ROOT = path.join(OUTPUT_ROOT, 'crops')
+const RENDERED_SOURCE_ROOT = path.join(OUTPUT_ROOT, 'source-pages')
 const PYTHON = 'C:/Users/10604/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe'
 const EXTRACT_WORDS = path.resolve('scripts/chapter-ready-extract-pdf-words.py')
 const CROP_IMAGE = path.resolve('scripts/chapter-ready-crop-image.py')
@@ -102,7 +107,19 @@ const primarySelections = Object.freeze([
     ocrText: 'Pink indicator agar cubes measuring 2 cm, 4 cm and 5 cm per side were covered with hydrochloric acid. Which surface-area-to-volume ratio belongs to the cube that became colourless fastest? A 0.33:1; B 0.83:1; C 1.2:1; D 3.0:1.',
   },
 ])
-const selections = primarySelections
+const selections = GLYPH_FIX_MODE
+  ? Object.freeze([Object.freeze({
+      ...primarySelections.find((selection) => selection.questionNumber === '20'),
+      sourcePageRenderer: Object.freeze({
+        renderer: 'poppler-png',
+        dpi: 180,
+        expectedPdfSha256: 'e6f95f47e51486f404ff5636d5dbfe9bd0e0dc3aebf4a13a0b8f358cfdd20461',
+        expectedImageSha256: 'aa56d92bafd98b136fde78ed7c5e0fbae4e249e1713570c9df2dd3660672348e',
+        expectedWidth: 1488,
+        expectedHeight: 2105,
+      }),
+    })])
+  : primarySelections
 
 function readJson(file) {
   return JSON.parse(fs.readFileSync(file, 'utf8'))
@@ -140,8 +157,16 @@ function writeArtifact(selection, generatedAt, allowedPointIds) {
   const paperId = state.paperId
   assert.equal(paperId, `cie-9700-${selection.fileStem}`)
   const sourceQuestionId = `${paperId}:q${selection.questionNumber}`
-  const qpPage = qp.document.pages[String(selection.page)].sourcePage
+  const originalQpPage = qp.document.pages[String(selection.page)].sourcePage
   const msPage = ms.document.pages['2'].sourcePage
+  const qpPage = selection.sourcePageRenderer
+    ? renderCandidateSourcePage({
+        ...selection.sourcePageRenderer,
+        pdfPath: qp.pdfPath,
+        page: selection.page,
+        outputRoot: RENDERED_SOURCE_ROOT,
+      })
+    : originalQpPage
   assert.equal(sha256File(qpPage.path), qpPage.sha256)
   assert.equal(sha256File(msPage.path), msPage.sha256)
 
@@ -169,10 +194,12 @@ function writeArtifact(selection, generatedAt, allowedPointIds) {
     questionFormatIds: [],
   }
   const reviewSummary = {
-    status: 'source-reviewed-local-prepared',
+    status: GLYPH_FIX_MODE ? 'source-reviewed-local-prepared-glyph-corrected' : 'source-reviewed-local-prepared',
     studentStudyEligible: true,
     studentRelease: true,
-    scope: 'One current Codex source review; exact QP/MS, whole question, options, answer and geometry inspected. Independent provider verification pending.',
+    scope: GLYPH_FIX_MODE
+      ? 'Fresh current Codex source review; the unchanged official PDF page was rerendered through Poppler at 180 dpi, and exact QP/MS, whole question, multiplication signs, options, answer and geometry were inspected. Independent provider verification pending.'
+      : 'One current Codex source review; exact QP/MS, whole question, options, answer and geometry inspected. Independent provider verification pending.',
   }
   const candidateQuestion = {
     questionNumber: selection.questionNumber,
@@ -233,6 +260,7 @@ function writeArtifact(selection, generatedAt, allowedPointIds) {
       accessPolicyId: 'personal-study-restricted-v1',
       renderDpi: qpPage.dpi,
       pageImageHashes: { [selection.page]: qpPage.sha256 },
+      pageRenderers: { [selection.page]: qpPage.renderer || 'paddle-source-page' },
       markSchemePageHashes: { 2: msPage.sha256 },
       pageSizes: { [selection.page]: { width: qpPage.width, height: qpPage.height } },
       markSchemePageSizes: { 2: { width: msPage.width, height: msPage.height } },
@@ -285,9 +313,11 @@ function writeArtifact(selection, generatedAt, allowedPointIds) {
       markSchemeEvidenceConfirmed: true,
       topicMappingConfirmed: true,
     },
-    reviewNote: `Current Codex directly inspected original ${qp.fileName} page ${selection.page} and ${ms.fileName} page 2. Whole Q${selection.questionNumber}, all A-D options, retained visuals, key ${selection.correctOption}, 1 mark and direct chapter 4 outcomes were confirmed. This is one AI source review only; no human, teacher, second-provider or publication claim.`,
+    reviewNote: GLYPH_FIX_MODE
+      ? `Current Codex directly inspected the unchanged original ${qp.fileName} page ${selection.page}, freshly rerendered through Poppler at 180 dpi, and ${ms.fileName} page 2. Whole Q${selection.questionNumber}, all three cubes, all dimension labels and multiplication signs, all A-D options, independently derived key ${selection.correctOption}, 1 mark and direct outcomes 4.2.3 and 4.2.4 were confirmed. This is one fresh AI source review only; no human, teacher, second-provider or publication claim.`
+      : `Current Codex directly inspected original ${qp.fileName} page ${selection.page} and ${ms.fileName} page 2. Whole Q${selection.questionNumber}, all A-D options, retained visuals, key ${selection.correctOption}, 1 mark and direct chapter 4 outcomes were confirmed. This is one AI source review only; no human, teacher, second-provider or publication claim.`,
     evidence: [
-      { document: 'qp', page: selection.page, pageImageSha256: qpPage.sha256 },
+      { document: 'qp', page: selection.page, pageImageSha256: qpPage.sha256, renderer: qpPage.renderer || 'paddle-source-page' },
       { document: 'ms', page: 2, pageImageSha256: msPage.sha256 },
     ],
   }
@@ -331,7 +361,7 @@ function main() {
   const summary = {
     schemaVersion: 'chapter-ready-primary-preparation.v1',
     status: 'PASS_PRIMARY_REVIEW_PENDING_INDEPENDENT_PROVIDER',
-    batchKind: 'initial-candidates',
+    batchKind: GLYPH_FIX_MODE ? 'glyph-correction-q20' : 'initial-candidates',
     routeId: ROUTE_ID,
     topicId: TOPIC_ID,
     questions: results.length,
@@ -339,6 +369,15 @@ function main() {
     studentStudyEligible: true,
     formalProgressEligible: false,
     providerCalls: 0,
+    ...(GLYPH_FIX_MODE ? {
+      sourcePageRenderer: {
+        renderer: 'poppler-png',
+        page: 10,
+        dpi: 180,
+        imageSha256: results[0].sourcePages.qp.sha256,
+        dimensions: [results[0].sourcePages.qp.width, results[0].sourcePages.qp.height],
+      },
+    } : {}),
     results,
   }
   fs.writeFileSync(path.join(OUTPUT_ROOT, 'summary.json'), `${JSON.stringify(summary, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' })
