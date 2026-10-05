@@ -16,6 +16,7 @@ const LATEX_REPLACEMENTS = new Map([
   ['ge', '≥'],
   ['geq', '≥'],
   ['rightarrow', '→'],
+  ['implies', '⇒'],
   ['to', '→'],
   ['degree', '°'],
   ['infty', '∞'],
