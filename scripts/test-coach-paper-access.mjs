@@ -312,6 +312,27 @@ try {
   assert.equal(persistedTopicProviderContext?.coachSolutionAllowed, true)
   assert.equal(persistedTopicProviderContext?.paperStudyMode, '', 'a topic attempt must not be relabelled as past-paper practice')
 
+  const topicTavern = await request(appBase, '/api/ai/coach/stream', {
+    token: ownerToken,
+    body: {
+      feature: 'tavern',
+      persona: 'keeper',
+      message: 'Give me a short break-time thought.',
+      attemptId: topicAttemptId,
+    },
+  })
+  assert.equal(topicTavern.response.status, 200, topicTavern.text)
+  assert.match(topicTavern.text, /Bound Coach response/)
+  assert.match(topicTavern.text, /"coachFeature":"tavern"/)
+  assert.doesNotMatch(JSON.stringify(providerBodies.at(-1)), new RegExp(`${topicAttemptId}|${firstQuestion.sourceQuestionId}|9702_m25_(?:qp|ms)_22`))
+
+  const missingTavernAttempt = await request(appBase, '/api/ai/coach', {
+    token: ownerToken,
+    body: { feature: 'tavern', persona: 'keeper', message: 'hello', attemptId: 'missing-tavern-attempt' },
+  })
+  assert.equal(missingTavernAttempt.response.status, 404, missingTavernAttempt.text)
+  assert.equal(missingTavernAttempt.payload?.code, 'coach_attempt_not_found')
+
   const unboundDraft = await request(appBase, '/api/stem/attempts', {
     token: ownerToken,
     body: attemptBody({ attemptId: unboundAttemptId, studyMode: 'past-paper-practice', includeMarkingParts: false }),
@@ -388,6 +409,34 @@ try {
   assert.equal(forgedSimulation.payload?.code, 'coach_exam_in_progress')
   assert.equal(providerBodies.length, callsBeforeForgedSimulation, 'forged submitted/practice fields must not invoke the provider for an active exam')
 
+  const callsBeforeAuthOnlyExam = providerBodies.length
+  const authOnlyExamTavern = await request(appBase, '/api/ai/coach/stream', {
+    token: ownerToken,
+    body: { feature: 'tavern', persona: 'keeper', message: 'Try Tavern.', attemptId: simulationAttemptId },
+  })
+  assert.equal(authOnlyExamTavern.response.status, 403, authOnlyExamTavern.text)
+  assert.equal(authOnlyExamTavern.payload?.code, 'coach_exam_in_progress')
+  assert.equal(providerBodies.length, callsBeforeAuthOnlyExam)
+
+  for (const feature of ['steps', 'answers', 'tavern', 'pdf']) {
+    const featurePayload = coachBody(simulationAttemptId, {
+      paperStudyMode: undefined,
+      submissionStatus: 'submitted',
+      submitted: true,
+    })
+    featurePayload.feature = feature
+    if (feature === 'tavern') featurePayload.persona = 'keeper'
+    featurePayload.message = `Attempt ${feature} during an active exam.`
+    const callsBeforeFeature = providerBodies.length
+    const blockedFeature = await request(appBase, '/api/ai/coach/stream', {
+      token: ownerToken,
+      body: featurePayload,
+    })
+    assert.equal(blockedFeature.response.status, 403, `${feature}: ${blockedFeature.text}`)
+    assert.equal(blockedFeature.payload?.code, 'coach_exam_in_progress')
+    assert.equal(providerBodies.length, callsBeforeFeature, `${feature} must not bypass the authoritative exam gate`)
+  }
+
   const crossAccount = await request(appBase, '/api/ai/coach/stream', {
     token: otherToken,
     body: coachBody(practiceAttemptId),
@@ -414,6 +463,14 @@ try {
   })
   assert.equal(allowedSimulationReview.response.status, 200, allowedSimulationReview.text)
   assert.equal(providerCoachContext(providerBodies.at(-1))?.submissionStatus, 'submitted')
+
+  const submittedTavern = await request(appBase, '/api/ai/coach/stream', {
+    token: ownerToken,
+    body: { feature: 'tavern', persona: 'story-traveler', message: 'Tell a short fictional scene.', attemptId: simulationAttemptId },
+  })
+  assert.equal(submittedTavern.response.status, 200, submittedTavern.text)
+  assert.match(submittedTavern.text, /Bound Coach response/)
+  assert.doesNotMatch(JSON.stringify(providerBodies.at(-1)), new RegExp(`${simulationAttemptId}|${firstQuestion.sourceQuestionId}|9702_m25_(?:qp|ms)_22`))
 } finally {
   await Promise.all([close(appServer), close(providerServer)])
   closeStemDatabaseForTests()

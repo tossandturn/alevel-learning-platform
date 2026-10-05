@@ -22,6 +22,12 @@ import {
   coachPolicyResponseFields,
   resolveCoachRequestPolicy,
 } from './coachPolicy.js'
+import {
+  buildTavernSystemPrompt,
+  coachFeatureResponseFields,
+  resolveCoachFeature,
+  validateCoachFeaturePayload,
+} from './coachFeatures.js'
 
 export { buildCoachSystemPrompt } from './coachPolicy.js'
 
@@ -1267,8 +1273,15 @@ function coachRecoveryHint() {
   return 'AI Coach did not complete this request. Your question and attachments remain available for retry. This is not an AI answer or a completed review.'
 }
 
-function coachUnavailablePayload({ policy, localAnswer, providerStatus, warning, provider = null }) {
-  const localGuidance = policy.helpIntent === 'hint'
+function coachResponseFields(policy, feature, answerStatus) {
+  return {
+    ...coachPolicyResponseFields(policy, answerStatus),
+    ...coachFeatureResponseFields(feature),
+  }
+}
+
+function coachUnavailablePayload({ policy, feature, localAnswer, providerStatus, warning, provider = null }) {
+  const localGuidance = policy.helpIntent === 'hint' && !feature.requiresProvider
   return {
     mode: 'offline',
     ...(provider ? { provider } : {}),
@@ -1277,7 +1290,7 @@ function coachUnavailablePayload({ policy, localAnswer, providerStatus, warning,
     ...(localGuidance ? {} : { recoveryHint: coachRecoveryHint() }),
     warning,
     retryable: true,
-    ...coachPolicyResponseFields(policy, localGuidance ? 'local-guidance' : 'unavailable'),
+    ...coachResponseFields(policy, feature, localGuidance ? 'local-guidance' : 'unavailable'),
   }
 }
 async function hydrateCoachPaperContext(context, libraryRoot, allowedSubjects) {
@@ -1299,12 +1312,61 @@ async function hydrateCoachPaperContext(context, libraryRoot, allowedSubjects) {
   return { ...context, sourceQuestionExtract: compactText(questionText, COACH_CONTEXT_MAX_CHARS) }
 }
 
-function shouldUseLocalCoachFirst({ message, hasImages, policy }) {
+function shouldUseLocalCoachFirst({ message, hasImages, policy, feature }) {
   if (hasImages) return false
+  if (feature.requiresProvider) return false
   if (policy.helpIntent !== 'hint') return false
   const clean = String(message || '').trim()
   if (!clean || clean.length > 180 || Number(policy.helpDepth) > 2) return false
   return /(?:hint|nudge|next step|what should i practise|check my method|提示|下一步|练什么|方法检查)/i.test(clean)
+}
+
+function coachFeatureContext(context, policy, feature) {
+  const featureFields = coachFeatureResponseFields(feature)
+  if (feature.feature === 'tavern') {
+    return {
+      view: 'tavern',
+      ...featureFields,
+      coachPolicyVersion: policy.policyVersion,
+      coachHelpIntent: policy.helpIntent,
+      coachHelpDepth: policy.helpDepth,
+      coachSolutionAllowed: policy.solutionAllowed,
+      coachAssessmentState: policy.assessmentState,
+      coachCheckWorkRequested: policy.checkWorkRequested,
+    }
+  }
+  return {
+    ...context,
+    ...featureFields,
+    coachPolicyVersion: policy.policyVersion,
+    coachHelpIntent: policy.helpIntent,
+    coachHelpDepth: policy.helpDepth,
+    coachSolutionAllowed: policy.solutionAllowed,
+    coachAssessmentState: policy.assessmentState,
+    coachCheckWorkRequested: policy.checkWorkRequested,
+  }
+}
+
+function coachFeatureSystemPrompt(feature, policy, context) {
+  return feature.feature === 'tavern'
+    ? buildTavernSystemPrompt(feature)
+    : buildCoachSystemPrompt({ policy, context, feature })
+}
+
+function coachTavernRequestContext(feature, message) {
+  return compactText(JSON.stringify({
+    coachFeature: feature.feature,
+    coachPersona: feature.persona,
+    studentMessage: message,
+  }), COACH_CONTEXT_MAX_CHARS)
+}
+
+function coachProviderMetadata(feature, context) {
+  return {
+    stemCoachContext: feature.feature === 'tavern'
+      ? coachFeatureResponseFields(feature)
+      : context,
+  }
 }
 
 function coachRequestContext(context, message) {
@@ -1327,6 +1389,9 @@ function coachRequestContext(context, message) {
     coachSolutionAllowed: context.coachSolutionAllowed,
     coachAssessmentState: context.coachAssessmentState,
     coachCheckWorkRequested: context.coachCheckWorkRequested,
+    coachFeatureVersion: context.coachFeatureVersion,
+    coachFeature: context.coachFeature,
+    coachPersona: context.coachPersona,
     question: context.question,
     part: context.part,
     paper: context.paper,
@@ -1340,12 +1405,16 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   const authorization = typeof authorizeCoachRequest === 'function'
     ? await authorizeCoachRequest({ request, payload })
     : null
+  const feature = resolveCoachFeature({ feature: payload.feature, persona: payload.persona })
+  validateCoachFeaturePayload(feature, payload)
   const message = compactText(payload.message, 3000)
   const history = Array.isArray(payload.history) ? payload.history.slice(-10).map((item) => ({ role: item.role === 'assistant' ? 'assistant' : 'user', content: compactText(item.content, 3000) })) : []
   // Client context is useful for tutoring, but cannot authorize answer release.
   // In particular, `context.submitted` is deliberately discarded here.
-  const suppliedContext = safeCoachContext(payload.context)
-  const authorizedContext = await hydrateCoachPaperContext(applyCoachAuthorization(suppliedContext, authorization), libraryRoot, allowedSubjects)
+  const suppliedContext = feature.feature === 'tavern' ? {} : safeCoachContext(payload.context)
+  const authorizedContext = feature.feature === 'tavern'
+    ? { view: 'tavern' }
+    : await hydrateCoachPaperContext(applyCoachAuthorization(suppliedContext, authorization), libraryRoot, allowedSubjects)
   const verifiedSubmitted = Boolean(authorization?.submitted) || verifiedCoachSubmission(payload, request, env)
   const hintLevel = Math.min(5, Math.max(1, Number(payload.hintLevel) || 1))
   const policy = resolveCoachRequestPolicy({
@@ -1355,24 +1424,17 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
     context: authorizedContext,
     authorization,
     verifiedSubmitted,
+    feature,
   })
   if (policy.assessmentState === 'active-exam') {
     throw Object.assign(new Error('AI Coach is unavailable until the exam simulation is submitted.'), { statusCode: 403, code: 'coach_exam_in_progress' })
   }
-  const context = {
-    ...authorizedContext,
-    coachPolicyVersion: policy.policyVersion,
-    coachHelpIntent: policy.helpIntent,
-    coachHelpDepth: policy.helpDepth,
-    coachSolutionAllowed: policy.solutionAllowed,
-    coachAssessmentState: policy.assessmentState,
-    coachCheckWorkRequested: policy.checkWorkRequested,
-  }
+  const context = coachFeatureContext(authorizedContext, policy, feature)
   const imageDataUrls = coachImageDataUrls(payload)
   const hasImages = imageDataUrls.length > 0
   if (!message && !hasImages) throw Object.assign(new Error('Ask a question or attach an image.'), { statusCode: 400 })
   const localAnswer = localCoachReply(context, policy)
-  if (shouldUseLocalCoachFirst({ message, hasImages, policy })) {
+  if (shouldUseLocalCoachFirst({ message, hasImages, policy, feature })) {
     return sendJson(response, 200, {
       mode: 'local',
       providerStatus: 'skipped',
@@ -1380,7 +1442,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
       warning: 'Local first hint. Ask for a detailed explanation to escalate to AI Coach.',
       retryable: false,
       canEscalate: true,
-      ...coachPolicyResponseFields(policy, 'local-guidance'),
+      ...coachResponseFields(policy, feature, 'local-guidance'),
     })
   }
   if (!authenticatedStemUser(request, env)) {
@@ -1390,11 +1452,14 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   const activeProviders = providerCandidates(configuredProvider)
   if (!activeProviders.length) return sendJson(response, 200, coachUnavailablePayload({
     policy,
+    feature,
     localAnswer,
     providerStatus: 'not_configured',
     warning: 'AI Coach provider is not configured on this server. No AI answer or completed review was generated.',
   }))
-  const userText = coachRequestContext(context, message)
+  const userText = feature.feature === 'tavern'
+    ? coachTavernRequestContext(feature, message)
+    : coachRequestContext(context, message)
   const requestBudget = hasImages
     ? { providerTimeoutMs: timeoutConfig.visionProviderTimeoutMs, totalDeadlineMs: timeoutConfig.visionTotalDeadlineMs }
     : { providerTimeoutMs: timeoutConfig.providerTimeoutMs, totalDeadlineMs: timeoutConfig.totalDeadlineMs }
@@ -1407,10 +1472,10 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
       providerImages = await temporaryProviderImages(imageDataUrls, imagePublicBase(activeProvider, request))
       const content = providerMessageContent(userText, providerImages)
       const answer = await callCompatibleAi(activeProvider, {
-        messages: [{ role: 'system', content: buildCoachSystemPrompt({ policy, context }) }, ...history, { role: 'user', content }],
+        messages: [{ role: 'system', content: coachFeatureSystemPrompt(feature, policy, context) }, ...history, { role: 'user', content }],
         temperature: 0.2,
-        metadata: { stemCoachContext: context },
-        operation: hasImages ? 'coach-vision' : 'coach',
+        metadata: coachProviderMetadata(feature, context),
+        operation: feature.feature === 'tavern' ? 'coach-tavern' : hasImages ? 'coach-vision' : 'coach',
         requestId,
         providerAttempt: providerIndex + 1,
         fallbackPath: activeProviders.slice(0, providerIndex + 1).map((candidate) => candidate.name).join('>'),
@@ -1426,7 +1491,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
         providerStatus: 'connected',
         answer,
         model: activeProvider.model,
-        ...coachPolicyResponseFields(policy, 'complete'),
+        ...coachResponseFields(policy, feature, 'complete'),
       })
     } catch (error) {
       lastError = error
@@ -1437,6 +1502,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   const failedProvider = activeProviders.at(-1)
   return sendJson(response, 200, coachUnavailablePayload({
     policy,
+    feature,
     localAnswer,
     provider: failedProvider.name,
     providerStatus: 'error',
@@ -1636,6 +1702,8 @@ async function handleCoachStream(request, response, provider, visionProvider, li
   const authorization = typeof authorizeCoachRequest === 'function'
     ? await authorizeCoachRequest({ request, payload })
     : null
+  const feature = resolveCoachFeature({ feature: payload.feature, persona: payload.persona })
+  validateCoachFeaturePayload(feature, payload)
   const message = compactText(payload.message, 3000)
   const history = Array.isArray(payload.history)
     ? payload.history.slice(-8).map((item) => ({
@@ -1643,8 +1711,10 @@ async function handleCoachStream(request, response, provider, visionProvider, li
       content: compactText(item.content, 1200),
     }))
     : []
-  const suppliedContext = safeCoachContext(payload.context)
-  const authorizedContext = await hydrateCoachPaperContext(applyCoachAuthorization(suppliedContext, authorization), libraryRoot, allowedSubjects)
+  const suppliedContext = feature.feature === 'tavern' ? {} : safeCoachContext(payload.context)
+  const authorizedContext = feature.feature === 'tavern'
+    ? { view: 'tavern' }
+    : await hydrateCoachPaperContext(applyCoachAuthorization(suppliedContext, authorization), libraryRoot, allowedSubjects)
   const verifiedSubmitted = Boolean(authorization?.submitted) || verifiedCoachSubmission(payload, request, env)
   const hintLevel = Math.min(5, Math.max(1, Number(payload.hintLevel) || 1))
   const policy = resolveCoachRequestPolicy({
@@ -1654,23 +1724,16 @@ async function handleCoachStream(request, response, provider, visionProvider, li
     context: authorizedContext,
     authorization,
     verifiedSubmitted,
+    feature,
   })
   if (policy.assessmentState === 'active-exam') {
     throw Object.assign(new Error('AI Coach is unavailable until the exam simulation is submitted.'), { statusCode: 403, code: 'coach_exam_in_progress' })
   }
-  const context = {
-    ...authorizedContext,
-    coachPolicyVersion: policy.policyVersion,
-    coachHelpIntent: policy.helpIntent,
-    coachHelpDepth: policy.helpDepth,
-    coachSolutionAllowed: policy.solutionAllowed,
-    coachAssessmentState: policy.assessmentState,
-    coachCheckWorkRequested: policy.checkWorkRequested,
-  }
+  const context = coachFeatureContext(authorizedContext, policy, feature)
   const imageDataUrls = coachImageDataUrls(payload)
   const hasImages = imageDataUrls.length > 0
   if (!message && !hasImages) throw Object.assign(new Error('Ask a question or attach an image.'), { statusCode: 400 })
-  if (!shouldUseLocalCoachFirst({ message, hasImages, policy }) && !authenticatedStemUser(request, env)) {
+  if (!shouldUseLocalCoachFirst({ message, hasImages, policy, feature }) && !authenticatedStemUser(request, env)) {
     throw Object.assign(new Error('Sign in to STEM before using detailed AI Coach.'), { statusCode: 401 })
   }
 
@@ -1682,8 +1745,8 @@ async function handleCoachStream(request, response, provider, visionProvider, li
   response.flushHeaders?.()
 
   const localAnswer = localCoachReply(context, policy)
-  if (shouldUseLocalCoachFirst({ message, hasImages, policy })) {
-    const policyFields = coachPolicyResponseFields(policy, 'local-guidance')
+  if (shouldUseLocalCoachFirst({ message, hasImages, policy, feature })) {
+    const policyFields = coachResponseFields(policy, feature, 'local-guidance')
     sendCoachEvent(response, 'meta', { mode: 'local', providerStatus: 'skipped', canEscalate: true, ...policyFields })
     sendCoachEvent(response, 'delta', { text: localAnswer })
     sendCoachEvent(response, 'done', {
@@ -1702,18 +1765,21 @@ async function handleCoachStream(request, response, provider, visionProvider, li
   if (!activeProviders.length) {
     const unavailable = coachUnavailablePayload({
       policy,
+      feature,
       localAnswer,
       providerStatus: 'not_configured',
       warning: 'AI Coach provider is not configured on this server. No AI answer or completed review was generated.',
     })
-    sendCoachEvent(response, 'meta', { mode: unavailable.mode, providerStatus: unavailable.providerStatus, ...coachPolicyResponseFields(policy, unavailable.answerStatus) })
+    sendCoachEvent(response, 'meta', { mode: unavailable.mode, providerStatus: unavailable.providerStatus, ...coachResponseFields(policy, feature, unavailable.answerStatus) })
     if (unavailable.answer) sendCoachEvent(response, 'delta', { text: unavailable.answer })
     sendCoachEvent(response, 'done', unavailable)
     response.end()
     return
   }
 
-  const userText = coachRequestContext(context, message)
+  const userText = feature.feature === 'tavern'
+    ? coachTavernRequestContext(feature, message)
+    : coachRequestContext(context, message)
   const requestBudget = hasImages
     ? { providerTimeoutMs: timeoutConfig.visionProviderTimeoutMs, totalDeadlineMs: timeoutConfig.visionTotalDeadlineMs }
     : { providerTimeoutMs: timeoutConfig.providerTimeoutMs, totalDeadlineMs: timeoutConfig.totalDeadlineMs }
@@ -1739,13 +1805,13 @@ async function handleCoachStream(request, response, provider, visionProvider, li
           provider: activeProvider.name,
           providerStatus: 'connecting',
           model: activeProvider.model,
-          ...coachPolicyResponseFields(policy, 'pending'),
+          ...coachResponseFields(policy, feature, 'pending'),
         })
         const result = await callCompatibleAiStream(activeProvider, {
-          messages: [{ role: 'system', content: buildCoachSystemPrompt({ policy, context }) }, ...history, { role: 'user', content }],
+          messages: [{ role: 'system', content: coachFeatureSystemPrompt(feature, policy, context) }, ...history, { role: 'user', content }],
           temperature: 0.2,
-          metadata: { stemCoachContext: context },
-          operation: hasImages ? 'coach-vision-stream' : 'coach-stream',
+          metadata: coachProviderMetadata(feature, context),
+          operation: feature.feature === 'tavern' ? 'coach-tavern-stream' : hasImages ? 'coach-vision-stream' : 'coach-stream',
           requestId,
           providerAttempt: providerIndex + 1,
           fallbackPath: activeProviders.slice(0, providerIndex + 1).map((candidate) => candidate.name).join('>'),
@@ -1767,7 +1833,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
           providerStatus: 'connected',
           answer,
           model: activeProvider.model,
-          ...coachPolicyResponseFields(policy, 'complete'),
+          ...coachResponseFields(policy, feature, 'complete'),
         })
         response.end()
         return
@@ -1795,10 +1861,11 @@ async function handleCoachStream(request, response, provider, visionProvider, li
           warning: providerMessage(lastError, failedProvider),
           retryable: true,
           partial: true,
-          ...coachPolicyResponseFields(policy, 'partial'),
+          ...coachResponseFields(policy, feature, 'partial'),
         }
       : coachUnavailablePayload({
           policy,
+          feature,
           localAnswer,
           provider: failedProvider.name,
           providerStatus: 'error',
@@ -2022,6 +2089,7 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
     } catch (error) {
       return sendJson(response, error.statusCode || 500, {
         ...(error.code ? { code: String(error.code).slice(0, 80) } : {}),
+        ...(error.action ? { action: String(error.action).slice(0, 240) } : {}),
         error: error.statusCode ? error.message : 'The AI request could not be completed.',
       })
     }
