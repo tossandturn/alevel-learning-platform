@@ -641,7 +641,10 @@ function coachPaperId(context = {}) {
 }
 
 function isExplicitFullPaperCoachContext(context = {}) {
-  return String(context.view || '') === 'full-paper' || Boolean(coachPaperId(context))
+  const view = String(context.view || '').toLowerCase()
+  if (view === 'full-paper') return true
+  if (['chapter-practice', 'topic-practice', 'topic-drill', 'practice'].includes(view)) return false
+  return Boolean(coachPaperId(context))
 }
 
 function hasBearerAuthorization(request) {
@@ -818,25 +821,54 @@ export function createCoachAttemptAuthorizer({ env = process.env, questionBank =
 
     const parsed = parseStudentAttemptRow(row)
     const binding = parsed.binding
-    const persistedFullPaperAttempt = String(binding?.mode || row.mode || '') === 'full-paper'
-    if (!persistedFullPaperAttempt) {
-      if (explicitFullPaperContext) throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'This attempt is not a full-paper Coach attempt.')
-      return null
-    }
-    if (!binding || String(binding.attemptId || row.attempt_id) !== attemptId) {
+    const persistedMode = String(binding?.mode || row.mode || '')
+    const persistedFullPaperAttempt = persistedMode === 'full-paper'
+    if (binding && String(binding.attemptId || row.attempt_id) !== attemptId) {
       throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'The persisted Coach attempt binding is invalid.')
     }
     const requestedRouteId = asText(context.routeId, 120).toLowerCase()
     const requestedStage = asText(context.stage, 40).toLowerCase()
-    if ((requestedRouteId && requestedRouteId !== String(binding.routeId || row.route_id).toLowerCase())
-      || (requestedStage && requestedStage !== String(binding.stage || row.stage).toLowerCase())) {
+    const persistedRouteId = String(binding?.routeId || row.route_id || '')
+    const persistedStage = String(binding?.stage || row.stage || '')
+    if ((requestedRouteId && requestedRouteId !== persistedRouteId.toLowerCase())
+      || (requestedStage && requestedStage !== persistedStage.toLowerCase())) {
       throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'The Coach route binding does not match the persisted attempt.')
     }
 
-    const persistedPaperId = String(binding.paperId || row.paper_id || '')
+    const persistedPaperId = String(binding?.paperId || row.paper_id || '')
     const requestedPaperId = coachPaperId(context)
-    if ((requestedPaperId && requestedPaperId !== persistedPaperId) || !persistedPaperId) {
+    const persistedSourcePaperIds = new Set((binding?.parts || []).map((part) => String(part?.paperId || '')).filter(Boolean))
+    if (persistedFullPaperAttempt && requestedPaperId && requestedPaperId !== persistedPaperId) {
       throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'The Coach paper binding does not match the persisted attempt.')
+    }
+    if (!persistedFullPaperAttempt && requestedPaperId && persistedSourcePaperIds.size && !persistedSourcePaperIds.has(requestedPaperId)) {
+      throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'The Coach source paper does not match the persisted topic attempt.')
+    }
+    const submissionStatus = parsed.submissionStatus === 'submitted' || parsed.submittedAt ? 'submitted' : 'draft'
+    const responseStatus = ['answered', 'unanswered'].includes(String(context.responseStatus || '').toLowerCase())
+      ? String(context.responseStatus).toLowerCase()
+      : null
+    if (!persistedFullPaperAttempt) {
+      if (explicitFullPaperContext) throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'This attempt is not a full-paper Coach attempt.')
+      return {
+        userId: user.id,
+        attemptId,
+        mode: persistedMode,
+        routeId: persistedRouteId,
+        stage: persistedStage,
+        submissionStatus,
+        submitted: submissionStatus === 'submitted',
+        responseStatus,
+        coachAccess: {
+          binding: 'authoritative-attempt',
+          assessmentState: submissionStatus === 'submitted' ? 'submitted-review' : 'ordinary-practice',
+          solutionAllowed: true,
+          submissionStatus,
+        },
+      }
+    }
+    if (!binding || !persistedPaperId) {
+      throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'The persisted Coach attempt binding is invalid.')
     }
     const currentQuestionBank = (() => {
       if (typeof questionBankProvider !== 'function') return questionBank
@@ -863,7 +895,6 @@ export function createCoachAttemptAuthorizer({ env = process.env, questionBank =
     if (requestedStudyMode && requestedStudyMode !== persistedStudyMode) {
       throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'The Coach study mode does not match the persisted attempt.')
     }
-    const submissionStatus = parsed.submissionStatus === 'submitted' || parsed.submittedAt ? 'submitted' : 'draft'
     if (persistedStudyMode === 'exam-simulation' && submissionStatus !== 'submitted') {
       throw coachAuthorizationError(403, 'coach_exam_in_progress', 'AI Coach is unavailable until the exam simulation is submitted.')
     }
@@ -881,9 +912,7 @@ export function createCoachAttemptAuthorizer({ env = process.env, questionBank =
       routeId: String(binding.routeId || row.route_id || ''),
       stage: String(binding.stage || row.stage || ''),
     })
-    const responseStatus = ['answered', 'unanswered'].includes(String(context.responseStatus || '').toLowerCase())
-      ? String(context.responseStatus).toLowerCase()
-      : null
+    const assessmentState = submissionStatus === 'submitted' ? 'submitted-review' : 'bound-practice'
     return {
       userId: user.id,
       attemptId,
@@ -895,6 +924,13 @@ export function createCoachAttemptAuthorizer({ env = process.env, questionBank =
       submissionStatus,
       submitted: submissionStatus === 'submitted',
       responseStatus,
+      coachAccess: {
+        binding: 'authoritative-attempt',
+        assessmentState,
+        solutionAllowed: true,
+        paperStudyMode: persistedStudyMode,
+        submissionStatus,
+      },
       question: questionBinding.question,
       part: questionBinding.part,
       paper: questionBinding.paper,

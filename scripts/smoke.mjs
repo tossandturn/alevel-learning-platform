@@ -163,8 +163,12 @@ assert.ok(boundedHistory.bytes <= HANDWRITING_HISTORY_MAX_BYTES, 'undo history m
 
 assert.deepEqual(parseStructuredJson('```json\n{"rawMarks":2}\n```'), { rawMarks: 2 }, 'AI JSON parser must accept fenced structured output')
 assert.match(buildCoachSystemPrompt({ verifiedSubmitted: false, hintLevel: 4 }), /Do not reveal the final answer or a complete worked solution/, 'unverified Coach prompt must forbid answer leakage')
-assert.doesNotMatch(buildCoachSystemPrompt({ submitted: true, hintLevel: 5 }), /complete worked correction is allowed/, 'client-supplied submission state must not unlock a worked answer')
-assert.match(buildCoachSystemPrompt({ verifiedSubmitted: true, hintLevel: 5 }), /complete worked correction is allowed/, 'a future server-verified submission may unlock correction')
+assert.match(
+  buildCoachSystemPrompt({ context: { view: 'full-paper', paperStudyMode: 'exam-simulation', submitted: true }, hintLevel: 5 }),
+  /Do not reveal the final answer or a complete worked solution/,
+  'client-supplied exam submission state must not unlock a worked answer',
+)
+assert.match(buildCoachSystemPrompt({ verifiedSubmitted: true, hintLevel: 5 }), /complete teaching solution and final result/, 'a server-verified submission may unlock correction')
 assert.deepEqual(normalizeMarkResult({ rawMarks: 9, maxMarks: 99, confidence: 0.4, markPoints: [] }, 3), {
   rawMarks: 3,
   maxMarks: 3,

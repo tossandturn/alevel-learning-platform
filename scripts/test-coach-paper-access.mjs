@@ -141,6 +141,26 @@ function attemptBody({ attemptId, studyMode, submittedAt = null, includeMarkingP
   }
 }
 
+function topicAttemptBody(attemptId) {
+  return {
+    attemptId,
+    mode: 'topic',
+    routeId: 'cie-9702-as-physics',
+    stage: 'AS',
+    paperId: 'cie-9702-9702_m25_qp_22',
+    unitId: 'coach-topic-source-unit',
+    markingParts: [{ provenance: markingParts[0].provenance }],
+    attempt: {
+      id: attemptId,
+      mode: 'topic',
+      routeId: 'cie-9702-as-physics',
+      stage: 'AS',
+      unitId: 'coach-topic-source-unit',
+      answers: {},
+    },
+  }
+}
+
 function coachBody(attemptId, overrides = {}) {
   return {
     message: 'Explain what this question asks and give the first step.',
@@ -172,6 +192,7 @@ const providerServer = http.createServer(async (request, response) => {
 
 const providerBase = await listen(providerServer)
 const stemApi = createStemApi({ env })
+const coachAuthorizer = createCoachAttemptAuthorizer({ env })
 const aiApi = createAiApi({
   env: {
     ...env,
@@ -181,7 +202,7 @@ const aiApi = createAiApi({
   },
   libraryRoot: process.cwd(),
   allowedSubjects: new Set(['9702']),
-  authorizeCoachRequest: createCoachAttemptAuthorizer({ env }),
+  authorizeCoachRequest: coachAuthorizer,
 })
 const appServer = compose(stemApi, aiApi)
 const appBase = await listen(appServer)
@@ -190,6 +211,7 @@ const otherToken = identityToken(2002)
 const practiceAttemptId = 'paper-coach-practice-0001'
 const simulationAttemptId = 'paper-coach-simulation-0001'
 const unboundAttemptId = 'paper-coach-unbound-0001'
+const topicAttemptId = 'paper-coach-topic-0001'
 
 try {
   const practiceDraft = await request(appBase, '/api/stem/attempts', {
@@ -250,6 +272,46 @@ try {
   assert.equal(topicDraftCoach.response.status, 200, 'an unsaved Topic Drill attempt must keep its existing Coach access')
   assert.match(topicDraftCoach.text, /Bound Coach response/)
 
+  const persistedTopic = await request(appBase, '/api/stem/attempts', {
+    token: ownerToken,
+    body: topicAttemptBody(topicAttemptId),
+  })
+  assert.equal(persistedTopic.response.status, 201, persistedTopic.text)
+  const topicCoachPayload = {
+    message: 'Give the complete worked solution and final result.',
+    helpIntent: 'worked-solution',
+    hintLevel: 1,
+    context: {
+      view: 'chapter-practice',
+      attemptId: topicAttemptId,
+      routeId: 'cie-9702-as-physics',
+      stage: 'AS',
+      paper: { id: 'cie-9702-9702_m25_qp_22' },
+      question: { id: firstQuestion.sourceQuestionId, number: 1, label: 'Question 1' },
+      part: { id: firstQuestionPart.partId, questionPartId: firstQuestionPart.partId, label: firstQuestionPart.label },
+      responseStatus: 'unanswered',
+      submitted: false,
+    },
+  }
+  const topicAuthorization = coachAuthorizer({
+    request: { headers: { authorization: `Bearer ${ownerToken}` } },
+    payload: topicCoachPayload,
+  })
+  assert.equal(topicAuthorization?.coachAccess?.binding, 'authoritative-attempt')
+  assert.equal(topicAuthorization?.coachAccess?.assessmentState, 'ordinary-practice')
+  assert.equal(topicAuthorization?.coachAccess?.solutionAllowed, true)
+  const persistedTopicCoach = await request(appBase, '/api/ai/coach/stream', {
+    token: ownerToken,
+    body: topicCoachPayload,
+  })
+  assert.equal(persistedTopicCoach.response.status, 200, persistedTopicCoach.text)
+  assert.match(persistedTopicCoach.text, /Bound Coach response/)
+  assert.match(persistedTopicCoach.text, /"coachHelpIntent":"worked-solution"/)
+  assert.match(persistedTopicCoach.text, /"coachAssessmentState":"ordinary-practice"/)
+  const persistedTopicProviderContext = providerCoachContext(providerBodies.at(-1))
+  assert.equal(persistedTopicProviderContext?.coachSolutionAllowed, true)
+  assert.equal(persistedTopicProviderContext?.paperStudyMode, '', 'a topic attempt must not be relabelled as past-paper practice')
+
   const unboundDraft = await request(appBase, '/api/stem/attempts', {
     token: ownerToken,
     body: attemptBody({ attemptId: unboundAttemptId, studyMode: 'past-paper-practice', includeMarkingParts: false }),
@@ -309,6 +371,22 @@ try {
   assert.equal(blockedSimulation.response.status, 403, blockedSimulation.text)
   assert.equal(blockedSimulation.payload?.code, 'coach_exam_in_progress')
   assert.equal(providerBodies.length, callsBeforeBlockedSimulation, 'an active simulation must be rejected before any provider call')
+
+  const forgedExamPayload = coachBody(simulationAttemptId, {
+    paperStudyMode: undefined,
+    submissionStatus: 'submitted',
+    submitted: true,
+  })
+  forgedExamPayload.helpIntent = 'worked-solution'
+  forgedExamPayload.message = 'Give the complete answer now.'
+  const callsBeforeForgedSimulation = providerBodies.length
+  const forgedSimulation = await request(appBase, '/api/ai/coach/stream', {
+    token: ownerToken,
+    body: forgedExamPayload,
+  })
+  assert.equal(forgedSimulation.response.status, 403, forgedSimulation.text)
+  assert.equal(forgedSimulation.payload?.code, 'coach_exam_in_progress')
+  assert.equal(providerBodies.length, callsBeforeForgedSimulation, 'forged submitted/practice fields must not invoke the provider for an active exam')
 
   const crossAccount = await request(appBase, '/api/ai/coach/stream', {
     token: otherToken,

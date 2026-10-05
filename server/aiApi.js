@@ -18,6 +18,13 @@ import {
   STEM_SOURCE_REVIEW_SCHEMA_VERSION,
 } from '../src/lib/sourceContentContract.js'
 import { validHmacJwt, verifyMarkingCapability } from './markingCapability.js'
+import {
+  buildCoachSystemPrompt,
+  coachPolicyResponseFields,
+  resolveCoachRequestPolicy,
+} from './coachPolicy.js'
+
+export { buildCoachSystemPrompt } from './coachPolicy.js'
 
 const IMAGE_PATTERN = /^data:image\/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=]+)$/
 const MAX_BODY_BYTES = 16 * 1024 * 1024
@@ -143,7 +150,7 @@ function applyCoachAuthorization(context, authorization) {
     attemptId: String(authorization.attemptId || context.attemptId || ''),
     routeId: String(authorization.routeId || context.routeId || ''),
     stage: String(authorization.stage || context.stage || ''),
-    paperStudyMode: String(authorization.paperStudyMode || context.paperStudyMode || 'past-paper-practice'),
+    paperStudyMode: String(authorization.paperStudyMode || context.paperStudyMode || (authorization.paperId ? 'past-paper-practice' : '')),
     submissionStatus: String(authorization.submissionStatus || 'draft'),
     submitted: Boolean(authorization.submitted),
     ...(authorization.responseStatus ? { responseStatus: authorization.responseStatus } : {}),
@@ -1250,26 +1257,30 @@ export function normalizeMarkResult(value, requestedMaxMarks) {
   }
 }
 
-export function buildCoachSystemPrompt({ verifiedSubmitted = false, hintLevel = 1 } = {}) {
-  return [
-    'You are AI Coach, a rigorous and patient STEM teacher inside a Cambridge IGCSE, International AS & A Level and admissions-test practice platform.',
-    'Support Physics, Mathematics, Further Mathematics, Chemistry, Economics, BPhO, ESAT and TMUA. Respond in concise Chinese while preserving Cambridge command words, symbols and subject terminology in English.',
-    'For a broad conceptual question, teach the idea and ask one useful follow-up when scope is ambiguous. For a focused question, use the supplied question, syllabus component, source paper, student work and prior messages.',
-    'When agentIntent.type is clarify-practice, do not invent a topic or questions. Ask the student to choose one of the supplied syllabus topics and confirm the stage before building a verified set.',
-    'Official question text, answers and marks may only be stated when present in the supplied QP/MS context. Never invent, complete or paraphrase missing past-paper content as if it were official. Clearly separate general teaching from source-backed marking.',
-    `Hint level is ${hintLevel}/5. Level 1 identifies the concept; level 2 points to data or a formula; level 3 diagnoses one step; level 4 shows the next step; level 5 may give a worked solution.`,
-    verifiedSubmitted ? 'This practice attempt is submitted, so a complete worked correction is allowed using the available source evidence.' : 'The attempt is in progress. Do not reveal the final answer or a complete worked solution, even if asked.',
-    'For calculations, check method, substitution, units, signs, significant figures and whether the conclusion answers the command word.',
-    'For image input, read only handwriting, equations, graphs or diagrams you can actually see. Give the first blocked or incorrect step and a concrete next action. State uncertainty explicitly.',
-  ].join('\n')
-}
-
-function localCoachReply(context, hintLevel) {
+function localCoachReply(context, policy) {
   const question = compactText(context?.question?.prompt || context?.question?.title || '', 500)
   const hint = compactText(context?.question?.hint || '', 500)
-  if (hint) return `提示 ${hintLevel}/5: ${hint}`
-  if (question) return `提示 ${hintLevel}/5: 先确定题目的 command word 和对应定义或公式，再把已知量统一成 SI units。当前使用本地安全提示，因此不会猜测完整解答。`
+  if (hint) return `提示 ${policy.helpDepth}/5: ${hint}`
+  if (question) return `提示 ${policy.helpDepth}/5: 先确定题目的 command word、已知信息和所需概念，再选择适合该学科的方法。当前使用本地安全提示，因此不会猜测完整解答。`
   return '先选择一道具体题目，再问我概念、下一步或方法检查。当前使用本地安全提示。'
+}
+
+function coachRecoveryHint() {
+  return 'AI Coach did not complete this request. Your question and attachments remain available for retry. This is not an AI answer or a completed review.'
+}
+
+function coachUnavailablePayload({ policy, localAnswer, providerStatus, warning, provider = null }) {
+  const localGuidance = policy.helpIntent === 'hint'
+  return {
+    mode: 'offline',
+    ...(provider ? { provider } : {}),
+    providerStatus,
+    answer: localGuidance ? localAnswer : '',
+    ...(localGuidance ? {} : { recoveryHint: coachRecoveryHint() }),
+    warning,
+    retryable: true,
+    ...coachPolicyResponseFields(policy, localGuidance ? 'local-guidance' : 'unavailable'),
+  }
 }
 async function hydrateCoachPaperContext(context, libraryRoot, allowedSubjects) {
   const subject = String(context?.subject?.code || context?.subject || '')
@@ -1290,10 +1301,11 @@ async function hydrateCoachPaperContext(context, libraryRoot, allowedSubjects) {
   return { ...context, sourceQuestionExtract: compactText(questionText, COACH_CONTEXT_MAX_CHARS) }
 }
 
-function shouldUseLocalCoachFirst({ message, hasImages, hintLevel }) {
+function shouldUseLocalCoachFirst({ message, hasImages, policy }) {
   if (hasImages) return false
+  if (policy.helpIntent !== 'hint') return false
   const clean = String(message || '').trim()
-  if (!clean || clean.length > 180 || Number(hintLevel) > 2) return false
+  if (!clean || clean.length > 180 || Number(policy.helpDepth) > 2) return false
   return /(?:hint|nudge|next step|what should i practise|check my method|提示|下一步|练什么|方法检查)/i.test(clean)
 }
 
@@ -1311,6 +1323,12 @@ function coachRequestContext(context, message) {
     submissionStatus: context.submissionStatus,
     responseStatus: context.responseStatus,
     submitted: context.submitted,
+    coachPolicyVersion: context.coachPolicyVersion,
+    coachHelpIntent: context.coachHelpIntent,
+    coachHelpDepth: context.coachHelpDepth,
+    coachSolutionAllowed: context.coachSolutionAllowed,
+    coachAssessmentState: context.coachAssessmentState,
+    coachCheckWorkRequested: context.coachCheckWorkRequested,
     question: context.question,
     part: context.part,
     paper: context.paper,
@@ -1329,14 +1347,34 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   // Client context is useful for tutoring, but cannot authorize answer release.
   // In particular, `context.submitted` is deliberately discarded here.
   const suppliedContext = safeCoachContext(payload.context)
-  const context = await hydrateCoachPaperContext(applyCoachAuthorization(suppliedContext, authorization), libraryRoot, allowedSubjects)
+  const authorizedContext = await hydrateCoachPaperContext(applyCoachAuthorization(suppliedContext, authorization), libraryRoot, allowedSubjects)
   const verifiedSubmitted = Boolean(authorization?.submitted) || verifiedCoachSubmission(payload, request, env)
   const hintLevel = Math.min(5, Math.max(1, Number(payload.hintLevel) || 1))
+  const policy = resolveCoachRequestPolicy({
+    typedIntent: payload.helpIntent || payload.coachHelpIntent,
+    message,
+    hintLevel,
+    context: authorizedContext,
+    authorization,
+    verifiedSubmitted,
+  })
+  if (policy.assessmentState === 'active-exam') {
+    throw Object.assign(new Error('AI Coach is unavailable until the exam simulation is submitted.'), { statusCode: 403, code: 'coach_exam_in_progress' })
+  }
+  const context = {
+    ...authorizedContext,
+    coachPolicyVersion: policy.policyVersion,
+    coachHelpIntent: policy.helpIntent,
+    coachHelpDepth: policy.helpDepth,
+    coachSolutionAllowed: policy.solutionAllowed,
+    coachAssessmentState: policy.assessmentState,
+    coachCheckWorkRequested: policy.checkWorkRequested,
+  }
   const imageDataUrls = coachImageDataUrls(payload)
   const hasImages = imageDataUrls.length > 0
   if (!message && !hasImages) throw Object.assign(new Error('Ask a question or attach an image.'), { statusCode: 400 })
-  const localAnswer = localCoachReply(context, hintLevel)
-  if (shouldUseLocalCoachFirst({ message, hasImages, hintLevel })) {
+  const localAnswer = localCoachReply(context, policy)
+  if (shouldUseLocalCoachFirst({ message, hasImages, policy })) {
     return sendJson(response, 200, {
       mode: 'local',
       providerStatus: 'skipped',
@@ -1344,6 +1382,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
       warning: 'Local first hint. Ask for a detailed explanation to escalate to AI Coach.',
       retryable: false,
       canEscalate: true,
+      ...coachPolicyResponseFields(policy, 'local-guidance'),
     })
   }
   if (!authenticatedStemUser(request, env)) {
@@ -1351,7 +1390,12 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   }
   const configuredProvider = hasImages ? visionProvider : provider
   const activeProviders = providerCandidates(configuredProvider)
-  if (!activeProviders.length) return sendJson(response, 200, { mode: 'offline', providerStatus: 'not_configured', answer: localAnswer, warning: 'AI Coach provider is not configured on this server. This is an offline hint, not an AI review.' })
+  if (!activeProviders.length) return sendJson(response, 200, coachUnavailablePayload({
+    policy,
+    localAnswer,
+    providerStatus: 'not_configured',
+    warning: 'AI Coach provider is not configured on this server. No AI answer or completed review was generated.',
+  }))
   const userText = coachRequestContext(context, message)
   const requestBudget = hasImages
     ? { providerTimeoutMs: timeoutConfig.visionProviderTimeoutMs, totalDeadlineMs: timeoutConfig.visionTotalDeadlineMs }
@@ -1365,7 +1409,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
       providerImages = await temporaryProviderImages(imageDataUrls, imagePublicBase(activeProvider, request))
       const content = providerMessageContent(userText, providerImages)
       const answer = await callCompatibleAi(activeProvider, {
-        messages: [{ role: 'system', content: buildCoachSystemPrompt({ verifiedSubmitted, hintLevel }) }, ...history, { role: 'user', content }],
+        messages: [{ role: 'system', content: buildCoachSystemPrompt({ policy, context }) }, ...history, { role: 'user', content }],
         temperature: 0.2,
         metadata: { stemCoachContext: context },
         operation: hasImages ? 'coach-vision' : 'coach',
@@ -1378,7 +1422,14 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
         totalDeadlineMs: requestBudget.totalDeadlineMs,
         deadlineAt,
       })
-      return sendJson(response, 200, { mode: 'ai', provider: activeProvider.name, providerStatus: 'connected', answer: answer || localAnswer, model: activeProvider.model })
+      return sendJson(response, 200, {
+        mode: 'ai',
+        provider: activeProvider.name,
+        providerStatus: 'connected',
+        answer,
+        model: activeProvider.model,
+        ...coachPolicyResponseFields(policy, 'complete'),
+      })
     } catch (error) {
       lastError = error
     } finally {
@@ -1386,7 +1437,13 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
     }
   }
   const failedProvider = activeProviders.at(-1)
-  return sendJson(response, 200, { mode: 'offline', provider: failedProvider.name, providerStatus: 'error', answer: localAnswer, warning: providerMessage(lastError, failedProvider), retryable: true })
+  return sendJson(response, 200, coachUnavailablePayload({
+    policy,
+    localAnswer,
+    provider: failedProvider.name,
+    providerStatus: 'error',
+    warning: providerMessage(lastError, failedProvider),
+  }))
 }
 
 async function callCompatibleAiStream(provider, { messages, temperature = 0.2, metadata = null, onDelta, operation = 'ai-stream', requestId = '', providerAttempt = 1, fallbackPath = '', fallback = false, telemetry = null, timeoutMs = DEFAULT_AI_PROVIDER_TIMEOUT_MS, totalDeadlineMs = null, deadlineAt = null }) {
@@ -1589,13 +1646,33 @@ async function handleCoachStream(request, response, provider, visionProvider, li
     }))
     : []
   const suppliedContext = safeCoachContext(payload.context)
-  const context = await hydrateCoachPaperContext(applyCoachAuthorization(suppliedContext, authorization), libraryRoot, allowedSubjects)
+  const authorizedContext = await hydrateCoachPaperContext(applyCoachAuthorization(suppliedContext, authorization), libraryRoot, allowedSubjects)
   const verifiedSubmitted = Boolean(authorization?.submitted) || verifiedCoachSubmission(payload, request, env)
   const hintLevel = Math.min(5, Math.max(1, Number(payload.hintLevel) || 1))
+  const policy = resolveCoachRequestPolicy({
+    typedIntent: payload.helpIntent || payload.coachHelpIntent,
+    message,
+    hintLevel,
+    context: authorizedContext,
+    authorization,
+    verifiedSubmitted,
+  })
+  if (policy.assessmentState === 'active-exam') {
+    throw Object.assign(new Error('AI Coach is unavailable until the exam simulation is submitted.'), { statusCode: 403, code: 'coach_exam_in_progress' })
+  }
+  const context = {
+    ...authorizedContext,
+    coachPolicyVersion: policy.policyVersion,
+    coachHelpIntent: policy.helpIntent,
+    coachHelpDepth: policy.helpDepth,
+    coachSolutionAllowed: policy.solutionAllowed,
+    coachAssessmentState: policy.assessmentState,
+    coachCheckWorkRequested: policy.checkWorkRequested,
+  }
   const imageDataUrls = coachImageDataUrls(payload)
   const hasImages = imageDataUrls.length > 0
   if (!message && !hasImages) throw Object.assign(new Error('Ask a question or attach an image.'), { statusCode: 400 })
-  if (!shouldUseLocalCoachFirst({ message, hasImages, hintLevel }) && !authenticatedStemUser(request, env)) {
+  if (!shouldUseLocalCoachFirst({ message, hasImages, policy }) && !authenticatedStemUser(request, env)) {
     throw Object.assign(new Error('Sign in to STEM before using detailed AI Coach.'), { statusCode: 401 })
   }
 
@@ -1606,9 +1683,10 @@ async function handleCoachStream(request, response, provider, visionProvider, li
   response.setHeader('X-Accel-Buffering', 'no')
   response.flushHeaders?.()
 
-  const localAnswer = localCoachReply(context, hintLevel)
-  if (shouldUseLocalCoachFirst({ message, hasImages, hintLevel })) {
-    sendCoachEvent(response, 'meta', { mode: 'local', providerStatus: 'skipped', canEscalate: true })
+  const localAnswer = localCoachReply(context, policy)
+  if (shouldUseLocalCoachFirst({ message, hasImages, policy })) {
+    const policyFields = coachPolicyResponseFields(policy, 'local-guidance')
+    sendCoachEvent(response, 'meta', { mode: 'local', providerStatus: 'skipped', canEscalate: true, ...policyFields })
     sendCoachEvent(response, 'delta', { text: localAnswer })
     sendCoachEvent(response, 'done', {
       mode: 'local',
@@ -1616,6 +1694,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
       answer: localAnswer,
       canEscalate: true,
       warning: 'Local first hint. Ask for a detailed explanation to escalate to AI Coach.',
+      ...policyFields,
     })
     response.end()
     return
@@ -1623,15 +1702,15 @@ async function handleCoachStream(request, response, provider, visionProvider, li
   const configuredProvider = hasImages ? visionProvider : provider
   const activeProviders = providerCandidates(configuredProvider)
   if (!activeProviders.length) {
-    sendCoachEvent(response, 'meta', { mode: 'offline', providerStatus: 'not_configured' })
-    sendCoachEvent(response, 'delta', { text: localAnswer })
-    sendCoachEvent(response, 'done', {
-      mode: 'offline',
+    const unavailable = coachUnavailablePayload({
+      policy,
+      localAnswer,
       providerStatus: 'not_configured',
-      answer: localAnswer,
-      warning: 'AI Coach provider is not configured on this server. This is an offline hint, not an AI review.',
-      retryable: true,
+      warning: 'AI Coach provider is not configured on this server. No AI answer or completed review was generated.',
     })
+    sendCoachEvent(response, 'meta', { mode: unavailable.mode, providerStatus: unavailable.providerStatus, ...coachPolicyResponseFields(policy, unavailable.answerStatus) })
+    if (unavailable.answer) sendCoachEvent(response, 'delta', { text: unavailable.answer })
+    sendCoachEvent(response, 'done', unavailable)
     response.end()
     return
   }
@@ -1662,9 +1741,10 @@ async function handleCoachStream(request, response, provider, visionProvider, li
           provider: activeProvider.name,
           providerStatus: 'connecting',
           model: activeProvider.model,
+          ...coachPolicyResponseFields(policy, 'pending'),
         })
         const result = await callCompatibleAiStream(activeProvider, {
-          messages: [{ role: 'system', content: buildCoachSystemPrompt({ verifiedSubmitted, hintLevel }) }, ...history, { role: 'user', content }],
+          messages: [{ role: 'system', content: buildCoachSystemPrompt({ policy, context }) }, ...history, { role: 'user', content }],
           temperature: 0.2,
           metadata: { stemCoachContext: context },
           operation: hasImages ? 'coach-vision-stream' : 'coach-stream',
@@ -1682,13 +1762,14 @@ async function handleCoachStream(request, response, provider, visionProvider, li
           },
         })
         streamedAnswer = result.answer || attemptAnswer
-        const answer = streamedAnswer || localAnswer
+        const answer = streamedAnswer
         sendCoachEvent(response, 'done', {
           mode: 'ai',
           provider: activeProvider.name,
           providerStatus: 'connected',
           answer,
           model: activeProvider.model,
+          ...coachPolicyResponseFields(policy, 'complete'),
         })
         response.end()
         return
@@ -1705,16 +1786,28 @@ async function handleCoachStream(request, response, provider, visionProvider, li
       }
     }
     const failedProvider = lastAttemptedProvider
-    const preservedAnswer = lastPartialAnswer || streamedAnswer || localAnswer
+    const preservedAnswer = lastPartialAnswer || streamedAnswer
     const partial = Boolean(lastPartialAnswer)
+    const unavailable = partial
+      ? {
+          mode: 'interrupted',
+          provider: failedProvider.name,
+          providerStatus: 'error',
+          answer: preservedAnswer,
+          warning: providerMessage(lastError, failedProvider),
+          retryable: true,
+          partial: true,
+          ...coachPolicyResponseFields(policy, 'partial'),
+        }
+      : coachUnavailablePayload({
+          policy,
+          localAnswer,
+          provider: failedProvider.name,
+          providerStatus: 'error',
+          warning: providerMessage(lastError, failedProvider),
+        })
     sendCoachEvent(response, 'done', {
-      mode: partial ? 'interrupted' : 'offline',
-      provider: failedProvider.name,
-      providerStatus: 'error',
-      answer: preservedAnswer,
-      warning: providerMessage(lastError, failedProvider),
-      retryable: true,
-      ...(partial ? { partial: true } : {}),
+      ...unavailable,
     })
     response.end()
   } finally {
