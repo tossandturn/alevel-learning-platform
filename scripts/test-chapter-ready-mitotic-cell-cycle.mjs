@@ -42,8 +42,10 @@ function sha256File(file) {
 const artifacts = artifactFiles(artifactRoot).map((file) => JSON.parse(fs.readFileSync(file, 'utf8')))
 assert.equal(artifacts.length, 6)
 assert.deepEqual(artifacts.map((artifact) => artifact.candidate.questions[0].sourceQuestionId).sort(), [...expectedSourceQuestionIds].sort())
-const promotionSummaryPath = path.resolve('.candidate-evidence/9700-as-mitotic-cell-cycle-promotion-20261005-v3/promotion-summary.json')
-const auditSidecarPath = path.resolve('.candidate-evidence/9700-as-mitotic-cell-cycle-promotion-20261005-v3/root-audit-sidecar.json')
+const evidenceRoot = path.resolve(process.env.STEM_CHAPTER_READY_MITOTIC_CELL_CYCLE_EVIDENCE_ROOT
+  || '.candidate-evidence/9700-as-mitotic-cell-cycle-promotion-20261005-v3')
+const promotionSummaryPath = path.join(evidenceRoot, 'promotion-summary.json')
+const auditSidecarPath = path.join(evidenceRoot, 'root-audit-sidecar.json')
 assert.equal(sha256File(promotionSummaryPath), '75ee7a9aeaa04240b6b96b11f3b38f8aad2c97f4d9b5122a177b6a5ac7e37a6d')
 assert.equal(sha256File(auditSidecarPath), 'e2e9bac0e7a2a6b48b587d279419e0d0ad4758c8beefa7b4dd2ca031a3cfe515')
 const promotionSummary = JSON.parse(fs.readFileSync(promotionSummaryPath, 'utf8'))
