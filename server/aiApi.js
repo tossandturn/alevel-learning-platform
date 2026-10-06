@@ -64,6 +64,7 @@ const DEFAULT_AI_VISION_PROVIDER_TIMEOUT_MS = 45_000
 const DEFAULT_AI_VISION_REQUEST_DEADLINE_MS = 55_000
 const MIN_AI_TIMEOUT_MS = 250
 const MAX_AI_PROVIDER_TIMEOUT_MS = 45_000
+const MAX_AI_ABSOLUTE_PROVIDER_TIMEOUT_MS = 180_000
 const MAX_AI_REQUEST_DEADLINE_MS = 55_000
 const pdfTextCache = new Map()
 const coachContextCache = new Map()
@@ -1249,8 +1250,9 @@ function aiDeadlineError() {
   return error
 }
 
-function effectiveAiTimeoutMs(timeoutMs, deadlineAt) {
-  const configuredTimeoutMs = boundedDuration(timeoutMs, DEFAULT_AI_PROVIDER_TIMEOUT_MS, 1, MAX_AI_PROVIDER_TIMEOUT_MS)
+function effectiveAiTimeoutMs(timeoutMs, deadlineAt, maxTimeoutMs = MAX_AI_PROVIDER_TIMEOUT_MS) {
+  const timeoutCapMs = boundedDuration(maxTimeoutMs, MAX_AI_PROVIDER_TIMEOUT_MS, 1, MAX_AI_ABSOLUTE_PROVIDER_TIMEOUT_MS)
+  const configuredTimeoutMs = boundedDuration(timeoutMs, DEFAULT_AI_PROVIDER_TIMEOUT_MS, 1, timeoutCapMs)
   if (!Number.isFinite(deadlineAt)) return configuredTimeoutMs
   const remainingMs = Math.floor(deadlineAt - Date.now())
   if (remainingMs <= 0) throw aiDeadlineError()
@@ -1265,7 +1267,7 @@ function emitProviderTelemetry(telemetry, event) {
     model: String(event.model || '').slice(0, 120),
     providerAttempt: Number.isInteger(event.providerAttempt) && event.providerAttempt > 0 ? Math.min(event.providerAttempt, 10) : 1,
     fallbackPath: String(event.fallbackPath || event.provider || '').replace(/[^a-z0-9._:>-]/gi, '').slice(0, 160),
-    timeoutMs: boundedDuration(event.timeoutMs, DEFAULT_AI_PROVIDER_TIMEOUT_MS, 1, MAX_AI_REQUEST_DEADLINE_MS),
+    timeoutMs: boundedDuration(event.timeoutMs, DEFAULT_AI_PROVIDER_TIMEOUT_MS, 1, MAX_AI_ABSOLUTE_PROVIDER_TIMEOUT_MS),
     fallback: Boolean(event.fallback),
     statusCode: Number.isInteger(event.statusCode) ? event.statusCode : null,
     schemaStatus: String(event.schemaStatus || 'unknown').slice(0, 40),
@@ -1293,12 +1295,13 @@ function aiResponseSchemaError(error) {
   return schemaError
 }
 
-export async function callCompatibleAi(provider, { messages, temperature = 0.2, json = false, metadata = null, operation = 'ai', requestId = '', providerAttempt = 1, fallbackPath = '', fallback = false, telemetry = null, timeoutMs = DEFAULT_AI_PROVIDER_TIMEOUT_MS, totalDeadlineMs = null, deadlineAt = null, validateResponse = null, signal = null, outputTokenLimit = null, disableThinking = false, storeResponse = null, reasoningEffortOverride = '' }) {
+export async function callCompatibleAi(provider, { messages, temperature = 0.2, json = false, metadata = null, operation = 'ai', requestId = '', providerAttempt = 1, fallbackPath = '', fallback = false, telemetry = null, timeoutMs = DEFAULT_AI_PROVIDER_TIMEOUT_MS, maxTimeoutMs = MAX_AI_PROVIDER_TIMEOUT_MS, totalDeadlineMs = null, deadlineAt = null, validateResponse = null, signal = null, outputTokenLimit = null, disableThinking = false, storeResponse = null, reasoningEffortOverride = '' }) {
   const startedAt = Date.now()
   let statusCode = null
   let schemaStatus = 'not-checked'
   let finalState = provider.apiKey ? 'error' : 'not_configured'
-  let requestTimeoutMs = timeoutMs
+  const timeoutCapMs = boundedDuration(maxTimeoutMs, MAX_AI_PROVIDER_TIMEOUT_MS, 1, MAX_AI_ABSOLUTE_PROVIDER_TIMEOUT_MS)
+  let requestTimeoutMs = boundedDuration(timeoutMs, DEFAULT_AI_PROVIDER_TIMEOUT_MS, 1, timeoutCapMs)
   let failureClass = null
   let controller = null
   let externalAbortHandler = null
@@ -1308,8 +1311,8 @@ export async function callCompatibleAi(provider, { messages, temperature = 0.2, 
   }
   let timeout = null
   try {
-    requestTimeoutMs = effectiveAiTimeoutMs(timeoutMs, deadlineAt)
-    const configuredTimeoutMs = boundedDuration(timeoutMs, DEFAULT_AI_PROVIDER_TIMEOUT_MS, 1, MAX_AI_PROVIDER_TIMEOUT_MS)
+    requestTimeoutMs = effectiveAiTimeoutMs(timeoutMs, deadlineAt, timeoutCapMs)
+    const configuredTimeoutMs = boundedDuration(timeoutMs, DEFAULT_AI_PROVIDER_TIMEOUT_MS, 1, timeoutCapMs)
     let timeoutReason = requestTimeoutMs < configuredTimeoutMs ? 'total_deadline' : 'provider_timeout'
     controller = new AbortController()
     externalAbortHandler = () => {
@@ -1916,12 +1919,13 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   })
 }
 
-async function callCompatibleAiStream(provider, { messages, temperature = 0.2, metadata = null, onDelta, operation = 'ai-stream', requestId = '', providerAttempt = 1, fallbackPath = '', fallback = false, telemetry = null, timeoutMs = DEFAULT_AI_PROVIDER_TIMEOUT_MS, totalDeadlineMs = null, deadlineAt = null, outputTokenLimit = null, disableThinking = false, storeResponse = null, reasoningEffortOverride = '' }) {
+async function callCompatibleAiStream(provider, { messages, temperature = 0.2, metadata = null, onDelta, operation = 'ai-stream', requestId = '', providerAttempt = 1, fallbackPath = '', fallback = false, telemetry = null, timeoutMs = DEFAULT_AI_PROVIDER_TIMEOUT_MS, maxTimeoutMs = MAX_AI_PROVIDER_TIMEOUT_MS, totalDeadlineMs = null, deadlineAt = null, outputTokenLimit = null, disableThinking = false, storeResponse = null, reasoningEffortOverride = '' }) {
   const startedAt = Date.now()
   let statusCode = null
   let schemaStatus = 'not-checked'
   let finalState = provider.apiKey ? 'error' : 'not_configured'
-  let requestTimeoutMs = timeoutMs
+  const timeoutCapMs = boundedDuration(maxTimeoutMs, MAX_AI_PROVIDER_TIMEOUT_MS, 1, MAX_AI_ABSOLUTE_PROVIDER_TIMEOUT_MS)
+  let requestTimeoutMs = boundedDuration(timeoutMs, DEFAULT_AI_PROVIDER_TIMEOUT_MS, 1, timeoutCapMs)
   let failureClass = null
   if (!provider.apiKey) {
     emitProviderTelemetry(telemetry, { requestId, operation, provider: provider.name, model: provider.model, providerAttempt, fallbackPath, fallback, timeoutMs: requestTimeoutMs, totalDeadlineMs, statusCode, schemaStatus, finalState, durationMs: Date.now() - startedAt })
@@ -1931,11 +1935,11 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, m
   let deadlineTimeout = null
   let answer = ''
   try {
-    requestTimeoutMs = effectiveAiTimeoutMs(timeoutMs, deadlineAt)
+    requestTimeoutMs = effectiveAiTimeoutMs(timeoutMs, deadlineAt, timeoutCapMs)
     const controller = new AbortController()
     const resetIdleTimeout = () => {
       if (idleTimeout) clearTimeout(idleTimeout)
-      const idleTimeoutMs = effectiveAiTimeoutMs(timeoutMs, deadlineAt)
+      const idleTimeoutMs = effectiveAiTimeoutMs(timeoutMs, deadlineAt, timeoutCapMs)
       idleTimeout = setTimeout(() => {
         failureClass = 'provider_timeout'
         controller.abort()
