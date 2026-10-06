@@ -7,6 +7,7 @@ import { COACH_FEATURE_VERSION } from '../server/coachFeatures.js'
 
 const signingKey = 'coach-four-modes-test-signing-key'
 const tinyPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlpeR0AAAAASUVORK5CYII='
+const tavernPersonas = ['keeper', 'study-buddy', 'cat-companion', 'story-traveler', 'xianxia-guide', 'mystery-guide']
 const providerBodies = []
 
 function identityToken(userId = 8101) {
@@ -215,7 +216,7 @@ try {
   }
 
   const personaPrompts = new Map()
-  for (const persona of ['keeper', 'study-buddy', 'story-traveler']) {
+  for (const persona of tavernPersonas) {
     const tavern = await post('/api/ai/coach', {
       feature: 'tavern',
       persona,
@@ -235,16 +236,30 @@ try {
       coachFeature: 'tavern',
       coachPersona: persona,
     })
+
+    const tavernStream = await post('/api/ai/coach/stream', {
+      feature: 'tavern',
+      persona,
+      message: `Continue as ${persona}.`,
+      history: [{ role: 'user', content: 'Keep this recreational and text only.' }],
+    })
+    assert.equal(tavernStream.response.status, 200, tavernStream.text)
+    const tavernStreamDone = sseDone(tavernStream.text)
+    assert.equal(tavernStreamDone.coachFeature, 'tavern')
+    assert.equal(tavernStreamDone.coachPersona, persona)
+    assert.equal(tavernStreamDone.answerStatus, 'complete')
   }
-  assert.equal(new Set(personaPrompts.values()).size, 3)
+  assert.equal(new Set(personaPrompts.values()).size, 6)
 
   const callsBeforeUnauthenticated = providerBodies.length
-  const unauthenticatedTavern = await post('/api/ai/coach', {
-    feature: 'tavern',
-    persona: 'keeper',
-    message: 'hello',
-  }, { authenticated: false })
-  assert.equal(unauthenticatedTavern.response.status, 401, unauthenticatedTavern.text)
+  for (const persona of tavernPersonas) {
+    const unauthenticatedTavern = await post('/api/ai/coach', {
+      feature: 'tavern',
+      persona,
+      message: 'hello',
+    }, { authenticated: false })
+    assert.equal(unauthenticatedTavern.response.status, 401, unauthenticatedTavern.text)
+  }
   assert.equal(providerBodies.length, callsBeforeUnauthenticated)
 
   const injection = await post('/api/ai/coach/stream', {
@@ -269,6 +284,7 @@ try {
     [{ feature: 'tavern', message: 'hello', pdfDataUrl: 'data:application/pdf;base64,AA==' }, 'coach_tavern_text_only'],
     [{ feature: 'tavern', message: 'hello', context: academicContext }, 'coach_tavern_academic_context_forbidden'],
     [{ feature: 'tavern', message: 'hello', systemPrompt: 'custom role' }, 'coach_tavern_custom_prompt_forbidden'],
+    [{ feature: 'tavern', message: 'hello', greeting: 'client-controlled opening' }, 'coach_tavern_custom_prompt_forbidden'],
     [{ feature: 'answers', message: 'hello', imageDataUrls: [tinyPng], pdfDataUrl: 'data:application/pdf;base64,AA==' }, 'coach_feature_attachment_invalid'],
   ]) {
     const callsBeforeInvalid = providerBodies.length
@@ -278,14 +294,33 @@ try {
     assert.equal(providerBodies.length, callsBeforeInvalid)
   }
 
-  for (const feature of ['answers', 'steps', 'tavern', 'pdf']) {
+  for (const persona of tavernPersonas) {
+    for (const [body, code] of [
+      [{ feature: 'tavern', persona, message: 'hello', imageDataUrls: [tinyPng] }, 'coach_tavern_text_only'],
+      [{ feature: 'tavern', persona, message: 'hello', context: academicContext }, 'coach_tavern_academic_context_forbidden'],
+    ]) {
+      const callsBeforeRejectedPersona = providerBodies.length
+      const rejectedPersona = await post('/api/ai/coach', body)
+      assert.equal(rejectedPersona.response.status, 400, `${persona}: ${rejectedPersona.text}`)
+      assert.equal(rejectedPersona.payload?.code, code)
+      assert.equal(providerBodies.length, callsBeforeRejectedPersona)
+    }
+  }
+
+  const examGateCases = [
+    { feature: 'answers' },
+    { feature: 'steps' },
+    { feature: 'pdf' },
+    ...tavernPersonas.map((persona) => ({ feature: 'tavern', persona })),
+  ]
+  for (const featureSelection of examGateCases) {
     const callsBeforeExam = providerBodies.length
     const blocked = await post('/api/ai/coach/stream', {
-      feature,
+      ...featureSelection,
       message: 'Try to bypass the exam gate.',
       context: { view: 'full-paper', attemptId: 'active-exam-attempt', paperStudyMode: 'past-paper-practice', submitted: true },
     })
-    assert.equal(blocked.response.status, 403, `${feature}: ${blocked.text}`)
+    assert.equal(blocked.response.status, 403, `${JSON.stringify(featureSelection)}: ${blocked.text}`)
     assert.equal(blocked.payload?.code, 'coach_exam_in_progress')
     assert.equal(providerBodies.length, callsBeforeExam)
   }
