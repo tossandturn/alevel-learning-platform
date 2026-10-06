@@ -274,6 +274,32 @@ try {
   assert.equal(mismatch.response.status, 409, mismatch.text)
   assert.equal(mismatch.payload?.code, 'coach_tavern_draw_binding_mismatch')
 
+  const callsBeforeLegacyEmpty = providerBodies.length
+  const legacyEmpty = await post('/api/ai/coach', { feature: 'tavern', persona: 'keeper', message: '' })
+  assert.equal(legacyEmpty.response.status, 400, legacyEmpty.text)
+  assert.equal(providerBodies.length, callsBeforeLegacyEmpty)
+
+  const callsBeforeEmptyJson = providerBodies.length
+  const emptyJson = await post('/api/ai/coach', {
+    feature: 'tavern', persona: 'eastern-oracle', message: '', drawId: eastern.id,
+  })
+  assert.equal(emptyJson.response.status, 200, emptyJson.text)
+  assert.equal(emptyJson.payload?.answerStatus, 'complete')
+  assert.deepEqual(emptyJson.payload?.draw, eastern)
+  assert.equal(providerBodies.length, callsBeforeEmptyJson + 1, 'empty optional question must use exactly one interpretation call')
+  assert.match(systemPrompt(providerBodies.at(-1)), new RegExp(eastern.cards[0].name))
+
+  const callsBeforeEmptyStream = providerBodies.length
+  const emptyStream = await post('/api/ai/coach/stream', {
+    feature: 'tavern', persona: 'tarot-reader', message: '', drawId: tarot.id,
+  })
+  assert.equal(emptyStream.response.status, 200, emptyStream.text)
+  const emptyStreamDone = sseDone(emptyStream.text)
+  assert.equal(emptyStreamDone.answerStatus, 'complete')
+  assert.deepEqual(emptyStreamDone.draw, tarot)
+  assert.equal(providerBodies.length, callsBeforeEmptyStream + 1, 'empty optional question SSE must use exactly one interpretation call')
+  for (const card of tarot.cards) assert.match(systemPrompt(providerBodies.at(-1)), new RegExp(card.name))
+
   const jsonCoach = await post('/api/ai/coach', {
     feature: 'tavern',
     persona: 'eastern-oracle',

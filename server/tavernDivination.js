@@ -16,46 +16,46 @@ export const HEXAGRAM_DECK = Object.freeze(HEXAGRAM_NAMES.map((name, index) => O
 })))
 
 const TAROT_MAJORS = [
-  ['00-fool', 'The Fool'],
-  ['01-magician', 'The Magician'],
-  ['02-high-priestess', 'The High Priestess'],
-  ['03-empress', 'The Empress'],
-  ['04-emperor', 'The Emperor'],
-  ['05-hierophant', 'The Hierophant'],
-  ['06-lovers', 'The Lovers'],
-  ['07-chariot', 'The Chariot'],
-  ['08-strength', 'Strength'],
-  ['09-hermit', 'The Hermit'],
-  ['10-wheel-of-fortune', 'Wheel of Fortune'],
-  ['11-justice', 'Justice'],
-  ['12-hanged-man', 'The Hanged Man'],
-  ['13-death', 'Death'],
-  ['14-temperance', 'Temperance'],
-  ['15-devil', 'The Devil'],
-  ['16-tower', 'The Tower'],
-  ['17-star', 'The Star'],
-  ['18-moon', 'The Moon'],
-  ['19-sun', 'The Sun'],
-  ['20-judgement', 'Judgement'],
-  ['21-world', 'The World'],
+  ['00-fool', '愚者', 'The Fool'],
+  ['01-magician', '魔术师', 'The Magician'],
+  ['02-high-priestess', '女祭司', 'The High Priestess'],
+  ['03-empress', '女皇', 'The Empress'],
+  ['04-emperor', '皇帝', 'The Emperor'],
+  ['05-hierophant', '教皇', 'The Hierophant'],
+  ['06-lovers', '恋人', 'The Lovers'],
+  ['07-chariot', '战车', 'The Chariot'],
+  ['08-strength', '力量', 'Strength'],
+  ['09-hermit', '隐者', 'The Hermit'],
+  ['10-wheel-of-fortune', '命运之轮', 'Wheel of Fortune'],
+  ['11-justice', '正义', 'Justice'],
+  ['12-hanged-man', '倒吊人', 'The Hanged Man'],
+  ['13-death', '死神', 'Death'],
+  ['14-temperance', '节制', 'Temperance'],
+  ['15-devil', '恶魔', 'The Devil'],
+  ['16-tower', '高塔', 'The Tower'],
+  ['17-star', '星星', 'The Star'],
+  ['18-moon', '月亮', 'The Moon'],
+  ['19-sun', '太阳', 'The Sun'],
+  ['20-judgement', '审判', 'Judgement'],
+  ['21-world', '世界', 'The World'],
 ]
 const TAROT_SUITS = [
-  ['wands', 'Wands'],
-  ['cups', 'Cups'],
-  ['swords', 'Swords'],
-  ['pentacles', 'Pentacles'],
+  ['wands', '权杖', 'Wands'],
+  ['cups', '圣杯', 'Cups'],
+  ['swords', '宝剑', 'Swords'],
+  ['pentacles', '星币', 'Pentacles'],
 ]
 const TAROT_RANKS = [
-  ['ace', 'Ace'], ['two', 'Two'], ['three', 'Three'], ['four', 'Four'], ['five', 'Five'],
-  ['six', 'Six'], ['seven', 'Seven'], ['eight', 'Eight'], ['nine', 'Nine'], ['ten', 'Ten'],
-  ['page', 'Page'], ['knight', 'Knight'], ['queen', 'Queen'], ['king', 'King'],
+  ['ace', '王牌', 'Ace'], ['two', '二', 'Two'], ['three', '三', 'Three'], ['four', '四', 'Four'], ['five', '五', 'Five'],
+  ['six', '六', 'Six'], ['seven', '七', 'Seven'], ['eight', '八', 'Eight'], ['nine', '九', 'Nine'], ['ten', '十', 'Ten'],
+  ['page', '侍从', 'Page'], ['knight', '骑士', 'Knight'], ['queen', '王后', 'Queen'], ['king', '国王', 'King'],
 ]
 
 export const TAROT_DECK = Object.freeze([
-  ...TAROT_MAJORS.map(([id, name]) => Object.freeze({ id: `tarot-major-${id}`, name })),
-  ...TAROT_SUITS.flatMap(([suitId, suitName]) => TAROT_RANKS.map(([rankId, rankName]) => Object.freeze({
+  ...TAROT_MAJORS.map(([id, chineseName, englishName]) => Object.freeze({ id: `tarot-major-${id}`, name: `${chineseName} · ${englishName}` })),
+  ...TAROT_SUITS.flatMap(([suitId, chineseSuit, englishSuit]) => TAROT_RANKS.map(([rankId, chineseRank, englishRank]) => Object.freeze({
     id: `tarot-${suitId}-${rankId}`,
-    name: `${rankName} of ${suitName}`,
+    name: `${chineseSuit}${chineseRank} · ${englishRank} of ${englishSuit}`,
   }))),
 ])
 

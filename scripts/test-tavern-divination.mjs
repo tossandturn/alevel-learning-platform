@@ -25,14 +25,19 @@ assert.equal(TAROT_DECK.length, 78)
 assert.equal(new Set(TAROT_DECK.map(({ id }) => id)).size, 78)
 assert.equal(new Set(TAROT_DECK.map(({ name }) => name)).size, 78)
 assert.deepEqual(TAROT_DECK.slice(0, 3), [
-  { id: 'tarot-major-00-fool', name: 'The Fool' },
-  { id: 'tarot-major-01-magician', name: 'The Magician' },
-  { id: 'tarot-major-02-high-priestess', name: 'The High Priestess' },
+  { id: 'tarot-major-00-fool', name: '愚者 · The Fool' },
+  { id: 'tarot-major-01-magician', name: '魔术师 · The Magician' },
+  { id: 'tarot-major-02-high-priestess', name: '女祭司 · The High Priestess' },
 ])
 assert.deepEqual(TAROT_DECK.slice(-2), [
-  { id: 'tarot-pentacles-queen', name: 'Queen of Pentacles' },
-  { id: 'tarot-pentacles-king', name: 'King of Pentacles' },
+  { id: 'tarot-pentacles-queen', name: '星币王后 · Queen of Pentacles' },
+  { id: 'tarot-pentacles-king', name: '星币国王 · King of Pentacles' },
 ])
+assert.deepEqual(TAROT_DECK.find(({ id }) => id === 'tarot-cups-knight'), {
+  id: 'tarot-cups-knight',
+  name: '圣杯骑士 · Knight of Cups',
+})
+assert.ok(TAROT_DECK.every(({ name }) => /^[^A-Za-z]+ · [A-Za-z]/.test(name)))
 
 assert.deepEqual(TAVERN_DIVINATION_CONFIG, {
   'eastern-oracle': {
@@ -99,9 +104,9 @@ const tarot = store.createDraw({
   nonce: 'tarot-nonce-000001',
 })
 assert.deepEqual(tarot.cards, [
-  { id: 'tarot-major-00-fool', name: 'The Fool', position: '过去主题', orientation: 'upright' },
-  { id: 'tarot-major-01-magician', name: 'The Magician', position: '当下主题', orientation: 'upright' },
-  { id: 'tarot-major-02-high-priestess', name: 'The High Priestess', position: '可能的方向', orientation: 'upright' },
+  { id: 'tarot-major-00-fool', name: '愚者 · The Fool', position: '过去主题', orientation: 'upright' },
+  { id: 'tarot-major-01-magician', name: '魔术师 · The Magician', position: '当下主题', orientation: 'upright' },
+  { id: 'tarot-major-02-high-priestess', name: '女祭司 · The High Priestess', position: '可能的方向', orientation: 'upright' },
 ])
 assert.equal(new Set(tarot.cards.map(({ id }) => id)).size, 3, 'three-card spread must draw without replacement')
 assert.strictEqual(store.resolveDraw({ ownerId: 'ielts:101', persona: 'tarot-reader', drawId: tarot.id }), tarot)

@@ -1505,7 +1505,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   const context = coachFeatureContext(authorizedContext, policy, feature)
   const imageDataUrls = coachImageDataUrls(payload)
   const hasImages = imageDataUrls.length > 0
-  if (!message && !hasImages) throw Object.assign(new Error('Ask a question or attach an image.'), { statusCode: 400 })
+  if (!message && !hasImages && !draw) throw Object.assign(new Error('Ask a question or attach an image.'), { statusCode: 400 })
   const localAnswer = localCoachReply(context, policy)
   if (shouldUseLocalCoachFirst({ message, hasImages, policy, feature })) {
     return sendJson(response, 200, {
@@ -1810,7 +1810,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
   const context = coachFeatureContext(authorizedContext, policy, feature)
   const imageDataUrls = coachImageDataUrls(payload)
   const hasImages = imageDataUrls.length > 0
-  if (!message && !hasImages) throw Object.assign(new Error('Ask a question or attach an image.'), { statusCode: 400 })
+  if (!message && !hasImages && !draw) throw Object.assign(new Error('Ask a question or attach an image.'), { statusCode: 400 })
   if (!shouldUseLocalCoachFirst({ message, hasImages, policy, feature }) && !authenticatedUserId) {
     throw Object.assign(new Error('Sign in to STEM before using detailed AI Coach.'), { statusCode: 401 })
   }
