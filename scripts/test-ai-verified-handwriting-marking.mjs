@@ -292,6 +292,7 @@ const providerServer = http.createServer(async (request, response) => {
   }
   response.end(JSON.stringify({
     choices: [{
+      finish_reason: 'stop',
       message: {
         content: JSON.stringify(providerAssessment),
       },

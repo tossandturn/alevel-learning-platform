@@ -36,6 +36,8 @@ import {
   createTavernConversationStore,
   resolveTavernMemoryRoot,
   selectTavernProviderContext,
+  TAVERN_MEMORY_MAX_LEGACY_IMPORT_BYTES,
+  TAVERN_MEMORY_MAX_MESSAGE_BYTES,
 } from './tavernConversationStore.js'
 
 export { buildCoachSystemPrompt } from './coachPolicy.js'
@@ -75,6 +77,15 @@ function sendJson(response, statusCode, value) {
   response.setHeader('Content-Type', 'application/json; charset=utf-8')
   response.setHeader('Cache-Control', 'no-store')
   response.end(JSON.stringify(value))
+}
+
+function sendCommittedJson(response, statusCode, value) {
+  try {
+    return sendJson(response, statusCode, value)
+  } catch (error) {
+    if (response.writableEnded || response.destroyed) throw error
+    return sendJson(response, statusCode, value)
+  }
 }
 
 function readJsonBody(request) {
@@ -188,6 +199,18 @@ function validateTavernResumePayload(payload) {
       || legacy.messages.some((message) => !message || !['user', 'assistant'].includes(message.role) || typeof message.content !== 'string')) {
       throw tavernDrawRequestError(400, 'tavern_legacy_import_invalid', 'Legacy Tavern import must contain only user and assistant text messages.')
     }
+    let aggregateBytes = 0
+    for (const message of legacy.messages) {
+      const content = message.content.trim()
+      const bytes = Buffer.byteLength(content, 'utf8')
+      if (!content || bytes > TAVERN_MEMORY_MAX_MESSAGE_BYTES) {
+        throw tavernDrawRequestError(400, 'tavern_legacy_import_invalid', 'Legacy Tavern import contains an empty or oversized message.')
+      }
+      aggregateBytes += bytes
+    }
+    if (aggregateBytes > TAVERN_MEMORY_MAX_LEGACY_IMPORT_BYTES) {
+      throw tavernDrawRequestError(413, 'tavern_legacy_import_too_large', 'Legacy Tavern import exceeds the bounded migration payload.')
+    }
   }
   return feature
 }
@@ -213,8 +236,16 @@ async function handleTavernConversationResume(request, response, env, authorizeC
     conversationId: payload.conversationId,
     legacyImport: payload.legacyImport,
   })
+  const page = conversationStore.getMessages({
+    ownerId: authorized.ownerId,
+    persona: feature.persona,
+    conversationId: conversation.id,
+    limit: 40,
+  })
   return sendJson(response, 200, {
     conversation,
+    messages: page.messages,
+    nextBefore: page.nextBefore,
     ...(payload.legacyImport ? {
       legacyImport: {
         importId: String(payload.legacyImport.importId),
@@ -234,12 +265,16 @@ async function handleTavernConversationMessages(requestUrl, request, response, e
     attemptId: requestUrl.searchParams.get('attemptId') || '',
   }
   const authorized = await authorizeTavernMemoryRequest({ request, payload, env, authorizeCoachRequest })
+  const rawLimit = requestUrl.searchParams.get('limit') || '40'
+  if (!/^\d+$/.test(rawLimit) || Number(rawLimit) < 1 || Number(rawLimit) > 40) {
+    throw tavernDrawRequestError(400, 'tavern_page_limit_invalid', 'Tavern message page limit must be an integer from 1 to 40.')
+  }
   return sendJson(response, 200, conversationStore.getMessages({
     ownerId: authorized.ownerId,
     persona: authorized.feature.persona,
     conversationId,
     before: requestUrl.searchParams.get('before') || '',
-    limit: requestUrl.searchParams.get('limit') || 40,
+    limit: Number(rawLimit),
   }))
 }
 
@@ -1102,6 +1137,15 @@ function responseOutputText(payload) {
   return String(payload?.choices?.[0]?.message?.content || '').trim()
 }
 
+function requireCompletedChatChoice(payload) {
+  const choice = Array.isArray(payload?.choices) ? payload.choices[0] : null
+  const finishReason = String(choice?.finish_reason || '').trim().toLowerCase()
+  if (finishReason !== 'stop') {
+    throw aiResponseSchemaError(`AI chat response was incomplete (${finishReason || 'missing finish reason'}).`)
+  }
+  return choice
+}
+
 function imagePublicBase(provider, request) {
   return provider.imageMode === 'url' ? provider.publicBaseUrl || publicBaseUrlFromRequest(request) : ''
 }
@@ -1302,6 +1346,7 @@ export async function callCompatibleAi(provider, { messages, temperature = 0.2, 
       schemaStatus = 'invalid'
       throw aiResponseSchemaError('AI Responses provider did not complete the response.')
     }
+    if (!isResponsesProvider(provider)) requireCompletedChatChoice(payload)
     const answer = isResponsesProvider(provider)
       ? responseOutputText(payload)
       : String(payload?.choices?.[0]?.message?.content || '').trim()
@@ -1769,6 +1814,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   let lastError = null
   let lastMemory = null
   let lastAttemptedProvider = activeProviders[0]
+  let successfulProviderResult = null
   for (const [providerIndex, activeProvider] of activeProviders.entries()) {
     lastAttemptedProvider = activeProvider
     let providerImages = []
@@ -1812,31 +1858,37 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
           } : {}),
         } : {}),
       })
-      const completedState = state ? stateStore.completeTurn({
-        ownerId: authenticatedUserId,
-        persona: feature.persona,
-        conversationId: state.conversation.id,
-        clientTurnId: state.clientTurnId,
-        leaseId: state.leaseId,
-        assistantContent: answer,
-        provider: activeProvider.name,
-        model: activeProvider.model,
-        memory: lastMemory,
-      }) : null
-      return sendJson(response, 200, {
-        mode: 'ai',
-        provider: activeProvider.name,
-        providerStatus: 'connected',
-        answer,
-        model: activeProvider.model,
-        ...coachResponseFields(policy, feature, 'complete', draw),
-        ...tavernConversationResponse(completedState ? { ...completedState, clientTurnId: state.clientTurnId } : null, lastMemory),
-      })
+      successfulProviderResult = { answer, provider: activeProvider, memory: lastMemory }
     } catch (error) {
       lastError = error
     } finally {
       providerImages.forEach((image) => image.cleanup())
     }
+    if (successfulProviderResult) break
+  }
+  if (successfulProviderResult) {
+    const { answer, provider: successfulProvider, memory } = successfulProviderResult
+    const completedState = state ? stateStore.completeTurn({
+      ownerId: authenticatedUserId,
+      persona: feature.persona,
+      conversationId: state.conversation.id,
+      clientTurnId: state.clientTurnId,
+      leaseId: state.leaseId,
+      assistantContent: answer,
+      provider: successfulProvider.name,
+      model: successfulProvider.model,
+      memory,
+    }) : null
+    const committedPayload = {
+      mode: 'ai',
+      provider: successfulProvider.name,
+      providerStatus: 'connected',
+      answer,
+      model: successfulProvider.model,
+      ...coachResponseFields(policy, feature, 'complete', draw),
+      ...tavernConversationResponse(completedState ? { ...completedState, clientTurnId: state.clientTurnId } : null, memory),
+    }
+    return sendCommittedJson(response, 200, committedPayload)
   }
   const failedProvider = lastAttemptedProvider
   const failedState = state ? stateStore.failTurn({
@@ -1926,6 +1978,7 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, m
         schemaStatus = 'invalid'
         throw aiResponseSchemaError('AI Responses provider did not complete the response.')
       }
+      if (!isResponsesProvider(provider)) requireCompletedChatChoice(payload)
       answer = responseOutputText(payload)
       if ((!isResponsesProvider(provider) && !Array.isArray(payload?.choices)) || !answer) {
         schemaStatus = 'invalid'
@@ -1942,6 +1995,7 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, m
     let buffer = ''
     let receivedDone = false
     let eventName = ''
+    let chatFinishReason = ''
     async function consumeLine(line) {
       const clean = line.trim()
       if (!clean) {
@@ -1989,6 +2043,10 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, m
         eventName = ''
         return
       }
+      if (!isResponsesProvider(provider)) {
+        const choice = Array.isArray(payload?.choices) ? payload.choices[0] : null
+        if (choice?.finish_reason !== undefined && choice.finish_reason !== null) chatFinishReason = String(choice.finish_reason).trim().toLowerCase()
+      }
       const delta = isResponsesProvider(provider)
         ? String(payload?.delta || (responseEventType === 'response.output_text.done' ? payload?.text || '' : ''))
         : String(payload?.choices?.[0]?.delta?.content || payload?.choices?.[0]?.message?.content || '')
@@ -2009,9 +2067,9 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, m
     }
     if (buffer) await consumeLine(buffer)
     answer = answer.trim()
-    if (!answer || !receivedDone) {
+    if (!answer || !receivedDone || (!isResponsesProvider(provider) && chatFinishReason !== 'stop')) {
       schemaStatus = 'invalid'
-      throw aiResponseSchemaError('AI provider stream ended without a complete response.')
+      throw aiResponseSchemaError(`AI provider stream ended without a complete response${!isResponsesProvider(provider) ? ` (${chatFinishReason || 'missing finish reason'})` : ''}.`)
     }
     schemaStatus = 'valid'
     finalState = 'connected'
@@ -2049,6 +2107,24 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, m
 
 function sendCoachEvent(response, event, value) {
   response.write(`event: ${event}\ndata: ${JSON.stringify(value)}\n\n`)
+}
+
+function sendCoachEventOrThrow(response, event, value) {
+  try {
+    sendCoachEvent(response, event, value)
+  } catch (error) {
+    error.code = 'COACH_RESPONSE_TRANSPORT'
+    throw error
+  }
+}
+
+function finishCommittedCoachStream(response, payload) {
+  try {
+    sendCoachEvent(response, 'done', payload)
+    response.end()
+  } catch {
+    try { if (!response.writableEnded && !response.destroyed) response.end() } catch { /* Canonical result is already committed. */ }
+  }
 }
 
 async function handleCoachStream(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStoreProvider) {
@@ -2202,6 +2278,8 @@ async function handleCoachStream(request, response, provider, visionProvider, li
   let lastError = null
   let lastAttemptedProvider = activeProviders[0]
   let lastMemory = null
+  let successfulStreamResult = null
+  let responseTransportFailure = null
   const heartbeat = setInterval(() => {
     if (!response.writableEnded && !response.destroyed) response.write(': keep-alive\n\n')
   }, 15_000)
@@ -2228,7 +2306,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
             })
           : null
         lastMemory = selectedTavernContext?.memory || null
-        sendCoachEvent(response, 'meta', {
+        sendCoachEventOrThrow(response, 'meta', {
           mode: 'ai',
           provider: activeProvider.name,
           providerStatus: 'connecting',
@@ -2259,44 +2337,72 @@ async function handleCoachStream(request, response, provider, visionProvider, li
           } : {}),
           onDelta: async (delta) => {
             attemptAnswer += delta
-            sendCoachEvent(response, 'delta', { text: delta })
+            sendCoachEventOrThrow(response, 'delta', { text: delta })
           },
         })
         streamedAnswer = result.answer || attemptAnswer
-        const answer = streamedAnswer
-        const completedState = state ? stateStore.completeTurn({
-          ownerId: authenticatedUserId,
-          persona: feature.persona,
-          conversationId: state.conversation.id,
-          clientTurnId: state.clientTurnId,
-          leaseId: state.leaseId,
-          assistantContent: answer,
-          provider: activeProvider.name,
-          model: activeProvider.model,
-          memory: lastMemory,
-        }) : null
-        sendCoachEvent(response, 'done', {
-          mode: 'ai',
-          provider: activeProvider.name,
-          providerStatus: 'connected',
-          answer,
-          model: activeProvider.model,
-          ...coachResponseFields(policy, feature, 'complete', draw),
-          ...tavernConversationResponse(completedState ? { ...completedState, clientTurnId: state.clientTurnId } : null, lastMemory),
-        })
-        response.end()
-        return
+        successfulStreamResult = { answer: streamedAnswer, provider: activeProvider, memory: lastMemory }
       } catch (error) {
         lastError = error
+        if (error?.code === 'COACH_RESPONSE_TRANSPORT') {
+          responseTransportFailure = error
+          break
+        }
         if (attemptAnswer) {
           lastPartialAnswer = attemptAnswer
           if (providerIndex < activeProviders.length - 1) {
-            sendCoachEvent(response, 'reset', { provider: activeProvider.name })
+            try {
+              sendCoachEventOrThrow(response, 'reset', { provider: activeProvider.name })
+            } catch (transportError) {
+              responseTransportFailure = transportError
+              break
+            }
           }
         }
       } finally {
         providerImages.forEach((image) => image.cleanup())
       }
+      if (successfulStreamResult || responseTransportFailure) break
+    }
+    if (successfulStreamResult) {
+      const { answer, provider: successfulProvider, memory } = successfulStreamResult
+      const completedState = state ? stateStore.completeTurn({
+        ownerId: authenticatedUserId,
+        persona: feature.persona,
+        conversationId: state.conversation.id,
+        clientTurnId: state.clientTurnId,
+        leaseId: state.leaseId,
+        assistantContent: answer,
+        provider: successfulProvider.name,
+        model: successfulProvider.model,
+        memory,
+      }) : null
+      finishCommittedCoachStream(response, {
+        mode: 'ai',
+        provider: successfulProvider.name,
+        providerStatus: 'connected',
+        answer,
+        model: successfulProvider.model,
+        ...coachResponseFields(policy, feature, 'complete', draw),
+        ...tavernConversationResponse(completedState ? { ...completedState, clientTurnId: state.clientTurnId } : null, memory),
+      })
+      return
+    }
+    if (responseTransportFailure) {
+      if (state) stateStore.failTurn({
+        ownerId: authenticatedUserId,
+        persona: feature.persona,
+        conversationId: state.conversation.id,
+        clientTurnId: state.clientTurnId,
+        leaseId: state.leaseId,
+        status: lastPartialAnswer || streamedAnswer ? 'partial' : 'interrupted',
+        assistantContent: lastPartialAnswer || streamedAnswer,
+        provider: lastAttemptedProvider.name,
+        model: lastAttemptedProvider.model,
+        memory: lastMemory,
+      })
+      try { if (!response.writableEnded && !response.destroyed) response.end() } catch { /* Client transport is already unavailable. */ }
+      return
     }
     const failedProvider = lastAttemptedProvider
     const preservedAnswer = lastPartialAnswer || streamedAnswer

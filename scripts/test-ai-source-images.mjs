@@ -148,6 +148,7 @@ const providerServer = http.createServer(async (request, response) => {
   response.setHeader('Content-Type', 'application/json')
   response.end(JSON.stringify({
     choices: [{
+      finish_reason: 'stop',
       message: {
         content: JSON.stringify({
           rawMarks: 1,

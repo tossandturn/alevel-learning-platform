@@ -3,8 +3,9 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import http from 'node:http'
 import path from 'node:path'
+import { Readable } from 'node:stream'
 
-import { createAiApi } from '../server/aiApi.js'
+import { callCompatibleAi, createAiApi } from '../server/aiApi.js'
 import { createTavernConversationStore } from '../server/tavernConversationStore.js'
 import { createTavernDivinationStore } from '../server/tavernDivination.js'
 
@@ -12,6 +13,16 @@ const signingKey = 'synthetic-tavern-memory-api-signing-key'
 const providerBodies = []
 let providerCalls = 0
 let failMemoryOnce = true
+
+const originalFetch = globalThis.fetch
+globalThis.fetch = async () => new Response(JSON.stringify({
+  choices: [{ message: { content: 'truncated' }, finish_reason: 'length' }],
+}), { status: 200, headers: { 'content-type': 'application/json' } })
+await assert.rejects(() => callCompatibleAi({
+  name: 'qwen', label: 'Qwen', protocol: 'chat-completions', apiKey: 'synthetic',
+  baseUrl: 'http://fixture.invalid/v1', model: 'qwen3.7-max',
+}, { messages: [{ role: 'user', content: 'fixture' }] }), /incomplete|length/i)
+globalThis.fetch = originalFetch
 
 function identityToken(userId = 9901) {
   const now = Math.floor(Date.now() / 1000)
@@ -87,11 +98,15 @@ const providerServer = http.createServer(async (request, response) => {
   const answer = input.includes('old-memory-marker') ? 'old-memory-marker' : 'synthetic memory answer'
   if (body.stream) {
     response.writeHead(200, { 'Content-Type': 'text/event-stream' })
-    response.end(`data: ${JSON.stringify({ choices: [{ delta: { content: answer } }] })}\n\ndata: [DONE]\n\n`)
+    if (input.includes('LENGTH_STREAM')) {
+      response.end(`data: ${JSON.stringify({ choices: [{ delta: { content: 'truncated stream' }, finish_reason: 'length' }] })}\n\ndata: [DONE]\n\n`)
+      return
+    }
+    response.end(`data: ${JSON.stringify({ choices: [{ delta: { content: answer } }] })}\n\ndata: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`)
     return
   }
   response.writeHead(200, { 'Content-Type': 'application/json' })
-  response.end(JSON.stringify({ choices: [{ message: { content: answer } }], usage: { prompt_tokens: 44, completion_tokens: 5 } }))
+  response.end(JSON.stringify({ choices: [{ message: { content: answer }, finish_reason: 'stop' }], usage: { prompt_tokens: 44, completion_tokens: 5 } }))
 })
 const providerBase = await listen(providerServer)
 
@@ -146,6 +161,10 @@ try {
       { role: 'assistant', content: `old-assistant-${pair}` },
     )
   }
+  const invalidImport = await call('/api/ai/tavern/conversations/resume', {
+    body: { persona: 'keeper', legacyImport: { importId: 'legacy-memory-invalid-0001', messages: [...legacyMessages, { role: 'user', content: '   ' }] } },
+  })
+  assert.equal(invalidImport.response.status, 400)
   const opened = await call('/api/ai/tavern/conversations/resume', {
     body: { persona: 'keeper', legacyImport: { importId: 'legacy-memory-api-0001', messages: legacyMessages } },
   })
@@ -157,6 +176,8 @@ try {
   })
   let conversation = opened.payload.conversation
   assert.equal(conversation.turnCount, 50)
+  assert.equal(opened.payload.messages.length, 40)
+  assert.ok(Object.hasOwn(opened.payload, 'nextBefore'))
 
   const firstRequest = {
     feature: 'tavern', persona: 'keeper', message: 'What was the old marker?',
@@ -224,8 +245,20 @@ try {
   assert.equal(page.response.status, 200)
   assert.equal(page.payload.messages.length, 40)
   assert.ok(page.payload.nextBefore)
+  const invalidLimit = await call(`/api/ai/tavern/conversations/${conversation.id}/messages?persona=keeper&limit=41`, { method: 'GET' })
+  assert.equal(invalidLimit.response.status, 400)
   const foreign = await call(`/api/ai/tavern/conversations/${conversation.id}/messages?persona=keeper`, { method: 'GET', owner: 9902 })
   assert.equal(foreign.response.status, 404)
+
+  const lengthStreamBody = {
+    feature: 'tavern', persona: 'keeper', message: 'LENGTH_STREAM',
+    conversationId: conversation.id, clientTurnId: 'memory-api-length-0001', expectedRevision: conversation.revision,
+  }
+  const lengthStream = await call('/api/ai/coach/stream', { body: lengthStreamBody })
+  const lengthDone = sseDone(lengthStream.text)
+  assert.notEqual(lengthDone.answerStatus, 'complete')
+  assert.notEqual(lengthDone.turns.find((turn) => turn.role === 'assistant').status, 'complete')
+  conversation = lengthDone.conversation
 
   const drawResult = await call('/api/ai/tavern/draw', {
     body: { feature: 'tavern', persona: 'eastern-oracle', drawNonce: 'memory-draw-nonce-0001', spread: 'single' },
@@ -254,6 +287,67 @@ try {
   assert.equal(expiredNewTurn.response.status, 409)
   assert.equal(expiredNewTurn.payload.code, 'coach_tavern_draw_expired')
   assert.equal(providerCalls, callsBeforeExpiredReplay)
+
+  const commitConversation = store.resumeConversation({ ownerId: 'ielts:9901', persona: 'cat-companion' })
+  const commitApi = createAiApi({
+    env: {
+      AI_PROVIDER: 'openai', STEM_INTERNAL_AUTH_KEY: signingKey,
+      OPENAI_API_KEY: 'synthetic-primary-key', OPENAI_CHAT_BASE_URL: providerBase,
+      OPENAI_API_PROTOCOL: 'chat', OPENAI_COACH_MODEL: 'gpt-primary',
+      COACH_AI_API_KEY: 'synthetic-fallback-key', COACH_AI_BASE_URL: providerBase, COACH_AI_MODEL: 'qwen3.7-max',
+    },
+    libraryRoot: fixtureRoot,
+    allowedSubjects: new Set(['9702']),
+    authorizeCoachRequest,
+    tavernConversationStore: store,
+  })
+  const commitBody = {
+    feature: 'tavern', persona: 'cat-companion', message: 'commit once',
+    conversationId: commitConversation.id, clientTurnId: 'commit-once-turn-0001', expectedRevision: 0,
+  }
+  const commitRequest = Readable.from([Buffer.from(JSON.stringify(commitBody))])
+  commitRequest.method = 'POST'
+  commitRequest.url = '/api/ai/coach'
+  commitRequest.headers = { authorization: `Bearer ${identityToken()}`, 'content-type': 'application/json', host: '127.0.0.1' }
+  const commitResponse = {
+    statusCode: 0, chunks: [], endCalls: 0, writableEnded: false, destroyed: false,
+    setHeader() {},
+    end(value = '') {
+      this.endCalls += 1
+      if (this.endCalls === 1) throw new Error('synthetic response loss after commit')
+      if (value) this.chunks.push(String(value))
+      this.writableEnded = true
+    },
+  }
+  const callsBeforeCommitLoss = providerCalls
+  await commitApi(commitRequest, commitResponse, () => { throw new Error('unexpected next') })
+  const commitPayload = JSON.parse(commitResponse.chunks.join(''))
+  assert.equal(providerCalls, callsBeforeCommitLoss + 1)
+  assert.equal(commitPayload.answer, commitPayload.turns.find((turn) => turn.role === 'assistant').content)
+
+  const streamCommitConversation = store.resumeConversation({ ownerId: 'ielts:9901', persona: 'study-buddy' })
+  const streamCommitBody = {
+    feature: 'tavern', persona: 'study-buddy', message: 'commit stream once',
+    conversationId: streamCommitConversation.id, clientTurnId: 'commit-stream-turn-0001', expectedRevision: 0,
+  }
+  const streamCommitRequest = Readable.from([Buffer.from(JSON.stringify(streamCommitBody))])
+  streamCommitRequest.method = 'POST'
+  streamCommitRequest.url = '/api/ai/coach/stream'
+  streamCommitRequest.headers = { authorization: `Bearer ${identityToken()}`, 'content-type': 'application/json', host: '127.0.0.1' }
+  const streamCommitResponse = {
+    statusCode: 0, chunks: [], endCalls: 0, writableEnded: false, destroyed: false,
+    setHeader() {}, flushHeaders() {}, write(value) { this.chunks.push(String(value)); return true },
+    end() {
+      this.endCalls += 1
+      if (this.endCalls === 1) throw new Error('synthetic stream response loss after commit')
+      this.writableEnded = true
+    },
+  }
+  const callsBeforeStreamCommitLoss = providerCalls
+  await commitApi(streamCommitRequest, streamCommitResponse, () => { throw new Error('unexpected next') })
+  const committedStreamDone = sseDone(streamCommitResponse.chunks.join(''))
+  assert.equal(providerCalls, callsBeforeStreamCommitLoss + 1)
+  assert.equal(committedStreamDone.answer, committedStreamDone.turns.find((turn) => turn.role === 'assistant').content)
 
   const deleted = await call(`/api/ai/tavern/conversations/${conversation.id}?persona=keeper`, { method: 'DELETE' })
   assert.equal(deleted.response.status, 200)

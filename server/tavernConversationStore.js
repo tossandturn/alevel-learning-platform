@@ -7,6 +7,9 @@ export const TAVERN_MEMORY_COUNTING_METHOD = 'utf8-provider-envelope-upper-bound
 export const TAVERN_MEMORY_DEFAULT_QUOTA_BYTES = 64 * 1024 * 1024
 export const TAVERN_MEMORY_DEFAULT_SEGMENT_BYTES = 64 * 1024
 export const TAVERN_MEMORY_MAX_PROVIDER_BYTES = 12 * 1024 * 1024
+export const TAVERN_MEMORY_MAX_MESSAGE_BYTES = 64 * 1024 - 1
+export const TAVERN_MEMORY_MAX_LEGACY_IMPORT_BYTES = 1024 * 1024
+export const TAVERN_MEMORY_MAX_PAGE_BYTES = 512 * 1024
 
 const PERSONAS = new Set([
   'keeper', 'study-buddy', 'cat-companion', 'story-traveler',
@@ -17,8 +20,10 @@ const KNOWN_CONTEXT_WINDOWS = Object.freeze({
   'qwen3.7-plus': 1_000_000,
 })
 const UNKNOWN_CONTEXT_WINDOW = 32_768
-const MAX_TURN_CONTENT_BYTES = 256 * 1024
-const MAX_PAGE_LIMIT = 100
+const MAX_TURN_CONTENT_BYTES = TAVERN_MEMORY_MAX_MESSAGE_BYTES
+const MAX_PAGE_LIMIT = 40
+const MAX_PAGE_SERIALIZED_BYTES = TAVERN_MEMORY_MAX_PAGE_BYTES
+const MAX_LEGACY_IMPORT_BYTES = TAVERN_MEMORY_MAX_LEGACY_IMPORT_BYTES
 
 function memoryError(statusCode, code, message, extra = {}) {
   return Object.assign(new Error(message), { statusCode, code, ...extra })
@@ -269,6 +274,7 @@ export function createTavernConversationStore({
   if (!Number.isFinite(segmentTargetBytes) || segmentTargetBytes < 256) throw new Error('segmentTargetBytes must be at least 256.')
   if (!Number.isFinite(leaseTtlMs) || leaseTtlMs < 1000 || leaseTtlMs > 10 * 60 * 1000) throw new Error('leaseTtlMs is outside the supported range.')
   const databasePath = path.join(path.resolve(root), 'tavern.sqlite')
+  const extendedMemory = quotaBytes >= 1024 * 1024
   let database = null
 
   function db() {
@@ -276,8 +282,9 @@ export function createTavernConversationStore({
     fs.mkdirSync(path.dirname(databasePath), { recursive: true })
     const DatabaseSync = databaseSync()
     database = new DatabaseSync(databasePath)
+    database.exec('PRAGMA page_size = 512;')
+    database.exec(quotaBytes < 1024 * 1024 ? 'PRAGMA journal_mode = DELETE;' : 'PRAGMA journal_mode = WAL;')
     database.exec(`
-      PRAGMA journal_mode = WAL;
       PRAGMA foreign_keys = ON;
       PRAGMA busy_timeout = 5000;
       PRAGMA secure_delete = ON;
@@ -305,6 +312,7 @@ export function createTavernConversationStore({
         client_turn_id TEXT NOT NULL,
         role TEXT NOT NULL,
         content TEXT NOT NULL,
+        content_bytes INTEGER NOT NULL,
         status TEXT NOT NULL,
         request_hash TEXT NOT NULL,
         draw_json TEXT,
@@ -321,6 +329,9 @@ export function createTavernConversationStore({
         FOREIGN KEY (owner_id, conversation_id) REFERENCES tavern_conversations(owner_id, conversation_id) ON DELETE CASCADE
       );
       CREATE INDEX IF NOT EXISTS tavern_turns_page ON tavern_turns(owner_id, conversation_id, sequence DESC);
+      CREATE INDEX IF NOT EXISTS tavern_turns_inflight ON tavern_turns(owner_id, conversation_id, status, role);
+    `)
+    if (extendedMemory) database.exec(`
       CREATE TABLE IF NOT EXISTS tavern_segments (
         owner_id TEXT NOT NULL,
         conversation_id TEXT NOT NULL,
@@ -334,6 +345,17 @@ export function createTavernConversationStore({
         PRIMARY KEY (owner_id, conversation_id, segment_id),
         FOREIGN KEY (owner_id, conversation_id) REFERENCES tavern_conversations(owner_id, conversation_id) ON DELETE CASCADE
       );
+      CREATE TABLE IF NOT EXISTS tavern_segment_terms (
+        owner_id TEXT NOT NULL,
+        conversation_id TEXT NOT NULL,
+        term TEXT NOT NULL,
+        segment_id TEXT NOT NULL,
+        first_sequence INTEGER NOT NULL,
+        last_sequence INTEGER NOT NULL,
+        PRIMARY KEY (owner_id, conversation_id, term, segment_id)
+      );
+      CREATE INDEX IF NOT EXISTS tavern_segment_terms_lookup
+        ON tavern_segment_terms(owner_id, conversation_id, term, last_sequence DESC);
       CREATE TABLE IF NOT EXISTS tavern_imports (
         owner_id TEXT NOT NULL,
         persona TEXT NOT NULL,
@@ -388,7 +410,40 @@ export function createTavernConversationStore({
     }
   }
 
+  function physicalStorageBytes() {
+    return ['', '-wal', '-shm']
+      .map((suffix) => `${databasePath}${suffix}`)
+      .filter((file) => fs.existsSync(file))
+      .reduce((total, file) => total + fs.statSync(file).size, 0)
+  }
+
+  function assertPhysicalStorageBudget() {
+    const usage = physicalStorageBytes()
+    if (usage > quotaBytes) throw memoryError(413, 'tavern_physical_quota_exceeded', 'Tavern memory physical storage quota is full. Your draft was not committed.')
+    const stat = fs.statfsSync(path.dirname(databasePath))
+    const freeBytes = Number(stat.bavail) * Number(stat.bsize)
+    if (!Number.isFinite(freeBytes) || freeBytes < Math.max(16 * 1024 * 1024, quotaBytes - usage)) {
+      throw memoryError(507, 'tavern_storage_headroom_insufficient', 'Tavern memory storage does not have safe disk headroom.')
+    }
+  }
+
+  function storageTransaction(databaseHandle, operation) {
+    try {
+      const result = transaction(databaseHandle, () => {
+        const value = operation()
+        assertPhysicalStorageBudget()
+        return value
+      })
+      if (quotaBytes >= 1024 * 1024 && physicalStorageBytes() > quotaBytes * 0.75) databaseHandle.exec('PRAGMA wal_checkpoint(PASSIVE)')
+      return result
+    } catch (error) {
+      try { databaseHandle.exec('PRAGMA wal_checkpoint(TRUNCATE)') } catch { /* Preserve the original storage error. */ }
+      throw error
+    }
+  }
+
   function appendImportedMessages(databaseHandle, row, messages, importId, payloadHash) {
+    if (!extendedMemory) throw memoryError(413, 'tavern_storage_quota_exceeded', 'This physical Tavern quota cannot support legacy import metadata.')
     const existing = databaseHandle.prepare('SELECT * FROM tavern_imports WHERE owner_id = ? AND persona = ? AND import_id = ?').get(row.owner_id, row.persona, importId)
     if (existing) {
       if (existing.status === 'deleted') throw memoryError(410, 'tavern_import_deleted', 'This legacy import belonged to a deleted conversation.')
@@ -396,22 +451,26 @@ export function createTavernConversationStore({
       if (existing.conversation_id !== row.conversation_id) throw memoryError(409, 'tavern_import_conversation_conflict', 'This legacy import is already bound to another conversation.')
       return row
     }
-    const normalized = (Array.isArray(messages) ? messages : []).flatMap((message) => {
-      if (!message || !['user', 'assistant'].includes(message.role)) return []
-      try { return [{ role: message.role, content: cleanContent(message.content) }] } catch { return [] }
+    if (!Array.isArray(messages)) throw memoryError(400, 'tavern_legacy_import_invalid', 'Legacy import messages must be an array.')
+    const normalized = messages.map((message) => {
+      if (!message || !['user', 'assistant'].includes(message.role) || typeof message.content !== 'string') {
+        throw memoryError(400, 'tavern_legacy_import_invalid', 'Legacy import contains a non-canonical message.')
+      }
+      return { role: message.role, content: cleanContent(message.content) }
     })
     const additionalBytes = normalized.reduce((total, message) => total + Buffer.byteLength(message.content, 'utf8'), 0)
+    if (additionalBytes > MAX_LEGACY_IMPORT_BYTES) throw memoryError(413, 'tavern_legacy_import_too_large', 'Legacy Tavern import exceeds the bounded migration payload.')
     assertQuota(databaseHandle, row.owner_id, row.conversation_id, additionalBytes)
     let sequence = Number(row.next_sequence)
     const nowText = timestamp()
     const insert = databaseHandle.prepare(`
       INSERT INTO tavern_turns
-        (owner_id, conversation_id, sequence, turn_id, client_turn_id, role, content, status, request_hash, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'complete', ?, ?, ?)
+        (owner_id, conversation_id, sequence, turn_id, client_turn_id, role, content, content_bytes, status, request_hash, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'complete', ?, ?, ?)
     `)
     normalized.forEach((message, index) => {
       const clientTurnId = `legacy-${importId}-${Math.floor(index / 2)}`.slice(0, 180)
-      insert.run(row.owner_id, row.conversation_id, sequence, `legacy-${importId}-${index}`.slice(0, 180), clientTurnId, message.role, message.content, payloadHash, nowText, nowText)
+      insert.run(row.owner_id, row.conversation_id, sequence, `legacy-${importId}-${index}`.slice(0, 180), clientTurnId, message.role, message.content, Buffer.byteLength(message.content, 'utf8'), payloadHash, nowText, nowText)
       sequence += 1
     })
     databaseHandle.prepare(`
@@ -426,6 +485,7 @@ export function createTavernConversationStore({
   }
 
   function buildSegments(databaseHandle, ownerId, conversationId) {
+    if (!extendedMemory) return
     const last = databaseHandle.prepare('SELECT COALESCE(MAX(last_sequence), 0) AS last_sequence FROM tavern_segments WHERE owner_id = ? AND conversation_id = ?').get(ownerId, conversationId)
     const rows = databaseHandle.prepare(`
       SELECT sequence, role, content FROM tavern_turns
@@ -445,8 +505,15 @@ export function createTavernConversationStore({
       const final = Number(batch.at(-1).sequence)
       const sourceChecksum = crypto.createHash('sha256').update(batch.map((row) => `${row.sequence}|${row.role}|${row.content}`).join('\n')).digest('hex')
       const summary = extractiveSummary(batch)
-      const terms = [...new Set(batch.flatMap((row) => tokenize(row.content)))].slice(0, 200).join(' ')
-      insert.run(ownerId, conversationId, `${first}-${final}`, first, final, sourceChecksum, summary, terms, timestamp())
+      const segmentId = `${first}-${final}`
+      const terms = [...new Set(batch.flatMap((row) => tokenize(row.content)))].slice(0, 200)
+      insert.run(ownerId, conversationId, segmentId, first, final, sourceChecksum, summary, terms.join(' '), timestamp())
+      const insertTerm = databaseHandle.prepare(`
+        INSERT OR IGNORE INTO tavern_segment_terms
+          (owner_id, conversation_id, term, segment_id, first_sequence, last_sequence)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `)
+      terms.forEach((term) => insertTerm.run(ownerId, conversationId, term, segmentId, first, final))
       batch = []
       bytes = 0
       return true
@@ -464,7 +531,7 @@ export function createTavernConversationStore({
     const persona = personaValue(personaInput)
     const conversationId = boundedId(conversationInput, 'tavern_conversation_id_invalid', 'conversationId', { optional: true })
     const databaseHandle = db()
-    const result = transaction(databaseHandle, () => {
+    const result = storageTransaction(databaseHandle, () => {
       let row = conversationId
         ? conversationRow(databaseHandle, ownerId, conversationId)
         : databaseHandle.prepare('SELECT * FROM tavern_conversations WHERE owner_id = ? AND persona = ? AND active = 1 AND deleted_at IS NULL').get(ownerId, persona)
@@ -505,7 +572,7 @@ export function createTavernConversationStore({
     const cleanMessage = cleanContent(message)
     const hash = boundedId(requestHash, 'tavern_request_hash_invalid', 'requestHash')
     const databaseHandle = db()
-    return transaction(databaseHandle, () => {
+    return storageTransaction(databaseHandle, () => {
       const row = boundConversation(databaseHandle, ownerId, persona, conversationId)
       const existingUser = databaseHandle.prepare(`
         SELECT * FROM tavern_turns WHERE owner_id = ? AND conversation_id = ? AND client_turn_id = ? AND role = 'user'
@@ -535,7 +602,7 @@ export function createTavernConversationStore({
         const leaseId = String(randomUUID()).toLowerCase()
         const nowText = timestamp()
         databaseHandle.prepare(`
-          UPDATE tavern_turns SET content = '', status = 'pending', provider = NULL, model = NULL, memory_json = NULL, lease_id = ?, lease_expires_at = ?, updated_at = ?
+          UPDATE tavern_turns SET content = '', content_bytes = 0, status = 'pending', provider = NULL, model = NULL, memory_json = NULL, lease_id = ?, lease_expires_at = ?, updated_at = ?
           WHERE owner_id = ? AND conversation_id = ? AND client_turn_id = ? AND role = 'assistant'
         `).run(leaseId, Number(now()) + leaseTtlMs, nowText, ownerId, conversationId, clientTurnId)
         databaseHandle.prepare(`
@@ -555,6 +622,12 @@ export function createTavernConversationStore({
           draw: existingUser.draw_json ? JSON.parse(String(existingUser.draw_json)) : null,
         }
       }
+      const otherPending = databaseHandle.prepare(`
+        SELECT client_turn_id FROM tavern_turns
+        WHERE owner_id = ? AND conversation_id = ? AND role = 'assistant' AND status = 'pending'
+        LIMIT 1
+      `).get(ownerId, conversationId)
+      if (otherPending) throw memoryError(409, 'tavern_turn_in_progress', 'Another Tavern turn is already being processed.', { retryable: true })
       if (!Number.isInteger(expectedRevision) || Number(expectedRevision) !== Number(row.revision)) {
         throw memoryError(409, 'tavern_conversation_revision_conflict', 'The Tavern conversation changed on another client.', { currentRevision: Number(row.revision) })
       }
@@ -565,14 +638,14 @@ export function createTavernConversationStore({
       const assistantSequence = userSequence + 1
       const insert = databaseHandle.prepare(`
         INSERT INTO tavern_turns
-          (owner_id, conversation_id, sequence, turn_id, client_turn_id, role, content, status, request_hash, draw_json, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          (owner_id, conversation_id, sequence, turn_id, client_turn_id, role, content, content_bytes, status, request_hash, draw_json, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
-      insert.run(ownerId, conversationId, userSequence, `${clientTurnId}:user`, clientTurnId, 'user', cleanMessage, 'complete', hash, draw ? JSON.stringify(draw) : null, nowText, nowText)
+      insert.run(ownerId, conversationId, userSequence, `${clientTurnId}:user`, clientTurnId, 'user', cleanMessage, Buffer.byteLength(cleanMessage, 'utf8'), 'complete', hash, draw ? JSON.stringify(draw) : null, nowText, nowText)
       databaseHandle.prepare(`
         INSERT INTO tavern_turns
-          (owner_id, conversation_id, sequence, turn_id, client_turn_id, role, content, status, request_hash, lease_id, lease_expires_at, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, 'assistant', '', 'pending', ?, ?, ?, ?, ?)
+          (owner_id, conversation_id, sequence, turn_id, client_turn_id, role, content, content_bytes, status, request_hash, lease_id, lease_expires_at, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 'assistant', '', 0, 'pending', ?, ?, ?, ?, ?)
       `).run(ownerId, conversationId, assistantSequence, `${clientTurnId}:assistant`, clientTurnId, hash, leaseId, Number(now()) + leaseTtlMs, nowText, nowText)
       databaseHandle.prepare(`
         UPDATE tavern_conversations SET revision = revision + 1, turn_count = turn_count + 2, next_sequence = ?, updated_at = ?
@@ -622,7 +695,7 @@ export function createTavernConversationStore({
     const leaseId = boundedId(leaseInput, 'tavern_turn_lease_invalid', 'leaseId')
     const content = assistantContent ? cleanContent(assistantContent) : ''
     const databaseHandle = db()
-    const result = transaction(databaseHandle, () => {
+    const result = storageTransaction(databaseHandle, () => {
       const row = boundConversation(databaseHandle, ownerId, persona, conversationId)
       const assistant = databaseHandle.prepare(`
         SELECT * FROM tavern_turns WHERE owner_id = ? AND conversation_id = ? AND client_turn_id = ? AND role = 'assistant'
@@ -637,9 +710,9 @@ export function createTavernConversationStore({
       if (content) assertQuota(databaseHandle, ownerId, conversationId, Buffer.byteLength(content, 'utf8') - Buffer.byteLength(String(assistant.content || ''), 'utf8'))
       const nowText = timestamp()
       databaseHandle.prepare(`
-        UPDATE tavern_turns SET content = ?, status = ?, provider = ?, model = ?, memory_json = ?, lease_id = NULL, lease_expires_at = NULL, updated_at = ?
+        UPDATE tavern_turns SET content = ?, content_bytes = ?, status = ?, provider = ?, model = ?, memory_json = ?, lease_id = NULL, lease_expires_at = NULL, updated_at = ?
         WHERE owner_id = ? AND conversation_id = ? AND client_turn_id = ? AND role = 'assistant'
-      `).run(content, status, String(provider || '').slice(0, 80), String(model || '').slice(0, 120), memory ? JSON.stringify(memory) : null, nowText, ownerId, conversationId, clientTurnId)
+      `).run(content, Buffer.byteLength(content, 'utf8'), status, String(provider || '').slice(0, 80), String(model || '').slice(0, 120), memory ? JSON.stringify(memory) : null, nowText, ownerId, conversationId, clientTurnId)
       databaseHandle.prepare(`
         UPDATE tavern_conversations SET revision = revision + 1, updated_at = ?
         WHERE owner_id = ? AND conversation_id = ?
@@ -671,30 +744,48 @@ export function createTavernConversationStore({
     const beforeSequence = decodeCursor(before)
     const databaseHandle = db()
     const row = boundConversation(databaseHandle, ownerId, persona, conversationId)
-    const messages = databaseHandle.prepare(`
-      SELECT * FROM tavern_turns WHERE owner_id = ? AND conversation_id = ? AND sequence < ?
+    const headers = databaseHandle.prepare(`
+      SELECT sequence, content_bytes FROM tavern_turns
+      WHERE owner_id = ? AND conversation_id = ? AND sequence < ?
       ORDER BY sequence DESC LIMIT ?
-    `).all(ownerId, conversationId, beforeSequence || Number.MAX_SAFE_INTEGER, pageLimit).reverse()
-    return {
-      conversation: publicConversation(row),
-      messages: messages.map(publicTurn),
-      nextBefore: messages.length === pageLimit && messages[0].sequence > 1 ? encodeCursor(messages[0].sequence) : null,
+    `).all(ownerId, conversationId, beforeSequence || Number.MAX_SAFE_INTEGER, pageLimit)
+    const selectedSequences = []
+    let estimatedBytes = 1024
+    for (const header of headers) {
+      const rowBytes = Number(header.content_bytes) + 512
+      if (estimatedBytes + rowBytes > MAX_PAGE_SERIALIZED_BYTES) break
+      selectedSequences.push(Number(header.sequence))
+      estimatedBytes += rowBytes
     }
+    const selectTurn = databaseHandle.prepare('SELECT * FROM tavern_turns WHERE owner_id = ? AND conversation_id = ? AND sequence = ?')
+    let messages = selectedSequences.map((sequence) => selectTurn.get(ownerId, conversationId, sequence)).filter(Boolean).reverse().map(publicTurn)
+    let nextBefore = messages.length && messages[0].sequence > 1 ? encodeCursor(messages[0].sequence) : null
+    const conversation = publicConversation(row)
+    while (messages.length > 1 && Buffer.byteLength(JSON.stringify({ conversation, messages, nextBefore }), 'utf8') > MAX_PAGE_SERIALIZED_BYTES) {
+      messages = messages.slice(1)
+      nextBefore = messages[0]?.sequence > 1 ? encodeCursor(messages[0].sequence) : null
+    }
+    return { conversation, messages, nextBefore }
   }
 
   function relevantSegments(databaseHandle, ownerId, conversationId, query) {
+    if (!extendedMemory) return []
     const terms = tokenize(query)
     if (!terms.length) return []
+    const placeholders = terms.map(() => '?').join(', ')
     const candidates = databaseHandle.prepare(`
-      SELECT * FROM tavern_segments WHERE owner_id = ? AND conversation_id = ?
-      ORDER BY last_sequence DESC LIMIT 200
-    `).all(ownerId, conversationId)
-    return candidates
-      .map((row) => ({ row, score: terms.reduce((score, term) => score + (String(row.terms_text).includes(term) ? 1 : 0), 0) }))
-      .filter((item) => item.score > 0)
-      .sort((left, right) => right.score - left.score || Number(right.row.last_sequence) - Number(left.row.last_sequence))
-      .slice(0, 8)
-      .map(({ row }) => {
+      SELECT segments.*, COUNT(DISTINCT terms.term) AS score
+      FROM tavern_segment_terms AS terms
+      JOIN tavern_segments AS segments
+        ON segments.owner_id = terms.owner_id
+       AND segments.conversation_id = terms.conversation_id
+       AND segments.segment_id = terms.segment_id
+      WHERE terms.owner_id = ? AND terms.conversation_id = ? AND terms.term IN (${placeholders})
+      GROUP BY segments.owner_id, segments.conversation_id, segments.segment_id
+      ORDER BY score DESC, segments.last_sequence DESC
+      LIMIT 8
+    `).all(ownerId, conversationId, ...terms)
+    return candidates.map((row) => {
         const sourceRows = databaseHandle.prepare(`
           SELECT sequence, role, content FROM tavern_turns
           WHERE owner_id = ? AND conversation_id = ? AND sequence BETWEEN ? AND ? AND status = 'complete'
@@ -725,19 +816,28 @@ export function createTavernConversationStore({
     const recent = []
     let before = Number(row.next_sequence)
     let bytes = 0
+    const selectTurn = databaseHandle.prepare('SELECT * FROM tavern_turns WHERE owner_id = ? AND conversation_id = ? AND sequence = ?')
+    let recentBudgetReached = false
     while (before > 1 && bytes < readByteLimit) {
       const page = databaseHandle.prepare(`
-        SELECT * FROM tavern_turns
+        SELECT sequence, content_bytes FROM tavern_turns
         WHERE owner_id = ? AND conversation_id = ? AND sequence < ? AND status = 'complete' AND client_turn_id != ?
-        ORDER BY sequence DESC LIMIT 200
+        ORDER BY sequence DESC LIMIT 40
       `).all(ownerId, conversationId, before, String(excludeClientTurnId || ''))
       if (!page.length) break
-      for (const turn of page) {
-        bytes += Buffer.byteLength(String(turn.content || ''), 'utf8')
-        if (bytes > readByteLimit) break
+      for (const header of page) {
+        const contentBytes = Number(header.content_bytes) || 0
+        if (bytes + contentBytes > readByteLimit) {
+          recentBudgetReached = true
+          break
+        }
+        const turn = selectTurn.get(ownerId, conversationId, Number(header.sequence))
+        if (!turn) continue
+        bytes += contentBytes
         recent.push(publicTurn(turn))
       }
       before = Number(page.at(-1).sequence)
+      if (recentBudgetReached) break
     }
     recent.reverse()
     return selectTavernProviderContext({
@@ -748,7 +848,7 @@ export function createTavernConversationStore({
       currentMessage,
       recentMessages: recent,
       retrievedSegments: relevantSegments(databaseHandle, ownerId, conversationId, currentMessage),
-      sourceHistoryTruncated: before > 1,
+      sourceHistoryTruncated: recentBudgetReached || before > 1,
       contextWindowOverride,
       maxOutboundBytes,
     })
@@ -759,11 +859,14 @@ export function createTavernConversationStore({
     const persona = personaValue(personaInput)
     const conversationId = boundedId(conversationInput, 'tavern_conversation_id_invalid', 'conversationId')
     const databaseHandle = db()
-    transaction(databaseHandle, () => {
+    storageTransaction(databaseHandle, () => {
       boundConversation(databaseHandle, ownerId, persona, conversationId)
-      databaseHandle.prepare('DELETE FROM tavern_segments WHERE owner_id = ? AND conversation_id = ?').run(ownerId, conversationId)
+      if (extendedMemory) {
+        databaseHandle.prepare('DELETE FROM tavern_segment_terms WHERE owner_id = ? AND conversation_id = ?').run(ownerId, conversationId)
+        databaseHandle.prepare('DELETE FROM tavern_segments WHERE owner_id = ? AND conversation_id = ?').run(ownerId, conversationId)
+      }
       databaseHandle.prepare('DELETE FROM tavern_turns WHERE owner_id = ? AND conversation_id = ?').run(ownerId, conversationId)
-      databaseHandle.prepare("UPDATE tavern_imports SET status = 'deleted' WHERE owner_id = ? AND persona = ? AND conversation_id = ?").run(ownerId, persona, conversationId)
+      if (extendedMemory) databaseHandle.prepare("UPDATE tavern_imports SET status = 'deleted' WHERE owner_id = ? AND persona = ? AND conversation_id = ?").run(ownerId, persona, conversationId)
       const nowText = timestamp()
       databaseHandle.prepare(`
         UPDATE tavern_conversations

@@ -110,7 +110,7 @@ const chatCompletionParsed = await callOpenAiStructured({
   ],
   fetchImpl: async (url, init) => {
     chatCompletionRequests.push({ url, init })
-    return jsonResponse(200, { choices: [{ message: { content: '{"questionNumber":"19"}' } }] })
+    return jsonResponse(200, { choices: [{ message: { content: '{"questionNumber":"19"}' }, finish_reason: 'stop' }] })
   },
 })
 assert.deepEqual(chatCompletionParsed, { questionNumber: '19' })
@@ -157,7 +157,7 @@ const compatibleRealJsonResponse = await callCompatibleStructured({
   input: request.input,
   maxAttempts: 1,
   fetchImpl: async () => new Response(JSON.stringify({
-    choices: [{ message: { content: '{"questionNumber":"21"}' } }],
+    choices: [{ message: { content: '{"questionNumber":"21"}' }, finish_reason: 'stop' }],
   }), {
     status: 200,
     headers: { 'content-type': 'application/json' },

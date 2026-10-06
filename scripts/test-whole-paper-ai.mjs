@@ -104,7 +104,7 @@ const server = http.createServer((request, response) => {
         return
       }
       const content = responseMode === 'invalid-json' ? '{"summary":' : JSON.stringify(assessment)
-      response.end(JSON.stringify({ choices: [{ message: { content } }] }))
+      response.end(JSON.stringify({ choices: [{ message: { content }, finish_reason: 'stop' }] }))
     }
     if (responseMode === 'delayed') setTimeout(finish, 500)
     else finish()

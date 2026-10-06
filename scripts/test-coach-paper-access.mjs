@@ -187,7 +187,7 @@ const providerServer = http.createServer(async (request, response) => {
   providerBodies.push(JSON.parse(Buffer.concat(chunks).toString('utf8')))
   response.statusCode = 200
   response.setHeader('Content-Type', 'text/event-stream')
-  response.end('data: {"choices":[{"delta":{"content":"Bound Coach response"}}]}\n\ndata: [DONE]\n\n')
+  response.end('data: {"choices":[{"delta":{"content":"Bound Coach response"}}]}\n\ndata: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n')
 })
 
 const providerBase = await listen(providerServer)

@@ -97,12 +97,12 @@ const providerServer = http.createServer(async (request, response) => {
   if (body.stream) {
     response.statusCode = 200
     response.setHeader('Content-Type', 'text/event-stream')
-    response.end('data: {"choices":[{"delta":{"content":"Entertainment interpretation"}}]}\n\ndata: [DONE]\n\n')
+    response.end('data: {"choices":[{"delta":{"content":"Entertainment interpretation"}}]}\n\ndata: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n')
     return
   }
   response.statusCode = 200
   response.setHeader('Content-Type', 'application/json')
-  response.end(JSON.stringify({ choices: [{ message: { content: 'Entertainment interpretation' } }] }))
+  response.end(JSON.stringify({ choices: [{ message: { content: 'Entertainment interpretation' }, finish_reason: 'stop' }] }))
 })
 
 const providerBase = await listen(providerServer)

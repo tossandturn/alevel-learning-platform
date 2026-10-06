@@ -146,7 +146,7 @@ const providerServer = http.createServer(async (request, response) => {
     await new Promise((resolve) => setTimeout(resolve, 130))
     response.write('data: {"choices":[{"delta":{"content":"but "}}]}\n\n')
     await new Promise((resolve) => setTimeout(resolve, 130))
-    response.end('data: {"choices":[{"delta":{"content":"healthy"}}]}\n\ndata: [DONE]\n\n')
+    response.end('data: {"choices":[{"delta":{"content":"healthy"}}]}\n\ndata: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n')
     return
   }
   if (deadlineNextProviderStream) {
@@ -163,7 +163,7 @@ const providerServer = http.createServer(async (request, response) => {
   response.write('data: {"choices":[{"delta":{"content":"stream "}}]}\n\n')
   await new Promise((resolve) => setTimeout(resolve, 5))
   response.write('data: {"choices":[{"delta":{"content":"answer"}}]}\n\n')
-  response.end('data: [DONE]\n\n')
+  response.end('data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n')
 })
 
 const providerBase = await listen(providerServer)
@@ -431,7 +431,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
     for await (const _chunk of request) {}
     response.statusCode = 200
     response.setHeader('Content-Type', 'application/json')
-    response.end(JSON.stringify({ choices: [{ message: { content: 'non-stream answer' } }] }))
+    response.end(JSON.stringify({ choices: [{ message: { content: 'non-stream answer' }, finish_reason: 'stop' }] }))
   })
   const nonStreamProviderBase = await listen(nonStreamProviderServer)
   const nonStreamApi = createAiApi({
@@ -513,7 +513,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
     if (response.destroyed) return
     response.statusCode = 200
     response.setHeader('Content-Type', 'text/event-stream')
-    response.end('data: {"choices":[{"delta":{"content":"vision response"}}]}\n\ndata: [DONE]\n\n')
+    response.end('data: {"choices":[{"delta":{"content":"vision response"}}]}\n\ndata: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n')
   })
   const slowVisionProviderBase = await listen(slowVisionProviderServer)
   const slowVisionTelemetry = []
@@ -611,7 +611,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
     }
     response.statusCode = 200
     response.setHeader('Content-Type', 'text/event-stream')
-    response.end('data: {"choices":[{"delta":{"content":"versioned answer"}}]}\n\ndata: [DONE]\n\n')
+    response.end('data: {"choices":[{"delta":{"content":"versioned answer"}}]}\n\ndata: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n')
   })
   const openAiRoutingBase = await listen(openAiRoutingServer)
   const routingAppServers = []
@@ -672,7 +672,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
     gatewayQwenRequests += 1
     response.statusCode = 200
     response.setHeader('Content-Type', 'text/event-stream')
-    response.end('data: {"choices":[{"delta":{"content":"qwen gateway recovery"}}]}\n\ndata: [DONE]\n\n')
+    response.end('data: {"choices":[{"delta":{"content":"qwen gateway recovery"}}]}\n\ndata: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n')
   })
   const gatewayBase = await listen(gatewayServer)
   const gatewayQwenBase = await listen(gatewayQwenServer)
@@ -750,7 +750,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
     qwenFallbackRequests += 1
     response.statusCode = 200
     response.setHeader('Content-Type', 'text/event-stream')
-    response.end('data: {"choices":[{"delta":{"content":"qwen fallback answer"}}]}\n\ndata: [DONE]\n\n')
+    response.end('data: {"choices":[{"delta":{"content":"qwen fallback answer"}}]}\n\ndata: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n')
   })
   const openAiFallbackBase = await listen(openAiFallbackServer)
   const qwenFallbackBase = await listen(qwenFallbackServer)
@@ -810,7 +810,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
     for await (const _chunk of request) {}
     response.statusCode = 200
     response.setHeader('Content-Type', 'text/event-stream')
-    response.end('data: {"choices":[{"delta":{"content":"complete qwen recovery"}}]}\n\ndata: [DONE]\n\n')
+    response.end('data: {"choices":[{"delta":{"content":"complete qwen recovery"}}]}\n\ndata: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n')
   })
   const partialOpenAiBase = await listen(partialOpenAiServer)
   const partialQwenBase = await listen(partialQwenServer)

@@ -63,6 +63,22 @@ assert.equal(store.resumeConversation({ ownerId: 'ielts:7001', persona: 'keeper'
 assert.notEqual(store.resumeConversation({ ownerId: 'ielts:7001', persona: 'tarot-reader' }).id, resumed.id)
 assert.notEqual(store.resumeConversation({ ownerId: 'ielts:7002', persona: 'keeper' }).id, resumed.id)
 
+const inflightConversation = store.resumeConversation({ ownerId: 'ielts:7003', persona: 'keeper' })
+const inflightFirst = store.beginTurn({
+  ownerId: 'ielts:7003', persona: 'keeper', conversationId: inflightConversation.id,
+  clientTurnId: 'inflight-client-0001', expectedRevision: 0,
+  message: 'first pending', requestHash: 'inflight-hash-0001',
+})
+assert.throws(() => store.beginTurn({
+  ownerId: 'ielts:7003', persona: 'keeper', conversationId: inflightConversation.id,
+  clientTurnId: 'inflight-client-0002', expectedRevision: inflightFirst.conversation.revision,
+  message: 'second pending', requestHash: 'inflight-hash-0002',
+}), (error) => error?.statusCode === 409 && error?.code === 'tavern_turn_in_progress')
+store.failTurn({
+  ownerId: 'ielts:7003', persona: 'keeper', conversationId: inflightConversation.id,
+  clientTurnId: 'inflight-client-0001', leaseId: inflightFirst.leaseId, status: 'interrupted',
+})
+
 const legacyMessages = []
 for (let pair = 0; pair < 25; pair += 1) {
   legacyMessages.push(
@@ -198,13 +214,64 @@ assert.throws(() => store.completeTurn({
   clientTurnId: 'retry-turn-0001', assistantContent: 'late completion', leaseId: retryAfterRestart.leaseId,
 }), (error) => error?.statusCode === 410)
 
-const quotaStore = createStore({ quotaBytes: 256 })
+let largePageConversation = store.resumeConversation({ ownerId: 'ielts:9001', persona: 'keeper' })
+for (let pair = 0; pair < 20; pair += 1) {
+  const begun = store.beginTurn({
+    ownerId: 'ielts:9001', persona: 'keeper', conversationId: largePageConversation.id,
+    clientTurnId: `large-page-turn-${String(pair).padStart(4, '0')}`,
+    expectedRevision: largePageConversation.revision,
+    message: `user-${pair}:` + '界'.repeat(11_000),
+    requestHash: `large-page-hash-${String(pair).padStart(4, '0')}`,
+  })
+  largePageConversation = store.completeTurn({
+    ownerId: 'ielts:9001', persona: 'keeper', conversationId: largePageConversation.id,
+    clientTurnId: `large-page-turn-${String(pair).padStart(4, '0')}`,
+    leaseId: begun.leaseId,
+    assistantContent: `assistant-${pair}:` + '界'.repeat(11_000),
+  }).conversation
+}
+const boundedLargePage = store.getMessages({
+  ownerId: 'ielts:9001', persona: 'keeper', conversationId: largePageConversation.id, limit: 40,
+})
+assert.ok(boundedLargePage.messages.length < 40)
+assert.ok(Buffer.byteLength(JSON.stringify(boundedLargePage), 'utf8') <= 512 * 1024)
+assert.ok(boundedLargePage.nextBefore)
+
+const retrievalStore = createStore({ root: path.join(tempRoot, 'retrieval-store'), segmentTargetBytes: 256 })
+let retrievalConversation = retrievalStore.resumeConversation({ ownerId: 'ielts:9010', persona: 'keeper' })
+for (let pair = 0; pair < 220; pair += 1) {
+  const clientTurnId = `retrieval-turn-${String(pair).padStart(4, '0')}`
+  const begun = retrievalStore.beginTurn({
+    ownerId: 'ielts:9010', persona: 'keeper', conversationId: retrievalConversation.id,
+    clientTurnId, expectedRevision: retrievalConversation.revision,
+    message: `${pair === 0 ? 'EARLYUNIQUEFACT-COBALT-ANCHOR' : `newer-${pair}`} ${'u'.repeat(300)}`,
+    requestHash: `retrieval-hash-${String(pair).padStart(4, '0')}`,
+  })
+  retrievalConversation = retrievalStore.completeTurn({
+    ownerId: 'ielts:9010', persona: 'keeper', conversationId: retrievalConversation.id,
+    clientTurnId, leaseId: begun.leaseId, assistantContent: `answer-${pair} ${'a'.repeat(300)}`,
+  }).conversation
+}
+const earlyRetrieved = retrievalStore.contextForProvider({
+  ownerId: 'ielts:9010', persona: 'keeper', conversationId: retrievalConversation.id,
+  model: 'unverified-small-model', contextWindowOverride: 1500, maxOutboundBytes: 8000,
+  currentMessage: 'What was EARLYUNIQUEFACT-COBALT-ANCHOR?', systemPrompt: 'system',
+})
+assert.match(JSON.stringify(earlyRetrieved.messages), /EARLYUNIQUEFACT-COBALT-ANCHOR/)
+retrievalStore.close()
+
+const quotaStore = createStore({ root: path.join(tempRoot, 'quota-store'), quotaBytes: 64 * 1024 })
 const quotaConversation = quotaStore.resumeConversation({ ownerId: 'ielts:8001', persona: 'keeper' })
-assert.throws(() => quotaStore.beginTurn({
+const quotaBegun = quotaStore.beginTurn({
   ownerId: 'ielts:8001', persona: 'keeper', conversationId: quotaConversation.id,
   clientTurnId: 'quota-turn-0001', expectedRevision: 0,
-  message: 'x'.repeat(400), requestHash: 'quota-hash-0001',
-}), (error) => error?.statusCode === 413 && error?.code === 'tavern_storage_quota_exceeded')
+  message: 'x'.repeat(60 * 1024), requestHash: 'quota-hash-0001',
+})
+assert.throws(() => quotaStore.completeTurn({
+  ownerId: 'ielts:8001', persona: 'keeper', conversationId: quotaConversation.id,
+  clientTurnId: 'quota-turn-0001', leaseId: quotaBegun.leaseId,
+  assistantContent: 'y'.repeat(8 * 1024),
+}), (error) => error?.statusCode === 413 && ['tavern_storage_quota_exceeded', 'tavern_physical_quota_exceeded'].includes(error?.code))
 quotaStore.close()
 store.close()
 const cleanupRelative = path.relative(fs.realpathSync(scratchRoot), fs.realpathSync(tempRoot))
