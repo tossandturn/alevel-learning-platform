@@ -6,6 +6,7 @@ import {
   createTavernConversationStore,
   estimateTavernTokensUpperBound,
   selectTavernProviderContext,
+  TAVERN_TURN_DEFAULT_LEASE_TTL_MS,
   tavernModelContextWindow,
 } from '../server/tavernConversationStore.js'
 
@@ -13,6 +14,7 @@ assert.equal(tavernModelContextWindow('qwen3.7-max').tokens, 1_000_000)
 assert.equal(tavernModelContextWindow('qwen3.7-plus').tokens, 1_000_000)
 assert.equal(tavernModelContextWindow('unknown-model').verified, false)
 assert.equal(estimateTavernTokensUpperBound('🧩中A'), Buffer.byteLength('🧩中A', 'utf8') + 16)
+assert.equal(TAVERN_TURN_DEFAULT_LEASE_TTL_MS, 90_000)
 
 const selected = selectTavernProviderContext({
   model: 'tiny-unverified-model',
@@ -74,10 +76,55 @@ assert.throws(() => store.beginTurn({
   clientTurnId: 'inflight-client-0002', expectedRevision: inflightFirst.conversation.revision,
   message: 'second pending', requestHash: 'inflight-hash-0002',
 }), (error) => error?.statusCode === 409 && error?.code === 'tavern_turn_in_progress')
+nowMs += 1_100
+const inflightRecovered = store.beginTurn({
+  ownerId: 'ielts:7003', persona: 'keeper', conversationId: inflightConversation.id,
+  clientTurnId: 'inflight-client-0002', expectedRevision: inflightFirst.conversation.revision,
+  message: 'second pending', requestHash: 'inflight-hash-0002',
+})
+assert.equal(inflightRecovered.providerCallRequired, true)
+assert.equal(inflightRecovered.conversation.revision, inflightFirst.conversation.revision + 2, 'expiring the abandoned turn and reserving its replacement are separate canonical revisions')
+const inflightMessages = store.getMessages({ ownerId: 'ielts:7003', persona: 'keeper', conversationId: inflightConversation.id, limit: 10 }).messages
+assert.equal(inflightMessages.find((turn) => turn.id === 'inflight-client-0001:assistant')?.status, 'interrupted')
+assert.throws(() => store.beginTurn({
+  ownerId: 'ielts:7003', persona: 'keeper', conversationId: inflightConversation.id,
+  clientTurnId: 'inflight-client-0001', expectedRevision: inflightFirst.conversation.revision,
+  message: 'first pending', requestHash: 'inflight-hash-0001',
+}), (error) => error?.statusCode === 409 && error?.code === 'tavern_turn_in_progress', 'an old logical retry cannot reopen while its replacement provider call is active')
+assert.throws(() => store.completeTurn({
+  ownerId: 'ielts:7003', persona: 'keeper', conversationId: inflightConversation.id,
+  clientTurnId: 'inflight-client-0001', leaseId: inflightFirst.leaseId, assistantContent: 'late stale answer',
+}), (error) => error?.statusCode === 409 && error?.code === 'tavern_turn_lease_conflict')
 store.failTurn({
   ownerId: 'ielts:7003', persona: 'keeper', conversationId: inflightConversation.id,
-  clientTurnId: 'inflight-client-0001', leaseId: inflightFirst.leaseId, status: 'interrupted',
+  clientTurnId: 'inflight-client-0002', leaseId: inflightRecovered.leaseId, status: 'interrupted',
 })
+
+let defaultLeaseNow = Date.parse('2026-10-06T11:00:00.000Z')
+const defaultLeaseStore = createTavernConversationStore({
+  root: tempRoot,
+  now: () => defaultLeaseNow,
+  randomUUID: () => `21000000-0000-4000-8000-${String(++idCounter).padStart(12, '0')}`,
+  quotaBytes: 8 * 1024 * 1024,
+  segmentTargetBytes: 1_024,
+})
+const protectedConversation = defaultLeaseStore.resumeConversation({ ownerId: 'ielts:7004', persona: 'keeper' })
+const protectedTurn = defaultLeaseStore.beginTurn({
+  ownerId: 'ielts:7004', persona: 'keeper', conversationId: protectedConversation.id,
+  clientTurnId: 'protected-client-0001', expectedRevision: 0,
+  message: 'provider still running', requestHash: 'protected-hash-0001',
+})
+defaultLeaseNow += 60_001
+assert.throws(() => defaultLeaseStore.beginTurn({
+  ownerId: 'ielts:7004', persona: 'keeper', conversationId: protectedConversation.id,
+  clientTurnId: 'protected-client-0002', expectedRevision: protectedTurn.conversation.revision,
+  message: 'must not duplicate billing', requestHash: 'protected-hash-0002',
+}), (error) => error?.statusCode === 409 && error?.code === 'tavern_turn_in_progress')
+defaultLeaseStore.failTurn({
+  ownerId: 'ielts:7004', persona: 'keeper', conversationId: protectedConversation.id,
+  clientTurnId: 'protected-client-0001', leaseId: protectedTurn.leaseId, status: 'interrupted',
+})
+defaultLeaseStore.close()
 
 const legacyMessages = []
 for (let pair = 0; pair < 25; pair += 1) {

@@ -10,6 +10,7 @@ export const TAVERN_MEMORY_MAX_PROVIDER_BYTES = 12 * 1024 * 1024
 export const TAVERN_MEMORY_MAX_MESSAGE_BYTES = 64 * 1024 - 1
 export const TAVERN_MEMORY_MAX_LEGACY_IMPORT_BYTES = 1024 * 1024
 export const TAVERN_MEMORY_MAX_PAGE_BYTES = 512 * 1024
+export const TAVERN_TURN_DEFAULT_LEASE_TTL_MS = 90_000
 
 const PERSONAS = new Set([
   'keeper', 'study-buddy', 'cat-companion', 'story-traveler',
@@ -267,7 +268,7 @@ export function createTavernConversationStore({
   randomUUID = () => crypto.randomUUID(),
   quotaBytes = TAVERN_MEMORY_DEFAULT_QUOTA_BYTES,
   segmentTargetBytes = TAVERN_MEMORY_DEFAULT_SEGMENT_BYTES,
-  leaseTtlMs = 60_000,
+  leaseTtlMs = TAVERN_TURN_DEFAULT_LEASE_TTL_MS,
 } = {}) {
   if (!root || typeof root !== 'string') throw new Error('An explicit private Tavern memory root is required.')
   if (!Number.isFinite(quotaBytes) || quotaBytes < 128) throw new Error('quotaBytes must be at least 128.')
@@ -596,15 +597,23 @@ export function createTavernConversationStore({
             memory: existingAssistant.memory_json ? JSON.parse(String(existingAssistant.memory_json)) : null,
           }
         }
-        if (existingAssistant.status === 'pending' && Number(existingAssistant.lease_expires_at) > Number(now())) {
+        const leaseNow = Number(now())
+        if (existingAssistant.status === 'pending' && Number(existingAssistant.lease_expires_at) > leaseNow) {
           throw memoryError(409, 'tavern_turn_in_progress', 'This Tavern turn is already being processed.', { retryable: true })
         }
+        const competingPending = databaseHandle.prepare(`
+          SELECT client_turn_id FROM tavern_turns
+          WHERE owner_id = ? AND conversation_id = ? AND role = 'assistant' AND status = 'pending'
+            AND client_turn_id != ? AND lease_expires_at > ?
+          LIMIT 1
+        `).get(ownerId, conversationId, clientTurnId, leaseNow)
+        if (competingPending) throw memoryError(409, 'tavern_turn_in_progress', 'Another Tavern turn is already being processed.', { retryable: true })
         const leaseId = String(randomUUID()).toLowerCase()
         const nowText = timestamp()
         databaseHandle.prepare(`
           UPDATE tavern_turns SET content = '', content_bytes = 0, status = 'pending', provider = NULL, model = NULL, memory_json = NULL, lease_id = ?, lease_expires_at = ?, updated_at = ?
           WHERE owner_id = ? AND conversation_id = ? AND client_turn_id = ? AND role = 'assistant'
-        `).run(leaseId, Number(now()) + leaseTtlMs, nowText, ownerId, conversationId, clientTurnId)
+        `).run(leaseId, leaseNow + leaseTtlMs, nowText, ownerId, conversationId, clientTurnId)
         databaseHandle.prepare(`
           UPDATE tavern_conversations SET revision = revision + 1, updated_at = ?
           WHERE owner_id = ? AND conversation_id = ?
@@ -622,17 +631,31 @@ export function createTavernConversationStore({
           draw: existingUser.draw_json ? JSON.parse(String(existingUser.draw_json)) : null,
         }
       }
-      const otherPending = databaseHandle.prepare(`
-        SELECT client_turn_id FROM tavern_turns
-        WHERE owner_id = ? AND conversation_id = ? AND role = 'assistant' AND status = 'pending'
-        LIMIT 1
-      `).get(ownerId, conversationId)
-      if (otherPending) throw memoryError(409, 'tavern_turn_in_progress', 'Another Tavern turn is already being processed.', { retryable: true })
       if (!Number.isInteger(expectedRevision) || Number(expectedRevision) !== Number(row.revision)) {
         throw memoryError(409, 'tavern_conversation_revision_conflict', 'The Tavern conversation changed on another client.', { currentRevision: Number(row.revision) })
       }
-      assertQuota(databaseHandle, ownerId, conversationId, Buffer.byteLength(cleanMessage, 'utf8'))
+      const leaseNow = Number(now())
+      const otherPending = databaseHandle.prepare(`
+        SELECT client_turn_id FROM tavern_turns
+        WHERE owner_id = ? AND conversation_id = ? AND role = 'assistant' AND status = 'pending' AND lease_expires_at > ?
+        LIMIT 1
+      `).get(ownerId, conversationId, leaseNow)
+      if (otherPending) throw memoryError(409, 'tavern_turn_in_progress', 'Another Tavern turn is already being processed.', { retryable: true })
       const nowText = timestamp()
+      const expiredPending = databaseHandle.prepare(`
+        UPDATE tavern_turns
+        SET content = '', content_bytes = 0, status = 'interrupted', provider = NULL, model = NULL, memory_json = NULL,
+            lease_id = NULL, lease_expires_at = NULL, updated_at = ?
+        WHERE owner_id = ? AND conversation_id = ? AND role = 'assistant' AND status = 'pending'
+          AND (lease_expires_at IS NULL OR lease_expires_at <= ?)
+      `).run(nowText, ownerId, conversationId, leaseNow)
+      if (expiredPending.changes) {
+        databaseHandle.prepare(`
+          UPDATE tavern_conversations SET revision = revision + 1, updated_at = ?
+          WHERE owner_id = ? AND conversation_id = ?
+        `).run(nowText, ownerId, conversationId)
+      }
+      assertQuota(databaseHandle, ownerId, conversationId, Buffer.byteLength(cleanMessage, 'utf8'))
       const leaseId = String(randomUUID()).toLowerCase()
       const userSequence = Number(row.next_sequence)
       const assistantSequence = userSequence + 1
