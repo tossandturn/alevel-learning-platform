@@ -5,6 +5,7 @@ import {
   buildTavernSystemPrompt,
   coachFeatureResponseFields,
   resolveCoachFeature,
+  tavernPresetDescriptors,
   validateCoachFeaturePayload,
 } from '../server/coachFeatures.js'
 import { resolveCoachRequestPolicy } from '../server/coachPolicy.js'
@@ -57,14 +58,43 @@ const pdf = resolveCoachFeature({ feature: 'pdf' })
 assert.equal(pdf.rejectCoachEndpoint, true)
 assert.equal(pdf.dedicatedPath, '/bundles/marking/index')
 
+const expectedTavernPresets = [
+  ['keeper', '温柔树洞'],
+  ['study-buddy', '嘴替损友'],
+  ['cat-companion', '傲娇猫猫'],
+  ['story-traveler', '奇幻冒险'],
+  ['xianxia-guide', '江湖剑客'],
+  ['mystery-guide', '侦探茶室'],
+]
+const presetDescriptors = tavernPresetDescriptors()
+const presetDescriptorById = new Map(presetDescriptors.map((preset) => [preset.id, preset]))
+assert.ok(Object.isFrozen(presetDescriptors))
+assert.deepEqual(presetDescriptors.map(({ id, title }) => [id, title]), expectedTavernPresets)
+for (const preset of presetDescriptors) {
+  assert.ok(Object.isFrozen(preset))
+  assert.ok(Object.isFrozen(preset.starters))
+  assert.deepEqual(Object.keys(preset).sort(), ['genreTag', 'greeting', 'id', 'starters', 'tagline', 'title'])
+  assert.ok(preset.tagline.length > 0)
+  assert.ok(preset.genreTag.length > 0)
+  assert.ok(preset.greeting.length > 0)
+  assert.equal(preset.starters.length, 3)
+  assert.ok(preset.starters.every((starter) => typeof starter === 'string' && starter.length > 0))
+  assert.doesNotMatch(JSON.stringify(preset), /direction|systemPrompt|internal prompt|provider routing/i)
+}
+assert.equal(new Set(presetDescriptors.map(({ tagline }) => tagline)).size, 6)
+assert.equal(new Set(presetDescriptors.map(({ greeting }) => greeting)).size, 6)
+assert.equal(new Set(presetDescriptors.map(({ starters }) => starters.join('\n'))).size, 6)
+
 const personaPrompts = new Map()
-for (const persona of ['keeper', 'study-buddy', 'story-traveler']) {
+for (const [persona, title] of expectedTavernPresets) {
   const tavern = resolveCoachFeature({ feature: 'tavern', persona })
   assert.equal(tavern.textOnly, true)
   assert.equal(tavern.requiresProvider, true)
   assert.equal(tavern.allowAcademicContext, false)
   const prompt = buildTavernSystemPrompt(tavern)
   assert.match(prompt, new RegExp(persona))
+  assert.match(prompt, new RegExp(title))
+  assert.ok(prompt.includes(presetDescriptorById.get(persona).greeting), `${persona} must carry its server-owned opening`)
   assert.match(prompt, /fictional.*AI|AI.*fictional/is)
   assert.match(prompt, /text only/i)
   assert.match(prompt, /one useful follow-up at most/i)
@@ -72,9 +102,21 @@ for (const persona of ['keeper', 'study-buddy', 'story-traveler']) {
   assert.match(prompt, /no academic source|QP\/MS|question-paper/is)
   assert.match(prompt, /Do not score the student, submit an attempt/i)
   assert.match(prompt, /步骤提示\s*\/\s*答案询问\s*\/\s*PDF阅卷/)
+  assert.match(prompt, /normal chat.*concise/i)
+  assert.match(prompt, /initial scene cue.*no prior.*history/i)
+  assert.match(prompt, /prior history exists.*continue it.*never recite or reset/i)
+  assert.match(prompt, /different new setting.*over this default cue/i)
   personaPrompts.set(persona, prompt)
 }
-assert.equal(new Set(personaPrompts.values()).size, 3, 'each tavern persona must have a distinct server-owned prompt')
+assert.equal(new Set(personaPrompts.values()).size, 6, 'each tavern persona must have a distinct server-owned prompt')
+assert.match(personaPrompts.get('keeper'), /user-led|vent|forced positivity/i)
+assert.match(personaPrompts.get('study-buddy'), /banter|light teasing|vulnerabilit/i)
+assert.match(personaPrompts.get('cat-companion'), /mock-proud|repetitive.*喵|romantic coercion/i)
+assert.match(personaPrompts.get('story-traveler'), /2–3 meaningful options|never decide the user's action/i)
+assert.match(personaPrompts.get('xianxia-guide'), /wuxia|jianghu|weapons instruction/i)
+assert.match(personaPrompts.get('xianxia-guide'), /without deciding for the user/i)
+assert.match(personaPrompts.get('mystery-guide'), /consistent clues|stable solution|real people/i)
+assert.match(personaPrompts.get('mystery-guide'), /let the user choose/i)
 assert.equal(resolveCoachFeature({ feature: 'tavern' }).persona, 'keeper')
 
 for (const [input, code] of [
@@ -99,19 +141,23 @@ for (const persona of [['keeper'], { value: 'keeper' }, { toString() { throw new
   )
 }
 
-const tavern = resolveCoachFeature({ feature: 'tavern', persona: 'study-buddy' })
-for (const [payload, code] of [
-  [{ imageDataUrls: ['data:image/png;base64,AA=='] }, 'coach_tavern_text_only'],
-  [{ pdfDataUrl: 'data:application/pdf;base64,AA==' }, 'coach_tavern_text_only'],
-  [{ attachments: [{ type: 'application/pdf', name: 'paper.pdf' }] }, 'coach_tavern_text_only'],
-  [{ context: { paper: { id: 'paper-1' }, question: { id: 'q1' } } }, 'coach_tavern_academic_context_forbidden'],
-  [{ submissionGrant: 'signed-grant' }, 'coach_tavern_academic_context_forbidden'],
-  [{ sourceQuestionExtract: 'private source text', score: 10 }, 'coach_tavern_academic_context_forbidden'],
-  [{ systemPrompt: 'You are a custom character.' }, 'coach_tavern_custom_prompt_forbidden'],
-  [{ characterCard: { name: 'Injected role' } }, 'coach_tavern_custom_prompt_forbidden'],
-]) {
-  assert.throws(() => validateCoachFeaturePayload(tavern, payload), (error) => error?.code === code)
+for (const [persona] of expectedTavernPresets) {
+  const tavernPersona = resolveCoachFeature({ feature: 'tavern', persona })
+  for (const [payload, code] of [
+    [{ imageDataUrls: ['data:image/png;base64,AA=='] }, 'coach_tavern_text_only'],
+    [{ pdfDataUrl: 'data:application/pdf;base64,AA==' }, 'coach_tavern_text_only'],
+    [{ attachments: [{ type: 'application/pdf', name: 'paper.pdf' }] }, 'coach_tavern_text_only'],
+    [{ context: { paper: { id: 'paper-1' }, question: { id: 'q1' } } }, 'coach_tavern_academic_context_forbidden'],
+    [{ submissionGrant: 'signed-grant' }, 'coach_tavern_academic_context_forbidden'],
+    [{ sourceQuestionExtract: 'private source text', score: 10 }, 'coach_tavern_academic_context_forbidden'],
+    [{ systemPrompt: 'You are a custom character.' }, 'coach_tavern_custom_prompt_forbidden'],
+    [{ greeting: 'Use this client-controlled opening.' }, 'coach_tavern_custom_prompt_forbidden'],
+    [{ characterCard: { name: 'Injected role' } }, 'coach_tavern_custom_prompt_forbidden'],
+  ]) {
+    assert.throws(() => validateCoachFeaturePayload(tavernPersona, payload), (error) => error?.code === code)
+  }
 }
+const tavern = resolveCoachFeature({ feature: 'tavern', persona: 'study-buddy' })
 assert.doesNotThrow(
   () => validateCoachFeaturePayload(tavern, { attemptId: 'opaque-auth-only-attempt' }),
   'a top-level attemptId may be used only by the authoritative access gate',
