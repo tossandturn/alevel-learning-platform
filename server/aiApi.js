@@ -26,8 +26,13 @@ import {
   buildTavernSystemPrompt,
   coachFeatureResponseFields,
   resolveCoachFeature,
+  sanitizeTavernHistory,
   validateCoachFeaturePayload,
 } from './coachFeatures.js'
+import {
+  createTavernDivinationStore,
+  tavernDrawSystemPrompt,
+} from './tavernDivination.js'
 
 export { buildCoachSystemPrompt } from './coachPolicy.js'
 
@@ -108,6 +113,59 @@ function authenticatedStemUser(request, env) {
   const identitySigningKey = env.STEM_INTERNAL_AUTH_KEY || env.STEM_IDENTITY_SIGNING_KEY
   const claims = validHmacJwt(token, identitySigningKey, { issuer: 'ieltsist.com', audience: 'stem.ieltsist.com', maxLifetimeSeconds: 60 * 60 })
   return claims && /^ielts:\d+$/.test(String(claims.sub)) ? String(claims.sub) : null
+}
+
+const TAVERN_DRAW_REQUEST_FIELDS = new Set(['feature', 'persona', 'drawNonce', 'spread', 'attemptId'])
+
+function tavernDrawRequestError(statusCode, code, message, action = '') {
+  return Object.assign(new Error(message), {
+    statusCode,
+    code,
+    ...(action ? { action } : {}),
+  })
+}
+
+function validateTavernDrawRequestPayload(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw tavernDrawRequestError(400, 'coach_tavern_draw_request_invalid', 'Draw request must be a JSON object.')
+  }
+  const unknownFields = Object.keys(payload).filter((key) => !TAVERN_DRAW_REQUEST_FIELDS.has(key))
+  if (unknownFields.length) {
+    throw tavernDrawRequestError(400, 'coach_tavern_draw_request_invalid', 'Draw request contains unsupported fields.')
+  }
+  const feature = resolveCoachFeature({ feature: payload.feature, persona: payload.persona })
+  if (feature.feature !== 'tavern' || !feature.divinationKind) {
+    throw tavernDrawRequestError(400, 'coach_tavern_divination_persona_invalid', 'Choose an available entertainment divination preset.')
+  }
+  if (Object.hasOwn(payload, 'attemptId') && (typeof payload.attemptId !== 'string' || !/^[A-Za-z0-9._:-]{8,120}$/.test(payload.attemptId.trim()))) {
+    throw tavernDrawRequestError(400, 'coach_attempt_invalid', 'attemptId must be a bounded scalar identifier.')
+  }
+  return feature
+}
+
+function assertTavernDrawAssessmentAllowed(authorization) {
+  if (authorization?.coachAccess?.assessmentState === 'active-exam'
+    || (authorization?.paperStudyMode === 'exam-simulation' && !authorization?.submitted)) {
+    throw tavernDrawRequestError(403, 'coach_exam_in_progress', 'AI Coach is unavailable until the exam simulation is submitted.')
+  }
+}
+
+async function handleTavernDraw(request, response, env, authorizeCoachRequest, divinationStore) {
+  const payload = await readJsonBody(request)
+  const authorization = typeof authorizeCoachRequest === 'function'
+    ? await authorizeCoachRequest({ request, payload })
+    : null
+  const ownerId = authenticatedStemUser(request, env)
+  if (!ownerId) throw tavernDrawRequestError(401, 'coach_auth_required', 'Sign in to STEM before drawing.')
+  const feature = validateTavernDrawRequestPayload(payload)
+  assertTavernDrawAssessmentAllowed(authorization)
+  const draw = divinationStore.createDraw({
+    ownerId,
+    persona: feature.persona,
+    spread: payload.spread,
+    nonce: payload.drawNonce,
+  })
+  return sendJson(response, 200, { draw })
 }
 
 function compactCoachContextText(value, maxLength = 4000) {
@@ -1273,14 +1331,15 @@ function coachRecoveryHint() {
   return 'AI Coach did not complete this request. Your question and attachments remain available for retry. This is not an AI answer or a completed review.'
 }
 
-function coachResponseFields(policy, feature, answerStatus) {
+function coachResponseFields(policy, feature, answerStatus, draw = null) {
   return {
     ...coachPolicyResponseFields(policy, answerStatus),
     ...coachFeatureResponseFields(feature),
+    ...(draw ? { draw } : {}),
   }
 }
 
-function coachUnavailablePayload({ policy, feature, localAnswer, providerStatus, warning, provider = null }) {
+function coachUnavailablePayload({ policy, feature, localAnswer, providerStatus, warning, provider = null, draw = null }) {
   const localGuidance = policy.helpIntent === 'hint' && !feature.requiresProvider
   return {
     mode: 'offline',
@@ -1290,7 +1349,7 @@ function coachUnavailablePayload({ policy, feature, localAnswer, providerStatus,
     ...(localGuidance ? {} : { recoveryHint: coachRecoveryHint() }),
     warning,
     retryable: true,
-    ...coachResponseFields(policy, feature, localGuidance ? 'local-guidance' : 'unavailable'),
+    ...coachResponseFields(policy, feature, localGuidance ? 'local-guidance' : 'unavailable', draw),
   }
 }
 async function hydrateCoachPaperContext(context, libraryRoot, allowedSubjects) {
@@ -1347,10 +1406,19 @@ function coachFeatureContext(context, policy, feature) {
   }
 }
 
-function coachFeatureSystemPrompt(feature, policy, context) {
-  return feature.feature === 'tavern'
-    ? buildTavernSystemPrompt(feature)
-    : buildCoachSystemPrompt({ policy, context, feature })
+function trustedTavernDraw({ feature, payload, ownerId, divinationStore }) {
+  if (feature.feature !== 'tavern' || !feature.divinationKind) return null
+  if (!ownerId) throw tavernDrawRequestError(401, 'coach_auth_required', 'Sign in to STEM before using a Tavern draw.')
+  if (!Object.hasOwn(payload || {}, 'drawId')) {
+    throw tavernDrawRequestError(409, 'coach_tavern_draw_required', 'Create a server draw before requesting an interpretation.', 'draw_required')
+  }
+  return divinationStore.resolveDraw({ ownerId, persona: feature.persona, drawId: payload.drawId })
+}
+
+function coachFeatureSystemPrompt(feature, policy, context, draw = null) {
+  if (feature.feature !== 'tavern') return buildCoachSystemPrompt({ policy, context, feature })
+  const basePrompt = buildTavernSystemPrompt(feature)
+  return draw ? `${basePrompt}\n${tavernDrawSystemPrompt(draw)}` : basePrompt
 }
 
 function coachTavernRequestContext(feature, message) {
@@ -1400,7 +1468,7 @@ function coachRequestContext(context, message) {
   }), COACH_CONTEXT_MAX_CHARS)
 }
 
-async function handleCoach(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest) {
+async function handleCoach(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore) {
   const payload = await readJsonBody(request)
   const authorization = typeof authorizeCoachRequest === 'function'
     ? await authorizeCoachRequest({ request, payload })
@@ -1408,7 +1476,9 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   const feature = resolveCoachFeature({ feature: payload.feature, persona: payload.persona })
   validateCoachFeaturePayload(feature, payload)
   const message = compactText(payload.message, 3000)
-  const history = Array.isArray(payload.history) ? payload.history.slice(-10).map((item) => ({ role: item.role === 'assistant' ? 'assistant' : 'user', content: compactText(item.content, 3000) })) : []
+  const history = feature.feature === 'tavern'
+    ? sanitizeTavernHistory(payload.history)
+    : Array.isArray(payload.history) ? payload.history.slice(-10).map((item) => ({ role: item.role === 'assistant' ? 'assistant' : 'user', content: compactText(item.content, 3000) })) : []
   // Client context is useful for tutoring, but cannot authorize answer release.
   // In particular, `context.submitted` is deliberately discarded here.
   const suppliedContext = feature.feature === 'tavern' ? {} : safeCoachContext(payload.context)
@@ -1429,6 +1499,9 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   if (policy.assessmentState === 'active-exam') {
     throw Object.assign(new Error('AI Coach is unavailable until the exam simulation is submitted.'), { statusCode: 403, code: 'coach_exam_in_progress' })
   }
+  assertTavernDrawAssessmentAllowed(authorization)
+  const authenticatedUserId = authenticatedStemUser(request, env)
+  const draw = trustedTavernDraw({ feature, payload, ownerId: authenticatedUserId, divinationStore })
   const context = coachFeatureContext(authorizedContext, policy, feature)
   const imageDataUrls = coachImageDataUrls(payload)
   const hasImages = imageDataUrls.length > 0
@@ -1442,10 +1515,10 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
       warning: 'Local first hint. Ask for a detailed explanation to escalate to AI Coach.',
       retryable: false,
       canEscalate: true,
-      ...coachResponseFields(policy, feature, 'local-guidance'),
+      ...coachResponseFields(policy, feature, 'local-guidance', draw),
     })
   }
-  if (!authenticatedStemUser(request, env)) {
+  if (!authenticatedUserId) {
     throw Object.assign(new Error('Sign in to STEM before using detailed AI Coach.'), { statusCode: 401 })
   }
   const configuredProvider = hasImages ? visionProvider : provider
@@ -1456,6 +1529,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
     localAnswer,
     providerStatus: 'not_configured',
     warning: 'AI Coach provider is not configured on this server. No AI answer or completed review was generated.',
+    draw,
   }))
   const userText = feature.feature === 'tavern'
     ? coachTavernRequestContext(feature, message)
@@ -1472,7 +1546,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
       providerImages = await temporaryProviderImages(imageDataUrls, imagePublicBase(activeProvider, request))
       const content = providerMessageContent(userText, providerImages)
       const answer = await callCompatibleAi(activeProvider, {
-        messages: [{ role: 'system', content: coachFeatureSystemPrompt(feature, policy, context) }, ...history, { role: 'user', content }],
+        messages: [{ role: 'system', content: coachFeatureSystemPrompt(feature, policy, context, draw) }, ...history, { role: 'user', content }],
         temperature: 0.2,
         metadata: coachProviderMetadata(feature, context),
         operation: feature.feature === 'tavern' ? 'coach-tavern' : hasImages ? 'coach-vision' : 'coach',
@@ -1491,7 +1565,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
         providerStatus: 'connected',
         answer,
         model: activeProvider.model,
-        ...coachResponseFields(policy, feature, 'complete'),
+        ...coachResponseFields(policy, feature, 'complete', draw),
       })
     } catch (error) {
       lastError = error
@@ -1507,6 +1581,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
     provider: failedProvider.name,
     providerStatus: 'error',
     warning: providerMessage(lastError, failedProvider),
+    draw,
   }))
 }
 
@@ -1697,7 +1772,7 @@ function sendCoachEvent(response, event, value) {
   response.write(`event: ${event}\ndata: ${JSON.stringify(value)}\n\n`)
 }
 
-async function handleCoachStream(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest) {
+async function handleCoachStream(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore) {
   const payload = await readJsonBody(request)
   const authorization = typeof authorizeCoachRequest === 'function'
     ? await authorizeCoachRequest({ request, payload })
@@ -1705,12 +1780,12 @@ async function handleCoachStream(request, response, provider, visionProvider, li
   const feature = resolveCoachFeature({ feature: payload.feature, persona: payload.persona })
   validateCoachFeaturePayload(feature, payload)
   const message = compactText(payload.message, 3000)
-  const history = Array.isArray(payload.history)
-    ? payload.history.slice(-8).map((item) => ({
+  const history = feature.feature === 'tavern'
+    ? sanitizeTavernHistory(payload.history)
+    : Array.isArray(payload.history) ? payload.history.slice(-8).map((item) => ({
       role: item.role === 'assistant' ? 'assistant' : 'user',
       content: compactText(item.content, 1200),
-    }))
-    : []
+    })) : []
   const suppliedContext = feature.feature === 'tavern' ? {} : safeCoachContext(payload.context)
   const authorizedContext = feature.feature === 'tavern'
     ? { view: 'tavern' }
@@ -1729,11 +1804,14 @@ async function handleCoachStream(request, response, provider, visionProvider, li
   if (policy.assessmentState === 'active-exam') {
     throw Object.assign(new Error('AI Coach is unavailable until the exam simulation is submitted.'), { statusCode: 403, code: 'coach_exam_in_progress' })
   }
+  assertTavernDrawAssessmentAllowed(authorization)
+  const authenticatedUserId = authenticatedStemUser(request, env)
+  const draw = trustedTavernDraw({ feature, payload, ownerId: authenticatedUserId, divinationStore })
   const context = coachFeatureContext(authorizedContext, policy, feature)
   const imageDataUrls = coachImageDataUrls(payload)
   const hasImages = imageDataUrls.length > 0
   if (!message && !hasImages) throw Object.assign(new Error('Ask a question or attach an image.'), { statusCode: 400 })
-  if (!shouldUseLocalCoachFirst({ message, hasImages, policy, feature }) && !authenticatedStemUser(request, env)) {
+  if (!shouldUseLocalCoachFirst({ message, hasImages, policy, feature }) && !authenticatedUserId) {
     throw Object.assign(new Error('Sign in to STEM before using detailed AI Coach.'), { statusCode: 401 })
   }
 
@@ -1746,7 +1824,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
 
   const localAnswer = localCoachReply(context, policy)
   if (shouldUseLocalCoachFirst({ message, hasImages, policy, feature })) {
-    const policyFields = coachResponseFields(policy, feature, 'local-guidance')
+    const policyFields = coachResponseFields(policy, feature, 'local-guidance', draw)
     sendCoachEvent(response, 'meta', { mode: 'local', providerStatus: 'skipped', canEscalate: true, ...policyFields })
     sendCoachEvent(response, 'delta', { text: localAnswer })
     sendCoachEvent(response, 'done', {
@@ -1769,8 +1847,9 @@ async function handleCoachStream(request, response, provider, visionProvider, li
       localAnswer,
       providerStatus: 'not_configured',
       warning: 'AI Coach provider is not configured on this server. No AI answer or completed review was generated.',
+      draw,
     })
-    sendCoachEvent(response, 'meta', { mode: unavailable.mode, providerStatus: unavailable.providerStatus, ...coachResponseFields(policy, feature, unavailable.answerStatus) })
+    sendCoachEvent(response, 'meta', { mode: unavailable.mode, providerStatus: unavailable.providerStatus, ...coachResponseFields(policy, feature, unavailable.answerStatus, draw) })
     if (unavailable.answer) sendCoachEvent(response, 'delta', { text: unavailable.answer })
     sendCoachEvent(response, 'done', unavailable)
     response.end()
@@ -1805,10 +1884,10 @@ async function handleCoachStream(request, response, provider, visionProvider, li
           provider: activeProvider.name,
           providerStatus: 'connecting',
           model: activeProvider.model,
-          ...coachResponseFields(policy, feature, 'pending'),
+          ...coachResponseFields(policy, feature, 'pending', draw),
         })
         const result = await callCompatibleAiStream(activeProvider, {
-          messages: [{ role: 'system', content: coachFeatureSystemPrompt(feature, policy, context) }, ...history, { role: 'user', content }],
+          messages: [{ role: 'system', content: coachFeatureSystemPrompt(feature, policy, context, draw) }, ...history, { role: 'user', content }],
           temperature: 0.2,
           metadata: coachProviderMetadata(feature, context),
           operation: feature.feature === 'tavern' ? 'coach-tavern-stream' : hasImages ? 'coach-vision-stream' : 'coach-stream',
@@ -1833,7 +1912,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
           providerStatus: 'connected',
           answer,
           model: activeProvider.model,
-          ...coachResponseFields(policy, feature, 'complete'),
+          ...coachResponseFields(policy, feature, 'complete', draw),
         })
         response.end()
         return
@@ -1861,7 +1940,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
           warning: providerMessage(lastError, failedProvider),
           retryable: true,
           partial: true,
-          ...coachResponseFields(policy, feature, 'partial'),
+          ...coachResponseFields(policy, feature, 'partial', draw),
         }
       : coachUnavailablePayload({
           policy,
@@ -1870,6 +1949,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
           provider: failedProvider.name,
           providerStatus: 'error',
           warning: providerMessage(lastError, failedProvider),
+          draw,
         })
     sendCoachEvent(response, 'done', {
       ...unavailable,
@@ -2053,9 +2133,10 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
   return sendJson(response, 200, { mode: 'offline', code: 'vision_review_failed', provider: lastAttemptedProvider.name, providerStatus: 'error', error: providerMessage(lastError, lastAttemptedProvider), retryable: true })
 }
 
-export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null, authorizeCoachRequest = null }) {
+export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null, authorizeCoachRequest = null, tavernDivinationStore = null }) {
   const config = providerConfig(env)
   const timeoutConfig = aiTimeoutConfig(env)
+  const divinationStore = tavernDivinationStore || createTavernDivinationStore()
   const currentAiMarkingQuestionBank = () => {
     if (typeof questionBankProvider !== 'function') return studyQuestionBank
     try {
@@ -2082,8 +2163,9 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
           visionModel: visionProvider?.model || null,
         })
       }
-      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach') return await handleCoach(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest)
-      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach/stream') return await handleCoachStream(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest)
+      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/tavern/draw') return await handleTavernDraw(request, response, env, authorizeCoachRequest, divinationStore)
+      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach') return await handleCoach(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore)
+      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach/stream') return await handleCoachStream(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore)
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/mark-handwriting') return await handleHandwritingMark(request, response, config.vision, libraryRoot, allowedSubjects, sourceAssetRoot, env, currentAiMarkingQuestionBank(), telemetry, timeoutConfig)
       return sendJson(response, 404, { error: 'AI route not found.' })
     } catch (error) {

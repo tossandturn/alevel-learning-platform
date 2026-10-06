@@ -1,7 +1,12 @@
+import { TAVERN_DIVINATION_CONFIG } from './tavernDivination.js'
+
 export const COACH_FEATURE_VERSION = 'stem-coach-features-v1.0.0'
 
 const FEATURE_IDS = new Set(['steps', 'answers', 'pdf', 'tavern'])
-const TAVERN_PERSONA_ERROR = 'Choose keeper, study-buddy, cat-companion, story-traveler, xianxia-guide or mystery-guide.'
+const TAVERN_PERSONA_ERROR = 'Choose keeper, study-buddy, cat-companion, story-traveler, xianxia-guide, mystery-guide, eastern-oracle or tarot-reader.'
+const TAVERN_HISTORY_MAX_MESSAGES = 40
+const TAVERN_HISTORY_MAX_CONTENT_CHARS = 3000
+const TAVERN_HISTORY_MAX_TOTAL_CHARS = 23999
 
 const TAVERN_PRESETS = Object.freeze({
   keeper: Object.freeze({
@@ -52,6 +57,26 @@ const TAVERN_PRESETS = Object.freeze({
     starters: Object.freeze(['出一道三条线索的小案', '让我询问一位虚构嫌疑人', '继续刚才的谜案']),
     direction: 'Run small fair fictional mysteries with a few consistent clues and a stable solution. Ask exactly one observation or deduction question per turn: no second optional question and no choice follow-up in the same reply. Never state a guess as fact. Let the user choose what to inspect and reveal the solution only when requested. Never claim to investigate real people or demand personal details.',
   }),
+  'eastern-oracle': Object.freeze({
+    title: '东方玄学',
+    tagline: '随机起一卦，换个角度看当下。',
+    genreTag: '东方卦签',
+    greeting: '这里的卦签只作休闲启发，不替你决定人生。想带着一个轻问题抽一卦，还是直接看看今天的随机提示？',
+    starters: Object.freeze(['为我随机抽一卦', '用卦签换个角度想想', '解释我刚抽到的卦']),
+    ...TAVERN_DIVINATION_CONFIG['eastern-oracle'],
+    divinationKind: TAVERN_DIVINATION_CONFIG['eastern-oracle'].kind,
+    direction: 'Be an original entertainment-only guide reflecting on the exact server-generated Zhouyi hexagram supplied in a separate trusted draw block. Never invent another sign, hidden power, guaranteed outcome or claim divination accuracy. Do not request or infer a birth chart, 生辰, 八字 or identity data. Do not make medical, financial, legal, fatality or disaster predictions, and never charge for luck or decisions.',
+  }),
+  'tarot-reader': Object.freeze({
+    title: '西方塔罗',
+    tagline: '抽一张牌，把问题换个角度摆上桌。',
+    genreTag: '塔罗娱乐',
+    greeting: '牌面只是休闲联想的镜子，不是预言。你想抽单张提示，还是三张看看过去主题、当下主题和可能的方向？',
+    starters: Object.freeze(['抽一张当下提示', '抽三张主题牌', '解读我刚抽到的牌']),
+    ...TAVERN_DIVINATION_CONFIG['tarot-reader'],
+    divinationKind: TAVERN_DIVINATION_CONFIG['tarot-reader'].kind,
+    direction: 'Be an original entertainment-only tarot guide interpreting exactly the server-generated text cards supplied in a separate trusted draw block. Treat past, present and possible direction as reflective themes, never guaranteed facts or a guaranteed future. Do not request personal identity or birth data. Do not make medical, financial, legal, fatality or disaster predictions, and never charge for luck or decisions.',
+  }),
 })
 
 const PERSONA_IDS = new Set(Object.keys(TAVERN_PRESETS))
@@ -62,6 +87,10 @@ const PUBLIC_TAVERN_PRESETS = Object.freeze(Object.entries(TAVERN_PRESETS).map((
   genreTag: preset.genreTag,
   greeting: preset.greeting,
   starters: preset.starters,
+  ...(preset.divinationKind ? {
+    divinationKind: preset.divinationKind,
+    supportedSpreads: preset.supportedSpreads,
+  } : {}),
 })))
 
 function featureError(statusCode, code, message, extra = {}) {
@@ -72,6 +101,38 @@ function scalarId(value, code, message, maxLength = 80) {
   if (value === undefined || value === null || value === '') return ''
   if (typeof value !== 'string') throw featureError(400, code, message)
   return value.trim().toLowerCase().slice(0, maxLength)
+}
+
+function tavernHistoryContent(value) {
+  if (typeof value !== 'string') return ''
+  const clean = value.replace(/\r\n?/g, '\n').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim()
+  return Array.from(clean).slice(0, TAVERN_HISTORY_MAX_CONTENT_CHARS).join('')
+}
+
+export function sanitizeTavernHistory(value) {
+  if (!Array.isArray(value)) return Object.freeze([])
+  const messages = value.flatMap((item) => {
+    if (!item || typeof item !== 'object' || !['user', 'assistant'].includes(item.role)) return []
+    const content = tavernHistoryContent(item.content)
+    return content ? [Object.freeze({ role: item.role, content })] : []
+  })
+  const pairs = []
+  for (let index = 0; index < messages.length - 1; index += 1) {
+    if (messages[index].role !== 'user' || messages[index + 1].role !== 'assistant') continue
+    pairs.push(Object.freeze([messages[index], messages[index + 1]]))
+    index += 1
+  }
+  const selectedNewestFirst = []
+  let totalChars = 0
+  const maxPairs = TAVERN_HISTORY_MAX_MESSAGES / 2
+  for (let index = pairs.length - 1; index >= 0 && selectedNewestFirst.length < maxPairs; index -= 1) {
+    const pair = pairs[index]
+    const pairChars = pair.reduce((total, item) => total + Array.from(item.content).length, 0)
+    if (totalChars + pairChars > TAVERN_HISTORY_MAX_TOTAL_CHARS) continue
+    selectedNewestFirst.push(pair)
+    totalChars += pairChars
+  }
+  return Object.freeze(selectedNewestFirst.reverse().flat())
 }
 
 function hasPdfAttachment(payload) {
@@ -101,6 +162,10 @@ function hasCustomPrompt(payload) {
     || payload?.presetGreeting
     || payload?.openingPrompt
   )
+}
+
+function hasClientDrawPayload(payload) {
+  return ['draw', 'cards', 'customCards', 'drawResult', 'drawNonce', 'spread'].some((key) => Object.hasOwn(payload || {}, key))
 }
 
 function hasAcademicContext(payload) {
@@ -159,6 +224,7 @@ export function resolveCoachFeature({ feature = '', persona = '' } = {}) {
   if (featureId === 'tavern') {
     const resolvedPersona = personaId || 'keeper'
     if (!PERSONA_IDS.has(resolvedPersona)) throw featureError(400, 'coach_tavern_persona_invalid', TAVERN_PERSONA_ERROR)
+    const preset = TAVERN_PRESETS[resolvedPersona]
     return Object.freeze({
       featureVersion: COACH_FEATURE_VERSION,
       feature: featureId,
@@ -168,6 +234,10 @@ export function resolveCoachFeature({ feature = '', persona = '' } = {}) {
       rejectCoachEndpoint: false,
       textOnly: true,
       allowAcademicContext: false,
+      ...(preset.divinationKind ? {
+        divinationKind: preset.divinationKind,
+        supportedSpreads: preset.supportedSpreads,
+      } : {}),
     })
   }
   return Object.freeze({
@@ -192,6 +262,17 @@ export function validateCoachFeaturePayload(feature, payload = {}) {
     }
     if (hasCustomPrompt(payload)) {
       throw featureError(400, 'coach_tavern_custom_prompt_forbidden', 'AI 休闲酒馆 uses curated server-owned personas only.')
+    }
+    if (hasClientDrawPayload(payload)) {
+      throw featureError(400, 'coach_tavern_draw_payload_forbidden', 'Tavern draws must come from the dedicated server draw endpoint.')
+    }
+    if (Object.hasOwn(payload || {}, 'drawId')) {
+      if (!feature.divinationKind) {
+        throw featureError(400, 'coach_tavern_draw_not_allowed', 'This Tavern preset does not use a draw receipt.')
+      }
+      if (typeof payload.drawId !== 'string' || !/^[a-fA-F0-9-]{32,48}$/.test(payload.drawId.trim())) {
+        throw featureError(400, 'coach_tavern_draw_id_invalid', 'drawId must be a scalar server receipt identifier.', { action: 'draw_required' })
+      }
     }
     if (hasAcademicContext(payload)) {
       throw featureError(400, 'coach_tavern_academic_context_forbidden', 'Academic attempts, papers and scoring context are not accepted in AI 休闲酒馆.')
