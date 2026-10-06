@@ -389,37 +389,59 @@ export function createWholePaperMarkingService({
     const totalPages = Object.hasOwn(fields, 'totalPages') ? fields.totalPages : previous.totalPages
     const acceptedAt = fields.acceptedAt || previous.acceptedAt || null
     const analysisReceivedAt = fields.analysisReceivedAt || previous.analysisReceivedAt || null
+    const previousStage = text(previous.stage, 80)
+    const stageChanged = Boolean(previousStage && previousStage !== stage)
+    const phaseStartedAt = stageChanged || !previous.phaseStartedAt ? at : previous.phaseStartedAt
+    const lastStage = Object.hasOwn(fields, 'lastStage')
+      ? text(fields.lastStage, 80)
+      : stageChanged ? previousStage : text(previous.lastStage, 80)
+    const lastPhaseStartedAt = Object.hasOwn(fields, 'lastPhaseStartedAt')
+      ? fields.lastPhaseStartedAt
+      : stageChanged ? previous.phaseStartedAt : previous.lastPhaseStartedAt
     return {
       stage,
       completedPages: Number.isSafeInteger(Number(completedPages)) ? Math.max(0, Number(completedPages)) : 0,
       totalPages: totalPages == null || !Number.isSafeInteger(Number(totalPages)) ? null : Math.max(0, Number(totalPages)),
       ...(acceptedAt ? { acceptedAt } : {}),
       ...(analysisReceivedAt ? { analysisReceivedAt } : {}),
-      phaseStartedAt: at,
+      ...(lastStage ? { lastStage } : {}),
+      ...(parsedTime(lastPhaseStartedAt) != null ? { lastPhaseStartedAt } : {}),
+      phaseStartedAt,
     }
   }
 
-  function notifyProgress(job, status, progress) {
+  function notifyProgress(job, status, progress, failureCode = '') {
     if (!observeProgress) return
     try {
+      const stageView = PROGRESS_STAGE_VIEW[progress.stage] || PROGRESS_STAGE_VIEW[status] || PROGRESS_STAGE_VIEW.failed
+      const lastStage = text(progress.lastStage, 80)
+      const lastStageView = lastStage ? PROGRESS_STAGE_VIEW[lastStage] : null
       const pending = observeProgress(Object.freeze({
         jobId: String(job.id),
         status,
         processingAttempt: Number(job.processing_attempt) || 0,
         stage: progress.stage,
+        phase: stageView.phase,
+        ...(lastStage ? { lastStage, lastPhase: lastStageView?.phase || null } : {}),
         completedPages: progress.completedPages,
         totalPages: progress.totalPages,
+        ...(failureCode ? { failureCode: text(failureCode, 80) } : {}),
       }))
       if (pending?.catch) void pending.catch(() => {})
     } catch { /* Observability must never change marking state. */ }
   }
 
   const recoveredAt = nowIso(now)
-  database.prepare(`
-    UPDATE whole_paper_marking_jobs
-    SET status = 'failed', progress_json = ?, retryable = 1, failure_code = 'worker_restarted', updated_at = ?, completed_at = ?
-    WHERE status = 'processing'
-  `).run(JSON.stringify(storedProgress('failed', {}, {}, recoveredAt)), recoveredAt, recoveredAt)
+  const interruptedJobs = database.prepare("SELECT id, processing_attempt, progress_json FROM whole_paper_marking_jobs WHERE status = 'processing'").all()
+  for (const interrupted of interruptedJobs) {
+    const recoveredProgress = storedProgress('failed', {}, parseJson(interrupted.progress_json, {}), recoveredAt)
+    const recovered = database.prepare(`
+      UPDATE whole_paper_marking_jobs
+      SET status = 'failed', progress_json = ?, retryable = 1, failure_code = 'worker_restarted', updated_at = ?, completed_at = ?
+      WHERE id = ? AND status = 'processing' AND processing_attempt = ?
+    `).run(JSON.stringify(recoveredProgress), recoveredAt, recoveredAt, interrupted.id, Number(interrupted.processing_attempt))
+    if (recovered.changes) notifyProgress(interrupted, 'failed', recoveredProgress, 'worker_restarted')
+  }
 
   function jobDirectory(job) {
     const owner = crypto.createHash('sha256').update(String(job.user_id)).digest('hex').slice(0, 24)
@@ -547,6 +569,12 @@ export function createWholePaperMarkingService({
     const estimate = row.status === 'processing'
       ? processingEta(totalPages, processingElapsed)
       : null
+    const lastStage = text(raw.lastStage, 80) || null
+    const lastStageView = lastStage ? PROGRESS_STAGE_VIEW[lastStage] : null
+    const phaseStartedValue = ['completed', 'failed'].includes(row.status) && lastStage
+      ? raw.lastPhaseStartedAt
+      : raw.phaseStartedAt
+    const phaseElapsed = parsedTime(phaseStartedValue) == null ? null : elapsedSeconds(phaseStartedValue, terminalAt)
     return {
       stage,
       phase: stageView.phase,
@@ -561,6 +589,9 @@ export function createWholePaperMarkingService({
       estimatedRemainingRangeSeconds: estimate?.estimatedRemainingRangeSeconds ?? null,
       isEstimate: estimate?.isEstimate ?? false,
       estimateScope: estimate?.estimateScope ?? null,
+      lastStage,
+      lastPhase: lastStageView?.phase || null,
+      phaseElapsedSeconds: phaseElapsed,
     }
   }
 
@@ -812,7 +843,7 @@ export function createWholePaperMarkingService({
       WHERE id = ? AND user_id = ? AND status = 'draft'
     `).run(JSON.stringify(cancelledProgress), clientRequestId, cancelledAt, cancelledAt, jobId, user.id)
     const cancelledJob = ownedJob(user.id, jobId)
-    notifyProgress(cancelledJob, 'failed', cancelledProgress)
+    notifyProgress(cancelledJob, 'failed', cancelledProgress, 'cancelled')
     return { statusCode: 200, body: publicJob(cancelledJob) }
   }
 
@@ -1005,7 +1036,7 @@ export function createWholePaperMarkingService({
         SET status = 'failed', progress_json = ?, retryable = ?, failure_code = ?, updated_at = ?, completed_at = ?
         WHERE id = ? AND status = 'processing' AND processing_attempt = ?
       `).run(JSON.stringify(failedProgress), retryable, code, failedAt, failedAt, job.id, Number(job.processing_attempt))
-      if (failed.changes) notifyProgress(job, 'failed', failedProgress)
+      if (failed.changes) notifyProgress(job, 'failed', failedProgress, code)
       let drainTimer
       try {
         await Promise.race([

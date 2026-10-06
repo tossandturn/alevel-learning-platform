@@ -243,6 +243,9 @@ try {
   assert.equal(firstCompleted.progress.label, 'Marking complete')
   assert.equal(firstCompleted.progress.completedPages, 2)
   assert.equal(firstCompleted.progress.totalPages, 2)
+  assert.equal(firstCompleted.progress.lastStage, 'reporting')
+  assert.equal(firstCompleted.progress.lastPhase, 'reporting')
+  assert.ok(Number.isSafeInteger(firstCompleted.progress.phaseElapsedSeconds) && firstCompleted.progress.phaseElapsedSeconds >= 0)
   assertUnknownEstimate(firstCompleted.progress)
   const frozenElapsed = firstCompleted.progress.elapsedSeconds
   const firstStageEvents = progressEvents.filter((event) => event.jobId === firstCreated.payload.jobId)
@@ -259,6 +262,9 @@ try {
   ], 'persisted progress must follow the real pipeline boundary order')
   assert.deepEqual(firstStageEvents.map((event) => event.completedPages), [0, 0, 0, 0, 1, 2, 2, 2, 2])
   assert.ok(firstStageEvents.every((event) => event.totalPages === 2))
+  assert.deepEqual(firstStageEvents.map((event) => event.phase), ['queued', 'preparing', 'preparing', 'preparing', 'preparing', 'analyzing', 'analysis-received', 'reporting', 'completed'])
+  assert.ok(firstStageEvents.every((event) => !Object.hasOwn(event, 'owner') && !Object.hasOwn(event, 'content') && !Object.hasOwn(event, 'prompt') && !Object.hasOwn(event, 'token')),
+    'operational progress observers expose no owner, answer, prompt or credential fields')
   clock += 60_000
   const completedLater = await call(api, { method: 'GET', url: `/api/stem/paper-marking-jobs/${firstCreated.payload.jobId}`, token: ownerToken })
   assert.equal(completedLater.payload.progress.elapsedSeconds, frozenElapsed, 'terminal elapsed time must not keep increasing')
@@ -306,6 +312,7 @@ try {
 
   let retryApi
   let runnerCalls = 0
+  const retryProgressEvents = []
   const releaseOldAttempt = deferred()
   const releaseCurrentAttempt = deferred()
   const currentAttemptEntered = deferred()
@@ -316,6 +323,7 @@ try {
       storageRoot: path.join(temporaryRoot, 'retry-assets'),
       jobTimeoutMs: 80,
       abortDrainMs: 20,
+      progressObserver: (event) => retryProgressEvents.push(event),
       runner: async () => {
         runnerCalls += 1
         if (runnerCalls === 1) {
@@ -333,6 +341,13 @@ try {
   const failed = await waitFor(retryApi, ownerToken, retried.jobId, (job) => job?.status === 'failed')
   assert.equal(failed.progress.phase, 'failed')
   assert.equal(failed.progress.label, 'Marking failed')
+  assert.equal(failed.progress.lastStage, 'ai-review', 'a terminal failure preserves the real stage that failed')
+  assert.equal(failed.progress.lastPhase, 'analyzing')
+  assert.ok(Number.isSafeInteger(failed.progress.phaseElapsedSeconds) && failed.progress.phaseElapsedSeconds >= 0)
+  const failedMetric = retryProgressEvents.findLast((event) => event.status === 'failed')
+  assert.equal(failedMetric.failureCode, 'marking_timeout')
+  assert.equal(failedMetric.lastStage, 'ai-review')
+  assert.equal(failedMetric.lastPhase, 'analyzing')
   assertUnknownEstimate(failed.progress)
   const retryRequest = await call(retryApi, {
     method: 'POST', url: `/api/stem/paper-marking-jobs/${retried.jobId}/retry`, token: ownerToken,
@@ -351,6 +366,9 @@ try {
   releaseCurrentAttempt.resolve()
   const retryCompleted = await waitFor(retryApi, ownerToken, retried.jobId, (job) => job?.status === 'completed')
   assert.equal(retryCompleted.result.summary, 'current result')
+  assert.equal(retryCompleted.progress.lastStage, 'reporting')
+  assert.equal(retryCompleted.progress.lastPhase, 'reporting')
+  assert.ok(Number.isSafeInteger(retryCompleted.progress.phaseElapsedSeconds) && retryCompleted.progress.phaseElapsedSeconds >= 0)
 
   console.log('Whole-paper truthful progress and ETA checks passed')
 } finally {

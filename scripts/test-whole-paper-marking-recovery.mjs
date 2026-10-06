@@ -120,7 +120,7 @@ try {
 
   const { DatabaseSync } = process.getBuiltinModule('node:sqlite')
   const direct = new DatabaseSync(databasePath)
-  direct.prepare("UPDATE whole_paper_marking_jobs SET status = 'processing', progress_json = ? WHERE id = ?").run(JSON.stringify({ stage: 'ai-review' }), jobId)
+  direct.prepare("UPDATE whole_paper_marking_jobs SET status = 'processing', progress_json = ? WHERE id = ?").run(JSON.stringify({ stage: 'ai-review', phaseStartedAt: new Date(Date.now() - 5_000).toISOString() }), jobId)
   direct.close()
 
   let recoveredRuns = 0
@@ -134,6 +134,9 @@ try {
   assert.equal(recovered.payload.status, 'failed')
   assert.equal(recovered.payload.failureCode, 'worker_restarted')
   assert.equal(recovered.payload.retryable, true)
+  assert.equal(recovered.payload.progress.lastStage, 'ai-review')
+  assert.equal(recovered.payload.progress.lastPhase, 'analyzing')
+  assert.ok(recovered.payload.progress.phaseElapsedSeconds >= 4)
   assert.equal(recovered.payload.assets[0].status, 'uploaded', 'restart recovery must retain private upload bytes')
   const retried = await call(recoveredApi, { method: 'POST', url: `/api/stem/paper-marking-jobs/${jobId}/retry`, json: { clientRequestId: 'restart-retry-0001' } })
   assert.equal(retried.statusCode, 202)
@@ -383,6 +386,9 @@ try {
   const reportFailed = await waitFor(reportRetryApi, reportRetryCreated.payload.jobId, 'failed')
   assert.equal(reportFailed.failureCode, 'report_font_unavailable')
   assert.ok(reportFailed.result, 'validated AI result must persist before report rendering')
+  assert.equal(reportFailed.progress.lastStage, 'reporting', 'a report-only failure must remain distinguishable from an AI-analysis failure')
+  assert.equal(reportFailed.progress.lastPhase, 'reporting')
+  assert.ok(Number.isSafeInteger(reportFailed.progress.phaseElapsedSeconds) && reportFailed.progress.phaseElapsedSeconds >= 0)
   await call(reportRetryApi, {
     method: 'POST', url: `/api/stem/paper-marking-jobs/${reportRetryCreated.payload.jobId}/retry`, json: { clientRequestId: 'report-retry-0001' },
   })

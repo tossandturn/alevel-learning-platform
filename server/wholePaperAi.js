@@ -8,7 +8,8 @@ import {
   temporaryProviderImages,
 } from './aiApi.js'
 
-const DEFAULT_TIMEOUT_MS = 45_000
+export const WHOLE_PAPER_AI_DEFAULT_TIMEOUT_MS = 120_000
+export const WHOLE_PAPER_AI_MAX_TIMEOUT_MS = 180_000
 const MAX_TEXT = 2_000
 export const WHOLE_PAPER_AI_MAX_IMAGES = 40
 const ASSESSMENT_FAILURE_REASONS = new Set([
@@ -227,8 +228,8 @@ function pageContent(label, pages, providerImages, offset) {
 
 function timeoutMs(env) {
   const value = Number(env.STEM_WHOLE_PAPER_AI_TIMEOUT_MS)
-  if (!Number.isFinite(value) || value <= 0) return DEFAULT_TIMEOUT_MS
-  return Math.min(DEFAULT_TIMEOUT_MS, Math.max(250, Math.floor(value)))
+  if (!Number.isFinite(value) || value <= 0) return WHOLE_PAPER_AI_DEFAULT_TIMEOUT_MS
+  return Math.min(WHOLE_PAPER_AI_MAX_TIMEOUT_MS, Math.max(250, Math.floor(value)))
 }
 
 /**
@@ -329,6 +330,7 @@ export function createWholePaperAiRunner({ env = process.env, telemetry = null }
           fallback: providerIndex > 0,
           telemetry,
           timeoutMs: configuredTimeout,
+          maxTimeoutMs: WHOLE_PAPER_AI_MAX_TIMEOUT_MS,
           totalDeadlineMs: Number.isFinite(deadlineAt) ? Math.max(0, deadlineAt - Date.now()) : null,
           deadlineAt,
           signal,

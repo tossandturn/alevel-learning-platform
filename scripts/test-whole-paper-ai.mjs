@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict'
 import http from 'node:http'
 
-import { createWholePaperAiRunner, normalizeWholePaperAiResult } from '../server/wholePaperAi.js'
+import {
+  createWholePaperAiRunner,
+  normalizeWholePaperAiResult,
+  WHOLE_PAPER_AI_DEFAULT_TIMEOUT_MS,
+  WHOLE_PAPER_AI_MAX_TIMEOUT_MS,
+} from '../server/wholePaperAi.js'
 
 const requests = []
 let responseMode = 'unscored'
@@ -98,6 +103,11 @@ const server = http.createServer((request, response) => {
     }
     const finish = () => {
       if (response.destroyed) return
+      if (responseMode === 'fallback-budget' && body.model === 'fixture-primary-model') {
+        response.writeHead(503, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({ error: { message: 'synthetic primary failure' } }))
+        return
+      }
       response.writeHead(200, { 'content-type': 'application/json' })
       if (responseMode === 'provider-envelope-invalid') {
         response.end(JSON.stringify({ choices: [] }))
@@ -107,6 +117,7 @@ const server = http.createServer((request, response) => {
       response.end(JSON.stringify({ choices: [{ message: { content }, finish_reason: 'stop' }] }))
     }
     if (responseMode === 'delayed') setTimeout(finish, 500)
+    else if (responseMode === 'fallback-budget' && body.model === 'fixture-primary-model') setTimeout(finish, 80)
     else finish()
   })
 })
@@ -127,6 +138,8 @@ const page = {
 }
 
 try {
+  assert.equal(WHOLE_PAPER_AI_DEFAULT_TIMEOUT_MS, 120_000)
+  assert.equal(WHOLE_PAPER_AI_MAX_TIMEOUT_MS, 180_000)
   const resultBase = {
     summary: 'Boundary fixture.', provisionalScore: null, maxScore: null, reviewRequired: true,
     missingPages: [], missingQuestions: [],
@@ -389,6 +402,70 @@ try {
     (error) => error?.code === 'provider_image_limit' && error?.retryable === false,
     'provider image-page limits must fail explicitly without silently dropping pages',
   )
+
+  const timeoutTelemetry = []
+  const longTimeoutRun = createWholePaperAiRunner({
+    env: { ...env, STEM_WHOLE_PAPER_AI_TIMEOUT_MS: '120000' },
+    telemetry: (event) => timeoutTelemetry.push(event),
+  })
+  responseMode = 'unscored'
+  await longTimeoutRun({ job: { id: 'job-long-timeout-wire' }, answerPages: [page], deadlineAt: Date.now() + 180_000 })
+  assert.equal(timeoutTelemetry.at(-1)?.timeoutMs, 120_000, 'the whole-paper timeout must reach the provider wire instead of being clamped by generic Coach limits')
+
+  const defaultTimeoutTelemetry = []
+  const defaultTimeoutEnv = { ...env }
+  delete defaultTimeoutEnv.STEM_WHOLE_PAPER_AI_TIMEOUT_MS
+  const defaultTimeoutRun = createWholePaperAiRunner({ env: defaultTimeoutEnv, telemetry: (event) => defaultTimeoutTelemetry.push(event) })
+  await defaultTimeoutRun({ job: { id: 'job-default-timeout-wire' }, answerPages: [page], deadlineAt: Date.now() + 180_000 })
+  assert.equal(defaultTimeoutTelemetry.at(-1)?.timeoutMs, 120_000)
+
+  const cappedTimeoutTelemetry = []
+  const cappedTimeoutRun = createWholePaperAiRunner({
+    env: { ...env, STEM_WHOLE_PAPER_AI_TIMEOUT_MS: '999999' },
+    telemetry: (event) => cappedTimeoutTelemetry.push(event),
+  })
+  await cappedTimeoutRun({ job: { id: 'job-capped-timeout-wire' }, answerPages: [page], deadlineAt: Date.now() + 240_000 })
+  assert.equal(cappedTimeoutTelemetry.at(-1)?.timeoutMs, 180_000, 'the whole-paper call-level timeout remains bounded')
+
+  const shortTimeoutTelemetry = []
+  const shortTimeoutRun = createWholePaperAiRunner({
+    env: { ...env, STEM_WHOLE_PAPER_AI_TIMEOUT_MS: '3000' },
+    telemetry: (event) => shortTimeoutTelemetry.push(event),
+  })
+  await shortTimeoutRun({ job: { id: 'job-short-timeout-wire' }, answerPages: [page], deadlineAt: Date.now() + 180_000 })
+  assert.equal(shortTimeoutTelemetry.at(-1)?.timeoutMs, 3_000, 'an explicit shorter whole-paper timeout remains authoritative')
+
+  const deadlineTelemetry = []
+  const deadlineRun = createWholePaperAiRunner({
+    env: { ...env, STEM_WHOLE_PAPER_AI_TIMEOUT_MS: '120000' },
+    telemetry: (event) => deadlineTelemetry.push(event),
+  })
+  const shortDeadline = Date.now() + 1_000
+  await deadlineRun({ job: { id: 'job-low-deadline-wire' }, answerPages: [page], deadlineAt: shortDeadline })
+  assert.ok(deadlineTelemetry.at(-1)?.timeoutMs > 0 && deadlineTelemetry.at(-1).timeoutMs <= 1_000, 'the remaining job deadline must clamp the whole-paper provider timeout')
+
+  const fallbackTelemetry = []
+  const fallbackRun = createWholePaperAiRunner({
+    env: {
+      AI_PROVIDER: 'openai',
+      OPENAI_API_KEY: 'fixture-primary-key',
+      OPENAI_API_PROTOCOL: 'chat',
+      OPENAI_VISION_API_KEY: 'fixture-primary-key',
+      OPENAI_VISION_BASE_URL: `http://127.0.0.1:${port}/v1`,
+      OPENAI_VISION_MODEL: 'fixture-primary-model',
+      VISION_AI_API_KEY: 'fixture-fallback-key',
+      VISION_AI_BASE_URL: `http://127.0.0.1:${port}/v1`,
+      VISION_AI_MODEL: 'fixture-fallback-model',
+      PHYSICS_AI_IMAGE_MODE: 'data-url',
+      STEM_WHOLE_PAPER_AI_TIMEOUT_MS: '120000',
+    },
+    telemetry: (event) => fallbackTelemetry.push(event),
+  })
+  responseMode = 'fallback-budget'
+  await fallbackRun({ job: { id: 'job-fallback-budget' }, answerPages: [page], deadlineAt: Date.now() + 2_000 })
+  assert.equal(fallbackTelemetry.length, 2)
+  assert.ok(fallbackTelemetry[0].timeoutMs <= 2_000)
+  assert.ok(fallbackTelemetry[1].timeoutMs < fallbackTelemetry[0].timeoutMs, 'fallback must inherit the remaining total job deadline, not receive a fresh budget')
 
   responseMode = 'delayed'
   const abortController = new AbortController()
