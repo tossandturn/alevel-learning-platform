@@ -4,9 +4,6 @@ export const COACH_FEATURE_VERSION = 'stem-coach-features-v1.0.0'
 
 const FEATURE_IDS = new Set(['steps', 'answers', 'pdf', 'tavern'])
 const TAVERN_PERSONA_ERROR = 'Choose keeper, study-buddy, cat-companion, story-traveler, xianxia-guide, mystery-guide, eastern-oracle or tarot-reader.'
-const TAVERN_HISTORY_MAX_MESSAGES = 40
-const TAVERN_HISTORY_MAX_CONTENT_CHARS = 3000
-const TAVERN_HISTORY_MAX_TOTAL_CHARS = 23999
 
 const TAVERN_PRESETS = Object.freeze({
   keeper: Object.freeze({
@@ -101,38 +98,6 @@ function scalarId(value, code, message, maxLength = 80) {
   if (value === undefined || value === null || value === '') return ''
   if (typeof value !== 'string') throw featureError(400, code, message)
   return value.trim().toLowerCase().slice(0, maxLength)
-}
-
-function tavernHistoryContent(value) {
-  if (typeof value !== 'string') return ''
-  const clean = value.replace(/\r\n?/g, '\n').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim()
-  return Array.from(clean).slice(0, TAVERN_HISTORY_MAX_CONTENT_CHARS).join('')
-}
-
-export function sanitizeTavernHistory(value) {
-  if (!Array.isArray(value)) return Object.freeze([])
-  const messages = value.flatMap((item) => {
-    if (!item || typeof item !== 'object' || !['user', 'assistant'].includes(item.role)) return []
-    const content = tavernHistoryContent(item.content)
-    return content ? [Object.freeze({ role: item.role, content })] : []
-  })
-  const pairs = []
-  for (let index = 0; index < messages.length - 1; index += 1) {
-    if (messages[index].role !== 'user' || messages[index + 1].role !== 'assistant') continue
-    pairs.push(Object.freeze([messages[index], messages[index + 1]]))
-    index += 1
-  }
-  const selectedNewestFirst = []
-  let totalChars = 0
-  const maxPairs = TAVERN_HISTORY_MAX_MESSAGES / 2
-  for (let index = pairs.length - 1; index >= 0 && selectedNewestFirst.length < maxPairs; index -= 1) {
-    const pair = pairs[index]
-    const pairChars = pair.reduce((total, item) => total + Array.from(item.content).length, 0)
-    if (totalChars + pairChars > TAVERN_HISTORY_MAX_TOTAL_CHARS) continue
-    selectedNewestFirst.push(pair)
-    totalChars += pairChars
-  }
-  return Object.freeze(selectedNewestFirst.reverse().flat())
 }
 
 function hasPdfAttachment(payload) {

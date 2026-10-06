@@ -26,13 +26,17 @@ import {
   buildTavernSystemPrompt,
   coachFeatureResponseFields,
   resolveCoachFeature,
-  sanitizeTavernHistory,
   validateCoachFeaturePayload,
 } from './coachFeatures.js'
 import {
   createTavernDivinationStore,
   tavernDrawSystemPrompt,
 } from './tavernDivination.js'
+import {
+  createTavernConversationStore,
+  resolveTavernMemoryRoot,
+  selectTavernProviderContext,
+} from './tavernConversationStore.js'
 
 export { buildCoachSystemPrompt } from './coachPolicy.js'
 
@@ -116,6 +120,7 @@ function authenticatedStemUser(request, env) {
 }
 
 const TAVERN_DRAW_REQUEST_FIELDS = new Set(['feature', 'persona', 'drawNonce', 'spread', 'attemptId'])
+const TAVERN_RESUME_REQUEST_FIELDS = new Set(['persona', 'attemptId', 'conversationId', 'legacyImport'])
 
 function tavernDrawRequestError(statusCode, code, message, action = '') {
   return Object.assign(new Error(message), {
@@ -166,6 +171,91 @@ async function handleTavernDraw(request, response, env, authorizeCoachRequest, d
     nonce: payload.drawNonce,
   })
   return sendJson(response, 200, { draw })
+}
+
+function validateTavernResumePayload(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw tavernDrawRequestError(400, 'tavern_resume_request_invalid', 'Resume request must be a JSON object.')
+  }
+  if (Object.keys(payload).some((key) => !TAVERN_RESUME_REQUEST_FIELDS.has(key))) {
+    throw tavernDrawRequestError(400, 'tavern_resume_request_invalid', 'Resume request contains unsupported fields.')
+  }
+  const feature = resolveCoachFeature({ feature: 'tavern', persona: payload.persona })
+  if (payload.legacyImport !== undefined) {
+    const legacy = payload.legacyImport
+    if (!legacy || typeof legacy !== 'object' || Array.isArray(legacy)
+      || typeof legacy.importId !== 'string' || !Array.isArray(legacy.messages)
+      || legacy.messages.some((message) => !message || !['user', 'assistant'].includes(message.role) || typeof message.content !== 'string')) {
+      throw tavernDrawRequestError(400, 'tavern_legacy_import_invalid', 'Legacy Tavern import must contain only user and assistant text messages.')
+    }
+  }
+  return feature
+}
+
+async function authorizeTavernMemoryRequest({ request, payload, env, authorizeCoachRequest }) {
+  const feature = resolveCoachFeature({ feature: 'tavern', persona: payload.persona })
+  const ownerId = authenticatedStemUser(request, env)
+  if (!ownerId) throw tavernDrawRequestError(401, 'coach_auth_required', 'Sign in to use Tavern memory.')
+  const authorization = typeof authorizeCoachRequest === 'function'
+    ? await authorizeCoachRequest({ request, payload: { feature: 'tavern', persona: feature.persona, ...(payload.attemptId ? { attemptId: payload.attemptId } : {}) } })
+    : null
+  assertTavernDrawAssessmentAllowed(authorization)
+  return { feature, ownerId }
+}
+
+async function handleTavernConversationResume(request, response, env, authorizeCoachRequest, conversationStore) {
+  const payload = await readJsonBody(request)
+  const feature = validateTavernResumePayload(payload)
+  const authorized = await authorizeTavernMemoryRequest({ request, payload: { ...payload, persona: feature.persona }, env, authorizeCoachRequest })
+  const conversation = conversationStore.resumeConversation({
+    ownerId: authorized.ownerId,
+    persona: feature.persona,
+    conversationId: payload.conversationId,
+    legacyImport: payload.legacyImport,
+  })
+  return sendJson(response, 200, {
+    conversation,
+    ...(payload.legacyImport ? {
+      legacyImport: {
+        importId: String(payload.legacyImport.importId),
+        confirmed: true,
+        importedMessageCount: payload.legacyImport.messages.length,
+      },
+    } : {}),
+  })
+}
+
+async function handleTavernConversationMessages(requestUrl, request, response, env, authorizeCoachRequest, conversationStore) {
+  const prefix = '/api/ai/tavern/conversations/'
+  const suffix = '/messages'
+  const conversationId = decodeURIComponent(requestUrl.pathname.slice(prefix.length, -suffix.length))
+  const payload = {
+    persona: requestUrl.searchParams.get('persona') || '',
+    attemptId: requestUrl.searchParams.get('attemptId') || '',
+  }
+  const authorized = await authorizeTavernMemoryRequest({ request, payload, env, authorizeCoachRequest })
+  return sendJson(response, 200, conversationStore.getMessages({
+    ownerId: authorized.ownerId,
+    persona: authorized.feature.persona,
+    conversationId,
+    before: requestUrl.searchParams.get('before') || '',
+    limit: requestUrl.searchParams.get('limit') || 40,
+  }))
+}
+
+async function handleTavernConversationDelete(requestUrl, request, response, env, authorizeCoachRequest, conversationStore) {
+  const prefix = '/api/ai/tavern/conversations/'
+  const conversationId = decodeURIComponent(requestUrl.pathname.slice(prefix.length))
+  const payload = {
+    persona: requestUrl.searchParams.get('persona') || '',
+    attemptId: requestUrl.searchParams.get('attemptId') || '',
+  }
+  const authorized = await authorizeTavernMemoryRequest({ request, payload, env, authorizeCoachRequest })
+  return sendJson(response, 200, conversationStore.deleteConversation({
+    ownerId: authorized.ownerId,
+    persona: authorized.feature.persona,
+    conversationId,
+  }))
 }
 
 function compactCoachContextText(value, maxLength = 4000) {
@@ -971,16 +1061,19 @@ function responsesInstructions(messages = []) {
   return instructions.join('\n\n') || null
 }
 
-function providerRequestBody(provider, { messages, temperature = 0.2, stream = false, json = false, metadata = null }) {
+function providerRequestBody(provider, { messages, temperature = 0.2, stream = false, json = false, metadata = null, outputTokenLimit = null, disableThinking = false, storeResponse = null, reasoningEffortOverride = '' }) {
   const safeMetadata = providerMetadata(metadata)
+  const boundedOutputTokens = Number.isInteger(outputTokenLimit) && outputTokenLimit > 0 ? Math.min(8192, outputTokenLimit) : null
   if (isResponsesProvider(provider)) {
     const instructions = responsesInstructions(messages)
     return {
       model: provider.model,
       input: responsesInput(messages),
       ...(instructions ? { instructions } : {}),
-      ...(provider.reasoningEffort ? { reasoning: { effort: provider.reasoningEffort } } : {}),
+      ...(reasoningEffortOverride ? { reasoning: { effort: reasoningEffortOverride } } : provider.reasoningEffort ? { reasoning: { effort: provider.reasoningEffort } } : {}),
       stream,
+      ...(boundedOutputTokens ? { max_output_tokens: boundedOutputTokens } : {}),
+      ...(storeResponse === false ? { store: false } : {}),
       ...(json ? { text: { format: { type: 'json_object' } } } : {}),
       ...(safeMetadata ? { metadata: safeMetadata } : {}),
     }
@@ -990,6 +1083,8 @@ function providerRequestBody(provider, { messages, temperature = 0.2, stream = f
     messages,
     ...providerSampling(provider, temperature),
     stream,
+    ...(boundedOutputTokens ? { max_tokens: boundedOutputTokens } : {}),
+    ...(disableThinking && provider.name === 'qwen' && /^qwen3\.7-(?:max|plus)$/i.test(String(provider.model || '')) ? { enable_thinking: false } : {}),
     ...(json ? { response_format: { type: 'json_object' } } : {}),
     ...(safeMetadata ? { metadata: safeMetadata } : {}),
   }
@@ -1154,7 +1249,7 @@ function aiResponseSchemaError(error) {
   return schemaError
 }
 
-export async function callCompatibleAi(provider, { messages, temperature = 0.2, json = false, metadata = null, operation = 'ai', requestId = '', providerAttempt = 1, fallbackPath = '', fallback = false, telemetry = null, timeoutMs = DEFAULT_AI_PROVIDER_TIMEOUT_MS, totalDeadlineMs = null, deadlineAt = null, validateResponse = null, signal = null }) {
+export async function callCompatibleAi(provider, { messages, temperature = 0.2, json = false, metadata = null, operation = 'ai', requestId = '', providerAttempt = 1, fallbackPath = '', fallback = false, telemetry = null, timeoutMs = DEFAULT_AI_PROVIDER_TIMEOUT_MS, totalDeadlineMs = null, deadlineAt = null, validateResponse = null, signal = null, outputTokenLimit = null, disableThinking = false, storeResponse = null, reasoningEffortOverride = '' }) {
   const startedAt = Date.now()
   let statusCode = null
   let schemaStatus = 'not-checked'
@@ -1186,7 +1281,7 @@ export async function callCompatibleAi(provider, { messages, temperature = 0.2, 
     const response = await fetch(providerEndpoint(provider), {
       method: 'POST',
       headers: { Authorization: `Bearer ${provider.apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(providerRequestBody(provider, { messages, temperature, stream: false, json, metadata })),
+      body: JSON.stringify(providerRequestBody(provider, { messages, temperature, stream: false, json, metadata, outputTokenLimit, disableThinking, storeResponse, reasoningEffortOverride })),
       signal: controller.signal,
     })
     statusCode = response.status
@@ -1421,12 +1516,65 @@ function coachFeatureSystemPrompt(feature, policy, context, draw = null) {
   return draw ? `${basePrompt}\n${tavernDrawSystemPrompt(draw)}` : basePrompt
 }
 
+function normalizedStatelessTavernHistory(value) {
+  if (!Array.isArray(value)) return []
+  const messages = value.flatMap((item) => {
+    if (!item || !['user', 'assistant'].includes(item.role) || typeof item.content !== 'string') return []
+    const content = compactText(item.content, 12_000)
+    return content ? [{ role: item.role, content, status: 'complete' }] : []
+  })
+  const complete = []
+  for (let index = 0; index < messages.length - 1; index += 1) {
+    if (messages[index].role !== 'user' || messages[index + 1].role !== 'assistant') continue
+    complete.push(messages[index], messages[index + 1])
+    index += 1
+  }
+  return complete
+}
+
+function statefulTavernRequest(feature, payload) {
+  const fieldsPresent = ['conversationId', 'clientTurnId', 'expectedRevision'].some((key) => Object.hasOwn(payload || {}, key))
+  if (!fieldsPresent) return null
+  if (feature.feature !== 'tavern') throw tavernDrawRequestError(400, 'tavern_state_not_allowed', 'Stateful Tavern fields are only supported for feature=tavern.')
+  if (typeof payload.conversationId !== 'string' || typeof payload.clientTurnId !== 'string' || !Number.isInteger(payload.expectedRevision)) {
+    throw tavernDrawRequestError(400, 'tavern_state_request_invalid', 'conversationId, clientTurnId and integer expectedRevision are required together.')
+  }
+  if (Object.hasOwn(payload, 'history')) throw tavernDrawRequestError(400, 'tavern_state_history_forbidden', 'Stateful Tavern requests load private history on the server.')
+  return {
+    conversationId: payload.conversationId,
+    clientTurnId: payload.clientTurnId,
+    expectedRevision: payload.expectedRevision,
+  }
+}
+
+function tavernLogicalRequestHash({ feature, payload, message }) {
+  return crypto.createHash('sha256').update(JSON.stringify({
+    feature: 'tavern',
+    persona: feature.persona,
+    conversationId: String(payload.conversationId || ''),
+    clientTurnId: String(payload.clientTurnId || ''),
+    message,
+    drawId: String(payload.drawId || ''),
+    attemptId: String(payload.attemptId || ''),
+  })).digest('hex')
+}
+
+function tavernConversationResponse(state, memory = null) {
+  if (!state) return memory ? { memory } : {}
+  return {
+    conversation: state.conversation,
+    clientTurnId: state.clientTurnId,
+    turns: state.turns,
+    ...(memory ? { memory } : {}),
+  }
+}
+
 function coachTavernRequestContext(feature, message) {
   return compactText(JSON.stringify({
     coachFeature: feature.feature,
     coachPersona: feature.persona,
     studentMessage: message,
-  }), COACH_CONTEXT_MAX_CHARS)
+  }), 16_000)
 }
 
 function coachProviderMetadata(feature, context) {
@@ -1435,6 +1583,33 @@ function coachProviderMetadata(feature, context) {
       ? coachFeatureResponseFields(feature)
       : context,
   }
+}
+
+function tavernProviderContext({ activeProvider, feature, policy, context, draw, message, state, ownerId, conversationStore, legacyHistory }) {
+  const systemPrompt = coachFeatureSystemPrompt(feature, policy, context, draw)
+  const metadata = coachProviderMetadata(feature, context)
+  const budgetMetadata = providerMetadata(metadata)
+  const selected = state
+    ? conversationStore.contextForProvider({
+        ownerId,
+        persona: feature.persona,
+        conversationId: state.conversation.id,
+        model: activeProvider.model,
+        protocol: activeProvider.protocol,
+        metadata: budgetMetadata,
+        currentMessage: message,
+        systemPrompt,
+        excludeClientTurnId: state.clientTurnId,
+      })
+    : selectTavernProviderContext({
+        model: activeProvider.model,
+        protocol: activeProvider.protocol,
+        metadata: budgetMetadata,
+        systemPrompt,
+        currentMessage: message,
+        recentMessages: legacyHistory,
+      })
+  return { systemPrompt, metadata, history: selected.messages, memory: selected.memory }
 }
 
 function coachRequestContext(context, message) {
@@ -1468,16 +1643,17 @@ function coachRequestContext(context, message) {
   }), COACH_CONTEXT_MAX_CHARS)
 }
 
-async function handleCoach(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore) {
+async function handleCoach(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStoreProvider) {
   const payload = await readJsonBody(request)
   const authorization = typeof authorizeCoachRequest === 'function'
     ? await authorizeCoachRequest({ request, payload })
     : null
   const feature = resolveCoachFeature({ feature: payload.feature, persona: payload.persona })
   validateCoachFeaturePayload(feature, payload)
-  const message = compactText(payload.message, 3000)
+  const message = compactText(payload.message, feature.feature === 'tavern' ? 12_000 : 3000)
+  const stateRequest = statefulTavernRequest(feature, payload)
   const history = feature.feature === 'tavern'
-    ? sanitizeTavernHistory(payload.history)
+    ? stateRequest ? [] : normalizedStatelessTavernHistory(payload.history)
     : Array.isArray(payload.history) ? payload.history.slice(-10).map((item) => ({ role: item.role === 'assistant' ? 'assistant' : 'user', content: compactText(item.content, 3000) })) : []
   // Client context is useful for tutoring, but cannot authorize answer release.
   // In particular, `context.submitted` is deliberately discarded here.
@@ -1501,7 +1677,45 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   }
   assertTavernDrawAssessmentAllowed(authorization)
   const authenticatedUserId = authenticatedStemUser(request, env)
+  if (stateRequest && !authenticatedUserId) throw tavernDrawRequestError(401, 'coach_auth_required', 'Sign in to use Tavern memory.')
+  const storedMessage = message || (feature.divinationKind ? '请解读本次服务器抽取结果。' : '')
+  if (stateRequest && !storedMessage) throw tavernDrawRequestError(400, 'tavern_turn_content_invalid', 'Add a Tavern message before sending.')
+  const requestHash = stateRequest ? tavernLogicalRequestHash({ feature, payload, message }) : ''
+  const stateStore = stateRequest ? conversationStoreProvider() : null
+  const completedReplay = stateRequest ? stateStore.replayCompletedTurn({
+    ownerId: authenticatedUserId,
+    persona: feature.persona,
+    conversationId: stateRequest.conversationId,
+    clientTurnId: stateRequest.clientTurnId,
+    message: storedMessage,
+    requestHash,
+  }) : null
+  if (completedReplay) {
+    const replayState = { ...completedReplay, clientTurnId: stateRequest.clientTurnId }
+    return sendJson(response, 200, {
+      mode: 'ai',
+      provider: completedReplay.provider || undefined,
+      providerStatus: 'connected',
+      answer: completedReplay.turns.find((turn) => turn.role === 'assistant')?.content || '',
+      model: completedReplay.model || undefined,
+      ...coachResponseFields(policy, feature, 'complete', completedReplay.draw),
+      ...tavernConversationResponse(replayState, completedReplay.memory),
+    })
+  }
   const draw = trustedTavernDraw({ feature, payload, ownerId: authenticatedUserId, divinationStore })
+  const state = stateRequest ? {
+    ...stateStore.beginTurn({
+      ownerId: authenticatedUserId,
+      persona: feature.persona,
+      conversationId: stateRequest.conversationId,
+      clientTurnId: stateRequest.clientTurnId,
+      expectedRevision: stateRequest.expectedRevision,
+      message: storedMessage,
+      requestHash,
+      draw,
+    }),
+    clientTurnId: stateRequest.clientTurnId,
+  } : null
   const context = coachFeatureContext(authorizedContext, policy, feature)
   const imageDataUrls = coachImageDataUrls(payload)
   const hasImages = imageDataUrls.length > 0
@@ -1523,14 +1737,27 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   }
   const configuredProvider = hasImages ? visionProvider : provider
   const activeProviders = providerCandidates(configuredProvider)
-  if (!activeProviders.length) return sendJson(response, 200, coachUnavailablePayload({
-    policy,
-    feature,
-    localAnswer,
-    providerStatus: 'not_configured',
-    warning: 'AI Coach provider is not configured on this server. No AI answer or completed review was generated.',
-    draw,
-  }))
+  if (!activeProviders.length) {
+    const failedState = state ? stateStore.failTurn({
+      ownerId: authenticatedUserId,
+      persona: feature.persona,
+      conversationId: state.conversation.id,
+      clientTurnId: state.clientTurnId,
+      leaseId: state.leaseId,
+      status: 'unavailable',
+    }) : null
+    return sendJson(response, 200, {
+      ...coachUnavailablePayload({
+        policy,
+        feature,
+        localAnswer,
+        providerStatus: 'not_configured',
+        warning: 'AI Coach provider is not configured on this server. No AI answer or completed review was generated.',
+        draw,
+      }),
+      ...tavernConversationResponse(failedState ? { ...failedState, clientTurnId: state.clientTurnId } : null),
+    })
+  }
   const userText = feature.feature === 'tavern'
     ? coachTavernRequestContext(feature, message)
     : coachRequestContext(context, message)
@@ -1540,15 +1767,33 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   const deadlineAt = Date.now() + requestBudget.totalDeadlineMs
   const requestId = crypto.randomUUID()
   let lastError = null
+  let lastMemory = null
+  let lastAttemptedProvider = activeProviders[0]
   for (const [providerIndex, activeProvider] of activeProviders.entries()) {
+    lastAttemptedProvider = activeProvider
     let providerImages = []
     try {
       providerImages = await temporaryProviderImages(imageDataUrls, imagePublicBase(activeProvider, request))
       const content = providerMessageContent(userText, providerImages)
+      const selectedTavernContext = feature.feature === 'tavern'
+        ? tavernProviderContext({
+            activeProvider,
+            feature,
+            policy,
+            context,
+            draw,
+            message: userText,
+            state,
+            ownerId: authenticatedUserId,
+            conversationStore: stateStore,
+            legacyHistory: history,
+          })
+        : null
+      lastMemory = selectedTavernContext?.memory || null
       const answer = await callCompatibleAi(activeProvider, {
-        messages: [{ role: 'system', content: coachFeatureSystemPrompt(feature, policy, context, draw) }, ...history, { role: 'user', content }],
+        messages: [{ role: 'system', content: selectedTavernContext?.systemPrompt || coachFeatureSystemPrompt(feature, policy, context, draw) }, ...(selectedTavernContext?.history || history), { role: 'user', content }],
         temperature: 0.2,
-        metadata: coachProviderMetadata(feature, context),
+        metadata: selectedTavernContext?.metadata || coachProviderMetadata(feature, context),
         operation: feature.feature === 'tavern' ? 'coach-tavern' : hasImages ? 'coach-vision' : 'coach',
         requestId,
         providerAttempt: providerIndex + 1,
@@ -1558,7 +1803,26 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
         timeoutMs: requestBudget.providerTimeoutMs,
         totalDeadlineMs: requestBudget.totalDeadlineMs,
         deadlineAt,
+        ...(feature.feature === 'tavern' ? {
+          outputTokenLimit: 2048,
+          disableThinking: true,
+          ...(state ? {
+            storeResponse: false,
+            reasoningEffortOverride: isResponsesProvider(activeProvider) && String(activeProvider.model).toLowerCase() === 'gpt-5.5' ? 'none' : '',
+          } : {}),
+        } : {}),
       })
+      const completedState = state ? stateStore.completeTurn({
+        ownerId: authenticatedUserId,
+        persona: feature.persona,
+        conversationId: state.conversation.id,
+        clientTurnId: state.clientTurnId,
+        leaseId: state.leaseId,
+        assistantContent: answer,
+        provider: activeProvider.name,
+        model: activeProvider.model,
+        memory: lastMemory,
+      }) : null
       return sendJson(response, 200, {
         mode: 'ai',
         provider: activeProvider.name,
@@ -1566,6 +1830,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
         answer,
         model: activeProvider.model,
         ...coachResponseFields(policy, feature, 'complete', draw),
+        ...tavernConversationResponse(completedState ? { ...completedState, clientTurnId: state.clientTurnId } : null, lastMemory),
       })
     } catch (error) {
       lastError = error
@@ -1573,19 +1838,33 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
       providerImages.forEach((image) => image.cleanup())
     }
   }
-  const failedProvider = activeProviders.at(-1)
-  return sendJson(response, 200, coachUnavailablePayload({
-    policy,
-    feature,
-    localAnswer,
+  const failedProvider = lastAttemptedProvider
+  const failedState = state ? stateStore.failTurn({
+    ownerId: authenticatedUserId,
+    persona: feature.persona,
+    conversationId: state.conversation.id,
+    clientTurnId: state.clientTurnId,
+    leaseId: state.leaseId,
+    status: 'unavailable',
     provider: failedProvider.name,
-    providerStatus: 'error',
-    warning: providerMessage(lastError, failedProvider),
-    draw,
-  }))
+    model: failedProvider.model,
+    memory: lastMemory,
+  }) : null
+  return sendJson(response, 200, {
+    ...coachUnavailablePayload({
+      policy,
+      feature,
+      localAnswer,
+      provider: failedProvider.name,
+      providerStatus: 'error',
+      warning: providerMessage(lastError, failedProvider),
+      draw,
+    }),
+    ...tavernConversationResponse(failedState ? { ...failedState, clientTurnId: state.clientTurnId } : null, lastMemory),
+  })
 }
 
-async function callCompatibleAiStream(provider, { messages, temperature = 0.2, metadata = null, onDelta, operation = 'ai-stream', requestId = '', providerAttempt = 1, fallbackPath = '', fallback = false, telemetry = null, timeoutMs = DEFAULT_AI_PROVIDER_TIMEOUT_MS, totalDeadlineMs = null, deadlineAt = null }) {
+async function callCompatibleAiStream(provider, { messages, temperature = 0.2, metadata = null, onDelta, operation = 'ai-stream', requestId = '', providerAttempt = 1, fallbackPath = '', fallback = false, telemetry = null, timeoutMs = DEFAULT_AI_PROVIDER_TIMEOUT_MS, totalDeadlineMs = null, deadlineAt = null, outputTokenLimit = null, disableThinking = false, storeResponse = null, reasoningEffortOverride = '' }) {
   const startedAt = Date.now()
   let statusCode = null
   let schemaStatus = 'not-checked'
@@ -1622,7 +1901,7 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, m
     const response = await fetch(providerEndpoint(provider), {
       method: 'POST',
       headers: { Authorization: `Bearer ${provider.apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(providerRequestBody(provider, { messages, temperature, stream: true, metadata })),
+      body: JSON.stringify(providerRequestBody(provider, { messages, temperature, stream: true, metadata, outputTokenLimit, disableThinking, storeResponse, reasoningEffortOverride })),
       signal: controller.signal,
     })
     resetIdleTimeout()
@@ -1772,16 +2051,17 @@ function sendCoachEvent(response, event, value) {
   response.write(`event: ${event}\ndata: ${JSON.stringify(value)}\n\n`)
 }
 
-async function handleCoachStream(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore) {
+async function handleCoachStream(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStoreProvider) {
   const payload = await readJsonBody(request)
   const authorization = typeof authorizeCoachRequest === 'function'
     ? await authorizeCoachRequest({ request, payload })
     : null
   const feature = resolveCoachFeature({ feature: payload.feature, persona: payload.persona })
   validateCoachFeaturePayload(feature, payload)
-  const message = compactText(payload.message, 3000)
+  const message = compactText(payload.message, feature.feature === 'tavern' ? 12_000 : 3000)
+  const stateRequest = statefulTavernRequest(feature, payload)
   const history = feature.feature === 'tavern'
-    ? sanitizeTavernHistory(payload.history)
+    ? stateRequest ? [] : normalizedStatelessTavernHistory(payload.history)
     : Array.isArray(payload.history) ? payload.history.slice(-8).map((item) => ({
       role: item.role === 'assistant' ? 'assistant' : 'user',
       content: compactText(item.content, 1200),
@@ -1806,7 +2086,33 @@ async function handleCoachStream(request, response, provider, visionProvider, li
   }
   assertTavernDrawAssessmentAllowed(authorization)
   const authenticatedUserId = authenticatedStemUser(request, env)
-  const draw = trustedTavernDraw({ feature, payload, ownerId: authenticatedUserId, divinationStore })
+  if (stateRequest && !authenticatedUserId) throw tavernDrawRequestError(401, 'coach_auth_required', 'Sign in to use Tavern memory.')
+  const storedMessage = message || (feature.divinationKind ? '请解读本次服务器抽取结果。' : '')
+  if (stateRequest && !storedMessage) throw tavernDrawRequestError(400, 'tavern_turn_content_invalid', 'Add a Tavern message before sending.')
+  const requestHash = stateRequest ? tavernLogicalRequestHash({ feature, payload, message }) : ''
+  const stateStore = stateRequest ? conversationStoreProvider() : null
+  const completedReplay = stateRequest ? stateStore.replayCompletedTurn({
+    ownerId: authenticatedUserId,
+    persona: feature.persona,
+    conversationId: stateRequest.conversationId,
+    clientTurnId: stateRequest.clientTurnId,
+    message: storedMessage,
+    requestHash,
+  }) : null
+  const draw = completedReplay?.draw || trustedTavernDraw({ feature, payload, ownerId: authenticatedUserId, divinationStore })
+  const state = stateRequest && !completedReplay ? {
+    ...stateStore.beginTurn({
+      ownerId: authenticatedUserId,
+      persona: feature.persona,
+      conversationId: stateRequest.conversationId,
+      clientTurnId: stateRequest.clientTurnId,
+      expectedRevision: stateRequest.expectedRevision,
+      message: storedMessage,
+      requestHash,
+      draw,
+    }),
+    clientTurnId: stateRequest.clientTurnId,
+  } : completedReplay ? { ...completedReplay, clientTurnId: stateRequest.clientTurnId } : null
   const context = coachFeatureContext(authorizedContext, policy, feature)
   const imageDataUrls = coachImageDataUrls(payload)
   const hasImages = imageDataUrls.length > 0
@@ -1821,6 +2127,24 @@ async function handleCoachStream(request, response, provider, visionProvider, li
   response.setHeader('Connection', 'keep-alive')
   response.setHeader('X-Accel-Buffering', 'no')
   response.flushHeaders?.()
+
+  if (completedReplay) {
+    const answer = completedReplay.turns.find((turn) => turn.role === 'assistant')?.content || ''
+    const fields = {
+      mode: 'ai',
+      provider: completedReplay.provider || undefined,
+      providerStatus: 'connected',
+      answer,
+      model: completedReplay.model || undefined,
+      ...coachResponseFields(policy, feature, 'complete', completedReplay.draw),
+      ...tavernConversationResponse(state, completedReplay.memory),
+    }
+    sendCoachEvent(response, 'meta', { ...fields, answer: undefined })
+    if (answer) sendCoachEvent(response, 'delta', { text: answer })
+    sendCoachEvent(response, 'done', fields)
+    response.end()
+    return
+  }
 
   const localAnswer = localCoachReply(context, policy)
   if (shouldUseLocalCoachFirst({ message, hasImages, policy, feature })) {
@@ -1841,6 +2165,14 @@ async function handleCoachStream(request, response, provider, visionProvider, li
   const configuredProvider = hasImages ? visionProvider : provider
   const activeProviders = providerCandidates(configuredProvider)
   if (!activeProviders.length) {
+    const failedState = state ? stateStore.failTurn({
+      ownerId: authenticatedUserId,
+      persona: feature.persona,
+      conversationId: state.conversation.id,
+      clientTurnId: state.clientTurnId,
+      leaseId: state.leaseId,
+      status: 'unavailable',
+    }) : null
     const unavailable = coachUnavailablePayload({
       policy,
       feature,
@@ -1849,9 +2181,10 @@ async function handleCoachStream(request, response, provider, visionProvider, li
       warning: 'AI Coach provider is not configured on this server. No AI answer or completed review was generated.',
       draw,
     })
-    sendCoachEvent(response, 'meta', { mode: unavailable.mode, providerStatus: unavailable.providerStatus, ...coachResponseFields(policy, feature, unavailable.answerStatus, draw) })
+    const stateFields = tavernConversationResponse(failedState ? { ...failedState, clientTurnId: state.clientTurnId } : null)
+    sendCoachEvent(response, 'meta', { mode: unavailable.mode, providerStatus: unavailable.providerStatus, ...coachResponseFields(policy, feature, unavailable.answerStatus, draw), ...stateFields })
     if (unavailable.answer) sendCoachEvent(response, 'delta', { text: unavailable.answer })
-    sendCoachEvent(response, 'done', unavailable)
+    sendCoachEvent(response, 'done', { ...unavailable, ...stateFields })
     response.end()
     return
   }
@@ -1868,6 +2201,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
   let lastPartialAnswer = ''
   let lastError = null
   let lastAttemptedProvider = activeProviders[0]
+  let lastMemory = null
   const heartbeat = setInterval(() => {
     if (!response.writableEnded && !response.destroyed) response.write(': keep-alive\n\n')
   }, 15_000)
@@ -1879,17 +2213,33 @@ async function handleCoachStream(request, response, provider, visionProvider, li
       try {
         providerImages = await temporaryProviderImages(imageDataUrls, imagePublicBase(activeProvider, request))
         const content = providerMessageContent(userText, providerImages)
+        const selectedTavernContext = feature.feature === 'tavern'
+          ? tavernProviderContext({
+              activeProvider,
+              feature,
+              policy,
+              context,
+              draw,
+              message: userText,
+              state,
+              ownerId: authenticatedUserId,
+              conversationStore: stateStore,
+              legacyHistory: history,
+            })
+          : null
+        lastMemory = selectedTavernContext?.memory || null
         sendCoachEvent(response, 'meta', {
           mode: 'ai',
           provider: activeProvider.name,
           providerStatus: 'connecting',
           model: activeProvider.model,
           ...coachResponseFields(policy, feature, 'pending', draw),
+          ...tavernConversationResponse(state, lastMemory),
         })
         const result = await callCompatibleAiStream(activeProvider, {
-          messages: [{ role: 'system', content: coachFeatureSystemPrompt(feature, policy, context, draw) }, ...history, { role: 'user', content }],
+          messages: [{ role: 'system', content: selectedTavernContext?.systemPrompt || coachFeatureSystemPrompt(feature, policy, context, draw) }, ...(selectedTavernContext?.history || history), { role: 'user', content }],
           temperature: 0.2,
-          metadata: coachProviderMetadata(feature, context),
+          metadata: selectedTavernContext?.metadata || coachProviderMetadata(feature, context),
           operation: feature.feature === 'tavern' ? 'coach-tavern-stream' : hasImages ? 'coach-vision-stream' : 'coach-stream',
           requestId,
           providerAttempt: providerIndex + 1,
@@ -1899,6 +2249,14 @@ async function handleCoachStream(request, response, provider, visionProvider, li
           timeoutMs: requestBudget.providerTimeoutMs,
           totalDeadlineMs: requestBudget.totalDeadlineMs,
           deadlineAt,
+          ...(feature.feature === 'tavern' ? {
+            outputTokenLimit: 2048,
+            disableThinking: true,
+            ...(state ? {
+              storeResponse: false,
+              reasoningEffortOverride: isResponsesProvider(activeProvider) && String(activeProvider.model).toLowerCase() === 'gpt-5.5' ? 'none' : '',
+            } : {}),
+          } : {}),
           onDelta: async (delta) => {
             attemptAnswer += delta
             sendCoachEvent(response, 'delta', { text: delta })
@@ -1906,6 +2264,17 @@ async function handleCoachStream(request, response, provider, visionProvider, li
         })
         streamedAnswer = result.answer || attemptAnswer
         const answer = streamedAnswer
+        const completedState = state ? stateStore.completeTurn({
+          ownerId: authenticatedUserId,
+          persona: feature.persona,
+          conversationId: state.conversation.id,
+          clientTurnId: state.clientTurnId,
+          leaseId: state.leaseId,
+          assistantContent: answer,
+          provider: activeProvider.name,
+          model: activeProvider.model,
+          memory: lastMemory,
+        }) : null
         sendCoachEvent(response, 'done', {
           mode: 'ai',
           provider: activeProvider.name,
@@ -1913,6 +2282,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
           answer,
           model: activeProvider.model,
           ...coachResponseFields(policy, feature, 'complete', draw),
+          ...tavernConversationResponse(completedState ? { ...completedState, clientTurnId: state.clientTurnId } : null, lastMemory),
         })
         response.end()
         return
@@ -1931,6 +2301,18 @@ async function handleCoachStream(request, response, provider, visionProvider, li
     const failedProvider = lastAttemptedProvider
     const preservedAnswer = lastPartialAnswer || streamedAnswer
     const partial = Boolean(lastPartialAnswer)
+    const failedState = state ? stateStore.failTurn({
+      ownerId: authenticatedUserId,
+      persona: feature.persona,
+      conversationId: state.conversation.id,
+      clientTurnId: state.clientTurnId,
+      leaseId: state.leaseId,
+      status: partial ? 'partial' : 'unavailable',
+      assistantContent: partial ? preservedAnswer : '',
+      provider: failedProvider.name,
+      model: failedProvider.model,
+      memory: lastMemory,
+    }) : null
     const unavailable = partial
       ? {
           mode: 'interrupted',
@@ -1953,6 +2335,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
         })
     sendCoachEvent(response, 'done', {
       ...unavailable,
+      ...tavernConversationResponse(failedState ? { ...failedState, clientTurnId: state.clientTurnId } : null, lastMemory),
     })
     response.end()
   } finally {
@@ -2133,10 +2516,17 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
   return sendJson(response, 200, { mode: 'offline', code: 'vision_review_failed', provider: lastAttemptedProvider.name, providerStatus: 'error', error: providerMessage(lastError, lastAttemptedProvider), retryable: true })
 }
 
-export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null, authorizeCoachRequest = null, tavernDivinationStore = null }) {
+export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null, authorizeCoachRequest = null, tavernDivinationStore = null, tavernConversationStore = null, tavernMemoryRoot = null }) {
   const config = providerConfig(env)
   const timeoutConfig = aiTimeoutConfig(env)
   const divinationStore = tavernDivinationStore || createTavernDivinationStore()
+  let activeConversationStore = tavernConversationStore
+  const conversationStore = () => {
+    if (!activeConversationStore) {
+      activeConversationStore = createTavernConversationStore({ root: tavernMemoryRoot || resolveTavernMemoryRoot(env) })
+    }
+    return activeConversationStore
+  }
   const currentAiMarkingQuestionBank = () => {
     if (typeof questionBankProvider !== 'function') return studyQuestionBank
     try {
@@ -2145,7 +2535,7 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
       return studyQuestionBank
     }
   }
-  return async function aiApi(request, response, next) {
+  const aiApi = async function aiApi(request, response, next) {
     const requestUrl = new URL(request.url, 'http://127.0.0.1')
     if (!requestUrl.pathname.startsWith('/api/ai/')) return next()
     try {
@@ -2164,8 +2554,11 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
         })
       }
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/tavern/draw') return await handleTavernDraw(request, response, env, authorizeCoachRequest, divinationStore)
-      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach') return await handleCoach(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore)
-      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach/stream') return await handleCoachStream(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore)
+      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/tavern/conversations/resume') return await handleTavernConversationResume(request, response, env, authorizeCoachRequest, conversationStore())
+      if (request.method === 'GET' && requestUrl.pathname.startsWith('/api/ai/tavern/conversations/') && requestUrl.pathname.endsWith('/messages')) return await handleTavernConversationMessages(requestUrl, request, response, env, authorizeCoachRequest, conversationStore())
+      if (request.method === 'DELETE' && requestUrl.pathname.startsWith('/api/ai/tavern/conversations/')) return await handleTavernConversationDelete(requestUrl, request, response, env, authorizeCoachRequest, conversationStore())
+      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach') return await handleCoach(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStore)
+      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach/stream') return await handleCoachStream(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStore)
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/mark-handwriting') return await handleHandwritingMark(request, response, config.vision, libraryRoot, allowedSubjects, sourceAssetRoot, env, currentAiMarkingQuestionBank(), telemetry, timeoutConfig)
       return sendJson(response, 404, { error: 'AI route not found.' })
     } catch (error) {
@@ -2176,4 +2569,6 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
       })
     }
   }
+  aiApi.close = () => activeConversationStore?.close?.()
+  return aiApi
 }
