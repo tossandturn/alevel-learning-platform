@@ -114,7 +114,9 @@ const server = http.createServer((request, response) => {
         return
       }
       const content = responseMode === 'invalid-json' ? '{"summary":' : JSON.stringify(assessment)
-      response.end(JSON.stringify({ choices: [{ message: { content }, finish_reason: 'stop' }] }))
+      response.end(request.url.endsWith('/responses')
+        ? JSON.stringify({ status: 'completed', output_text: content })
+        : JSON.stringify({ choices: [{ message: { content }, finish_reason: 'stop' }] }))
     }
     if (responseMode === 'delayed') setTimeout(finish, 500)
     else if (responseMode === 'fallback-budget' && body.model === 'fixture-primary-model') setTimeout(finish, 80)
@@ -304,6 +306,8 @@ try {
   assert.equal(unscored.officialScore, false)
   assert.equal(unscored.formalProgressEligible, false)
   assert.equal(requests[0].url, '/v1/chat/completions')
+  assert.equal(Object.hasOwn(requests[0].body, 'store'), false)
+  assert.equal(Object.hasOwn(requests[0].body, 'reasoning'), false)
   assert.doesNotMatch(requests[0].body.messages[0].content, /IGNORE ALL RULES/i, 'untrusted teacher notes must not enter system instructions')
   assert.match(requests[0].body.messages[0].content, /Simplified Chinese/i)
   assert.match(requests[0].body.messages[0].content, /do not require human, teacher, or examiner approval/i, 'provider prompt must keep uncertain outcomes self-service')
@@ -320,6 +324,8 @@ try {
   assert.match(requests[0].body.messages[0].content, /categories such as B, M, C, or A.*not interchangeable/i, 'the prompt must respect supplied mark categories instead of treating every point as a generic method mark')
   assert.match(requests[0].body.messages[0].content, /satisfies an explicit M1.*award M1 and not A1.*not collapse.*zero/i, 'the prompt must preserve an earned method mark when the dependent accuracy mark fails')
   assert.match(requests[0].body.messages[0].content, /criteria totals must equal the question/i, 'the prompt must reconcile mark-point criteria to each question score')
+  assert.match(requests[0].body.messages[0].content, /Keep every explanation concise/i)
+  assert.match(requests[0].body.messages[0].content, /Do not repeat the rubric, page inventory, or the same evidence/i)
   const requestContext = JSON.parse(requests[0].body.messages[1].content[0].text)
   assert.equal(requestContext.routeId, 'cie-9702-as-physics')
   assert.equal(requestContext.stage, 'AS')
@@ -466,6 +472,38 @@ try {
   assert.equal(fallbackTelemetry.length, 2)
   assert.ok(fallbackTelemetry[0].timeoutMs <= 2_000)
   assert.ok(fallbackTelemetry[1].timeoutMs < fallbackTelemetry[0].timeoutMs, 'fallback must inherit the remaining total job deadline, not receive a fresh budget')
+
+  responseMode = 'unscored'
+  const gatewayRun = createWholePaperAiRunner({
+    env: {
+      AI_PROVIDER: 'openai-gateway',
+      AI_GATEWAY_API_KEY: 'fixture-gateway-key',
+      AI_GATEWAY_BASE_URL: `http://127.0.0.1:${port}/v1`,
+      AI_GATEWAY_VISION_MODEL: 'gpt-5.5',
+      PHYSICS_AI_IMAGE_MODE: 'data-url',
+    },
+  })
+  await gatewayRun({ job: { id: 'job-gpt-55-options' }, answerPages: [page] })
+  const gatewayBody = requests.at(-1).body
+  assert.equal(requests.at(-1).url, '/v1/responses')
+  assert.equal(gatewayBody.store, false, 'private whole-paper Responses must not be retained by the provider')
+  assert.deepEqual(gatewayBody.reasoning, { effort: 'low' }, 'only the supported gpt-5.5 Responses route uses bounded low reasoning')
+
+  const otherResponsesRun = createWholePaperAiRunner({
+    env: {
+      AI_PROVIDER: 'openai',
+      OPENAI_API_KEY: 'fixture-openai-key',
+      OPENAI_API_PROTOCOL: 'responses',
+      OPENAI_VISION_API_KEY: 'fixture-openai-key',
+      OPENAI_VISION_BASE_URL: `http://127.0.0.1:${port}/v1`,
+      OPENAI_VISION_MODEL: 'gpt-5.6',
+      PHYSICS_AI_IMAGE_MODE: 'data-url',
+    },
+  })
+  await otherResponsesRun({ job: { id: 'job-other-responses-options' }, answerPages: [page] })
+  const otherResponsesBody = requests.at(-1).body
+  assert.equal(otherResponsesBody.store, false)
+  assert.equal(Object.hasOwn(otherResponsesBody, 'reasoning'), false, 'other Responses models receive no whole-paper-specific reasoning override')
 
   responseMode = 'delayed'
   const abortController = new AbortController()

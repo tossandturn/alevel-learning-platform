@@ -232,6 +232,15 @@ function timeoutMs(env) {
   return Math.min(WHOLE_PAPER_AI_MAX_TIMEOUT_MS, Math.max(250, Math.floor(value)))
 }
 
+function privateResponsesOptions(provider) {
+  if (provider?.protocol !== 'responses') return {}
+  const model = String(provider.model || '').trim().toLowerCase()
+  return {
+    storeResponse: false,
+    ...(model === 'gpt-5.5' ? { reasoningEffortOverride: 'low' } : {}),
+  }
+}
+
 /**
  * Uses only visual page inputs. Job title and teacher notes are intentionally
  * excluded: they are untrusted report metadata, not model instructions.
@@ -286,6 +295,8 @@ export function createWholePaperAiRunner({ env = process.env, telemetry = null }
       'When missingPages or missingQuestions is non-empty, set the top-level, question-level and criterion score fields to null while preserving grounded qualitative feedback.',
       'Use JSON null for unavailable scores. Do not use empty strings, numeric strings, confidence labels, or invented zeroes as substitutes.',
       'Write summary, rationale, and criteria comments in Simplified Chinese while preserving original question labels, mathematical symbols, units, and technical terms.',
+      'Keep every explanation concise: summary at most 240 Chinese characters, each rationale at most 240, each criterion comment at most 120, and each evidence item at most 120.',
+      'Do not repeat the rubric, page inventory, or the same evidence. Concision never permits omitting a required criterion, evidence item, error diagnosis, dependency, or score reconciliation field.',
       'Scores, when allowed, must satisfy 0 <= provisionalScore <= maxScore. Evidence must point to visible student work.',
     ].join('\n')
     let lastError = null
@@ -331,6 +342,7 @@ export function createWholePaperAiRunner({ env = process.env, telemetry = null }
           telemetry,
           timeoutMs: configuredTimeout,
           maxTimeoutMs: WHOLE_PAPER_AI_MAX_TIMEOUT_MS,
+          ...privateResponsesOptions(provider),
           totalDeadlineMs: Number.isFinite(deadlineAt) ? Math.max(0, deadlineAt - Date.now()) : null,
           deadlineAt,
           signal,
