@@ -103,9 +103,14 @@ for (const [persona, title] of expectedTavernPresets) {
   assert.match(prompt, /Do not score the student, submit an attempt/i)
   assert.match(prompt, /步骤提示\s*\/\s*答案询问\s*\/\s*PDF阅卷/)
   assert.match(prompt, /normal chat.*concise/i)
-  assert.match(prompt, /initial scene cue.*no prior.*history/i)
-  assert.match(prompt, /prior history exists.*continue it.*never recite or reset/i)
+  assert.match(prompt, /never repeat.*visible opening.*even.*empty history/i)
+  assert.match(prompt, /background cue only/i)
+  assert.match(prompt, /prior history exists.*continue it.*never reset/i)
   assert.match(prompt, /different new setting.*over this default cue/i)
+  assert.match(prompt, /gambling.*lotter/i)
+  assert.match(prompt, /purchases.*real alcohol/i)
+  assert.match(prompt, /never humiliate the user/i)
+  assert.match(prompt, /humor.*situations/i)
   personaPrompts.set(persona, prompt)
 }
 assert.equal(new Set(personaPrompts.values()).size, 6, 'each tavern persona must have a distinct server-owned prompt')
@@ -117,6 +122,15 @@ assert.match(personaPrompts.get('xianxia-guide'), /wuxia|jianghu|weapons instruc
 assert.match(personaPrompts.get('xianxia-guide'), /without deciding for the user/i)
 assert.match(personaPrompts.get('mystery-guide'), /consistent clues|stable solution|real people/i)
 assert.match(personaPrompts.get('mystery-guide'), /let the user choose/i)
+for (const persona of ['story-traveler', 'xianxia-guide']) {
+  const prompt = personaPrompts.get(persona)
+  assert.match(prompt, /never invent or imply.*user's past or future action/i)
+  assert.match(prompt, /dialogue.*thoughts.*emotions.*inventory.*owned or acquired item/i)
+  assert.match(prompt, /objects and events.*world or NPC.*let the user choose/i)
+}
+assert.match(personaPrompts.get('mystery-guide'), /exactly one observation or deduction question per turn/i)
+assert.match(personaPrompts.get('mystery-guide'), /no second optional question.*no choice follow-up/i)
+assert.match(personaPrompts.get('mystery-guide'), /never state a guess as fact/i)
 assert.equal(resolveCoachFeature({ feature: 'tavern' }).persona, 'keeper')
 
 for (const [input, code] of [
