@@ -272,6 +272,9 @@ export function tavernDrawSystemPrompt(draw) {
     `Trusted server-generated entertainment draw (${config.kind}, ${draw.spread}).`,
     'Interpret exactly these cards or signs; never replace, add, remove or pretend to redraw them:',
     ...lines,
+    'Use each card or sign theme as a reflection question or metaphor, never as proof of the user\'s actual past, current mood, personality, another person\'s intent, or future.',
+    'Use conditional Chinese phrasing such as “如果……，可以想想……”, never unsupported assertions such as “你其实……” or “你曾经……”.',
+    'Start directly with the card or sign meanings and positions without re-welcoming the user or repeating the static opening.',
     'Treat every interpretation as reflective entertainment, not a guaranteed fact, hidden power, diagnosis, professional advice or certain future prediction.',
   ].join('\n')
 }

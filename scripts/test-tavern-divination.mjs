@@ -127,6 +127,11 @@ for (const card of tarot.cards) {
 }
 assert.match(drawPrompt, /server-generated entertainment draw/i)
 assert.match(drawPrompt, /interpret exactly these cards/i)
+assert.match(drawPrompt, /reflection question or metaphor/i)
+assert.match(drawPrompt, /never.*proof.*actual past.*current mood.*personality.*another person's intent.*future/i)
+assert.match(drawPrompt, /如果……，可以想想……/)
+assert.match(drawPrompt, /你其实…….*你曾经……/)
+assert.match(drawPrompt, /start directly.*without.*welcom.*static opening/i)
 assert.doesNotMatch(drawPrompt, new RegExp(tarot.id))
 assert.doesNotMatch(drawPrompt, /owner|nonce|token|attempt/i)
 
