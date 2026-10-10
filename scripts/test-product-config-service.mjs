@@ -24,6 +24,7 @@ import {
 } from '../services/product-config/store.mjs'
 import { createProductConfigServer } from '../services/product-config/server.mjs'
 import { parseServeArguments } from '../services/product-config/serve.mjs'
+import { isMain } from '../services/product-config/cli.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(here, '..')
@@ -78,6 +79,10 @@ function request(server, pathname, { method = 'GET', headers = {}, body = null }
   })
 }
 
+function requestPort(port, pathname, options) {
+  return request({ address: () => ({ port }) }, pathname, options)
+}
+
 function runNode(file, args) {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [file, ...args], {
@@ -96,6 +101,50 @@ function runNode(file, args) {
       stderr: Buffer.concat(stderr).toString('utf8'),
     }))
   })
+}
+
+function spawnService(file, args) {
+  const child = spawn(process.execPath, [file, ...args], {
+    cwd: repoRoot,
+    windowsHide: true,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  return new Promise((resolve, reject) => {
+    const stderr = []
+    let stdout = ''
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL')
+      reject(new Error(`service startup timed out: ${Buffer.concat(stderr).toString('utf8')}`))
+    }, 5000)
+    child.stderr.on('data', (chunk) => stderr.push(chunk))
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk.toString('utf8')
+      const newline = stdout.indexOf('\n')
+      if (newline === -1) return
+      clearTimeout(timer)
+      resolve({ child, message: JSON.parse(stdout.slice(0, newline)) })
+    })
+    child.once('error', (error) => {
+      clearTimeout(timer)
+      reject(error)
+    })
+    child.once('exit', (code) => {
+      if (stdout.includes('\n')) return
+      clearTimeout(timer)
+      reject(new Error(`service exited ${code}: ${Buffer.concat(stderr).toString('utf8')}`))
+    })
+  })
+}
+
+async function availablePort() {
+  const server = http.createServer()
+  await new Promise((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', resolve)
+  })
+  const port = server.address().port
+  await new Promise((resolve) => server.close(resolve))
+  return port
 }
 
 function spawnLockHolder(store, channel) {
@@ -184,6 +233,7 @@ try {
   assert.equal(validatedDefaults.config.revision, 'foundation-v1')
   assert.equal(validatedDefaults.bytes.length, defaultsBytes.length)
   assert.equal(validatedDefaults.sha256, sha256(defaultsBytes))
+  assert.equal(isMain(pathToFileURL(path.join(repoRoot, 'services', 'product-config', 'publish.mjs')).href), false)
 
   expectInvalid((config) => { config.unknown = true })
   expectInvalid((config) => { config.schemaVersion = 'stemist-product-config-v0' })
@@ -535,6 +585,69 @@ try {
   })
   assert.equal(rolledBack.status, 'ROLLED_BACK')
   assert.equal(readActivePublication({ storeRoot, channel: 'release', iconAllowlist }).config.revision, 'foundation-v1')
+
+  const lexicalReleaseRoot = path.join(tempRoot, 'lexical-release')
+  const lexicalCurrent = path.join(lexicalReleaseRoot, 'current')
+  fs.mkdirSync(lexicalReleaseRoot)
+  fs.symlinkSync(repoRoot, lexicalCurrent, process.platform === 'win32' ? 'junction' : 'dir')
+  const linkedServiceRoot = path.join(lexicalCurrent, 'services', 'product-config')
+  const linkedStore = path.join(tempRoot, 'linked-runtime-store')
+  const linkedV1 = clone(defaults)
+  linkedV1.revision = 'linked-v1'
+  const linkedV2 = clone(defaults)
+  linkedV2.revision = 'linked-v2'
+  linkedV2.publishedAt = '2026-10-11T01:45:00.000+08:00'
+  linkedV2.home.heading = 'Linked V2'
+  const linkedV1Path = path.join(tempRoot, 'linked-v1.json')
+  const linkedV2Path = path.join(tempRoot, 'linked-v2.json')
+  fs.writeFileSync(linkedV1Path, bytesOf(linkedV1))
+  fs.writeFileSync(linkedV2Path, bytesOf(linkedV2))
+  const linkedPublishV1 = await runNode(path.join(linkedServiceRoot, 'publish.mjs'), [
+    '--store', linkedStore,
+    '--channel', 'release',
+    '--expected-current', 'none',
+    '--icon-allowlist', iconAllowlistPath,
+    '--input', linkedV1Path,
+  ])
+  assert.equal(linkedPublishV1.code, 0, linkedPublishV1.stderr)
+  assert.equal(JSON.parse(linkedPublishV1.stdout).revision, 'linked-v1')
+  const linkedPublishV2 = await runNode(path.join(linkedServiceRoot, 'publish.mjs'), [
+    '--store', linkedStore,
+    '--channel', 'release',
+    '--expected-current', 'linked-v1',
+    '--icon-allowlist', iconAllowlistPath,
+    '--input', linkedV2Path,
+  ])
+  assert.equal(linkedPublishV2.code, 0, linkedPublishV2.stderr)
+  assert.equal(JSON.parse(linkedPublishV2.stdout).revision, 'linked-v2')
+  const linkedRollback = await runNode(path.join(linkedServiceRoot, 'rollback.mjs'), [
+    '--store', linkedStore,
+    '--channel', 'release',
+    '--expected-current', 'linked-v2',
+    '--revision', 'linked-v1',
+    '--icon-allowlist', iconAllowlistPath,
+  ])
+  assert.equal(linkedRollback.code, 0, linkedRollback.stderr)
+  assert.equal(JSON.parse(linkedRollback.stdout).revision, 'linked-v1')
+  const linkedPort = await availablePort()
+  const linkedService = await spawnService(path.join(linkedServiceRoot, 'serve.mjs'), [
+    '--store', linkedStore,
+    '--icon-allowlist', iconAllowlistPath,
+    '--host', '127.0.0.1',
+    '--port', String(linkedPort),
+  ])
+  try {
+    assert.equal(linkedService.message.status, 'LISTENING')
+    assert.equal(linkedService.message.port, linkedPort)
+    const linkedHealth = await requestPort(linkedPort, '/healthz')
+    assert.equal(linkedHealth.status, 200)
+    assert.equal(JSON.parse(linkedHealth.body).channels.release, 'linked-v1')
+    const linkedConfig = await requestPort(linkedPort, '/api/product/config?capability=1')
+    assert.equal(linkedConfig.status, 200)
+    assert.equal(JSON.parse(linkedConfig.body).revision, 'linked-v1')
+  } finally {
+    await killAndWait(linkedService.child)
+  }
   assert.equal(fs.existsSync(path.join(storeRoot, 'revisions', 'foundation-v2.json')), true)
   expectCode(() => rollbackConfig({ storeRoot, channel: 'release', expectedCurrent: 'foundation-v2', revision: 'foundation-v1', iconAllowlist }), 'expected_current_mismatch')
   expectCode(() => rollbackConfig({ storeRoot, channel: 'release', expectedCurrent: 'foundation-v1', revision: '../escape', iconAllowlist }), 'invalid_revision')

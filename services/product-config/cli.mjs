@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 
 import { productConfigError, publicError } from './errors.mjs'
 
@@ -64,7 +64,16 @@ export function expectedCurrentValue(value) {
 }
 
 export function isMain(metaUrl) {
-  return Boolean(process.argv[1]) && metaUrl === pathToFileURL(path.resolve(process.argv[1])).href
+  if (!process.argv[1] || typeof metaUrl !== 'string') return false
+  try {
+    const metaPath = fs.realpathSync.native(fileURLToPath(metaUrl))
+    const argvPath = fs.realpathSync.native(path.resolve(process.argv[1]))
+    return process.platform === 'win32'
+      ? metaPath.toLowerCase() === argvPath.toLowerCase()
+      : metaPath === argvPath
+  } catch {
+    return false
+  }
 }
 
 export async function runCli(operation) {

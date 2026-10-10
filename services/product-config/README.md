@@ -28,6 +28,8 @@ node services/product-config/serve.mjs --store D:\runtime\stem-product-config --
 
 Only `127.0.0.1` and `::1` are accepted. Public reads are `GET`/`HEAD /api/product/config?channel=release&capability=1`; health is `GET`/`HEAD /healthz`. Deployment, reverse-proxy configuration and client publication are separate gated operations.
 
+All three CLI entry points canonicalize both the ESM module URL and `argv[1]` through the filesystem before deciding whether they are the main program. They therefore execute correctly through a Linux release symlink such as `current`, while ordinary imports remain side-effect free.
+
 ## Wire contract
 
 `channel` defaults to `release`; `capability=1` is required. A successful `GET` returns the exact immutable publication bytes with:
