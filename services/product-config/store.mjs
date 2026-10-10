@@ -290,67 +290,151 @@ function inspectExistingLock(lock, partialOwnerGraceMs, nowMs) {
     throw error
   }
   if (!stat.isDirectory() || stat.isSymbolicLink()) return { state: 'protected' }
+  const identity = `${stat.dev}:${stat.ino}:${stat.birthtimeMs}`
   const owner = readLockOwner(lock)
-  if (owner) return ownerProcessIsLive(owner) ? { state: 'live', owner } : { state: 'stale', owner }
+  if (owner) return ownerProcessIsLive(owner) ? { state: 'live', owner, identity } : { state: 'stale', owner, identity }
   const ageMs = Math.max(0, nowMs - stat.mtimeMs)
-  if (ageMs < partialOwnerGraceMs) return { state: 'partial', ageMs }
-  return { state: 'stale-partial', ageMs, identity: `${stat.dev}:${stat.ino}:${stat.mtimeMs}` }
+  if (ageMs < partialOwnerGraceMs) return { state: 'partial', ageMs, identity }
+  return { state: 'stale-partial', ageMs, identity }
 }
 
 function removeOwnedDirectory(directory) {
   fs.rmSync(directory, { recursive: true, force: true })
 }
 
-function recoverStaleLock(paths, channel, lock, observed, partialOwnerGraceMs, nowMs) {
-  const current = inspectExistingLock(lock, partialOwnerGraceMs, nowMs)
-  if (current.state !== observed.state) return false
-  if (current.state === 'stale' && current.owner.token !== observed.owner.token) return false
-  if (current.state === 'stale-partial' && current.identity !== observed.identity) return false
-  if (!['stale', 'stale-partial'].includes(current.state)) return false
-  const quarantine = path.join(paths.locks, `.${channel}.stale-${process.pid}-${crypto.randomBytes(8).toString('hex')}`)
-  try {
-    fs.renameSync(lock, quarantine)
-  } catch (error) {
-    if (['ENOENT', 'EEXIST', 'EPERM', 'EACCES', 'ENOTEMPTY'].includes(error?.code)) return false
-    throw error
-  }
-  try {
-    removeOwnedDirectory(quarantine)
-    fsyncDirectory(paths.locks)
-  } catch (error) {
-    throw productConfigError('publication_busy', 'Stale publication lock cleanup failed safely.', { statusCode: 409, details: error?.code })
-  }
-  return true
-}
-
-function createOwnedLock(paths, channel, lock, nowMs) {
-  const token = crypto.randomBytes(16).toString('hex')
-  const candidate = path.join(paths.locks, `.${channel}.candidate-${process.pid}-${token}`)
-  fs.mkdirSync(candidate, { mode: 0o700 })
-  const owner = {
+function ownerRecord(nowMs) {
+  return {
     schemaVersion: LOCK_SCHEMA_VERSION,
     pid: process.pid,
     processStartIdentity: PROCESS_START_IDENTITY,
-    token,
+    token: crypto.randomBytes(16).toString('hex'),
     acquiredAtEpochMs: nowMs,
+  }
+}
+
+function lockHandle(paths, channel, owner) {
+  return {
+    storeRoot: paths.root,
+    channel,
+    token: owner.token,
+    pid: owner.pid,
+    processStartIdentity: owner.processStartIdentity,
+  }
+}
+
+function installOwnedDirectory(parent, candidateName, targetName, owner) {
+  const candidate = path.join(parent, candidateName)
+  const target = path.join(parent, targetName)
+  try {
+    fs.mkdirSync(candidate, { mode: 0o700 })
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null
+    throw error
   }
   try {
     atomicReplace(path.join(candidate, 'owner.json'), Buffer.from(`${JSON.stringify(owner)}\n`, 'utf8'))
     fsyncDirectory(candidate)
-    fs.renameSync(candidate, lock)
-    fsyncDirectory(paths.locks)
-    return {
-      storeRoot: paths.root,
-      channel,
-      token,
-      pid: owner.pid,
-      processStartIdentity: owner.processStartIdentity,
-    }
+    fs.renameSync(candidate, target)
+    fsyncDirectory(parent)
+    return target
   } catch (error) {
     removeOwnedDirectory(candidate)
-    if (fs.existsSync(lock) && ['EEXIST', 'EPERM', 'EACCES', 'ENOTEMPTY'].includes(error?.code)) return null
+    if (fs.existsSync(target) && ['EEXIST', 'EPERM', 'EACCES', 'ENOTEMPTY'].includes(error?.code)) return null
+    if (error?.code === 'ENOENT') return null
     throw error
   }
+}
+
+function recoveryGenerations(lock) {
+  let highest = -1
+  try {
+    for (const entry of fs.readdirSync(lock, { withFileTypes: true })) {
+      const match = /^\.reclaim-(\d+)$/u.exec(entry.name)
+      if (!match) continue
+      if (!entry.isDirectory() || entry.isSymbolicLink()) return { protected: true, highest }
+      const generation = Number(match[1])
+      if (Number.isSafeInteger(generation) && generation >= 0) highest = Math.max(highest, generation)
+    }
+  } catch (error) {
+    if (error?.code === 'ENOENT') return { absent: true, highest }
+    throw error
+  }
+  return { highest }
+}
+
+function claimRecoveryGeneration(lock, partialOwnerGraceMs, nowMs) {
+  const generations = recoveryGenerations(lock)
+  if (generations.absent || generations.protected) return null
+  if (generations.highest >= 0) {
+    const currentGeneration = path.join(lock, `.reclaim-${generations.highest}`)
+    const stat = fs.lstatSync(currentGeneration)
+    const owner = readLockOwner(currentGeneration)
+    if (owner && ownerProcessIsLive(owner)) return null
+    if (!owner && Math.max(0, nowMs - stat.mtimeMs) < partialOwnerGraceMs) return null
+  }
+  const generation = generations.highest + 1
+  const owner = ownerRecord(nowMs)
+  const installed = installOwnedDirectory(
+    lock,
+    `.reclaim-candidate-${generation}-${process.pid}-${owner.token}`,
+    `.reclaim-${generation}`,
+    owner,
+  )
+  return installed ? { generation, path: installed, owner } : null
+}
+
+function observationStillMatches(current, observed) {
+  if (observed.state === 'stale') {
+    return current.state === 'stale'
+      && current.identity === observed.identity
+      && current.owner.token === observed.owner.token
+      && current.owner.pid === observed.owner.pid
+      && current.owner.processStartIdentity === observed.owner.processStartIdentity
+  }
+  if (observed.state === 'stale-partial') {
+    return ['partial', 'stale-partial'].includes(current.state)
+      && current.identity === observed.identity
+      && !current.owner
+  }
+  return false
+}
+
+function abandonRecoveryClaim(claim) {
+  const owner = readLockOwner(claim.path)
+  if (!owner || owner.token !== claim.owner.token || owner.pid !== claim.owner.pid
+      || owner.processStartIdentity !== claim.owner.processStartIdentity) {
+    throw productConfigError('publication_busy', 'Recovery ownership changed unexpectedly.', { statusCode: 409 })
+  }
+  const abandoned = `${claim.path}.aborted-${claim.owner.token}`
+  fs.renameSync(claim.path, abandoned)
+  removeOwnedDirectory(abandoned)
+  fsyncDirectory(path.dirname(claim.path))
+}
+
+function recoverObservedLock(paths, channel, lock, observed, partialOwnerGraceMs, nowMs) {
+  const beforeClaim = inspectExistingLock(lock, partialOwnerGraceMs, nowMs)
+  if (!observationStillMatches(beforeClaim, observed)) return null
+  const claim = claimRecoveryGeneration(lock, partialOwnerGraceMs, nowMs)
+  if (!claim) return null
+  const afterClaim = inspectExistingLock(lock, partialOwnerGraceMs, nowMs)
+  if (!observationStillMatches(afterClaim, observed)) {
+    abandonRecoveryClaim(claim)
+    return null
+  }
+  atomicReplace(path.join(lock, 'owner.json'), Buffer.from(`${JSON.stringify(claim.owner)}\n`, 'utf8'))
+  fsyncDirectory(lock)
+  return lockHandle(paths, channel, claim.owner)
+}
+
+function createOwnedLock(paths, channel, lock, nowMs) {
+  const owner = ownerRecord(nowMs)
+  const installed = installOwnedDirectory(
+    paths.locks,
+    `.${channel}.candidate-${process.pid}-${owner.token}`,
+    path.basename(lock),
+    owner,
+  )
+  return installed ? lockHandle(paths, channel, owner) : null
 }
 
 export function acquirePublicationLock({
@@ -373,12 +457,34 @@ export function acquirePublicationLock({
     const handle = createOwnedLock(paths, selectedChannel, lock, nowMs)
     if (handle) return handle
     const observed = inspectExistingLock(lock, partialOwnerGraceMs, nowMs)
-    if (['stale', 'stale-partial'].includes(observed.state)
-        && recoverStaleLock(paths, selectedChannel, lock, observed, partialOwnerGraceMs, nowMs)) continue
+    if (['stale', 'stale-partial'].includes(observed.state)) {
+      const recovered = recoverObservedLock(paths, selectedChannel, lock, observed, partialOwnerGraceMs, nowMs)
+      if (recovered) return recovered
+    }
     if (Date.now() >= deadline) throw productConfigError('publication_busy', 'Another publication is in progress.', { statusCode: 409 })
     Atomics.wait(WAIT_BUFFER, 0, 0, 25)
   }
 }
+
+export const productConfigLockInternals = Object.freeze({
+  inspect({ storeRoot, channel, partialOwnerGraceMs = DEFAULT_PARTIAL_OWNER_GRACE_MS, nowMs = Date.now() }) {
+    const selectedChannel = validateChannel(channel)
+    const paths = storePaths(storeRoot, { create: true })
+    return inspectExistingLock(path.join(paths.locks, `${selectedChannel}.lock`), partialOwnerGraceMs, nowMs)
+  },
+  claimRecovery({ storeRoot, channel, partialOwnerGraceMs = DEFAULT_PARTIAL_OWNER_GRACE_MS, nowMs = Date.now() }) {
+    const selectedChannel = validateChannel(channel)
+    const paths = storePaths(storeRoot, { create: true })
+    const lock = path.join(paths.locks, `${selectedChannel}.lock`)
+    return claimRecoveryGeneration(lock, partialOwnerGraceMs, nowMs)
+  },
+  recoverObserved({ storeRoot, channel, observed, partialOwnerGraceMs = DEFAULT_PARTIAL_OWNER_GRACE_MS, nowMs = Date.now() }) {
+    const selectedChannel = validateChannel(channel)
+    const paths = storePaths(storeRoot, { create: true })
+    const lock = path.join(paths.locks, `${selectedChannel}.lock`)
+    return recoverObservedLock(paths, selectedChannel, lock, observed, partialOwnerGraceMs, nowMs)
+  },
+})
 
 export function releasePublicationLock(handle) {
   if (!handle || typeof handle !== 'object') throw productConfigError('lock_ownership_lost', 'Publication lock ownership was not retained.', { statusCode: 409 })

@@ -16,6 +16,7 @@ import {
 import { ERROR_SCHEMA_VERSION } from '../services/product-config/errors.mjs'
 import {
   acquirePublicationLock,
+  productConfigLockInternals,
   publishConfig,
   readActivePublication,
   releasePublicationLock,
@@ -131,6 +132,48 @@ function spawnLockHolder(store, channel) {
       reject(new Error(`lock holder exited ${code}: ${Buffer.concat(stderr).toString('utf8')}`))
     })
   })
+}
+
+function spawnRecoveryClaimer(store, channel) {
+  const storeModule = pathToFileURL(path.join(repoRoot, 'services', 'product-config', 'store.mjs')).href
+  const source = `import { productConfigLockInternals } from ${JSON.stringify(storeModule)}; const observed=productConfigLockInternals.inspect({ storeRoot: ${JSON.stringify(store)}, channel: ${JSON.stringify(channel)} }); const claim=productConfigLockInternals.claimRecovery({ storeRoot: ${JSON.stringify(store)}, channel: ${JSON.stringify(channel)} }); if(!claim) throw new Error('recovery claim unavailable'); console.log(JSON.stringify({ status: 'RECLAIMED', pid: process.pid, generation: claim.generation, observedState: observed.state })); setInterval(() => {}, 1000);`
+  const child = spawn(process.execPath, ['--input-type=module', '-e', source], {
+    cwd: repoRoot,
+    windowsHide: true,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  return new Promise((resolve, reject) => {
+    const stderr = []
+    let stdout = ''
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL')
+      reject(new Error(`recovery claimer timed out: ${Buffer.concat(stderr).toString('utf8')}`))
+    }, 5000)
+    child.stderr.on('data', (chunk) => stderr.push(chunk))
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk.toString('utf8')
+      const newline = stdout.indexOf('\n')
+      if (newline === -1) return
+      clearTimeout(timer)
+      resolve({ child, message: JSON.parse(stdout.slice(0, newline)) })
+    })
+    child.once('error', (error) => {
+      clearTimeout(timer)
+      reject(error)
+    })
+    child.once('exit', (code) => {
+      if (stdout.includes('\n')) return
+      clearTimeout(timer)
+      reject(new Error(`recovery claimer exited ${code}: ${Buffer.concat(stderr).toString('utf8')}`))
+    })
+  })
+}
+
+async function killAndWait(child) {
+  if (child.exitCode !== null) return
+  const exited = new Promise((resolve) => child.once('exit', resolve))
+  child.kill('SIGKILL')
+  await exited
 }
 
 try {
@@ -344,11 +387,47 @@ try {
     assert.equal(killedHolder.message.status, 'LOCKED')
     expectCode(() => acquirePublicationLock({ storeRoot: killedLockStore, channel: 'trial', timeoutMs: 100 }), 'publication_busy')
   } finally {
-    killedHolder.child.kill('SIGKILL')
-    await new Promise((resolve) => killedHolder.child.once('exit', resolve))
+    await killAndWait(killedHolder.child)
   }
   const recoveredKilled = acquirePublicationLock({ storeRoot: killedLockStore, channel: 'trial', timeoutMs: 1000 })
   releasePublicationLock(recoveredKilled)
+
+  const reaperRaceStore = path.join(tempRoot, 'reaper-race-store')
+  const reaperRaceOwner = await spawnLockHolder(reaperRaceStore, 'release')
+  await killAndWait(reaperRaceOwner.child)
+  const observedDeadA = productConfigLockInternals.inspect({ storeRoot: reaperRaceStore, channel: 'release' })
+  assert.equal(observedDeadA.state, 'stale')
+  const recoveredB = productConfigLockInternals.recoverObserved({
+    storeRoot: reaperRaceStore,
+    channel: 'release',
+    observed: observedDeadA,
+  })
+  assert.ok(recoveredB)
+  const staleReaperResult = productConfigLockInternals.recoverObserved({
+    storeRoot: reaperRaceStore,
+    channel: 'release',
+    observed: observedDeadA,
+  })
+  assert.equal(staleReaperResult, null)
+  const freshOwnerB = JSON.parse(fs.readFileSync(path.join(reaperRaceStore, 'locks', 'release.lock', 'owner.json'), 'utf8'))
+  assert.equal(freshOwnerB.token, recoveredB.token)
+  assert.equal(freshOwnerB.pid, process.pid)
+  expectCode(() => acquirePublicationLock({ storeRoot: reaperRaceStore, channel: 'release', timeoutMs: 100 }), 'publication_busy')
+  releasePublicationLock(recoveredB)
+
+  const recoveryCrashStore = path.join(tempRoot, 'recovery-crash-store')
+  const recoveryCrashOwner = await spawnLockHolder(recoveryCrashStore, 'release')
+  await killAndWait(recoveryCrashOwner.child)
+  const crashedReaper = await spawnRecoveryClaimer(recoveryCrashStore, 'release')
+  assert.equal(crashedReaper.message.status, 'RECLAIMED')
+  assert.equal(crashedReaper.message.generation, 0)
+  await killAndWait(crashedReaper.child)
+  const recoveredAfterReaperCrash = acquirePublicationLock({ storeRoot: recoveryCrashStore, channel: 'release', timeoutMs: 1000 })
+  const recoveryGenerations = fs.readdirSync(path.join(recoveryCrashStore, 'locks', 'release.lock'))
+    .filter((name) => /^\.reclaim-\d+$/u.test(name))
+    .sort()
+  assert.deepEqual(recoveryGenerations, ['.reclaim-0', '.reclaim-1'])
+  releasePublicationLock(recoveredAfterReaperCrash)
 
   const partialLockStore = path.join(tempRoot, 'partial-lock-store')
   const initializePartialStore = acquirePublicationLock({ storeRoot: partialLockStore, channel: 'develop', timeoutMs: 100 })
