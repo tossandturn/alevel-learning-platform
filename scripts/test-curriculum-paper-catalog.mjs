@@ -273,16 +273,16 @@ try {
   const productionAp = await productionCatalog.list({ board: 'ap' })
   const productionApAll = await productionCatalog.list({ board: 'ap', pageSize: 100 })
   const productionIb = await productionCatalog.list({ board: 'ib' })
-  assert.deepEqual(productionAp.summary, { papers: 151, downloadable: 0, sourceOnly: 151 })
+  assert.deepEqual(productionAp.summary, { papers: 247, downloadable: 0, sourceOnly: 247 })
   assert.deepEqual(productionIb.summary, { papers: 334, downloadable: 0, sourceOnly: 334 })
   assert.ok(productionAp.items.every(item => item.fullExam === false && item.practiceReady === false))
   assert.ok(productionAp.items.every(item => (item.questionPaper.sourceUrl === null || item.questionPaper.sourceUrl?.startsWith('https://')) && item.questionPaper.downloadUrl === null), 'local sources must not invent a public URL or bypass the asset-root gate')
   assert.ok(productionApAll.items.some(item => item.paper === 'MCQ'), 'AP Physics multiple-choice entries remain source-only until distribution rights are verified')
   assert.ok(productionIb.items.every(item => item.questionPaper.sourceUrl === null && item.questionPaper.downloadUrl === null))
-  for (const [course, count] of Object.entries({ 'physics-1': 28, 'physics-c-mechanics': 56, 'physics-c-em': 48 })) {
+  for (const [course, count] of Object.entries({ 'calculus-ab': 46, 'calculus-bc': 45, precalculus: 3, statistics: 4, 'physics-1': 28, 'physics-2': 17, 'physics-c-mechanics': 56, 'physics-c-em': 48 })) {
     const coursePapers = await productionCatalog.list({ board: 'ap', course, pageSize: 100 })
     assert.equal(coursePapers.total, count, `${course} keeps the reviewed source catalogue`)
-    assert.ok(coursePapers.items.some(item => item.paper === 'MCQ'))
+    if (!['precalculus', 'statistics'].includes(course)) assert.ok(coursePapers.items.some(item => item.paper === 'MCQ'))
     assert.ok(coursePapers.items.every(item => item.practiceReady === false))
   }
   const corrected2014 = await productionCatalog.list({ board: 'ap', query: 'ap-physics-c-em-2014-frq-released-exam' })
@@ -291,6 +291,16 @@ try {
   assert.equal(localScan.total, 1)
   assert.equal(localScan.items[0].questionPaper.sourceUrl, null)
   assert.match(localScan.items[0].title, /批注参考答案/)
+
+  const calculus2009 = await productionCatalog.list({ board: 'ap', course: 'calculus-bc', year: 2009, pageSize: 100 })
+  const formB2009 = calculus2009.items.find(item => item.id === 'ap-calculus-bc-2009-frq-form-b')
+  assert.equal(formB2009.questionPaper.sha256, '5460affdb39778f33e5b728f82daa847f58d229e3a58a5b0bfefc5e486d1c1d9', 'use the internal Form B identity, not reversed local filenames')
+  assert.equal(formB2009.markScheme.sha256, '53b4666db9bbc8cda0d081f4f5a217a50b7dd1dbf4c912d26f634a72352f52fc')
+  const physics2Scan = await productionCatalog.list({ board: 'ap', query: 'ap-physics-2-2024-mcq-local-scan-form-obscured' })
+  assert.equal(physics2Scan.total, 1)
+  assert.equal(physics2Scan.items[0].markScheme, null, 'unverified local reference keys are not official marking schemes')
+  assert.equal(physics2Scan.items[0].pairStatus, 'missing')
+  assert.match(physics2Scan.items[0].title, /卷别未注明，暂无官方答案/)
 
   console.log(JSON.stringify({
     status: 'pass',
