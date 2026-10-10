@@ -1,0 +1,1942 @@
+{
+  "schemaVersion": "stemist-university-directory-v1",
+  "updatedAt": "2026-10-10T21:38:34.709+08:00",
+  "examBoards": [
+    {
+      "id": "ap",
+      "label": "AP",
+      "organization": "College Board",
+      "url": "https://apstudents.collegeboard.org/"
+    },
+    {
+      "id": "ib",
+      "label": "IB",
+      "organization": "International Baccalaureate",
+      "url": "https://www.ibo.org/"
+    },
+    {
+      "id": "alevel",
+      "label": "A-Level",
+      "organization": "Cambridge International",
+      "url": "https://www.cambridgeinternational.org/programmes-and-qualifications/cambridge-advanced/cambridge-international-as-and-a-levels/"
+    }
+  ],
+  "rankings": [
+    {
+      "id": "qs-world",
+      "label": "QS 世界大学排名",
+      "editionYear": 2027,
+      "verifiedAt": "2026-10-10T21:15:07.748+08:00",
+      "sourceUrl": "https://www.topuniversities.com/qs-top-uni-wur",
+      "methodologyUrl": "https://www.topuniversities.com/world-university-rankings/methodology",
+      "scope": "world",
+      "requestedRankLimit": 100,
+      "complete": true,
+      "items": [
+        {
+          "id": "massachusetts-institute-of-technology-mit",
+          "rank": 1,
+          "rankLabel": "1",
+          "nameEn": "Massachusetts Institute of Technology (MIT)",
+          "nameZh": "麻省理工学院",
+          "country": "United States",
+          "website": "https://www.mit.edu/"
+        },
+        {
+          "id": "imperial-college-london",
+          "rank": 2,
+          "rankLabel": "=2",
+          "nameEn": "Imperial College London",
+          "nameZh": "帝国理工学院",
+          "country": "United Kingdom",
+          "website": "https://www.imperial.ac.uk/"
+        },
+        {
+          "id": "stanford-university",
+          "rank": 2,
+          "rankLabel": "=2",
+          "nameEn": "Stanford University",
+          "nameZh": "斯坦福大学",
+          "country": "United States",
+          "website": "https://www.stanford.edu/"
+        },
+        {
+          "id": "university-of-oxford",
+          "rank": 4,
+          "rankLabel": "4",
+          "nameEn": "University of Oxford",
+          "nameZh": "牛津大学",
+          "country": "United Kingdom",
+          "website": "https://www.ox.ac.uk/"
+        },
+        {
+          "id": "harvard-university",
+          "rank": 5,
+          "rankLabel": "5",
+          "nameEn": "Harvard University",
+          "nameZh": "哈佛大学",
+          "country": "United States",
+          "website": "https://www.harvard.edu/"
+        },
+        {
+          "id": "university-of-cambridge",
+          "rank": 6,
+          "rankLabel": "6",
+          "nameEn": "University of Cambridge",
+          "nameZh": "剑桥大学",
+          "country": "United Kingdom",
+          "website": "https://www.cam.ac.uk/"
+        },
+        {
+          "id": "california-institute-of-technology-caltech",
+          "rank": 7,
+          "rankLabel": "7",
+          "nameEn": "California Institute of Technology (Caltech)",
+          "nameZh": "加州理工学院",
+          "country": "United States",
+          "website": "https://www.caltech.edu/"
+        },
+        {
+          "id": "eth-zurich",
+          "rank": 8,
+          "rankLabel": "=8",
+          "nameEn": "ETH Zurich",
+          "nameZh": "苏黎世联邦理工学院",
+          "country": "Switzerland",
+          "website": "https://ethz.ch/"
+        },
+        {
+          "id": "ucl",
+          "rank": 8,
+          "rankLabel": "=8",
+          "nameEn": "UCL",
+          "nameZh": "伦敦大学学院",
+          "country": "United Kingdom",
+          "website": "https://www.ucl.ac.uk/"
+        },
+        {
+          "id": "national-university-of-singapore-nus",
+          "rank": 10,
+          "rankLabel": "10",
+          "nameEn": "National University of Singapore (NUS)",
+          "nameZh": "新加坡国立大学",
+          "country": "Singapore",
+          "website": "https://www.nus.edu.sg/"
+        },
+        {
+          "id": "the-university-of-hong-kong",
+          "rank": 11,
+          "rankLabel": "11",
+          "nameEn": "The University of Hong Kong",
+          "nameZh": "香港大学",
+          "country": "Hong Kong SAR",
+          "website": "https://www.hku.hk/"
+        },
+        {
+          "id": "nanyang-technological-university-singapore-ntu-singapore",
+          "rank": 12,
+          "rankLabel": "12",
+          "nameEn": "Nanyang Technological University, Singapore (NTU Singapore)",
+          "nameZh": "南洋理工大学",
+          "country": "Singapore",
+          "website": "https://www.ntu.edu.sg/"
+        },
+        {
+          "id": "peking-university",
+          "rank": 13,
+          "rankLabel": "13",
+          "nameEn": "Peking University",
+          "nameZh": "北京大学",
+          "country": "China (Mainland)",
+          "website": "https://english.pku.edu.cn/"
+        },
+        {
+          "id": "tsinghua-university",
+          "rank": 14,
+          "rankLabel": "14",
+          "nameEn": "Tsinghua University",
+          "nameZh": "清华大学",
+          "country": "China (Mainland)",
+          "website": "https://www.tsinghua.edu.cn/"
+        },
+        {
+          "id": "university-of-pennsylvania",
+          "rank": 15,
+          "rankLabel": "15",
+          "nameEn": "University of Pennsylvania",
+          "nameZh": "宾夕法尼亚大学",
+          "country": "United States",
+          "website": "https://www.upenn.edu/"
+        },
+        {
+          "id": "cornell-university",
+          "rank": 16,
+          "rankLabel": "=16",
+          "nameEn": "Cornell University",
+          "nameZh": "康奈尔大学",
+          "country": "United States",
+          "website": "https://www.cornell.edu/"
+        },
+        {
+          "id": "yale-university",
+          "rank": 16,
+          "rankLabel": "=16",
+          "nameEn": "Yale University",
+          "nameZh": "耶鲁大学",
+          "country": "United States",
+          "website": "https://www.yale.edu/"
+        },
+        {
+          "id": "the-chinese-university-of-hong-kong-cuhk",
+          "rank": 18,
+          "rankLabel": "18",
+          "nameEn": "The Chinese University of Hong Kong (CUHK)",
+          "nameZh": "香港中文大学",
+          "country": "Hong Kong SAR",
+          "website": "https://www.cuhk.edu.hk/"
+        },
+        {
+          "id": "the-university-of-new-south-wales-unsw-sydney",
+          "rank": 19,
+          "rankLabel": "19",
+          "nameEn": "The University of New South Wales (UNSW Sydney)",
+          "nameZh": "新南威尔士大学",
+          "country": "Australia",
+          "website": "https://www.unsw.edu.au/"
+        },
+        {
+          "id": "johns-hopkins-university",
+          "rank": 20,
+          "rankLabel": "=20",
+          "nameEn": "Johns Hopkins University",
+          "nameZh": "约翰斯·霍普金斯大学",
+          "country": "United States",
+          "website": "https://www.jhu.edu/"
+        },
+        {
+          "id": "university-of-california-berkeley-ucb",
+          "rank": 20,
+          "rankLabel": "=20",
+          "nameEn": "University of California, Berkeley (UCB)",
+          "nameZh": "加州大学伯克利分校",
+          "country": "United States",
+          "website": "https://www.berkeley.edu/"
+        },
+        {
+          "id": "epfl-ecole-polytechnique-federale-de-lausanne",
+          "rank": 22,
+          "rankLabel": "=22",
+          "nameEn": "EPFL – École polytechnique fédérale de Lausanne",
+          "nameZh": "洛桑联邦理工学院",
+          "country": "Switzerland",
+          "website": "https://www.epfl.ch/"
+        },
+        {
+          "id": "the-university-of-melbourne",
+          "rank": 22,
+          "rankLabel": "=22",
+          "nameEn": "The University of Melbourne",
+          "nameZh": "墨尔本大学",
+          "country": "Australia",
+          "website": "https://www.unimelb.edu.au/"
+        },
+        {
+          "id": "university-of-chicago",
+          "rank": 24,
+          "rankLabel": "24",
+          "nameEn": "University of Chicago",
+          "nameZh": "芝加哥大学",
+          "country": "United States",
+          "website": "https://www.uchicago.edu/"
+        },
+        {
+          "id": "technical-university-of-munich",
+          "rank": 25,
+          "rankLabel": "25",
+          "nameEn": "Technical University of Munich",
+          "nameZh": "慕尼黑工业大学",
+          "country": "Germany",
+          "website": "https://www.tum.de/en/"
+        },
+        {
+          "id": "fudan-university",
+          "rank": 26,
+          "rankLabel": "26",
+          "nameEn": "Fudan University",
+          "nameZh": "复旦大学",
+          "country": "China (Mainland)",
+          "website": "https://www.fudan.edu.cn/"
+        },
+        {
+          "id": "princeton-university",
+          "rank": 27,
+          "rankLabel": "27",
+          "nameEn": "Princeton University",
+          "nameZh": "普林斯顿大学",
+          "country": "United States",
+          "website": "https://www.princeton.edu/"
+        },
+        {
+          "id": "the-university-of-sydney",
+          "rank": 28,
+          "rankLabel": "28",
+          "nameEn": "The University of Sydney",
+          "nameZh": "悉尼大学",
+          "country": "Australia",
+          "website": "https://www.sydney.edu.au/"
+        },
+        {
+          "id": "australian-national-university-anu",
+          "rank": 29,
+          "rankLabel": "29",
+          "nameEn": "Australian National University (ANU)",
+          "nameZh": "澳大利亚国立大学",
+          "country": "Australia",
+          "website": "https://www.anu.edu.au/"
+        },
+        {
+          "id": "mcgill-university",
+          "rank": 30,
+          "rankLabel": "30",
+          "nameEn": "McGill University",
+          "nameZh": "麦吉尔大学",
+          "country": "Canada",
+          "website": "https://www.mcgill.ca/"
+        },
+        {
+          "id": "monash-university",
+          "rank": 31,
+          "rankLabel": "31",
+          "nameEn": "Monash University",
+          "nameZh": "蒙纳士大学",
+          "country": "Australia",
+          "website": "https://www.monash.edu/"
+        },
+        {
+          "id": "university-of-toronto",
+          "rank": 32,
+          "rankLabel": "32",
+          "nameEn": "University of Toronto",
+          "nameZh": "多伦多大学",
+          "country": "Canada",
+          "website": "https://www.utoronto.ca/"
+        },
+        {
+          "id": "the-hong-kong-university-of-science-and-technology",
+          "rank": 33,
+          "rankLabel": "33",
+          "nameEn": "The Hong Kong University of Science and Technology",
+          "nameZh": "香港科技大学",
+          "country": "Hong Kong SAR",
+          "website": "https://hkust.edu.hk/"
+        },
+        {
+          "id": "universite-psl",
+          "rank": 34,
+          "rankLabel": "34",
+          "nameEn": "Université PSL",
+          "nameZh": "巴黎文理研究大学",
+          "country": "France",
+          "website": "https://psl.eu/"
+        },
+        {
+          "id": "the-university-of-edinburgh",
+          "rank": 35,
+          "rankLabel": "35",
+          "nameEn": "The University of Edinburgh",
+          "nameZh": "爱丁堡大学",
+          "country": "United Kingdom",
+          "website": "https://www.ed.ac.uk/"
+        },
+        {
+          "id": "shanghai-jiao-tong-university",
+          "rank": 36,
+          "rankLabel": "36",
+          "nameEn": "Shanghai Jiao Tong University",
+          "nameZh": "上海交通大学",
+          "country": "China (Mainland)",
+          "website": "https://www.sjtu.edu.cn/"
+        },
+        {
+          "id": "king-s-college-london",
+          "rank": 37,
+          "rankLabel": "37",
+          "nameEn": "King's College London",
+          "nameZh": "伦敦国王学院",
+          "country": "United Kingdom",
+          "website": "https://www.kcl.ac.uk/"
+        },
+        {
+          "id": "seoul-national-university",
+          "rank": 38,
+          "rankLabel": "38",
+          "nameEn": "Seoul National University",
+          "nameZh": "首尔大学",
+          "country": "South Korea",
+          "website": "https://en.snu.ac.kr/"
+        },
+        {
+          "id": "the-university-of-tokyo",
+          "rank": 39,
+          "rankLabel": "39",
+          "nameEn": "The University of Tokyo",
+          "nameZh": "东京大学",
+          "country": "Japan",
+          "website": "https://www.u-tokyo.ac.jp/en/"
+        },
+        {
+          "id": "the-university-of-manchester",
+          "rank": 40,
+          "rankLabel": "=40",
+          "nameEn": "The University of Manchester",
+          "nameZh": "曼彻斯特大学",
+          "country": "United Kingdom",
+          "website": "https://www.manchester.ac.uk/"
+        },
+        {
+          "id": "the-university-of-queensland",
+          "rank": 40,
+          "rankLabel": "=40",
+          "nameEn": "The University of Queensland",
+          "nameZh": "昆士兰大学",
+          "country": "Australia",
+          "website": "https://www.uq.edu.au/"
+        },
+        {
+          "id": "yonsei-university",
+          "rank": 42,
+          "rankLabel": "42",
+          "nameEn": "Yonsei University",
+          "nameZh": "延世大学",
+          "country": "South Korea",
+          "website": "https://about.yonsei.ac.kr/eng/"
+        },
+        {
+          "id": "columbia-university",
+          "rank": 43,
+          "rankLabel": "=43",
+          "nameEn": "Columbia University",
+          "nameZh": "哥伦比亚大学",
+          "country": "United States",
+          "website": "https://www.columbia.edu/"
+        },
+        {
+          "id": "institut-polytechnique-de-paris",
+          "rank": 43,
+          "rankLabel": "=43",
+          "nameEn": "Institut Polytechnique de Paris",
+          "nameZh": "巴黎理工学院",
+          "country": "France",
+          "website": "https://www.ip-paris.fr/en"
+        },
+        {
+          "id": "northwestern-university",
+          "rank": 45,
+          "rankLabel": "=45",
+          "nameEn": "Northwestern University",
+          "nameZh": "西北大学",
+          "country": "United States",
+          "website": "https://www.northwestern.edu/"
+        },
+        {
+          "id": "university-of-british-columbia",
+          "rank": 45,
+          "rankLabel": "=45",
+          "nameEn": "University of British Columbia",
+          "nameZh": "不列颠哥伦比亚大学",
+          "country": "Canada",
+          "website": "https://www.ubc.ca/"
+        },
+        {
+          "id": "zhejiang-university",
+          "rank": 47,
+          "rankLabel": "47",
+          "nameEn": "Zhejiang University",
+          "nameZh": "浙江大学",
+          "country": "China (Mainland)",
+          "website": "https://www.zju.edu.cn/"
+        },
+        {
+          "id": "delft-university-of-technology",
+          "rank": 48,
+          "rankLabel": "48",
+          "nameEn": "Delft University of Technology",
+          "nameZh": "代尔夫特理工大学",
+          "country": "Netherlands",
+          "website": "https://www.tudelft.nl/en/"
+        },
+        {
+          "id": "university-of-california-los-angeles-ucla",
+          "rank": 49,
+          "rankLabel": "49",
+          "nameEn": "University of California, Los Angeles (UCLA)",
+          "nameZh": "加州大学洛杉矶分校",
+          "country": "United States",
+          "website": "https://www.ucla.edu/"
+        },
+        {
+          "id": "the-hong-kong-polytechnic-university",
+          "rank": 50,
+          "rankLabel": "50",
+          "nameEn": "The Hong Kong Polytechnic University",
+          "nameZh": "香港理工大学",
+          "country": "Hong Kong SAR",
+          "website": "https://www.polyu.edu.hk/"
+        },
+        {
+          "id": "university-of-michigan-ann-arbor",
+          "rank": 51,
+          "rankLabel": "51",
+          "nameEn": "University of Michigan-Ann Arbor",
+          "nameZh": "密歇根大学安娜堡分校",
+          "country": "United States",
+          "website": "https://umich.edu/"
+        },
+        {
+          "id": "city-university-of-hong-kong-cityuhk",
+          "rank": 52,
+          "rankLabel": "=52",
+          "nameEn": "City University of Hong Kong (CityUHK)",
+          "nameZh": "香港城市大学",
+          "country": "Hong Kong SAR",
+          "website": "https://www.cityu.edu.hk/"
+        },
+        {
+          "id": "korea-university",
+          "rank": 52,
+          "rankLabel": "=52",
+          "nameEn": "Korea University",
+          "nameZh": "高丽大学",
+          "country": "South Korea",
+          "website": "https://www.korea.ac.kr/sites/en/index.do"
+        },
+        {
+          "id": "national-taiwan-university-ntu",
+          "rank": 54,
+          "rankLabel": "54",
+          "nameEn": "National Taiwan University (NTU)",
+          "nameZh": "国立台湾大学",
+          "country": "Taiwan",
+          "website": "https://www.ntu.edu.tw/"
+        },
+        {
+          "id": "carnegie-mellon-university",
+          "rank": 55,
+          "rankLabel": "55",
+          "nameEn": "Carnegie Mellon University",
+          "nameZh": "卡内基梅隆大学",
+          "country": "United States",
+          "website": "https://www.cmu.edu/"
+        },
+        {
+          "id": "universiti-malaya-um",
+          "rank": 56,
+          "rankLabel": "56",
+          "nameEn": "Universiti Malaya (UM)",
+          "nameZh": "马来亚大学",
+          "country": "Malaysia",
+          "website": "https://www.um.edu.my/"
+        },
+        {
+          "id": "university-of-bristol",
+          "rank": 57,
+          "rankLabel": "57",
+          "nameEn": "University of Bristol",
+          "nameZh": "布里斯托大学",
+          "country": "United Kingdom",
+          "website": "https://www.bristol.ac.uk/"
+        },
+        {
+          "id": "new-york-university-nyu",
+          "rank": 58,
+          "rankLabel": "58",
+          "nameEn": "New York University (NYU)",
+          "nameZh": "纽约大学",
+          "country": "United States",
+          "website": "https://www.nyu.edu/"
+        },
+        {
+          "id": "ku-leuven",
+          "rank": 59,
+          "rankLabel": "59",
+          "nameEn": "KU Leuven",
+          "nameZh": "鲁汶大学",
+          "country": "Belgium",
+          "website": "https://www.kuleuven.be/english/"
+        },
+        {
+          "id": "university-of-amsterdam",
+          "rank": 60,
+          "rankLabel": "60",
+          "nameEn": "University of Amsterdam",
+          "nameZh": "阿姆斯特丹大学",
+          "country": "Netherlands",
+          "website": "https://www.uva.nl/en"
+        },
+        {
+          "id": "ludwig-maximilians-universitat-munchen",
+          "rank": 61,
+          "rankLabel": "61",
+          "nameEn": "Ludwig-Maximilians-Universität München",
+          "nameZh": "慕尼黑大学",
+          "country": "Germany",
+          "website": "https://www.lmu.de/en/"
+        },
+        {
+          "id": "the-london-school-of-economics-and-political-science-lse",
+          "rank": 62,
+          "rankLabel": "62",
+          "nameEn": "The London School of Economics and Political Science (LSE)",
+          "nameZh": "伦敦政治经济学院",
+          "country": "United Kingdom",
+          "website": "https://www.lse.ac.uk/"
+        },
+        {
+          "id": "kfupm",
+          "rank": 63,
+          "rankLabel": "63",
+          "nameEn": "KFUPM",
+          "nameZh": "法赫德国王石油与矿业大学",
+          "country": "Saudi Arabia",
+          "website": "https://www.kfupm.edu.sa/"
+        },
+        {
+          "id": "kyoto-university",
+          "rank": 64,
+          "rankLabel": "64",
+          "nameEn": "Kyoto University",
+          "nameZh": "京都大学",
+          "country": "Japan",
+          "website": "https://www.kyoto-u.ac.jp/en"
+        },
+        {
+          "id": "kaist",
+          "rank": 65,
+          "rankLabel": "65",
+          "nameEn": "KAIST",
+          "nameZh": "韩国科学技术院",
+          "country": "South Korea",
+          "website": "https://www.kaist.ac.kr/en/"
+        },
+        {
+          "id": "brown-university",
+          "rank": 66,
+          "rankLabel": "66",
+          "nameEn": "Brown University",
+          "nameZh": "布朗大学",
+          "country": "United States",
+          "website": "https://www.brown.edu/"
+        },
+        {
+          "id": "the-university-of-auckland",
+          "rank": 67,
+          "rankLabel": "67",
+          "nameEn": "The University of Auckland",
+          "nameZh": "奥克兰大学",
+          "country": "New Zealand",
+          "website": "https://www.auckland.ac.nz/"
+        },
+        {
+          "id": "university-of-warwick",
+          "rank": 68,
+          "rankLabel": "=68",
+          "nameEn": "University of Warwick",
+          "nameZh": "华威大学",
+          "country": "United Kingdom",
+          "website": "https://warwick.ac.uk/"
+        },
+        {
+          "id": "university-of-birmingham",
+          "rank": 68,
+          "rankLabel": "=68",
+          "nameEn": "University of Birmingham",
+          "nameZh": "伯明翰大学",
+          "country": "United Kingdom",
+          "website": "https://www.birmingham.ac.uk/"
+        },
+        {
+          "id": "duke-university",
+          "rank": 70,
+          "rankLabel": "70",
+          "nameEn": "Duke University",
+          "nameZh": "杜克大学",
+          "country": "United States",
+          "website": "https://duke.edu/"
+        },
+        {
+          "id": "lund-university",
+          "rank": 71,
+          "rankLabel": "71",
+          "nameEn": "Lund University",
+          "nameZh": "隆德大学",
+          "country": "Sweden",
+          "website": "https://www.lunduniversity.lu.se/"
+        },
+        {
+          "id": "university-of-texas-at-austin",
+          "rank": 72,
+          "rankLabel": "72",
+          "nameEn": "University of Texas at Austin",
+          "nameZh": "得克萨斯大学奥斯汀分校",
+          "country": "United States",
+          "website": "https://www.utexas.edu/"
+        },
+        {
+          "id": "sorbonne-university",
+          "rank": 73,
+          "rankLabel": "73",
+          "nameEn": "Sorbonne University",
+          "nameZh": "索邦大学",
+          "country": "France",
+          "website": "https://www.sorbonne-universite.fr/en"
+        },
+        {
+          "id": "university-of-illinois-urbana-champaign",
+          "rank": 74,
+          "rankLabel": "74",
+          "nameEn": "University of Illinois Urbana-Champaign",
+          "nameZh": "伊利诺伊大学厄巴纳-香槟分校",
+          "country": "United States",
+          "website": "https://illinois.edu/"
+        },
+        {
+          "id": "trinity-college-dublin-the-university-of-dublin",
+          "rank": 75,
+          "rankLabel": "75",
+          "nameEn": "Trinity College Dublin, The University of Dublin",
+          "nameZh": "都柏林圣三一大学",
+          "country": "Ireland",
+          "website": "https://www.tcd.ie/"
+        },
+        {
+          "id": "universite-paris-saclay",
+          "rank": 76,
+          "rankLabel": "76",
+          "nameEn": "Université Paris-Saclay",
+          "nameZh": "巴黎萨克雷大学",
+          "country": "France",
+          "website": "https://www.universite-paris-saclay.fr/en"
+        },
+        {
+          "id": "the-university-of-western-australia",
+          "rank": 77,
+          "rankLabel": "=77",
+          "nameEn": "The University of Western Australia",
+          "nameZh": "西澳大学",
+          "country": "Australia",
+          "website": "https://www.uwa.edu.au/"
+        },
+        {
+          "id": "university-of-leeds",
+          "rank": 77,
+          "rankLabel": "=77",
+          "nameEn": "University of Leeds",
+          "nameZh": "利兹大学",
+          "country": "United Kingdom",
+          "website": "https://www.leeds.ac.uk/"
+        },
+        {
+          "id": "adelaide-university",
+          "rank": 79,
+          "rankLabel": "79",
+          "nameEn": "Adelaide University",
+          "nameZh": "阿德莱德大学",
+          "country": "Australia",
+          "website": "https://adelaide.edu.au/"
+        },
+        {
+          "id": "university-of-glasgow",
+          "rank": 80,
+          "rankLabel": "80",
+          "nameEn": "University of Glasgow",
+          "nameZh": "格拉斯哥大学",
+          "country": "United Kingdom",
+          "website": "https://www.gla.ac.uk/"
+        },
+        {
+          "id": "university-of-california-san-diego-ucsd",
+          "rank": 81,
+          "rankLabel": "81",
+          "nameEn": "University of California, San Diego (UCSD)",
+          "nameZh": "加州大学圣地亚哥分校",
+          "country": "United States",
+          "website": "https://ucsd.edu/"
+        },
+        {
+          "id": "kth-royal-institute-of-technology",
+          "rank": 82,
+          "rankLabel": "=82",
+          "nameEn": "KTH Royal Institute of Technology",
+          "nameZh": "瑞典皇家理工学院",
+          "country": "Sweden",
+          "website": "https://www.kth.se/en"
+        },
+        {
+          "id": "the-university-of-sheffield",
+          "rank": 82,
+          "rankLabel": "=82",
+          "nameEn": "The University of Sheffield",
+          "nameZh": "谢菲尔德大学",
+          "country": "United Kingdom",
+          "website": "https://www.sheffield.ac.uk/"
+        },
+        {
+          "id": "universidad-de-buenos-aires-uba",
+          "rank": 84,
+          "rankLabel": "84",
+          "nameEn": "Universidad de Buenos Aires (UBA)",
+          "nameZh": "布宜诺斯艾利斯大学",
+          "country": "Argentina",
+          "website": "https://www.uba.ar/"
+        },
+        {
+          "id": "durham-university",
+          "rank": 85,
+          "rankLabel": "85",
+          "nameEn": "Durham University",
+          "nameZh": "杜伦大学",
+          "country": "United Kingdom",
+          "website": "https://www.durham.ac.uk/"
+        },
+        {
+          "id": "universitat-heidelberg",
+          "rank": 86,
+          "rankLabel": "86",
+          "nameEn": "Universität Heidelberg",
+          "nameZh": "海德堡大学",
+          "country": "Germany",
+          "website": "https://www.uni-heidelberg.de/en"
+        },
+        {
+          "id": "politecnico-di-milano",
+          "rank": 87,
+          "rankLabel": "=87",
+          "nameEn": "Politecnico di Milano",
+          "nameZh": "米兰理工大学",
+          "country": "Italy",
+          "website": "https://www.polimi.it/en/"
+        },
+        {
+          "id": "the-university-of-technology-sydney-uts",
+          "rank": 87,
+          "rankLabel": "=87",
+          "nameEn": "The University of Technology Sydney (UTS)",
+          "nameZh": "悉尼科技大学",
+          "country": "Australia",
+          "website": "https://www.uts.edu.au/"
+        },
+        {
+          "id": "uppsala-university",
+          "rank": 87,
+          "rankLabel": "=87",
+          "nameEn": "Uppsala University",
+          "nameZh": "乌普萨拉大学",
+          "country": "Sweden",
+          "website": "https://www.uu.se/en"
+        },
+        {
+          "id": "nanjing-university",
+          "rank": 90,
+          "rankLabel": "=90",
+          "nameEn": "Nanjing University",
+          "nameZh": "南京大学",
+          "country": "China (Mainland)",
+          "website": "https://www.nju.edu.cn/"
+        },
+        {
+          "id": "university-of-copenhagen",
+          "rank": 90,
+          "rankLabel": "=90",
+          "nameEn": "University of Copenhagen",
+          "nameZh": "哥本哈根大学",
+          "country": "Denmark",
+          "website": "https://www.ku.dk/english/"
+        },
+        {
+          "id": "pennsylvania-state-university",
+          "rank": 92,
+          "rankLabel": "=92",
+          "nameEn": "Pennsylvania State University",
+          "nameZh": "宾夕法尼亚州立大学",
+          "country": "United States",
+          "website": "https://www.psu.edu/"
+        },
+        {
+          "id": "university-of-washington",
+          "rank": 92,
+          "rankLabel": "=92",
+          "nameEn": "University of Washington",
+          "nameZh": "华盛顿大学",
+          "country": "United States",
+          "website": "https://www.washington.edu/"
+        },
+        {
+          "id": "boston-university",
+          "rank": 94,
+          "rankLabel": "94",
+          "nameEn": "Boston University",
+          "nameZh": "波士顿大学",
+          "country": "United States",
+          "website": "https://www.bu.edu/"
+        },
+        {
+          "id": "the-university-of-osaka",
+          "rank": 95,
+          "rankLabel": "95",
+          "nameEn": "The University of Osaka",
+          "nameZh": "大阪大学",
+          "country": "Japan",
+          "website": "https://www.osaka-u.ac.jp/en"
+        },
+        {
+          "id": "university-of-alberta",
+          "rank": 96,
+          "rankLabel": "96",
+          "nameEn": "University of Alberta",
+          "nameZh": "阿尔伯塔大学",
+          "country": "Canada",
+          "website": "https://www.ualberta.ca/"
+        },
+        {
+          "id": "institute-of-science-tokyo",
+          "rank": 97,
+          "rankLabel": "=97",
+          "nameEn": "Institute of Science Tokyo",
+          "nameZh": "东京科学大学",
+          "country": "Japan",
+          "website": "https://www.isct.ac.jp/en"
+        },
+        {
+          "id": "university-of-nottingham",
+          "rank": 97,
+          "rankLabel": "=97",
+          "nameEn": "University of Nottingham",
+          "nameZh": "诺丁汉大学",
+          "country": "United Kingdom",
+          "website": "https://www.nottingham.ac.uk/"
+        },
+        {
+          "id": "freie-universitaet-berlin",
+          "rank": 98,
+          "rankLabel": "=98",
+          "nameEn": "Freie Universitaet Berlin",
+          "nameZh": "柏林自由大学",
+          "country": "Germany",
+          "website": "https://www.fu-berlin.de/en/"
+        },
+        {
+          "id": "university-of-zurich",
+          "rank": 98,
+          "rankLabel": "=98",
+          "nameEn": "University of Zurich",
+          "nameZh": "苏黎世大学",
+          "country": "Switzerland",
+          "website": "https://www.uzh.ch/en.html"
+        },
+        {
+          "id": "purdue-university",
+          "rank": 100,
+          "rankLabel": "=100",
+          "nameEn": "Purdue University",
+          "nameZh": "普渡大学",
+          "country": "United States",
+          "website": "https://www.purdue.edu/"
+        },
+        {
+          "id": "university-college-dublin",
+          "rank": 100,
+          "rankLabel": "=100",
+          "nameEn": "University College Dublin",
+          "nameZh": "都柏林大学",
+          "country": "Ireland",
+          "website": "https://www.ucd.ie/"
+        }
+      ]
+    },
+    {
+      "id": "usnews-national",
+      "label": "U.S. News 美国综合大学排名",
+      "editionYear": 2027,
+      "verifiedAt": "2026-10-10T21:37:57.640+08:00",
+      "sourceUrl": "https://www.usnews.com/best-colleges/rankings/national-universities",
+      "methodologyUrl": "https://www.usnews.com/education/best-colleges/articles/how-us-news-calculated-the-rankings",
+      "scope": "us-national",
+      "requestedRankLimit": 100,
+      "complete": true,
+      "items": [
+        {
+          "id": "massachusetts-institute-of-technology",
+          "rank": 1,
+          "rankLabel": "1",
+          "nameEn": "Massachusetts Institute of Technology",
+          "nameZh": "麻省理工学院",
+          "country": "United States",
+          "website": "https://www.mit.edu/"
+        },
+        {
+          "id": "princeton-university",
+          "rank": 2,
+          "rankLabel": "2",
+          "nameEn": "Princeton University",
+          "nameZh": "普林斯顿大学",
+          "country": "United States",
+          "website": "https://www.princeton.edu/"
+        },
+        {
+          "id": "harvard-university",
+          "rank": 3,
+          "rankLabel": "3",
+          "nameEn": "Harvard University",
+          "nameZh": "哈佛大学",
+          "country": "United States",
+          "website": "https://www.harvard.edu/"
+        },
+        {
+          "id": "yale-university",
+          "rank": 4,
+          "rankLabel": "4",
+          "nameEn": "Yale University",
+          "nameZh": "耶鲁大学",
+          "country": "United States",
+          "website": "https://www.yale.edu/"
+        },
+        {
+          "id": "california-institute-of-technology",
+          "rank": 5,
+          "rankLabel": "=5",
+          "nameEn": "California Institute of Technology",
+          "nameZh": "加州理工学院",
+          "country": "United States",
+          "website": "https://www.caltech.edu/"
+        },
+        {
+          "id": "stanford-university",
+          "rank": 5,
+          "rankLabel": "=5",
+          "nameEn": "Stanford University",
+          "nameZh": "斯坦福大学",
+          "country": "United States",
+          "website": "https://www.stanford.edu/"
+        },
+        {
+          "id": "university-of-pennsylvania",
+          "rank": 7,
+          "rankLabel": "7",
+          "nameEn": "University of Pennsylvania",
+          "nameZh": "宾夕法尼亚大学",
+          "country": "United States",
+          "website": "https://www.upenn.edu/"
+        },
+        {
+          "id": "duke-university",
+          "rank": 8,
+          "rankLabel": "8",
+          "nameEn": "Duke University",
+          "nameZh": "杜克大学",
+          "country": "United States",
+          "website": "https://www.duke.edu/"
+        },
+        {
+          "id": "johns-hopkins-university",
+          "rank": 9,
+          "rankLabel": "=9",
+          "nameEn": "Johns Hopkins University",
+          "nameZh": "约翰斯·霍普金斯大学",
+          "country": "United States",
+          "website": "https://www.jhu.edu/"
+        },
+        {
+          "id": "northwestern-university",
+          "rank": 9,
+          "rankLabel": "=9",
+          "nameEn": "Northwestern University",
+          "nameZh": "西北大学",
+          "country": "United States",
+          "website": "https://www.northwestern.edu/"
+        },
+        {
+          "id": "university-of-chicago",
+          "rank": 9,
+          "rankLabel": "=9",
+          "nameEn": "University of Chicago",
+          "nameZh": "芝加哥大学",
+          "country": "United States",
+          "website": "https://www.uchicago.edu/"
+        },
+        {
+          "id": "columbia-university",
+          "rank": 12,
+          "rankLabel": "=12",
+          "nameEn": "Columbia University",
+          "nameZh": "哥伦比亚大学",
+          "country": "United States",
+          "website": "https://www.columbia.edu/"
+        },
+        {
+          "id": "dartmouth-college",
+          "rank": 12,
+          "rankLabel": "=12",
+          "nameEn": "Dartmouth College",
+          "nameZh": "达特茅斯学院",
+          "country": "United States",
+          "website": "https://dartmouth.edu/"
+        },
+        {
+          "id": "carnegie-mellon-university",
+          "rank": 14,
+          "rankLabel": "=14",
+          "nameEn": "Carnegie Mellon University",
+          "nameZh": "卡内基梅隆大学",
+          "country": "United States",
+          "website": "https://www.cmu.edu/"
+        },
+        {
+          "id": "cornell-university",
+          "rank": 14,
+          "rankLabel": "=14",
+          "nameEn": "Cornell University",
+          "nameZh": "康奈尔大学",
+          "country": "United States",
+          "website": "https://www.cornell.edu/"
+        },
+        {
+          "id": "brown-university",
+          "rank": 16,
+          "rankLabel": "=16",
+          "nameEn": "Brown University",
+          "nameZh": "布朗大学",
+          "country": "United States",
+          "website": "https://www.brown.edu/"
+        },
+        {
+          "id": "rice-university",
+          "rank": 16,
+          "rankLabel": "=16",
+          "nameEn": "Rice University",
+          "nameZh": "莱斯大学",
+          "country": "United States",
+          "website": "https://www.rice.edu/"
+        },
+        {
+          "id": "vanderbilt-university",
+          "rank": 16,
+          "rankLabel": "=16",
+          "nameEn": "Vanderbilt University",
+          "nameZh": "范德堡大学",
+          "country": "United States",
+          "website": "https://www.vanderbilt.edu/"
+        },
+        {
+          "id": "washington-university-in-st-louis",
+          "rank": 16,
+          "rankLabel": "=16",
+          "nameEn": "Washington University in St. Louis",
+          "nameZh": "圣路易斯华盛顿大学",
+          "country": "United States",
+          "website": "https://washu.edu/"
+        },
+        {
+          "id": "university-of-california-berkeley",
+          "rank": 20,
+          "rankLabel": "=20",
+          "nameEn": "University of California, Berkeley",
+          "nameZh": "加州大学伯克利分校",
+          "country": "United States",
+          "website": "https://www.berkeley.edu/"
+        },
+        {
+          "id": "university-of-california-los-angeles",
+          "rank": 20,
+          "rankLabel": "=20",
+          "nameEn": "University of California, Los Angeles",
+          "nameZh": "加州大学洛杉矶分校",
+          "country": "United States",
+          "website": "https://www.ucla.edu/"
+        },
+        {
+          "id": "university-of-notre-dame",
+          "rank": 20,
+          "rankLabel": "=20",
+          "nameEn": "University of Notre Dame",
+          "nameZh": "圣母大学",
+          "country": "United States",
+          "website": "https://www.nd.edu/"
+        },
+        {
+          "id": "emory-university",
+          "rank": 23,
+          "rankLabel": "=23",
+          "nameEn": "Emory University",
+          "nameZh": "埃默里大学",
+          "country": "United States",
+          "website": "https://www.emory.edu/"
+        },
+        {
+          "id": "georgetown-university",
+          "rank": 23,
+          "rankLabel": "=23",
+          "nameEn": "Georgetown University",
+          "nameZh": "乔治敦大学",
+          "country": "United States",
+          "website": "https://www.georgetown.edu/"
+        },
+        {
+          "id": "university-of-michigan-ann-arbor",
+          "rank": 25,
+          "rankLabel": "25",
+          "nameEn": "University of Michigan—Ann Arbor",
+          "nameZh": "密歇根大学安娜堡分校",
+          "country": "United States",
+          "website": "https://umich.edu/"
+        },
+        {
+          "id": "university-of-virginia",
+          "rank": 26,
+          "rankLabel": "26",
+          "nameEn": "University of Virginia",
+          "nameZh": "弗吉尼亚大学",
+          "country": "United States",
+          "website": "https://www.virginia.edu/"
+        },
+        {
+          "id": "university-of-north-carolina-at-chapel-hill",
+          "rank": 27,
+          "rankLabel": "=27",
+          "nameEn": "University of North Carolina at Chapel Hill",
+          "nameZh": "北卡罗来纳大学教堂山分校",
+          "country": "United States",
+          "website": "https://www.unc.edu/"
+        },
+        {
+          "id": "university-of-southern-california",
+          "rank": 27,
+          "rankLabel": "=27",
+          "nameEn": "University of Southern California",
+          "nameZh": "南加州大学",
+          "country": "United States",
+          "website": "https://www.usc.edu/"
+        },
+        {
+          "id": "georgia-institute-of-technology",
+          "rank": 29,
+          "rankLabel": "=29",
+          "nameEn": "Georgia Institute of Technology",
+          "nameZh": "佐治亚理工学院",
+          "country": "United States",
+          "website": "https://www.gatech.edu/"
+        },
+        {
+          "id": "university-of-california-san-diego",
+          "rank": 29,
+          "rankLabel": "=29",
+          "nameEn": "University of California, San Diego",
+          "nameZh": "加州大学圣地亚哥分校",
+          "country": "United States",
+          "website": "https://www.ucsd.edu/"
+        },
+        {
+          "id": "boston-college",
+          "rank": 31,
+          "rankLabel": "=31",
+          "nameEn": "Boston College",
+          "nameZh": "波士顿学院",
+          "country": "United States",
+          "website": "https://www.bc.edu/"
+        },
+        {
+          "id": "new-york-university",
+          "rank": 31,
+          "rankLabel": "=31",
+          "nameEn": "New York University",
+          "nameZh": "纽约大学",
+          "country": "United States",
+          "website": "https://www.nyu.edu/"
+        },
+        {
+          "id": "tufts-university",
+          "rank": 31,
+          "rankLabel": "=31",
+          "nameEn": "Tufts University",
+          "nameZh": "塔夫茨大学",
+          "country": "United States",
+          "website": "https://www.tufts.edu/"
+        },
+        {
+          "id": "boston-university",
+          "rank": 34,
+          "rankLabel": "=34",
+          "nameEn": "Boston University",
+          "nameZh": "波士顿大学",
+          "country": "United States",
+          "website": "https://www.bu.edu/"
+        },
+        {
+          "id": "university-of-california-davis",
+          "rank": 34,
+          "rankLabel": "=34",
+          "nameEn": "University of California, Davis",
+          "nameZh": "加州大学戴维斯分校",
+          "country": "United States",
+          "website": "https://ucdavis.edu/"
+        },
+        {
+          "id": "university-of-california-irvine",
+          "rank": 34,
+          "rankLabel": "=34",
+          "nameEn": "University of California, Irvine",
+          "nameZh": "加州大学尔湾分校",
+          "country": "United States",
+          "website": "https://www.uci.edu/"
+        },
+        {
+          "id": "university-of-florida",
+          "rank": 34,
+          "rankLabel": "=34",
+          "nameEn": "University of Florida",
+          "nameZh": "佛罗里达大学",
+          "country": "United States",
+          "website": "https://www.ufl.edu/"
+        },
+        {
+          "id": "university-of-illinois-urbana-champaign",
+          "rank": 34,
+          "rankLabel": "=34",
+          "nameEn": "University of Illinois Urbana-Champaign",
+          "nameZh": "伊利诺伊大学香槟分校",
+          "country": "United States",
+          "website": "https://www.illinois.edu/"
+        },
+        {
+          "id": "university-of-texas-at-austin",
+          "rank": 34,
+          "rankLabel": "=34",
+          "nameEn": "University of Texas at Austin",
+          "nameZh": "德克萨斯大学奥斯汀分校",
+          "country": "United States",
+          "website": "https://www.utexas.edu/"
+        },
+        {
+          "id": "university-of-wisconsin-madison",
+          "rank": 34,
+          "rankLabel": "=34",
+          "nameEn": "University of Wisconsin—Madison",
+          "nameZh": "威斯康星大学麦迪逊分校",
+          "country": "United States",
+          "website": "https://www.wisc.edu/"
+        },
+        {
+          "id": "wake-forest-university",
+          "rank": 34,
+          "rankLabel": "=34",
+          "nameEn": "Wake Forest University",
+          "nameZh": "维克森林大学",
+          "country": "United States",
+          "website": "https://www.wfu.edu/"
+        },
+        {
+          "id": "northeastern-university",
+          "rank": 42,
+          "rankLabel": "=42",
+          "nameEn": "Northeastern University",
+          "nameZh": "东北大学",
+          "country": "United States",
+          "website": "https://www.northeastern.edu/"
+        },
+        {
+          "id": "villanova-university",
+          "rank": 42,
+          "rankLabel": "=42",
+          "nameEn": "Villanova University",
+          "nameZh": "维拉诺瓦大学",
+          "country": "United States",
+          "website": "https://www.villanova.edu/"
+        },
+        {
+          "id": "case-western-reserve-university",
+          "rank": 44,
+          "rankLabel": "=44",
+          "nameEn": "Case Western Reserve University",
+          "nameZh": "凯斯西储大学",
+          "country": "United States",
+          "website": "https://www.case.edu/"
+        },
+        {
+          "id": "lehigh-university",
+          "rank": 44,
+          "rankLabel": "=44",
+          "nameEn": "Lehigh University",
+          "nameZh": "理海大学",
+          "country": "United States",
+          "website": "https://www.lehigh.edu/"
+        },
+        {
+          "id": "ohio-state-university-columbus",
+          "rank": 44,
+          "rankLabel": "=44",
+          "nameEn": "Ohio State University—Columbus",
+          "nameZh": "俄亥俄州立大学哥伦布分校",
+          "country": "United States",
+          "website": "https://www.osu.edu/"
+        },
+        {
+          "id": "rutgers-university-new-brunswick",
+          "rank": 44,
+          "rankLabel": "=44",
+          "nameEn": "Rutgers University—New Brunswick",
+          "nameZh": "罗格斯大学新布朗斯维克分校",
+          "country": "United States",
+          "website": "https://newbrunswick.rutgers.edu/"
+        },
+        {
+          "id": "university-of-california-santa-barbara",
+          "rank": 44,
+          "rankLabel": "=44",
+          "nameEn": "University of California, Santa Barbara",
+          "nameZh": "加州大学圣塔芭芭拉分校",
+          "country": "United States",
+          "website": "https://www.ucsb.edu/"
+        },
+        {
+          "id": "university-of-maryland-college-park",
+          "rank": 49,
+          "rankLabel": "=49",
+          "nameEn": "University of Maryland, College Park",
+          "nameZh": "马里兰大学帕克分校",
+          "country": "United States",
+          "website": "https://www.umd.edu/"
+        },
+        {
+          "id": "university-of-rochester",
+          "rank": 49,
+          "rankLabel": "=49",
+          "nameEn": "University of Rochester",
+          "nameZh": "罗切斯特大学",
+          "country": "United States",
+          "website": "https://www.rochester.edu/"
+        },
+        {
+          "id": "university-of-washington",
+          "rank": 49,
+          "rankLabel": "=49",
+          "nameEn": "University of Washington",
+          "nameZh": "华盛顿大学",
+          "country": "United States",
+          "website": "https://www.washington.edu/"
+        },
+        {
+          "id": "university-of-georgia",
+          "rank": 52,
+          "rankLabel": "=52",
+          "nameEn": "University of Georgia",
+          "nameZh": "佐治亚大学",
+          "country": "United States",
+          "website": "https://www.uga.edu/"
+        },
+        {
+          "id": "virginia-tech",
+          "rank": 52,
+          "rankLabel": "=52",
+          "nameEn": "Virginia Tech",
+          "nameZh": "弗吉尼亚理工大学",
+          "country": "United States",
+          "website": "https://www.vt.edu/"
+        },
+        {
+          "id": "william-mary",
+          "rank": 52,
+          "rankLabel": "=52",
+          "nameEn": "William & Mary",
+          "nameZh": "威廉与玛丽学院",
+          "country": "United States",
+          "website": "https://www.wm.edu/"
+        },
+        {
+          "id": "pennsylvania-state-university-university-park",
+          "rank": 55,
+          "rankLabel": "=55",
+          "nameEn": "Pennsylvania State University—University Park",
+          "nameZh": "宾夕法尼亚州立大学帕克分校",
+          "country": "United States",
+          "website": "https://www.psu.edu/"
+        },
+        {
+          "id": "purdue-university-main-campus",
+          "rank": 55,
+          "rankLabel": "=55",
+          "nameEn": "Purdue University—Main Campus",
+          "nameZh": "普渡大学西拉法叶分校",
+          "country": "United States",
+          "website": "https://www.purdue.edu/"
+        },
+        {
+          "id": "santa-clara-university",
+          "rank": 55,
+          "rankLabel": "=55",
+          "nameEn": "Santa Clara University",
+          "nameZh": "圣塔克拉拉大学",
+          "country": "United States",
+          "website": "https://www.scu.edu/"
+        },
+        {
+          "id": "university-of-miami",
+          "rank": 55,
+          "rankLabel": "=55",
+          "nameEn": "University of Miami",
+          "nameZh": "迈阿密大学",
+          "country": "United States",
+          "website": "https://www.miami.edu/"
+        },
+        {
+          "id": "brandeis-university",
+          "rank": 59,
+          "rankLabel": "=59",
+          "nameEn": "Brandeis University",
+          "nameZh": "布兰迪斯大学",
+          "country": "United States",
+          "website": "https://www.brandeis.edu/"
+        },
+        {
+          "id": "florida-state-university",
+          "rank": 59,
+          "rankLabel": "=59",
+          "nameEn": "Florida State University",
+          "nameZh": "佛罗里达州立大学",
+          "country": "United States",
+          "website": "https://www.fsu.edu/"
+        },
+        {
+          "id": "george-washington-university",
+          "rank": 59,
+          "rankLabel": "=59",
+          "nameEn": "George Washington University",
+          "nameZh": "乔治华盛顿大学",
+          "country": "United States",
+          "website": "https://www.gwu.edu/"
+        },
+        {
+          "id": "stevens-institute-of-technology",
+          "rank": 59,
+          "rankLabel": "=59",
+          "nameEn": "Stevens Institute of Technology",
+          "nameZh": "史蒂文斯理工学院",
+          "country": "United States",
+          "website": "https://www.stevens.edu/"
+        },
+        {
+          "id": "stony-brook-university-suny",
+          "rank": 59,
+          "rankLabel": "=59",
+          "nameEn": "Stony Brook University—SUNY",
+          "nameZh": "纽约州立大学石溪分校",
+          "country": "United States",
+          "website": "https://www.stonybrook.edu/"
+        },
+        {
+          "id": "texas-a-m-university",
+          "rank": 59,
+          "rankLabel": "=59",
+          "nameEn": "Texas A&M University",
+          "nameZh": "德克萨斯农工大学学院站分校",
+          "country": "United States",
+          "website": "https://www.tamu.edu/"
+        },
+        {
+          "id": "tulane-university",
+          "rank": 59,
+          "rankLabel": "=59",
+          "nameEn": "Tulane University",
+          "nameZh": "杜兰大学",
+          "country": "United States",
+          "website": "https://tulane.edu/"
+        },
+        {
+          "id": "university-of-massachusetts-amherst",
+          "rank": 59,
+          "rankLabel": "=59",
+          "nameEn": "University of Massachusetts—Amherst",
+          "nameZh": "马萨诸塞大学阿默斯特分校",
+          "country": "United States",
+          "website": "https://www.umass.edu/"
+        },
+        {
+          "id": "university-of-minnesota-twin-cities",
+          "rank": 59,
+          "rankLabel": "=59",
+          "nameEn": "University of Minnesota—Twin Cities",
+          "nameZh": "明尼苏达大学双城分校",
+          "country": "United States",
+          "website": "https://twin-cities.umn.edu/"
+        },
+        {
+          "id": "university-of-pittsburgh",
+          "rank": 59,
+          "rankLabel": "=59",
+          "nameEn": "University of Pittsburgh",
+          "nameZh": "匹兹堡大学",
+          "country": "United States",
+          "website": "https://www.pitt.edu/"
+        },
+        {
+          "id": "michigan-state-university",
+          "rank": 69,
+          "rankLabel": "=69",
+          "nameEn": "Michigan State University",
+          "nameZh": "密歇根州立大学",
+          "country": "United States",
+          "website": "https://www.msu.edu/"
+        },
+        {
+          "id": "rensselaer-polytechnic-institute",
+          "rank": 69,
+          "rankLabel": "=69",
+          "nameEn": "Rensselaer Polytechnic Institute",
+          "nameZh": "伦斯勒理工学院",
+          "country": "United States",
+          "website": "https://www.rpi.edu/"
+        },
+        {
+          "id": "university-of-california-merced",
+          "rank": 69,
+          "rankLabel": "=69",
+          "nameEn": "University of California, Merced",
+          "nameZh": "加州大学默塞德分校",
+          "country": "United States",
+          "website": "https://ucmerced.edu/"
+        },
+        {
+          "id": "syracuse-university",
+          "rank": 72,
+          "rankLabel": "72",
+          "nameEn": "Syracuse University",
+          "nameZh": "雪城大学",
+          "country": "United States",
+          "website": "https://www.syracuse.edu/"
+        },
+        {
+          "id": "binghamton-university-suny",
+          "rank": 73,
+          "rankLabel": "=73",
+          "nameEn": "Binghamton University—SUNY",
+          "nameZh": "纽约州立大学宾汉姆顿分校",
+          "country": "United States",
+          "website": "https://www.binghamton.edu/"
+        },
+        {
+          "id": "howard-university",
+          "rank": 73,
+          "rankLabel": "=73",
+          "nameEn": "Howard University",
+          "nameZh": "霍华德大学",
+          "country": "United States",
+          "website": "https://howard.edu/"
+        },
+        {
+          "id": "indiana-university-bloomington",
+          "rank": 73,
+          "rankLabel": "=73",
+          "nameEn": "Indiana University—Bloomington",
+          "nameZh": "印第安纳大学伯明顿分校",
+          "country": "United States",
+          "website": "https://bloomington.iu.edu/"
+        },
+        {
+          "id": "north-carolina-state-university",
+          "rank": 73,
+          "rankLabel": "=73",
+          "nameEn": "North Carolina State University",
+          "nameZh": "北卡罗来纳州立大学",
+          "country": "United States",
+          "website": "https://www.ncsu.edu/"
+        },
+        {
+          "id": "rutgers-university-newark",
+          "rank": 73,
+          "rankLabel": "=73",
+          "nameEn": "Rutgers University-Newark",
+          "nameZh": "罗格斯大学纽瓦克分校",
+          "country": "United States",
+          "website": "https://www.newark.rutgers.edu/"
+        },
+        {
+          "id": "university-of-connecticut",
+          "rank": 73,
+          "rankLabel": "=73",
+          "nameEn": "University of Connecticut",
+          "nameZh": "康涅狄格大学",
+          "country": "United States",
+          "website": "https://uconn.edu/"
+        },
+        {
+          "id": "worcester-polytechnic-institute",
+          "rank": 73,
+          "rankLabel": "=73",
+          "nameEn": "Worcester Polytechnic Institute",
+          "nameZh": "伍斯特理工学院",
+          "country": "United States",
+          "website": "https://www.wpi.edu/"
+        },
+        {
+          "id": "clemson-university",
+          "rank": 80,
+          "rankLabel": "=80",
+          "nameEn": "Clemson University",
+          "nameZh": "克莱姆森大学",
+          "country": "United States",
+          "website": "https://www.clemson.edu/"
+        },
+        {
+          "id": "colorado-school-of-mines",
+          "rank": 80,
+          "rankLabel": "=80",
+          "nameEn": "Colorado School of Mines",
+          "nameZh": "科罗拉多矿业大学",
+          "country": "United States",
+          "website": "https://www.mines.edu/"
+        },
+        {
+          "id": "drexel-university",
+          "rank": 80,
+          "rankLabel": "=80",
+          "nameEn": "Drexel University",
+          "nameZh": "德雷塞尔大学",
+          "country": "United States",
+          "website": "https://drexel.edu/"
+        },
+        {
+          "id": "pepperdine-university",
+          "rank": 80,
+          "rankLabel": "=80",
+          "nameEn": "Pepperdine University",
+          "nameZh": "佩珀代因大学",
+          "country": "United States",
+          "website": "https://www.pepperdine.edu/"
+        },
+        {
+          "id": "university-of-california-riverside",
+          "rank": 80,
+          "rankLabel": "=80",
+          "nameEn": "University of California, Riverside",
+          "nameZh": "加州大学河滨分校",
+          "country": "United States",
+          "website": "https://www.ucr.edu/"
+        },
+        {
+          "id": "fordham-university",
+          "rank": 85,
+          "rankLabel": "=85",
+          "nameEn": "Fordham University",
+          "nameZh": "福特汉姆大学",
+          "country": "United States",
+          "website": "https://www.fordham.edu/"
+        },
+        {
+          "id": "new-jersey-institute-of-technology",
+          "rank": 85,
+          "rankLabel": "=85",
+          "nameEn": "New Jersey Institute of Technology",
+          "nameZh": "新泽西理工学院",
+          "country": "United States",
+          "website": "https://www.njit.edu/"
+        },
+        {
+          "id": "southern-methodist-university",
+          "rank": 85,
+          "rankLabel": "=85",
+          "nameEn": "Southern Methodist University",
+          "nameZh": "南卫理公会大学",
+          "country": "United States",
+          "website": "https://www.smu.edu/"
+        },
+        {
+          "id": "university-at-buffalo-suny",
+          "rank": 85,
+          "rankLabel": "=85",
+          "nameEn": "University at Buffalo—SUNY",
+          "nameZh": "纽约州立大学布法罗分校",
+          "country": "United States",
+          "website": "https://www.buffalo.edu/"
+        },
+        {
+          "id": "university-of-delaware",
+          "rank": 85,
+          "rankLabel": "=85",
+          "nameEn": "University of Delaware",
+          "nameZh": "特拉华大学",
+          "country": "United States",
+          "website": "https://www.udel.edu/"
+        },
+        {
+          "id": "baylor-university",
+          "rank": 90,
+          "rankLabel": "=90",
+          "nameEn": "Baylor University",
+          "nameZh": "贝勒大学",
+          "country": "United States",
+          "website": "https://www.baylor.edu/"
+        },
+        {
+          "id": "gonzaga-university",
+          "rank": 90,
+          "rankLabel": "=90",
+          "nameEn": "Gonzaga University",
+          "nameZh": "贡萨加大学",
+          "country": "United States",
+          "website": "https://www.gonzaga.edu/"
+        },
+        {
+          "id": "marquette-university",
+          "rank": 90,
+          "rankLabel": "=90",
+          "nameEn": "Marquette University",
+          "nameZh": "马凯特大学",
+          "country": "United States",
+          "website": "https://www.marquette.edu/"
+        },
+        {
+          "id": "texas-christian-university",
+          "rank": 90,
+          "rankLabel": "=90",
+          "nameEn": "Texas Christian University",
+          "nameZh": "德克萨斯基督教大学",
+          "country": "United States",
+          "website": "https://www.tcu.edu/"
+        },
+        {
+          "id": "yeshiva-university",
+          "rank": 90,
+          "rankLabel": "=90",
+          "nameEn": "Yeshiva University",
+          "nameZh": "叶史瓦大学",
+          "country": "United States",
+          "website": "https://www.yu.edu/"
+        },
+        {
+          "id": "american-university",
+          "rank": 95,
+          "rankLabel": "=95",
+          "nameEn": "American University",
+          "nameZh": "美利坚大学",
+          "country": "United States",
+          "website": "https://www.american.edu/"
+        },
+        {
+          "id": "rochester-institute-of-technology",
+          "rank": 95,
+          "rankLabel": "=95",
+          "nameEn": "Rochester Institute of Technology",
+          "nameZh": "罗切斯特理工学院",
+          "country": "United States",
+          "website": "https://www.rit.edu/"
+        },
+        {
+          "id": "rutgers-university-camden",
+          "rank": 95,
+          "rankLabel": "=95",
+          "nameEn": "Rutgers University—Camden",
+          "nameZh": "罗格斯大学卡姆登分校",
+          "country": "United States",
+          "website": "https://camden.rutgers.edu/"
+        },
+        {
+          "id": "university-of-illinois-chicago",
+          "rank": 95,
+          "rankLabel": "=95",
+          "nameEn": "University of Illinois Chicago",
+          "nameZh": "伊利诺伊大学芝加哥分校",
+          "country": "United States",
+          "website": "https://www.uic.edu/"
+        },
+        {
+          "id": "university-of-missouri",
+          "rank": 95,
+          "rankLabel": "=95",
+          "nameEn": "University of Missouri",
+          "nameZh": "密苏里大学",
+          "country": "United States",
+          "website": "https://missouri.edu/"
+        },
+        {
+          "id": "auburn-university",
+          "rank": 100,
+          "rankLabel": "=100",
+          "nameEn": "Auburn University",
+          "nameZh": "奥本大学",
+          "country": "United States",
+          "website": "https://www.auburn.edu/"
+        },
+        {
+          "id": "chapman-university",
+          "rank": 100,
+          "rankLabel": "=100",
+          "nameEn": "Chapman University",
+          "nameZh": "查普曼大学",
+          "country": "United States",
+          "website": "https://www.chapman.edu/"
+        },
+        {
+          "id": "creighton-university",
+          "rank": 100,
+          "rankLabel": "=100",
+          "nameEn": "Creighton University",
+          "nameZh": "克雷顿大学",
+          "country": "United States",
+          "website": "https://www.creighton.edu/"
+        },
+        {
+          "id": "elon-university",
+          "rank": 100,
+          "rankLabel": "=100",
+          "nameEn": "Elon University",
+          "nameZh": "依隆大学",
+          "country": "United States",
+          "website": "https://www.elon.edu/"
+        },
+        {
+          "id": "florida-international-university",
+          "rank": 100,
+          "rankLabel": "=100",
+          "nameEn": "Florida International University",
+          "nameZh": "佛罗里达国际大学",
+          "country": "United States",
+          "website": "https://www.fiu.edu/"
+        },
+        {
+          "id": "saint-louis-university",
+          "rank": 100,
+          "rankLabel": "=100",
+          "nameEn": "Saint Louis University",
+          "nameZh": "圣路易斯大学",
+          "country": "United States",
+          "website": "https://www.slu.edu/"
+        },
+        {
+          "id": "university-of-iowa",
+          "rank": 100,
+          "rankLabel": "=100",
+          "nameEn": "University of Iowa",
+          "nameZh": "爱荷华大学",
+          "country": "United States",
+          "website": "https://uiowa.edu/"
+        },
+        {
+          "id": "university-of-san-diego",
+          "rank": 100,
+          "rankLabel": "=100",
+          "nameEn": "University of San Diego",
+          "nameZh": "圣地亚哥大学",
+          "country": "United States",
+          "website": "https://www.sandiego.edu/"
+        },
+        {
+          "id": "university-of-south-florida",
+          "rank": 100,
+          "rankLabel": "=100",
+          "nameEn": "University of South Florida",
+          "nameZh": "南佛罗里达大学",
+          "country": "United States",
+          "website": "https://www.usf.edu/"
+        }
+      ]
+    }
+  ]
+}
