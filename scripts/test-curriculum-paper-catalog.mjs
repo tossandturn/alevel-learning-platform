@@ -273,12 +273,24 @@ try {
   const productionAp = await productionCatalog.list({ board: 'ap' })
   const productionApAll = await productionCatalog.list({ board: 'ap', pageSize: 100 })
   const productionIb = await productionCatalog.list({ board: 'ib' })
-  assert.deepEqual(productionAp.summary, { papers: 59, downloadable: 0, sourceOnly: 59 })
+  assert.deepEqual(productionAp.summary, { papers: 151, downloadable: 0, sourceOnly: 151 })
   assert.deepEqual(productionIb.summary, { papers: 334, downloadable: 0, sourceOnly: 334 })
   assert.ok(productionAp.items.every(item => item.fullExam === false && item.practiceReady === false))
-  assert.ok(productionAp.items.every(item => item.questionPaper.sourceUrl?.startsWith('https://') && item.questionPaper.downloadUrl === null))
+  assert.ok(productionAp.items.every(item => (item.questionPaper.sourceUrl === null || item.questionPaper.sourceUrl?.startsWith('https://')) && item.questionPaper.downloadUrl === null), 'local sources must not invent a public URL or bypass the asset-root gate')
   assert.ok(productionApAll.items.some(item => item.paper === 'MCQ'), 'AP Physics multiple-choice entries remain source-only until distribution rights are verified')
   assert.ok(productionIb.items.every(item => item.questionPaper.sourceUrl === null && item.questionPaper.downloadUrl === null))
+  for (const [course, count] of Object.entries({ 'physics-1': 28, 'physics-c-mechanics': 56, 'physics-c-em': 48 })) {
+    const coursePapers = await productionCatalog.list({ board: 'ap', course, pageSize: 100 })
+    assert.equal(coursePapers.total, count, `${course} keeps the reviewed source catalogue`)
+    assert.ok(coursePapers.items.some(item => item.paper === 'MCQ'))
+    assert.ok(coursePapers.items.every(item => item.practiceReady === false))
+  }
+  const corrected2014 = await productionCatalog.list({ board: 'ap', query: 'ap-physics-c-em-2014-frq-released-exam' })
+  assert.equal(corrected2014.total, 0, 'misfiled Mechanics FRQ must not be released as E&M')
+  const localScan = await productionCatalog.list({ board: 'ap', query: 'ap-physics-c-em-2024-mcq-local-scan' })
+  assert.equal(localScan.total, 1)
+  assert.equal(localScan.items[0].questionPaper.sourceUrl, null)
+  assert.match(localScan.items[0].title, /批注参考答案/)
 
   console.log(JSON.stringify({
     status: 'pass',
