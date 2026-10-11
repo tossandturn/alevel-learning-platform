@@ -3,11 +3,108 @@ import { isStudentReleasedAiStudyItem } from '../src/data/questionBank.js'
 import { readVerifiedSourcePage } from './nativeSourcePages.js'
 
 const HASH = /^[a-f0-9]{64}$/
+const MAX_NEAR_CONTAINMENT_OVERFLOW_PX = 8
+const MIN_NEAR_CONTAINMENT_COVERAGE = 0.99
+const MAX_BOUNDED_UNION_OVERFLOW_PX = 64
+const MIN_BOUNDED_UNION_COVERAGE = 0.94
+const MAX_BOUNDED_UNION_AREA_GROWTH = 1.06
 const fail = (statusCode, code) => { throw Object.assign(new Error('题目原图暂时不可用，请重新加载。'), { statusCode, code }) }
 
 function pixelBounds({ region: [x0, y0, x1, y1], imageSize: [width, height] }) {
   const left = Math.floor(x0 * width), top = Math.floor(y0 * height)
   return { left, top, width: Math.ceil(x1 * width) - left, height: Math.ceil(y1 * height) - top }
+}
+
+function pixelEdges(record) {
+  const box = pixelBounds(record)
+  return { ...box, right: box.left + box.width, bottom: box.top + box.height, area: box.width * box.height }
+}
+
+function sameVerifiedPage(left, right) {
+  return left.page === right.page && left.pageHash === right.pageHash && left.hash === right.hash &&
+    left.imageSize[0] === right.imageSize[0] && left.imageSize[1] === right.imageSize[1]
+}
+
+function exactlyContains(container, item) {
+  return sameVerifiedPage(container, item) && container.region[0] <= item.region[0] && container.region[1] <= item.region[1] &&
+    container.region[2] >= item.region[2] && container.region[3] >= item.region[3]
+}
+
+function unionRegion(left, right) {
+  return [
+    Math.min(left[0], right[0]),
+    Math.min(left[1], right[1]),
+    Math.max(left[2], right[2]),
+    Math.max(left[3], right[3]),
+  ]
+}
+
+function trustedPartBaseline(record) {
+  return record.fromPartEvidence && !record.fromDiagramRegion
+}
+
+function compareText(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0
+}
+
+function compareRecords(left, right) {
+  const leftPixels = pixelEdges(left), rightPixels = pixelEdges(right)
+  const numbers = [
+    left.page - right.page,
+    leftPixels.top - rightPixels.top,
+    leftPixels.left - rightPixels.left,
+    leftPixels.bottom - rightPixels.bottom,
+    leftPixels.right - rightPixels.right,
+    ...left.region.map((value, index) => value - right.region[index]),
+    left.imageSize[0] - right.imageSize[0],
+    left.imageSize[1] - right.imageSize[1],
+    Number(right.fromPartEvidence) - Number(left.fromPartEvidence),
+    Number(left.fromDiagramRegion) - Number(right.fromDiagramRegion),
+  ]
+  for (const value of numbers) if (value) return value
+  return compareText(left.pageHash, right.pageHash) || compareText(left.hash, right.hash)
+}
+
+function nearlyContainsDiagram(container, diagram) {
+  if (!trustedPartBaseline(container) || !diagram.fromDiagramRegion || !sameVerifiedPage(container, diagram)) return false
+  const baseline = { ...container, region: container.baselineRegion }, outer = pixelEdges(baseline), inner = pixelEdges(diagram)
+  if (!outer.area || !inner.area) return false
+  const overflow = Math.max(0, outer.left - inner.left, outer.top - inner.top, inner.right - outer.right, inner.bottom - outer.bottom)
+  const intersectionWidth = Math.max(0, Math.min(outer.right, inner.right) - Math.max(outer.left, inner.left))
+  const intersectionHeight = Math.max(0, Math.min(outer.bottom, inner.bottom) - Math.max(outer.top, inner.top))
+  const coverage = (intersectionWidth * intersectionHeight) / inner.area
+  const proposed = pixelEdges({ ...container, region: unionRegion(container.region, diagram.region) })
+  if (proposed.area / outer.area > MAX_BOUNDED_UNION_AREA_GROWTH) return false
+  if (overflow <= MAX_NEAR_CONTAINMENT_OVERFLOW_PX && coverage >= MIN_NEAR_CONTAINMENT_COVERAGE) return true
+  // A wider graph/table frame may be redundant even when its whitespace
+  // extends farther. Union it only when the trusted whole-question crop grows
+  // minimally; the union preserves every original pixel bound.
+  return overflow <= MAX_BOUNDED_UNION_OVERFLOW_PX && coverage >= MIN_BOUNDED_UNION_COVERAGE
+}
+
+function coalesceRegions(records) {
+  const merged = records.map((record) => ({ ...record, region: [...record.region],
+    baselineRegion: trustedPartBaseline(record) ? [...record.region] : null })).sort(compareRecords), consumed = new Set()
+  for (let diagramIndex = 0; diagramIndex < merged.length; diagramIndex += 1) {
+    const diagram = merged[diagramIndex]
+    if (!diagram.fromDiagramRegion || consumed.has(diagramIndex)) continue
+    const candidates = merged.map((container, index) => ({ container, index }))
+      .filter(({ container, index }) => index !== diagramIndex && !consumed.has(index) && nearlyContainsDiagram(container, diagram))
+      .sort((left, right) => {
+        const leftArea = pixelEdges({ ...left.container, region: left.container.baselineRegion }).area
+        const rightArea = pixelEdges({ ...right.container, region: right.container.baselineRegion }).area
+        return leftArea - rightArea || compareRecords(left.container, right.container)
+      })
+    if (!candidates.length) continue
+    const { container, index } = candidates[0]
+    merged[index] = { ...container, region: unionRegion(container.region, diagram.region) }
+    consumed.add(diagramIndex)
+  }
+  const remaining = merged.filter((_, index) => !consumed.has(index))
+  return remaining.filter((item, index) => !remaining.some((other, otherIndex) => {
+    if (otherIndex === index || !exactlyContains(other, item)) return false
+    return !exactlyContains(item, other) || otherIndex < index
+  }))
 }
 
 async function sourceRegionPixels(page, descriptor) {
@@ -28,22 +125,27 @@ function regionsFor(question, isReleased) {
     question.sourceContent.complete !== true || question.sourceContent.fileComplete !== true) return []
   const hash = String(question.sourceRef?.sha256 || '').replace(/^sha256:/i, '').toLowerCase()
   if (!HASH.test(hash) || !/^\d{4}$/.test(question.subjectCode) || !/^\d{4}_[msw]\d{2}_qp_\d{2}\.pdf$/.test(question.sourceRef?.paper || '')) return []
-  const records = [...(question.parts || []).flatMap(part => part.sourceEvidence || []), ...(question.diagramRegions || [])]
+  const records = [
+    ...(question.parts || []).flatMap(part => (part.sourceEvidence || []).map(record => ({ record, fromPartEvidence: true, fromDiagramRegion: false }))),
+    ...(question.diagramRegions || []).map(record => ({ record, fromPartEvidence: false, fromDiagramRegion: true })),
+  ]
   if (!records.length || records.length > 200) return []
   const unique = new Map()
-  for (const record of records) {
+  for (const { record, fromPartEvidence, fromDiagramRegion } of records) {
     const { region, imageSize } = record, page = Number(record.page), pageHash = String(record.pageImageSha256 || '').toLowerCase()
     if (record.coordinateSpace !== 'normalized-xyxy' || record.documentSha256 !== hash || !HASH.test(pageHash) ||
       !Number.isInteger(page) || page < 1 || page > 1000 || !Array.isArray(region) || region.length !== 4 ||
       !region.every(Number.isFinite) || region[0] < 0 || region[1] < 0 || region[2] > 1 || region[3] > 1 || region[0] >= region[2] || region[1] >= region[3] ||
       !Array.isArray(imageSize) || imageSize.length !== 2 || !imageSize.every(n => Number.isInteger(n) && n > 0 && n <= 10000) || imageSize[0] * imageSize[1] > 24000000) return []
-    unique.set(JSON.stringify([page, region, pageHash]), { page, region, imageSize, pageHash, hash })
+    const key = JSON.stringify([page, region, pageHash]), existing = unique.get(key)
+    unique.set(key, { page, region, imageSize, pageHash, hash,
+      fromPartEvidence: existing?.fromPartEvidence === true || fromPartEvidence,
+      fromDiagramRegion: existing?.fromDiagramRegion === true || fromDiagramRegion })
   }
-  const all = [...unique.values()]
-  const visible = all.filter((item, index) => !all.some((other, j) => j !== index && other.page === item.page && other.pageHash === item.pageHash &&
-    other.region[0] <= item.region[0] && other.region[1] <= item.region[1] && other.region[2] >= item.region[2] && other.region[3] >= item.region[3]))
+  const visible = coalesceRegions([...unique.values()])
   if (visible.length > 20) return []
-  return visible.sort((a, b) => a.page - b.page || a.region[1] - b.region[1] || a.region[0] - b.region[0])
+  return visible.sort(compareRecords)
+    .map(({ fromPartEvidence: _part, fromDiagramRegion: _diagram, baselineRegion: _baseline, ...record }) => record)
 }
 
 export function createNativeQuestionImages({ getQuestionBank, libraryRoot, env = {}, pageReader = readVerifiedSourcePage, isReleased = isStudentReleasedAiStudyItem } = {}) {
