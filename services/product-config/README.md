@@ -40,7 +40,7 @@ All three CLI entry points canonicalize both the ESM module URL and `argv[1]` th
 - strong `ETag: "<lowercase SHA-256 of the response bytes>"`
 - `X-Content-Type-Options: nosniff`
 
-`HEAD` returns the same selected-publication headers and no body. `If-None-Match` accepts `*`, an exact tag, or a comma-separated list containing the exact tag; a match returns `304`, `ETag` and `Cache-Control: no-cache` with no body. ETags are channel-publication identities, not user/session identities.
+`HEAD` returns the same selected-publication headers and no body. `If-None-Match` accepts `*` or a valid RFC entity-tag list. GET and HEAD use weak comparison: a proxy-produced `W/"<digest>"` matches the origin strong `"<digest>"`, while opaque-tag bytes remain case-sensitive and the weak marker is the exact uppercase `W/`. Invalid list syntax is treated as not matching and returns the normal `200` representation. A match returns `304`, the origin strong `ETag` and `Cache-Control: no-cache` with no body. ETags are channel-publication identities, not user/session identities.
 
 All configuration strings must already be trimmed and reject C0/C1 controls and unpaired UTF-16 surrogates. Copy URLs require canonical lowercase ASCII DNS hosts and stable bounded decoding. Raw whitespace, encoded controls, separators and traversal are rejected; an encoded ordinary path space such as `%20` is preserved and allowed.
 

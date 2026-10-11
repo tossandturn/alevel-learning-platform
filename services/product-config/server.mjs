@@ -110,9 +110,55 @@ function configQuery(url) {
   return { channel, capability: 1 }
 }
 
+function parseEntityTagList(value) {
+  if (typeof value !== 'string' || value.length < 1 || value.length > 16 * 1024) return null
+  let index = 0
+  const tags = []
+  const skipWhitespace = () => {
+    while (value[index] === ' ' || value[index] === '\t') index += 1
+  }
+  skipWhitespace()
+  if (value[index] === '*') {
+    index += 1
+    skipWhitespace()
+    return index === value.length ? { wildcard: true, tags: [] } : null
+  }
+  while (index < value.length) {
+    skipWhitespace()
+    if (value.startsWith('W/', index)) index += 2
+    if (value[index] !== '"') return null
+    index += 1
+    let opaque = ''
+    let closed = false
+    while (index < value.length) {
+      if (value[index] === '"') {
+        index += 1
+        closed = true
+        break
+      }
+      const codePoint = value.codePointAt(index)
+      if (!(codePoint === 0x21 || (codePoint >= 0x23 && codePoint <= 0x7e) || (codePoint >= 0x80 && codePoint <= 0xff))) return null
+      const character = String.fromCodePoint(codePoint)
+      opaque += character
+      index += character.length
+    }
+    if (!closed) return null
+    tags.push(opaque)
+    skipWhitespace()
+    if (index === value.length) break
+    if (value[index] !== ',') return null
+    index += 1
+    skipWhitespace()
+    if (index === value.length || value[index] === ',') return null
+  }
+  return tags.length ? { wildcard: false, tags } : null
+}
+
 function etagMatches(header, etag) {
-  if (typeof header !== 'string') return false
-  return header.split(',').map((value) => value.trim()).some((value) => value === '*' || value === etag)
+  const requested = parseEntityTagList(header)
+  const current = parseEntityTagList(etag)
+  if (!requested || !current || current.wildcard || current.tags.length !== 1) return false
+  return requested.wildcard || requested.tags.some((opaque) => opaque === current.tags[0])
 }
 
 export function createProductConfigServer({ storeRoot, iconAllowlist }) {

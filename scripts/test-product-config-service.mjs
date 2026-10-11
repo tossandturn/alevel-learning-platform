@@ -732,6 +732,45 @@ try {
     assert.equal(notModified.headers.etag, get.headers.etag)
     assert.equal(notModified.headers['cache-control'], 'no-cache')
 
+    const weakEtag = `W/${get.headers.etag}`
+    assert.equal(get.headers.etag.startsWith('W/'), false, 'the origin response must retain a strong ETag')
+    for (const method of ['GET', 'HEAD']) {
+      const weakRevalidation = await request(server, '/api/product/config?channel=release&capability=1', {
+        method,
+        headers: { 'If-None-Match': weakEtag },
+      })
+      assert.equal(weakRevalidation.status, 304, `${method} must use RFC weak comparison for If-None-Match`)
+      assert.equal(weakRevalidation.body.length, 0)
+      assert.equal(weakRevalidation.headers.etag, get.headers.etag, '304 must return the origin strong ETag')
+    }
+    const weakListRevalidation = await request(server, '/api/product/config?channel=release&capability=1', {
+      headers: { 'If-None-Match': `"un,related", ${weakEtag}, "later"` },
+    })
+    assert.equal(weakListRevalidation.status, 304)
+    const wildcardRevalidation = await request(server, '/api/product/config?channel=release&capability=1', {
+      headers: { 'If-None-Match': '*' },
+    })
+    assert.equal(wildcardRevalidation.status, 304)
+
+    const differentWeak = await request(server, '/api/product/config?channel=release&capability=1', {
+      headers: { 'If-None-Match': 'W/"different"' },
+    })
+    assert.equal(differentWeak.status, 200)
+    const lowercaseWeak = await request(server, '/api/product/config?channel=release&capability=1', {
+      headers: { 'If-None-Match': `w/${get.headers.etag}` },
+    })
+    assert.equal(lowercaseWeak.status, 200, 'the W/ marker is case-sensitive')
+    const uppercaseOpaque = await request(server, '/api/product/config?channel=release&capability=1', {
+      headers: { 'If-None-Match': weakEtag.toUpperCase() },
+    })
+    assert.equal(uppercaseOpaque.status, 200, 'opaque entity tags are case-sensitive')
+    for (const invalidHeader of [`W/${get.headers.etag.slice(0, -1)}`, `${weakEtag}, broken`, 'W/ "invalid"']) {
+      const invalidRevalidation = await request(server, '/api/product/config?channel=release&capability=1', {
+        headers: { 'If-None-Match': invalidHeader },
+      })
+      assert.equal(invalidRevalidation.status, 200, `invalid If-None-Match syntax must not match: ${invalidHeader}`)
+    }
+
     const trialResponse = await request(server, '/api/product/config?channel=trial&capability=1')
     assert.equal(trialResponse.status, 200)
     assert.equal(JSON.parse(trialResponse.body).revision, 'trial-v1')
