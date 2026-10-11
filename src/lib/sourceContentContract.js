@@ -8,6 +8,7 @@ export const STEM_MARKING_MANIFEST_SCHEMA_VERSION = 'stem-marking-manifest.v2'
 export const STEM_SOURCE_REVIEW_SCHEMA_VERSION = 'stem-source-review.v1'
 export const STEM_AI_SOURCE_BINDING_SCHEMA_VERSION = 'stem-ai-source-binding.v1'
 export const STEM_AI_COORDINATE_SOURCE_BINDING_SCHEMA_VERSION = 'stem-ai-coordinate-source-binding.v1'
+export const STEM_AI_PART_EVIDENCE_BINDING_SCHEMA_VERSION = 'stem-ai-part-evidence-binding.v2'
 const SOURCE_PAGE_ASSET = /\/qp-(\d+)\.(?:png|jpe?g|webp)$/i
 const DOCUMENT_PAGE_ASSET = /\/(?:qp|ms)-(\d+)\.(?:png|jpe?g|webp)$/i
 
@@ -78,6 +79,17 @@ export function sourcePartPages(question = {}) {
 function validSha256(value) {
   const checksum = String(value || '').trim().toLowerCase()
   return /^[a-f0-9]{64}$/.test(checksum) ? checksum : ''
+}
+
+export function exactPartEvidenceFieldsMatch(provided = {}, expected = {}) {
+  const exactFields = ['partEvidenceSchemaVersion', 'partLabel', 'markSchemeRegion']
+  if (!expected?.partEvidenceSchemaVersion) {
+    return exactFields.every((key) => !Object.hasOwn(provided || {}, key))
+  }
+  return exactFields.every((key) => (
+    !Object.hasOwn(provided || {}, key)
+    || JSON.stringify(provided[key] ?? null) === JSON.stringify(expected[key] ?? null)
+  ))
 }
 
 function partIdForEvidence(part = {}, fallback = '') {
@@ -359,54 +371,116 @@ function normalizedCoordinateRegion(value) {
   return Object.freeze([x0, y0, x1, y1])
 }
 
-function coordinateSourceEvidence(question = {}, part = {}) {
+function exactCoordinatePartBinding(question = {}, part = {}) {
+  const binding = part?.partEvidenceBinding
+  const partLabel = String(part?.label || '').trim()
+  const questionPage = validPage(binding?.questionPage)
+  const markSchemePage = validPage(binding?.markSchemePage)
+  return binding?.schemaVersion === STEM_AI_PART_EVIDENCE_BINDING_SCHEMA_VERSION
+    && binding?.status === 'exact'
+    && partLabel
+    && binding?.partLabel === partLabel
+    && questionPage
+    && markSchemePage
+    ? Object.freeze({ partLabel, questionPage, markSchemePage })
+    : null
+}
+
+function evidenceHasExactPartLabel(entry, label, role) {
+  return entry?.evidenceRole === role
+    && Array.isArray(entry?.partLabels)
+    && entry.partLabels.length === 1
+    && entry.partLabels[0] === label
+}
+
+function coordinateSourceEvidence(question = {}, part = {}, { requireExactMultipart = false } = {}) {
   const sourceRef = part.sourceRef || question.sourceRef || {}
   const answerRef = part.answerRef || question.answerRef || {}
-  const questionPage = validPage(part.sourcePage ?? sourceRef.page ?? sourceRef.pageStart)
-  const answerPage = validPage(part.answerSourcePage ?? answerRef.page ?? answerRef.pageStart)
-  const sourceEvidence = (Array.isArray(part.sourceEvidence) ? part.sourceEvidence : []).find((entry) => (
+  const exactBinding = exactCoordinatePartBinding(question, part)
+  const multipart = Array.isArray(question?.parts) && question.parts.length > 1
+  if (requireExactMultipart && multipart && !exactBinding) return null
+  const questionPage = exactBinding?.questionPage || validPage(part.sourcePage ?? sourceRef.page ?? sourceRef.pageStart)
+  const answerPage = exactBinding?.markSchemePage || validPage(part.answerSourcePage ?? answerRef.page ?? answerRef.pageStart)
+  const sourceMatches = (Array.isArray(part.sourceEvidence) ? part.sourceEvidence : []).filter((entry) => (
     validPage(entry?.page) === questionPage
     && entry?.coordinateSpace === 'normalized-xyxy'
     && validSha256(entry?.documentSha256) === validSha256(sourceRef.sha256)
     && validSha256(entry?.pageImageSha256)
     && normalizedCoordinateRegion(entry?.region)
+    && (!exactBinding || evidenceHasExactPartLabel(entry, exactBinding.partLabel, 'question-part'))
   ))
-  const markSchemeEvidence = (Array.isArray(part.markSchemeEvidence) ? part.markSchemeEvidence : []).find((entry) => (
+  const markSchemeMatches = (Array.isArray(part.markSchemeEvidence) ? part.markSchemeEvidence : []).filter((entry) => (
     validPage(entry?.page) === answerPage
     && validSha256(entry?.pageImageSha256)
+    && (!entry?.documentSha256 || validSha256(entry.documentSha256) === validSha256(answerRef.sha256))
+    && (!exactBinding || (
+      evidenceHasExactPartLabel(entry, exactBinding.partLabel, 'mark-scheme-part')
+      && entry?.coordinateSpace === 'normalized-xyxy'
+      && normalizedCoordinateRegion(entry?.region)
+    ))
   ))
-  if (!sourceEvidence || !markSchemeEvidence || !questionPage || !answerPage) return null
+  if (!questionPage || !answerPage || !sourceMatches.length || !markSchemeMatches.length
+    || (exactBinding && (sourceMatches.length !== 1 || markSchemeMatches.length !== 1))) return null
+  const sourceEvidence = sourceMatches[0]
+  const markSchemeEvidence = markSchemeMatches[0]
   return Object.freeze({
     questionPage,
     answerPage,
     questionRegion: normalizedCoordinateRegion(sourceEvidence.region),
     questionPageImageSha256: validSha256(sourceEvidence.pageImageSha256),
     markSchemePageImageSha256: validSha256(markSchemeEvidence.pageImageSha256),
+    markSchemeRegion: normalizedCoordinateRegion(markSchemeEvidence.region),
+    exactBinding,
   })
+}
+
+function coordinateProvenanceEvidence(question, part, sourceRef, evidence) {
+  return Object.freeze({
+    assetId: `${sourceRef.paperId}:coordinate-page-${evidence.questionPage}`,
+    page: evidence.questionPage,
+    assetUrl: `${String(sourceRef.localUrl || '').replace(/#.*$/, '')}#page=${evidence.questionPage}`,
+    assetSha256: evidence.questionPageImageSha256,
+    quote: `${String(sourceRef.question || 'Question').trim()}${part.label ? `(${part.label})` : ''}`,
+    coordinateSpace: 'normalized-xyxy',
+    region: evidence.questionRegion,
+    markSchemePage: evidence.answerPage,
+    markSchemePageImageSha256: evidence.markSchemePageImageSha256,
+    ...(evidence.exactBinding ? {
+      partEvidenceSchemaVersion: STEM_AI_PART_EVIDENCE_BINDING_SCHEMA_VERSION,
+      partLabel: evidence.exactBinding.partLabel,
+      markSchemeRegion: evidence.markSchemeRegion,
+    } : {}),
+  })
+}
+
+function hasAiVerifiedCoordinateAuthority(question, part, sourceRef, answerRef, sourceQuestion, questionPartId) {
+  const binding = question.answerBinding || {}
+  return Boolean(
+    binding.verificationStatus === 'ai-verified'
+    && question.sourceContent?.schemaVersion === 'ai-verified-coordinate-source-v1'
+    && question.sourceContent?.semanticStatus === 'ai-verified'
+    && question.questionGroupStatus !== 'quarantined'
+    && binding.questionDocumentSha256 === sourceRef.sha256
+    && binding.answerDocumentSha256 === answerRef.sha256
+    && sourceQuestion
+    && questionPartId
+    && sourceRef.paperId
+    && validSha256(sourceRef.sha256)
+    && validSha256(answerRef.sha256)
+    && Number.isFinite(Number(part.marks))
+    && Number(part.marks) > 0
+  )
 }
 
 export function canonicalAiVerifiedCoordinateMarkingProvenance(question = {}, part = {}) {
   const sourceRef = part.sourceRef || question.sourceRef || {}
   const answerRef = part.answerRef || question.answerRef || {}
-  const binding = question.answerBinding || {}
   const sourceQuestion = sourceQuestionId(question)
   const questionPartId = String(part.questionPartId || part.partId || part.id || '')
-  const evidence = coordinateSourceEvidence(question, part)
+  const evidence = coordinateSourceEvidence(question, part, { requireExactMultipart: true })
   const signature = sourceBindingSignature(question)
   if (
-    binding.verificationStatus !== 'ai-verified'
-    || question.sourceContent?.schemaVersion !== 'ai-verified-coordinate-source-v1'
-    || question.sourceContent?.semanticStatus !== 'ai-verified'
-    || question.questionGroupStatus === 'quarantined'
-    || binding.questionDocumentSha256 !== sourceRef.sha256
-    || binding.answerDocumentSha256 !== answerRef.sha256
-    || !sourceQuestion
-    || !questionPartId
-    || !sourceRef.paperId
-    || !validSha256(sourceRef.sha256)
-    || !validSha256(answerRef.sha256)
-    || !Number.isFinite(Number(part.marks))
-    || Number(part.marks) <= 0
+    !hasAiVerifiedCoordinateAuthority(question, part, sourceRef, answerRef, sourceQuestion, questionPartId)
     || !evidence
   ) return null
 
@@ -421,17 +495,7 @@ export function canonicalAiVerifiedCoordinateMarkingProvenance(question = {}, pa
     answerDocumentSha256: String(answerRef.sha256),
     sourceIndexSha256: SOURCE_INDEX_SHA256,
     sourceManifestChecksum: SOURCE_CONTENT_MANIFEST_CHECKSUM,
-    sourceEvidence: Object.freeze({
-      assetId: `${sourceRef.paperId}:coordinate-page-${evidence.questionPage}`,
-      page: evidence.questionPage,
-      assetUrl: `${String(sourceRef.localUrl || '').replace(/#.*$/, '')}#page=${evidence.questionPage}`,
-      assetSha256: evidence.questionPageImageSha256,
-      quote: `${String(sourceRef.question || 'Question').trim()}${part.label ? `(${part.label})` : ''}`,
-      coordinateSpace: 'normalized-xyxy',
-      region: evidence.questionRegion,
-      markSchemePage: evidence.answerPage,
-      markSchemePageImageSha256: evidence.markSchemePageImageSha256,
-    }),
+    sourceEvidence: coordinateProvenanceEvidence(question, part, sourceRef, evidence),
   })
 }
 
@@ -455,19 +519,20 @@ export function canonicalSourcePracticeProvenance(question = {}, part = {}) {
   const sourceAssetUrl = sourceAssetUrlForPage(sourceRef, questionPage)
   const signature = sourceBindingSignature(question)
   if (!sourceQuestion || !questionPartId || !sourceRef.paperId || !sourceRef.sha256 || !answerRef.sha256 || !questionPage || !sourceAssetUrl) {
-    const coordinate = canonicalAiVerifiedCoordinateMarkingProvenance(question, part)
-    if (!coordinate) return null
+    if (!hasAiVerifiedCoordinateAuthority(question, part, sourceRef, answerRef, sourceQuestion, questionPartId)) return null
+    const evidence = coordinateSourceEvidence(question, part)
+    if (!evidence || !sourceQuestion || !questionPartId || !sourceRef.paperId || !sourceRef.sha256 || !answerRef.sha256) return null
     return Object.freeze({
       schemaVersion: 'stem-source-practice-binding.v1',
-      sourceQuestionId: coordinate.sourceQuestionId,
-      questionPartId: coordinate.questionPartId,
-      bindingSignature: coordinate.bindingSignature,
-      reviewVersion: coordinate.reviewVersion,
-      sourceDocumentSha256: coordinate.sourceDocumentSha256,
-      answerDocumentSha256: coordinate.answerDocumentSha256,
-      sourceIndexSha256: coordinate.sourceIndexSha256,
-      sourceManifestChecksum: coordinate.sourceManifestChecksum,
-      sourceEvidence: coordinate.sourceEvidence,
+      sourceQuestionId: sourceQuestion,
+      questionPartId,
+      bindingSignature: signature,
+      reviewVersion: signature,
+      sourceDocumentSha256: String(sourceRef.sha256),
+      answerDocumentSha256: String(answerRef.sha256),
+      sourceIndexSha256: SOURCE_INDEX_SHA256,
+      sourceManifestChecksum: SOURCE_CONTENT_MANIFEST_CHECKSUM,
+      sourceEvidence: coordinateProvenanceEvidence(question, part, sourceRef, evidence),
     })
   }
 

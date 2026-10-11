@@ -10,6 +10,11 @@ import { CAMBRIDGE_9702_A2_SYLLABUS } from './syllabus/cambridge-9702-a2-2025-20
 import { CAMBRIDGE_9709_AS_P1_S1_TOPICS } from './syllabus/cambridge-9709-as-p1-s1-2026-2027.js'
 import { cambridge9709SyllabusForRoute, cambridge9709TopicsForRoute } from './syllabus/cambridge-9709-2026-2027.js'
 import { attach9700AsCellStructure } from './syllabus/biology-9700-as-cell-structure-bridge.js'
+import { attach9700AsBiologicalMolecules } from './syllabus/biology-9700-as-biological-molecules-bridge.js'
+import { attach9700AsEnzymes } from './syllabus/biology-9700-as-enzymes-bridge.js'
+import { attach9700AsCellMembranes } from './syllabus/biology-9700-as-cell-membranes-bridge.js'
+import { attach9700AsMitoticCellCycle } from './syllabus/biology-9700-as-mitotic-cell-cycle-bridge.js'
+import { attach9700AsNucleicAcids } from './syllabus/biology-9700-as-nucleic-acids-bridge.js'
 import { attach9700AsMammalTransport } from './syllabus/biology-9700-as-mammal-transport-bridge.js'
 import { attach9700AsGasExchange } from './syllabus/biology-9700-as-gas-exchange-bridge.js'
 import { attach9700AsInfectiousDiseases } from './syllabus/biology-9700-as-infectious-diseases-bridge.js'
@@ -98,7 +103,10 @@ function cieRoute({ routeId, qualification, stage, subject, subjectId, code, pap
     routeId,
     attach9700AsInfectiousDiseases(
       routeId,
-      attach9700AsGasExchange(routeId, attach9700AsMammalTransport(routeId, attach9700AsCellStructure(routeId, syllabusTopics))),
+      attach9700AsGasExchange(routeId, attach9700AsMammalTransport(
+        routeId,
+        attach9700AsCellStructure(routeId, attach9700AsBiologicalMolecules(routeId, attach9700AsEnzymes(routeId, attach9700AsCellMembranes(routeId, attach9700AsMitoticCellCycle(routeId, attach9700AsNucleicAcids(routeId, syllabusTopics)))))),
+      )),
     ),
   )
   const assessmentComponents = officialSyllabus?.assessmentComponents?.length
