@@ -14,6 +14,7 @@ const {
   responsePresent,
   evidencePresent,
   aggregateTopicPracticeInventory,
+  practiceSourceMixMetrics,
 } = practicePresentation
 
 const mixedUnit = {
@@ -56,6 +57,14 @@ assert.deepEqual(practiceUnitMetrics(mixedUnit), {
 assert.equal(typeof practiceMetricsSummary, 'function', 'practice metrics must expose one student-facing summary formatter')
 assert.equal(practiceMetricsSummary(mixedUnit), '10 official questions · 19 answer parts · 31 marks')
 assert.equal(recommendedPracticeMinutes(mixedUnit), 45, 'P1 and P2 timing must be accumulated from each component, not a fixed per-question default')
+assert.deepEqual(practiceSourceMixMetrics({ official: 10, originalFoundation: 0 }, { paperCount: 8 }), {
+  pastPaperItems: 10,
+  referencedPapers: 8,
+}, 'the UI must project strict syllabus sourceMix authority fields into visible question/paper counts')
+assert.deepEqual(practiceSourceMixMetrics({ pastPaperItems: 43, referencedPapers: 9 }, { sourceQuestionCount: 12, paperCount: 9 }), {
+  pastPaperItems: 43,
+  referencedPapers: 9,
+}, 'legacy verified-unit sourceMix counts must remain unchanged')
 
 const largerMixedUnit = {
   subjectCode: '9702',

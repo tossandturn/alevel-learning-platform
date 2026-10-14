@@ -120,6 +120,23 @@ export function practiceMetricsSummary(unit = {}) {
   return `${metrics.sourceQuestionCount} ${questionLabel} · ${metrics.answerPartCount} ${partLabel} · ${metrics.totalMarks} ${markLabel}`
 }
 
+function optionalNonNegativeInteger(value) {
+  const number = Number(value)
+  return Number.isInteger(number) && number >= 0 ? number : null
+}
+
+export function practiceSourceMixMetrics(sourceMix = {}, fallback = {}) {
+  const legacyQuestionCount = optionalNonNegativeInteger(sourceMix?.pastPaperItems)
+  const authorityQuestionCount = optionalNonNegativeInteger(sourceMix?.official)
+  const fallbackQuestionCount = optionalNonNegativeInteger(fallback?.sourceQuestionCount)
+  const legacyPaperCount = optionalNonNegativeInteger(sourceMix?.referencedPapers)
+  const fallbackPaperCount = optionalNonNegativeInteger(fallback?.paperCount)
+  return {
+    pastPaperItems: legacyQuestionCount ?? authorityQuestionCount ?? fallbackQuestionCount ?? 0,
+    referencedPapers: legacyPaperCount ?? fallbackPaperCount ?? 0,
+  }
+}
+
 export function recommendedPracticeMinutes(unit = {}) {
   const parts = Array.isArray(unit.parts) ? unit.parts : []
   if (!parts.length) return Math.max(5, Math.ceil(positiveNumber(unit.estimatedMinutes) || 5))

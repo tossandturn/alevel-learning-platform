@@ -5,7 +5,7 @@ import { HandwritingPad } from './HandwritingPad'
 import { SourceRegionRenderer } from './SourceRegionRenderer'
 import { buildSourceRenderManifest } from '../lib/sourceRenderManifest.js'
 import { stripSourceVisualPlaceholders } from '../lib/questionContent.js'
-import { evidencePresent, practiceAttemptMetrics, sourceQuestionDisplayLabel } from '../lib/practicePresentation.js'
+import { evidencePresent, practiceAttemptMetrics, practiceSourceMixMetrics, sourceQuestionDisplayLabel } from '../lib/practicePresentation.js'
 import './QuestionPlayer.css'
 
 const EMPTY_PARTS = Object.freeze([])
@@ -69,11 +69,12 @@ function plural(count, singular, pluralForm = `${singular}s`) {
   return `${count} ${count === 1 ? singular : pluralForm}`
 }
 
-function sourceMixText(sourceMix) {
+function sourceMixText(sourceMix, fallbackMetrics) {
   if (!sourceMix) return ''
+  const counts = practiceSourceMixMetrics(sourceMix, fallbackMetrics)
   return [
-    plural(sourceMix.pastPaperItems || 0, 'past-paper question'),
-    plural(sourceMix.referencedPapers || 0, 'official paper'),
+    plural(counts.pastPaperItems, 'past-paper question'),
+    plural(counts.referencedPapers, 'official paper'),
   ].join(' / ')
 }
 
@@ -364,7 +365,7 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
 
             {unit.sourceMix && (
               <details className="qp-provenance">
-                <summary><FileText size={16} /><span><strong>Source details</strong><small>{sourceMixText(unit.sourceMix)} · paired answers available after submission</small></span></summary>
+                <summary><FileText size={16} /><span><strong>Source details</strong><small>{sourceMixText(unit.sourceMix, { sourceQuestionCount, paperCount })} · paired answers available after submission</small></span></summary>
                 <div className="qp-provenance__body"><strong>{unit.practiceMode === 'study-only' ? 'Official-question study set' : 'Official past-paper practice'}</strong><span>Every question stays linked to its original paper and marking guidance.</span></div>
               </details>
             )}

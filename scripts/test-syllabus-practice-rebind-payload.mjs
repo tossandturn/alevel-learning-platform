@@ -96,10 +96,7 @@ assert.ok(reboundMcq, 'the deterministic Kinematics fixture must include S25/11 
 assert.equal(reboundMcq.answerType, 'multiple-choice', 'rebind must preserve the MCQ response contract')
 assert.equal(reboundMcq.options.length, 4, 'rebind must preserve the four visible choices')
 assert.equal(reboundMcq.answerKey, 'A', 'rebind must preserve the bound deterministic answer')
-assert.equal(rebound.sourceMix.official, generated.sourceMix.official)
-assert.equal(generated.sourceMix.pastPaperItems, generated.sourceMix.official, 'generate must expose the UI source count without changing authority totals')
-assert.equal(generated.sourceMix.referencedPapers, generated.paperCount, 'generate must expose the UI paper count')
-assert.equal(rebound.sourceMix.pastPaperItems, generated.sourceMix.pastPaperItems, 'generate and rebind must retain the same official question count')
-assert.equal(rebound.sourceMix.referencedPapers, generated.sourceMix.referencedPapers, 'generate and rebind must retain the same paper count')
+assert.deepEqual(generated.sourceMix, { official: 10, originalFoundation: 0 }, 'generate must retain the strict source authority contract')
+assert.deepEqual(rebound.sourceMix, generated.sourceMix, 'rebind must retain the exact source authority contract')
 
 console.log(JSON.stringify({ status: 'passed', encodedBytes: encoded.length, parts: payload.parts.length }))
