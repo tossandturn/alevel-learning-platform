@@ -63,6 +63,8 @@ import { topicLearningContent } from './data/topicLearningContent'
 import { SOURCE_LIBRARY_SUMMARY } from './data/sourceLibrarySummary'
 import { aggregateTopicPracticeInventory, evidencePresent, filterQuestionGroupsByPracticeInventory, practiceAttemptMetrics, practiceMetricsSummary, practiceUnitMetrics, topicDisplayNames, topicPracticeInventory, withPracticePresentation } from './lib/practicePresentation'
 import { isStartableTopicPracticeUnit, MIN_QUESTION_GROUPS_PER_TEST, MIN_VERIFIED_GROUPS_FOR_PRACTICE } from './lib/practiceConstants'
+import { createVerifiedPracticeClient } from './lib/verifiedPracticeClient'
+import { MAX_PRACTICE_ACCESS_LEASE_MS, assertPracticeAccessCurrent, createPracticeAccessSnapshot, createProtectedContentLease, practiceDraftFromAttempt, protectedUnitNeedsAccessRefresh, resolveProtectedUnits, resolveStoredPracticeAttemptId } from './lib/practiceAccessLease'
 import './App.css'
 import './StudentV2.css'
 import './TabletNavFix.css'
@@ -83,15 +85,18 @@ const HistoryView = lazy(() =>
   import('./components/HistoryView').then((module) => ({ default: module.HistoryView })),
 )
 const EMPTY_SELF_MARKS = Object.freeze({})
-let practiceRuntimePromise
 let studyQuestionRuntimePromise
 
-function loadPracticeRuntime() {
-  practiceRuntimePromise ||= import('./lib/verifiedPracticeCatalog').catch((error) => {
-    practiceRuntimePromise = undefined
-    throw error
-  })
-  return practiceRuntimePromise
+async function loadPracticeRuntime(token = '') {
+  const client = createVerifiedPracticeClient({ token })
+  const catalog = await client.catalog()
+  return {
+    client,
+    verifiedPracticeQuestionGroups: [],
+    buildVerifiedPracticeCatalog: () => catalog.units,
+    coachPracticeOptions: () => catalog.routes,
+    resolveVerifiedPracticeSelection: (selection) => client.resolveSelection(selection),
+  }
 }
 
 function loadStudyQuestionRuntime() {
@@ -486,10 +491,10 @@ function unitFromSyllabusPracticeSet(payload) {
   })
 }
 
-function rebindPracticeUnit(unit, validatedSyllabusUnits = new Map(), practiceRuntime = null) {
+function rebindPracticeUnit(unit, validatedSyllabusUnits = new Map(), validatedVerifiedUnits = new Map()) {
   return unit?.sourceAuthority === 'server-syllabus'
     ? validatedSyllabusUnits.get(unit.id) || null
-    : practiceRuntime?.rebindVerifiedPracticeUnit(unit) || null
+    : validatedVerifiedUnits.get(unit?.id) || null
 }
 
 function syllabusUnitsFingerprint(units) {
@@ -571,7 +576,10 @@ function App() {
   const [accountDialogMode, setAccountDialogMode] = useState(null)
   const [stateOwnerId, setStateOwnerId] = useState('')
   const [exportState, setExportState] = useState({ status: 'idle', error: '', exportedAt: '', filename: '' })
-  const [syllabusRebindState, setSyllabusRebindState] = useState(() => ({ fingerprint: '', status: 'idle', units: new Map() }))
+  const [syllabusRebindState, setSyllabusRebindState] = useState(() => ({ fingerprint: '', status: 'idle', units: new Map(), error: '' }))
+  const [verifiedRebindState, setVerifiedRebindState] = useState(() => ({ fingerprint: '', status: 'idle', units: new Map(), error: '' }))
+  const [protectedRebindRevision, setProtectedRebindRevision] = useState(0)
+  const [resolvedVerifiedUnits, setResolvedVerifiedUnits] = useState(() => new Map())
   const [practiceRuntimeState, setPracticeRuntimeState] = useState({ status: 'idle', module: null, error: '' })
   const [studyQuestionRuntimeState, setStudyQuestionRuntimeState] = useState({ status: 'idle', module: null, groups: [], routeId: '', error: '' })
   const migrationAttemptedRef = useRef(false)
@@ -580,33 +588,66 @@ function App() {
   const navigationInitializedRef = useRef(false)
   const restoredLocationRef = useRef('')
   const navigationRestorePendingRef = useRef(false)
+  const practiceContentRetryRef = useRef(null)
+  const practiceAccessKey = `${String(sharedAccount.identity?.id || 'guest')}\n${sharedAccount.token}`
+  const practiceAccessKeyRef = useRef(practiceAccessKey)
+  const practiceAccessGenerationRef = useRef(0)
+  const studyQuestionRequestRef = useRef(0)
+  const protectedUnitAccessLeaseRef = useRef(new Map())
+  const capturePracticeAccess = useCallback(
+    (accessKey = practiceAccessKeyRef.current) => createPracticeAccessSnapshot(accessKey, practiceAccessGenerationRef.current),
+    [],
+  )
+  const recordProtectedUnitAccess = useCallback((unitId, access = capturePracticeAccess()) => {
+    const id = String(unitId || '')
+    if (id) protectedUnitAccessLeaseRef.current.set(id, createProtectedContentLease(access))
+  }, [capturePracticeAccess])
+  const needsProtectedUnitRefresh = useCallback((unit) => protectedUnitNeedsAccessRefresh(
+    unit,
+    protectedUnitAccessLeaseRef.current.get(String(unit?.id || '')),
+    capturePracticeAccess(),
+  ), [capturePracticeAccess])
   const ensurePracticeRuntime = useCallback(() => {
+    const requestedAccess = capturePracticeAccess(practiceAccessKey)
     setPracticeRuntimeState((current) => current.module ? current : { ...current, status: 'loading', error: '' })
-    return loadPracticeRuntime()
+    return loadPracticeRuntime(sharedAccount.token)
       .then((module) => {
+        assertPracticeAccessCurrent(requestedAccess, capturePracticeAccess())
         setPracticeRuntimeState({ status: 'ready', module, error: '' })
         return module
       })
       .catch((error) => {
+        assertPracticeAccessCurrent(requestedAccess, capturePracticeAccess())
         setPracticeRuntimeState({ status: 'error', module: null, error: error.message || 'Practice data could not be loaded.' })
         throw error
       })
-  }, [])
+  }, [capturePracticeAccess, practiceAccessKey, sharedAccount.token])
   const ensureStudyQuestionRuntime = useCallback((requestedRouteId = activeRouteId) => {
     const routeId = String(requestedRouteId || activeRouteId || '').trim()
-    const verifiedGroups = practiceRuntimeState.module?.verifiedPracticeQuestionGroups || []
+    const requestedAccess = capturePracticeAccess(practiceAccessKey)
+    const requestId = ++studyQuestionRequestRef.current
+    const current = () => {
+      assertPracticeAccessCurrent(requestedAccess, capturePracticeAccess())
+      if (requestId !== studyQuestionRequestRef.current) throw Object.assign(new Error('A newer source question request replaced this one.'), { code: 'request_superseded' })
+    }
     setStudyQuestionRuntimeState((current) => ({ ...current, status: 'loading', routeId, error: '' }))
     return loadStudyQuestionRuntime()
-      .then((module) => module.loadStudyQuestionGroupsForRoute(routeId, verifiedGroups).then((groups) => ({ module, groups })))
+      .then((module) => module.loadStudyQuestionGroupsForRoute(routeId, [], {
+        token: sharedAccount.token,
+        accessKey: requestedAccess.cacheKey,
+        cacheTtlMs: MAX_PRACTICE_ACCESS_LEASE_MS,
+      }).then((groups) => ({ module, groups })))
       .then(({ module, groups }) => {
+        current()
         setStudyQuestionRuntimeState({ status: 'ready', module: { loadStudyQuestionGroupsForRoute: module.loadStudyQuestionGroupsForRoute }, groups, routeId, error: '' })
         return groups
       })
       .catch((error) => {
+        current()
         setStudyQuestionRuntimeState({ status: 'error', module: null, groups: [], routeId, error: error.message || 'Source question search could not be loaded.' })
         throw error
       })
-  }, [activeRouteId, practiceRuntimeState.module])
+  }, [activeRouteId, capturePracticeAccess, practiceAccessKey, sharedAccount.token])
   const openPastPaperQuestions = useCallback(() => {
     void ensureStudyQuestionRuntime(activeRouteId).catch(() => {})
   }, [activeRouteId, ensureStudyQuestionRuntime])
@@ -615,46 +656,146 @@ function App() {
     setCoachMounted(true)
   }, [coachMounted, initialCoachOpen, view])
   const practiceRuntime = practiceRuntimeState.module
+  const resolveVerifiedUnit = useCallback(async (candidate) => {
+    const requestedAccess = capturePracticeAccess(practiceAccessKey)
+    const unitId = String(candidate?.id || candidate || '')
+    const runtime = practiceRuntime || await ensurePracticeRuntime()
+    assertPracticeAccessCurrent(requestedAccess, capturePracticeAccess())
+    setPracticeRuntimeState((current) => ({ ...current, status: 'loading', error: '' }))
+    try {
+      const unit = candidate && typeof candidate === 'object' && candidate.discoveryOnly !== true
+        ? await runtime.client.rebind(candidate)
+        : await runtime.client.unit(unitId)
+      assertPracticeAccessCurrent(requestedAccess, capturePracticeAccess())
+      recordProtectedUnitAccess(unit.id, requestedAccess)
+      setResolvedVerifiedUnits((current) => new Map(current).set(unit.id, unit))
+      setPracticeRuntimeState((current) => ({ ...current, status: 'ready', error: '' }))
+      return unit
+    } catch (error) {
+      assertPracticeAccessCurrent(requestedAccess, capturePracticeAccess())
+      setPracticeRuntimeState((current) => ({ ...current, status: 'error', error: error.message || 'Protected practice content could not be loaded.' }))
+      throw error
+    }
+  }, [capturePracticeAccess, ensurePracticeRuntime, practiceAccessKey, practiceRuntime, recordProtectedUnitAccess])
+  const resolveSyllabusUnit = useCallback(async (candidate) => {
+    const requestedAccess = capturePracticeAccess(practiceAccessKey)
+    try {
+      const payload = await requestSyllabusPracticeRebind(sharedAccount.token, candidate)
+      assertPracticeAccessCurrent(requestedAccess, capturePracticeAccess())
+      const unit = payload?.unit
+      if (!unit || unit.id !== candidate?.id) throw Object.assign(new Error('The saved syllabus practice response is invalid.'), { code: 'protected_practice_invalid' })
+      recordProtectedUnitAccess(unit.id, requestedAccess)
+      setSyllabusRebindState((current) => ({ ...current, status: 'ready', units: new Map(current.units).set(unit.id, unit), error: '' }))
+      setPracticeRuntimeState((current) => ({ ...current, status: 'ready', error: '' }))
+      return unit
+    } catch (error) {
+      assertPracticeAccessCurrent(requestedAccess, capturePracticeAccess())
+      setPracticeRuntimeState((current) => ({ ...current, status: 'error', error: error.message || 'Protected syllabus practice could not be loaded.' }))
+      throw error
+    }
+  }, [capturePracticeAccess, practiceAccessKey, recordProtectedUnitAccess, sharedAccount.token])
   const verifiedCatalogUnits = useMemo(
-    () => (practiceRuntime?.buildVerifiedPracticeCatalog() || []).filter((unit) => isStartableTopicPracticeUnit(unit)),
-    [practiceRuntime],
+    () => (practiceRuntime?.buildVerifiedPracticeCatalog() || [])
+      .filter((unit) => isStartableTopicPracticeUnit(unit))
+      .map((unit) => resolvedVerifiedUnits.get(unit.id) || unit),
+    [practiceRuntime, resolvedVerifiedUnits],
   )
   const persistedSyllabusUnits = useMemo(() => (
     (appState.generatedUnits || []).filter((unit) => unit?.sourceAuthority === 'server-syllabus')
   ), [appState.generatedUnits])
   const persistedSyllabusFingerprint = useMemo(() => syllabusUnitsFingerprint(persistedSyllabusUnits), [persistedSyllabusUnits])
+  const persistedVerifiedUnits = useMemo(() => (
+    (appState.generatedUnits || []).filter((unit) => unit?.sourceAuthority !== 'server-syllabus'
+      && Array.isArray(unit?.parts) && unit.parts.some((part) => part?.sourceKind === 'past-paper'))
+  ), [appState.generatedUnits])
+  const persistedVerifiedFingerprint = useMemo(() => syllabusUnitsFingerprint(persistedVerifiedUnits), [persistedVerifiedUnits])
 
   useEffect(() => {
     if (!persistedSyllabusUnits.length) {
-      setSyllabusRebindState({ fingerprint: '', status: 'ready', units: new Map() })
+      setSyllabusRebindState({ fingerprint: '', status: 'ready', units: new Map(), error: '' })
       return undefined
     }
+    const requestedAccess = capturePracticeAccess(practiceAccessKey)
     let active = true
-    setSyllabusRebindState((current) => ({ ...current, fingerprint: persistedSyllabusFingerprint, status: 'loading' }))
-    Promise.all(persistedSyllabusUnits.map(async (unit) => {
-      try {
-        const payload = await requestSyllabusPracticeRebind(sharedAccount.token, unit)
-        return payload?.unit ? [unit.id, payload.unit] : null
-      } catch {
-        return null
+    const currentAccess = () => {
+      if (!active) throw Object.assign(new Error('Protected syllabus recovery was superseded.'), { code: 'request_superseded' })
+      return capturePracticeAccess()
+    }
+    setSyllabusRebindState((current) => ({ ...current, fingerprint: persistedSyllabusFingerprint, status: 'loading', error: '' }))
+    resolveProtectedUnits(
+      persistedSyllabusUnits,
+      async (unit) => (await requestSyllabusPracticeRebind(sharedAccount.token, unit))?.unit,
+      { expectedAccess: requestedAccess, currentAccess },
+    ).then((units) => {
+      assertPracticeAccessCurrent(requestedAccess, currentAccess())
+      for (const id of units.keys()) recordProtectedUnitAccess(id, requestedAccess)
+      setSyllabusRebindState({ fingerprint: persistedSyllabusFingerprint, status: 'ready', units, error: '' })
+    }).catch((error) => {
+      if (!active || error?.code === 'account_changed' || error?.code === 'request_superseded') return
+      const message = error?.message || 'Saved protected syllabus practice could not be revalidated.'
+      const retry = () => {
+        if (practiceContentRetryRef.current === retry) practiceContentRetryRef.current = null
+        navigationRestorePendingRef.current = true
+        setProtectedRebindRevision((current) => current + 1)
       }
-    }))
-      .then((entries) => {
-        if (active) {
-          setSyllabusRebindState({
-            fingerprint: persistedSyllabusFingerprint,
-            status: 'ready',
-            units: new Map(entries.filter(Boolean)),
-          })
-        }
-      })
+      practiceContentRetryRef.current = retry
+      setSyllabusRebindState({ fingerprint: persistedSyllabusFingerprint, status: 'error', units: new Map(), error: message })
+      setPracticeRuntimeState((current) => ({ ...current, status: 'error', error: message }))
+    })
     return () => { active = false }
-  }, [persistedSyllabusFingerprint, persistedSyllabusUnits, sharedAccount.token])
+  }, [capturePracticeAccess, persistedSyllabusFingerprint, persistedSyllabusUnits, practiceAccessKey, protectedRebindRevision, recordProtectedUnitAccess, sharedAccount.token])
+
+  useEffect(() => {
+    if (!persistedVerifiedUnits.length) {
+      setVerifiedRebindState({ fingerprint: persistedVerifiedFingerprint, status: 'ready', units: new Map(), error: '' })
+      return undefined
+    }
+    if (!practiceRuntime) {
+      setVerifiedRebindState({ fingerprint: persistedVerifiedFingerprint, status: 'idle', units: new Map(), error: '' })
+      return undefined
+    }
+    const requestedAccess = capturePracticeAccess(practiceAccessKey)
+    let active = true
+    const currentAccess = () => {
+      if (!active) throw Object.assign(new Error('Protected practice recovery was superseded.'), { code: 'request_superseded' })
+      return capturePracticeAccess()
+    }
+    setVerifiedRebindState((current) => ({ ...current, fingerprint: persistedVerifiedFingerprint, status: 'loading', error: '' }))
+    setPracticeRuntimeState((current) => ({ ...current, status: 'loading', error: '' }))
+    resolveProtectedUnits(
+      persistedVerifiedUnits,
+      (unit) => practiceRuntime.client.rebind(unit),
+      { expectedAccess: requestedAccess, currentAccess },
+    ).then((units) => {
+      assertPracticeAccessCurrent(requestedAccess, currentAccess())
+      for (const id of units.keys()) recordProtectedUnitAccess(id, requestedAccess)
+      setResolvedVerifiedUnits((current) => {
+        const next = new Map(current)
+        for (const [id, unit] of units) next.set(id, unit)
+        return next
+      })
+      setVerifiedRebindState({ fingerprint: persistedVerifiedFingerprint, status: 'ready', units, error: '' })
+      setPracticeRuntimeState((current) => ({ ...current, status: 'ready', error: '' }))
+      practiceContentRetryRef.current = null
+    }).catch((error) => {
+      if (!active || error?.code === 'account_changed' || error?.code === 'request_superseded') return
+      const message = error?.message || 'Saved protected practice content could not be revalidated.'
+      const retry = () => {
+        if (practiceContentRetryRef.current === retry) practiceContentRetryRef.current = null
+        navigationRestorePendingRef.current = true
+        setProtectedRebindRevision((current) => current + 1)
+      }
+      practiceContentRetryRef.current = retry
+      setVerifiedRebindState({ fingerprint: persistedVerifiedFingerprint, status: 'error', units: new Map(), error: message })
+      setPracticeRuntimeState((current) => ({ ...current, status: 'error', module: current.module || practiceRuntime, error: message }))
+    })
+    return () => { active = false }
+  }, [capturePracticeAccess, persistedVerifiedFingerprint, persistedVerifiedUnits, practiceAccessKey, practiceRuntime, protectedRebindRevision, recordProtectedUnitAccess])
 
   const visibleVerifiedUnits = useMemo(() => {
     const persisted = (appState.generatedUnits || [])
       .filter((unit) => unit.agentGenerated || unit.focusedRetestOf || unit.sourceAuthority === 'server-syllabus')
-      .map((unit) => rebindPracticeUnit(unit, syllabusRebindState.units, practiceRuntime))
+      .map((unit) => rebindPracticeUnit(unit, syllabusRebindState.units, resolvedVerifiedUnits))
       .filter(Boolean)
     const labelled = [...persisted, ...verifiedCatalogUnits.filter((catalogUnit) => !persisted.some((unit) => unit.id === catalogUnit.id))]
     return labelled.map((unit) => {
@@ -663,7 +804,7 @@ function App() {
         ? { ...unit, title: `${route.stage} ${route.subject} · ${unit.topic || unit.title}` }
         : unit
     })
-  }, [appState.generatedUnits, practiceRuntime, syllabusRebindState.units, verifiedCatalogUnits])
+  }, [appState.generatedUnits, resolvedVerifiedUnits, syllabusRebindState.units, verifiedCatalogUnits])
   const allPracticeUnits = visibleVerifiedUnits
   const routePracticeUnits = useMemo(() => allPracticeUnits.filter((unit) => unit.routeId === activeRouteId), [activeRouteId, allPracticeUnits])
   const routeAttempts = useMemo(() => appState.attempts.filter((attempt) => attempt.routeId === activeRouteId), [activeRouteId, appState.attempts])
@@ -680,6 +821,21 @@ function App() {
   const syllabusInventory = useSyllabusInventory(activeRouteId, {
     enabled: supportsSyllabusPracticeRoute(activeRouteId),
   })
+
+  useLayoutEffect(() => {
+    if (practiceAccessKeyRef.current === practiceAccessKey) return
+    practiceAccessKeyRef.current = practiceAccessKey
+    practiceAccessGenerationRef.current += 1
+    studyQuestionRequestRef.current += 1
+    protectedUnitAccessLeaseRef.current.clear()
+    navigationRestorePendingRef.current = false
+    practiceContentRetryRef.current = null
+    setPracticeRuntimeState({ status: 'idle', module: null, error: '' })
+    setResolvedVerifiedUnits(new Map())
+    setSyllabusRebindState({ fingerprint: '', status: 'idle', units: new Map(), error: '' })
+    setVerifiedRebindState({ fingerprint: '', status: 'idle', units: new Map(), error: '' })
+    setStudyQuestionRuntimeState({ status: 'idle', module: null, groups: [], routeId: '', error: '' })
+  }, [practiceAccessKey])
   const syllabusPracticeFallbackOptions = useMemo(() => {
     if (!supportsSyllabusPracticeRoute(activeRouteId) || aiPracticeOptions.length) return []
     const topics = syllabusInventory.data?.topics?.length
@@ -950,17 +1106,7 @@ function App() {
             ...state,
             drafts: {
               ...state.drafts,
-              [attempt.unitId]: {
-                routeId: next.routeId,
-                stage: next.stage,
-                answers: next.answers,
-                working: next.working,
-                evidence: next.evidence,
-                elapsedSec: next.elapsedSec,
-                activePartId: next.activePartId,
-                settings: next.settings,
-                updatedAt: new Date().toISOString(),
-              },
+              [attempt.unitId]: practiceDraftFromAttempt(next),
             },
           }))
         }
@@ -1195,12 +1341,28 @@ function App() {
 
   function startPractice(unit, options = {}) {
     const hasSourceParts = Array.isArray(unit?.parts) && unit.parts.some((part) => part?.sourceKind === 'past-paper')
+    const requiresProtectedValidation = unit?.discoveryOnly === true
+      || (hasSourceParts && ['server-syllabus', 'server-verified'].includes(unit?.sourceAuthority) && options.sourceValidated !== true)
+    if (requiresProtectedValidation) {
+      const retry = () => startPractice(unit, options)
+      practiceContentRetryRef.current = retry
+      const resolution = unit?.sourceAuthority === 'server-syllabus'
+        ? resolveSyllabusUnit(unit)
+        : resolveVerifiedUnit(unit)
+      void resolution
+        .then((resolved) => {
+          if (practiceContentRetryRef.current === retry) practiceContentRetryRef.current = null
+          startPractice(resolved, { ...options, sourceValidated: true })
+        })
+        .catch(() => {})
+      return
+    }
     const sourceValidatedUnit = options.sourceValidated === true
-      && unit?.sourceAuthority === 'server-syllabus'
+      && ['server-syllabus', 'server-verified'].includes(unit?.sourceAuthority)
       && unit?.sourceGateStatus === 'current'
       ? unit
       : null
-    const currentBoundUnit = hasSourceParts ? sourceValidatedUnit || rebindPracticeUnit(unit, syllabusRebindState.units, practiceRuntime) : unit
+    const currentBoundUnit = hasSourceParts ? sourceValidatedUnit || rebindPracticeUnit(unit, syllabusRebindState.units, resolvedVerifiedUnits) : unit
     if (!currentBoundUnit || !routeById(currentBoundUnit.routeId)) {
       throw new Error('This saved question set is no longer source-complete and cannot be resumed or marked.')
     }
@@ -1272,19 +1434,7 @@ function App() {
       ...state,
       drafts: {
         ...state.drafts,
-        [sessionUnit.id]: {
-          attemptId: openedAttempt.id,
-          startedAt: openedAttempt.startedAt,
-          routeId: openedAttempt.routeId,
-          stage: openedAttempt.stage,
-          answers: openedAttempt.answers,
-          working: openedAttempt.working,
-          evidence: openedAttempt.evidence,
-          elapsedSec: openedAttempt.elapsedSec,
-          activePartId: openedAttempt.activePartId,
-          settings: openedAttempt.settings,
-          updatedAt: new Date().toISOString(),
-        },
+        [sessionUnit.id]: practiceDraftFromAttempt(openedAttempt),
       },
     }))
     setCurrentAttempt(openedAttempt)
@@ -1315,12 +1465,16 @@ function App() {
 
   async function generateCoachPractice(selection) {
     if (!selection) throw new Error('Choose a valid learning route before building practice.')
+    const requestedAccess = capturePracticeAccess(practiceAccessKey)
     const runtime = await ensurePracticeRuntime()
-    const unit = runtime.buildCoachPractice({
+    assertPracticeAccessCurrent(requestedAccess, capturePracticeAccess())
+    const unit = await runtime.client.generate({
       ...selection,
-      agentGenerated: true,
       allowPartial: false,
     })
+    assertPracticeAccessCurrent(requestedAccess, capturePracticeAccess())
+    recordProtectedUnitAccess(unit.id, requestedAccess)
+    setResolvedVerifiedUnits((current) => new Map(current).set(unit.id, unit))
     setAppState((state) => ({
       ...state,
       generatedUnits: [unit, ...(state.generatedUnits || [])].slice(0, 24),
@@ -1328,6 +1482,7 @@ function App() {
     startPractice(unit, {
       confirmed: true,
       clearDraft: true,
+      sourceValidated: true,
       settings: { mode: 'guided', timing: 'recommended', hints: true },
     })
     return unit
@@ -1335,6 +1490,7 @@ function App() {
 
   async function generateSyllabusPractice(selection) {
     if (!supportsSyllabusPracticeRoute(selection?.routeId)) return generateCoachPractice(selection)
+    const requestedAccess = capturePracticeAccess(practiceAccessKey)
     const syllabusTopicIds = (selection.syllabusTopicIds || [selection.knowledgeGroupId])
       .flatMap((topicId) => syllabusTopicScopeIdsForRoute(selection.routeId, topicId))
       .filter(Boolean)
@@ -1351,8 +1507,10 @@ function App() {
       attemptedQuestionIds: attemptedSourceQuestionIds(appState.attempts, selection.routeId),
       seed: Date.now(),
     })
+    assertPracticeAccessCurrent(requestedAccess, capturePracticeAccess())
     if (!response?.questionGroups?.length) throw new Error('The selected syllabus topics have no official practice questions yet.')
     const unit = { ...unitFromSyllabusPracticeSet(response), sourceGateStatus: 'current' }
+    recordProtectedUnitAccess(unit.id, requestedAccess)
     setSyllabusRebindState((current) => ({
       ...current,
       units: new Map(current.units).set(unit.id, unit),
@@ -1517,19 +1675,7 @@ function App() {
         ...state,
         drafts: {
           ...state.drafts,
-          [attempt.unitId]: {
-            attemptId: next.id,
-            startedAt: next.startedAt,
-            routeId: next.routeId,
-            stage: next.stage,
-            answers: next.answers,
-            working: next.working,
-            evidence: next.evidence,
-            elapsedSec: next.elapsedSec,
-            activePartId: next.activePartId,
-            settings: next.settings,
-            updatedAt: new Date().toISOString(),
-          },
+          [attempt.unitId]: practiceDraftFromAttempt(next),
         },
       }))
       return next
@@ -1547,19 +1693,7 @@ function App() {
         ...state,
         drafts: {
           ...state.drafts,
-          [attempt.unitId]: {
-            attemptId: next.id,
-            startedAt: next.startedAt,
-            routeId: next.routeId,
-            stage: next.stage,
-            answers: next.answers,
-            working: next.working,
-            evidence: next.evidence,
-            elapsedSec: next.elapsedSec,
-            activePartId: next.activePartId,
-            settings: next.settings,
-            updatedAt: new Date().toISOString(),
-          },
+          [attempt.unitId]: practiceDraftFromAttempt(next),
         },
       }))
       return next
@@ -1573,19 +1707,7 @@ function App() {
         ...state,
         drafts: {
           ...state.drafts,
-          [attempt.unitId]: {
-            attemptId: next.id,
-            startedAt: next.startedAt,
-            routeId: next.routeId,
-            stage: next.stage,
-            answers: next.answers,
-            working: next.working,
-            evidence: next.evidence,
-            elapsedSec: next.elapsedSec,
-            activePartId: partId,
-            settings: next.settings,
-            updatedAt: new Date().toISOString(),
-          },
+          [attempt.unitId]: practiceDraftFromAttempt(next),
         },
       }))
       return next
@@ -1926,7 +2048,7 @@ function App() {
     if (resolvedRoute && resolvedRoute.routeId !== activeRouteId) selectRoute(resolvedRoute.routeId)
     if (navigation.view === 'library') setActiveTab(navigation.tab)
     if (navigation.topicId) setSelectedTopicId(navigation.topicId)
-    if (['practice', 'result'].includes(navigation.view) && practiceRuntimeState.status !== 'ready') {
+    if (['practice', 'result'].includes(navigation.view) && ['idle', 'loading'].includes(practiceRuntimeState.status)) {
       navigationRestorePendingRef.current = true
       void ensurePracticeRuntime().catch(() => {})
       return
@@ -1936,19 +2058,35 @@ function App() {
       ? appState.attempts.find((item) => item.id === navigation.attemptId)
       : null
     const referencedUnitId = navigation.unitId || referencedAttempt?.unitId
+    const referencedUnit = referencedUnitId ? allPracticeUnits.find((unit) => unit.id === referencedUnitId) : null
+    if (referencedUnit?.discoveryOnly === true) {
+      if (practiceRuntimeState.status === 'loading') {
+        navigationRestorePendingRef.current = true
+        return
+      }
+      navigationRestorePendingRef.current = true
+      const retry = () => {
+        navigationRestorePendingRef.current = true
+        void resolveVerifiedUnit(referencedUnit.id).catch(() => {})
+      }
+      practiceContentRetryRef.current = retry
+      void resolveVerifiedUnit(referencedUnit.id).then(() => {
+        if (practiceContentRetryRef.current === retry) practiceContentRetryRef.current = null
+      }).catch(() => {
+        navigationRestorePendingRef.current = false
+        setCurrentAttempt(null)
+        setResultAttempt(null)
+        setView(navigation.view === 'result' ? 'history' : 'library')
+      })
+      return
+    }
     const waitsForSyllabusRebind = referencedUnitId
       && !syllabusRebindState.units.has(referencedUnitId)
       && syllabusRebindState.status !== 'ready'
       && (appState.generatedUnits || []).some((unit) => unit.id === referencedUnitId && unit.sourceAuthority === 'server-syllabus')
     if (waitsForSyllabusRebind) {
-      navigationRestorePendingRef.current = true
-      return
-    }
-
-    if (navigation.view === 'practice') {
-      const unit = allPracticeUnits.find((item) => item.id === navigation.unitId)
-      const draft = unit ? appState.drafts?.[unit.id] : null
-      if (!unit || !draft || (navigation.attemptId && draft.attemptId !== navigation.attemptId)) {
+      if (syllabusRebindState.status === 'error') {
+        navigationRestorePendingRef.current = false
         setCurrentAttempt(null)
         setResultAttempt(null)
         setActivePaper(null)
@@ -1956,14 +2094,86 @@ function App() {
         setView('library')
         return
       }
-      const currentBoundUnit = unit.parts?.some((part) => part.sourceKind === 'past-paper') ? rebindPracticeUnit(unit, syllabusRebindState.units, practiceRuntime) : unit
+      navigationRestorePendingRef.current = true
+      return
+    }
+    const waitsForVerifiedRebind = referencedUnitId
+      && !resolvedVerifiedUnits.has(referencedUnitId)
+      && verifiedRebindState.status !== 'ready'
+      && (appState.generatedUnits || []).some((unit) => unit.id === referencedUnitId && unit.sourceAuthority !== 'server-syllabus')
+    if (waitsForVerifiedRebind) {
+      if (verifiedRebindState.status === 'error') {
+        navigationRestorePendingRef.current = false
+        setCurrentAttempt(null)
+        setResultAttempt(null)
+        setActivePaper(null)
+        setActiveTab('topics')
+        setView('library')
+        return
+      }
+      navigationRestorePendingRef.current = true
+      return
+    }
+
+    if (navigation.view === 'practice') {
+      const unit = allPracticeUnits.find((item) => item.id === navigation.unitId)
+      const draft = unit ? appState.drafts?.[unit.id] : null
+      if (!unit || !draft) {
+        setPracticeRuntimeState((current) => ({ ...current, status: 'error', error: unit ? 'The saved practice draft is unavailable. Your other work was not changed.' : 'The saved protected practice set is unavailable. Your draft was not deleted.' }))
+        setCurrentAttempt(null)
+        setResultAttempt(null)
+        setActivePaper(null)
+        setActiveTab('topics')
+        setView('library')
+        return
+      }
+      const currentBoundUnit = unit.parts?.some((part) => part.sourceKind === 'past-paper') ? rebindPracticeUnit(unit, syllabusRebindState.units, resolvedVerifiedUnits) : unit
       if (!currentBoundUnit) {
         setCurrentAttempt(null)
         setView('library')
         return
       }
+      if (needsProtectedUnitRefresh(currentBoundUnit)) {
+        const retry = () => {
+          navigationRestorePendingRef.current = true
+          const resolution = currentBoundUnit.sourceAuthority === 'server-syllabus'
+            ? resolveSyllabusUnit(currentBoundUnit)
+            : resolveVerifiedUnit(currentBoundUnit)
+          void resolution.then(() => {
+            if (practiceContentRetryRef.current === retry) practiceContentRetryRef.current = null
+          }).catch((error) => {
+            if (error?.code === 'account_changed' || error?.code === 'request_superseded') return
+            navigationRestorePendingRef.current = false
+            setCurrentAttempt(null)
+            setResultAttempt(null)
+            setActivePaper(null)
+            setActiveTab('topics')
+            setView('library')
+          })
+        }
+        practiceContentRetryRef.current = retry
+        retry()
+        return
+      }
+      let restoredAttemptId
+      try {
+        const knownBindings = [
+          ...(appState.attempts || []).map((attempt) => ({ attemptId: attempt.id, unitId: attempt.unitId })),
+          ...Object.entries(appState.drafts || {}).filter(([, value]) => value?.attemptId).map(([unitId, value]) => ({ attemptId: value.attemptId, unitId })),
+          ...(appState.recentPractice || []).filter((value) => value?.attemptId).map((value) => ({ attemptId: value.attemptId, unitId: value.unitId })),
+        ]
+        restoredAttemptId = resolveStoredPracticeAttemptId({ draft, navigationAttemptId: navigation.attemptId, unit: currentBoundUnit, knownBindings })
+      } catch (error) {
+        setPracticeRuntimeState((current) => ({ ...current, status: 'error', error: error.message || 'The saved practice attempt binding could not be verified.' }))
+        setCurrentAttempt(null)
+        setResultAttempt(null)
+        setActivePaper(null)
+        setActiveTab('topics')
+        setView('library')
+        return
+      }
       const restoredAttempt = {
-        id: draft.attemptId,
+        id: restoredAttemptId,
         unitId: currentBoundUnit.id,
         routeId: currentBoundUnit.routeId,
         qualification: currentBoundUnit.qualification,
@@ -1984,6 +2194,10 @@ function App() {
         retestOf: null,
         sourceBinding: sourceBindingSnapshotForUnit(currentBoundUnit),
         settings: draft.settings || { mode: currentBoundUnit.type === 'paper' ? 'exam' : 'practice', timing: 'recommended', hints: true },
+      }
+      if (draft.attemptId !== restoredAttemptId || !draft.startedAt) {
+        const repairedDraft = practiceDraftFromAttempt(restoredAttempt, { updatedAt: draft.updatedAt || new Date().toISOString() })
+        setAppState((state) => ({ ...state, drafts: { ...state.drafts, [currentBoundUnit.id]: repairedDraft } }))
       }
       setCurrentAttempt(restoredAttempt)
       setResultAttempt(null)
@@ -2034,7 +2248,7 @@ function App() {
     setResultAttempt(null)
     setActivePaper(null)
     setView(navigation.view)
-  }, [activeRoute, activeRouteId, allPracticeUnits, appState.attempts, appState.drafts, appState.generatedUnits, appState.paperDrafts, ensurePracticeRuntime, paperCatalogState.catalog, paperCatalogState.status, practiceRuntime, practiceRuntimeState.status, syllabusRebindState.status, syllabusRebindState.units])
+  }, [activeRoute, activeRouteId, allPracticeUnits, appState.attempts, appState.drafts, appState.generatedUnits, appState.paperDrafts, appState.recentPractice, ensurePracticeRuntime, needsProtectedUnitRefresh, paperCatalogState.catalog, paperCatalogState.status, practiceRuntimeState.status, resolveSyllabusUnit, resolveVerifiedUnit, resolvedVerifiedUnits, syllabusRebindState.status, syllabusRebindState.units, verifiedRebindState.status])
 
   useEffect(() => {
     const restoreLocation = () => {
@@ -2147,7 +2361,8 @@ function App() {
   return (
     <main className={`app-shell app-shell--${view}`}>
       {view !== 'practice' && view !== 'paper' && <TopNav view={view} activeTab={activeTab} activeRoute={activeRoute} setView={setView} profile={appState.profile} sharedAccount={sharedAccount} onDisconnectSharedAccount={disconnectSharedAccount} onOpenAccount={setAccountDialogMode} onAccountPopoverChange={setAccountPopoverOpen} openNotebook={() => setView('notebook')} openPractice={() => { setActiveTab('recommended'); setView('library') }} openPapers={() => { setActiveTab('papers'); setView('library') }} />}
-      {practiceRuntimeState.status === 'error' && view !== 'paper' && view !== 'practice' && <div className="inventory-alert" role="alert"><AlertTriangle size={18} /><span>{practiceRuntimeState.error}</span><button type="button" className="text-action" onClick={() => void ensurePracticeRuntime().catch(() => {})}>Retry</button></div>}
+      {practiceRuntimeState.status === 'loading' && view !== 'paper' && view !== 'practice' && <div className="inventory-alert" role="status"><span>Loading protected practice content...</span></div>}
+      {practiceRuntimeState.status === 'error' && view !== 'paper' && view !== 'practice' && <div className="inventory-alert" role="alert"><AlertTriangle size={18} /><span>{practiceRuntimeState.error}</span><button type="button" className="text-action" onClick={() => practiceContentRetryRef.current ? practiceContentRetryRef.current() : void ensurePracticeRuntime().catch(() => {})}>Retry</button></div>}
 
       {view === 'dashboard' && (
         <StudentDashboard
@@ -2249,7 +2464,7 @@ function App() {
           studyQuestionRuntimeStatus={studyQuestionRuntimeState.status}
           studyQuestionRuntimeError={studyQuestionRuntimeState.error}
           onOpenPastPaperQuestions={openPastPaperQuestions}
-          verifiedQuestionGroups={practiceRuntime?.verifiedPracticeQuestionGroups || []}
+          verifiedQuestionGroups={studyQuestionRuntimeState.routeId === activeRouteId ? studyQuestionRuntimeState.groups : []}
           completionByUnit={completionByUnit}
           learningProgress={learningProgress}
           mistakes={mistakes}

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import {
   createMembershipAccessController,
+  classifyMembershipProtectedAsset,
   membershipFeatureForAiRequest,
   membershipFeatureForProtectedAsset,
   membershipFeatureForRequest,
@@ -88,6 +89,19 @@ await assert.rejects(() => shortExpiryController.requireFeature(user), (error) =
 assert.equal(shortCalls, 2, 'positive cache must never outlive the actual entitlement expiry')
 
 assert.equal(membershipFeatureForRequest('GET', '/api/stem/paper-catalog'), null)
+assert.equal(membershipFeatureForRequest('GET', '/api/stem/verified-practice/catalog'), null)
+assert.equal(membershipFeatureForRequest('GET', '/api/stem/verified-practice/units/example'), 'stem.all-access')
+assert.equal(membershipFeatureForRequest('POST', '/api/stem/verified-practice/generate'), 'stem.all-access')
+assert.equal(membershipFeatureForRequest('GET', '/api/stem/study-question-index/cie-9702-as-physics'), 'stem.all-access')
+assert.equal(membershipFeatureForRequest('GET', '/api/stem/curriculum-practice/catalog'), null)
+assert.equal(membershipFeatureForRequest('GET', '/api/stem/curriculum-practice/catalog/extra'), 'stem.all-access')
+assert.equal(membershipFeatureForRequest('GET', '/api/stem/curriculum-practice/history'), null)
+assert.equal(membershipFeatureForRequest('POST', '/api/stem/curriculum-practice/history'), 'stem.all-access')
+assert.equal(membershipFeatureForRequest('GET', '/api/stem/curriculum-practice/sessions/cps_12345678'), null)
+assert.equal(membershipFeatureForRequest('GET', '/api/stem/curriculum-practice/sessions/cps_12345678/submit'), 'stem.all-access')
+assert.equal(membershipFeatureForRequest('GET', '/api/stem/curriculum-practice/questions/q1'), 'stem.all-access')
+assert.equal(membershipFeatureForRequest('HEAD', '/api/stem/curriculum-practice/source/q/a/hash.png'), 'stem.all-access')
+assert.equal(membershipFeatureForRequest('POST', '/api/stem/curriculum-practice/sessions'), 'stem.all-access')
 assert.equal(membershipFeatureForRequest('GET', '/api/stem/routes/cie-9702-as-physics/syllabus-topics'), null)
 assert.equal(membershipFeatureForRequest('GET', '/api/stem/announcements'), null)
 assert.equal(membershipFeatureForRequest('GET', '/api/stem/profile'), null)
@@ -109,10 +123,16 @@ assert.equal(membershipFeatureForAiRequest('GET', '/api/ai/tavern/conversations/
 assert.equal(membershipFeatureForAiRequest('DELETE', '/api/ai/tavern/conversations/id'), null)
 assert.equal(membershipFeatureForAiRequest('POST', '/api/ai/tavern/conversations/resume'), 'stem.all-access')
 assert.equal(membershipFeatureForProtectedAsset('/data/study-question-index/cie-9702-as-physics.json'), 'stem.all-access')
+assert.equal(membershipFeatureForProtectedAsset('/data/study-question-index/manifest.json'), null)
 assert.equal(membershipFeatureForProtectedAsset('/question-assets/cie/diagram.png'), 'stem.all-access')
 assert.equal(membershipFeatureForProtectedAsset('/local-pdf/9702/paper.pdf'), 'stem.all-access')
 assert.equal(membershipFeatureForProtectedAsset('/%71uestion-assets/cie/diagram.png'), 'stem.all-access')
 assert.equal(membershipFeatureForProtectedAsset('/LOCAL-PDF/9702/paper.pdf'), 'stem.all-access')
+assert.deepEqual(classifyMembershipProtectedAsset('/%71uestion-assets/cie/diagram.png'), { feature: 'stem.all-access', invalid: false })
+assert.deepEqual(classifyMembershipProtectedAsset('/%2571uestion-assets/cie/diagram.png'), { feature: null, invalid: true })
+assert.deepEqual(classifyMembershipProtectedAsset('/question-assets/%252e%252e/private.png'), { feature: null, invalid: true })
+assert.deepEqual(classifyMembershipProtectedAsset('/question-assets%255cprivate.png'), { feature: null, invalid: true })
+assert.deepEqual(classifyMembershipProtectedAsset('/data/product-config.json'), { feature: null, invalid: false })
 assert.equal(membershipFeatureForProtectedAsset('/data/product-config.json'), null)
 assert.equal(membershipProtectedCacheControl(true, 'public, max-age=31536000, immutable'), 'private, no-store')
 assert.equal(membershipProtectedCacheControl(false, 'public, max-age=31536000, immutable'), 'public, max-age=31536000, immutable')

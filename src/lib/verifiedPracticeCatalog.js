@@ -1,4 +1,6 @@
-import catalog from '../data/verifiedPracticeCatalog.json' with { type: 'json' }
+import crypto from 'node:crypto'
+import fs from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { subjects } from '../data/catalog.js'
 import { learningPlan } from '../data/learningPlan.js'
 import { courseRoutes, routeById, routesForSubject } from '../data/routeRegistry.js'
@@ -11,6 +13,12 @@ import { stableSorted } from './arrayOrder.js'
 import { questionBelongsToTopic, questionTopicMembershipIds } from './questionTopicMembership.js'
 
 export { MIN_VERIFIED_GROUPS_FOR_PRACTICE }
+
+const CATALOG_FILE = fileURLToPath(new URL('../data/verifiedPracticeCatalog.json', import.meta.url))
+let catalog = null
+let catalogSourceIdentity = ''
+let catalogSourceRevision = ''
+export let verifiedPracticeQuestionGroups = Object.freeze([])
 
 const EXTERNAL_GROUPS = Object.freeze({
   bpho: [
@@ -71,14 +79,46 @@ function currentQuestionGroup(raw) {
   return Object.freeze({ ...raw, parts, sourceContent })
 }
 
-const catalogIsCurrent = catalog?.schemaVersion === 'verified-practice-catalog-v1'
-  && catalog?.sourceIndexSha256 === SOURCE_INDEX_SHA256
-  && catalog?.sourceContentManifestChecksum === SOURCE_CONTENT_MANIFEST_CHECKSUM
-const currentGroups = catalogIsCurrent
-  ? catalog.groups.map(currentQuestionGroup).filter(Boolean)
-  : []
+function fileIdentity(stat) {
+  return `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeMs}`
+}
 
-export const verifiedPracticeQuestionGroups = Object.freeze(currentGroups)
+function stableCatalogBytes() {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const before = fs.lstatSync(CATALOG_FILE)
+    if (before.isSymbolicLink() || !before.isFile() || before.size <= 0 || before.size > 16 * 1024 * 1024) throw new Error('The verified practice catalog file is unavailable.')
+    const bytes = fs.readFileSync(CATALOG_FILE)
+    const after = fs.lstatSync(CATALOG_FILE)
+    if (after.isSymbolicLink() || !after.isFile()) throw new Error('The verified practice catalog file is unavailable.')
+    if (fileIdentity(before) === fileIdentity(after) && bytes.length === after.size) return { bytes, identity: fileIdentity(after) }
+  }
+  throw new Error('The verified practice catalog changed while it was being read.')
+}
+
+export function refreshVerifiedPracticeCatalog() {
+  const stat = fs.lstatSync(CATALOG_FILE)
+  if (stat.isSymbolicLink() || !stat.isFile()) throw new Error('The verified practice catalog file is unavailable.')
+  const identity = fileIdentity(stat)
+  if (catalog && catalogSourceIdentity === identity) return catalogSourceRevision
+  const loaded = stableCatalogBytes()
+  const next = JSON.parse(loaded.bytes.toString('utf8'))
+  if (next?.schemaVersion !== 'verified-practice-catalog-v1'
+      || next?.sourceIndexSha256 !== SOURCE_INDEX_SHA256
+      || next?.sourceContentManifestChecksum !== SOURCE_CONTENT_MANIFEST_CHECKSUM
+      || !Array.isArray(next.groups)) throw new Error('The verified practice catalog revision is invalid.')
+  const nextGroups = next.groups.map(currentQuestionGroup).filter(Boolean)
+  catalog = next
+  verifiedPracticeQuestionGroups = Object.freeze(nextGroups)
+  catalogSourceIdentity = loaded.identity
+  catalogSourceRevision = crypto.createHash('sha256').update(loaded.bytes).digest('hex')
+  return catalogSourceRevision
+}
+
+export function verifiedPracticeCatalogRevision() {
+  return refreshVerifiedPracticeCatalog()
+}
+
+refreshVerifiedPracticeCatalog()
 
 export const coachPracticeSubjects = Object.freeze(courseRoutes.map((route) => {
   const appSubject = appSubjectForRoute(route)
@@ -97,6 +137,7 @@ export const coachPracticeSubjects = Object.freeze(courseRoutes.map((route) => {
 }))
 
 function groupsForRoute(routeId) {
+  refreshVerifiedPracticeCatalog()
   return verifiedPracticeQuestionGroups.filter((question) => question.routeId === routeId)
 }
 
@@ -481,6 +522,7 @@ export function verifiedPracticeCatalogMetrics(units = buildVerifiedPracticeCata
 }
 
 export function paperQuestionMarkingMetadata({ paperId, routeId }) {
+  refreshVerifiedPracticeCatalog()
   const sourceQuestions = verifiedPracticeQuestionGroups.filter((question) => (
     question.sourceRef?.paperId === paperId
     && (!routeId || question.routeId === routeId)

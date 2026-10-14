@@ -1,12 +1,12 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, ArrowLeft, CheckCircle2, Clock3, Columns2, Eraser, ExternalLink, FileCheck2, FileText, GripVertical, Hand, Maximize2, Minimize2, Minus, NotebookPen, NotebookText, PenTool, Plus, Save, Trash2 } from 'lucide-react'
 import { getExamPaperProfile } from '../data/examStructure'
-import { paperQuestionMarkingMetadata } from '../lib/verifiedPracticeCatalog'
 import { deletePaperEvidence, getPaperEvidence, putPaperEvidence } from '../lib/evidenceStorage'
 import { buildSharedMarkingSubmission, completedMarksByQuestion, createSharedMarkingSubmission, loadQuestionAssets, paperSubmissionMarkingSummary, readSharedMarkingAvailability, retrySharedMarkingSubmission, scorePaperMultipleChoice, sharedMarkingIsAvailable, waitForSharedMarkingSubmission } from '../lib/paperMarking'
 import { requestMarkingCapabilities } from '../lib/markingCapabilityClient'
 import { persistStudentAttempt, projectServerResultAuthority } from '../lib/attemptPersistence'
 import { normalizePaperStudyMode, paperStudyModeLabel } from '../lib/paperStudyMode'
+import { createVerifiedPracticeClient } from '../lib/verifiedPracticeClient'
 import { AiCoach } from './AiCoach'
 import { PaperAnswerSheet, SelfMarkSummary } from './PaperAnswerSheet'
 
@@ -182,6 +182,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
     [catalog, paper.sessionCode, paper.subject],
   )
   const sourcePaper = questionPaper || paper
+  const markingRouteId = paper.routeId || sourcePaper.routeId || ''
   const profile = useMemo(() => sourcePaper.examProfile || getExamPaperProfile(sourcePaper.subject, sourcePaper.variant, sourcePaper.year) || {
     code: `${sourcePaper.subject}/${sourcePaper.variant || ''}`,
     title: 'Structured paper',
@@ -192,7 +193,9 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
     questionCountRange: [1, 30],
     stages: [],
   }, [sourcePaper])
-  const questionMetadataByNumber = useMemo(() => paperQuestionMarkingMetadata({ paperId: sourcePaper.id, routeId: sourcePaper.routeId }), [sourcePaper.id, sourcePaper.routeId])
+  const [markingContextState, setMarkingContextState] = useState({ status: 'loading', questions: {}, error: '' })
+  const markingContextRequestRef = useRef(0)
+  const questionMetadataByNumber = markingContextState.questions
   const reviewedQuestionCount = useMemo(() => highestReviewedQuestionNumber(questionMetadataByNumber), [questionMetadataByNumber])
   const sharedMarkingContract = useMemo(() => sharedMarkingContractForPaper({ id: sourcePaper.id }), [sourcePaper.id])
   const officialQuestionSlots = sharedMarkingContract?.answerSlots || (profile.mode === 'mcq' ? profile.defaultQuestionCount : reviewedQuestionCount)
@@ -278,6 +281,21 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
   pdfInkByPageRef.current = pdfInkByPage
   pdfInkQuestionMapRef.current = pdfInkQuestionMap
 
+  const loadMarkingContext = useCallback(() => {
+    const request = markingContextRequestRef.current + 1
+    markingContextRequestRef.current = request
+    setMarkingContextState((current) => ({ ...current, status: 'loading', error: '' }))
+    const client = createVerifiedPracticeClient({ token: sharedIdentityToken })
+    client.markingContext({ paperId: sourcePaper.id, routeId: markingRouteId })
+      .then((payload) => markingContextRequestRef.current === request && setMarkingContextState({ status: 'ready', questions: payload.questions, error: '' }))
+      .catch((error) => markingContextRequestRef.current === request && setMarkingContextState({ status: 'error', questions: {}, error: error.message || 'Marking metadata could not be loaded.' }))
+  }, [markingRouteId, sharedIdentityToken, sourcePaper.id])
+
+  useEffect(() => {
+    loadMarkingContext()
+    return () => { markingContextRequestRef.current += 1 }
+  }, [loadMarkingContext])
+
   latestDraft.current = {
     schemaVersion: 2,
     attemptId,
@@ -359,6 +377,10 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
   useEffect(() => {
     onAttemptReady?.(attemptId)
     persistLatestDraft()
+    if (markingContextState.status === 'loading') {
+      if (sharedIdentityToken) setServerAttemptReady(false)
+      return undefined
+    }
     if (!sharedIdentityToken || !isAttempt || submitted) {
       setServerAttemptReady(true)
       return undefined
@@ -404,7 +426,7 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
     return () => { active = false }
     // This is the one-time bootstrap write for refresh-safe paper deep links.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attemptId, onAttemptReady, sharedIdentityToken])
+  }, [attemptId, markingContextState.status, onAttemptReady, sharedIdentityToken])
 
   useEffect(() => {
     let active = true
@@ -426,6 +448,11 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
   useEffect(() => {
     setMaxMarksByQuestion((current) => ({ ...reviewedMaxMarks, ...current }))
   }, [reviewedMaxMarks])
+
+  useEffect(() => {
+    if (markingContextState.status !== 'ready' || paperDraft?.questionCount) return
+    setQuestionCount(defaultQuestionCount(profile, sourcePaper.id, reviewedQuestionCount))
+  }, [markingContextState.status, paperDraft?.questionCount, profile, reviewedQuestionCount, sourcePaper.id])
 
   useEffect(() => () => {
     objectUrls.current.forEach((url) => URL.revokeObjectURL(url))
@@ -1071,6 +1098,8 @@ export function PaperWorkspace({ paper, catalog, draft, assignmentContext = null
       </div>
 
       {questionPaper && !markScheme && <div className="missing-mark-scheme"><AlertTriangle size={18} /><div><strong>No exact mark scheme is present for {questionPaper.file}</strong><span>Another paper's mark scheme will not be substituted.</span></div></div>}
+      {markingContextState.status === 'loading' && <div className="missing-mark-scheme" role="status"><FileCheck2 size={18} /><div><strong>Loading protected marking metadata...</strong><span>Your paper and saved draft remain available.</span></div></div>}
+      {markingContextState.status === 'error' && <div className="missing-mark-scheme" role="alert"><AlertTriangle size={18} /><div><strong>Marking metadata is temporarily unavailable.</strong><span>{markingContextState.error}</span></div><button type="button" className="text-action" onClick={loadMarkingContext}>Retry</button></div>}
       {paper.agentNotice && <div className="session-complete"><CheckCircle2 size={18} />{paper.agentNotice}</div>}
       {showWorkspaceMarkingSummary && <div className={`session-complete session-complete--${markingSummary.tone}`}><CheckCircle2 size={18} />{markingSummary.text}</div>}
       <div ref={paperDeskRef} className={`paper-desk ${documentMode === 'compare' ? 'compare-mode' : ''} ${!isAttempt ? 'reference-mode' : ''}`} style={{ '--answer-pane-width': `${answerPaneWidth}px` }}>

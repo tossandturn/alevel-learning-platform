@@ -7,7 +7,7 @@ import path from 'node:path'
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { createAiApi } from './server/aiApi.js'
-import { createMembershipAccessController, membershipFeatureForProtectedAsset, membershipFeatureForRequest, membershipProtectedCacheControl } from './server/membershipAccess.js'
+import { classifyMembershipProtectedAsset, createMembershipAccessController, membershipFeatureForRequest, membershipProtectedCacheControl } from './server/membershipAccess.js'
 import { createAiVerifiedQuestionBankLoader } from './server/aiVerifiedQuestionBank.js'
 import { resolveAiPdfIngestionRoot } from './server/aiPdfIngestionCandidates.js'
 import { createCoachAttemptAuthorizer, createCurriculumPracticeAccess, createStemApi } from './server/stemApi.js'
@@ -30,6 +30,25 @@ const PUBLIC_METADATA_FILES = ['favicon.svg', 'icons.svg', 'robots.txt', 'sitema
 const QA_DISABLE_HMR = process.env.NODE_ENV === 'test' && process.env.STEM_QA_DISABLE_HMR === '1'
 let paperCatalogCache = { path: '', modifiedAtMs: -1, byFile: new Map() }
 const pdfIntegrityCache = new Map()
+
+export function membershipClientBoundary() {
+  return {
+    name: 'membership-client-boundary',
+    generateBundle() {
+      const forbidden = []
+      for (const id of this.getModuleIds()) {
+        const normalized = String(id).replaceAll('\\', '/')
+        if (normalized.endsWith('/src/data/verifiedPracticeCatalog.json')
+            || normalized.endsWith('/src/data/importedQuestionIndex.json')
+            || normalized.endsWith('/src/data/questionBank.js')
+            || normalized.endsWith('/src/lib/verifiedPracticeCatalog.js')
+            || normalized.endsWith('/src/lib/coachPractice.js')
+            || normalized.includes('/public/data/study-question-index/')) forbidden.push(normalized)
+      }
+      if (forbidden.length) this.error(`Protected membership content entered the browser graph: ${forbidden.join(', ')}`)
+    },
+  }
+}
 
 function paperCatalogIndex() {
   const root = process.cwd()
@@ -226,7 +245,51 @@ function contentTypeForPublicPath(filePath) {
   }
 }
 
-function sendPublicAsset(request, response, next, { protectedAccess = false } = {}) {
+function openPublicAsset(publicRoot, filePath) {
+  const root = path.resolve(publicRoot)
+  try {
+    const visibleRoot = fs.lstatSync(root)
+    if (visibleRoot.isSymbolicLink() || !visibleRoot.isDirectory()) return null
+  } catch {
+    return null
+  }
+  const relative = path.relative(root, filePath)
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return null
+  let cursor = root
+  for (const segment of relative.split(path.sep)) {
+    cursor = path.join(cursor, segment)
+    let visible
+    try { visible = fs.lstatSync(cursor) } catch { return null }
+    if (visible.isSymbolicLink()) return null
+  }
+  let physicalRoot
+  let physicalFile
+  try {
+    physicalRoot = fs.realpathSync.native(root)
+    physicalFile = fs.realpathSync.native(filePath)
+  } catch {
+    return null
+  }
+  const physicalRelative = path.relative(physicalRoot, physicalFile)
+  if (!physicalRelative || physicalRelative.startsWith('..') || path.isAbsolute(physicalRelative)) return null
+  let descriptor
+  try {
+    const noFollow = Number(fs.constants.O_NOFOLLOW) || 0
+    descriptor = fs.openSync(filePath, fs.constants.O_RDONLY | noFollow)
+    const stat = fs.fstatSync(descriptor)
+    const visible = fs.lstatSync(filePath)
+    if (!stat.isFile() || visible.isSymbolicLink() || stat.dev !== visible.dev || stat.ino !== visible.ino) {
+      fs.closeSync(descriptor)
+      return null
+    }
+    return { descriptor, stat }
+  } catch {
+    if (Number.isInteger(descriptor)) try { fs.closeSync(descriptor) } catch {}
+    return null
+  }
+}
+
+export function sendPublicAsset(request, response, next, { protectedAccess = false, publicRoot = PUBLIC_ROOT } = {}) {
   const requestUrl = new URL(request.url, 'http://127.0.0.1')
   let pathname
   try {
@@ -241,8 +304,9 @@ function sendPublicAsset(request, response, next, { protectedAccess = false } = 
   const isPublicMetadata = PUBLIC_METADATA_FILES.includes(pathname.slice(1))
   if (!isPublicMetadata && !pathname.startsWith('/data/') && !pathname.startsWith('/question-assets/')) return next()
 
-  const filePath = path.resolve(PUBLIC_ROOT, `.${pathname}`)
-  const relative = path.relative(PUBLIC_ROOT, filePath)
+  const resolvedPublicRoot = path.resolve(publicRoot)
+  const filePath = path.resolve(resolvedPublicRoot, `.${pathname}`)
+  const relative = path.relative(resolvedPublicRoot, filePath)
   if (relative.startsWith('..') || path.isAbsolute(relative)) {
     response.statusCode = 400
     response.setHeader('Cache-Control', 'no-store')
@@ -250,13 +314,14 @@ function sendPublicAsset(request, response, next, { protectedAccess = false } = 
     return
   }
 
-  const stat = fs.existsSync(filePath) ? fs.statSync(filePath) : null
-  if (!stat || stat.isDirectory()) {
+  const opened = openPublicAsset(resolvedPublicRoot, filePath)
+  if (!opened) {
     response.statusCode = 404
     response.setHeader('Cache-Control', 'no-store')
     response.end('Public asset not found')
     return
   }
+  const { descriptor, stat } = opened
 
   response.setHeader('Content-Type', contentTypeForPublicPath(filePath))
   if (protectedAccess) {
@@ -273,10 +338,11 @@ function sendPublicAsset(request, response, next, { protectedAccess = false } = 
   // must never be an unknown-length chunked stream.
   response.setHeader('Content-Length', String(stat.size))
   if (request.method === 'HEAD') {
+    fs.closeSync(descriptor)
     response.end()
     return
   }
-  fs.createReadStream(filePath).pipe(response)
+  fs.createReadStream(filePath, { fd: descriptor, autoClose: true }).pipe(response)
 }
 
 export function createMissingBuiltAssetMiddleware({ assetRoot = path.resolve(process.cwd(), 'dist') } = {}) {
@@ -516,13 +582,15 @@ function localCieLibrary(env) {
     releaseRoot: curriculumReleaseRoot,
     sourceAssetRoot: env.STEM_CURRICULUM_PRACTICE_SOURCE_ROOT || path.join(curriculumReleaseRoot, 'source'),
     ...curriculumPracticeAccess,
+    authenticateRequest: curriculumPracticeAccess.authenticateMembershipRequest,
   })
   const curriculumMembershipAccess = createMembershipAccessController({ env })
   function handleMembershipMiddlewareError(response, next, error) {
     const statusCode = Number(error?.statusCode)
     const membershipCode = String(error?.code || '')
-    if (![401, 403, 503].includes(statusCode)
-        || (statusCode !== 401 && !membershipCode.startsWith('membership_'))) {
+    const invalidPath = statusCode === 400 && membershipCode === 'protected_asset_path_invalid'
+    if (!invalidPath && (![401, 403, 503].includes(statusCode)
+        || (statusCode !== 401 && !membershipCode.startsWith('membership_')))) {
       next(error)
       return
     }
@@ -536,7 +604,9 @@ function localCieLibrary(env) {
     response.end(payload)
   }
   async function requireProtectedMembership(request, pathname) {
-    const feature = membershipFeatureForProtectedAsset(pathname)
+    const classification = classifyMembershipProtectedAsset(pathname)
+    if (classification.invalid) throw Object.assign(new Error('The protected asset path is invalid.'), { statusCode: 400, code: 'protected_asset_path_invalid' })
+    const feature = classification.feature
     if (feature && curriculumMembershipAccess.enforcementEnabled()) {
       await curriculumMembershipAccess.requireFeature(curriculumPracticeAccess.authenticateMembershipRequest(request), feature)
       return true
@@ -561,11 +631,14 @@ function localCieLibrary(env) {
     void (async () => {
       const pathname = new URL(request.url, 'http://127.0.0.1').pathname
       if (pathname.startsWith('/api/stem/curriculum-practice') && curriculumMembershipAccess.enforcementEnabled()) {
-        await curriculumMembershipAccess.requireFeature(
-          curriculumPracticeAccess.authenticateMembershipRequest(request),
-          membershipFeatureForRequest(request.method, pathname),
-        )
-        Object.defineProperty(request, 'membershipProtectedAccess', { value: true, configurable: false, enumerable: false })
+        const feature = membershipFeatureForRequest(request.method, pathname)
+        if (feature) {
+          await curriculumMembershipAccess.requireFeature(
+            curriculumPracticeAccess.authenticateMembershipRequest(request),
+            feature,
+          )
+          Object.defineProperty(request, 'membershipProtectedAccess', { value: true, configurable: false, enumerable: false })
+        }
       }
       if (!await curriculumPracticeApi.handle(request, response)) next()
     })().catch((error) => handleMembershipMiddlewareError(response, next, error))
@@ -619,7 +692,6 @@ export default defineConfig(({ mode }) => {
         output: {
           manualChunks(id) {
             const normalizedId = id.replaceAll('\\', '/')
-            if (normalizedId.endsWith('/src/data/verifiedPracticeCatalog.json')) return 'practice-catalog'
             if (normalizedId.endsWith('/src/data/sourceContentManifest.json')) return 'source-content-manifest'
             return undefined
           },
@@ -628,6 +700,7 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       react(),
+      membershipClientBoundary(),
       stemAppModulePreload(),
       stemPublicAssetOutput(),
       stemBuildIdentityOutput(env),

@@ -1,7 +1,7 @@
-import { SOURCE_INDEX_SHA256 } from '../data/sourceContentIdentity.js'
 import { stableSorted } from './arrayOrder.js'
+import { requestStudyQuestionGroups } from './verifiedPracticeClient.js'
 
-const fragmentPromises = new Map()
+const fragmentCache = new Map()
 
 function sortQuestions(left, right) {
   return (
@@ -31,30 +31,24 @@ export function studyQuestionGroupsForRoute(questions = [], verifiedGroups = [])
     }))
 }
 
-export function loadStudyQuestionGroupsForRoute(routeId, verifiedGroups = [], fetchImpl = fetch) {
+export function loadStudyQuestionGroupsForRoute(routeId, verifiedGroups = [], { fetchImpl = fetch, token = '', accessKey = 'guest', now = Date.now, cacheTtlMs = 30_000 } = {}) {
   const normalizedRouteId = String(routeId || '').trim()
   if (!normalizedRouteId) return Promise.resolve([])
-  if (!fragmentPromises.has(normalizedRouteId)) {
-    const fragmentUrl = `/data/study-question-index/${encodeURIComponent(normalizedRouteId)}.json?source=${SOURCE_INDEX_SHA256}`
-    const request = Promise.resolve(fetchImpl(fragmentUrl, { credentials: 'same-origin' }))
-      .then(async (response) => {
-        if (!response?.ok) throw new Error(`Source question fragment unavailable (${response?.status || 'request failed'}).`)
-        const fragment = await response.json()
-        if (
-          fragment?.schemaVersion !== 'study-question-fragment-v1'
-          || fragment.routeId !== normalizedRouteId
-          || fragment.sourceIndexSha256 !== SOURCE_INDEX_SHA256
-          || !Array.isArray(fragment.questions)
-        ) {
-          throw new Error('Source question fragment is stale or invalid.')
-        }
-        return fragment.questions
-      })
+  const cacheKey = `${String(accessKey || 'guest')}\n${normalizedRouteId}`
+  const ttl = Math.min(60_000, Math.max(0, Number(cacheTtlMs) || 0))
+  let entry = fragmentCache.get(cacheKey)
+  if (entry && now() - entry.at > ttl) {
+    fragmentCache.delete(cacheKey)
+    entry = null
+  }
+  if (!entry) {
+    const request = requestStudyQuestionGroups({ routeId: normalizedRouteId, token, fetchImpl })
       .catch((error) => {
-        fragmentPromises.delete(normalizedRouteId)
+        if (fragmentCache.get(cacheKey)?.promise === request) fragmentCache.delete(cacheKey)
         throw error
       })
-    fragmentPromises.set(normalizedRouteId, request)
+    entry = { at: now(), promise: request }
+    fragmentCache.set(cacheKey, entry)
   }
-  return fragmentPromises.get(normalizedRouteId).then((questions) => studyQuestionGroupsForRoute(questions, verifiedGroups))
+  return entry.promise.then((questions) => studyQuestionGroupsForRoute(questions, verifiedGroups))
 }

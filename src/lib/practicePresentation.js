@@ -100,11 +100,13 @@ export function practiceUnitMetrics(unit = {}) {
     semanticReviewedPartCount: 0,
   })
   const totalMarks = summedMarks || positiveNumber(unit.totalMarks ?? unit.markTotal ?? unit.maxMarks)
+  const declaredAnswerPartCount = Number(unit.answerPartCount)
+  const declaredPaperCount = Number(unit.paperCount)
 
   return {
     sourceQuestionCount: sourceQuestionIds.size || (Number.isInteger(declaredQuestionCount) && declaredQuestionCount > 0 ? declaredQuestionCount : parts.length),
-    answerPartCount: parts.length,
-    paperCount: paperIds.size,
+    answerPartCount: parts.length || (Number.isInteger(declaredAnswerPartCount) && declaredAnswerPartCount > 0 ? declaredAnswerPartCount : 0),
+    paperCount: paperIds.size || (Number.isInteger(declaredPaperCount) && declaredPaperCount > 0 ? declaredPaperCount : 0),
     totalMarks,
     ...markingCounts,
   }

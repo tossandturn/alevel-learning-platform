@@ -34,6 +34,15 @@ import {
 
 const EMPTY_PRACTICE_OPTIONS = Object.freeze([])
 
+function practiceOptionId(option) {
+  return String(option?.id || option?.routeId || '').trim()
+}
+
+function practiceOptionStages(option) {
+  const values = Array.isArray(option?.stages) ? option.stages : [option?.stage]
+  return [...new Set(values.map((value) => String(value || '').trim()).filter(Boolean))]
+}
+
 function createImageAttachment(dataUrl = '', { name = 'Attached image', status = 'ready', source = 'upload', mimeType = 'image/*', errorMessage = '' } = {}) {
   return {
     id: `coach-image-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
@@ -179,8 +188,8 @@ export function AiCoach({
   const [hintLevel, setHintLevel] = useState(1)
   const [imageDataUrls, setImageDataUrls] = useState([])
   const [builderOpen, setBuilderOpen] = useState(false)
-  const [builderSubjectId, setBuilderSubjectId] = useState(practiceOptions[0]?.id || '')
-  const [builderStage, setBuilderStage] = useState(practiceOptions[0]?.stages?.[0] || 'AS')
+  const [builderSubjectId, setBuilderSubjectId] = useState(practiceOptionId(practiceOptions[0]))
+  const [builderStage, setBuilderStage] = useState(practiceOptionStages(practiceOptions[0])[0] || 'AS')
   const [builderTopicId, setBuilderTopicId] = useState(practiceOptions[0]?.topics?.[0]?.id || '')
   const [builderCount, setBuilderCount] = useState('10')
   const [generating, setGenerating] = useState(false)
@@ -228,7 +237,7 @@ export function AiCoach({
   }, [baseConversationId])
 
   const builderSubject = useMemo(
-    () => practiceOptions.find((item) => item.id === builderSubjectId) || practiceOptions[0],
+    () => practiceOptions.find((item) => practiceOptionId(item) === builderSubjectId) || practiceOptions[0],
     [builderSubjectId, practiceOptions],
   )
   const builderTopics = useMemo(() => builderSubject?.topics || [], [builderSubject])
@@ -271,8 +280,9 @@ export function AiCoach({
 
   useEffect(() => {
     if (!builderSubject) return
-    setBuilderSubjectId((current) => practiceOptions.some((item) => item.id === current) ? current : practiceOptions[0]?.id || '')
-    setBuilderStage((current) => builderSubject.stages.includes(current) ? current : builderSubject.stages[0])
+    const stages = practiceOptionStages(builderSubject)
+    setBuilderSubjectId((current) => practiceOptions.some((item) => practiceOptionId(item) === current) ? current : practiceOptionId(practiceOptions[0]))
+    setBuilderStage((current) => stages.includes(current) ? current : stages[0] || '')
     setBuilderTopicId((current) => builderTopics.some((topic) => topic.id === current) ? current : builderTopics[0]?.id || '')
   }, [builderSubject, builderTopics, practiceOptions])
 
@@ -922,7 +932,7 @@ export function AiCoach({
       const unit = await onGeneratePractice({
         routeId: builderSubject.routeId,
         subjectId: builderSubject.subjectId,
-        stage: builderSubject.stage,
+        stage: builderStage || builderSubject.stage,
         knowledgeGroupId: builderTopicId,
         questionCount: Number(builderCount),
         allowPartial: false,
@@ -1009,7 +1019,7 @@ export function AiCoach({
 
         {builderOpen && <section className="ai-coach__builder" aria-label="Generate a focused practice set">
           <header><div><strong>Build a focused set</strong><span>Choose the syllabus point, then start writing.</span></div><Sparkles size={18} /></header>
-          <label><span>Learning route</span><select value={builderSubject?.id || ''} onChange={(event) => setBuilderSubjectId(event.target.value)}>{practiceOptions.map((item) => <option value={item.id} key={item.id}>{item.label}</option>)}</select></label>
+          <label><span>Learning route</span><select value={practiceOptionId(builderSubject)} onChange={(event) => setBuilderSubjectId(event.target.value)}>{practiceOptions.map((item) => <option value={practiceOptionId(item)} key={practiceOptionId(item)}>{item.label}</option>)}</select></label>
           <label><span>Knowledge point</span><select value={builderTopicId} onChange={(event) => setBuilderTopicId(event.target.value)}>{builderTopics.map((topic) => <option value={topic.id} key={topic.id}>{topic.label}</option>)}</select></label>
           <label><span>Questions</span><select value={builderCount} onChange={(event) => setBuilderCount(event.target.value)}><option value="10">10 questions</option><option value="15" disabled={verifiedCount < 15}>15 questions</option><option value="20" disabled={verifiedCount < 20}>20 questions</option></select></label>
           <p>Uses complete official questions with linked mark schemes. <strong>{verifiedCount} available for this stage</strong>{sourceReady ? ' · ready to build' : hasMinimumVerifiedSource ? ` · choose ${Math.min(verifiedCount, 10)} questions or fewer` : ` · more questions are being prepared (${MIN_VERIFIED_GROUPS_FOR_PRACTICE} needed for a set)`}</p>

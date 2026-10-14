@@ -143,7 +143,7 @@
     "test:tavern-long-memory": "node scripts/test-tavern-long-memory.mjs && node scripts/test-tavern-long-memory-api.mjs",
     "test:coach-stream-protocol": "node scripts/test-coach-stream-protocol.mjs",
     "test:shared-account-env": "node scripts/test-shared-account-env-contract.mjs",
-    "test:membership": "node scripts/test-membership-access.mjs && node scripts/test-stem-membership-proxy.mjs",
+    "test:membership": "node scripts/test-membership-access.mjs && node scripts/test-stem-membership-proxy.mjs && node scripts/test-membership-content-boundaries.mjs && node scripts/test-browser-practice-api.mjs && node scripts/test-membership-content-http.mjs",
     "test:stem-auth-key-precedence": "node scripts/test-stem-auth-key-precedence.mjs",
     "test:stem-user-profile": "node scripts/test-stem-user-profile.mjs",
     "test:announcements": "node scripts/test-stem-announcements.mjs",

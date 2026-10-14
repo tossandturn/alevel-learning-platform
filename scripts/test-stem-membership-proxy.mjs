@@ -78,6 +78,7 @@ assert.doesNotMatch(stemSource, /membership.*grant.*request/i, 'STEM must not ex
 assert.match(aiSource, /membershipFeatureForAiRequest\(request\.method, requestUrl\.pathname\)/, 'AI routes must use the same server-side membership authority')
 assert.match(aiSource, /membershipIdentityProvider\(request\)\?\.id/, 'AI membership enforcement must accept the reviewed native-session identity fallback')
 assert.match(viteSource, /membershipIdentityProvider: curriculumPracticeAccess\.authenticateMembershipRequest/, 'the runtime must wire the native-session identity fallback into AI membership enforcement')
+assert.match(viteSource, /createCurriculumPracticeApi\(\{[\s\S]{0,500}authenticateRequest: curriculumPracticeAccess\.authenticateMembershipRequest/, 'curriculum practice owner history and sessions must accept the reviewed bearer-or-cookie identity')
 assert.ok(
   aiSource.indexOf('membershipAccess.requireFeature') < aiSource.indexOf("requestUrl.pathname.startsWith('/api/ai/image/')"),
   'AI membership enforcement must run before paid handlers so old clients cannot bypass it',
@@ -88,7 +89,7 @@ assert.equal(
   2,
   'development and preview retain their reviewed middleware routing order',
 )
-assert.match(viteSource, /membershipFeatureForProtectedAsset[\s\S]{0,800}membershipProtectedPublicAsset/, 'protected public question bytes need a membership-aware pre-handler')
+assert.match(viteSource, /classifyMembershipProtectedAsset[\s\S]{0,1200}membershipProtectedPublicAsset/, 'protected public question bytes need a canonical membership-aware pre-handler')
 assert.match(viteSource, /membershipProtectedLocalPdf[\s\S]{0,800}sendLocalPdf/, 'direct PDF bytes need a membership-aware pre-handler')
 assert.match(viteSource, /authenticateMembershipRequest\(request\)/, 'protected bytes must accept the reviewed bearer-or-native-session identity path')
 assert.doesNotMatch(viteSource, /requireProtectedMembership[\s\S]{0,500}authenticateRequest\(request\)/, 'protected bytes must not use the bearer-only curriculum identity path')

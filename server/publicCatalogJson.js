@@ -36,7 +36,17 @@ function varyByEncoding(response) {
 // Explicit opt-in for public source catalogs/guest-generated sets only. Do
 // not use this for sessions, marking capabilities, private work or SSE. In
 // particular, never mix reflected input and user secrets in a compressed body.
-export async function sendPublicCatalogJson(request, response, statusCode, body) {
+export async function sendPublicCatalogJson(request, response, statusCode, body, { etag = '', cacheControl = 'no-store' } = {}) {
+  const strongEtag = /^"[a-f0-9]{64}"$/.test(String(etag || '')) ? String(etag) : ''
+  if (strongEtag) response.setHeader('ETag', strongEtag)
+  response.setHeader('Cache-Control', String(cacheControl || 'no-store'))
+  if (strongEtag) varyByEncoding(response)
+  const validators = String(request.headers?.['if-none-match'] || '').split(',').map((value) => value.trim())
+  if (strongEtag && ['GET', 'HEAD'].includes(String(request.method || 'GET').toUpperCase()) && validators.includes(strongEtag)) {
+    response.statusCode = 304
+    response.end()
+    return
+  }
   const raw = Buffer.from(JSON.stringify(body), 'utf8')
   let bytes = raw
   let compressed = false
@@ -59,7 +69,6 @@ export async function sendPublicCatalogJson(request, response, statusCode, body)
   if (response.destroyed || response.writableEnded) return
   response.statusCode = statusCode
   response.setHeader('Content-Type', 'application/json; charset=utf-8')
-  response.setHeader('Cache-Control', 'no-store')
   response.setHeader('Content-Length', bytes.length)
   if (compressed) response.setHeader('Content-Encoding', 'gzip')
   response.end(bytes)

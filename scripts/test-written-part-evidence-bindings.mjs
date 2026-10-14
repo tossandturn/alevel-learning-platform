@@ -289,7 +289,7 @@ for (const group of transformations.groups) {
   }
 }
 
-const publicIndex = fs.readFileSync('public/data/study-question-index/cie-0580-igcse-mathematics.json', 'utf8')
+const publicIndex = fs.readFileSync('server/data/study-question-index/cie-0580-igcse-mathematics.json', 'utf8')
 for (const group of transformations.groups) {
   assert.equal(publicIndex.includes(group.sourceQuestionId), false, 'unpublished v2 IDs must not appear in baseline public content')
 }

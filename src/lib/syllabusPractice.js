@@ -1276,6 +1276,7 @@ export function rebindSyllabusPracticeUnit(unit, {
       sourceSemanticStatus: group.sourceContent.semanticStatus || 'unreviewed',
       sourcePages: group.sourceContent.pages || [],
       sourceAssetUrls: group.sourceContent.assetUrls || group.sourceRef?.assetUrls || [],
+      answerType: currentPart.answerArea?.type || currentPart.answerType || group.answerType || 'handwritten',
       reviewStatus: group.reviewStatus,
       studyOnly: group.studyOnly === true,
       studentStudyEligible: group.studentStudyEligible === true,
@@ -1390,6 +1391,9 @@ export function rebindSyllabusPracticeUnit(unit, {
     sourceMix: Object.freeze({
       official: officialQuestionCount,
       originalFoundation: originalFoundationQuestionCount,
+      pastPaperItems: officialQuestionCount,
+      generatedPractice: originalFoundationQuestionCount,
+      referencedPapers: paperById.size,
     }),
     practiceMode: chapterStudy || hasStudyOnlyPart ? 'study-only' : 'verified',
     formalProgressEligible: !chapterStudy && !hasStudyOnlyPart && topicReadiness.eligibility.ready,
@@ -1705,6 +1709,9 @@ export function buildSyllabusPracticeSet({
     sourceMix: Object.freeze({
       official: officialQuestionGroups.length,
       originalFoundation: selectedOriginalGroups.length,
+      pastPaperItems: officialQuestionGroups.length,
+      generatedPractice: selectedOriginalGroups.length,
+      referencedPapers: metrics.paperCount,
     }),
     verifiedAvailableCount,
     verifiedAvailableCountByTopic: topicReadiness.verifiedQuestionCountByTopic,

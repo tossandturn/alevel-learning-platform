@@ -14,6 +14,8 @@ import { createNativeQuestionImages } from './nativeQuestionImages.js'
 import { sendPublicCatalogJson } from './publicCatalogJson.js'
 import { createAnnouncementBoard } from './announcementBoard.js'
 import { createMembershipAccessController, membershipFeatureForRequest, membershipIdentityForRequest, membershipProtectedCacheControl } from './membershipAccess.js'
+import { buildVerifiedPracticeDiscovery, generateVerifiedPracticeUnit, markingContextForPaper, rebindVerifiedPracticeUnitForRequest, verifiedPracticeUnitById } from './verifiedPracticeApi.js'
+import { readStudyQuestionFragmentRecord } from './studyQuestionIndexApi.js'
 import { decorateOriginalFoundationInventory, normalizeOriginalFoundationCatalog, originalFoundationQuestionGroupsForRoute, scoreOriginalFoundationResponse } from './originalFoundationPractice.js'
 import {
   OBJECTIVE_RESULT_SCHEMA_VERSION,
@@ -2773,6 +2775,56 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
         if (!membershipUser) throw Object.assign(new Error('Sign in to continue.'), { statusCode: 401, code: 'identity_required' })
         await membershipAccess.requireFeature(membershipUser, membershipFeature)
         Object.defineProperty(request, 'membershipProtectedAccess', { value: true, configurable: false, enumerable: false })
+      }
+      if (request.method === 'GET' && url.pathname === '/api/stem/verified-practice/catalog') {
+        const discovery = buildVerifiedPracticeDiscovery()
+        await sendPublicCatalogJson(request, response, 200, discovery, {
+          etag: `"${discovery.sourceVersion}"`,
+          cacheControl: 'public, max-age=0, must-revalidate',
+        })
+        return
+      }
+      const verifiedUnitMatch = url.pathname.match(/^\/api\/stem\/verified-practice\/units\/([^/]+)$/)
+      if (request.method === 'GET' && verifiedUnitMatch) {
+        if (request.membershipProtectedAccess === true) response.setHeader('Vary', 'Authorization, Cookie')
+        const result = verifiedPracticeUnitById(decodeURIComponent(verifiedUnitMatch[1]))
+        response.setHeader('ETag', `"${result.sourceVersion}"`)
+        sendJson(response, 200, result)
+        return
+      }
+      if (request.method === 'POST' && url.pathname === '/api/stem/verified-practice/generate') {
+        if (request.membershipProtectedAccess === true) response.setHeader('Vary', 'Authorization, Cookie')
+        const result = generateVerifiedPracticeUnit(await readJson(request, 64 * 1024))
+        response.setHeader('ETag', `"${result.sourceVersion}"`)
+        sendJson(response, 201, result)
+        return
+      }
+      if (request.method === 'POST' && url.pathname === '/api/stem/verified-practice/rebind') {
+        if (request.membershipProtectedAccess === true) response.setHeader('Vary', 'Authorization, Cookie')
+        const payload = await readJson(request, REBIND_BODY_BYTES)
+        const result = rebindVerifiedPracticeUnitForRequest(payload?.unit)
+        response.setHeader('ETag', `"${result.sourceVersion}"`)
+        sendJson(response, 200, result)
+        return
+      }
+      const markingContextMatch = url.pathname.match(/^\/api\/stem\/papers\/([^/]+)\/marking-context$/)
+      if (request.method === 'GET' && markingContextMatch) {
+        if (request.membershipProtectedAccess === true) response.setHeader('Vary', 'Authorization, Cookie')
+        const result = markingContextForPaper({
+          paperId: decodeURIComponent(markingContextMatch[1]),
+          routeId: url.searchParams.get('routeId') || '',
+        })
+        response.setHeader('ETag', `"${result.sourceVersion}"`)
+        sendJson(response, 200, result)
+        return
+      }
+      const studyQuestionIndexMatch = url.pathname.match(/^\/api\/stem\/study-question-index\/([^/]+)$/)
+      if (request.method === 'GET' && studyQuestionIndexMatch) {
+        if (request.membershipProtectedAccess === true) response.setHeader('Vary', 'Authorization, Cookie')
+        const record = readStudyQuestionFragmentRecord(decodeURIComponent(studyQuestionIndexMatch[1]))
+        response.setHeader('ETag', record.etag)
+        sendJson(response, 200, record.value)
+        return
       }
       if (await curriculumPaperCatalog.handle(request, response, url)) return
       if(request.method==='GET'&&url.pathname==='/api/stem/practice-source-image'){

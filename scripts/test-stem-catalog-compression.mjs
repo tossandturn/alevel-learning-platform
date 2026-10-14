@@ -10,7 +10,7 @@ const server = http.createServer((req, res) => {
     if (req.url.endsWith('/vary')) res.setHeader('Vary', 'Origin')
     if (req.url.endsWith('/vary-star')) res.setHeader('Vary', '*')
     if (req.url.endsWith('/set-cookie')) res.setHeader('Set-Cookie', 'test-fixture=1; HttpOnly')
-    return sendPublicCatalogJson(req, res, 200, { label: 'source fixture', text: req.url.endsWith('/small') ? 'small' : 'source content '.repeat(300) })
+    return sendPublicCatalogJson(req, res, 200, { label: 'source fixture', text: req.url.endsWith('/small') ? 'small' : 'source content '.repeat(300) }, req.url.endsWith('/versioned') ? { etag: `"${'a'.repeat(64)}"`, cacheControl: 'public, max-age=0, must-revalidate' } : undefined)
   }
   return api(req, res, () => {
   res.statusCode = 404
@@ -39,7 +39,7 @@ function request(path, { encoding, body, headers = {} } = {}) {
       res.on('end', () => {
         const wire = Buffer.concat(chunks)
         const decoded = res.headers['content-encoding'] === 'gzip' ? gunzipSync(wire) : wire
-        resolve({ status: res.statusCode, headers: res.headers, wire, body: JSON.parse(decoded) })
+        resolve({ status: res.statusCode, headers: res.headers, wire, body: decoded.length ? JSON.parse(decoded) : null })
       })
     })
     req.on('error', reject)
@@ -77,6 +77,25 @@ try {
   assert.equal(topics.status, 200)
   assert.equal(topics.headers['content-encoding'], 'gzip')
   assert.ok(topics.body.topics.length > 0)
+  const verifiedCatalog = await request('/api/stem/verified-practice/catalog', { encoding: 'gzip' })
+  assert.equal(verifiedCatalog.status, 200)
+  assert.equal(verifiedCatalog.body.schemaVersion, 'verified-practice-discovery-v1')
+  assert.match(verifiedCatalog.headers.etag || '', /^"[a-f0-9]{64}"$/)
+  assert.equal(verifiedCatalog.headers['cache-control'], 'public, max-age=0, must-revalidate')
+  assert.ok(verifiedCatalog.body.units.length > 0)
+  const verifiedUnchanged = await request('/api/stem/verified-practice/catalog', { headers: { 'If-None-Match': verifiedCatalog.headers.etag } })
+  assert.equal(verifiedUnchanged.status, 304)
+  assert.equal(verifiedUnchanged.wire.length, 0)
+  const protectedUnit = await request(`/api/stem/verified-practice/units/${encodeURIComponent(verifiedCatalog.body.units[0].id)}`)
+  assert.equal(protectedUnit.status, 200, 'safe-off keeps the existing guest practice flow')
+  assert.equal(protectedUnit.headers['cache-control'], 'no-store')
+  assert.match(protectedUnit.headers.etag || '', /^"[a-f0-9]{64}"$/)
+  assert.ok(protectedUnit.body.unit.parts.length > 0)
+  const protectedIndex = await request(`/api/stem/study-question-index/${encodeURIComponent(verifiedCatalog.body.units[0].routeId)}`)
+  assert.equal(protectedIndex.status, 200, 'safe-off keeps the existing guest question-index flow')
+  assert.equal(protectedIndex.headers['cache-control'], 'no-store')
+  assert.match(protectedIndex.headers.etag || '', /^"[a-f0-9]{64}"$/)
+  assert.ok(Array.isArray(protectedIndex.body.questions))
   const cookieRequest = await request(url, { body: spec, encoding: 'gzip', headers: { Cookie: 'test-fixture=1' } })
   assert.equal(cookieRequest.status, 201)
   assert.equal(cookieRequest.headers['content-encoding'], undefined, 'cookie-bearing responses stay outside the public compressor')
@@ -94,6 +113,12 @@ try {
   assert.equal((await request('/test-public-helper/vary-star', { encoding: 'gzip' })).headers.vary, '*')
   assert.equal((await request('/test-public-helper/set-cookie', { encoding: 'gzip' })).headers['content-encoding'], undefined)
   assert.equal((await request('/test-public-helper/private', { encoding: 'gzip', headers: { Authorization: 'Bearer invalid-test-fixture' } })).headers['content-encoding'], undefined)
+  const versioned = await request('/test-public-helper/versioned', { encoding: 'gzip' })
+  assert.equal(versioned.headers.etag, `"${'a'.repeat(64)}"`)
+  assert.equal(versioned.headers['cache-control'], 'public, max-age=0, must-revalidate')
+  const unchanged = await request('/test-public-helper/versioned', { headers: { 'If-None-Match': versioned.headers.etag } })
+  assert.equal(unchanged.status, 304)
+  assert.equal(unchanged.wire.length, 0)
   console.log(JSON.stringify({ status: 'PASS', scope: 'public catalog HTTP compression and private-response isolation',
     plainBytes: plain.wire.length, gzipBytes: gzip.wire.length,
     reductionPercent: Math.round(100 * (1 - gzip.wire.length / plain.wire.length)) }))

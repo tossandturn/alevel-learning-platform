@@ -19,6 +19,25 @@ function createRelease(name, buildIdentity) {
   fs.mkdirSync(path.join(releaseRoot, 'dist'), { recursive: true })
   fs.mkdirSync(immutableAssetsRoot, { recursive: true })
   fs.writeFileSync(path.join(releaseRoot, 'dist', 'index.html'), '<!doctype html>\n', 'utf8')
+  // A minimal synthetic split-index fixture lets each negative identity test
+  // reach its intended gate without bypassing the private-content boundary.
+  const publicIndexRoot = path.join(releaseRoot, 'public', 'data', 'study-question-index')
+  const privateIndexRoot = path.join(releaseRoot, 'server', 'data', 'study-question-index')
+  const catalogRoot = path.join(releaseRoot, 'src', 'data')
+  for (const directory of [publicIndexRoot, privateIndexRoot, catalogRoot]) fs.mkdirSync(directory, { recursive: true })
+  const sourceIndexSha256 = 'd'.repeat(64)
+  const routeId = 'synthetic-identity-test'
+  const routeFile = `${routeId}.json`
+  fs.writeFileSync(path.join(publicIndexRoot, 'manifest.json'), JSON.stringify({
+    schemaVersion: 'study-question-fragment-manifest-v1', sourceIndexSha256,
+    routes: [{ routeId, file: routeFile, questionCount: 0 }],
+  }), 'utf8')
+  fs.writeFileSync(path.join(privateIndexRoot, routeFile), JSON.stringify({
+    schemaVersion: 'study-question-fragment-v1', routeId, sourceIndexSha256, questions: [],
+  }), 'utf8')
+  fs.writeFileSync(path.join(catalogRoot, 'verifiedPracticeCatalog.json'), JSON.stringify({
+    schemaVersion: 'verified-practice-catalog-v1', sourceIndexSha256, groups: [],
+  }), 'utf8')
   if (buildIdentity !== undefined) {
     fs.writeFileSync(
       path.join(releaseRoot, 'dist', 'build-identity.json'),

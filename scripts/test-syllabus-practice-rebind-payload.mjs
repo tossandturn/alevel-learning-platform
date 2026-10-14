@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { buildSyllabusPracticeSet, rebindSyllabusPracticeUnit } from '../src/lib/syllabusPractice.js'
 import { syllabusPracticeRebindPayload } from '../src/lib/syllabusPracticeRebind.js'
 
 const binding = {
@@ -57,5 +58,48 @@ assert.deepEqual(payload.parts[0].sourceBindingProvenance, binding)
 assert.equal('prompt' in payload.parts[0], false)
 assert.equal('sourceRef' in payload.parts[0], false)
 assert.equal('answerRef' in payload.parts[0], false)
+
+const generated = buildSyllabusPracticeSet({
+  routeId: 'cie-9702-as-physics',
+  syllabusTopicIds: ['physics-9702-topic-02'],
+  questionCount: 10,
+  components: [1, 2],
+  excludeAttempted: false,
+  seed: 1,
+})
+const generatedUnitId = 'syllabus-set:cie-9702-as-physics:physics-9702-topic-02:c1-2:q10:s1'
+const generatedUnit = {
+  id: generatedUnitId,
+  sourceAuthority: 'server-syllabus',
+  sourceGateVersion: 'server-syllabus-catalog-v2',
+  routeId: generated.routeId,
+  stage: generated.stage,
+  syllabusTopic: generated.syllabusTopicIds.join(','),
+  knowledgeGroupId: generated.syllabusTopicIds[0],
+  paperComponent: generated.components,
+  studyMode: generated.studyMode,
+  sourcePreference: generated.sourcePreference,
+  practiceMode: generated.practiceMode,
+  parts: generated.questionGroups.flatMap((group) => group.parts.map((part) => ({
+    id: `${generatedUnitId}:${group.id}:${part.partId}`,
+    sourceQuestionId: group.id,
+    questionPartId: part.partId,
+    sourceKind: 'past-paper',
+    sourceBindingProvenance: part.sourceBindingProvenance,
+    markingProvenance: part.markingProvenance,
+  }))),
+}
+const rebound = rebindSyllabusPracticeUnit(generatedUnit)
+assert.ok(rebound, 'a current generated syllabus unit must rebind against the same source bank')
+const reboundMcq = rebound.parts.find((part) => part.sourceQuestionId === 'cie-9702-9702_s25_qp_11:q8')
+assert.ok(reboundMcq, 'the deterministic Kinematics fixture must include S25/11 Q8')
+assert.equal(reboundMcq.answerType, 'multiple-choice', 'rebind must preserve the MCQ response contract')
+assert.equal(reboundMcq.options.length, 4, 'rebind must preserve the four visible choices')
+assert.equal(reboundMcq.answerKey, 'A', 'rebind must preserve the bound deterministic answer')
+assert.equal(rebound.sourceMix.official, generated.sourceMix.official)
+assert.equal(generated.sourceMix.pastPaperItems, generated.sourceMix.official, 'generate must expose the UI source count without changing authority totals')
+assert.equal(generated.sourceMix.referencedPapers, generated.paperCount, 'generate must expose the UI paper count')
+assert.equal(rebound.sourceMix.pastPaperItems, generated.sourceMix.pastPaperItems, 'generate and rebind must retain the same official question count')
+assert.equal(rebound.sourceMix.referencedPapers, generated.sourceMix.referencedPapers, 'generate and rebind must retain the same paper count')
 
 console.log(JSON.stringify({ status: 'passed', encodedBytes: encoded.length, parts: payload.parts.length }))

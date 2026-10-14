@@ -84,6 +84,12 @@ export function membershipFeatureForRequest(method, pathname) {
   if (!path.startsWith('/api/stem/')) return null
   if (path.startsWith('/api/stem/announcements')) return null
   if (path === '/api/stem/profile') return null
+  if (normalizedMethod === 'GET' && path === '/api/stem/verified-practice/catalog') return null
+  if (normalizedMethod === 'GET' && (
+    path === '/api/stem/curriculum-practice/catalog'
+    || path === '/api/stem/curriculum-practice/history'
+    || /^\/api\/stem\/curriculum-practice\/sessions\/[A-Za-z0-9._:-]+$/.test(path)
+  )) return null
   if (normalizedMethod === 'GET' && [
     '/api/stem/paper-catalog', '/api/stem/curriculum-papers', '/api/stem/workspace',
     '/api/stem/attempts',
@@ -108,13 +114,25 @@ export function membershipFeatureForAiRequest(method, pathname) {
   return MEMBERSHIP_FEATURE
 }
 
-export function membershipFeatureForProtectedAsset(pathname) {
+export function classifyMembershipProtectedAsset(pathname) {
+  const raw = String(pathname || '')
+  if (!raw || raw.length > 2048) return { feature: null, invalid: true }
   let path
-  try { path = decodeURIComponent(String(pathname || '')).toLowerCase() } catch { return null }
+  try { path = decodeURIComponent(raw) } catch { return { feature: null, invalid: true } }
+  if (/%[0-9a-f]{2}/i.test(path) || path.includes('\\') || path.includes('\0')
+      || path.split('/').some((segment) => segment === '.' || segment === '..')) {
+    return { feature: null, invalid: true }
+  }
+  path = path.toLowerCase()
+  if (path === '/data/study-question-index/manifest.json') return { feature: null, invalid: false }
   if (path.startsWith('/data/study-question-index/')
       || path.startsWith('/question-assets/')
-      || path.startsWith('/local-pdf/')) return MEMBERSHIP_FEATURE
-  return null
+      || path.startsWith('/local-pdf/')) return { feature: MEMBERSHIP_FEATURE, invalid: false }
+  return { feature: null, invalid: false }
+}
+
+export function membershipFeatureForProtectedAsset(pathname) {
+  return classifyMembershipProtectedAsset(pathname).feature
 }
 
 export function membershipIdentityForRequest(request, { bearerIdentity, nativeIdentity }) {
