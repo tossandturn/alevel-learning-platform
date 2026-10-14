@@ -13,6 +13,7 @@ import { createCurriculumPaperCatalog } from './curriculumPaperCatalog.js'
 import { createNativeQuestionImages } from './nativeQuestionImages.js'
 import { sendPublicCatalogJson } from './publicCatalogJson.js'
 import { createAnnouncementBoard } from './announcementBoard.js'
+import { createMembershipAccessController, membershipFeatureForRequest, membershipIdentityForRequest, membershipProtectedCacheControl } from './membershipAccess.js'
 import { decorateOriginalFoundationInventory, normalizeOriginalFoundationCatalog, originalFoundationQuestionGroupsForRoute, scoreOriginalFoundationResponse } from './originalFoundationPractice.js'
 import {
   OBJECTIVE_RESULT_SCHEMA_VERSION,
@@ -775,6 +776,13 @@ export function createCurriculumPracticeAccess({ env = process.env, questionBank
   const signingKey = String(env.STEM_INTERNAL_AUTH_KEY || env.STEM_IDENTITY_SIGNING_KEY || '')
   return Object.freeze({
     authenticateRequest: (request) => identityFromRequest(request, signingKey),
+    authenticateMembershipRequest: (request) => membershipIdentityForRequest(request, {
+      bearerIdentity: (candidate) => identityFromRequest(candidate, signingKey),
+      nativeIdentity: (candidate) => nativeSessionIdentity(
+        candidate,
+        appDatabase(env, questionBank, { synchronizeSource: false }),
+      ),
+    }),
     // AP/IB has separate session tables and never reseeds CIE attempts/mastery.
     databaseProvider: () => appDatabase(env, questionBank, { synchronizeSource: false }),
   })
@@ -2571,6 +2579,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
   // request and the short-lived STEM API token. The legacy identity key is a
   // migration fallback only, so every active path uses the same canonical key.
   const signingKey = String(env.STEM_INTERNAL_AUTH_KEY || env.STEM_IDENTITY_SIGNING_KEY || '')
+  const membershipAccess = createMembershipAccessController({ env, fetchImpl })
   const markingCapabilitySigningKey = String(env.STEM_MARKING_CAPABILITY_SIGNING_KEY || signingKey)
   const identityOrigin = String(env.IELTSIST_ORIGIN || 'https://ieltsist.com').replace(/\/$/, '')
   const stemOrigin = String(env.STEM_ORIGIN || 'https://stem.ieltsist.com').replace(/\/$/, '')
@@ -2713,12 +2722,62 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
 
   return async function stemApi(request, response, next) {
     const url = new URL(request.url, 'http://127.0.0.1')
-    if (!url.pathname.startsWith('/api/stem/') && !['/api/auth/status', '/api/auth/config', '/api/auth/login', '/api/auth/register', '/api/auth/logout', '/api/auth/wechat'].includes(url.pathname)) return next()
+    if (!url.pathname.startsWith('/api/stem/') && !url.pathname.startsWith('/api/membership/')
+        && !['/api/auth/status', '/api/auth/config', '/api/auth/login', '/api/auth/register', '/api/auth/logout', '/api/auth/wechat'].includes(url.pathname)) return next()
     try {
+      if (url.pathname.startsWith('/api/membership/')) {
+        const membershipDb = appDatabase(env, baseTopicPracticeQuestionBank, { synchronizeSource: false })
+        if (request.method === 'GET' && url.pathname === '/api/membership/catalog') {
+          sendJson(response, 200, await membershipAccess.membershipRequest({ action: 'catalog' }))
+          return
+        }
+        const membershipUser = request.headers.authorization
+          ? identityFromRequest(request, signingKey)
+          : nativeSessionIdentity(request, membershipDb)
+        if (!membershipUser) throw Object.assign(new Error('Sign in to view membership.'), { statusCode: 401, code: 'identity_required' })
+        if (request.method === 'GET' && url.pathname === '/api/membership/status') {
+          sendJson(response, 200, await membershipAccess.membershipRequest({ action: 'status', userId: membershipUser.id }))
+          return
+        }
+        if (url.pathname === '/api/membership/orders') {
+          if (request.method === 'GET') {
+            sendJson(response, 200, await membershipAccess.membershipRequest({
+              action: 'orders', userId: membershipUser.id,
+              payload: { limit: url.searchParams.get('limit'), offset: url.searchParams.get('offset') },
+            }))
+            return
+          }
+          if (request.method === 'POST') {
+            const result = await membershipAccess.membershipRequest({
+              action: 'create_order', userId: membershipUser.id, payload: await readJson(request, 16 * 1024),
+            })
+            sendJson(response, result.payment ? 201 : 200, result)
+            return
+          }
+        }
+        const orderMatch = url.pathname.match(/^\/api\/membership\/orders\/([A-Za-z0-9-]{1,80})$/)
+        if (request.method === 'GET' && orderMatch) {
+          sendJson(response, 200, await membershipAccess.membershipRequest({
+            action: 'order', userId: membershipUser.id, orderId: orderMatch[1],
+          }))
+          return
+        }
+        throw Object.assign(new Error('Membership endpoint not found.'), { statusCode: 404 })
+      }
+      const membershipFeature = membershipFeatureForRequest(request.method, url.pathname)
+      if (membershipFeature && membershipAccess.enforcementEnabled()) {
+        const membershipDb = appDatabase(env, baseTopicPracticeQuestionBank, { synchronizeSource: false })
+        const membershipUser = request.headers.authorization
+          ? identityFromRequest(request, signingKey)
+          : nativeSessionIdentity(request, membershipDb)
+        if (!membershipUser) throw Object.assign(new Error('Sign in to continue.'), { statusCode: 401, code: 'identity_required' })
+        await membershipAccess.requireFeature(membershipUser, membershipFeature)
+        Object.defineProperty(request, 'membershipProtectedAccess', { value: true, configurable: false, enumerable: false })
+      }
       if (await curriculumPaperCatalog.handle(request, response, url)) return
       if(request.method==='GET'&&url.pathname==='/api/stem/practice-source-image'){
         const result=await nativeQuestionImages.image(Object.fromEntries(url.searchParams))
-        response.setHeader('Content-Type',result.contentType);response.setHeader('Cache-Control','public, max-age=60, must-revalidate');response.setHeader('ETag','"'+result.sha256+'"');response.setHeader('X-Content-Type-Options','nosniff')
+        response.setHeader('Content-Type',result.contentType);response.setHeader('Cache-Control',membershipProtectedCacheControl(request.membershipProtectedAccess === true,'public, max-age=60, must-revalidate'));if(request.membershipProtectedAccess===true)response.setHeader('Vary','Authorization, Cookie');response.setHeader('ETag','"'+result.sha256+'"');response.setHeader('X-Content-Type-Options','nosniff')
         response.writeHead(200,{'Content-Length':result.bytes.length});response.end(result.bytes);return
       }
       if (request.method === 'GET' && url.pathname === '/api/stem/paper-catalog') {

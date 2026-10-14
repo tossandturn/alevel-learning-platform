@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import crypto from 'node:crypto'
+import { createMembershipAccessController, membershipFeatureForAiRequest } from './membershipAccess.js'
 import os from 'node:os'
 import path from 'node:path'
 import { isAiMarkablePastPaperItem, studyQuestionBank } from '../src/data/questionBank.js'
@@ -2628,9 +2629,10 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
   return sendJson(response, 200, { mode: 'offline', code: 'vision_review_failed', provider: lastAttemptedProvider.name, providerStatus: 'error', error: providerMessage(lastError, lastAttemptedProvider), retryable: true })
 }
 
-export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null, authorizeCoachRequest = null, tavernDivinationStore = null, tavernConversationStore = null, tavernMemoryRoot = null }) {
+export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null, authorizeCoachRequest = null, tavernDivinationStore = null, tavernConversationStore = null, tavernMemoryRoot = null, fetchImpl = fetch, membershipIdentityProvider = null }) {
   const config = providerConfig(env)
   const timeoutConfig = aiTimeoutConfig(env)
+  const membershipAccess = createMembershipAccessController({ env, fetchImpl })
   const divinationStore = tavernDivinationStore || createTavernDivinationStore()
   let activeConversationStore = tavernConversationStore
   const conversationStore = () => {
@@ -2651,6 +2653,13 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
     const requestUrl = new URL(request.url, 'http://127.0.0.1')
     if (!requestUrl.pathname.startsWith('/api/ai/')) return next()
     try {
+      const membershipFeature = membershipFeatureForAiRequest(request.method, requestUrl.pathname)
+      if (membershipFeature && membershipAccess.enforcementEnabled()) {
+        const userId = authenticatedStemUser(request, env)
+          || (typeof membershipIdentityProvider === 'function' ? membershipIdentityProvider(request)?.id : null)
+        if (!userId) throw Object.assign(new Error('Sign in to continue.'), { statusCode: 401, code: 'identity_required' })
+        await membershipAccess.requireFeature({ id: userId }, membershipFeature)
+      }
       if (request.method === 'GET' && requestUrl.pathname.startsWith('/api/ai/image/')) return handleTemporaryImage(requestUrl, response)
       if (request.method === 'GET' && requestUrl.pathname === '/api/ai/status') {
         const coachProvider = providerCandidates(config.coach)[0]

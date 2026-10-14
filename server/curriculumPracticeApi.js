@@ -3,6 +3,7 @@ import fs from 'node:fs'
 
 import { createCurriculumPracticeReleaseLoader } from './curriculumPracticeRoutes.js'
 import { createSqliteCurriculumPracticeStore } from './curriculumPracticeStore.js'
+import { membershipProtectedCacheControl } from './membershipAccess.js'
 
 const API_ROOT = '/api/stem/curriculum-practice'
 
@@ -206,7 +207,8 @@ export function createCurriculumPracticeApi({
         response.setHeader('Content-Type', asset.contentType)
         response.setHeader('Content-Length', String(asset.bytes))
         response.setHeader('ETag', `"${asset.sha256}"`)
-        response.setHeader('Cache-Control', 'private, max-age=3600, immutable')
+        response.setHeader('Cache-Control', membershipProtectedCacheControl(request.membershipProtectedAccess === true, 'private, max-age=3600, immutable'))
+        if (request.membershipProtectedAccess === true) response.setHeader('Vary', 'Authorization, Cookie')
         response.setHeader('X-Content-Type-Options', 'nosniff')
         if (request.method === 'HEAD') response.end()
         else fs.createReadStream(asset.filePath).pipe(response)

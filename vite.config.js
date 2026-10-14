@@ -7,6 +7,7 @@ import path from 'node:path'
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { createAiApi } from './server/aiApi.js'
+import { createMembershipAccessController, membershipFeatureForProtectedAsset, membershipFeatureForRequest, membershipProtectedCacheControl } from './server/membershipAccess.js'
 import { createAiVerifiedQuestionBankLoader } from './server/aiVerifiedQuestionBank.js'
 import { resolveAiPdfIngestionRoot } from './server/aiPdfIngestionCandidates.js'
 import { createCoachAttemptAuthorizer, createCurriculumPracticeAccess, createStemApi } from './server/stemApi.js'
@@ -87,7 +88,7 @@ function recordPdfAccess(env, item, { outcome, statusCode, ranged }) {
     })
 }
 
-export async function sendLocalPdf(request, response, next, env, runtimePdfDocuments = () => []) {
+export async function sendLocalPdf(request, response, next, env, runtimePdfDocuments = () => [], { protectedAccess = false } = {}) {
   const requestUrl = new URL(request.url, 'http://127.0.0.1')
   const segments = requestUrl.pathname.split('/').filter(Boolean).map(decodeURIComponent)
   if (segments[0] !== 'local-pdf') return next()
@@ -156,7 +157,8 @@ export async function sendLocalPdf(request, response, next, env, runtimePdfDocum
   response.setHeader('Content-Type', 'application/pdf')
   response.setHeader('Accept-Ranges', 'bytes')
   response.setHeader('Content-Disposition', `inline; filename="${fileName}"`)
-  response.setHeader('Cache-Control', 'private, max-age=3600')
+  response.setHeader('Cache-Control', membershipProtectedCacheControl(protectedAccess, 'private, max-age=3600'))
+  if (protectedAccess) response.setHeader('Vary', 'Authorization, Cookie')
   response.setHeader('ETag', etag)
 
   if (!range) {
@@ -224,7 +226,7 @@ function contentTypeForPublicPath(filePath) {
   }
 }
 
-function sendPublicAsset(request, response, next) {
+function sendPublicAsset(request, response, next, { protectedAccess = false } = {}) {
   const requestUrl = new URL(request.url, 'http://127.0.0.1')
   let pathname
   try {
@@ -257,7 +259,10 @@ function sendPublicAsset(request, response, next) {
   }
 
   response.setHeader('Content-Type', contentTypeForPublicPath(filePath))
-  if (pathname.startsWith('/question-assets/')) {
+  if (protectedAccess) {
+    response.setHeader('Cache-Control', membershipProtectedCacheControl(true, 'no-cache'))
+    response.setHeader('Vary', 'Authorization, Cookie')
+  } else if (pathname.startsWith('/question-assets/')) {
     response.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
   } else {
     response.setHeader('Cache-Control', 'no-cache')
@@ -506,15 +511,64 @@ function localCieLibrary(env) {
   })
   const stemApi = createStemApi({ env, topicQuestionBankProvider: runtimeAiGroups, libraryRoot, topicPdfRenderer })
   const curriculumReleaseRoot = env.STEM_CURRICULUM_PRACTICE_RELEASE_ROOT || '/home/ubuntu/alevel-physics/curriculum-practice/current'
+  const curriculumPracticeAccess = createCurriculumPracticeAccess({ env })
   const curriculumPracticeApi = createCurriculumPracticeApi({
     releaseRoot: curriculumReleaseRoot,
     sourceAssetRoot: env.STEM_CURRICULUM_PRACTICE_SOURCE_ROOT || path.join(curriculumReleaseRoot, 'source'),
-    ...createCurriculumPracticeAccess({ env }),
+    ...curriculumPracticeAccess,
   })
+  const curriculumMembershipAccess = createMembershipAccessController({ env })
+  function handleMembershipMiddlewareError(response, next, error) {
+    const statusCode = Number(error?.statusCode)
+    const membershipCode = String(error?.code || '')
+    if (![401, 403, 503].includes(statusCode)
+        || (statusCode !== 401 && !membershipCode.startsWith('membership_'))) {
+      next(error)
+      return
+    }
+    const code = statusCode === 401 ? 'identity_required' : membershipCode
+    const message = statusCode === 401 ? 'Sign in to continue.' : error.message
+    const payload = Buffer.from(JSON.stringify({ code, error: message }), 'utf8')
+    response.statusCode = statusCode
+    response.setHeader('Content-Type', 'application/json; charset=utf-8')
+    response.setHeader('Content-Length', payload.length)
+    response.setHeader('Cache-Control', 'no-store')
+    response.end(payload)
+  }
+  async function requireProtectedMembership(request, pathname) {
+    const feature = membershipFeatureForProtectedAsset(pathname)
+    if (feature && curriculumMembershipAccess.enforcementEnabled()) {
+      await curriculumMembershipAccess.requireFeature(curriculumPracticeAccess.authenticateMembershipRequest(request), feature)
+      return true
+    }
+    return false
+  }
+  const membershipProtectedPublicAsset = (request, response, next) => {
+    void (async () => {
+      const pathname = new URL(request.url, 'http://127.0.0.1').pathname
+      const protectedAccess = await requireProtectedMembership(request, pathname)
+      sendPublicAsset(request, response, next, { protectedAccess })
+    })().catch((error) => handleMembershipMiddlewareError(response, next, error))
+  }
+  const membershipProtectedLocalPdf = (request, response, next) => {
+    void (async () => {
+      const pathname = new URL(request.url, 'http://127.0.0.1').pathname
+      const protectedAccess = await requireProtectedMembership(request, pathname)
+      await sendLocalPdf(request, response, next, env, runtimePdfDocuments, { protectedAccess })
+    })().catch((error) => handleMembershipMiddlewareError(response, next, error))
+  }
   const curriculumPracticeMiddleware = (request, response, next) => {
-    void curriculumPracticeApi.handle(request, response).then((handled) => {
-      if (!handled) next()
-    }).catch(next)
+    void (async () => {
+      const pathname = new URL(request.url, 'http://127.0.0.1').pathname
+      if (pathname.startsWith('/api/stem/curriculum-practice') && curriculumMembershipAccess.enforcementEnabled()) {
+        await curriculumMembershipAccess.requireFeature(
+          curriculumPracticeAccess.authenticateMembershipRequest(request),
+          membershipFeatureForRequest(request.method, pathname),
+        )
+        Object.defineProperty(request, 'membershipProtectedAccess', { value: true, configurable: false, enumerable: false })
+      }
+      if (!await curriculumPracticeApi.handle(request, response)) next()
+    })().catch((error) => handleMembershipMiddlewareError(response, next, error))
   }
   const aiApi = createAiApi({
     env,
@@ -522,6 +576,7 @@ function localCieLibrary(env) {
     allowedSubjects: ALLOWED_SUBJECTS,
     questionBankProvider: runtimeAiGroups,
     authorizeCoachRequest: createCoachAttemptAuthorizer({ env, questionBankProvider: runtimeAiGroups }),
+    membershipIdentityProvider: curriculumPracticeAccess.authenticateMembershipRequest,
   })
   return {
     name: 'local-cie-library',
@@ -529,25 +584,21 @@ function localCieLibrary(env) {
       server.middlewares.use(securityHeaders)
       server.middlewares.use(createMissingBuiltAssetMiddleware({ assetRoot: path.resolve(server.config.root, server.config.build.outDir || 'dist') }))
       server.middlewares.use(sendHealth)
-      server.middlewares.use(sendPublicAsset)
+      server.middlewares.use(membershipProtectedPublicAsset)
       server.middlewares.use(curriculumPracticeMiddleware)
       server.middlewares.use(stemApi)
       server.middlewares.use(aiApi)
-      server.middlewares.use((request, response, next) => {
-        void sendLocalPdf(request, response, next, env, runtimePdfDocuments).catch(next)
-      })
+      server.middlewares.use(membershipProtectedLocalPdf)
     },
     configurePreviewServer(server) {
       server.middlewares.use(securityHeaders)
       server.middlewares.use(createMissingBuiltAssetMiddleware({ assetRoot: path.resolve(server.config.root, server.config.build.outDir || 'dist') }))
       server.middlewares.use(sendHealth)
-      server.middlewares.use(sendPublicAsset)
+      server.middlewares.use(membershipProtectedPublicAsset)
       server.middlewares.use(curriculumPracticeMiddleware)
       server.middlewares.use(stemApi)
       server.middlewares.use(aiApi)
-      server.middlewares.use((request, response, next) => {
-        void sendLocalPdf(request, response, next, env, runtimePdfDocuments).catch(next)
-      })
+      server.middlewares.use(membershipProtectedLocalPdf)
     },
   }
 }
