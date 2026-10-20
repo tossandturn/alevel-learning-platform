@@ -143,6 +143,7 @@
     "test:tavern-long-memory": "node scripts/test-tavern-long-memory.mjs && node scripts/test-tavern-long-memory-api.mjs",
     "test:coach-stream-protocol": "node scripts/test-coach-stream-protocol.mjs",
     "test:tavern-deepseek": "node scripts/test-tavern-provider.mjs && node scripts/test-tavern-deepseek-api.mjs",
+    "test:stem-deepseek": "node scripts/test-stem-deepseek.mjs",
     "test:shared-account-env": "node scripts/test-shared-account-env-contract.mjs",
     "test:stem-auth-key-precedence": "node scripts/test-stem-auth-key-precedence.mjs",
     "test:stem-user-profile": "node scripts/test-stem-user-profile.mjs",

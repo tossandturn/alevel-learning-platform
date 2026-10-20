@@ -3,6 +3,7 @@ import crypto from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 import { loadTavernProvider } from './tavernProvider.js'
+import { loadStemAcademicProvider } from './stemAcademicProvider.js'
 import {TAVERN_MEDIA_VERSION,TAVERN_MEDIA_PREFIX,loadTavernMediaCatalog,selectTavernMediaCandidates,tavernMediaSystemPrompt,normalizeTavernMediaReply,serveTavernMedia,DEFAULT_TAVERN_MEDIA_ROOT} from './tavernMedia.js'
 import { isAiMarkablePastPaperItem, studyQuestionBank } from '../src/data/questionBank.js'
 import { renderVerifiedCoordinatePdfPage } from './coordinatePdfImages.js'
@@ -1000,6 +1001,11 @@ export function providerConfig(env = {}) {
   }
 }
 
+export function studentProviderConfig(env = {}, legacy = providerConfig(env)) {
+  const academic = loadStemAcademicProvider({ env })
+  return academic ? { provider: 'deepseek', coach: { ...academic }, vision: { ...academic } } : legacy
+}
+
 function normalizedProviderProtocol(value, baseUrl = '') {
   const explicit = String(value || '').trim().toLowerCase()
   if (explicit === 'responses' || explicit === 'response') return 'responses'
@@ -1125,7 +1131,10 @@ function providerRequestBody(provider, { messages, temperature = 0.2, stream = f
     stream,
     ...(boundedOutputTokens ? { max_tokens: boundedOutputTokens } : {}),
     ...(disableThinking && provider.name === 'qwen' && /^qwen3\.7-(?:max|plus)$/i.test(String(provider.model || '')) ? { enable_thinking: false } : {}),
-    ...(disableThinking && provider.name === 'deepseek' ? { thinking: { type: 'disabled' } } : {}),
+    ...(provider.name === 'deepseek' && (disableThinking || provider.thinkingMode) ? {
+      thinking: { type: disableThinking ? 'disabled' : provider.thinkingMode },
+      ...(!disableThinking && provider.thinkingMode === 'enabled' ? { reasoning_effort: provider.reasoningEffort || 'low' } : {}),
+    } : {}),
     ...(json ? { response_format: { type: 'json_object' } } : {}),
     ...(safeMetadata ? { metadata: safeMetadata } : {}),
   }
@@ -2640,8 +2649,9 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
 }
 
 export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null, authorizeCoachRequest = null, tavernDivinationStore = null, tavernConversationStore = null, tavernMemoryRoot = null, tavernMediaCatalog=null, tavernMediaRoot=DEFAULT_TAVERN_MEDIA_ROOT }) {
-  const config = providerConfig(env)
-  const tavernProvider = loadTavernProvider({ env })
+  const legacyConfig = providerConfig(env)
+  const config = studentProviderConfig(env, legacyConfig)
+  const tavernProvider = loadTavernProvider({ env }) || legacyConfig.coach
   const timeoutConfig = aiTimeoutConfig(env)
   const divinationStore = tavernDivinationStore || createTavernDivinationStore()
   let activeConversationStore = tavernConversationStore

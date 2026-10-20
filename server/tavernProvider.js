@@ -33,6 +33,7 @@ function privateText(file, maxBytes) {
     fs.closeSync(fd)
   }
 }
+export { privateText as readPrivateProviderText }
 
 function credential(value) {
   const text = typeof value === 'string' ? value.trim() : ''

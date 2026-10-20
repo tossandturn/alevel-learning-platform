@@ -4,7 +4,7 @@ import {
   callCompatibleAi,
   parseStructuredJson,
   providerCandidates,
-  providerConfig,
+  studentProviderConfig,
   temporaryProviderImages,
 } from './aiApi.js'
 
@@ -246,7 +246,7 @@ function privateResponsesOptions(provider) {
  * excluded: they are untrusted report metadata, not model instructions.
  */
 export function createWholePaperAiRunner({ env = process.env, telemetry = null } = {}) {
-  const config = providerConfig(env)
+  const config = studentProviderConfig(env)
   const configuredTimeout = timeoutMs(env)
   return async function runWholePaperAi({ job = {}, answerPages = [], questionPaperPages = [], markSchemePages = [], deadlineAt = null, signal = null } = {}) {
     if (!answerPages.length || answerPages.some((page) => !/^data:image\/(?:png|jpeg|jpg|webp);base64,/.test(String(page?.dataUrl || '')))) {
@@ -333,7 +333,8 @@ export function createWholePaperAiRunner({ env = process.env, telemetry = null }
           temperature: 0.05,
           // Some configured vision-compatible providers reject response_format.
           // The explicit prompt plus strict parser/validator still fail closed.
-          json: false,
+          // DeepSeek supports JSON mode; retain compatibility for older routes.
+          json: provider.name === 'deepseek',
           operation: 'whole-paper-marking',
           requestId: crypto.randomUUID(),
           providerAttempt: providerIndex + 1,
