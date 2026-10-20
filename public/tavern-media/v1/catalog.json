@@ -1,0 +1,3125 @@
+{
+  "schemaVersion": "tavern-media.v1",
+  "revision": "original-20261020-v1",
+  "originalArtwork": true,
+  "items": [
+    {
+      "id": "sticker-lavender-cat-hello",
+      "kind": "sticker",
+      "caption": "来啦",
+      "alt": "紫色猫咪开心地挥手打招呼",
+      "tags": [
+        "打招呼",
+        "你好",
+        "嗨",
+        "早上好",
+        "hello",
+        "hi",
+        "猫",
+        "猫猫",
+        "cat",
+        "cat-companion",
+        "表情包",
+        "sticker"
+      ],
+      "file": "lavender-cat-76e19d2233d5ee7e.jpg",
+      "sha256": "76e19d2233d5ee7ead2a55e9612164c27da9e0f579a6d5a0cdfbe3945fe90d7c",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 0,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-lavender-cat-approve",
+      "kind": "sticker",
+      "caption": "可以的",
+      "alt": "紫色猫咪微笑着竖起拇指",
+      "tags": [
+        "赞同",
+        "可以",
+        "厉害",
+        "支持",
+        "赞",
+        "thanks",
+        "agree",
+        "猫",
+        "猫猫",
+        "cat",
+        "cat-companion",
+        "表情包",
+        "sticker"
+      ],
+      "file": "lavender-cat-76e19d2233d5ee7e.jpg",
+      "sha256": "76e19d2233d5ee7ead2a55e9612164c27da9e0f579a6d5a0cdfbe3945fe90d7c",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 1,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-lavender-cat-laugh",
+      "kind": "sticker",
+      "caption": "哈哈哈",
+      "alt": "紫色猫咪眯眼开心地大笑",
+      "tags": [
+        "开心",
+        "哈哈",
+        "好笑",
+        "笑死",
+        "吐槽",
+        "lol",
+        "funny",
+        "猫",
+        "猫猫",
+        "cat",
+        "cat-companion",
+        "表情包",
+        "sticker"
+      ],
+      "file": "lavender-cat-76e19d2233d5ee7e.jpg",
+      "sha256": "76e19d2233d5ee7ead2a55e9612164c27da9e0f579a6d5a0cdfbe3945fe90d7c",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 2,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-lavender-cat-celebrate",
+      "kind": "sticker",
+      "caption": "好耶",
+      "alt": "紫色猫咪举起双手庆祝，身旁有小星星",
+      "tags": [
+        "庆祝",
+        "好耶",
+        "成功",
+        "恭喜",
+        "太棒",
+        "celebrate",
+        "猫",
+        "猫猫",
+        "cat",
+        "cat-companion",
+        "表情包",
+        "sticker"
+      ],
+      "file": "lavender-cat-76e19d2233d5ee7e.jpg",
+      "sha256": "76e19d2233d5ee7ead2a55e9612164c27da9e0f579a6d5a0cdfbe3945fe90d7c",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 3,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-lavender-cat-shy",
+      "kind": "sticker",
+      "caption": "有点害羞",
+      "alt": "紫色猫咪脸红害羞地缩起身体",
+      "tags": [
+        "害羞",
+        "不好意思",
+        "夸奖",
+        "可爱",
+        "shy",
+        "猫",
+        "猫猫",
+        "cat",
+        "cat-companion",
+        "表情包",
+        "sticker"
+      ],
+      "file": "lavender-cat-76e19d2233d5ee7e.jpg",
+      "sha256": "76e19d2233d5ee7ead2a55e9612164c27da9e0f579a6d5a0cdfbe3945fe90d7c",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 0,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-lavender-cat-puzzled",
+      "kind": "sticker",
+      "caption": "嗯？",
+      "alt": "紫色猫咪歪头思考，露出疑惑表情",
+      "tags": [
+        "疑惑",
+        "怎么",
+        "为什么",
+        "不懂",
+        "好奇",
+        "confused",
+        "猫",
+        "猫猫",
+        "cat",
+        "cat-companion",
+        "表情包",
+        "sticker"
+      ],
+      "file": "lavender-cat-76e19d2233d5ee7e.jpg",
+      "sha256": "76e19d2233d5ee7ead2a55e9612164c27da9e0f579a6d5a0cdfbe3945fe90d7c",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 1,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-lavender-cat-surprised",
+      "kind": "sticker",
+      "caption": "哇！",
+      "alt": "紫色猫咪睁大眼睛惊讶地举起手",
+      "tags": [
+        "惊讶",
+        "没想到",
+        "震惊",
+        "哇",
+        "surprise",
+        "猫",
+        "猫猫",
+        "cat",
+        "cat-companion",
+        "表情包",
+        "sticker"
+      ],
+      "file": "lavender-cat-76e19d2233d5ee7e.jpg",
+      "sha256": "76e19d2233d5ee7ead2a55e9612164c27da9e0f579a6d5a0cdfbe3945fe90d7c",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 2,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-lavender-cat-sad",
+      "kind": "sticker",
+      "caption": "有点难过",
+      "alt": "紫色猫咪低着头，眼角有一滴小泪珠",
+      "tags": [
+        "难过",
+        "伤心",
+        "委屈",
+        "失落",
+        "sad",
+        "猫",
+        "猫猫",
+        "cat",
+        "cat-companion",
+        "表情包",
+        "sticker"
+      ],
+      "file": "lavender-cat-76e19d2233d5ee7e.jpg",
+      "sha256": "76e19d2233d5ee7ead2a55e9612164c27da9e0f579a6d5a0cdfbe3945fe90d7c",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 3,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-lavender-cat-comfort",
+      "kind": "sticker",
+      "caption": "慢慢说，我在",
+      "alt": "紫色猫咪温柔地递出纸巾",
+      "tags": [
+        "安慰",
+        "压力",
+        "焦虑",
+        "哭",
+        "担心",
+        "comfort",
+        "猫",
+        "猫猫",
+        "cat",
+        "cat-companion",
+        "表情包",
+        "sticker"
+      ],
+      "file": "lavender-cat-76e19d2233d5ee7e.jpg",
+      "sha256": "76e19d2233d5ee7ead2a55e9612164c27da9e0f579a6d5a0cdfbe3945fe90d7c",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 0,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-lavender-cat-hug",
+      "kind": "sticker",
+      "caption": "抱抱",
+      "alt": "紫色猫咪张开双臂邀请一个友好的拥抱",
+      "tags": [
+        "抱抱",
+        "拥抱",
+        "陪伴",
+        "累",
+        "hug",
+        "猫",
+        "猫猫",
+        "cat",
+        "cat-companion",
+        "表情包",
+        "sticker"
+      ],
+      "file": "lavender-cat-76e19d2233d5ee7e.jpg",
+      "sha256": "76e19d2233d5ee7ead2a55e9612164c27da9e0f579a6d5a0cdfbe3945fe90d7c",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 1,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-lavender-cat-sleep",
+      "kind": "sticker",
+      "caption": "晚安",
+      "alt": "紫色猫咪蜷在小枕头上安静睡觉",
+      "tags": [
+        "晚安",
+        "睡觉",
+        "困",
+        "休息",
+        "sleep",
+        "night",
+        "猫",
+        "猫猫",
+        "cat",
+        "cat-companion",
+        "表情包",
+        "sticker"
+      ],
+      "file": "lavender-cat-76e19d2233d5ee7e.jpg",
+      "sha256": "76e19d2233d5ee7ead2a55e9612164c27da9e0f579a6d5a0cdfbe3945fe90d7c",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 2,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-lavender-cat-tea",
+      "kind": "sticker",
+      "caption": "歇一会",
+      "alt": "紫色猫咪抱着一杯热茶，神态放松",
+      "tags": [
+        "喝茶",
+        "放松",
+        "歇会",
+        "休闲",
+        "茶",
+        "tea",
+        "relax",
+        "猫",
+        "猫猫",
+        "cat",
+        "cat-companion",
+        "表情包",
+        "sticker"
+      ],
+      "file": "lavender-cat-76e19d2233d5ee7e.jpg",
+      "sha256": "76e19d2233d5ee7ead2a55e9612164c27da9e0f579a6d5a0cdfbe3945fe90d7c",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 3,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-peach-bunny-hello",
+      "kind": "sticker",
+      "caption": "来啦",
+      "alt": "蜜桃兔子开心地挥手打招呼",
+      "tags": [
+        "打招呼",
+        "你好",
+        "嗨",
+        "早上好",
+        "hello",
+        "hi",
+        "兔子",
+        "兔兔",
+        "bunny",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "peach-bunny-417e7c054e67c1c4.jpg",
+      "sha256": "417e7c054e67c1c4b1f2e320b7a15b65d42a8ddd69c034e08a7d122f38682b4b",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 0,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-peach-bunny-approve",
+      "kind": "sticker",
+      "caption": "可以的",
+      "alt": "蜜桃兔子微笑着竖起拇指",
+      "tags": [
+        "赞同",
+        "可以",
+        "厉害",
+        "支持",
+        "赞",
+        "thanks",
+        "agree",
+        "兔子",
+        "兔兔",
+        "bunny",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "peach-bunny-417e7c054e67c1c4.jpg",
+      "sha256": "417e7c054e67c1c4b1f2e320b7a15b65d42a8ddd69c034e08a7d122f38682b4b",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 1,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-peach-bunny-laugh",
+      "kind": "sticker",
+      "caption": "哈哈哈",
+      "alt": "蜜桃兔子眯眼开心地大笑",
+      "tags": [
+        "开心",
+        "哈哈",
+        "好笑",
+        "笑死",
+        "吐槽",
+        "lol",
+        "funny",
+        "兔子",
+        "兔兔",
+        "bunny",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "peach-bunny-417e7c054e67c1c4.jpg",
+      "sha256": "417e7c054e67c1c4b1f2e320b7a15b65d42a8ddd69c034e08a7d122f38682b4b",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 2,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-peach-bunny-celebrate",
+      "kind": "sticker",
+      "caption": "好耶",
+      "alt": "蜜桃兔子举起双手庆祝，身旁有小星星",
+      "tags": [
+        "庆祝",
+        "好耶",
+        "成功",
+        "恭喜",
+        "太棒",
+        "celebrate",
+        "兔子",
+        "兔兔",
+        "bunny",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "peach-bunny-417e7c054e67c1c4.jpg",
+      "sha256": "417e7c054e67c1c4b1f2e320b7a15b65d42a8ddd69c034e08a7d122f38682b4b",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 3,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-peach-bunny-shy",
+      "kind": "sticker",
+      "caption": "有点害羞",
+      "alt": "蜜桃兔子脸红害羞地缩起身体",
+      "tags": [
+        "害羞",
+        "不好意思",
+        "夸奖",
+        "可爱",
+        "shy",
+        "兔子",
+        "兔兔",
+        "bunny",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "peach-bunny-417e7c054e67c1c4.jpg",
+      "sha256": "417e7c054e67c1c4b1f2e320b7a15b65d42a8ddd69c034e08a7d122f38682b4b",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 0,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-peach-bunny-puzzled",
+      "kind": "sticker",
+      "caption": "嗯？",
+      "alt": "蜜桃兔子歪头思考，露出疑惑表情",
+      "tags": [
+        "疑惑",
+        "怎么",
+        "为什么",
+        "不懂",
+        "好奇",
+        "confused",
+        "兔子",
+        "兔兔",
+        "bunny",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "peach-bunny-417e7c054e67c1c4.jpg",
+      "sha256": "417e7c054e67c1c4b1f2e320b7a15b65d42a8ddd69c034e08a7d122f38682b4b",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 1,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-peach-bunny-surprised",
+      "kind": "sticker",
+      "caption": "哇！",
+      "alt": "蜜桃兔子睁大眼睛惊讶地举起手",
+      "tags": [
+        "惊讶",
+        "没想到",
+        "震惊",
+        "哇",
+        "surprise",
+        "兔子",
+        "兔兔",
+        "bunny",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "peach-bunny-417e7c054e67c1c4.jpg",
+      "sha256": "417e7c054e67c1c4b1f2e320b7a15b65d42a8ddd69c034e08a7d122f38682b4b",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 2,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-peach-bunny-sad",
+      "kind": "sticker",
+      "caption": "有点难过",
+      "alt": "蜜桃兔子低着头，眼角有一滴小泪珠",
+      "tags": [
+        "难过",
+        "伤心",
+        "委屈",
+        "失落",
+        "sad",
+        "兔子",
+        "兔兔",
+        "bunny",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "peach-bunny-417e7c054e67c1c4.jpg",
+      "sha256": "417e7c054e67c1c4b1f2e320b7a15b65d42a8ddd69c034e08a7d122f38682b4b",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 3,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-peach-bunny-comfort",
+      "kind": "sticker",
+      "caption": "慢慢说，我在",
+      "alt": "蜜桃兔子温柔地递出纸巾",
+      "tags": [
+        "安慰",
+        "压力",
+        "焦虑",
+        "哭",
+        "担心",
+        "comfort",
+        "兔子",
+        "兔兔",
+        "bunny",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "peach-bunny-417e7c054e67c1c4.jpg",
+      "sha256": "417e7c054e67c1c4b1f2e320b7a15b65d42a8ddd69c034e08a7d122f38682b4b",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 0,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-peach-bunny-hug",
+      "kind": "sticker",
+      "caption": "抱抱",
+      "alt": "蜜桃兔子张开双臂邀请一个友好的拥抱",
+      "tags": [
+        "抱抱",
+        "拥抱",
+        "陪伴",
+        "累",
+        "hug",
+        "兔子",
+        "兔兔",
+        "bunny",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "peach-bunny-417e7c054e67c1c4.jpg",
+      "sha256": "417e7c054e67c1c4b1f2e320b7a15b65d42a8ddd69c034e08a7d122f38682b4b",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 1,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-peach-bunny-sleep",
+      "kind": "sticker",
+      "caption": "晚安",
+      "alt": "蜜桃兔子蜷在小枕头上安静睡觉",
+      "tags": [
+        "晚安",
+        "睡觉",
+        "困",
+        "休息",
+        "sleep",
+        "night",
+        "兔子",
+        "兔兔",
+        "bunny",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "peach-bunny-417e7c054e67c1c4.jpg",
+      "sha256": "417e7c054e67c1c4b1f2e320b7a15b65d42a8ddd69c034e08a7d122f38682b4b",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 2,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-peach-bunny-tea",
+      "kind": "sticker",
+      "caption": "歇一会",
+      "alt": "蜜桃兔子抱着一杯热茶，神态放松",
+      "tags": [
+        "喝茶",
+        "放松",
+        "歇会",
+        "休闲",
+        "茶",
+        "tea",
+        "relax",
+        "兔子",
+        "兔兔",
+        "bunny",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "peach-bunny-417e7c054e67c1c4.jpg",
+      "sha256": "417e7c054e67c1c4b1f2e320b7a15b65d42a8ddd69c034e08a7d122f38682b4b",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 3,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-cream-bear-hello",
+      "kind": "sticker",
+      "caption": "来啦",
+      "alt": "奶油小熊开心地挥手打招呼",
+      "tags": [
+        "打招呼",
+        "你好",
+        "嗨",
+        "早上好",
+        "hello",
+        "hi",
+        "小熊",
+        "熊熊",
+        "bear",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "cream-bear-a324072015398f27.jpg",
+      "sha256": "a324072015398f27bd98421d739d05dbc32df856ca7aae4f1903e53707cc8ab9",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 0,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-cream-bear-approve",
+      "kind": "sticker",
+      "caption": "可以的",
+      "alt": "奶油小熊微笑着竖起拇指",
+      "tags": [
+        "赞同",
+        "可以",
+        "厉害",
+        "支持",
+        "赞",
+        "thanks",
+        "agree",
+        "小熊",
+        "熊熊",
+        "bear",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "cream-bear-a324072015398f27.jpg",
+      "sha256": "a324072015398f27bd98421d739d05dbc32df856ca7aae4f1903e53707cc8ab9",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 1,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-cream-bear-laugh",
+      "kind": "sticker",
+      "caption": "哈哈哈",
+      "alt": "奶油小熊眯眼开心地大笑",
+      "tags": [
+        "开心",
+        "哈哈",
+        "好笑",
+        "笑死",
+        "吐槽",
+        "lol",
+        "funny",
+        "小熊",
+        "熊熊",
+        "bear",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "cream-bear-a324072015398f27.jpg",
+      "sha256": "a324072015398f27bd98421d739d05dbc32df856ca7aae4f1903e53707cc8ab9",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 2,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-cream-bear-celebrate",
+      "kind": "sticker",
+      "caption": "好耶",
+      "alt": "奶油小熊举起双手庆祝，身旁有小星星",
+      "tags": [
+        "庆祝",
+        "好耶",
+        "成功",
+        "恭喜",
+        "太棒",
+        "celebrate",
+        "小熊",
+        "熊熊",
+        "bear",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "cream-bear-a324072015398f27.jpg",
+      "sha256": "a324072015398f27bd98421d739d05dbc32df856ca7aae4f1903e53707cc8ab9",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 3,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-cream-bear-shy",
+      "kind": "sticker",
+      "caption": "有点害羞",
+      "alt": "奶油小熊脸红害羞地缩起身体",
+      "tags": [
+        "害羞",
+        "不好意思",
+        "夸奖",
+        "可爱",
+        "shy",
+        "小熊",
+        "熊熊",
+        "bear",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "cream-bear-a324072015398f27.jpg",
+      "sha256": "a324072015398f27bd98421d739d05dbc32df856ca7aae4f1903e53707cc8ab9",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 0,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-cream-bear-puzzled",
+      "kind": "sticker",
+      "caption": "嗯？",
+      "alt": "奶油小熊歪头思考，露出疑惑表情",
+      "tags": [
+        "疑惑",
+        "怎么",
+        "为什么",
+        "不懂",
+        "好奇",
+        "confused",
+        "小熊",
+        "熊熊",
+        "bear",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "cream-bear-a324072015398f27.jpg",
+      "sha256": "a324072015398f27bd98421d739d05dbc32df856ca7aae4f1903e53707cc8ab9",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 1,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-cream-bear-surprised",
+      "kind": "sticker",
+      "caption": "哇！",
+      "alt": "奶油小熊睁大眼睛惊讶地举起手",
+      "tags": [
+        "惊讶",
+        "没想到",
+        "震惊",
+        "哇",
+        "surprise",
+        "小熊",
+        "熊熊",
+        "bear",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "cream-bear-a324072015398f27.jpg",
+      "sha256": "a324072015398f27bd98421d739d05dbc32df856ca7aae4f1903e53707cc8ab9",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 2,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-cream-bear-sad",
+      "kind": "sticker",
+      "caption": "有点难过",
+      "alt": "奶油小熊低着头，眼角有一滴小泪珠",
+      "tags": [
+        "难过",
+        "伤心",
+        "委屈",
+        "失落",
+        "sad",
+        "小熊",
+        "熊熊",
+        "bear",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "cream-bear-a324072015398f27.jpg",
+      "sha256": "a324072015398f27bd98421d739d05dbc32df856ca7aae4f1903e53707cc8ab9",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 3,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-cream-bear-comfort",
+      "kind": "sticker",
+      "caption": "慢慢说，我在",
+      "alt": "奶油小熊温柔地递出纸巾",
+      "tags": [
+        "安慰",
+        "压力",
+        "焦虑",
+        "哭",
+        "担心",
+        "comfort",
+        "小熊",
+        "熊熊",
+        "bear",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "cream-bear-a324072015398f27.jpg",
+      "sha256": "a324072015398f27bd98421d739d05dbc32df856ca7aae4f1903e53707cc8ab9",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 0,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-cream-bear-hug",
+      "kind": "sticker",
+      "caption": "抱抱",
+      "alt": "奶油小熊张开双臂邀请一个友好的拥抱",
+      "tags": [
+        "抱抱",
+        "拥抱",
+        "陪伴",
+        "累",
+        "hug",
+        "小熊",
+        "熊熊",
+        "bear",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "cream-bear-a324072015398f27.jpg",
+      "sha256": "a324072015398f27bd98421d739d05dbc32df856ca7aae4f1903e53707cc8ab9",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 1,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-cream-bear-sleep",
+      "kind": "sticker",
+      "caption": "晚安",
+      "alt": "奶油小熊蜷在小枕头上安静睡觉",
+      "tags": [
+        "晚安",
+        "睡觉",
+        "困",
+        "休息",
+        "sleep",
+        "night",
+        "小熊",
+        "熊熊",
+        "bear",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "cream-bear-a324072015398f27.jpg",
+      "sha256": "a324072015398f27bd98421d739d05dbc32df856ca7aae4f1903e53707cc8ab9",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 2,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-cream-bear-tea",
+      "kind": "sticker",
+      "caption": "歇一会",
+      "alt": "奶油小熊抱着一杯热茶，神态放松",
+      "tags": [
+        "喝茶",
+        "放松",
+        "歇会",
+        "休闲",
+        "茶",
+        "tea",
+        "relax",
+        "小熊",
+        "熊熊",
+        "bear",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "cream-bear-a324072015398f27.jpg",
+      "sha256": "a324072015398f27bd98421d739d05dbc32df856ca7aae4f1903e53707cc8ab9",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 3,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-mint-fox-hello",
+      "kind": "sticker",
+      "caption": "来啦",
+      "alt": "薄荷小狐狸开心地挥手打招呼",
+      "tags": [
+        "打招呼",
+        "你好",
+        "嗨",
+        "早上好",
+        "hello",
+        "hi",
+        "狐狸",
+        "fox",
+        "story-traveler",
+        "xianxia-guide",
+        "表情包",
+        "sticker"
+      ],
+      "file": "mint-fox-a75edadfdcf2812b.jpg",
+      "sha256": "a75edadfdcf2812bc04c7340b913f6187d238562a6b3a1751336200251732eea",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 0,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-mint-fox-approve",
+      "kind": "sticker",
+      "caption": "可以的",
+      "alt": "薄荷小狐狸微笑着竖起拇指",
+      "tags": [
+        "赞同",
+        "可以",
+        "厉害",
+        "支持",
+        "赞",
+        "thanks",
+        "agree",
+        "狐狸",
+        "fox",
+        "story-traveler",
+        "xianxia-guide",
+        "表情包",
+        "sticker"
+      ],
+      "file": "mint-fox-a75edadfdcf2812b.jpg",
+      "sha256": "a75edadfdcf2812bc04c7340b913f6187d238562a6b3a1751336200251732eea",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 1,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-mint-fox-laugh",
+      "kind": "sticker",
+      "caption": "哈哈哈",
+      "alt": "薄荷小狐狸眯眼开心地大笑",
+      "tags": [
+        "开心",
+        "哈哈",
+        "好笑",
+        "笑死",
+        "吐槽",
+        "lol",
+        "funny",
+        "狐狸",
+        "fox",
+        "story-traveler",
+        "xianxia-guide",
+        "表情包",
+        "sticker"
+      ],
+      "file": "mint-fox-a75edadfdcf2812b.jpg",
+      "sha256": "a75edadfdcf2812bc04c7340b913f6187d238562a6b3a1751336200251732eea",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 2,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-mint-fox-celebrate",
+      "kind": "sticker",
+      "caption": "好耶",
+      "alt": "薄荷小狐狸举起双手庆祝，身旁有小星星",
+      "tags": [
+        "庆祝",
+        "好耶",
+        "成功",
+        "恭喜",
+        "太棒",
+        "celebrate",
+        "狐狸",
+        "fox",
+        "story-traveler",
+        "xianxia-guide",
+        "表情包",
+        "sticker"
+      ],
+      "file": "mint-fox-a75edadfdcf2812b.jpg",
+      "sha256": "a75edadfdcf2812bc04c7340b913f6187d238562a6b3a1751336200251732eea",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 3,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-mint-fox-shy",
+      "kind": "sticker",
+      "caption": "有点害羞",
+      "alt": "薄荷小狐狸脸红害羞地缩起身体",
+      "tags": [
+        "害羞",
+        "不好意思",
+        "夸奖",
+        "可爱",
+        "shy",
+        "狐狸",
+        "fox",
+        "story-traveler",
+        "xianxia-guide",
+        "表情包",
+        "sticker"
+      ],
+      "file": "mint-fox-a75edadfdcf2812b.jpg",
+      "sha256": "a75edadfdcf2812bc04c7340b913f6187d238562a6b3a1751336200251732eea",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 0,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-mint-fox-puzzled",
+      "kind": "sticker",
+      "caption": "嗯？",
+      "alt": "薄荷小狐狸歪头思考，露出疑惑表情",
+      "tags": [
+        "疑惑",
+        "怎么",
+        "为什么",
+        "不懂",
+        "好奇",
+        "confused",
+        "狐狸",
+        "fox",
+        "story-traveler",
+        "xianxia-guide",
+        "表情包",
+        "sticker"
+      ],
+      "file": "mint-fox-a75edadfdcf2812b.jpg",
+      "sha256": "a75edadfdcf2812bc04c7340b913f6187d238562a6b3a1751336200251732eea",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 1,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-mint-fox-surprised",
+      "kind": "sticker",
+      "caption": "哇！",
+      "alt": "薄荷小狐狸睁大眼睛惊讶地举起手",
+      "tags": [
+        "惊讶",
+        "没想到",
+        "震惊",
+        "哇",
+        "surprise",
+        "狐狸",
+        "fox",
+        "story-traveler",
+        "xianxia-guide",
+        "表情包",
+        "sticker"
+      ],
+      "file": "mint-fox-a75edadfdcf2812b.jpg",
+      "sha256": "a75edadfdcf2812bc04c7340b913f6187d238562a6b3a1751336200251732eea",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 2,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-mint-fox-sad",
+      "kind": "sticker",
+      "caption": "有点难过",
+      "alt": "薄荷小狐狸低着头，眼角有一滴小泪珠",
+      "tags": [
+        "难过",
+        "伤心",
+        "委屈",
+        "失落",
+        "sad",
+        "狐狸",
+        "fox",
+        "story-traveler",
+        "xianxia-guide",
+        "表情包",
+        "sticker"
+      ],
+      "file": "mint-fox-a75edadfdcf2812b.jpg",
+      "sha256": "a75edadfdcf2812bc04c7340b913f6187d238562a6b3a1751336200251732eea",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 3,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-mint-fox-comfort",
+      "kind": "sticker",
+      "caption": "慢慢说，我在",
+      "alt": "薄荷小狐狸温柔地递出纸巾",
+      "tags": [
+        "安慰",
+        "压力",
+        "焦虑",
+        "哭",
+        "担心",
+        "comfort",
+        "狐狸",
+        "fox",
+        "story-traveler",
+        "xianxia-guide",
+        "表情包",
+        "sticker"
+      ],
+      "file": "mint-fox-a75edadfdcf2812b.jpg",
+      "sha256": "a75edadfdcf2812bc04c7340b913f6187d238562a6b3a1751336200251732eea",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 0,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-mint-fox-hug",
+      "kind": "sticker",
+      "caption": "抱抱",
+      "alt": "薄荷小狐狸张开双臂邀请一个友好的拥抱",
+      "tags": [
+        "抱抱",
+        "拥抱",
+        "陪伴",
+        "累",
+        "hug",
+        "狐狸",
+        "fox",
+        "story-traveler",
+        "xianxia-guide",
+        "表情包",
+        "sticker"
+      ],
+      "file": "mint-fox-a75edadfdcf2812b.jpg",
+      "sha256": "a75edadfdcf2812bc04c7340b913f6187d238562a6b3a1751336200251732eea",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 1,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-mint-fox-sleep",
+      "kind": "sticker",
+      "caption": "晚安",
+      "alt": "薄荷小狐狸蜷在小枕头上安静睡觉",
+      "tags": [
+        "晚安",
+        "睡觉",
+        "困",
+        "休息",
+        "sleep",
+        "night",
+        "狐狸",
+        "fox",
+        "story-traveler",
+        "xianxia-guide",
+        "表情包",
+        "sticker"
+      ],
+      "file": "mint-fox-a75edadfdcf2812b.jpg",
+      "sha256": "a75edadfdcf2812bc04c7340b913f6187d238562a6b3a1751336200251732eea",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 2,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-mint-fox-tea",
+      "kind": "sticker",
+      "caption": "歇一会",
+      "alt": "薄荷小狐狸抱着一杯热茶，神态放松",
+      "tags": [
+        "喝茶",
+        "放松",
+        "歇会",
+        "休闲",
+        "茶",
+        "tea",
+        "relax",
+        "狐狸",
+        "fox",
+        "story-traveler",
+        "xianxia-guide",
+        "表情包",
+        "sticker"
+      ],
+      "file": "mint-fox-a75edadfdcf2812b.jpg",
+      "sha256": "a75edadfdcf2812bc04c7340b913f6187d238562a6b3a1751336200251732eea",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 3,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-golden-corgi-hello",
+      "kind": "sticker",
+      "caption": "来啦",
+      "alt": "金色柯基开心地挥手打招呼",
+      "tags": [
+        "打招呼",
+        "你好",
+        "嗨",
+        "早上好",
+        "hello",
+        "hi",
+        "柯基",
+        "狗狗",
+        "dog",
+        "study-buddy",
+        "表情包",
+        "sticker"
+      ],
+      "file": "golden-corgi-a42d1d16db60003c.jpg",
+      "sha256": "a42d1d16db60003ca785bc3095495531280aaa7976918d0baaa969c8c2c8689e",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 0,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-golden-corgi-approve",
+      "kind": "sticker",
+      "caption": "可以的",
+      "alt": "金色柯基微笑着竖起拇指",
+      "tags": [
+        "赞同",
+        "可以",
+        "厉害",
+        "支持",
+        "赞",
+        "thanks",
+        "agree",
+        "柯基",
+        "狗狗",
+        "dog",
+        "study-buddy",
+        "表情包",
+        "sticker"
+      ],
+      "file": "golden-corgi-a42d1d16db60003c.jpg",
+      "sha256": "a42d1d16db60003ca785bc3095495531280aaa7976918d0baaa969c8c2c8689e",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 1,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-golden-corgi-laugh",
+      "kind": "sticker",
+      "caption": "哈哈哈",
+      "alt": "金色柯基眯眼开心地大笑",
+      "tags": [
+        "开心",
+        "哈哈",
+        "好笑",
+        "笑死",
+        "吐槽",
+        "lol",
+        "funny",
+        "柯基",
+        "狗狗",
+        "dog",
+        "study-buddy",
+        "表情包",
+        "sticker"
+      ],
+      "file": "golden-corgi-a42d1d16db60003c.jpg",
+      "sha256": "a42d1d16db60003ca785bc3095495531280aaa7976918d0baaa969c8c2c8689e",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 2,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-golden-corgi-celebrate",
+      "kind": "sticker",
+      "caption": "好耶",
+      "alt": "金色柯基举起双手庆祝，身旁有小星星",
+      "tags": [
+        "庆祝",
+        "好耶",
+        "成功",
+        "恭喜",
+        "太棒",
+        "celebrate",
+        "柯基",
+        "狗狗",
+        "dog",
+        "study-buddy",
+        "表情包",
+        "sticker"
+      ],
+      "file": "golden-corgi-a42d1d16db60003c.jpg",
+      "sha256": "a42d1d16db60003ca785bc3095495531280aaa7976918d0baaa969c8c2c8689e",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 3,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-golden-corgi-shy",
+      "kind": "sticker",
+      "caption": "有点害羞",
+      "alt": "金色柯基脸红害羞地缩起身体",
+      "tags": [
+        "害羞",
+        "不好意思",
+        "夸奖",
+        "可爱",
+        "shy",
+        "柯基",
+        "狗狗",
+        "dog",
+        "study-buddy",
+        "表情包",
+        "sticker"
+      ],
+      "file": "golden-corgi-a42d1d16db60003c.jpg",
+      "sha256": "a42d1d16db60003ca785bc3095495531280aaa7976918d0baaa969c8c2c8689e",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 0,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-golden-corgi-puzzled",
+      "kind": "sticker",
+      "caption": "嗯？",
+      "alt": "金色柯基歪头思考，露出疑惑表情",
+      "tags": [
+        "疑惑",
+        "怎么",
+        "为什么",
+        "不懂",
+        "好奇",
+        "confused",
+        "柯基",
+        "狗狗",
+        "dog",
+        "study-buddy",
+        "表情包",
+        "sticker"
+      ],
+      "file": "golden-corgi-a42d1d16db60003c.jpg",
+      "sha256": "a42d1d16db60003ca785bc3095495531280aaa7976918d0baaa969c8c2c8689e",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 1,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-golden-corgi-surprised",
+      "kind": "sticker",
+      "caption": "哇！",
+      "alt": "金色柯基睁大眼睛惊讶地举起手",
+      "tags": [
+        "惊讶",
+        "没想到",
+        "震惊",
+        "哇",
+        "surprise",
+        "柯基",
+        "狗狗",
+        "dog",
+        "study-buddy",
+        "表情包",
+        "sticker"
+      ],
+      "file": "golden-corgi-a42d1d16db60003c.jpg",
+      "sha256": "a42d1d16db60003ca785bc3095495531280aaa7976918d0baaa969c8c2c8689e",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 2,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-golden-corgi-sad",
+      "kind": "sticker",
+      "caption": "有点难过",
+      "alt": "金色柯基低着头，眼角有一滴小泪珠",
+      "tags": [
+        "难过",
+        "伤心",
+        "委屈",
+        "失落",
+        "sad",
+        "柯基",
+        "狗狗",
+        "dog",
+        "study-buddy",
+        "表情包",
+        "sticker"
+      ],
+      "file": "golden-corgi-a42d1d16db60003c.jpg",
+      "sha256": "a42d1d16db60003ca785bc3095495531280aaa7976918d0baaa969c8c2c8689e",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 3,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-golden-corgi-comfort",
+      "kind": "sticker",
+      "caption": "慢慢说，我在",
+      "alt": "金色柯基温柔地递出纸巾",
+      "tags": [
+        "安慰",
+        "压力",
+        "焦虑",
+        "哭",
+        "担心",
+        "comfort",
+        "柯基",
+        "狗狗",
+        "dog",
+        "study-buddy",
+        "表情包",
+        "sticker"
+      ],
+      "file": "golden-corgi-a42d1d16db60003c.jpg",
+      "sha256": "a42d1d16db60003ca785bc3095495531280aaa7976918d0baaa969c8c2c8689e",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 0,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-golden-corgi-hug",
+      "kind": "sticker",
+      "caption": "抱抱",
+      "alt": "金色柯基张开双臂邀请一个友好的拥抱",
+      "tags": [
+        "抱抱",
+        "拥抱",
+        "陪伴",
+        "累",
+        "hug",
+        "柯基",
+        "狗狗",
+        "dog",
+        "study-buddy",
+        "表情包",
+        "sticker"
+      ],
+      "file": "golden-corgi-a42d1d16db60003c.jpg",
+      "sha256": "a42d1d16db60003ca785bc3095495531280aaa7976918d0baaa969c8c2c8689e",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 1,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-golden-corgi-sleep",
+      "kind": "sticker",
+      "caption": "晚安",
+      "alt": "金色柯基蜷在小枕头上安静睡觉",
+      "tags": [
+        "晚安",
+        "睡觉",
+        "困",
+        "休息",
+        "sleep",
+        "night",
+        "柯基",
+        "狗狗",
+        "dog",
+        "study-buddy",
+        "表情包",
+        "sticker"
+      ],
+      "file": "golden-corgi-a42d1d16db60003c.jpg",
+      "sha256": "a42d1d16db60003ca785bc3095495531280aaa7976918d0baaa969c8c2c8689e",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 2,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-golden-corgi-tea",
+      "kind": "sticker",
+      "caption": "歇一会",
+      "alt": "金色柯基抱着一杯热茶，神态放松",
+      "tags": [
+        "喝茶",
+        "放松",
+        "歇会",
+        "休闲",
+        "茶",
+        "tea",
+        "relax",
+        "柯基",
+        "狗狗",
+        "dog",
+        "study-buddy",
+        "表情包",
+        "sticker"
+      ],
+      "file": "golden-corgi-a42d1d16db60003c.jpg",
+      "sha256": "a42d1d16db60003ca785bc3095495531280aaa7976918d0baaa969c8c2c8689e",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 3,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-sky-penguin-hello",
+      "kind": "sticker",
+      "caption": "来啦",
+      "alt": "蓝色企鹅开心地挥手打招呼",
+      "tags": [
+        "打招呼",
+        "你好",
+        "嗨",
+        "早上好",
+        "hello",
+        "hi",
+        "企鹅",
+        "penguin",
+        "study-buddy",
+        "表情包",
+        "sticker"
+      ],
+      "file": "sky-penguin-677775b856fdc902.jpg",
+      "sha256": "677775b856fdc902fffa1f01de891318e7ee3413d0600a7c7f0981f54e5b551f",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 0,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-sky-penguin-approve",
+      "kind": "sticker",
+      "caption": "可以的",
+      "alt": "蓝色企鹅微笑着竖起拇指",
+      "tags": [
+        "赞同",
+        "可以",
+        "厉害",
+        "支持",
+        "赞",
+        "thanks",
+        "agree",
+        "企鹅",
+        "penguin",
+        "study-buddy",
+        "表情包",
+        "sticker"
+      ],
+      "file": "sky-penguin-677775b856fdc902.jpg",
+      "sha256": "677775b856fdc902fffa1f01de891318e7ee3413d0600a7c7f0981f54e5b551f",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 1,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-sky-penguin-laugh",
+      "kind": "sticker",
+      "caption": "哈哈哈",
+      "alt": "蓝色企鹅眯眼开心地大笑",
+      "tags": [
+        "开心",
+        "哈哈",
+        "好笑",
+        "笑死",
+        "吐槽",
+        "lol",
+        "funny",
+        "企鹅",
+        "penguin",
+        "study-buddy",
+        "表情包",
+        "sticker"
+      ],
+      "file": "sky-penguin-677775b856fdc902.jpg",
+      "sha256": "677775b856fdc902fffa1f01de891318e7ee3413d0600a7c7f0981f54e5b551f",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 2,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-sky-penguin-celebrate",
+      "kind": "sticker",
+      "caption": "好耶",
+      "alt": "蓝色企鹅举起双手庆祝，身旁有小星星",
+      "tags": [
+        "庆祝",
+        "好耶",
+        "成功",
+        "恭喜",
+        "太棒",
+        "celebrate",
+        "企鹅",
+        "penguin",
+        "study-buddy",
+        "表情包",
+        "sticker"
+      ],
+      "file": "sky-penguin-677775b856fdc902.jpg",
+      "sha256": "677775b856fdc902fffa1f01de891318e7ee3413d0600a7c7f0981f54e5b551f",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 3,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-sky-penguin-shy",
+      "kind": "sticker",
+      "caption": "有点害羞",
+      "alt": "蓝色企鹅脸红害羞地缩起身体",
+      "tags": [
+        "害羞",
+        "不好意思",
+        "夸奖",
+        "可爱",
+        "shy",
+        "企鹅",
+        "penguin",
+        "study-buddy",
+        "表情包",
+        "sticker"
+      ],
+      "file": "sky-penguin-677775b856fdc902.jpg",
+      "sha256": "677775b856fdc902fffa1f01de891318e7ee3413d0600a7c7f0981f54e5b551f",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 0,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-sky-penguin-puzzled",
+      "kind": "sticker",
+      "caption": "嗯？",
+      "alt": "蓝色企鹅歪头思考，露出疑惑表情",
+      "tags": [
+        "疑惑",
+        "怎么",
+        "为什么",
+        "不懂",
+        "好奇",
+        "confused",
+        "企鹅",
+        "penguin",
+        "study-buddy",
+        "表情包",
+        "sticker"
+      ],
+      "file": "sky-penguin-677775b856fdc902.jpg",
+      "sha256": "677775b856fdc902fffa1f01de891318e7ee3413d0600a7c7f0981f54e5b551f",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 1,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-sky-penguin-surprised",
+      "kind": "sticker",
+      "caption": "哇！",
+      "alt": "蓝色企鹅睁大眼睛惊讶地举起手",
+      "tags": [
+        "惊讶",
+        "没想到",
+        "震惊",
+        "哇",
+        "surprise",
+        "企鹅",
+        "penguin",
+        "study-buddy",
+        "表情包",
+        "sticker"
+      ],
+      "file": "sky-penguin-677775b856fdc902.jpg",
+      "sha256": "677775b856fdc902fffa1f01de891318e7ee3413d0600a7c7f0981f54e5b551f",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 2,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-sky-penguin-sad",
+      "kind": "sticker",
+      "caption": "有点难过",
+      "alt": "蓝色企鹅低着头，眼角有一滴小泪珠",
+      "tags": [
+        "难过",
+        "伤心",
+        "委屈",
+        "失落",
+        "sad",
+        "企鹅",
+        "penguin",
+        "study-buddy",
+        "表情包",
+        "sticker"
+      ],
+      "file": "sky-penguin-677775b856fdc902.jpg",
+      "sha256": "677775b856fdc902fffa1f01de891318e7ee3413d0600a7c7f0981f54e5b551f",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 3,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-sky-penguin-comfort",
+      "kind": "sticker",
+      "caption": "慢慢说，我在",
+      "alt": "蓝色企鹅温柔地递出纸巾",
+      "tags": [
+        "安慰",
+        "压力",
+        "焦虑",
+        "哭",
+        "担心",
+        "comfort",
+        "企鹅",
+        "penguin",
+        "study-buddy",
+        "表情包",
+        "sticker"
+      ],
+      "file": "sky-penguin-677775b856fdc902.jpg",
+      "sha256": "677775b856fdc902fffa1f01de891318e7ee3413d0600a7c7f0981f54e5b551f",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 0,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-sky-penguin-hug",
+      "kind": "sticker",
+      "caption": "抱抱",
+      "alt": "蓝色企鹅张开双臂邀请一个友好的拥抱",
+      "tags": [
+        "抱抱",
+        "拥抱",
+        "陪伴",
+        "累",
+        "hug",
+        "企鹅",
+        "penguin",
+        "study-buddy",
+        "表情包",
+        "sticker"
+      ],
+      "file": "sky-penguin-677775b856fdc902.jpg",
+      "sha256": "677775b856fdc902fffa1f01de891318e7ee3413d0600a7c7f0981f54e5b551f",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 1,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-sky-penguin-sleep",
+      "kind": "sticker",
+      "caption": "晚安",
+      "alt": "蓝色企鹅蜷在小枕头上安静睡觉",
+      "tags": [
+        "晚安",
+        "睡觉",
+        "困",
+        "休息",
+        "sleep",
+        "night",
+        "企鹅",
+        "penguin",
+        "study-buddy",
+        "表情包",
+        "sticker"
+      ],
+      "file": "sky-penguin-677775b856fdc902.jpg",
+      "sha256": "677775b856fdc902fffa1f01de891318e7ee3413d0600a7c7f0981f54e5b551f",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 2,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-sky-penguin-tea",
+      "kind": "sticker",
+      "caption": "歇一会",
+      "alt": "蓝色企鹅抱着一杯热茶，神态放松",
+      "tags": [
+        "喝茶",
+        "放松",
+        "歇会",
+        "休闲",
+        "茶",
+        "tea",
+        "relax",
+        "企鹅",
+        "penguin",
+        "study-buddy",
+        "表情包",
+        "sticker"
+      ],
+      "file": "sky-penguin-677775b856fdc902.jpg",
+      "sha256": "677775b856fdc902fffa1f01de891318e7ee3413d0600a7c7f0981f54e5b551f",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 3,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-caramel-capybara-hello",
+      "kind": "sticker",
+      "caption": "来啦",
+      "alt": "焦糖水豚开心地挥手打招呼",
+      "tags": [
+        "打招呼",
+        "你好",
+        "嗨",
+        "早上好",
+        "hello",
+        "hi",
+        "水豚",
+        "卡皮巴拉",
+        "capybara",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "caramel-capybara-d6157243e0e791dd.jpg",
+      "sha256": "d6157243e0e791ddf4c8143e37ee3917b200b780c910f0a172456b4561546253",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 0,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-caramel-capybara-approve",
+      "kind": "sticker",
+      "caption": "可以的",
+      "alt": "焦糖水豚微笑着竖起拇指",
+      "tags": [
+        "赞同",
+        "可以",
+        "厉害",
+        "支持",
+        "赞",
+        "thanks",
+        "agree",
+        "水豚",
+        "卡皮巴拉",
+        "capybara",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "caramel-capybara-d6157243e0e791dd.jpg",
+      "sha256": "d6157243e0e791ddf4c8143e37ee3917b200b780c910f0a172456b4561546253",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 1,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-caramel-capybara-laugh",
+      "kind": "sticker",
+      "caption": "哈哈哈",
+      "alt": "焦糖水豚眯眼开心地大笑",
+      "tags": [
+        "开心",
+        "哈哈",
+        "好笑",
+        "笑死",
+        "吐槽",
+        "lol",
+        "funny",
+        "水豚",
+        "卡皮巴拉",
+        "capybara",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "caramel-capybara-d6157243e0e791dd.jpg",
+      "sha256": "d6157243e0e791ddf4c8143e37ee3917b200b780c910f0a172456b4561546253",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 2,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-caramel-capybara-celebrate",
+      "kind": "sticker",
+      "caption": "好耶",
+      "alt": "焦糖水豚举起双手庆祝，身旁有小星星",
+      "tags": [
+        "庆祝",
+        "好耶",
+        "成功",
+        "恭喜",
+        "太棒",
+        "celebrate",
+        "水豚",
+        "卡皮巴拉",
+        "capybara",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "caramel-capybara-d6157243e0e791dd.jpg",
+      "sha256": "d6157243e0e791ddf4c8143e37ee3917b200b780c910f0a172456b4561546253",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 3,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-caramel-capybara-shy",
+      "kind": "sticker",
+      "caption": "有点害羞",
+      "alt": "焦糖水豚脸红害羞地缩起身体",
+      "tags": [
+        "害羞",
+        "不好意思",
+        "夸奖",
+        "可爱",
+        "shy",
+        "水豚",
+        "卡皮巴拉",
+        "capybara",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "caramel-capybara-d6157243e0e791dd.jpg",
+      "sha256": "d6157243e0e791ddf4c8143e37ee3917b200b780c910f0a172456b4561546253",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 0,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-caramel-capybara-puzzled",
+      "kind": "sticker",
+      "caption": "嗯？",
+      "alt": "焦糖水豚歪头思考，露出疑惑表情",
+      "tags": [
+        "疑惑",
+        "怎么",
+        "为什么",
+        "不懂",
+        "好奇",
+        "confused",
+        "水豚",
+        "卡皮巴拉",
+        "capybara",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "caramel-capybara-d6157243e0e791dd.jpg",
+      "sha256": "d6157243e0e791ddf4c8143e37ee3917b200b780c910f0a172456b4561546253",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 1,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-caramel-capybara-surprised",
+      "kind": "sticker",
+      "caption": "哇！",
+      "alt": "焦糖水豚睁大眼睛惊讶地举起手",
+      "tags": [
+        "惊讶",
+        "没想到",
+        "震惊",
+        "哇",
+        "surprise",
+        "水豚",
+        "卡皮巴拉",
+        "capybara",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "caramel-capybara-d6157243e0e791dd.jpg",
+      "sha256": "d6157243e0e791ddf4c8143e37ee3917b200b780c910f0a172456b4561546253",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 2,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-caramel-capybara-sad",
+      "kind": "sticker",
+      "caption": "有点难过",
+      "alt": "焦糖水豚低着头，眼角有一滴小泪珠",
+      "tags": [
+        "难过",
+        "伤心",
+        "委屈",
+        "失落",
+        "sad",
+        "水豚",
+        "卡皮巴拉",
+        "capybara",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "caramel-capybara-d6157243e0e791dd.jpg",
+      "sha256": "d6157243e0e791ddf4c8143e37ee3917b200b780c910f0a172456b4561546253",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 3,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-caramel-capybara-comfort",
+      "kind": "sticker",
+      "caption": "慢慢说，我在",
+      "alt": "焦糖水豚温柔地递出纸巾",
+      "tags": [
+        "安慰",
+        "压力",
+        "焦虑",
+        "哭",
+        "担心",
+        "comfort",
+        "水豚",
+        "卡皮巴拉",
+        "capybara",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "caramel-capybara-d6157243e0e791dd.jpg",
+      "sha256": "d6157243e0e791ddf4c8143e37ee3917b200b780c910f0a172456b4561546253",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 0,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-caramel-capybara-hug",
+      "kind": "sticker",
+      "caption": "抱抱",
+      "alt": "焦糖水豚张开双臂邀请一个友好的拥抱",
+      "tags": [
+        "抱抱",
+        "拥抱",
+        "陪伴",
+        "累",
+        "hug",
+        "水豚",
+        "卡皮巴拉",
+        "capybara",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "caramel-capybara-d6157243e0e791dd.jpg",
+      "sha256": "d6157243e0e791ddf4c8143e37ee3917b200b780c910f0a172456b4561546253",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 1,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-caramel-capybara-sleep",
+      "kind": "sticker",
+      "caption": "晚安",
+      "alt": "焦糖水豚蜷在小枕头上安静睡觉",
+      "tags": [
+        "晚安",
+        "睡觉",
+        "困",
+        "休息",
+        "sleep",
+        "night",
+        "水豚",
+        "卡皮巴拉",
+        "capybara",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "caramel-capybara-d6157243e0e791dd.jpg",
+      "sha256": "d6157243e0e791ddf4c8143e37ee3917b200b780c910f0a172456b4561546253",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 2,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-caramel-capybara-tea",
+      "kind": "sticker",
+      "caption": "歇一会",
+      "alt": "焦糖水豚抱着一杯热茶，神态放松",
+      "tags": [
+        "喝茶",
+        "放松",
+        "歇会",
+        "休闲",
+        "茶",
+        "tea",
+        "relax",
+        "水豚",
+        "卡皮巴拉",
+        "capybara",
+        "keeper",
+        "表情包",
+        "sticker"
+      ],
+      "file": "caramel-capybara-d6157243e0e791dd.jpg",
+      "sha256": "d6157243e0e791ddf4c8143e37ee3917b200b780c910f0a172456b4561546253",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 3,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-twilight-owl-hello",
+      "kind": "sticker",
+      "caption": "来啦",
+      "alt": "暮色猫头鹰开心地挥手打招呼",
+      "tags": [
+        "打招呼",
+        "你好",
+        "嗨",
+        "早上好",
+        "hello",
+        "hi",
+        "猫头鹰",
+        "owl",
+        "mystery-guide",
+        "tarot-reader",
+        "表情包",
+        "sticker"
+      ],
+      "file": "twilight-owl-51e90cf5f10870a8.jpg",
+      "sha256": "51e90cf5f10870a8b336eb63c1dbc466f05f4ef9478fef066142f375a7319ddf",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 0,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-twilight-owl-approve",
+      "kind": "sticker",
+      "caption": "可以的",
+      "alt": "暮色猫头鹰微笑着竖起拇指",
+      "tags": [
+        "赞同",
+        "可以",
+        "厉害",
+        "支持",
+        "赞",
+        "thanks",
+        "agree",
+        "猫头鹰",
+        "owl",
+        "mystery-guide",
+        "tarot-reader",
+        "表情包",
+        "sticker"
+      ],
+      "file": "twilight-owl-51e90cf5f10870a8.jpg",
+      "sha256": "51e90cf5f10870a8b336eb63c1dbc466f05f4ef9478fef066142f375a7319ddf",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 1,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-twilight-owl-laugh",
+      "kind": "sticker",
+      "caption": "哈哈哈",
+      "alt": "暮色猫头鹰眯眼开心地大笑",
+      "tags": [
+        "开心",
+        "哈哈",
+        "好笑",
+        "笑死",
+        "吐槽",
+        "lol",
+        "funny",
+        "猫头鹰",
+        "owl",
+        "mystery-guide",
+        "tarot-reader",
+        "表情包",
+        "sticker"
+      ],
+      "file": "twilight-owl-51e90cf5f10870a8.jpg",
+      "sha256": "51e90cf5f10870a8b336eb63c1dbc466f05f4ef9478fef066142f375a7319ddf",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 2,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-twilight-owl-celebrate",
+      "kind": "sticker",
+      "caption": "好耶",
+      "alt": "暮色猫头鹰举起双手庆祝，身旁有小星星",
+      "tags": [
+        "庆祝",
+        "好耶",
+        "成功",
+        "恭喜",
+        "太棒",
+        "celebrate",
+        "猫头鹰",
+        "owl",
+        "mystery-guide",
+        "tarot-reader",
+        "表情包",
+        "sticker"
+      ],
+      "file": "twilight-owl-51e90cf5f10870a8.jpg",
+      "sha256": "51e90cf5f10870a8b336eb63c1dbc466f05f4ef9478fef066142f375a7319ddf",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 3,
+        "row": 0
+      }
+    },
+    {
+      "id": "sticker-twilight-owl-shy",
+      "kind": "sticker",
+      "caption": "有点害羞",
+      "alt": "暮色猫头鹰脸红害羞地缩起身体",
+      "tags": [
+        "害羞",
+        "不好意思",
+        "夸奖",
+        "可爱",
+        "shy",
+        "猫头鹰",
+        "owl",
+        "mystery-guide",
+        "tarot-reader",
+        "表情包",
+        "sticker"
+      ],
+      "file": "twilight-owl-51e90cf5f10870a8.jpg",
+      "sha256": "51e90cf5f10870a8b336eb63c1dbc466f05f4ef9478fef066142f375a7319ddf",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 0,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-twilight-owl-puzzled",
+      "kind": "sticker",
+      "caption": "嗯？",
+      "alt": "暮色猫头鹰歪头思考，露出疑惑表情",
+      "tags": [
+        "疑惑",
+        "怎么",
+        "为什么",
+        "不懂",
+        "好奇",
+        "confused",
+        "猫头鹰",
+        "owl",
+        "mystery-guide",
+        "tarot-reader",
+        "表情包",
+        "sticker"
+      ],
+      "file": "twilight-owl-51e90cf5f10870a8.jpg",
+      "sha256": "51e90cf5f10870a8b336eb63c1dbc466f05f4ef9478fef066142f375a7319ddf",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 1,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-twilight-owl-surprised",
+      "kind": "sticker",
+      "caption": "哇！",
+      "alt": "暮色猫头鹰睁大眼睛惊讶地举起手",
+      "tags": [
+        "惊讶",
+        "没想到",
+        "震惊",
+        "哇",
+        "surprise",
+        "猫头鹰",
+        "owl",
+        "mystery-guide",
+        "tarot-reader",
+        "表情包",
+        "sticker"
+      ],
+      "file": "twilight-owl-51e90cf5f10870a8.jpg",
+      "sha256": "51e90cf5f10870a8b336eb63c1dbc466f05f4ef9478fef066142f375a7319ddf",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 2,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-twilight-owl-sad",
+      "kind": "sticker",
+      "caption": "有点难过",
+      "alt": "暮色猫头鹰低着头，眼角有一滴小泪珠",
+      "tags": [
+        "难过",
+        "伤心",
+        "委屈",
+        "失落",
+        "sad",
+        "猫头鹰",
+        "owl",
+        "mystery-guide",
+        "tarot-reader",
+        "表情包",
+        "sticker"
+      ],
+      "file": "twilight-owl-51e90cf5f10870a8.jpg",
+      "sha256": "51e90cf5f10870a8b336eb63c1dbc466f05f4ef9478fef066142f375a7319ddf",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 3,
+        "row": 1
+      }
+    },
+    {
+      "id": "sticker-twilight-owl-comfort",
+      "kind": "sticker",
+      "caption": "慢慢说，我在",
+      "alt": "暮色猫头鹰温柔地递出纸巾",
+      "tags": [
+        "安慰",
+        "压力",
+        "焦虑",
+        "哭",
+        "担心",
+        "comfort",
+        "猫头鹰",
+        "owl",
+        "mystery-guide",
+        "tarot-reader",
+        "表情包",
+        "sticker"
+      ],
+      "file": "twilight-owl-51e90cf5f10870a8.jpg",
+      "sha256": "51e90cf5f10870a8b336eb63c1dbc466f05f4ef9478fef066142f375a7319ddf",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 0,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-twilight-owl-hug",
+      "kind": "sticker",
+      "caption": "抱抱",
+      "alt": "暮色猫头鹰张开双臂邀请一个友好的拥抱",
+      "tags": [
+        "抱抱",
+        "拥抱",
+        "陪伴",
+        "累",
+        "hug",
+        "猫头鹰",
+        "owl",
+        "mystery-guide",
+        "tarot-reader",
+        "表情包",
+        "sticker"
+      ],
+      "file": "twilight-owl-51e90cf5f10870a8.jpg",
+      "sha256": "51e90cf5f10870a8b336eb63c1dbc466f05f4ef9478fef066142f375a7319ddf",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 1,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-twilight-owl-sleep",
+      "kind": "sticker",
+      "caption": "晚安",
+      "alt": "暮色猫头鹰蜷在小枕头上安静睡觉",
+      "tags": [
+        "晚安",
+        "睡觉",
+        "困",
+        "休息",
+        "sleep",
+        "night",
+        "猫头鹰",
+        "owl",
+        "mystery-guide",
+        "tarot-reader",
+        "表情包",
+        "sticker"
+      ],
+      "file": "twilight-owl-51e90cf5f10870a8.jpg",
+      "sha256": "51e90cf5f10870a8b336eb63c1dbc466f05f4ef9478fef066142f375a7319ddf",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 2,
+        "row": 2
+      }
+    },
+    {
+      "id": "sticker-twilight-owl-tea",
+      "kind": "sticker",
+      "caption": "歇一会",
+      "alt": "暮色猫头鹰抱着一杯热茶，神态放松",
+      "tags": [
+        "喝茶",
+        "放松",
+        "歇会",
+        "休闲",
+        "茶",
+        "tea",
+        "relax",
+        "猫头鹰",
+        "owl",
+        "mystery-guide",
+        "tarot-reader",
+        "表情包",
+        "sticker"
+      ],
+      "file": "twilight-owl-51e90cf5f10870a8.jpg",
+      "sha256": "51e90cf5f10870a8b336eb63c1dbc466f05f4ef9478fef066142f375a7319ddf",
+      "width": 1152,
+      "height": 864,
+      "frame": {
+        "columns": 4,
+        "rows": 3,
+        "column": 3,
+        "row": 2
+      }
+    },
+    {
+      "id": "image-seaside-evening",
+      "kind": "image",
+      "caption": "去海边看看",
+      "alt": "海边小镇的落日与平静海面（原创插画）",
+      "tags": [
+        "海边",
+        "海",
+        "旅行",
+        "落日",
+        "beach",
+        "sea",
+        "travel",
+        "图片",
+        "配图",
+        "image"
+      ],
+      "file": "seaside-evening-1257ef83cfc64ea4.jpg",
+      "sha256": "1257ef83cfc64ea4c8ab277eea3e85575f842f8652a4582fcba4d6aeafa2025c",
+      "width": 960,
+      "height": 640
+    },
+    {
+      "id": "image-forest-morning",
+      "kind": "image",
+      "caption": "去森林里透透气",
+      "alt": "晨光照进森林，溪流上有一座小木桥（原创插画）",
+      "tags": [
+        "森林",
+        "散步",
+        "大自然",
+        "透气",
+        "forest",
+        "nature",
+        "图片",
+        "配图",
+        "image"
+      ],
+      "file": "forest-morning-77ad363cf46de410.jpg",
+      "sha256": "77ad363cf46de410449565d84d4d5f04f9018f18602010fbe4ae66c3fdd24258",
+      "width": 960,
+      "height": 640
+    },
+    {
+      "id": "image-rainy-tea-window",
+      "kind": "image",
+      "caption": "听一会儿雨",
+      "alt": "雨窗旁的温暖茶杯和柔软毯子（原创插画）",
+      "tags": [
+        "雨天",
+        "下雨",
+        "喝茶",
+        "窗边",
+        "rain",
+        "cozy",
+        "图片",
+        "配图",
+        "image"
+      ],
+      "file": "rainy-tea-window-93f2702191aae74f.jpg",
+      "sha256": "93f2702191aae74f985911bb3398946bacb131bc6729cbdc6cd19fb676ecde57",
+      "width": 960,
+      "height": 640
+    },
+    {
+      "id": "image-starlight-camp",
+      "kind": "image",
+      "caption": "把今晚交给星空",
+      "alt": "山坡上的暖光帐篷与满天星星（原创插画）",
+      "tags": [
+        "星空",
+        "露营",
+        "夜晚",
+        "晚安",
+        "stars",
+        "camp",
+        "图片",
+        "配图",
+        "image"
+      ],
+      "file": "starlight-camp-f0fa70a0e982bc29.jpg",
+      "sha256": "f0fa70a0e982bc2955312b65bbfce9c5e345865d64ee5723587cee6298b142c6",
+      "width": 960,
+      "height": 640
+    },
+    {
+      "id": "image-mountain-dawn",
+      "kind": "image",
+      "caption": "新的一天慢慢来",
+      "alt": "云海与群山间升起的温柔日出（原创插画）",
+      "tags": [
+        "日出",
+        "山",
+        "清晨",
+        "希望",
+        "早上好",
+        "sunrise",
+        "mountain",
+        "图片",
+        "配图",
+        "image"
+      ],
+      "file": "mountain-dawn-63f3ad748728f89b.jpg",
+      "sha256": "63f3ad748728f89b97411b2d03dfc259ad5417bbb769f1cdb849c820bf478201",
+      "width": 960,
+      "height": 640
+    },
+    {
+      "id": "image-spring-garden",
+      "kind": "image",
+      "caption": "送你一点春天",
+      "alt": "开满鲜花的小花园和阳光下的长椅（原创插画）",
+      "tags": [
+        "花园",
+        "春天",
+        "花",
+        "开心",
+        "garden",
+        "spring",
+        "图片",
+        "配图",
+        "image"
+      ],
+      "file": "spring-garden-4269169868f672fc.jpg",
+      "sha256": "4269169868f672fce086c40c67bbfd75222f88d5348b7afaca894cb38b4c7a2b",
+      "width": 960,
+      "height": 640
+    },
+    {
+      "id": "image-quiet-book-nook",
+      "kind": "image",
+      "caption": "找个舒服的角落",
+      "alt": "书架旁的软椅、茶杯和翻开的书（原创插画）",
+      "tags": [
+        "阅读",
+        "书",
+        "安静",
+        "独处",
+        "读书",
+        "book",
+        "reading",
+        "图片",
+        "配图",
+        "image"
+      ],
+      "file": "quiet-book-nook-f9c14598e0e166e0.jpg",
+      "sha256": "f9c14598e0e166e07bb1e9d62ad5693cafd6c07b777c7248b86c315b82a2103a",
+      "width": 960,
+      "height": 640
+    },
+    {
+      "id": "image-city-night-walk",
+      "kind": "image",
+      "caption": "一起散散步",
+      "alt": "夜色里亮着暖灯的城市河畔（原创插画）",
+      "tags": [
+        "夜景",
+        "城市",
+        "散步",
+        "夜晚",
+        "city",
+        "walk",
+        "图片",
+        "配图",
+        "image"
+      ],
+      "file": "city-night-walk-76c2cad4b547c3d5.jpg",
+      "sha256": "76c2cad4b547c3d5b512cfb329e52b6a2f80d861e0b26bf8d1cebaa323463938",
+      "width": 960,
+      "height": 640
+    },
+    {
+      "id": "image-train-through-fields",
+      "kind": "image",
+      "caption": "慢慢走，也会到",
+      "alt": "列车窗外的绿色田野与蓝天（原创插画）",
+      "tags": [
+        "火车",
+        "旅途",
+        "出发",
+        "旅行",
+        "train",
+        "journey",
+        "图片",
+        "配图",
+        "image"
+      ],
+      "file": "train-through-fields-bc39610cf382191c.jpg",
+      "sha256": "bc39610cf382191c661a28964d7004799852a3849e97dc7cf730bf25ccecfb99",
+      "width": 960,
+      "height": 640
+    },
+    {
+      "id": "image-tea-and-dessert",
+      "kind": "image",
+      "caption": "给今天加一点甜",
+      "alt": "午后小桌上的草莓蛋糕和热茶（原创插画）",
+      "tags": [
+        "甜点",
+        "蛋糕",
+        "下午茶",
+        "吃",
+        "生日",
+        "cake",
+        "dessert",
+        "图片",
+        "配图",
+        "image"
+      ],
+      "file": "tea-and-dessert-04e0ac5b4df987d6.jpg",
+      "sha256": "04e0ac5b4df987d6e67a1b01ee06dd6718db9838d6e6165c64256c42eb24bba3",
+      "width": 960,
+      "height": 640
+    },
+    {
+      "id": "image-bamboo-courtyard",
+      "kind": "image",
+      "caption": "听竹风，喝杯茶",
+      "alt": "竹林旁的静谧庭院、茶桌和小池塘（原创插画）",
+      "tags": [
+        "竹林",
+        "庭院",
+        "江湖",
+        "茶",
+        "古风",
+        "xianxia-guide",
+        "eastern-oracle",
+        "图片",
+        "配图",
+        "image"
+      ],
+      "file": "bamboo-courtyard-b81287d28943fff0.jpg",
+      "sha256": "b81287d28943fff0d538befd876f487eac0026c695a36fc713bb4aa01c40a375",
+      "width": 960,
+      "height": 640
+    },
+    {
+      "id": "image-floating-story-city",
+      "kind": "image",
+      "caption": "下一站，故事里",
+      "alt": "紫色天空中飘浮着花园与小城（原创插画）",
+      "tags": [
+        "奇幻",
+        "冒险",
+        "故事",
+        "天空",
+        "浮空",
+        "story-traveler",
+        "fantasy",
+        "图片",
+        "配图",
+        "image"
+      ],
+      "file": "floating-story-city-08cca5bbeaf2a9d5.jpg",
+      "sha256": "08cca5bbeaf2a9d567dc6acb238be3329704bcd1bc0adf40c977d137a5ac6133",
+      "width": 960,
+      "height": 640
+    }
+  ]
+}

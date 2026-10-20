@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import crypto from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
+import {TAVERN_MEDIA_VERSION,TAVERN_MEDIA_PREFIX,loadTavernMediaCatalog,selectTavernMediaCandidates,tavernMediaSystemPrompt,normalizeTavernMediaReply,serveTavernMedia,DEFAULT_TAVERN_MEDIA_ROOT} from './tavernMedia.js'
 import { isAiMarkablePastPaperItem, studyQuestionBank } from '../src/data/questionBank.js'
 import { renderVerifiedCoordinatePdfPage } from './coordinatePdfImages.js'
 import {
@@ -1635,8 +1636,10 @@ function coachProviderMetadata(feature, context) {
   }
 }
 
-function tavernProviderContext({ activeProvider, feature, policy, context, draw, message, state, ownerId, conversationStore, legacyHistory }) {
-  const systemPrompt = coachFeatureSystemPrompt(feature, policy, context, draw)
+function tavernProviderContext({ activeProvider, feature, policy, context, draw, message, state, ownerId, conversationStore, legacyHistory, mediaVersion='', mediaCatalog=null }) {
+  const recentMedia=mediaVersion===TAVERN_MEDIA_VERSION&&state?conversationStore.getMessages({ownerId,persona:feature.persona,conversationId:state.conversation.id,limit:8}).messages.flatMap(turn=>turn.media||[]).map(item=>item.id):[]
+  const mediaCandidates=mediaVersion===TAVERN_MEDIA_VERSION&&mediaCatalog?selectTavernMediaCandidates(mediaCatalog,{message,persona:feature.persona,recentIds:recentMedia}):[]
+  const systemPrompt = coachFeatureSystemPrompt(feature, policy, context, draw)+tavernMediaSystemPrompt(mediaCandidates)
   const metadata = coachProviderMetadata(feature, context)
   const budgetMetadata = providerMetadata(metadata)
   const selected = state
@@ -1659,7 +1662,7 @@ function tavernProviderContext({ activeProvider, feature, policy, context, draw,
         currentMessage: message,
         recentMessages: legacyHistory,
       })
-  return { systemPrompt, metadata, history: selected.messages, memory: selected.memory }
+  return { systemPrompt, metadata, history: selected.messages, memory: selected.memory, mediaCandidates }
 }
 
 function coachRequestContext(context, message) {
@@ -1693,7 +1696,7 @@ function coachRequestContext(context, message) {
   }), COACH_CONTEXT_MAX_CHARS)
 }
 
-async function handleCoach(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStoreProvider) {
+async function handleCoach(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStoreProvider, mediaCatalog) {
   const payload = await readJsonBody(request)
   const authorization = typeof authorizeCoachRequest === 'function'
     ? await authorizeCoachRequest({ request, payload })
@@ -1838,6 +1841,8 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
             ownerId: authenticatedUserId,
             conversationStore: stateStore,
             legacyHistory: history,
+            mediaVersion: payload.mediaVersion,
+            mediaCatalog,
           })
         : null
       lastMemory = selectedTavernContext?.memory || null
@@ -1863,7 +1868,9 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
           } : {}),
         } : {}),
       })
-      successfulProviderResult = { answer, provider: activeProvider, memory: lastMemory }
+      const reply=selectedTavernContext?.mediaCandidates.length?normalizeTavernMediaReply(answer,{catalog:mediaCatalog,candidates:selectedTavernContext.mediaCandidates}):{text:answer,media:[]}
+      if(!reply.text)throw Object.assign(new Error('AI reply media schema invalid'),{code:'AI_RESPONSE_SCHEMA_INVALID'})
+      successfulProviderResult = { answer:reply.text, media:reply.media, provider: activeProvider, memory: lastMemory }
     } catch (error) {
       lastError = error
     } finally {
@@ -1872,7 +1879,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
     if (successfulProviderResult) break
   }
   if (successfulProviderResult) {
-    const { answer, provider: successfulProvider, memory } = successfulProviderResult
+    const { answer, provider: successfulProvider, memory, media } = successfulProviderResult
     const completedState = state ? stateStore.completeTurn({
       ownerId: authenticatedUserId,
       persona: feature.persona,
@@ -1880,6 +1887,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
       clientTurnId: state.clientTurnId,
       leaseId: state.leaseId,
       assistantContent: answer,
+      media,
       provider: successfulProvider.name,
       model: successfulProvider.model,
       memory,
@@ -1888,7 +1896,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
       mode: 'ai',
       provider: successfulProvider.name,
       providerStatus: 'connected',
-      answer,
+      answer:completedState?.turns.find(turn=>turn.role==='assistant')?.content||answer,
       model: successfulProvider.model,
       ...coachResponseFields(policy, feature, 'complete', draw),
       ...tavernConversationResponse(completedState ? { ...completedState, clientTurnId: state.clientTurnId } : null, memory),
@@ -2628,7 +2636,7 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
   return sendJson(response, 200, { mode: 'offline', code: 'vision_review_failed', provider: lastAttemptedProvider.name, providerStatus: 'error', error: providerMessage(lastError, lastAttemptedProvider), retryable: true })
 }
 
-export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null, authorizeCoachRequest = null, tavernDivinationStore = null, tavernConversationStore = null, tavernMemoryRoot = null }) {
+export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null, authorizeCoachRequest = null, tavernDivinationStore = null, tavernConversationStore = null, tavernMemoryRoot = null, tavernMediaCatalog=null, tavernMediaRoot=DEFAULT_TAVERN_MEDIA_ROOT }) {
   const config = providerConfig(env)
   const timeoutConfig = aiTimeoutConfig(env)
   const divinationStore = tavernDivinationStore || createTavernDivinationStore()
@@ -2652,6 +2660,7 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
     if (!requestUrl.pathname.startsWith('/api/ai/')) return next()
     try {
       if (request.method === 'GET' && requestUrl.pathname.startsWith('/api/ai/image/')) return handleTemporaryImage(requestUrl, response)
+      if (request.method === 'GET' && requestUrl.pathname.startsWith(TAVERN_MEDIA_PREFIX)) return serveTavernMedia(requestUrl,response,tavernMediaCatalog||loadTavernMediaCatalog(),tavernMediaRoot)
       if (request.method === 'GET' && requestUrl.pathname === '/api/ai/status') {
         const coachProvider = providerCandidates(config.coach)[0]
         const visionProvider = providerCandidates(config.vision)[0]
@@ -2669,7 +2678,7 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/tavern/conversations/resume') return await handleTavernConversationResume(request, response, env, authorizeCoachRequest, conversationStore())
       if (request.method === 'GET' && requestUrl.pathname.startsWith('/api/ai/tavern/conversations/') && requestUrl.pathname.endsWith('/messages')) return await handleTavernConversationMessages(requestUrl, request, response, env, authorizeCoachRequest, conversationStore())
       if (request.method === 'DELETE' && requestUrl.pathname.startsWith('/api/ai/tavern/conversations/')) return await handleTavernConversationDelete(requestUrl, request, response, env, authorizeCoachRequest, conversationStore())
-      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach') return await handleCoach(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStore)
+      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach') return await handleCoach(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStore,tavernMediaCatalog||loadTavernMediaCatalog())
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach/stream') return await handleCoachStream(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStore)
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/mark-handwriting') return await handleHandwritingMark(request, response, config.vision, libraryRoot, allowedSubjects, sourceAssetRoot, env, currentAiMarkingQuestionBank(), telemetry, timeoutConfig)
       return sendJson(response, 404, { error: 'AI route not found.' })

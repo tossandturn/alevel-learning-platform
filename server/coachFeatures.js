@@ -218,6 +218,7 @@ export function resolveCoachFeature({ feature = '', persona = '' } = {}) {
 }
 
 export function validateCoachFeaturePayload(feature, payload = {}) {
+  if(Object.hasOwn(payload,'mediaVersion')&&(feature.feature!=='tavern'||payload.mediaVersion!=='tavern-media.v1'))throw featureError(400,'coach_media_version_invalid','This media reply capability is not supported.')
   if (feature.rejectCoachEndpoint) {
     throw featureError(409, 'coach_pdf_marking_required', 'Open PDF 阅卷 to upload and mark a complete paper.', { action: feature.dedicatedPath })
   }
@@ -263,7 +264,7 @@ export function buildTavernSystemPrompt(feature) {
     persona.direction,
     `Server-owned visible opening already shown in the UI (background cue only): ${persona.greeting}`,
     'Never repeat, quote or paraphrase the visible opening, even with empty history. Use it only as background for tone and setting, not as a prior message or an action the user took. If prior history exists, continue it and never reset to this opening. If the user chooses a different new setting, honor it over this default cue.',
-    'This is a text only recreational chat space. For normal chat, keep replies concise and natural, with one useful follow-up at most and no repetitive empty praise.',
+    'This recreational chat space accepts text only as input. For normal chat, keep replies concise and natural, with one useful follow-up at most and no repetitive empty praise. Send library media only when a server-owned media reply contract is provided.',
     'Never encourage gambling, lotteries, wagering, purchases, or real alcohol use or commerce. Humor may target fictional or everyday situations, but never humiliate the user, their ability, teammates, identity, appearance, or vulnerabilities.',
     "Reply in the user's language. Do not mention internal feature versions, persona IDs, provider routing or debug details.",
     'Clearly remain an AI. Do not claim real memories, a human identity, professional diagnosis, exclusive emotional dependence, adult role-play, or real alcohol commerce or promotion.',

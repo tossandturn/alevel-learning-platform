@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import {normalizeTavernMediaItems,storedTavernMedia,tavernMediaProviderContent} from './tavernMedia.js'
 
 export const TAVERN_MEMORY_SCHEMA_VERSION = 'stem-tavern-memory.v1'
 export const TAVERN_MEMORY_COUNTING_METHOD = 'utf8-provider-envelope-upper-bound-v2'
@@ -96,12 +97,14 @@ function publicConversation(row) {
 }
 
 function publicTurn(row) {
+  const media=row.role==='assistant'&&row.status==='complete'?storedTavernMedia(row.memory_json):[]
   return {
     id: String(row.turn_id),
     role: String(row.role),
     content: String(row.content || ''),
     sequence: Number(row.sequence),
     status: String(row.status),
+    ...(media.length?{media}:{}),
   }
 }
 
@@ -226,7 +229,7 @@ export function selectTavernProviderContext({
   let consideredPairs = 0
   for (let index = pairs.length - 1; index >= 0; index -= 1) {
     consideredPairs += 1
-    const pair = pairs[index].map(({ role, content }) => ({ role, content: String(content || '') }))
+    const pair = pairs[index].map((message) => ({ role:message.role, content:tavernMediaProviderContent(message) }))
     let pairBytes = 0
     const estimate = pair.reduce((total, message) => {
       const content = responsesProtocol && message.role === 'assistant'
@@ -710,13 +713,19 @@ export function createTavernConversationStore({
     }
   }
 
-  function settleTurn({ ownerId: ownerInput, persona: personaInput, conversationId: conversationInput, clientTurnId: clientInput, assistantContent = '', status, leaseId: leaseInput = '', provider = '', model = '', memory = null }) {
+  function settleTurn({ ownerId: ownerInput, persona: personaInput, conversationId: conversationInput, clientTurnId: clientInput, assistantContent = '', status, leaseId: leaseInput = '', provider = '', model = '', memory = null, media = [] }) {
     const ownerId = ownerValue(ownerInput)
     const persona = personaValue(personaInput)
     const conversationId = boundedId(conversationInput, 'tavern_conversation_id_invalid', 'conversationId')
     const clientTurnId = boundedId(clientInput, 'tavern_client_turn_id_invalid', 'clientTurnId')
     const leaseId = boundedId(leaseInput, 'tavern_turn_lease_invalid', 'leaseId')
     const content = assistantContent ? cleanContent(assistantContent) : ''
+    const replyMedia=status==='complete'?normalizeTavernMediaItems(media):[]
+    const storedMemory=memory&&typeof memory==='object'&&!Array.isArray(memory)?{...memory}:{}
+    delete storedMemory.replyMedia
+    if(replyMedia.length)storedMemory.replyMedia=replyMedia
+    const memoryJson=Object.keys(storedMemory).length?JSON.stringify(storedMemory):null
+    const contentBytes=Buffer.byteLength(content,'utf8')+(replyMedia.length?Buffer.byteLength(JSON.stringify(replyMedia),'utf8'):0)
     const databaseHandle = db()
     const result = storageTransaction(databaseHandle, () => {
       const row = boundConversation(databaseHandle, ownerId, persona, conversationId)
@@ -730,12 +739,12 @@ export function createTavernConversationStore({
         return { conversation: publicConversation(row), turns: turns.map(publicTurn), replay: true, provider: String(assistant.provider || ''), model: String(assistant.model || ''), draw: user?.draw_json ? JSON.parse(String(user.draw_json)) : null, memory: assistant.memory_json ? JSON.parse(String(assistant.memory_json)) : null }
       }
       if (String(assistant.lease_id || '') !== leaseId) throw memoryError(409, 'tavern_turn_lease_conflict', 'This Tavern turn lease is no longer current.')
-      if (content) assertQuota(databaseHandle, ownerId, conversationId, Buffer.byteLength(content, 'utf8') - Buffer.byteLength(String(assistant.content || ''), 'utf8'))
+      if (content) assertQuota(databaseHandle, ownerId, conversationId, contentBytes - Number(assistant.content_bytes||0))
       const nowText = timestamp()
       databaseHandle.prepare(`
         UPDATE tavern_turns SET content = ?, content_bytes = ?, status = ?, provider = ?, model = ?, memory_json = ?, lease_id = NULL, lease_expires_at = NULL, updated_at = ?
         WHERE owner_id = ? AND conversation_id = ? AND client_turn_id = ? AND role = 'assistant'
-      `).run(content, Buffer.byteLength(content, 'utf8'), status, String(provider || '').slice(0, 80), String(model || '').slice(0, 120), memory ? JSON.stringify(memory) : null, nowText, ownerId, conversationId, clientTurnId)
+      `).run(content, contentBytes, status, String(provider || '').slice(0, 80), String(model || '').slice(0, 120), memoryJson, nowText, ownerId, conversationId, clientTurnId)
       databaseHandle.prepare(`
         UPDATE tavern_conversations SET revision = revision + 1, updated_at = ?
         WHERE owner_id = ? AND conversation_id = ?
