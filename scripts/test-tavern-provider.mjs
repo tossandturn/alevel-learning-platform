@@ -1,0 +1,37 @@
+import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import path from 'node:path'
+import {fileURLToPath} from 'node:url'
+const modulePath=fileURLToPath(new URL('../server/tavernProvider.js',import.meta.url))
+assert.equal(fs.existsSync(modulePath),true,'dedicated private Tavern provider loader must exist')
+const {loadTavernProvider,isPrivateRegularFile}=await import('../server/tavernProvider.js')
+fs.mkdirSync(path.resolve('.tmp-test'),{recursive:true})
+const root=fs.mkdtempSync(path.resolve('.tmp-test/tavern-provider-')),settingsPath=path.join(root,'tavern-provider.json')
+const load=env=>loadTavernProvider({env:env||{},settingsPath})
+assert.equal(load(),null)
+assert.equal(load({DEEPSEEK_KEY:'synthetic-unused-key'}),null,'a key alone cannot switch providers')
+const fromEnv=load({STEM_TAVERN_PROVIDER:'deepseek',STEM_TAVERN_DEEPSEEK_API_KEY:'synthetic-runtime-key'})
+assert.equal(fromEnv.name,'deepseek');assert.equal(fromEnv.model,'deepseek-flash');assert.equal(fromEnv.baseUrl,'https://api.deepseek.com/v1')
+assert.equal(fromEnv.fallback,undefined)
+assert.equal(load({STEM_TAVERN_PROVIDER:'deepseek'}).apiKey,'','missing credential is fail-closed')
+assert.equal(load({STEM_TAVERN_PROVIDER:'unsupported'}).apiKey,'')
+const write=value=>fs.writeFileSync(settingsPath,JSON.stringify(value),'utf8')
+const settings={schemaVersion:'stem-tavern-provider.v1',provider:'deepseek',model:'deepseek-flash',apiKeyFile:'deepseek.key'}
+write(settings);assert.equal(load().apiKey,'','missing key file cannot fall through')
+fs.writeFileSync(path.join(root,'deepseek.key'),'synthetic-file-key','utf8')
+fs.chmodSync(settingsPath,0o600);fs.chmodSync(path.join(root,'deepseek.key'),0o600)
+assert.equal(load().apiKey,'synthetic-file-key')
+assert.equal(load({STEM_TAVERN_PROVIDER:'legacy'}),null)
+write({...settings,enabled:false});assert.equal(load(),null)
+write({...settings,apiKeyFile:'../escape.key'});assert.equal(load().apiKey,'')
+write({...settings,model:'unknown-unverified-model'});assert.equal(load().apiKey,'')
+fs.writeFileSync(settingsPath,'{invalid','utf8');assert.equal(load().apiKey,'')
+fs.writeFileSync(settingsPath,' '.repeat(17000),'utf8');assert.equal(load().apiKey,'')
+const stat={isFile:()=>true,isSymbolicLink:()=>false,size:64,mode:0o100600,uid:1000,nlink:1}
+assert.equal(isPrivateRegularFile(stat,{platform:'linux',uid:1000,maxBytes:1024}),true)
+assert.equal(isPrivateRegularFile({...stat,mode:0o100644},{platform:'linux',uid:1000,maxBytes:1024}),false)
+assert.equal(isPrivateRegularFile({...stat,uid:1001},{platform:'linux',uid:1000,maxBytes:1024}),false)
+assert.equal(isPrivateRegularFile({...stat,isSymbolicLink:()=>true},{platform:'linux',uid:1000,maxBytes:1024}),false)
+assert.equal(isPrivateRegularFile({...stat,size:2048},{platform:'linux',uid:1000,maxBytes:1024}),false)
+assert.equal(isPrivateRegularFile({...stat,nlink:2},{platform:'linux',uid:1000,maxBytes:1024}),false)
+console.log('PASS_TAVERN_PRIVATE_PROVIDER_CONFIG bounded files/owner permissions/no symlink/no shared routing mutation')

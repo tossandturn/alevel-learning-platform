@@ -20,6 +20,8 @@ const PERSONAS = new Set([
 const KNOWN_CONTEXT_WINDOWS = Object.freeze({
   'qwen3.7-max': 1_000_000,
   'qwen3.7-plus': 1_000_000,
+  // Official DeepSeek model table checked 2026-10-20.
+  'deepseek-flash': 1_000_000,
 })
 const UNKNOWN_CONTEXT_WINDOW = 32_768
 const MAX_TURN_CONTENT_BYTES = TAVERN_MEMORY_MAX_MESSAGE_BYTES
