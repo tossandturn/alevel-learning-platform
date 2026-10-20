@@ -34,3 +34,15 @@ Rollback can restore the original two code files and leave the new key secured o
 - Live deployment and measured latency must be recorded separately; synthetic provider tests are not production acceptance.
 
 References: [DeepSeek API](https://api-docs.deepseek.com/), [thinking mode](https://api-docs.deepseek.com/guides/thinking_mode/), [model context and JSON support](https://api-docs.deepseek.com/quick_start/pricing/), [original DeepSeek adapter](https://github.com/deepseek-ai/deepseek-harness/tree/master/packages/llm/llm-deepseek). Current provider facts checked 2026-10-20; no external implementation copied.
+
+## Production acceptance
+
+- Deployed runtime commit `35b46eac81bff3b8ea95a4cc479d40f29bcd1b22` as a three-file, 40,997-byte pinned archive. Original source hashes, private file ownership/permissions and rollback were verified before the scoped STEM restart. No database schema, existing secret, Nginx or shared provider setting was changed.
+- Final deployment gate PASS: both sites HTTP 200; swap 9.69%; I/O wait samples 0%; about 2.3 GiB available memory and 7.87 GiB free disk. Existing academic/vision provider fields remain byte-for-byte equivalent to the pre-deployment public status snapshot.
+- Public status now reports `tavernProvider: deepseek`, `tavernModel: deepseek-flash`, enabled. Ordinary chat, media JSON and the existing stream endpoint explicitly disable thinking.
+- Existing 1.0.49 native client used the real production backend: one canonical text/sticker/picture reply completed in **929 ms**; three further short replies in **1314 / 1086 / 1059 ms**, all `deepseek-flash`. This is a small developer-tools sample, not a phone-network SLA.
+- Canonical replay and reloaded history were identical; earlier test conversation turns were preserved. Both returned public media files actually loaded in the native renderer, no image failures. Semantic matching of a specifically requested picture and broad conversation-quality evaluation are not asserted by this rendering test.
+- No new Mini Program upload or public review submission was needed. No student history was deleted or seeded. The controlled conversation used only the earlier synthetic acceptance exchange plus an explicitly marked new acceptance message.
+- A test-harness session-refresh race initially returned 401 before any chat call; waiting for the normal app auth refresh resolved it. SSH transport was intermittent, so a per-command connection through the user's already-running local proxy was used for the same host, without changing system proxy, SSH trust, firewall or server configuration.
+
+Evidence: `D:/CodexWork/tavern-deepseek-20261020/RESULT.json`, `live-client-result.json`, `live-client-capture.json`, `native-deepseek-live.png`, `gate-final.json`. Real-phone/tablet hardware behavior and peak-load latency remain outside this backend-only acceptance.
