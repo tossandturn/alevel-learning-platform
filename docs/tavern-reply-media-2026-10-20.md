@@ -26,3 +26,14 @@ The client does not bundle the full library. It loads only returned media, reser
 - Synthetic-provider verification is not a live-model or production claim. Server rollout and public acceptance receipts live in the private task artifact directory; never copy secrets or user data into this document.
 
 Design references: [SillyTavern expression catalog documentation](https://github.com/SillyTavern/SillyTavern-Docs/blob/main/extensions/Expression-Images.md) for categorized variants, and [TDesign attachment types](https://github.com/Tencent/tdesign-miniprogram/blob/develop/packages/pro-components/chat/attachments/type.ts) for explicit attachment states. No implementation or assets were copied.
+
+## Production acceptance — 2026-10-20
+
+- Runtime overlay `4e6773b40a127786e5cba34f5e8714695bc9f765` deployed over exact production base `9b268410efc2f39ec4aa851b87219bd7e17e2d37`; 26 payload hashes and three original-source rollback hashes verified. Only `alevel-physics` restarted; no build, dependency installation, database migration or provider configuration change.
+- Readiness passed before upload, after upload, after activation and after service startup settled. The immediate startup sample temporarily observed HTTP 502 and elevated I/O wait; preserved as `gate-after-restart-initial.json`, not treated as a passed gate. Subsequent acceptance: both HTTP sites 200, swap 9.73%, I/O wait 0%, ~2.3 GiB available memory and ~7.86 GiB free disk.
+- All 20 public media files passed SHA256, byte length, MIME, immutable caching and `nosniff` checks. Unlisted JSON files, absent files and traversal paths were rejected.
+- Actual Mini Program login and production `qwen3.7-max` request returned text plus a catalog sticker and scene in 7.492 seconds. Identical-turn replay took 220 ms; cloud history preserved both media descriptors. Both actual public images loaded in the native renderer. This live evidence is separate from the synthetic-provider suite.
+- Existing user histories were not cleared; the explicit acceptance message used an originally empty persona conversation. No credentials or application databases were exported.
+- Release evidence is in `D:/CodexWork/tavern-media-20261020/`. Physical phone/iPad keyboard behavior remains NOT VERIFIED.
+
+The shared HTTPS blocker was repaired separately with explicit user authorization: existing [Certbot](https://github.com/certbot/certbot) and its [Nginx plugin](https://eff-certbot.readthedocs.io/en/stable/using.html#nginx), verified server-local configuration rollback, two exact TLS directive substitutions, validated graceful Nginx reload and successful certificate renewal dry-run. No keys were read into tool output. The initial dry-run hit Certbot's [documented-in-project remote random-delay issue](https://github.com/certbot/certbot/issues/10016); the bounded retry disabled the delay only for that test, not the renewal timer.
