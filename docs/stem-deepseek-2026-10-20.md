@@ -33,3 +33,15 @@ For isolated tests or managed environments, `STEM_ACADEMIC_PROVIDER=deepseek` an
 - Actual production/native acceptance is recorded separately. These short printed synthetic examples do not certify every handwritten answer, long paper, board or peak-load latency.
 
 Evidence directory: `D:/CodexWork/stem-deepseek-20261020/`. Official references checked 2026-10-20: [vision](https://api-docs.deepseek.com/guides/vision/), [thinking mode](https://api-docs.deepseek.com/guides/thinking_mode/), [original protocol reference](https://github.com/deepseek-ai/deepseek-recipe). No third-party implementation copied.
+
+## Production acceptance
+
+- Runtime commit `b3db2ca04031a336e7b6e2e1836b066105052140` deployed as four allowlisted files from a pinned 37,791-byte archive. Three original runtime files are retained and hash-verified for rollback. No production build or database migration.
+- Only the new owner-private academic settings file was added. Existing Tavern settings and credential file identity/permissions were unchanged. The generic/background provider function remains unmodified.
+- Only `alevel-physics` restarted. IELTS PID **1597096**, restart count **29**, uptime identity and script/cwd remained unchanged across all deployment gates; IELTS HTTPS remained 200. No IELTS source, settings, keys, storage or realtime code was edited.
+- Final gate PASS: STEM Coach/vision and Tavern report `deepseek-flash`; both sites 200; swap 9.63%; I/O wait 0%; approximately 2.3 GiB available RAM and 7.82 GiB free disk.
+- Existing native client, real production APIs: worked algebra answer **2158 ms**, next-step hint **2462 ms**, velocity-time photo question **3073 ms**. The answer was x=4; the hint withheld the final answer; the photo answer gave 50 m with correct area and units.
+- A synthetic two-question paper was created, its answer/QP/MS PDFs uploaded, submitted, polled through queued/analyzing/completed, and graded **3/4** in **6299 ms**. Its actual 227,296-byte report downloaded successfully; 14 real download events reached 100%. The downloaded PDF was rendered and visually inspected: Chinese text, score, question feedback and evidence are readable.
+- Client source/config remained unchanged; no new WeChat upload or review submission. Native tests use synthetic fixtures and the developer-tools session, not real student work. No blanket handwritten/long-paper/physical-device or peak-latency guarantee is implied.
+
+Actual receipts and intermediate QA PDFs remain in the task evidence directory, including `RESULT.json`, `native-result.json`, `production-report.pdf`, its rendered page, and `gate-final.json`. An initial SFTP upload transport failure was resolved with the same authorized SSH connection and a checksum-verified, exclusive artifact write; no firewall, SSH trust or system proxy setting changed.
