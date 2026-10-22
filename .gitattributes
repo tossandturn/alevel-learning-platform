@@ -6,3 +6,5 @@
 *.jsx text eol=lf
 *.css text eol=lf
 *.md text eol=lf
+public/data/university-profiles/v1/logos/* binary
+public/data/university-profiles/v1/**/*.json text eol=lf
