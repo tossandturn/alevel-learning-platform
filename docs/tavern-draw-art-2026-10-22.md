@@ -19,4 +19,12 @@ PASS: `test-tavern-draw-art.mjs`, `test-tavern-draw-art-assets.mjs` (local Sharp
 
 Deployment uses pinned allowlisted code/assets, verified rollback and fresh server gates. No database migration, source build, dependency installation, Nginx/model/secret change is required. Deployment and physical-device acceptance are separate from these local tests and must be recorded in a release receipt.
 
+## Deployment receipt, 2026-10-22
+
+Backend overlay `49fb788cd3e91b27714528bdbb08d11f4e28abf0` is activated and hash-verified (147 allowlisted files); the base build identity is unchanged. Archive SHA-256 is `2699b8a303e5f13e992283293d8235dfcac5a8e937b74af119692234635628e7`, size 20,095,402 bytes. Exact-target resource/rollback gates passed before upload and after upload, activation and restart. Only the STEM service restarted; IELTS and shared services were preserved. No source build occurred.
+
+Post-restart available memory was about 2,324 MiB, swap 9.5%, filesystem free 7.73 GiB and I/O wait 0.5%/0%/0%. STEM and IELTS health endpoints returned 200. Every image was subsequently checked over public HTTPS for exact digest, MIME and caching (142/142), from both a workstation diagnostic route and the server route. These are not phone-speed measurements.
+
+Local evidence: `D:/CodexWork/tavern-draw-art-20261022/gate-after-restart.json`, `public-assets-result.json`, `server-https-assets-result.json`. Real authenticated server Tarot and hexagram draws were rendered with the matching images in the isolated official WeChat simulator. Private history/model interpretation calls were intentionally blocked during this image-only acceptance. Physical-device pinch gestures remain separately unverified.
+
 Primary references: [Wikimedia Commons RWS collection](https://commons.wikimedia.org/wiki/Category:Rider-Waite_tarot_deck), [Fool source and rights](https://commons.wikimedia.org/wiki/File:RWS_Tarot_00_Fool.jpg), [Four of Wands source and rights](https://commons.wikimedia.org/wiki/File:Wands04.jpg). GitHub-first patterns: [TarotCards](https://github.com/mixvlad/TarotCards) and [hexagrams](https://github.com/urschrei/hexagrams); the latter's data was independently checked rather than copied. [Unicode hexagram chart](https://www.unicode.org/charts/PDF/U4DC0.pdf) was used only as an internal reference.
