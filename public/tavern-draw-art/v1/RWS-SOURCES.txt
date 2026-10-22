@@ -1,0 +1,6 @@
+Rider-Waite-Smith Tarot. Artist: Pamela Colman Smith. Original artwork: 1909/1910.
+All 78 file-description records were checked as Public domain on Wikimedia Commons.
+Public Domain Mark: https://creativecommons.org/publicdomain/mark/1.0/
+Individual source URLs, original image SHA-1 and downloaded thumbnail SHA-256 are retained in provenance.json.
+Downloaded thumbnail image bytes are unchanged. Reversed position is a client display transform only.
+STEMist hexagram diagrams are original vector renderings of traditional factual trigram relations.

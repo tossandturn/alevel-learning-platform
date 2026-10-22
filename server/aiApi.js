@@ -5,6 +5,7 @@ import path from 'node:path'
 import { loadTavernProvider } from './tavernProvider.js'
 import { loadStemAcademicProvider } from './stemAcademicProvider.js'
 import {TAVERN_MEDIA_VERSION,TAVERN_MEDIA_PREFIX,loadTavernMediaCatalog,selectTavernMediaCandidates,tavernMediaSystemPrompt,normalizeTavernMediaReply,serveTavernMedia,DEFAULT_TAVERN_MEDIA_ROOT} from './tavernMedia.js'
+import {createDrawArtHandler} from './tavernDrawArt.js'
 import { isAiMarkablePastPaperItem, studyQuestionBank } from '../src/data/questionBank.js'
 import { renderVerifiedCoordinatePdfPage } from './coordinatePdfImages.js'
 import {
@@ -2654,6 +2655,7 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
   const tavernProvider = loadTavernProvider({ env }) || legacyConfig.coach
   const timeoutConfig = aiTimeoutConfig(env)
   const divinationStore = tavernDivinationStore || createTavernDivinationStore()
+  const drawArtHandler = createDrawArtHandler()
   let activeConversationStore = tavernConversationStore
   const conversationStore = () => {
     if (!activeConversationStore) {
@@ -2673,6 +2675,7 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
     const requestUrl = new URL(request.url, 'http://127.0.0.1')
     if (!requestUrl.pathname.startsWith('/api/ai/')) return next()
     try {
+      if (drawArtHandler(request, response, requestUrl)) return
       if (request.method === 'GET' && requestUrl.pathname.startsWith('/api/ai/image/')) return handleTemporaryImage(requestUrl, response)
       if (request.method === 'GET' && requestUrl.pathname.startsWith(TAVERN_MEDIA_PREFIX)) return serveTavernMedia(requestUrl,response,tavernMediaCatalog||loadTavernMediaCatalog(),tavernMediaRoot)
       if (request.method === 'GET' && requestUrl.pathname === '/api/ai/status') {
