@@ -48,3 +48,15 @@ Daily content, source links and imagery can then change on the backend without a
 Local data/URL/campus coverage tests, all 354 artifact digests, the original directory regression, deterministic rebuild, and client normalization of all 184 profiles pass. Isolated deployment tests cover activation/rollback, stale/failed gates, source changes, archive tampering, existing namespace collision and traversal. No production dependency, model, payment, database or IELTS change is involved.
 
 Evidence lives in `D:/CodexWork/university-profiles-20261022/`. Deployment/public HTTPS/native acceptance is recorded separately; local PASS alone does not assert production deployment or physical-device acceptance.
+
+## Deployment and public acceptance — 2026-10-22
+
+Data commit `d586912ffd96755fce098598b36cc3a564d7f052` was packaged without production compilation as `university-profiles-20261022-d586912.tar.gz` (2,691,736 bytes, SHA256 `79204e44a7275cc2b06021b0e0661ddf3afc28c0f1939a9702a6bb9b7bb7b325`). All 354 packaged file bytes matched their Git objects and approved artifact hashes.
+
+The new namespace was activated at 2026-10-22 21:55:15 Asia/Shanghai (13:55:15 UTC). Exact-target read-only readiness gates passed before upload, after upload, before activation and after activation. After activation, available memory was 2335 MiB and swap use 9.5%; disk, inode, I/O, ownership and rollback checks passed. Original protected hashes and all service PID/restart tuples stayed unchanged. No service restart, current-release switch, dependency install, database, payment, model or IELTS modification occurred. An exact-scope rename rollback marker and stage receipt are retained on the target.
+
+`operation-verify.json` confirms all 354 deployed filesystem hashes. `public-acceptance.json` confirms all 354 files through public HTTPS with expected content types and full byte hashes. The official native WeChat simulator loaded real MIT/Cambridge/Harvard profiles, displayed raster/SVG institution marks, copied the official programme link, recovered from an injected profile-fetch failure, and preserved cross-ranking aliases and the AP official-links route. This does not certify physical phone/iPad behavior or mainland mobile throughput.
+
+Earlier transient SCP/direct-SSH failures were followed by a read-only residual-file check. The completed release used one bounded persistent standard SSH transport through the existing local per-command proxy, with fresh gates between phases; no global network/SSH configuration was changed. Those failed attempts were not mistaken for activation or upload success.
+
+Public index: https://stem.ieltsist.com/data/university-profiles/v1/index.json
