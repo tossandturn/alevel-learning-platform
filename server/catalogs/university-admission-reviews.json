@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "university-admission-reviews-v1",
+  "updatedOn": "2026-10-23",
+  "sources": {
+    "oxford-qualifications": {"title":"Oxford · International qualifications","url":"https://www.ox.ac.uk/admissions/undergraduate/courses/admissions-requirements/international-qualifications","checkedOn":"2026-10-23"},
+    "oxford-grades": {"title":"Oxford · Course admission requirements","url":"https://www.ox.ac.uk/admissions/undergraduate/courses/admissions-requirements/summary-table-of-admissions-requirements","checkedOn":"2026-10-22"},
+    "oxford-english": {"title":"Oxford · English language requirements","url":"https://www.ox.ac.uk/admissions/undergraduate/applying/for-international-students/english-language-requirements-visas","checkedOn":"2026-10-23"},
+    "cambridge-qualifications": {"title":"Cambridge · Accepted qualifications","url":"https://www.undergraduate.study.cam.ac.uk/apply/before/accepted-qualifications","checkedOn":"2026-10-23"},
+    "cambridge-entry": {"title":"Cambridge · Entry requirements","url":"https://www.undergraduate.study.cam.ac.uk/apply/before/entry-requirements","checkedOn":"2026-10-23"},
+    "imperial-qualifications": {"title":"Imperial · Accepted qualifications","url":"https://www.imperial.ac.uk/study/apply/undergraduate/entry-requirements/accepted-qualifications/","checkedOn":"2026-10-23"},
+    "mit-international": {"title":"MIT · International applicants","url":"https://mitadmissions.org/apply/firstyear/international/","checkedOn":"2026-10-23"},
+    "mit-portfolios": {"title":"MIT · Optional research and maker portfolios","url":"https://mitadmissions.org/apply/firstyear/portfolios-additional-material/","checkedOn":"2026-10-23"},
+    "harvard-selection": {"title":"Harvard · Admissions criteria","url":"https://college.harvard.edu/resources/faq/what-admissions-criteria-do-you-use","checkedOn":"2026-10-23"},
+    "stanford-testing": {"title":"Stanford · Standardized testing","url":"https://admission.stanford.edu/apply/first-year/testing.html","checkedOn":"2026-10-23"},
+    "cuhk-entry":{"title":"CUHK · International undergraduate requirements","url":"https://admission.cuhk.edu.hk/application/overseas-other-qualifications-non-local-international-team/requirements/","checkedOn":"2026-10-23"},
+    "ucl-entry":{"title":"UCL · Undergraduate entry requirements","url":"https://www.ucl.ac.uk/study/prospective-students/undergraduate/how-apply/entry-requirements","checkedOn":"2026-10-22"},
+    "penn-entry":{"title":"Penn · International applicant FAQs","url":"https://admissions.upenn.edu/how-to-apply/international-applicants","checkedOn":"2026-10-23"},
+    "cmu-entry":{"title":"Carnegie Mellon · International applicants","url":"https://www.cmu.edu/admission/admission/international-applicants","checkedOn":"2026-10-22"},
+    "bu-entry":{"title":"Boston University · International applicants","url":"https://www.bu.edu/admissions/apply/international/","checkedOn":"2026-10-22"},
+    "purdue-entry":{"title":"Purdue · International applicants","url":"https://admissions.purdue.edu/become-student/international/","checkedOn":"2026-10-22"},
+    "rice-entry":{"title":"Rice · First-year international applicants","url":"https://admission.rice.edu/apply/first-year-international-applicants","checkedOn":"2026-10-22"},
+    "vanderbilt-entry":{"title":"Vanderbilt · First-year application process","url":"https://admissions.vanderbilt.edu/apply/first-year-process/","checkedOn":"2026-10-22"},
+    "washu-english":{"title":"WashU · English testing requirements","url":"https://admissions.washu.edu/how-to-apply/english-testing-requirements/","checkedOn":"2026-10-22"},
+    "tufts-english":{"title":"Tufts · International applicants","url":"https://admissions.tufts.edu/apply/applying-as-an-international-s/","checkedOn":"2026-10-22"},
+    "case-english":{"title":"Case Western · International applicants","url":"https://case.edu/admission/apply/international-applicants","checkedOn":"2026-10-22"},
+    "osu-english":{"title":"Ohio State · International first-year application","url":"https://undergrad.osu.edu/apply/international-freshmen/apply-step-by-step","checkedOn":"2026-10-22"},
+    "vt-english":{"title":"Virginia Tech · International admission requirements","url":"https://www.vt.edu/admissions/international/requirements.html","checkedOn":"2026-10-22"},
+    "msu-english":{"title":"Michigan State · English proficiency","url":"https://admissions.msu.edu/apply/international/language-requirements","checkedOn":"2026-10-22"},
+    "stevens-english":{"title":"Stevens · International undergraduate applicants","url":"https://www.stevens.edu/admission-aid/undergraduate-admissions/international-students","checkedOn":"2026-10-22"},
+    "tamu-entry":{"title":"Texas A&M · International freshman admission","url":"https://admissions.tamu.edu/apply/international/international-freshman.html","checkedOn":"2026-10-22"},
+    "scu-english":{"title":"Santa Clara · Undergraduate English proficiency","url":"https://www.scu.edu/admission/undergraduate/international-students/undergraduate-english-proficiency/","checkedOn":"2026-10-22"},
+    "delaware-english":{"title":"Delaware · International admissions","url":"https://www.udel.edu/apply/undergraduate-admissions/apply-to-ud/international-admissions/","checkedOn":"2026-10-22"},
+    "rit-english":{"title":"RIT · International undergraduate language requirements","url":"https://www.rit.edu/admissions/international","checkedOn":"2026-10-22"},
+    "slu-english":{"title":"Saint Louis · English proficiency","url":"https://www.slu.edu/admission/international/english-proficiency.php","checkedOn":"2026-10-22"},
+    "fiu-english":{"title":"FIU · International first-year requirements","url":"https://admissions.fiu.edu/international/incoming-freshmen/index.html","checkedOn":"2026-10-22"},
+    "kcl-entry":{"title":"King’s · Undergraduate entry requirements","url":"https://www.kcl.ac.uk/study/undergraduate/how-to-apply/entry-requirements","checkedOn":"2026-10-23"},
+    "lse-us":{"title":"LSE · US qualification equivalencies","url":"https://www.lse.ac.uk/study-at-lse/international-students/united-states-of-america","checkedOn":"2026-10-23"},
+    "manchester-us":{"title":"Manchester · US undergraduate entry","url":"https://www.manchester.ac.uk/study/international/country-specific-information/usa/","checkedOn":"2026-10-23"}
+  },
+  "universities": {
+    "university-of-oxford": {
+      "alevel":{"status":"course-specific","headline":"AAA 至 A*A*A：依专业为 0–2 个 A*","detail":"常见三门标准为 AAA、A*AA（1 个 A*＋2 个 A）或 A*A*A（2 个 A*＋1 个 A）。必须同时满足指定科目及相应入学测试；不是全校统一要求三个 A*。","sourceKeys":["oxford-grades"],"advice":"先确定专业和必需科目，再对照 offer 档位；不能靠无关第四门高分替代数学、进阶数学等指定条件。"},
+      "ib":{"status":"course-specific","headline":"总分 38–40／45；相关 HL 为 6／7","detail":"总分含核心加分，具体为 38、39 或 40，由专业决定。还须核对相关 HL 科目和数学课程类别，不能只看总分。","sourceKeys":["oxford-qualifications"]},
+      "ap":{"status":"course-specific","headline":"4 门 AP 5 分；或 3 门 5 分＋SAT／ACT","detail":"A*A*A 档：3 门 5 分组合还须 SAT 1480 或 ACT 33；A*AA 档为 SAT 1470 或 ACT 32；AAA 档为 SAT 1460 或 ACT 31。各档均有 4 门 AP 5 分路径。须含专业必需科目，Calculus AB／BC 不能重复算两门。","sourceKeys":["oxford-qualifications"],"advice":"把“AP 门数、指定科目、SAT／ACT 组合”一起核对。AP Research／Seminar 不是普通 AP offer 科目的替代项。"},
+      "language":{"status":"official","headline":"IELTS 7.5；各项至少 7.0","detail":"须符合豁免或认可考试条件；通常在收到 offer 当年的 7 月 31 日前达标，各单项须同次考试。官网暂不接受 2026 年 1 月 21 日起新版 TOEFL，提交前需重新核对其审查状态。","sourceKeys":["oxford-english"]},
+      "research":{"status":"not-required","headline":"IPQ／AP Capstone 不作为 offer 必要条件","detail":"官网认可这类项目可培养研究与学术能力，但明确不将 IPQ、AP Seminar／Research 作为 offer 条件；可讨论与拟学专业相关的探索。","sourceKeys":["oxford-qualifications"],"advice":"用项目说明自己提出了什么问题、读了什么、怎样验证和反思；不把付费科研或论文数量当入场券。"}
+    },
+    "university-of-cambridge": {
+      "alevel":{"status":"course-specific","headline":"通常 A*AA／A*A*A：1–2 个 A*","detail":"多数 offer 以同一年完成的三门 A-Level 为基础，学院及专业可要求更高成绩或指定科目 A*。四门本身通常不构成优势；STEM 申请者需特别检查 Further Mathematics。","sourceKeys":["cambridge-qualifications"]},
+      "ib":{"status":"course-specific","headline":"通常 41–42／45；HL 776","detail":"部分学院可能要求 HL 777 或更高总分，并对指定学科要求 7。数学相关课程通常需要 HL Mathematics: Analysis and Approaches，按课程及学院确认。","sourceKeys":["cambridge-qualifications"]},
+      "ap":{"status":"official","headline":"至少 5 门 AP 均为 5 分","detail":"通常要求在两年内完成，并结合高水平的学校毕业资格和 SAT／ACT 成绩评估。AP 科目必须与课程相关；达到五门 5 分并不单独保证录取。","sourceKeys":["cambridge-qualifications"],"advice":"不要只凑五门容易的 AP。先检查专业所需科目、考试时间窗口以及额外 SAT／ACT 和入学测试条件。"},
+      "language":{"status":"official","headline":"IELTS 通常 7.5；各项通常 7.0","detail":"面试阶段建议的英语能力与最终 offer 的语言条件不同，不能把面试建议 6.5／6.0 当成入学达标线；学院可结合背景判断。","sourceKeys":["cambridge-entry"]}
+    },
+    "imperial-college-london": {
+      "alevel":{"status":"course-specific","headline":"AAA 至 A*A*A：依课程为 0–2 个 A*","detail":"学校列出的标准 offer 区间为 AAA–A*A*A。指定数学、科学科目以及部分课程的招生测试需要单独满足，课程页可能有更高或不同组合。","sourceKeys":["imperial-qualifications"]},
+      "ib":{"status":"course-specific","headline":"总分 38–42；相关 HL 为 6–7","detail":"这是学校资格表的跨课程区间，并非每个专业相同。应同时检查总分、数学类别、相关 HL 科目和课程页具体条件。","sourceKeys":["imperial-qualifications"]},
+      "ap":{"status":"course-specific","headline":"最低路径之一：5 门为 5、5、5、4、4","detail":"另一最低路径为 3 门 AP 达 5、5、4，配合认可的高中毕业资格及 SAT 1460 或 ACT 31。不是只要两门／三门 5 分即可；课程可能更高，2027 AP 政策正在更新的专业需以最新课程页为准。","sourceKeys":["imperial-qualifications"]}
+    },
+    "massachusetts-institute-of-technology-mit": {
+      "alevel":{"status":"holistic","headline":"所核验页面未列统一 A* 数量线","detail":"MIT 按申请人所在教育体系理解成绩，不把成绩机械转换成美国分数。需学校提交成绩及适用的 A-Level 等外部考试结果或预估分，SAT／ACT 仍另行要求。","sourceKeys":["mit-international"]},
+      "ib":{"status":"holistic","headline":"所核验页面未列统一 IB 总分线","detail":"IB 成绩作为所在教育体系的学术记录评估，学校可提交预估成绩；录取入学者须补正式成绩。不能把网上流传的某个 IB 总分写成 MIT 官方 offer 条件。","sourceKeys":["mit-international"]},
+      "ap":{"status":"holistic","headline":"所核验页面未列统一 AP 5 分门数","detail":"按课程环境、学术准备和完整申请综合评估；不能将英国大学的 AP 等效 offer 表套用到 MIT。SAT／ACT 要求与 AP 成绩是不同事项。","sourceKeys":["mit-international"]},
+      "research":{"status":"not-required","headline":"研究／Maker 作品集是可选材料","detail":"显著且与申请相关的项目可提交研究补充材料或 Maker Portfolio。研究材料可包括问卷、摘要／海报及导师推荐；Maker 更看重真实构建过程，不只看最终包装。","sourceKeys":["mit-portfolios"],"advice":"选择一个真正能讲清的项目：问题、方法、失败与迭代、自己负责的部分及可核验成果。不必为凑“科研背景”购买项目。"}
+    },
+    "harvard-university": {
+      "alevel":{"status":"holistic","headline":"综合评审，没有统一“几个 A*”公式","detail":"官方明确不存在获得录取的固定公式，除高中学术表现外，也考虑活动、社区参与、领导力及个人品质。课程考试与 SAT／ACT 的提交要求仍需分别满足。","sourceKeys":["harvard-selection"]},
+      "ib":{"status":"holistic","headline":"不应把某个 IB 总分当作统一录取线","detail":"所核验的选拔说明采用综合评审，不公布以 IB 总分即可判定录取的公式；总分、课程难度和申请材料不能相互简单替代。","sourceKeys":["harvard-selection"]},
+      "ap":{"status":"holistic","headline":"不应把 AP 5 分门数当作录取公式","detail":"学术成绩重要，但不是唯一标准。SAT／ACT 及特殊情况下其他考试替代政策须按官方国际申请要求另行核对，不能把 AP 任意视为 SAT 的替代品。","sourceKeys":["harvard-selection"]},
+      "competition":{"status":"holistic","headline":"活动中的投入与表现，不是固定奖牌数","detail":"官方选拔因素包括社区参与、领导力、课外活动表现及个人品质，没有在这份说明中给出必需竞赛名称或奖牌数量。","sourceKeys":["harvard-selection"],"advice":"比赛只是展示能力的途径之一。写清长期投入、具体贡献、遇到的困难与成长，不把参赛证书列表当成个人故事。"}
+    },
+    "the-chinese-university-of-hong-kong-cuhk": {
+      "alevel":{"status":"official","headline":"基本资格：3 门 A-Level 合格；不是 offer 线","detail":"国际生通道也列出 2 门 A-Level 加 2 门 AS-Level 合格的组合。此处是申请资格底线，不是常见录取成绩或无需 A* 的承诺；专业先修科目及实际选拔仍另行要求。","sourceKeys":["cuhk-entry"]},
+      "ib":{"status":"official","headline":"完整 IB Diploma，基本资格 30／45","detail":"30 分是国际生通道公布的最低申请资格，不是实际录取分数预测。须满足目标专业的指定科目和额外条件，达到最低标准不保证被录取。","sourceKeys":["cuhk-entry"]},
+      "ap":{"status":"official","headline":"高中毕业＋SAT／ACT＋2 门 AP 至少 3 分","detail":"该通道的基本组合为高中毕业资格、SAT 至少 1190 或 ACT 至少 24，以及至少两门 AP 各 3 分。不是“只考两门 AP 即可”，也不是常见 offer 水平。","sourceKeys":["cuhk-entry"]}
+    },
+    "ucl": {
+      "alevel":{"status":"course-specific","headline":"ABB 至 A*A*A：依课程为 0–2 个 A*","detail":"常规 offer 以三门为基础，具体等级及必需科目按课程确定。这里不是 contextual offer 范围，不能只用全校最低档判断专业条件。","sourceKeys":["ucl-entry"]},
+      "ib":{"status":"course-specific","headline":"34–40／45；HL 合计 16–20","detail":"ABB、AAB、AAA、A*AA、A*A*A 对应 IB 总分分别为 34、36、38、39、40；三个 HL 合计依次 16、17、18、19、20，每个 HL 至少 5。指定科目另查。","sourceKeys":["ucl-entry"]},
+      "ap":{"status":"course-specific","headline":"AP 条件按专业；不能统一写几门 5 分","detail":"需要在所选课程的国际资格栏目核对美国课程条件，确认 AP 科目、等级、数量及是否需要 SAT／ACT。这里只给核对路径，不把某个课程或往年表格当成全校统一 offer 线。","sourceKeys":["ucl-entry"]}
+    },
+    "university-of-pennsylvania": {
+      "alevel":{"status":"holistic","headline":"官方未设统一 A* 数量或最低考试分","detail":"Penn 在 A-Level／IB 问答中明确按完整背景综合评审，不设统一课程与考试最低分；同时希望申请人利用学校的高难度课程，并为所申请学院做好准备。","sourceKeys":["penn-entry"]},
+      "ib":{"status":"holistic","headline":"官方未设统一 IB 最低总分","detail":"综合评审课程环境和完整申请；未出最终成绩时，由学校提供预估成绩。不能把某个高分或 HL 组合当作所有专业的录取公式。","sourceKeys":["penn-entry"]},
+      "language":{"status":"official","headline":"官网竞争者参考：IELTS 通常 7 分以上","detail":"这是官网对竞争者表现的描述，不是硬性录取线或 AI 估分。各项应均衡；母语为英语或入学前至少三年主要以英语授课可豁免，否则须提交认可考试。","sourceKeys":["penn-entry"]}
+    },
+    "carnegie-mellon-university":{"language":{"status":"official","headline":"IELTS 总分要求 7.5","detail":"英语非母语申请人须按官网提供语言成绩，通常不超过两年。学校同时考察各项达到 7.5 的情况；不能把这一考察表述误写为每项统一硬门槛。","sourceKeys":["cmu-entry"]}},
+    "boston-university":{"language":{"status":"official","headline":"IELTS 总分 7.0 满足语言要求","detail":"官方说明总分 7 或以上可满足所有本科项目的语言考试要求，同时查看单项是否均衡。适用背景和豁免应查官网；语言达标不代替学术录取审核。","sourceKeys":["bu-entry"]}},
+    "purdue-university":{"ib":{"status":"holistic","headline":"官网明确没有统一 IB 总分最低线","detail":"学校按申请的整体表现评审 IB 申请者，仍需提交相应学校成绩、预估或正式 IB 成绩。专业先修课及其他申请条件须另行满足。","sourceKeys":["purdue-entry"]}},
+    "rice-university":{"language":{"status":"official","headline":"使用 IELTS 证明英语：最低 7.0","detail":"这是所列英语考试最低值；是否需要考试须结合母语及英语授课经历核对官网豁免。不能由语言成绩推断录取概率。","sourceKeys":["rice-entry"]}},
+    "vanderbilt-university":{"language":{"status":"official","headline":"官网推荐 IELTS 最低 7.0","detail":"保留官网“推荐”性质，不改写成统一硬性拒录线。第一语言或授课语言为英语者可不需要语言考试，其他豁免和提交要求请按原页核对。","sourceKeys":["vanderbilt-entry"]}},
+    "washington-university-in-st-louis":{"language":{"status":"official","headline":"官网竞争者参考：IELTS Academic 7.0","detail":"国际申请人一般需提供英语能力考试或满足豁免。这是招生页的竞争者参考，与学校通用最低语言政策须区分；2027 年豁免规则有调整，应查当年条款。","sourceKeys":["washu-english"]}},
+    "tufts-university":{"language":{"status":"official","headline":"无硬性最低分；官网参考 IELTS 7+","detail":"学校说明不设语言考试最低分，通常成功申请者达到表中推荐值。需要考试与否按授课经历判断；不接受 IELTS Indicator 代替所需考试。","sourceKeys":["tufts-english"]}},
+    "case-western-reserve-university":{"language":{"status":"official","headline":"使用 IELTS 证明英语：7.0","detail":"该分数是国际本科页面列出的语言条件，另有自动豁免标准；要核对本人是否符合，而不是同时要求所有英语考试。","sourceKeys":["case-english"]}},
+    "ohio-state-university-columbus":{"language":{"status":"official","headline":"IELTS／Indicator：6.5 或以上","detail":"国际本科新生步骤页列出的英语满足方式之一；也有其他考试、美国高中及特定背景路径。课程先修和录取条件仍独立评估。","sourceKeys":["osu-english"]}},
+    "virginia-tech":{"language":{"status":"official","headline":"IELTS 6.5；各项均不低于 6.5","detail":"国际本科条件同时限制总分和单项，并列出其他英语资格及豁免路径。不要只准备总分，也不要将转学生截止日期套给新生。","sourceKeys":["vt-english"]}},
+    "michigan-state-university":{"language":{"status":"official","headline":"正式入学 IELTS 6.5；临时录取 6.0","detail":"官网区分 regular admission 与 provisional admission。6.0 不是直接满足正式入学英语要求，后续语言学习条件应按录取文件确认。","sourceKeys":["msu-english"]}},
+    "stevens-institute-of-technology":{"language":{"status":"official","headline":"IELTS 总分最低 6.0","detail":"英语非第一语言的国际本科申请者可用该考试证明能力。美国学习满三年的相关豁免为个案审批，应申请后联系招生办确认。","sourceKeys":["stevens-english"]}},
+    "texas-a-m-university":{"language":{"status":"official","headline":"IELTS Academic 总分最低 6.0","detail":"国际本科新生页面列明的英语满足方式之一，不接受 IELTS General 代替；SAT／ACT 英语部分或符合条件的美国高中经历等另有路径。","sourceKeys":["tamu-entry"]}},
+    "santa-clara-university":{"language":{"status":"official","headline":"使用 IELTS 证明英语：6.5","detail":"本科语言页面列出的标准之一；须使用有效成绩，并核对其他考试或背景豁免。可选视频面试不是自动代替语言考试的办法。","sourceKeys":["scu-english"]}},
+    "university-of-delaware":{"language":{"status":"official","headline":"直接入学 IELTS 6.5；衔接课程另算","detail":"官网区分直接入学、Academic Transitions 和强化英语。衔接课程的 5.5–6.0 不能写成直接入学条件；护理等项目另有适用限制。","sourceKeys":["delaware-english"]}},
+    "rochester-institute-of-technology":{"language":{"status":"official","headline":"本科直接入学 IELTS 6.5","detail":"本科表把 6.0 或以下列入条件录取方向，不能与直接入学混用；听障申请者的相关单项安排及豁免按官网单独确认。","sourceKeys":["rit-english"]}},
+    "saint-louis-university":{"language":{"status":"official","headline":"使用 IELTS 证明英语：最低 6.5","detail":"官网还列出其他考试与资格路径，TOEFL／IELTS 通常有效两年。学校保留个案要求追加考试的权利，入学后另有写作分级测试。","sourceKeys":["slu-english"]}},
+    "florida-international-university":{"language":{"status":"not-required","headline":"国际新生不必另交 TOEFL／IELTS","detail":"直接入学仍须达到佛州规定的 SAT／ACT 等大学准备度条件，包括相应阅读、英语分项及 GPA；不是免除英语能力要求。","sourceKeys":["fiu-english"]}},
+    "king-s-college-london":{
+      "alevel":{"status":"course-specific","headline":"以 3 门完整 A-Level 评估；等级按专业","detail":"报考四门或以上时通常评估最高三门，但仍须满足指定科目。具体 A* 个数查课程页，不能从资格换算表选最低档作为本人的 offer 条件。","sourceKeys":["kcl-entry"]},
+      "ib":{"status":"course-specific","headline":"按课程档位：如 AAA 对应总分 36／HL 18","detail":"官方换算表列 AAA 为总分 36 或三个 HL 合计 18，A*AA 为 38 或 19，A*A*A 为 39 或 20；总分含 TOK／EE。仍须满足课程指定科目；理工、计算机等要求数学时通常需 HL AA。","sourceKeys":["kcl-entry"]},
+      "ap":{"status":"course-specific","headline":"纯 AP 路径：按课程看 5 门组合","detail":"例：A*A*A 对应 55555，A*AA 对应 55554，AAA 对应 55544，AAB 对应 55444。另有 AP 与 SAT／ACT 组合路径及其分项要求。数学先修通常要 Calculus BC；AP Research／Seminar 不被接受。","sourceKeys":["kcl-entry"]},
+      "research":{"status":"official","headline":"EPQ 可练能力，但不能替代标准成绩","detail":"官方明确 EPQ 不代替标准 A-Level 或等效要求。应按申请专业确认可提交什么补充材料，不把项目证书视为豁免学术条件的通行证。","sourceKeys":["kcl-entry"]}
+    },
+    "the-london-school-of-economics-and-political-science-lse":{"ap":{"status":"course-specific","headline":"A*AA／AAA 档：5 门 AP 5 分＋高中 GPA","detail":"该 AP 路径要求最多三年内完成且高中 GPA 至少 3.7；AAB 档为 3 门 5 分＋2 门 4 分及同样 GPA。另有 GPA 3.7 加 ACT 32／SAT 1450 路径；要求数学的专业还需 AP Calculus BC 5 分。科目组合另查。","sourceKeys":["lse-us"]}},
+    "the-university-of-manchester":{"ap":{"status":"course-specific","headline":"AAA／A*AA 档通常 3 门 AP 5 分","detail":"美国高中资格路径另需毕业证及 GPA 3.0；A*A*A／A*A*A* 档表列 4 门 AP 5 分，AAB 为 554、ABB 为 544。可有大学学分课组合，但指定科目和当年院系条件仍须确认。","sourceKeys":["manchester-us"]}},
+    "stanford-university": {
+      "alevel":{"status":"official","headline":"通常至少 3 门完整 A-Level；未列统一 A* 数","detail":"英国课程申请者由学校提交 GCSE 成绩及 A-Level 预估分。SAT／ACT 另行要求；这里的门数不是“三个 A*即可录取”的承诺。","sourceKeys":["stanford-testing"]},
+      "ib":{"status":"official","headline":"提交完整 IB 预估分；未列统一总分线","detail":"美国境外就读 IB 的申请者由学校提供包含核心加分的预估成绩。所核验测试页面没有给出固定 IB offer 总分。","sourceKeys":["stanford-testing"]},
+      "ap":{"status":"not-required","headline":"AP 考试并非强制；无固定 5 分门数","detail":"若参加过 AP，包括自学应考，必须自报全部成绩；不能只挑 5 分申报。SAT／ACT 的要求与 AP 是否参加分开处理。","sourceKeys":["stanford-testing"]}
+    }
+  }
+}

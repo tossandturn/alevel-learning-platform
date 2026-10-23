@@ -1,6 +1,181 @@
 {
   "schemaVersion": "stemist-university-profile-provenance-v1",
-  "updatedAt": "2026-10-22T12:31:55.572Z",
+  "updatedAt": "2026-10-23T00:00:00+08:00",
+  "analysis": {
+    "reviewedSources": {
+      "oxford-qualifications": {
+        "title": "Oxford · International qualifications",
+        "url": "https://www.ox.ac.uk/admissions/undergraduate/courses/admissions-requirements/international-qualifications",
+        "checkedOn": "2026-10-23"
+      },
+      "oxford-grades": {
+        "title": "Oxford · Course admission requirements",
+        "url": "https://www.ox.ac.uk/admissions/undergraduate/courses/admissions-requirements/summary-table-of-admissions-requirements",
+        "checkedOn": "2026-10-22"
+      },
+      "oxford-english": {
+        "title": "Oxford · English language requirements",
+        "url": "https://www.ox.ac.uk/admissions/undergraduate/applying/for-international-students/english-language-requirements-visas",
+        "checkedOn": "2026-10-23"
+      },
+      "cambridge-qualifications": {
+        "title": "Cambridge · Accepted qualifications",
+        "url": "https://www.undergraduate.study.cam.ac.uk/apply/before/accepted-qualifications",
+        "checkedOn": "2026-10-23"
+      },
+      "cambridge-entry": {
+        "title": "Cambridge · Entry requirements",
+        "url": "https://www.undergraduate.study.cam.ac.uk/apply/before/entry-requirements",
+        "checkedOn": "2026-10-23"
+      },
+      "imperial-qualifications": {
+        "title": "Imperial · Accepted qualifications",
+        "url": "https://www.imperial.ac.uk/study/apply/undergraduate/entry-requirements/accepted-qualifications/",
+        "checkedOn": "2026-10-23"
+      },
+      "mit-international": {
+        "title": "MIT · International applicants",
+        "url": "https://mitadmissions.org/apply/firstyear/international/",
+        "checkedOn": "2026-10-23"
+      },
+      "mit-portfolios": {
+        "title": "MIT · Optional research and maker portfolios",
+        "url": "https://mitadmissions.org/apply/firstyear/portfolios-additional-material/",
+        "checkedOn": "2026-10-23"
+      },
+      "harvard-selection": {
+        "title": "Harvard · Admissions criteria",
+        "url": "https://college.harvard.edu/resources/faq/what-admissions-criteria-do-you-use",
+        "checkedOn": "2026-10-23"
+      },
+      "stanford-testing": {
+        "title": "Stanford · Standardized testing",
+        "url": "https://admission.stanford.edu/apply/first-year/testing.html",
+        "checkedOn": "2026-10-23"
+      },
+      "cuhk-entry": {
+        "title": "CUHK · International undergraduate requirements",
+        "url": "https://admission.cuhk.edu.hk/application/overseas-other-qualifications-non-local-international-team/requirements/",
+        "checkedOn": "2026-10-23"
+      },
+      "ucl-entry": {
+        "title": "UCL · Undergraduate entry requirements",
+        "url": "https://www.ucl.ac.uk/study/prospective-students/undergraduate/how-apply/entry-requirements",
+        "checkedOn": "2026-10-22"
+      },
+      "penn-entry": {
+        "title": "Penn · International applicant FAQs",
+        "url": "https://admissions.upenn.edu/how-to-apply/international-applicants",
+        "checkedOn": "2026-10-23"
+      },
+      "cmu-entry": {
+        "title": "Carnegie Mellon · International applicants",
+        "url": "https://www.cmu.edu/admission/admission/international-applicants",
+        "checkedOn": "2026-10-22"
+      },
+      "bu-entry": {
+        "title": "Boston University · International applicants",
+        "url": "https://www.bu.edu/admissions/apply/international/",
+        "checkedOn": "2026-10-22"
+      },
+      "purdue-entry": {
+        "title": "Purdue · International applicants",
+        "url": "https://admissions.purdue.edu/become-student/international/",
+        "checkedOn": "2026-10-22"
+      },
+      "rice-entry": {
+        "title": "Rice · First-year international applicants",
+        "url": "https://admission.rice.edu/apply/first-year-international-applicants",
+        "checkedOn": "2026-10-22"
+      },
+      "vanderbilt-entry": {
+        "title": "Vanderbilt · First-year application process",
+        "url": "https://admissions.vanderbilt.edu/apply/first-year-process/",
+        "checkedOn": "2026-10-22"
+      },
+      "washu-english": {
+        "title": "WashU · English testing requirements",
+        "url": "https://admissions.washu.edu/how-to-apply/english-testing-requirements/",
+        "checkedOn": "2026-10-22"
+      },
+      "tufts-english": {
+        "title": "Tufts · International applicants",
+        "url": "https://admissions.tufts.edu/apply/applying-as-an-international-s/",
+        "checkedOn": "2026-10-22"
+      },
+      "case-english": {
+        "title": "Case Western · International applicants",
+        "url": "https://case.edu/admission/apply/international-applicants",
+        "checkedOn": "2026-10-22"
+      },
+      "osu-english": {
+        "title": "Ohio State · International first-year application",
+        "url": "https://undergrad.osu.edu/apply/international-freshmen/apply-step-by-step",
+        "checkedOn": "2026-10-22"
+      },
+      "vt-english": {
+        "title": "Virginia Tech · International admission requirements",
+        "url": "https://www.vt.edu/admissions/international/requirements.html",
+        "checkedOn": "2026-10-22"
+      },
+      "msu-english": {
+        "title": "Michigan State · English proficiency",
+        "url": "https://admissions.msu.edu/apply/international/language-requirements",
+        "checkedOn": "2026-10-22"
+      },
+      "stevens-english": {
+        "title": "Stevens · International undergraduate applicants",
+        "url": "https://www.stevens.edu/admission-aid/undergraduate-admissions/international-students",
+        "checkedOn": "2026-10-22"
+      },
+      "tamu-entry": {
+        "title": "Texas A&M · International freshman admission",
+        "url": "https://admissions.tamu.edu/apply/international/international-freshman.html",
+        "checkedOn": "2026-10-22"
+      },
+      "scu-english": {
+        "title": "Santa Clara · Undergraduate English proficiency",
+        "url": "https://www.scu.edu/admission/undergraduate/international-students/undergraduate-english-proficiency/",
+        "checkedOn": "2026-10-22"
+      },
+      "delaware-english": {
+        "title": "Delaware · International admissions",
+        "url": "https://www.udel.edu/apply/undergraduate-admissions/apply-to-ud/international-admissions/",
+        "checkedOn": "2026-10-22"
+      },
+      "rit-english": {
+        "title": "RIT · International undergraduate language requirements",
+        "url": "https://www.rit.edu/admissions/international",
+        "checkedOn": "2026-10-22"
+      },
+      "slu-english": {
+        "title": "Saint Louis · English proficiency",
+        "url": "https://www.slu.edu/admission/international/english-proficiency.php",
+        "checkedOn": "2026-10-22"
+      },
+      "fiu-english": {
+        "title": "FIU · International first-year requirements",
+        "url": "https://admissions.fiu.edu/international/incoming-freshmen/index.html",
+        "checkedOn": "2026-10-22"
+      },
+      "kcl-entry": {
+        "title": "King’s · Undergraduate entry requirements",
+        "url": "https://www.kcl.ac.uk/study/undergraduate/how-to-apply/entry-requirements",
+        "checkedOn": "2026-10-23"
+      },
+      "lse-us": {
+        "title": "LSE · US qualification equivalencies",
+        "url": "https://www.lse.ac.uk/study-at-lse/international-students/united-states-of-america",
+        "checkedOn": "2026-10-23"
+      },
+      "manchester-us": {
+        "title": "Manchester · US undergraduate entry",
+        "url": "https://www.manchester.ac.uk/study/international/country-specific-information/usa/",
+        "checkedOn": "2026-10-23"
+      }
+    },
+    "policy": "Official requirements and qualitative AI advice; no inferred competitive score ranges."
+  },
   "items": [
     {
       "id": "massachusetts-institute-of-technology-mit",
@@ -31,6 +206,22 @@
         "title": "Degree Charts | MIT Course Catalog",
         "checkedAt": "2026-10-22T11:03:17.768Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "alevel",
+          "ib",
+          "ap",
+          "research"
+        ],
+        "verifiedDimensions": [
+          "alevel",
+          "ib",
+          "ap",
+          "language",
+          "research"
+        ]
       }
     },
     {
@@ -61,6 +252,20 @@
         "title": "Course search | Study | Imperial College London",
         "checkedAt": "2026-10-22T11:03:19.386Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "alevel",
+          "ib",
+          "ap"
+        ],
+        "verifiedDimensions": [
+          "alevel",
+          "ib",
+          "ap",
+          "language"
+        ]
       }
     },
     {
@@ -91,6 +296,19 @@
         "title": "Explore Majors",
         "checkedAt": "2026-10-22T11:03:17.064Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "alevel",
+          "ib",
+          "ap"
+        ],
+        "verifiedDimensions": [
+          "alevel",
+          "ib",
+          "ap"
+        ]
       }
     },
     {
@@ -125,6 +343,23 @@
         "title": "Undergraduate course listing A-Z",
         "checkedAt": "2026-10-22T11:12:55.685Z",
         "method": "official-page-search-snapshot; automated direct fetch may be blocked"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "alevel",
+          "ib",
+          "ap",
+          "language",
+          "research"
+        ],
+        "verifiedDimensions": [
+          "alevel",
+          "ib",
+          "ap",
+          "language",
+          "research"
+        ]
       }
     },
     {
@@ -155,6 +390,22 @@
         "title": "Programs - Harvard University",
         "checkedAt": "2026-10-22T11:03:17.919Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "alevel",
+          "ib",
+          "ap",
+          "competition"
+        ],
+        "verifiedDimensions": [
+          "alevel",
+          "ib",
+          "ap",
+          "language",
+          "competition"
+        ]
       }
     },
     {
@@ -185,6 +436,21 @@
         "title": "Courses for 2027 entry | Undergraduate Study",
         "checkedAt": "2026-10-22T11:03:18.492Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "alevel",
+          "ib",
+          "ap",
+          "language"
+        ],
+        "verifiedDimensions": [
+          "alevel",
+          "ib",
+          "ap",
+          "language"
+        ]
       }
     },
     {
@@ -211,7 +477,14 @@
         "height": 220,
         "tone": "light"
       },
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": [
+          "language"
+        ]
+      }
     },
     {
       "id": "eth-zurich",
@@ -236,7 +509,12 @@
         "height": 192,
         "tone": "light"
       },
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "ucl",
@@ -266,6 +544,20 @@
         "title": "Undergraduate | Study at UCL",
         "checkedAt": "2026-10-22T11:03:19.961Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "alevel",
+          "ib",
+          "ap"
+        ],
+        "verifiedDimensions": [
+          "alevel",
+          "ib",
+          "ap",
+          "language"
+        ]
       }
     },
     {
@@ -282,6 +574,11 @@
         "title": "Undergraduate Programmes",
         "checkedAt": "2026-10-22T11:12:55.686Z",
         "method": "official-page-search-snapshot; automated direct fetch may be blocked"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -312,6 +609,13 @@
         "title": "Programmes | Admissions Office, the Registry",
         "checkedAt": "2026-10-22T11:03:20.908Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -342,6 +646,13 @@
         "title": "Degree Programmes | NTU Singapore | NTU Singapore",
         "checkedAt": "2026-10-22T11:03:21.112Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -371,6 +682,11 @@
         "title": "Courses",
         "checkedAt": "2026-10-22T11:03:21.086Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -401,6 +717,11 @@
         "title": "本科专业-清华大学",
         "checkedAt": "2026-10-22T11:03:21.297Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -437,6 +758,19 @@
         "title": "Programs A-Z &lt; University of Pennsylvania",
         "checkedAt": "2026-10-22T11:03:24.776Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "alevel",
+          "ib",
+          "language"
+        ],
+        "verifiedDimensions": [
+          "alevel",
+          "ib",
+          "language"
+        ]
       }
     },
     {
@@ -467,6 +801,13 @@
         "title": "Fields of Study | Cornell University",
         "checkedAt": "2026-10-22T11:03:23.385Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -497,6 +838,13 @@
         "title": "Undergraduate Study | Yale University",
         "checkedAt": "2026-10-22T11:03:24.110Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -528,6 +876,20 @@
         "title": "Undergraduate Programmes - CUHK Undergraduate Admissions",
         "checkedAt": "2026-10-22T11:03:27.676Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "alevel",
+          "ib",
+          "ap"
+        ],
+        "verifiedDimensions": [
+          "alevel",
+          "ib",
+          "ap",
+          "language"
+        ]
       }
     },
     {
@@ -558,6 +920,13 @@
         "title": "Undergraduate study | UNSW Sydney",
         "checkedAt": "2026-10-22T11:03:24.805Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -592,6 +961,13 @@
         "title": "Majors, Minors &amp; Programs | Johns Hopkins University Admissions",
         "checkedAt": "2026-10-22T11:03:26.899Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -627,6 +1003,13 @@
         "title": "Catalog - Office of the Registrar",
         "checkedAt": "2026-10-22T11:03:26.868Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -657,6 +1040,11 @@
         "title": "Bachelor &#8208; EPFL",
         "checkedAt": "2026-10-22T11:03:28.706Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -668,7 +1056,14 @@
       "kind": "verified-overview",
       "sourceCheckedOn": "2026-10-22",
       "logo": null,
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": [
+          "language"
+        ]
+      }
     },
     {
       "id": "university-of-chicago",
@@ -698,6 +1093,11 @@
         "title": "Undergraduate Programs | University of Chicago",
         "checkedAt": "2026-10-22T11:03:29.593Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -728,6 +1128,11 @@
         "title": "Bachelor&#039;s Degree Programs - TUM",
         "checkedAt": "2026-10-22T11:03:32.674Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -758,6 +1163,11 @@
         "title": "院系专业",
         "checkedAt": "2026-10-22T11:03:31.168Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -792,6 +1202,13 @@
         "title": "Majors & Minors | Office of the Dean of the College",
         "checkedAt": "2026-10-22T11:12:55.686Z",
         "method": "official-page-search-snapshot; automated direct fetch may be blocked"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -822,6 +1239,13 @@
         "title": "Undergraduate courses - The University of Sydney",
         "checkedAt": "2026-10-22T11:03:31.754Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -852,6 +1276,11 @@
         "title": "Search - ANU",
         "checkedAt": "2026-10-22T11:03:32.484Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -886,6 +1315,13 @@
         "title": "Programs | Undergraduate Admissions - McGill University",
         "checkedAt": "2026-10-22T10:55:06.757Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -897,7 +1333,12 @@
       "kind": "preparation-guide",
       "sourceCheckedOn": null,
       "logo": null,
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "university-of-toronto",
@@ -928,6 +1369,13 @@
         "title": "Undergraduate Programs | University of Toronto",
         "checkedAt": "2026-10-22T10:55:08.079Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -958,6 +1406,13 @@
         "title": "Academics | HKUST",
         "checkedAt": "2026-10-22T11:03:32.770Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -983,7 +1438,12 @@
         "height": 61,
         "tone": "light"
       },
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "the-university-of-edinburgh",
@@ -1013,6 +1473,11 @@
         "title": "Undergraduate programmes | Degree finder | The University of Edinburgh",
         "checkedAt": "2026-10-22T11:03:33.671Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -1038,7 +1503,12 @@
         "height": 32,
         "tone": "light"
       },
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "king-s-college-london",
@@ -1068,6 +1538,21 @@
         "title": "Undergraduate | King&#x27;s College London",
         "checkedAt": "2026-10-22T11:03:36.895Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "alevel",
+          "ib",
+          "ap",
+          "research"
+        ],
+        "verifiedDimensions": [
+          "alevel",
+          "ib",
+          "ap",
+          "research"
+        ]
       }
     },
     {
@@ -1098,7 +1583,12 @@
         "height": 64,
         "tone": "light"
       },
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "the-university-of-tokyo",
@@ -1128,6 +1618,11 @@
         "title": "Undergraduate Students | The University of Tokyo",
         "checkedAt": "2026-10-22T11:03:34.825Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -1157,7 +1652,16 @@
         "height": 78,
         "tone": "light"
       },
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "ap"
+        ],
+        "verifiedDimensions": [
+          "ap"
+        ]
+      }
     },
     {
       "id": "the-university-of-queensland",
@@ -1187,6 +1691,13 @@
         "title": "Find a degree at UQ",
         "checkedAt": "2026-10-22T11:03:36.449Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -1212,7 +1723,12 @@
         "height": 88,
         "tone": "light"
       },
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "columbia-university",
@@ -1246,6 +1762,11 @@
         "title": "Academics | Columbia Undergraduate Admissions",
         "checkedAt": "2026-10-22T11:03:36.661Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -1276,6 +1797,11 @@
         "title": "Undergraduate Programs | Institut Polytechnique de Paris",
         "checkedAt": "2026-10-22T11:03:38.750Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -1306,6 +1832,13 @@
         "title": "Majors and Minors: Undergraduate Admissions - Northwestern University",
         "checkedAt": "2026-10-22T11:03:39.174Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -1336,6 +1869,13 @@
         "title": "Undergraduate Students | The University of British Columbia",
         "checkedAt": "2026-10-22T11:03:37.278Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -1347,7 +1887,12 @@
       "kind": "preparation-guide",
       "sourceCheckedOn": null,
       "logo": null,
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "delft-university-of-technology",
@@ -1377,6 +1922,11 @@
         "title": "Bachelors",
         "checkedAt": "2026-10-22T11:03:38.801Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -1408,6 +1958,13 @@
         "title": "Academics | Degree Programs &amp; Majors | UCLA | UCLA",
         "checkedAt": "2026-10-22T11:03:39.544Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -1438,6 +1995,11 @@
         "title": "Programmes | The Hong Kong Polytechnic University",
         "checkedAt": "2026-10-22T11:12:55.686Z",
         "method": "official-page-search-snapshot; automated direct fetch may be blocked"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -1467,7 +2029,12 @@
         "height": 50,
         "tone": "light"
       },
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "city-university-of-hong-kong-cityuhk",
@@ -1478,7 +2045,12 @@
       "kind": "preparation-guide",
       "sourceCheckedOn": null,
       "logo": null,
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "korea-university",
@@ -1503,7 +2075,12 @@
         "height": 108,
         "tone": "light"
       },
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "national-taiwan-university-ntu",
@@ -1533,6 +2110,11 @@
         "title": "Academics - National Taiwan University",
         "checkedAt": "2026-10-22T11:03:40.459Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -1564,6 +2146,15 @@
         "title": "Majors &amp; Programs - Undergraduate Admission - Carnegie Mellon University",
         "checkedAt": "2026-10-22T11:03:41.585Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "language"
+        ],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -1589,7 +2180,12 @@
         "height": 56,
         "tone": "light"
       },
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "university-of-bristol",
@@ -1619,6 +2215,11 @@
         "title": "Undergraduate study | Study at Bristol | University of Bristol",
         "checkedAt": "2026-10-22T11:03:42.454Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -1654,6 +2255,11 @@
         "title": "Academics",
         "checkedAt": "2026-10-22T11:03:42.792Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -1683,6 +2289,11 @@
         "title": "Choose your programme",
         "checkedAt": "2026-10-22T11:12:55.686Z",
         "method": "official-page-search-snapshot; automated direct fetch may be blocked"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -1713,6 +2324,11 @@
         "title": "Doing a Bachelor's - University of Amsterdam",
         "checkedAt": "2026-10-22T11:03:43.863Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -1743,6 +2359,11 @@
         "title": "All degrees and programs - LMU Munich",
         "checkedAt": "2026-10-22T11:03:44.721Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -1773,6 +2394,15 @@
         "title": "Undergraduate",
         "checkedAt": "2026-10-22T11:03:45.317Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "ap"
+        ],
+        "verifiedDimensions": [
+          "ap"
+        ]
       }
     },
     {
@@ -1802,7 +2432,12 @@
         "height": 31,
         "tone": "light"
       },
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "kyoto-university",
@@ -1827,7 +2462,12 @@
         "height": 180,
         "tone": "light"
       },
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "kaist",
@@ -1852,7 +2492,12 @@
         "height": 180,
         "tone": "light"
       },
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "brown-university",
@@ -1882,6 +2527,11 @@
         "title": "Undergraduate Programs | Brown University",
         "checkedAt": "2026-10-22T11:03:45.842Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -1907,7 +2557,12 @@
         "height": 145,
         "tone": "light"
       },
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "university-of-warwick",
@@ -1937,6 +2592,11 @@
         "title": "Undergraduate courses at University of Warwick",
         "checkedAt": "2026-10-22T11:03:47.515Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -1967,6 +2627,11 @@
         "title": "Search undergraduate courses",
         "checkedAt": "2026-10-22T11:12:55.686Z",
         "method": "official-page-search-snapshot; automated direct fetch may be blocked"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -1997,6 +2662,13 @@
         "title": "Majors, Minors, and More - Duke Undergraduate Admissions",
         "checkedAt": "2026-10-22T11:03:50.125Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -2031,6 +2703,11 @@
         "title": "Find degree programmes and courses | Lund University",
         "checkedAt": "2026-10-22T11:03:53.242Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -2061,6 +2738,11 @@
         "title": "Colleges &amp; Schools | University of Texas at Austin",
         "checkedAt": "2026-10-22T11:03:48.629Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -2091,6 +2773,11 @@
         "title": "Our Academic Programs | Sorbonne Université| Sorbonne université",
         "checkedAt": "2026-10-22T11:03:50.806Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -2121,6 +2808,11 @@
         "title": "Majors, Illinois Undergraduate Admissions",
         "checkedAt": "2026-10-22T11:03:52.616Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -2151,6 +2843,11 @@
         "title": "Courses - Courses | Trinity College Dublin",
         "checkedAt": "2026-10-22T11:03:54.155Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -2182,6 +2879,11 @@
         "title": "Programmes by degree - (1st cycle) | Université Paris-Saclay",
         "checkedAt": "2026-10-22T11:03:54.946Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -2212,6 +2914,11 @@
         "title": "Undergraduate | UWA",
         "checkedAt": "2026-10-22T11:03:55.697Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -2242,6 +2949,11 @@
         "title": "Undergraduate courses | University of Leeds",
         "checkedAt": "2026-10-22T11:03:57.177Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -2272,6 +2984,11 @@
         "title": "Study | Adelaide University",
         "checkedAt": "2026-10-22T11:03:56.336Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -2302,6 +3019,11 @@
         "title": "University of Glasgow - Undergraduate study",
         "checkedAt": "2026-10-22T11:03:57.665Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -2333,6 +3055,13 @@
         "title": "Undergraduate Majors at UC San Diego",
         "checkedAt": "2026-10-22T11:03:57.457Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -2363,6 +3092,11 @@
         "title": "Bachelor&#39;s degree studies at KTH | KTH | Sweden",
         "checkedAt": "2026-10-22T11:03:59.431Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -2396,6 +3130,11 @@
         "title": "Undergraduate study | Undergraduate study | The University of Sheffield",
         "checkedAt": "2026-10-22T11:03:58.793Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -2421,7 +3160,12 @@
         "height": 80,
         "tone": "dark"
       },
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "durham-university",
@@ -2451,6 +3195,11 @@
         "title": "Undergraduate - Durham University",
         "checkedAt": "2026-10-22T11:03:59.509Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -2481,6 +3230,11 @@
         "title": "Heidelberg University - Zukunft seit 1386",
         "checkedAt": "2026-10-22T11:04:02.088Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -2512,6 +3266,11 @@
         "title": "Laurea (equivalent to Bachelor of Science) - polimi",
         "checkedAt": "2026-10-22T10:55:15.567Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -2542,6 +3301,11 @@
         "title": "Undergraduate Courses at UTS | Degrees, Pathways &amp; Applications",
         "checkedAt": "2026-10-22T11:04:00.763Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -2572,6 +3336,11 @@
         "title": "Bachelor’s studies – Uppsala University",
         "checkedAt": "2026-10-22T11:04:01.393Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -2597,7 +3366,12 @@
         "height": 61,
         "tone": "light"
       },
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "university-of-copenhagen",
@@ -2627,6 +3401,11 @@
         "title": "Bachelor - University of Copenhagen",
         "checkedAt": "2026-10-22T11:04:01.359Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -2658,6 +3437,11 @@
         "title": "Undergraduate Majors | Penn State",
         "checkedAt": "2026-10-22T11:04:02.581Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -2688,6 +3472,11 @@
         "title": "Majors &#8211; Office of Admissions",
         "checkedAt": "2026-10-22T11:04:03.118Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -2718,6 +3507,15 @@
         "title": "Degree Programs &raquo; Academics | Boston University",
         "checkedAt": "2026-10-22T11:04:03.566Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "language"
+        ],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -2743,7 +3541,12 @@
         "height": 500,
         "tone": "light"
       },
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "university-of-alberta",
@@ -2754,7 +3557,12 @@
       "kind": "preparation-guide",
       "sourceCheckedOn": null,
       "logo": null,
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "institute-of-science-tokyo",
@@ -2784,6 +3592,11 @@
         "title": "Departments / Majors, Schools / Tracks | Science Tokyo",
         "checkedAt": "2026-10-22T11:04:03.657Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -2814,6 +3627,11 @@
         "title": "Find your course",
         "checkedAt": "2026-10-22T11:04:05.996Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -2849,6 +3667,11 @@
         "title": "Our Degree Programs • Education • Freie Universität Berlin",
         "checkedAt": "2026-10-22T11:04:05.474Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -2879,6 +3702,11 @@
         "title": "Academic Programs | University of Zurich | UZH",
         "checkedAt": "2026-10-22T11:04:06.245Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -2910,6 +3738,15 @@
         "title": "Purdue Majors - Explore 150+ Undergraduate Programs",
         "checkedAt": "2026-10-22T11:04:07.470Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "ib"
+        ],
+        "verifiedDimensions": [
+          "ib"
+        ]
       }
     },
     {
@@ -2940,6 +3777,11 @@
         "title": "Undergraduate - University College Dublin",
         "checkedAt": "2026-10-22T11:04:07.633Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -2974,6 +3816,11 @@
         "title": "School of Arts &amp; Sciences | Dartmouth",
         "checkedAt": "2026-10-22T11:04:07.616Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -3000,7 +3847,16 @@
         "height": 75,
         "tone": "light"
       },
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "language"
+        ],
+        "verifiedDimensions": [
+          "language"
+        ]
+      }
     },
     {
       "id": "vanderbilt-university",
@@ -3030,6 +3886,15 @@
         "title": "Academics | Vanderbilt University",
         "checkedAt": "2026-10-22T11:04:09.585Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "language"
+        ],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -3060,6 +3925,15 @@
         "title": "Academic Degrees &amp; Programs | WashU",
         "checkedAt": "2026-10-22T11:04:09.333Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "language"
+        ],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -3090,6 +3964,11 @@
         "title": "Programs | University of Notre Dame",
         "checkedAt": "2026-10-22T11:04:10.306Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -3120,6 +3999,11 @@
         "title": "Academics | Emory University",
         "checkedAt": "2026-10-22T11:04:10.677Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -3150,6 +4034,11 @@
         "title": "Areas of Study - Georgetown University",
         "checkedAt": "2026-10-22T11:04:13.894Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -3180,6 +4069,11 @@
         "title": "Majors and Minors | The University of Virginia",
         "checkedAt": "2026-10-22T11:04:11.272Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -3210,6 +4104,11 @@
         "title": "Academics - The University of North Carolina at Chapel Hill",
         "checkedAt": "2026-10-22T11:04:11.249Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -3240,6 +4139,11 @@
         "title": "Majors &amp; Minors - USC",
         "checkedAt": "2026-10-22T11:04:12.339Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -3270,6 +4174,11 @@
         "title": "Majors and Degrees",
         "checkedAt": "2026-10-22T11:04:11.889Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -3300,6 +4209,11 @@
         "title": "Majors &amp; Minors - Undergraduate Admission - Boston College",
         "checkedAt": "2026-10-22T11:04:13.119Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -3330,6 +4244,15 @@
         "title": "Majors &amp; Minors | Tufts Admissions",
         "checkedAt": "2026-10-22T11:04:16.021Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "language"
+        ],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -3360,6 +4283,13 @@
         "title": "Majors | UC Davis",
         "checkedAt": "2026-10-22T11:04:13.619Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -3395,6 +4325,13 @@
         "title": "Academics | UC Irvine",
         "checkedAt": "2026-10-22T11:04:14.536Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -3425,6 +4362,11 @@
         "title": "Programs &lt; University of Florida",
         "checkedAt": "2026-10-22T11:04:18.577Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -3456,6 +4398,11 @@
         "title": "Undergraduate majors and certificates - University of Wisconsin–Madison",
         "checkedAt": "2026-10-22T11:04:15.991Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -3486,6 +4433,11 @@
         "title": "Majors &amp; Minors | Undergraduate Admissions | Wake Forest University",
         "checkedAt": "2026-10-22T11:04:17.660Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -3516,6 +4468,11 @@
         "title": "Areas of Study | Undergraduate Admissions",
         "checkedAt": "2026-10-22T11:04:17.333Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -3547,6 +4504,11 @@
         "title": "ACADEMICS | PROGRAMS | Villanova University",
         "checkedAt": "2026-10-22T11:04:18.999Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -3577,6 +4539,15 @@
         "title": "Academics | Undergraduate Admission | Case Western Reserve University",
         "checkedAt": "2026-10-22T11:04:18.474Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "language"
+        ],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -3607,6 +4578,11 @@
         "title": "Majors and Undergraduate Programs | Lehigh University",
         "checkedAt": "2026-10-22T11:04:22.494Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -3638,6 +4614,15 @@
         "title": "Majors and degrees - The Ohio State University",
         "checkedAt": "2026-10-22T11:04:21.116Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "language"
+        ],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -3649,7 +4634,12 @@
       "kind": "preparation-guide",
       "sourceCheckedOn": null,
       "logo": null,
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "university-of-california-santa-barbara",
@@ -3679,6 +4669,13 @@
         "title": "Undergraduate Colleges and Majors | UC Santa Barbara",
         "checkedAt": "2026-10-22T11:04:20.409Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -3709,6 +4706,11 @@
         "title": "Undergraduate Programs | University of Maryland Catalog",
         "checkedAt": "2026-10-22T11:04:22.371Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -3739,6 +4741,11 @@
         "title": "Academic Programs | University of Rochester",
         "checkedAt": "2026-10-22T11:04:24.326Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -3750,7 +4757,12 @@
       "kind": "preparation-guide",
       "sourceCheckedOn": null,
       "logo": null,
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "virginia-tech",
@@ -3775,7 +4787,16 @@
         "height": 466,
         "tone": "dark"
       },
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "language"
+        ],
+        "verifiedDimensions": [
+          "language"
+        ]
+      }
     },
     {
       "id": "william-mary",
@@ -3805,6 +4826,11 @@
         "title": "Undergraduate Programs | Academics | William &amp; Mary",
         "checkedAt": "2026-10-22T11:04:24.672Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -3835,6 +4861,15 @@
         "title": "Academics - Santa Clara University",
         "checkedAt": "2026-10-22T11:04:24.334Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "language"
+        ],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -3865,7 +4900,12 @@
         "height": 121,
         "tone": "light"
       },
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "brandeis-university",
@@ -3895,6 +4935,11 @@
         "title": "Majors and Brandeis Programs | Academics | Brandeis University",
         "checkedAt": "2026-10-22T11:04:25.942Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -3925,6 +4970,11 @@
         "title": "Majors | Office of Admissions",
         "checkedAt": "2026-10-22T11:04:25.576Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -3954,7 +5004,12 @@
         "height": 191,
         "tone": "light"
       },
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "stevens-institute-of-technology",
@@ -3984,6 +5039,15 @@
         "title": "Undergraduate Study | Stevens Institute of Technology",
         "checkedAt": "2026-10-22T11:04:26.875Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "language"
+        ],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -4014,6 +5078,11 @@
         "title": "Majors &amp; Minors | Stony Brook University Programs",
         "checkedAt": "2026-10-22T11:04:32.522Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -4044,6 +5113,15 @@
         "title": "Academic Programs at Texas A&amp;M University | Texas A&amp;M University",
         "checkedAt": "2026-10-22T11:04:27.406Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "language"
+        ],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -4069,7 +5147,12 @@
         "height": 37,
         "tone": "dark"
       },
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "university-of-massachusetts-amherst",
@@ -4080,7 +5163,12 @@
       "kind": "preparation-guide",
       "sourceCheckedOn": null,
       "logo": null,
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "university-of-minnesota-twin-cities",
@@ -4091,7 +5179,12 @@
       "kind": "preparation-guide",
       "sourceCheckedOn": null,
       "logo": null,
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "university-of-pittsburgh",
@@ -4121,6 +5214,11 @@
         "title": "Home | Academics",
         "checkedAt": "2026-10-22T11:04:29.146Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -4152,6 +5250,15 @@
         "title": "Majors, degrees and programs",
         "checkedAt": "2026-10-22T11:04:30.897Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "language"
+        ],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -4182,6 +5289,11 @@
         "title": "Academics | Rensselaer Polytechnic Institute",
         "checkedAt": "2026-10-22T11:04:29.974Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -4193,7 +5305,14 @@
       "kind": "verified-overview",
       "sourceCheckedOn": "2026-10-22",
       "logo": null,
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": [
+          "language"
+        ]
+      }
     },
     {
       "id": "syracuse-university",
@@ -4223,6 +5342,11 @@
         "title": "Selecting A Major - Syracuse University",
         "checkedAt": "2026-10-22T11:04:32.877Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -4253,6 +5377,11 @@
         "title": "Academic Program Finder | Binghamton University | Academics | Binghamton University",
         "checkedAt": "2026-10-22T11:04:31.872Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -4283,6 +5412,11 @@
         "title": "Fields of Study | Howard University",
         "checkedAt": "2026-10-22T11:04:32.922Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -4299,6 +5433,11 @@
         "title": "Explore Degrees, Majors, and Academic Programs",
         "checkedAt": "2026-10-22T11:04:35.901Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -4329,6 +5468,11 @@
         "title": "Majors and Careers | NC State University",
         "checkedAt": "2026-10-22T11:04:34.674Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -4359,6 +5503,11 @@
         "title": "Explore Undergraduate Programs | Rutgers University-Newark",
         "checkedAt": "2026-10-22T11:04:33.682Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -4389,6 +5538,11 @@
         "title": "Majors &amp; Minors | Undergraduate Admissions",
         "checkedAt": "2026-10-22T11:04:35.412Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -4420,6 +5574,11 @@
         "title": "Schools, Departments &amp; Programs | Worcester Polytechnic Institute",
         "checkedAt": "2026-10-22T11:04:36.372Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -4446,7 +5605,12 @@
         "height": 56,
         "tone": "light"
       },
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "colorado-school-of-mines",
@@ -4476,6 +5640,11 @@
         "title": "Majors | Colorado School of Mines",
         "checkedAt": "2026-10-22T11:04:36.802Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -4506,6 +5675,11 @@
         "title": "Undergraduate Programs",
         "checkedAt": "2026-10-22T11:04:38.152Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -4522,6 +5696,11 @@
         "title": "Degree Programs and Majors | Pepperdine University",
         "checkedAt": "2026-10-22T11:04:37.301Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -4538,6 +5717,13 @@
         "title": "Majors | UC Riverside Undergraduate Admissions",
         "checkedAt": "2026-10-22T11:04:37.889Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -4562,7 +5748,12 @@
         "height": 410,
         "tone": "light"
       },
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "new-jersey-institute-of-technology",
@@ -4592,6 +5783,11 @@
         "title": "Degree &amp; Major Finder | New Jersey Institute of Technology",
         "checkedAt": "2026-10-22T11:04:40.522Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -4618,7 +5814,12 @@
         "height": 600,
         "tone": "light"
       },
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "university-at-buffalo-suny",
@@ -4648,6 +5849,11 @@
         "title": "Degree Programs - University at Buffalo",
         "checkedAt": "2026-10-22T11:04:40.864Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -4678,6 +5884,15 @@
         "title": "Major Finder | University of Delaware",
         "checkedAt": "2026-10-22T11:04:42.529Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "language"
+        ],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -4708,6 +5923,11 @@
         "title": "Majors &amp; Minors | Undergraduate Admissions | Baylor University",
         "checkedAt": "2026-10-22T11:04:42.271Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -4719,7 +5939,12 @@
       "kind": "preparation-guide",
       "sourceCheckedOn": null,
       "logo": null,
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "marquette-university",
@@ -4750,6 +5975,11 @@
         "title": "Majors and Minors // Academics // Marquette University",
         "checkedAt": "2026-10-22T11:04:44.082Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -4780,6 +6010,11 @@
         "title": "Academic Majors, Minors &amp; Programs | Texas Christian University",
         "checkedAt": "2026-10-22T11:04:43.742Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -4810,6 +6045,11 @@
         "title": "Academics and Research | Yeshiva University",
         "checkedAt": "2026-10-22T11:04:43.364Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -4821,7 +6061,12 @@
       "kind": "preparation-guide",
       "sourceCheckedOn": null,
       "logo": null,
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "rochester-institute-of-technology",
@@ -4851,6 +6096,15 @@
         "title": "Bachelor’s Degrees | RIT",
         "checkedAt": "2026-10-22T11:04:45.661Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "language"
+        ],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -4881,6 +6135,11 @@
         "title": "Academics | Rutgers University-Camden",
         "checkedAt": "2026-10-22T11:04:44.351Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -4911,6 +6170,11 @@
         "title": "University of Illinois Chicago",
         "checkedAt": "2026-10-22T11:04:46.100Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -4941,6 +6205,11 @@
         "title": "Majors at Mizzou - With more than 300 degree programs, Mizzou has something for everyone.",
         "checkedAt": "2026-10-22T11:04:46.986Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -4971,6 +6240,11 @@
         "title": "Undergraduate Majors | Auburn University Bulletin",
         "checkedAt": "2026-10-22T11:04:47.907Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -5002,6 +6276,11 @@
         "title": "Majors and Minors | Chapman University",
         "checkedAt": "2026-10-22T11:04:47.151Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -5028,7 +6307,12 @@
         "height": 44,
         "tone": "light"
       },
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "elon-university",
@@ -5058,6 +6342,11 @@
         "title": "Majors, Minors &amp; Academic Programs | Undergraduate Admissions | Elon University",
         "checkedAt": "2026-10-22T11:04:50.277Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -5088,6 +6377,15 @@
         "title": "Degrees &amp; Programs | Florida International University in Miami, FL",
         "checkedAt": "2026-10-22T11:04:49.598Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "language"
+        ],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -5118,6 +6416,15 @@
         "title": "Majors and Programs &lt; Saint Louis University Academic Catalog",
         "checkedAt": "2026-10-22T11:04:51.060Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [
+          "language"
+        ],
+        "verifiedDimensions": [
+          "language"
+        ]
       }
     },
     {
@@ -5148,6 +6455,11 @@
         "title": "Areas of Study | The University of Iowa",
         "checkedAt": "2026-10-22T11:04:51.024Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     },
     {
@@ -5174,7 +6486,12 @@
         "height": 60,
         "tone": "light"
       },
-      "programme": null
+      "programme": null,
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
+      }
     },
     {
       "id": "university-of-south-florida",
@@ -5205,6 +6522,11 @@
         "title": "University of South Florida",
         "checkedAt": "2026-10-22T11:04:54.489Z",
         "method": "public-page-and-directory-title-review"
+      },
+      "analysis": {
+        "updatedOn": "2026-10-23",
+        "reviewedDimensions": [],
+        "verifiedDimensions": []
       }
     }
   ]

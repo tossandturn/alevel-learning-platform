@@ -7,12 +7,19 @@ const id=v=>typeof v==='string'&&/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(v)&&v.length<
 const text=(v,max)=>typeof v==='string'&&v.trim()===v&&v.length>0&&v.length<=max&&!/[\u0000-\u001f<>]/.test(v)
 const digest=v=>typeof v==='string'&&/^[a-f0-9]{64}$/.test(v)
 const date=v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&Number.isFinite(Date.parse(v))&&new Date(v+'T00:00:00Z').toISOString().slice(0,10)===v
+const ANALYSIS_IDS=['alevel','ib','ap','language','competition','research'],ANALYSIS_LABELS=['A-Level','IB','AP','语言','竞赛','科研／项目']
+const ANALYSIS_STATUSES=new Set(['official','course-specific','holistic','not-required','unverified'])
+function validateAdmissionAnalysis(v,sources){
+ assert.equal(v?.schemaVersion,'undergraduate-six-dimensions-v1');assert(date(v.updatedOn)&&text(v.summary,300));assert(Array.isArray(v.modules)&&v.modules.length===6)
+ for(const [i,m]of v.modules.entries()){assert.equal(m.id,ANALYSIS_IDS[i]);assert.equal(m.label,ANALYSIS_LABELS[i]);assert(ANALYSIS_STATUSES.has(m.status));assert(text(m.headline,160)&&text(m.detail,500)&&text(m.advice,500));assert(Array.isArray(m.sourceIds)&&m.sourceIds.length<=6&&new Set(m.sourceIds).size===m.sourceIds.length&&m.sourceIds.every(id=>sources.has(id)));if(m.status!=='unverified')assert(m.sourceIds.length>0,'Official analysis facts require source references')}
+}
 export function validateUniversityProfile(v){
  assert.equal(v?.schemaVersion,'stemist-university-profile-v1');assert(id(v.id));assert(kinds.has(v.kind));assert(date(v.updatedOn));assert(text(v.scope,160));assert(text(v.summary,160));assert(text(v.notice,240))
  assert(Array.isArray(v.sources)&&v.sources.length>=1&&v.sources.length<=10);const sources=new Set()
  for(const s of v.sources){assert(id(s.id)&&!sources.has(s.id));sources.add(s.id);assert(text(s.title,160)&&safeDirectoryUrl(s.url))}
  assert(Array.isArray(v.sections)&&v.sections.length>=1&&v.sections.length<=6)
  for(const s of v.sections){assert(text(s.label,40)&&text(s.text,800));assert(Array.isArray(s.sourceIds)&&s.sourceIds.length<=10);assert(new Set(s.sourceIds).size===s.sourceIds.length);assert(s.sourceIds.every(x=>sources.has(x)));if(v.kind==='verified-overview')assert(s.sourceIds.length>0,'School claims require supporting source IDs')}
+ if(v.analysis!==undefined)validateAdmissionAnalysis(v.analysis,sources)
  assert(Buffer.byteLength(JSON.stringify(v))<=16*1024);return true
 }
 export function validateUniversityProfileIndex(v){

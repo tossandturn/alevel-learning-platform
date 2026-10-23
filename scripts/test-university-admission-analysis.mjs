@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import {validateUniversityProfile} from '../server/universityProfiles.js'
+const ids=['alevel','ib','ap','language','competition','research'],labels=['A-Level','IB','AP','语言','竞赛','科研／项目']
+const fixture=()=>({schemaVersion:'stemist-university-profile-v1',id:'fixture-school',kind:'preparation-guide',updatedOn:'2026-10-23',scope:'International undergraduate',summary:'Fixture',notice:'No admission guarantee.',sources:[{id:'source',title:'Official admissions',url:'https://fixture.edu/admissions/'}],sections:[{label:'Legacy',text:'Preserved',sourceIds:[]}],analysis:{schemaVersion:'undergraduate-six-dimensions-v1',updatedOn:'2026-10-23',summary:'Official facts and AI preparation advice.',modules:ids.map((id,i)=>({id,label:labels[i],status:'unverified',headline:'Not yet verified',detail:'Check the official programme.',advice:'Prepare your authentic evidence.',sourceIds:[]}))}})
+assert.equal(validateUniversityProfile(fixture()),true)
+for(const mutate of [p=>p.analysis.modules[0].status='official',p=>p.analysis.modules.pop(),p=>p.analysis.modules[1].id='alevel',p=>p.analysis.modules[0].sourceIds=['missing'],p=>p.analysis.modules[0].status='guaranteed-offer',p=>p.analysis.summary='<b>unsafe</b>']){const p=fixture();mutate(p);assert.throws(()=>validateUniversityProfile(p),'Malformed or unsupported analysis must never enter the public release')}
+const official=fixture();official.analysis.modules[0]={...official.analysis.modules[0],status:'course-specific',headline:'A*AA',sourceIds:['source']};assert.equal(validateUniversityProfile(official),true)
+const old=fixture();delete old.analysis;assert.equal(validateUniversityProfile(old),true)
+assert.ok(fs.existsSync(new URL('../server/universityAdmissionAnalysis.js',import.meta.url)),'Reviewed admissions and AI advice must be assembled independently of the legacy source catalog')
+const {enrichUniversityProfile}=await import('../server/universityAdmissionAnalysis.js')
+const base=fixture();delete base.analysis;const snapshot=JSON.stringify(base)
+const reviews={schemaVersion:'university-admission-reviews-v1',updatedOn:'2026-10-23',sources:{academic:{title:'Official entry',url:'https://fixture.edu/entry/',checkedOn:'2026-10-23'}},universities:{'fixture-school':{alevel:{status:'course-specific',headline:'A*AA = 1 A* + 2 A',detail:'Depends on the programme.',sourceKeys:['academic']}}}}
+const enriched=enrichUniversityProfile({id:base.id,profile:base},{nameZh:'示例大学',country:'United Kingdom'},reviews)
+assert.equal(JSON.stringify(base),snapshot,'Original source facts remain untouched');assert.equal(enriched.analysis.modules.length,6);assert.equal(enriched.analysis.modules[0].sourceIds.length,1);assert.equal(enriched.analysis.modules[2].status,'unverified');assert.ok(!/\d/.test(enriched.analysis.modules[2].headline),'Unknown AP minimum must not be fabricated');assert.equal(validateUniversityProfile(enriched),true)
+const badReviews=structuredClone(reviews);badReviews.universities['fixture-school'].alevel.sourceKeys=['absent'];assert.throws(()=>enrichUniversityProfile({id:base.id,profile:base},{nameZh:'示例',country:'United Kingdom'},badReviews))
+const unpublished=structuredClone(reviews);unpublished.sources.academic.url='https://fixture.edu/admissions/test-page/template';assert.throws(()=>enrichUniversityProfile({id:base.id,profile:base},{country:'Singapore'},unpublished))
+const source=JSON.parse(fs.readFileSync(new URL('../server/catalogs/university-profiles-source.json',import.meta.url),'utf8')),liveReviews=JSON.parse(fs.readFileSync(new URL('../server/catalogs/university-admission-reviews.json',import.meta.url),'utf8')),directory=JSON.parse(fs.readFileSync(new URL('../public/data/university-directory.json',import.meta.url),'utf8'))
+const enrichedAll=source.items.map(row=>enrichUniversityProfile(row,directory.rankings.flatMap(r=>r.items).find(i=>row.aliases.includes(i.id)),liveReviews))
+for(const p of enrichedAll){assert.equal(p.analysis.modules.length,6);for(const m of p.analysis.modules){assert(!/\d/.test(m.advice),'Qualitative AI advice must not introduce numeric score ranges');if(m.status==='unverified')assert.equal(m.sourceIds.length,0)}}
+assert.match(enrichedAll.find(p=>p.id==='university-of-oxford').analysis.modules[0].headline,/0–2/)
+assert.match(enrichedAll.find(p=>p.id==='university-of-cambridge').analysis.modules[2].headline,/至少 5 门/)
+assert.match(enrichedAll.find(p=>p.id==='the-chinese-university-of-hong-kong-cuhk').analysis.modules[1].detail,/最低申请资格/)
+console.log(JSON.stringify({institutions:enrichedAll.length,withOfficialDimensions:enrichedAll.filter(p=>p.analysis.modules.some(m=>m.status!=='unverified')).length,reviewedDimensions:enrichedAll.flatMap(p=>p.analysis.modules).filter(m=>m.status!=='unverified').length,unknownDimensions:enrichedAll.flatMap(p=>p.analysis.modules).filter(m=>m.status==='unverified').length,maxProfileBytes:Math.max(...enrichedAll.map(p=>Buffer.byteLength(JSON.stringify(p))))}))
+console.log('Admissions data contract: six stable dimensions, official source binding, AI advice and legacy compatibility PASS')
