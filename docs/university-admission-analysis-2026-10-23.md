@@ -30,3 +30,9 @@ Research exclusions: university test/template URLs, old prospectuses, graduate-o
 Backend contracts, all ranking aliases, exact hash/asset allowlist, six dimensions, source binding, malformed-source rejection, no numeric AI advice, and legacy/client compatibility pass. Source/transformed Mini Program suites and 72 responsive geometry cases pass. The official native simulator verifies tabs, cross-ranking aliases, six modules, source copying and failure/retry. Physical phone and tablet remain **NOT VERIFIED**.
 
 GitHub UI reference: [Tencent TDesign Mini Program tabs](https://github.com/Tencent/tdesign-miniprogram/blob/develop/packages/components/tabs/type.ts), MIT-licensed original implementation. Reference only; no dependency or third-party code was copied.
+
+## Deployment result
+
+Public data commit `a6c043a908f13d8dabc3c92ff5f060004fd2b705` is deployed. The static transaction added 184 immutable profiles and replaced only the index/provenance after verified backups. All previous 184 profile URLs remain available. Pre/post resource checks and protected-file checks passed, with unchanged service PIDs/restart counts. No server build or restart was performed.
+
+The transport lost the initial reply; read-only reconciliation confirmed the persisted activation receipt and exact new index hash before any further action. All 368 new/retained profile files then passed public HTTPS MIME/hash checks from the server, and the native simulator passed the real public-data flow. Physical-device network performance is not covered by those checks. Client 1.0.58 was requested and is pending developer-tool confirmation, not yet a confirmed upload or public release.
