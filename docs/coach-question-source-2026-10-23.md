@@ -33,3 +33,11 @@ PASS: the two-file deployment helper rejects invalid archive members/hashes and 
 ## Implementation references
 
 [LlamaIndex's citation query engine](https://github.com/run-llama/llama_index/blob/main/llama-index-core/llama_index/core/query_engine/citation_query_engine.py) and [LangChain document metadata](https://github.com/langchain-ai/langchain/blob/master/libs/core/langchain_core/documents/base.py) informed the separation of retrieved source identity from generated prose. No package was installed or implementation copied. The [official DeepSeek vision guide](https://api-docs.deepseek.com/guides/vision/) confirms mixed user text/image input; existing provider settings are unchanged.
+
+## Deployed acceptance
+
+Runtime commit `9cacc6ec3b6497da6cec5b913308c8b2c88074ad` is **DEPLOYED** as a two-file prebuilt overlay. The original API file is backed up and a rollback recovers the newly added resolver file; no dependency build, database migration, environment or sibling-service restart occurred. Fresh pre/post resource, protected-file and health checks pass.
+
+After deployment, the current middleware was exercised in an ephemeral loopback harness using a synthetic test-only signing key, the real configured provider, and public question material. No production user, account, history or production authentication key was accessed. Both text and the original paper image returned the correct canonical source with no leaked private trailer and exact SSE-delta/terminal-answer agreement. Text: first answer delta 3.93 s, complete 5.10 s. Image: first delta 6.96 s, complete 8.90 s. These are individual server-side QA samples, not phone-network performance guarantees.
+
+The existing 1.0.58 Mini Program upload was independently reconciled as successful. This source feature requires no additional client runtime upload; formal WeChat review/public publication and physical-device acceptance are separate and were not performed here.
