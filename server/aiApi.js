@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { loadTavernProvider } from './tavernProvider.js'
 import { loadStemAcademicProvider } from './stemAcademicProvider.js'
+import {createCoachQuestionSourceResolver,createCoachSourceStream,extractCoachSourceTrailer,appendCoachQuestionSource,coachSourceInstruction} from './coachQuestionSource.js'
 import {TAVERN_MEDIA_VERSION,TAVERN_MEDIA_PREFIX,loadTavernMediaCatalog,selectTavernMediaCandidates,tavernMediaSystemPrompt,normalizeTavernMediaReply,serveTavernMedia,DEFAULT_TAVERN_MEDIA_ROOT} from './tavernMedia.js'
 import {createDrawArtHandler} from './tavernDrawArt.js'
 import { isAiMarkablePastPaperItem, studyQuestionBank } from '../src/data/questionBank.js'
@@ -1497,6 +1498,13 @@ function coachResponseFields(policy, feature, answerStatus, draw = null) {
   }
 }
 
+function coachSourcePresentation({answer,source,resolver,message,context,authorization,hasImages}) {
+  if(!source)return{answer}
+  const parsed=extractCoachSourceTrailer(answer)
+  const questionSource=source.status==='matched'?source:resolver.resolve({message,context,authorization,hasImages,lookupText:parsed.lookupText})
+  return{answer:appendCoachQuestionSource(parsed.answer,questionSource),questionSource}
+}
+
 function coachUnavailablePayload({ policy, feature, localAnswer, providerStatus, warning, provider = null, draw = null }) {
   const localGuidance = policy.helpIntent === 'hint' && !feature.requiresProvider
   return {
@@ -1711,7 +1719,7 @@ function coachRequestContext(context, message) {
   }), COACH_CONTEXT_MAX_CHARS)
 }
 
-async function handleCoach(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStoreProvider, mediaCatalog, tavernProvider = null) {
+async function handleCoach(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStoreProvider, mediaCatalog, tavernProvider = null, questionSourceResolver = null) {
   const payload = await readJsonBody(request)
   const authorization = typeof authorizeCoachRequest === 'function'
     ? await authorizeCoachRequest({ request, payload })
@@ -1834,6 +1842,8 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
     : { providerTimeoutMs: timeoutConfig.providerTimeoutMs, totalDeadlineMs: timeoutConfig.totalDeadlineMs }
   const deadlineAt = Date.now() + requestBudget.totalDeadlineMs
   const requestId = crypto.randomUUID()
+  const source=feature.feature!=='tavern'&&questionSourceResolver?questionSourceResolver.resolve({message,context,authorization,hasImages}):null
+  const sourcePrompt=source?'\n'+coachSourceInstruction({hasImages,matched:source.status==='matched'}):''
   let lastError = null
   let lastMemory = null
   let lastAttemptedProvider = activeProviders[0]
@@ -1862,7 +1872,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
         : null
       lastMemory = selectedTavernContext?.memory || null
       const answer = await callCompatibleAi(activeProvider, {
-        messages: [{ role: 'system', content: selectedTavernContext?.systemPrompt || coachFeatureSystemPrompt(feature, policy, context, draw) }, ...(selectedTavernContext?.history || history), { role: 'user', content }],
+        messages: [{ role: 'system', content: selectedTavernContext?.systemPrompt || coachFeatureSystemPrompt(feature, policy, context, draw)+sourcePrompt }, ...(selectedTavernContext?.history || history), { role: 'user', content }],
         json: activeProvider.name === 'deepseek' && Boolean(selectedTavernContext?.mediaCandidates.length),
         temperature: 0.2,
         metadata: selectedTavernContext?.metadata || coachProviderMetadata(feature, context),
@@ -1886,6 +1896,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
       })
       const reply=selectedTavernContext?.mediaCandidates.length?normalizeTavernMediaReply(answer,{catalog:mediaCatalog,candidates:selectedTavernContext.mediaCandidates}):{text:answer,media:[]}
       if(!reply.text)throw Object.assign(new Error('AI reply media schema invalid'),{code:'AI_RESPONSE_SCHEMA_INVALID'})
+      if(source&&!extractCoachSourceTrailer(reply.text).answer.trim())throw Object.assign(new Error('AI answer was empty after source metadata removal'),{code:'AI_RESPONSE_SCHEMA_INVALID'})
       successfulProviderResult = { answer:reply.text, media:reply.media, provider: activeProvider, memory: lastMemory }
     } catch (error) {
       lastError = error
@@ -1896,6 +1907,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   }
   if (successfulProviderResult) {
     const { answer, provider: successfulProvider, memory, media } = successfulProviderResult
+    const presentation=coachSourcePresentation({answer,source,resolver:questionSourceResolver,message,context,authorization,hasImages})
     const completedState = state ? stateStore.completeTurn({
       ownerId: authenticatedUserId,
       persona: feature.persona,
@@ -1912,7 +1924,8 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
       mode: 'ai',
       provider: successfulProvider.name,
       providerStatus: 'connected',
-      answer:completedState?.turns.find(turn=>turn.role==='assistant')?.content||answer,
+      ...presentation,
+      answer:completedState?.turns.find(turn=>turn.role==='assistant')?.content||presentation.answer,
       model: successfulProvider.model,
       ...coachResponseFields(policy, feature, 'complete', draw),
       ...tavernConversationResponse(completedState ? { ...completedState, clientTurnId: state.clientTurnId } : null, memory),
@@ -2157,7 +2170,7 @@ function finishCommittedCoachStream(response, payload) {
   }
 }
 
-async function handleCoachStream(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStoreProvider, tavernProvider = null) {
+async function handleCoachStream(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStoreProvider, tavernProvider = null, questionSourceResolver = null) {
   const payload = await readJsonBody(request)
   const authorization = typeof authorizeCoachRequest === 'function'
     ? await authorizeCoachRequest({ request, payload })
@@ -2303,6 +2316,8 @@ async function handleCoachStream(request, response, provider, visionProvider, li
     : { providerTimeoutMs: timeoutConfig.providerTimeoutMs, totalDeadlineMs: timeoutConfig.totalDeadlineMs }
   const deadlineAt = Date.now() + requestBudget.totalDeadlineMs
   const requestId = crypto.randomUUID()
+  const source=feature.feature!=='tavern'&&questionSourceResolver?questionSourceResolver.resolve({message,context,authorization,hasImages}):null
+  const sourcePrompt=source?'\n'+coachSourceInstruction({hasImages,matched:source.status==='matched'}):''
   let streamedAnswer = ''
   let lastPartialAnswer = ''
   let lastError = null
@@ -2318,6 +2333,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
       lastAttemptedProvider = activeProvider
       let providerImages = []
       let attemptAnswer = ''
+      const sourceStream=source?createCoachSourceStream():null
       try {
         providerImages = await temporaryProviderImages(imageDataUrls, imagePublicBase(activeProvider, request))
         const content = providerMessageContent(userText, providerImages)
@@ -2345,7 +2361,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
           ...tavernConversationResponse(state, lastMemory),
         })
         const result = await callCompatibleAiStream(activeProvider, {
-          messages: [{ role: 'system', content: selectedTavernContext?.systemPrompt || coachFeatureSystemPrompt(feature, policy, context, draw) }, ...(selectedTavernContext?.history || history), { role: 'user', content }],
+          messages: [{ role: 'system', content: selectedTavernContext?.systemPrompt || coachFeatureSystemPrompt(feature, policy, context, draw)+sourcePrompt }, ...(selectedTavernContext?.history || history), { role: 'user', content }],
           temperature: 0.2,
           metadata: selectedTavernContext?.metadata || coachProviderMetadata(feature, context),
           operation: feature.feature === 'tavern' ? 'coach-tavern-stream' : hasImages ? 'coach-vision-stream' : 'coach-stream',
@@ -2367,19 +2383,24 @@ async function handleCoachStream(request, response, provider, visionProvider, li
           } : {}),
           onDelta: async (delta) => {
             attemptAnswer += delta
-            sendCoachEventOrThrow(response, 'delta', { text: delta })
+            const visible=sourceStream?sourceStream.push(delta):delta
+            if(visible)sendCoachEventOrThrow(response, 'delta', { text: visible })
           },
         })
+        if(source&&!extractCoachSourceTrailer(result.answer||attemptAnswer).answer.trim())throw Object.assign(new Error('AI answer was empty after source metadata removal'),{code:'AI_RESPONSE_SCHEMA_INVALID'})
+        const remainder=sourceStream?.finish()
+        if(remainder)sendCoachEventOrThrow(response,'delta',{text:remainder})
         streamedAnswer = result.answer || attemptAnswer
         successfulStreamResult = { answer: streamedAnswer, provider: activeProvider, memory: lastMemory }
       } catch (error) {
         lastError = error
         if (error?.code === 'COACH_RESPONSE_TRANSPORT') {
+          lastPartialAnswer=source?extractCoachSourceTrailer(attemptAnswer).answer:attemptAnswer
           responseTransportFailure = error
           break
         }
         if (attemptAnswer) {
-          lastPartialAnswer = attemptAnswer
+          lastPartialAnswer = source?extractCoachSourceTrailer(attemptAnswer).answer:attemptAnswer
           if (providerIndex < activeProviders.length - 1) {
             try {
               sendCoachEventOrThrow(response, 'reset', { provider: activeProvider.name })
@@ -2396,6 +2417,12 @@ async function handleCoachStream(request, response, provider, visionProvider, li
     }
     if (successfulStreamResult) {
       const { answer, provider: successfulProvider, memory } = successfulStreamResult
+      const presentation=coachSourcePresentation({answer,source,resolver:questionSourceResolver,message,context,authorization,hasImages})
+      if(source){
+        const suffix=presentation.answer.slice(extractCoachSourceTrailer(answer).answer.length)
+        try{if(suffix)sendCoachEventOrThrow(response,'delta',{text:suffix})}
+        catch{try{if(!response.writableEnded&&!response.destroyed)response.end()}catch{}return}
+      }
       const completedState = state ? stateStore.completeTurn({
         ownerId: authenticatedUserId,
         persona: feature.persona,
@@ -2411,7 +2438,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
         mode: 'ai',
         provider: successfulProvider.name,
         providerStatus: 'connected',
-        answer,
+        ...presentation,
         model: successfulProvider.model,
         ...coachResponseFields(policy, feature, 'complete', draw),
         ...tavernConversationResponse(completedState ? { ...completedState, clientTurnId: state.clientTurnId } : null, memory),
@@ -2674,6 +2701,7 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
       return studyQuestionBank
     }
   }
+  const questionSourceResolver=createCoachQuestionSourceResolver({questionBankProvider:currentAiMarkingQuestionBank})
   const aiApi = async function aiApi(request, response, next) {
     const requestUrl = new URL(request.url, 'http://127.0.0.1')
     if (!requestUrl.pathname.startsWith('/api/ai/')) return next()
@@ -2702,8 +2730,8 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/tavern/conversations/resume') return await handleTavernConversationResume(request, response, env, authorizeCoachRequest, conversationStore())
       if (request.method === 'GET' && requestUrl.pathname.startsWith('/api/ai/tavern/conversations/') && requestUrl.pathname.endsWith('/messages')) return await handleTavernConversationMessages(requestUrl, request, response, env, authorizeCoachRequest, conversationStore())
       if (request.method === 'DELETE' && requestUrl.pathname.startsWith('/api/ai/tavern/conversations/')) return await handleTavernConversationDelete(requestUrl, request, response, env, authorizeCoachRequest, conversationStore())
-      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach') return await handleCoach(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStore,tavernMediaCatalog||loadTavernMediaCatalog(),tavernProvider)
-      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach/stream') return await handleCoachStream(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStore,tavernProvider)
+      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach') return await handleCoach(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStore,tavernMediaCatalog||loadTavernMediaCatalog(),tavernProvider,questionSourceResolver)
+      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach/stream') return await handleCoachStream(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStore,tavernProvider,questionSourceResolver)
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/mark-handwriting') return await handleHandwritingMark(request, response, config.vision, libraryRoot, allowedSubjects, sourceAssetRoot, env, currentAiMarkingQuestionBank(), telemetry, timeoutConfig)
       return sendJson(response, 404, { error: 'AI route not found.' })
     } catch (error) {

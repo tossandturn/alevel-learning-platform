@@ -159,7 +159,9 @@ try {
     context: baseContext,
   })
   assert.equal(jsonSolution.response.status, 200, jsonSolution.text)
-  assert.equal(jsonSolution.payload?.answer, 'Provider worked answer')
+  assert.equal(jsonSolution.payload?.answer.split('\n\n## 题目出处\n')[0], 'Provider worked answer')
+  assert.equal(jsonSolution.payload?.questionSource?.status,'unconfirmed')
+  assert.match(jsonSolution.payload?.answer,/未确认题目出处/)
   assert.deepEqual(
     {
       coachPolicyVersion: jsonSolution.payload?.coachPolicyVersion,

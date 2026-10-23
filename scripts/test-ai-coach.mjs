@@ -329,9 +329,12 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   }, signedIdentityToken)
   assert.equal(streamed.response.status, 200)
   assert.match(streamed.response.headers.get('content-type') || '', /text\/event-stream/)
-  assert.match(streamed.text, /"text":"stream "/)
-  assert.match(streamed.text, /"text":"answer"/)
-  assert.match(streamed.text, /"answer":"stream answer"/)
+  const sourceEvents=streamed.text.split(/\r?\n\r?\n/).filter(block=>block.startsWith('event:')).map(block=>({event:block.split('\n')[0].slice(7),value:JSON.parse(block.split('\n').find(line=>line.startsWith('data: ')).slice(6))}))
+  const sourceDeltas=sourceEvents.filter(event=>event.event==='delta'),sourceDone=sourceEvents.find(event=>event.event==='done').value
+  assert.ok(sourceDeltas.length>=2,'The teaching answer must still stream before completion')
+  assert.equal(sourceDeltas.map(event=>event.value.text).join(''),sourceDone.answer)
+  assert.equal(sourceDone.answer.split('\n\n## 题目出处\n')[0],'stream answer')
+  assert.equal(sourceDone.questionSource.status,'unconfirmed')
   assert.equal(providerBodies.length, 1, 'a detailed request should escalate to the configured provider')
   assert.equal(providerTelemetry.length, 1, 'a real Coach provider call must emit one safe telemetry event')
   assert.deepEqual(
@@ -386,7 +389,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
     })
     const slowStreamText = await slowStream.text()
     assert.equal(slowStream.status, 200)
-    assert.match(slowStreamText, /"answer":"long but healthy"/, 'active provider streams must not be aborted while valid deltas continue arriving')
+    assert.match(slowStreamText, /"answer":"long but healthy\\n\\n## 题目出处/, 'active provider streams must complete their answer before the source footer')
     assert.match(slowStreamText, /"providerStatus":"connected"/, 'a healthy long stream must remain connected')
     assert.equal(slowStream.headers.get('x-accel-buffering'), 'no', 'Coach SSE responses must disable reverse-proxy buffering')
   } finally {
@@ -460,11 +463,15 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
       return { response, text: await response.text() }
     })()
     assert.equal(nonStream.response.status, 200)
-    assert.deepEqual(JSON.parse(nonStream.text), {
+    const nonStreamPayload=JSON.parse(nonStream.text)
+    assert.equal(nonStreamPayload.questionSource?.status,'unconfirmed')
+    assert.match(nonStreamPayload.answer,/未确认题目出处/)
+    assert.deepEqual({...nonStreamPayload,answer:nonStreamPayload.answer.split('\n\n## 题目出处\n')[0]}, {
       mode: 'ai',
       provider: 'qwen',
       providerStatus: 'connected',
       answer: 'non-stream answer',
+      questionSource:{status:'unconfirmed',sourceKind:null},
       model: 'qwen-test-non-stream',
       coachPolicyVersion: 'stem-coach-policy-v2.0.0',
       coachHelpIntent: 'hint',
@@ -547,7 +554,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
     })
     const slowVisionText = await slowVision.text()
     assert.equal(slowVision.status, 200)
-    assert.match(slowVisionText, /"answer":"vision response"/, 'vision Coach must tolerate a slow Qwen VL initial response')
+    assert.match(slowVisionText, /"answer":"vision response\\n\\n## 题目出处/, 'vision Coach must tolerate a slow initial response and append the source footer')
     assert.match(slowVisionText, /"providerStatus":"connected"/)
     assert.equal(slowVisionTelemetry.at(-1)?.timeoutMs, 600, 'vision telemetry must record the independent vision timeout budget')
   } finally {
