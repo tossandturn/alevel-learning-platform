@@ -1567,9 +1567,7 @@ function coachFeatureContext(context, policy, feature) {
 function trustedTavernDraw({ feature, payload, ownerId, divinationStore }) {
   if (feature.feature !== 'tavern' || !feature.divinationKind) return null
   if (!ownerId) throw tavernDrawRequestError(401, 'coach_auth_required', 'Sign in to STEM before using a Tavern draw.')
-  if (!Object.hasOwn(payload || {}, 'drawId')) {
-    throw tavernDrawRequestError(409, 'coach_tavern_draw_required', 'Create a server draw before requesting an interpretation.', 'draw_required')
-  }
+  if (!Object.hasOwn(payload || {}, 'drawId')) return null
   return divinationStore.resolveDraw({ ownerId, persona: feature.persona, drawId: payload.drawId })
 }
 
@@ -1651,7 +1649,12 @@ function coachProviderMetadata(feature, context) {
 function tavernProviderContext({ activeProvider, feature, policy, context, draw, message, state, ownerId, conversationStore, legacyHistory, mediaVersion='', mediaCatalog=null }) {
   const recentMedia=mediaVersion===TAVERN_MEDIA_VERSION&&state?conversationStore.getMessages({ownerId,persona:feature.persona,conversationId:state.conversation.id,limit:8}).messages.flatMap(turn=>turn.media||[]).map(item=>item.id):[]
   const mediaCandidates=mediaVersion===TAVERN_MEDIA_VERSION&&mediaCatalog?selectTavernMediaCandidates(mediaCatalog,{message,persona:feature.persona,recentIds:recentMedia}):[]
-  const systemPrompt = coachFeatureSystemPrompt(feature, policy, context, draw)+tavernMediaSystemPrompt(mediaCandidates)
+  const historicalDraw = !draw && feature.divinationKind && state
+    ? conversationStore.latestDrawForContext({ownerId,persona:feature.persona,conversationId:state.conversation.id})
+    : null
+  const systemPrompt = coachFeatureSystemPrompt(feature, policy, context, draw)
+    +(historicalDraw ? '\n'+tavernDrawSystemPrompt(historicalDraw,{historical:true}) : '')
+    +tavernMediaSystemPrompt(mediaCandidates)
   const metadata = coachProviderMetadata(feature, context)
   const budgetMetadata = providerMetadata(metadata)
   const selected = state
@@ -1743,7 +1746,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   assertTavernDrawAssessmentAllowed(authorization)
   const authenticatedUserId = authenticatedStemUser(request, env)
   if (stateRequest && !authenticatedUserId) throw tavernDrawRequestError(401, 'coach_auth_required', 'Sign in to use Tavern memory.')
-  const storedMessage = message || (feature.divinationKind ? '请解读本次服务器抽取结果。' : '')
+  const storedMessage = message || (feature.divinationKind && Object.hasOwn(payload,'drawId') ? '请解读本次服务器抽取结果。' : '')
   if (stateRequest && !storedMessage) throw tavernDrawRequestError(400, 'tavern_turn_content_invalid', 'Add a Tavern message before sending.')
   const requestHash = stateRequest ? tavernLogicalRequestHash({ feature, payload, message }) : ''
   const stateStore = stateRequest ? conversationStoreProvider() : null
@@ -2190,7 +2193,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
   assertTavernDrawAssessmentAllowed(authorization)
   const authenticatedUserId = authenticatedStemUser(request, env)
   if (stateRequest && !authenticatedUserId) throw tavernDrawRequestError(401, 'coach_auth_required', 'Sign in to use Tavern memory.')
-  const storedMessage = message || (feature.divinationKind ? '请解读本次服务器抽取结果。' : '')
+  const storedMessage = message || (feature.divinationKind && Object.hasOwn(payload,'drawId') ? '请解读本次服务器抽取结果。' : '')
   if (stateRequest && !storedMessage) throw tavernDrawRequestError(400, 'tavern_turn_content_invalid', 'Add a Tavern message before sending.')
   const requestHash = stateRequest ? tavernLogicalRequestHash({ feature, payload, message }) : ''
   const stateStore = stateRequest ? conversationStoreProvider() : null

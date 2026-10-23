@@ -245,11 +245,12 @@ try {
   assert.ok(tarot.cards.every(({ orientation }) => ['upright', 'reversed'].includes(orientation)))
 
   const callsBeforeMissing = providerBodies.length
-  const missing = await post('/api/ai/coach', { feature: 'tavern', persona: 'eastern-oracle', message: '解读一下。' })
-  assert.equal(missing.response.status, 409, missing.text)
-  assert.equal(missing.payload?.code, 'coach_tavern_draw_required')
-  assert.equal(missing.payload?.action, 'draw_required')
-  assert.equal(providerBodies.length, callsBeforeMissing)
+  const missing = await post('/api/ai/coach', { feature: 'tavern', persona: 'eastern-oracle', message: '先不抽，聊聊今天的电影。' })
+  assert.equal(missing.response.status, 200, missing.text)
+  assert.equal(missing.payload?.mode, 'ai')
+  assert.equal(providerBodies.length, callsBeforeMissing + 1, 'oracle personality can chat without requesting RNG')
+  assert.match(systemPrompt(providerBodies.at(-1)), /ongoing conversational persona/i)
+  assert.doesNotMatch(systemPrompt(providerBodies.at(-1)), /Trusted server-generated entertainment draw/)
 
   for (const body of [
     { feature: 'tavern', persona: 'eastern-oracle', message: '解读', drawId: '00000000-0000-4000-8000-000000000099' },

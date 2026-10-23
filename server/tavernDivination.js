@@ -252,7 +252,7 @@ export function createTavernDivinationStore({
   return Object.freeze({ createDraw, resolveDraw })
 }
 
-export function tavernDrawSystemPrompt(draw) {
+export function tavernDrawSystemPrompt(draw,{historical=false}={}) {
   const config = Object.values(TAVERN_DIVINATION_CONFIG).find((candidate) => candidate.kind === draw?.kind && candidate.deckVersion === draw?.deckVersion)
   const deck = config?.kind === 'hexagram' ? HEXAGRAM_DECK : config?.kind === 'tarot' ? TAROT_DECK : []
   const expectedCount = draw?.spread === 'three' ? 3 : draw?.spread === 'single' ? 1 : 0
@@ -269,12 +269,12 @@ export function tavernDrawSystemPrompt(draw) {
     return `- ${position}: ${canonical.name}${orientation ? ` (${orientation})` : ''}`
   })
   return [
-    `Trusted server-generated entertainment draw (${config.kind}, ${draw.spread}).`,
-    'Interpret exactly these cards or signs; never replace, add, remove or pretend to redraw them:',
+    historical ? `Historical server-recorded entertainment draw (${config.kind}, ${draw.spread}); this is not a new draw.` : `Trusted server-generated entertainment draw (${config.kind}, ${draw.spread}).`,
+    historical ? 'These are the last actual cards/signs recorded in this private conversation. Refer to them only when relevant to the current message; never replace, add or pretend to redraw them:' : 'Interpret exactly these cards or signs; never replace, add, remove or pretend to redraw them:',
     ...lines,
     'Use each card or sign theme as a reflection question or metaphor, never as proof of the user\'s actual past, current mood, personality, another person\'s intent, or future.',
     'Use conditional Chinese phrasing such as “如果……，可以想想……”, never unsupported assertions such as “你其实……” or “你曾经……”.',
-    'Start directly with the card or sign meanings and positions without re-welcoming the user or repeating the static opening.',
+    historical ? 'Answer the current follow-up or ordinary topic first. Do not repeat the entire interpretation, reset the conversation, insist on another draw, or treat a past theme as a fact about the user. A previous interpretation may have failed; do not invent what was said.' : 'Start directly with the card or sign meanings and positions without re-welcoming the user or repeating the static opening.',
     'Treat every interpretation as reflective entertainment, not a guaranteed fact, hidden power, diagnosis, professional advice or certain future prediction.',
   ].join('\n')
 }

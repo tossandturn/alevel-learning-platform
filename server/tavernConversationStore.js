@@ -839,6 +839,20 @@ export function createTavernConversationStore({
       })
   }
 
+  function latestDrawForContext({ownerId:ownerInput,persona:personaInput,conversationId:conversationInput}={}) {
+    const ownerId=ownerValue(ownerInput),persona=personaValue(personaInput),conversationId=boundedId(conversationInput,'tavern_conversation_id_invalid','conversationId'),databaseHandle=db()
+    boundConversation(databaseHandle,ownerId,persona,conversationId)
+    if(!['eastern-oracle','tarot-reader'].includes(persona))return null
+    // This is a past server draw, not permission to create/reinterpret an expired receipt.
+    // Its lifetime follows this authenticated conversation, including clear/delete.
+    const row=databaseHandle.prepare(`SELECT draw_json FROM tavern_turns
+      WHERE owner_id=? AND conversation_id=? AND role='user' AND draw_json IS NOT NULL
+      ORDER BY sequence DESC LIMIT 1`).get(ownerId,conversationId)
+    if(!row)return null
+    const encoded=String(row.draw_json||'');if(Buffer.byteLength(encoded,'utf8')>16*1024)throw new Error('Stored Tavern draw exceeds context bound.')
+    return JSON.parse(encoded)
+  }
+
   function contextForProvider({ ownerId: ownerInput, persona: personaInput, conversationId: conversationInput, model, protocol = 'chat-completions', metadata = null, currentMessage, systemPrompt, contextWindowOverride = null, maxOutboundBytes = TAVERN_MEMORY_MAX_PROVIDER_BYTES, excludeClientTurnId = '' } = {}) {
     const ownerId = ownerValue(ownerInput)
     const persona = personaValue(personaInput)
@@ -925,6 +939,7 @@ export function createTavernConversationStore({
     completeTurn,
     failTurn,
     getMessages,
+    latestDrawForContext,
     contextForProvider,
     deleteConversation,
     close,

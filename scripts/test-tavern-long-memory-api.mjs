@@ -288,6 +288,39 @@ try {
   assert.equal(expiredNewTurn.payload.code, 'coach_tavern_draw_expired')
   assert.equal(providerCalls, callsBeforeExpiredReplay)
 
+  let oracleRevision = oracleAnswer.payload.conversation.revision
+  for (const [index, endpoint] of ['/api/ai/coach', '/api/ai/coach/stream'].entries()) {
+    const continued = await call(endpoint, { body: {
+      feature: 'tavern', persona: 'eastern-oracle', message: index ? '先放下卦签，聊聊电影吧。' : '刚才那一卦是什么意思？可以继续聊吗？',
+      conversationId: oracleBody.conversationId, clientTurnId: 'oracle-followup-'+index, expectedRevision: oracleRevision,
+    } })
+    assert.equal(continued.response.status, 200, continued.text)
+    const result = index ? sseDone(continued.text) : continued.payload
+    assert.equal(result.mode, 'ai');assert.equal(result.providerStatus, 'connected')
+    oracleRevision = result.conversation.revision
+    const sent = JSON.stringify(providerBodies.at(-1).messages || providerBodies.at(-1).input)
+    assert.match(sent, /Historical server-recorded entertainment draw/)
+    assert.ok(sent.includes(drawResult.payload.draw.cards[0].name), 'expired draw identity must survive as authenticated conversation context')
+    assert.match(sent, /not a new draw/)
+  }
+  assert.throws(() => store.latestDrawForContext({ ownerId: 'ielts:9902', persona: 'eastern-oracle', conversationId: oracleBody.conversationId }))
+  const otherOracle = store.resumeConversation({ ownerId: 'ielts:9901', persona: 'tarot-reader' })
+  assert.equal(store.latestDrawForContext({ ownerId: 'ielts:9901', persona: 'tarot-reader', conversationId: otherOracle.id }), null)
+  const tarotDraw = await call('/api/ai/tavern/draw', {body:{feature:'tavern',persona:'tarot-reader',drawNonce:'persona-three-memory-0001',spread:'three'}})
+  const tarotReading = await call('/api/ai/coach', {body:{feature:'tavern',persona:'tarot-reader',message:'给我一个灵感',drawId:tarotDraw.payload.draw.id,conversationId:otherOracle.id,clientTurnId:'persona-three-reading-0001',expectedRevision:0}})
+  assert.equal(tarotReading.response.status,200)
+  drawNow += 31*60*1000
+  store.close()
+  assert.equal(store.latestDrawForContext({ownerId:'ielts:9901',persona:'tarot-reader',conversationId:otherOracle.id}).id,tarotDraw.payload.draw.id,'recorded draw survives store restart without accessing expired in-memory receipt')
+  const tarotFollowup = await call('/api/ai/coach', {body:{feature:'tavern',persona:'tarot-reader',message:'那第二张呢？',conversationId:otherOracle.id,clientTurnId:'persona-three-followup-0001',expectedRevision:tarotReading.payload.conversation.revision}})
+  assert.equal(tarotFollowup.response.status,200)
+  const tarotContext=JSON.stringify(providerBodies.at(-1).messages||providerBodies.at(-1).input)
+  for(const card of tarotDraw.payload.draw.cards){assert.ok(tarotContext.includes(card.name));assert.ok(tarotContext.includes(card.position));assert.ok(tarotContext.includes(card.orientation))}
+  store.deleteConversation({ownerId:'ielts:9901',persona:'tarot-reader',conversationId:otherOracle.id})
+  assert.throws(()=>store.latestDrawForContext({ownerId:'ielts:9901',persona:'tarot-reader',conversationId:otherOracle.id}))
+  const freshOracle=store.resumeConversation({ownerId:'ielts:9901',persona:'tarot-reader'})
+  assert.equal(store.latestDrawForContext({ownerId:'ielts:9901',persona:'tarot-reader',conversationId:freshOracle.id}),null,'cleared cards cannot leak into a new conversation')
+
   const commitConversation = store.resumeConversation({ ownerId: 'ielts:9901', persona: 'cat-companion' })
   const commitApi = createAiApi({
     env: {
