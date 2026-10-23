@@ -25,3 +25,9 @@ GitHub-first reference: [SillyTavern](https://github.com/SillyTavern/SillyTavern
 ## Release scope
 
 Only four runtime modules are changed: `server/aiApi.js`, `server/coachFeatures.js`, `server/tavernDivination.js`, `server/tavernConversationStore.js`. The planned deployment is a pinned, allowlisted code overlay with exact previous-file hashes, verified code rollback, fresh server gates and restart of the STEM service only. No production build, installation, database migration, model switch, payment, question-bank, university-data or IELTS change. Record actual deployment results separately; local PASS alone is not a production release.
+
+## Deployment receipt
+
+Runtime commit `e01416b666339c779f3efc9cf27059af496b6976` was deployed as the four-file `tavern-persona-20261023-e01416b` overlay. The 51,293-byte archive passed pinned Git-object/checksum checks and exact prior-file checks. Fresh strict resource/target gates passed before upload, after upload, before activation and before the one targeted restart. No environment update, source build, dependency install, database migration or unrelated restart was performed.
+
+The initial post-restart I/O sample exceeded the limit; the workflow stopped without further mutation. A read-only stabilization check then passed (I/O wait 0%, 0%, 0.5%; swap 9.58%; both public health checks 200). Non-target service PID/restart tuples, protected files, all four new code hashes and exact rollback copies were verified. Artifacts: `gate-after-stabilization.json`, `operation-verify.json`, `operation-restart.json`. This deployment verification is separate from physical-device and authenticated-production-user acceptance.
