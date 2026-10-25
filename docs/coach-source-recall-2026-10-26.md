@@ -31,4 +31,10 @@ Short generic prompts, purely symbolic expressions with insufficient identifying
 
 ## Deployment
 
-Pending final release checks; no deployment claim is made by this document's pre-release version.
+Runtime commit `9e3ae114c3fe503d56def7f72c6332dc72d6a7b6` is **DEPLOYED** as a four-code-file overlay plus the private derived source index. All deployed hashes and rollback backups were verified. No production build, dependency installation, environment change, user-database migration, client upload or sibling-service restart was performed.
+
+Fresh pre/post readiness checks passed: swap 9.88%; available memory 2,300 MiB before upload and 2,267 MiB after final image acceptance; disk free 7.68 GiB; services and HTTPS healthy. The exact target, protected-file hashes and rollback checks passed at each mutation boundary.
+
+After deployment, three **new** real-provider image requests passed through the deployed HTTP/SSE middleware in an isolated loopback harness with synthetic authentication. Cropped physics returned 9702/22, 2024 February/March, Q2; additional mathematics returned 0606/12, 2025 February/March, Q4; a pure-mathematics question returned 9709/11, 2024 May/June, PDF page 2 without inventing its question number. Complete response times were 13.67 s, 12.65 s and 5.88 s respectively. Every stream completed with matching visible/terminal answers and no hidden-transcript leakage. No production user identity, history or authentication key was used. This is deployed-code/provider acceptance, not an authenticated real-phone journey.
+
+The unchanged native answer formatter passed six cases including exact-question, paper/page, unknown and multiple-origin presentations. Physical-device testing and the user's particular failed image remain unverified.
