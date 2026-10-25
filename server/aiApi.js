@@ -2701,7 +2701,7 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
       return studyQuestionBank
     }
   }
-  const questionSourceResolver=createCoachQuestionSourceResolver({questionBankProvider:currentAiMarkingQuestionBank})
+  const questionSourceResolver=createCoachQuestionSourceResolver({questionBankProvider:currentAiMarkingQuestionBank,libraryRoot})
   const aiApi = async function aiApi(request, response, next) {
     const requestUrl = new URL(request.url, 'http://127.0.0.1')
     if (!requestUrl.pathname.startsWith('/api/ai/')) return next()

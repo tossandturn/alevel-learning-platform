@@ -128,7 +128,7 @@
     "test:ai-source-images": "node scripts/test-ai-source-images.mjs",
     "test:ai-pdf-ingestion": "node scripts/test-ai-pdf-ingestion-contract.mjs && node scripts/test-ai-pdf-ingestion-openai.mjs && node scripts/test-ai-provider-deadline.mjs && node scripts/test-ai-pdf-ingestion-render.mjs && node scripts/test-ai-pdf-ingestion-cli.mjs && node scripts/test-ai-pdf-page-window-context.mjs && node scripts/test-9702-a2-syllabus.mjs && node scripts/test-9709-ingestion-routes.mjs && node scripts/test-ai-pdf-topic-pack.mjs",
     "test:ai-coach": "node scripts/test-ai-coach.mjs && npm run test:coach-help-intents && npm run test:coach-question-source",
-    "test:coach-question-source": "node scripts/test-coach-question-source.mjs && node scripts/test-coach-question-source-api.mjs",
+    "test:coach-question-source": "node scripts/test-coach-question-source.mjs && node scripts/test-coach-source-recall.mjs && node scripts/test-coach-source-pages.mjs && node scripts/test-coach-pdf-source-text.mjs && node scripts/test-coach-question-source-api.mjs",
     "test:ai-responses-gateway": "node scripts/test-ai-responses-gateway.mjs",
     "test:ai-compatible-timeout-cap": "node scripts/test-ai-compatible-timeout-cap.mjs",
     "test:ai-pdf-verifier-coordinate-validation": "node scripts/test-ai-pdf-verifier-coordinate-validation.mjs",

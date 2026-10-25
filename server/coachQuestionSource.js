@@ -1,12 +1,11 @@
 import {isVerifiedPastPaperItem,isStudentReleasedAiStudyItem} from '../src/data/questionBank.js'
+import {createSourceTextIndex,sourceTokens,meaningfulSourceQuery} from './coachSourceText.js'
+import {createCoachSourcePageProvider} from './coachSourcePages.js'
 
 const OPEN='<question_lookup>',CLOSE='</question_lookup>',MAX_LOOKUP=2400,MAX_INDEX_CHARS=8*1024*1024,MAX_RECORDS=12000
 const PRIVATE_MARKERS=[OPEN,'## 题目出处','## 题目来源','## Question source','题目出处：','题目出处:']
-const subjects={'0580':'数学','0606':'附加数学','0625':'物理','9231':'进阶数学','9701':'化学','9702':'物理','9708':'经济','9709':'数学'}
+const subjects={'0580':'数学','0606':'附加数学','0610':'生物','0625':'物理','9231':'进阶数学','9700':'生物','9701':'化学','9702':'物理','9708':'经济','9709':'数学'}
 const clean=value=>typeof value==='string'?value.trim():''
-function normalize(value){return clean(value).normalize('NFKC').toLowerCase().replace(/[−–—]/g,'-').replace(/[×·]/g,'*').replace(/[^a-z0-9\u3400-\u9fff.+\-*/^=]+/g,' ').replace(/\s+/g,' ').trim()}
-const numbers=value=>(value.match(/[-+]?\d+(?:\.\d+)?/g)||[]).join('|')
-function substantial(value){return value.length>=100&&(value.match(/[a-z]{2,}/g)||[]).length>=18||value.length>=60&&(value.match(/[\u3400-\u9fff]/g)||[]).length>=40}
 function queryText(value){return clean(value).split(/\n\s*\n(?:我明确选择完整解答|只给提示：|检查作答：|按 IELTS 四项标准)/)[0].slice(0,5000)}
 function citation(question){
  const ref=question.sourceRef||{},m=String(ref.paper||'').match(/^(\d{4})_([msw])(\d{2})_qp_(\d{2})\.pdf$/i),n=String(ref.question||'').match(/^Q?(\d{1,3})(?:\s*\([a-z0-9]+\))*$/i),year=Number(ref.year)
@@ -26,15 +25,27 @@ function indexRows(bank){
   const source=citation(q);if(!source)continue
   const key=source.paperFile+':q'+source.questionNumber+':'+source.documentSha256
   const identity=key+'@'+q.routeId;if(seen.has(identity))continue;seen.add(identity)
-  const texts=[q.prompt,...(q.parts||[]).slice(0,40).map(p=>p.promptFragment)].map(s=>normalize(String(s||'').slice(0,5000))).filter(substantial)
-  chars+=texts.reduce((n,s)=>n+s.length,0);rows.push({key,source,routeId:q.routeId,sourceId:String(q.sourceQuestionId||q.questionGroupId||''),bankId:q.bankId,texts:[...new Set(texts)]})
+  const withOptions=(prompt,options)=>String(prompt||'')+(Array.isArray(options)?'\n'+options.filter(x=>typeof x==='string').join('\n'):'')
+  const texts=[q.prompt,withOptions(q.prompt,q.options),...(q.parts||[]).slice(0,40).flatMap(p=>[p.promptFragment,withOptions(p.promptFragment,p.options)])].map(s=>String(s||'').slice(0,5000)).filter(s=>s.length>=60)
+  // Preserve a printed question label as a number rather than deleting an
+  // arbitrary leading quantity. Only the canonical record supplies this label.
+  const labelled=texts.flatMap(text=>[text,source.questionNumber+' '+text,'Q'+source.questionNumber+' '+text])
+  chars+=labelled.reduce((n,s)=>n+s.length,0);rows.push({key,source,routeId:q.routeId,sourceId:String(q.sourceQuestionId||q.questionGroupId||''),bankId:q.bankId,texts:[...new Set(labelled)]})
  }
  return rows
 }
 const unknown=()=>({status:'unconfirmed',sourceKind:null})
-export function createCoachQuestionSourceResolver({questionBankProvider=()=>[],now=Date.now}={}){
- let rows=[],expires=0
- function getRows(){const time=now();if(time>=expires){try{rows=indexRows(questionBankProvider());expires=time+30000}catch{rows=[];expires=time+1000}}return rows}
+function pageCitation(source){
+ const m=String(source.paperFile||'').match(/^(\d{4})_([msw])(\d{2})_qp_(\d{2})\.pdf$/),subjectCode=m?.[1]
+ if(!m||!subjects[subjectCode])return null
+ const session={m:'2–3月',s:'5–6月',w:'10–11月'}[m[2]],qualification=subjectCode.startsWith('0')?'IGCSE':'International AS & A Level',paperCode=subjectCode+'/'+m[4]
+ return{status:'paper-matched',sourceKind:'past-paper',board:'CAIE',qualification,subjectCode,subject:subjects[subjectCode],year:source.year,session,paperCode,paperFile:source.paperFile,paperId:source.paperId,questionNumber:null,page:source.page,reference:`CAIE ${qualification} ${subjects[subjectCode]} · ${source.year} 年 ${session} · ${paperCode} · PDF 第 ${source.page} 页`,documentSha256:source.documentSha256,method:'source-page-text-match'}
+}
+export function createCoachQuestionSourceResolver({questionBankProvider=()=>[],now=Date.now,libraryRoot=null,sourcePageProvider=null}={}){
+ let rows=[],expires=0,index=createSourceTextIndex([])
+ const pages=sourcePageProvider||(libraryRoot?createCoachSourcePageProvider({libraryRoot}):null)
+ let pageRows=null,pageIndex=null
+ function getRows(){const time=now();if(time>=expires){try{rows=indexRows(questionBankProvider());index=createSourceTextIndex(rows);expires=time+30000}catch{rows=[];index=createSourceTextIndex([]);expires=time+1000}}return rows}
  return Object.freeze({resolve({message='',context={},authorization=null,lookupText='',hasImages=false}={}){
   const bank=getRows()
   if(authorization?.coachAccess?.binding==='authoritative-attempt'&&authorization.paperId){
@@ -43,22 +54,28 @@ export function createCoachQuestionSourceResolver({questionBankProvider=()=>[],n
   }
   // The client may supply focus text, but its filename, year and question ID are never proof.
   const primary=queryText(message),focus=clean(context.question?.prompt),photo=clean(lookupText)
-  const queries=hasImages?[photo]:substantial(normalize(primary))?[primary]:[focus]
+  const queries=hasImages?[photo]:meaningfulSourceQuery(sourceTokens(primary))?[primary]:[focus]
   const origins=new Map()
+  const paperOrigins=new Map()
   for(const raw of queries){
-   const query=normalize(raw);if(!substantial(query)||query.length>5000)continue
-   for(const row of bank){for(const text of row.texts){
-    const ratio=Math.min(text.length,query.length)/Math.max(text.length,query.length)
-    // Only near-complete literal overlap; no semantic guesses, vector similarity or answer matching.
-    const complete=ratio>=.86&&(query===text||query.includes(text))&&numbers(query)===numbers(text)
-    // A photographed part may omit an introductory sentence/figure number. The
-    // entire long visible passage must still occur literally, including numbers.
-    const visiblePart=ratio>=.75&&query.length>=250&&text.includes(query)
-    if(complete||visiblePart){origins.set(row.key,row.source);break}
-   }}
+   if(raw.length>5000||!meaningfulSourceQuery(sourceTokens(raw)))continue
+   for(const hit of index.search(raw))origins.set(hit.row.key,hit.row.source)
+   if(pages){
+    try{
+     const current=pages.rows()
+     if(current!==pageRows){pageRows=current;pageIndex=createSourceTextIndex(current)}
+     for(const hit of (pageIndex?.search(raw)||[]).slice(0,16)){
+      if(!pages.verify(hit.row.source))continue
+      const source=pageCitation(hit.row.source);if(source)paperOrigins.set(source.paperFile+':'+source.documentSha256,source)
+     }
+    }catch{/* An unavailable source library must not suppress the teaching answer. */}
+   }
   }
-  if(origins.size>1)return{status:'ambiguous',sourceKind:null}
+  const bankPapers=new Set([...origins.values()].map(s=>s.paperFile+':'+s.documentSha256))
+  for(const key of bankPapers)paperOrigins.delete(key)
+  if(origins.size>1||bankPapers.size+paperOrigins.size>1)return{status:'ambiguous',sourceKind:null,candidates:[...origins.values(),...paperOrigins.values()].slice(0,3)}
   if(origins.size===1)return{...[...origins.values()][0],method:hasImages?'recognized-text-match':'question-text-match'}
+  if(paperOrigins.size===1)return[...paperOrigins.values()][0]
   return unknown()
  }})
 }
@@ -81,7 +98,7 @@ export function createCoachSourceStream(){
 }
 export function appendCoachQuestionSource(answer,source){
  const cleanAnswer=extractCoachSourceTrailer(answer).answer.trimEnd();if(!cleanAnswer.trim())return''
- const text=source.status==='matched'?`${source.method==='bound-record'?'练习原题记录':'题干匹配'}：${source.reference}\n试卷文件：${source.paperFile}${source.method==='recognized-text-match'?'\n依据图片识别的题干匹配，请核对题干与数值是否一致。':''}`:source.status==='ambiguous'?'找到多个相同题干，暂不能确认唯一出处。可补充带卷面代码和题号的图片。':'未确认题目出处。当前题库未匹配到足够完整且唯一的记录；可补充完整题干或带卷面代码、题号的图片。'
+ const text=source.status==='matched'?`${source.method==='bound-record'?'练习原题记录':'题干匹配'}：${source.reference}\n试卷文件：${source.paperFile}${source.method==='recognized-text-match'?'\n依据图片识别的题干匹配，请核对题干与数值是否一致。':''}`:source.status==='paper-matched'?`已定位原卷：${source.reference}\n试卷文件：${source.paperFile}\n题号尚未核实，请按上述 PDF 页码核对。`:source.status==='ambiguous'?`找到多个相同或高度重合的原卷记录，暂不能确认唯一出处。${source.candidates?.length?'\n'+source.candidates.map(s=>'候选：'+s.reference+'（'+s.paperFile+'）').join('\n'):''}\n可补充带卷面代码和题号的图片。`:'暂未确认题目出处。请尽量保留题干、已知数值和图示；仅有答案、短公式或未收录试卷时无法可靠定位。'
  return cleanAnswer+'\n\n## 题目出处\n'+text
 }
 export function coachSourceInstruction({hasImages=false,matched=false}={}){
