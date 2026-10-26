@@ -25,4 +25,12 @@ Main-package check: 1,961,704 bytes, leaving 135,448 bytes under the 2 MiB limit
 
 Reference: [Vercel AI's explicit approval boundary](https://github.com/vercel/ai/blob/20c4031d1fc59aab54b67c16679e3981374690ab/packages/code-mode/src/tool-invocation.ts). No dependency or implementation copied.
 
-Deployment, live timing and development-upload receipts are pending; this pre-release document does not claim them complete. Physical-phone testing remains NOT VERIFIED.
+## Deployed acceptance
+
+Backend runtime `dc8f22d377f24cf0e06bf584da5ad7af2238c8f7` is DEPLOYED as a two-file code overlay. The source index, other services, environments, model settings and student databases were not changed. Pre/post resource, exact-target, protected-file and rollback-hash checks passed. Swap was 9.86%; available memory after final acceptance was 2,333 MiB; disk free 7.67 GiB. Sibling service process identities/restart counts were unchanged.
+
+Three fresh real-provider image requests through the deployed middleware completed with **zero source-bank reads during answering**, no source footer and intact SSE results. Each was followed by a separate explicitly confirmed lookup, which returned the correct two question-level and one paper/page-level origins. Main answers were checked for the expected results: diver speed about 13.7 m/s; polynomial parameter a=4 and factorization 2(2x+1)(4x²+1); completed square 3(y−2)²−27.
+
+For these same three public test images, the previous combined answer/source workflow completed in 13.67 / 12.65 / 5.88 s. New answer-only completion was 6.62 / 7.91 / 3.19 s; first answer delta was 5.31 / 6.39 / 2.46 s. Optional source lookup took an additional 4.83 / 4.75 / 4.82 s **only after confirmation**. These are small sequential, synthetic-auth, server-side measurements, not a controlled broad benchmark, steady-state SLA, or real-phone network test.
+
+The client runtime is frozen at `e24529d887a94e5ff3da8d92765707499c4971a1`. Development version **1.0.59** was requested; the official tool returned pending user confirmation, not confirmed upload success. Formal review/public publication was not performed. Physical-phone testing remains NOT VERIFIED.
