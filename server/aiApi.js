@@ -5,6 +5,7 @@ import path from 'node:path'
 import { loadTavernProvider } from './tavernProvider.js'
 import { loadStemAcademicProvider } from './stemAcademicProvider.js'
 import { createAdmissionsAdvisor } from './admissionsAdvisor.js'
+import { createIeltsTeacher } from './ieltsTeacher.js'
 import {createCoachQuestionSourceResolver,createCoachSourceStream,extractCoachSourceTrailer,coachQuestionSourceText} from './coachQuestionSource.js'
 import {TAVERN_MEDIA_VERSION,TAVERN_MEDIA_PREFIX,loadTavernMediaCatalog,selectTavernMediaCandidates,tavernMediaSystemPrompt,normalizeTavernMediaReply,serveTavernMedia,DEFAULT_TAVERN_MEDIA_ROOT} from './tavernMedia.js'
 import {createDrawArtHandler} from './tavernDrawArt.js'
@@ -2716,7 +2717,7 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
   return sendJson(response, 200, { mode: 'offline', code: 'vision_review_failed', provider: lastAttemptedProvider.name, providerStatus: 'error', error: providerMessage(lastError, lastAttemptedProvider), retryable: true })
 }
 
-export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null, authorizeCoachRequest = null, tavernDivinationStore = null, tavernConversationStore = null, tavernMemoryRoot = null, tavernMediaCatalog=null, tavernMediaRoot=DEFAULT_TAVERN_MEDIA_ROOT, admissionsConversationStore = null, admissionsMemoryRoot = null, admissionsCallCompatibleAiStream = callCompatibleAiStream }) {
+export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null, authorizeCoachRequest = null, tavernDivinationStore = null, tavernConversationStore = null, tavernMemoryRoot = null, tavernMediaCatalog=null, tavernMediaRoot=DEFAULT_TAVERN_MEDIA_ROOT, admissionsConversationStore = null, admissionsMemoryRoot = null, admissionsCallCompatibleAiStream = callCompatibleAiStream, ieltsTeacherConversationStore = null, ieltsTeacherMemoryRoot = null, ieltsTeacherCallCompatibleAiStream = callCompatibleAiStream }) {
   const legacyConfig = providerConfig(env)
   const config = studentProviderConfig(env, legacyConfig)
   const tavernProvider = loadTavernProvider({ env }) || legacyConfig.coach
@@ -2741,6 +2742,18 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
     memoryRoot: admissionsMemoryRoot,
     baseMemoryRoot: tavernMemoryRoot,
     callCompatibleAiStream: admissionsCallCompatibleAiStream,
+  })
+  const ieltsTeacher = createIeltsTeacher({
+    env,
+    providerCandidates: providerCandidates(config.coach),
+    timeoutConfig,
+    telemetry,
+    authorizeCoachRequest,
+    authenticateRequest: (request) => authenticatedStemUser(request, env),
+    conversationStore: ieltsTeacherConversationStore,
+    memoryRoot: ieltsTeacherMemoryRoot,
+    baseMemoryRoot: tavernMemoryRoot,
+    callCompatibleAiStream: ieltsTeacherCallCompatibleAiStream,
   })
   const currentAiMarkingQuestionBank = () => {
     if (typeof questionBankProvider !== 'function') return studyQuestionBank
@@ -2776,6 +2789,7 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
         })
       }
       if (await admissionsAdvisor.handle(request, response, requestUrl)) return
+      if (await ieltsTeacher.handle(request, response, requestUrl)) return
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/tavern/draw') return await handleTavernDraw(request, response, env, authorizeCoachRequest, divinationStore)
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/tavern/conversations/resume') return await handleTavernConversationResume(request, response, env, authorizeCoachRequest, conversationStore())
       if (request.method === 'GET' && requestUrl.pathname.startsWith('/api/ai/tavern/conversations/') && requestUrl.pathname.endsWith('/messages')) return await handleTavernConversationMessages(requestUrl, request, response, env, authorizeCoachRequest, conversationStore())
@@ -2797,6 +2811,7 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
   }
   aiApi.close = () => {
     admissionsAdvisor.close()
+    ieltsTeacher.close()
     activeConversationStore?.close?.()
   }
   return aiApi
