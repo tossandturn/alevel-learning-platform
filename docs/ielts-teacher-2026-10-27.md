@@ -19,4 +19,12 @@ The teacher offers study planning, Writing coaching, evidence-based Reading/List
 
 `npm run test:ielts-teacher`, full admissions adversarial regression, existing Coach/Tavern/provider/stream tests, isolated native client acceptance and independent review must pass before release. Deployment is an allowlisted pinned source overlay with verified rollback and fresh strict readiness gates; no production build or IELTS service restart. Real configured-model acceptance uses disposable synthetic identities/history only. Physical phone and iPad remain NOT VERIFIED.
 
-Final release identifiers and evidence are recorded after actual deployment; this document alone does not establish deployed or publicly released status.
+## Delivered
+
+- Runtime commit `0e502cbb194ef428565aa4163a89c9c3a14c48c1` deployed as a four-file pinned overlay. Archive and rollback hashes verified; strict before/after readiness gates passed. Existing IELTS service PID/restart count and protected file hashes remained unchanged. No environment update, production build or existing-data migration.
+- Teacher focused suite, admissions adversarial suite, Coach/Tavern/provider/stream regressions, full native client suite, transformed-package suites, isolated native journey and independent review: PASS.
+- Deployed code plus real configured model, isolated synthetic identity/history: three turns completed in 4.428 / 7.809 / 1.521 seconds; replay, six-message history, cross-role isolation and synthetic clear passed. These are server-side fixture observations, not physical-device latency claims.
+- First live attempt failed an assertion without retaining its failing follow-up answer. The cause is unconfirmed and the failed receipt is preserved. A subsequent captured run passed; the harness was improved to validate correct grammatical clauses instead of requiring the literal word `makes`.
+- Public unauthenticated teacher resume returns 401. No private student state used in acceptance.
+- Client runtime `ac9eaf003bf622263f52cab61ccefc55c394469e` uploaded as development version **1.0.61**, official `success:true`. No public review or public release performed. Physical phone/iPad remains NOT VERIFIED.
+- Evidence directory: `D:/CodexWork/ielts-teacher-20261027/`.
