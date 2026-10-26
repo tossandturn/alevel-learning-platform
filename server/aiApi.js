@@ -4,6 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { loadTavernProvider } from './tavernProvider.js'
 import { loadStemAcademicProvider } from './stemAcademicProvider.js'
+import { createAdmissionsAdvisor } from './admissionsAdvisor.js'
 import {createCoachQuestionSourceResolver,createCoachSourceStream,extractCoachSourceTrailer,coachQuestionSourceText} from './coachQuestionSource.js'
 import {TAVERN_MEDIA_VERSION,TAVERN_MEDIA_PREFIX,loadTavernMediaCatalog,selectTavernMediaCandidates,tavernMediaSystemPrompt,normalizeTavernMediaReply,serveTavernMedia,DEFAULT_TAVERN_MEDIA_ROOT} from './tavernMedia.js'
 import {createDrawArtHandler} from './tavernDrawArt.js'
@@ -2715,7 +2716,7 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
   return sendJson(response, 200, { mode: 'offline', code: 'vision_review_failed', provider: lastAttemptedProvider.name, providerStatus: 'error', error: providerMessage(lastError, lastAttemptedProvider), retryable: true })
 }
 
-export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null, authorizeCoachRequest = null, tavernDivinationStore = null, tavernConversationStore = null, tavernMemoryRoot = null, tavernMediaCatalog=null, tavernMediaRoot=DEFAULT_TAVERN_MEDIA_ROOT }) {
+export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null, authorizeCoachRequest = null, tavernDivinationStore = null, tavernConversationStore = null, tavernMemoryRoot = null, tavernMediaCatalog=null, tavernMediaRoot=DEFAULT_TAVERN_MEDIA_ROOT, admissionsConversationStore = null, admissionsMemoryRoot = null, admissionsCallCompatibleAiStream = callCompatibleAiStream }) {
   const legacyConfig = providerConfig(env)
   const config = studentProviderConfig(env, legacyConfig)
   const tavernProvider = loadTavernProvider({ env }) || legacyConfig.coach
@@ -2729,6 +2730,18 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
     }
     return activeConversationStore
   }
+  const admissionsAdvisor = createAdmissionsAdvisor({
+    env,
+    providerCandidates: providerCandidates(config.coach),
+    timeoutConfig,
+    telemetry,
+    authorizeCoachRequest,
+    authenticateRequest: (request) => authenticatedStemUser(request, env),
+    conversationStore: admissionsConversationStore,
+    memoryRoot: admissionsMemoryRoot,
+    baseMemoryRoot: tavernMemoryRoot,
+    callCompatibleAiStream: admissionsCallCompatibleAiStream,
+  })
   const currentAiMarkingQuestionBank = () => {
     if (typeof questionBankProvider !== 'function') return studyQuestionBank
     try {
@@ -2762,6 +2775,7 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
           tavernModel: activeTavernProvider?.model || null,
         })
       }
+      if (await admissionsAdvisor.handle(request, response, requestUrl)) return
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/tavern/draw') return await handleTavernDraw(request, response, env, authorizeCoachRequest, divinationStore)
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/tavern/conversations/resume') return await handleTavernConversationResume(request, response, env, authorizeCoachRequest, conversationStore())
       if (request.method === 'GET' && requestUrl.pathname.startsWith('/api/ai/tavern/conversations/') && requestUrl.pathname.endsWith('/messages')) return await handleTavernConversationMessages(requestUrl, request, response, env, authorizeCoachRequest, conversationStore())
@@ -2775,10 +2789,15 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
       return sendJson(response, error.statusCode || 500, {
         ...(error.code ? { code: String(error.code).slice(0, 80) } : {}),
         ...(error.action ? { action: String(error.action).slice(0, 240) } : {}),
+        ...(error.retryable !== undefined ? { retryable: Boolean(error.retryable) } : {}),
+        ...(Number.isInteger(error.currentRevision) ? { currentRevision: error.currentRevision } : {}),
         error: error.statusCode ? error.message : 'The AI request could not be completed.',
       })
     }
   }
-  aiApi.close = () => activeConversationStore?.close?.()
+  aiApi.close = () => {
+    admissionsAdvisor.close()
+    activeConversationStore?.close?.()
+  }
   return aiApi
 }

@@ -44,8 +44,8 @@ function ownerValue(value) {
   return value
 }
 
-function personaValue(value) {
-  if (typeof value !== 'string' || !PERSONAS.has(value)) throw memoryError(400, 'coach_tavern_persona_invalid', 'Choose a server-owned Tavern persona.')
+function personaValue(value, allowedPersonas = PERSONAS) {
+  if (typeof value !== 'string' || !allowedPersonas.has(value)) throw memoryError(400, 'coach_tavern_persona_invalid', 'Choose a server-owned Tavern persona.')
   return value
 }
 
@@ -274,12 +274,28 @@ export function createTavernConversationStore({
   quotaBytes = TAVERN_MEMORY_DEFAULT_QUOTA_BYTES,
   segmentTargetBytes = TAVERN_MEMORY_DEFAULT_SEGMENT_BYTES,
   leaseTtlMs = TAVERN_TURN_DEFAULT_LEASE_TTL_MS,
+  databaseFilename = 'tavern.sqlite',
+  allowedPersonas = PERSONAS,
+  generatedResultReceipts = false,
+  rejectDeleteWhilePending = false,
 } = {}) {
   if (!root || typeof root !== 'string') throw new Error('An explicit private Tavern memory root is required.')
   if (!Number.isFinite(quotaBytes) || quotaBytes < 128) throw new Error('quotaBytes must be at least 128.')
   if (!Number.isFinite(segmentTargetBytes) || segmentTargetBytes < 256) throw new Error('segmentTargetBytes must be at least 256.')
   if (!Number.isFinite(leaseTtlMs) || leaseTtlMs < 1000 || leaseTtlMs > 10 * 60 * 1000) throw new Error('leaseTtlMs is outside the supported range.')
-  const databasePath = path.join(path.resolve(root), 'tavern.sqlite')
+  if (typeof databaseFilename !== 'string'
+    || path.basename(databaseFilename) !== databaseFilename
+    || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,79}\.sqlite$/.test(databaseFilename)) {
+    throw new Error('databaseFilename must be a bounded SQLite filename.')
+  }
+  const personaSet = new Set(allowedPersonas instanceof Set ? allowedPersonas : Array.isArray(allowedPersonas) ? allowedPersonas : [])
+  if (!personaSet.size || [...personaSet].some((persona) => typeof persona !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(persona))) {
+    throw new Error('allowedPersonas must contain at least one bounded server-owned persona.')
+  }
+  if (typeof generatedResultReceipts !== 'boolean' || typeof rejectDeleteWhilePending !== 'boolean') {
+    throw new Error('Conversation-store feature flags must be boolean values.')
+  }
+  const databasePath = path.join(path.resolve(root), databaseFilename)
   const extendedMemory = quotaBytes >= 1024 * 1024
   let database = null
 
@@ -336,6 +352,24 @@ export function createTavernConversationStore({
       );
       CREATE INDEX IF NOT EXISTS tavern_turns_page ON tavern_turns(owner_id, conversation_id, sequence DESC);
       CREATE INDEX IF NOT EXISTS tavern_turns_inflight ON tavern_turns(owner_id, conversation_id, status, role);
+    `)
+    if (generatedResultReceipts) database.exec(`
+      CREATE TABLE IF NOT EXISTS tavern_generated_results (
+        owner_id TEXT NOT NULL,
+        conversation_id TEXT NOT NULL,
+        client_turn_id TEXT NOT NULL,
+        request_hash TEXT NOT NULL,
+        lease_id TEXT NOT NULL,
+        assistant_content TEXT NOT NULL,
+        content_bytes INTEGER NOT NULL,
+        provider TEXT,
+        model TEXT,
+        memory_json TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (owner_id, conversation_id, client_turn_id),
+        FOREIGN KEY (owner_id, conversation_id) REFERENCES tavern_conversations(owner_id, conversation_id) ON DELETE CASCADE
+      );
     `)
     if (extendedMemory) database.exec(`
       CREATE TABLE IF NOT EXISTS tavern_segments (
@@ -534,7 +568,7 @@ export function createTavernConversationStore({
 
   function resumeConversation({ ownerId: ownerInput, persona: personaInput, conversationId: conversationInput = '', legacyImport = null } = {}) {
     const ownerId = ownerValue(ownerInput)
-    const persona = personaValue(personaInput)
+    const persona = personaValue(personaInput, personaSet)
     const conversationId = boundedId(conversationInput, 'tavern_conversation_id_invalid', 'conversationId', { optional: true })
     const databaseHandle = db()
     const result = storageTransaction(databaseHandle, () => {
@@ -572,7 +606,7 @@ export function createTavernConversationStore({
 
   function beginTurn({ ownerId: ownerInput, persona: personaInput, conversationId: conversationInput, clientTurnId: clientInput, expectedRevision, message, requestHash, draw = null } = {}) {
     const ownerId = ownerValue(ownerInput)
-    const persona = personaValue(personaInput)
+    const persona = personaValue(personaInput, personaSet)
     const conversationId = boundedId(conversationInput, 'tavern_conversation_id_invalid', 'conversationId')
     const clientTurnId = boundedId(clientInput, 'tavern_client_turn_id_invalid', 'clientTurnId')
     const cleanMessage = cleanContent(message)
@@ -580,6 +614,18 @@ export function createTavernConversationStore({
     const databaseHandle = db()
     return storageTransaction(databaseHandle, () => {
       const row = boundConversation(databaseHandle, ownerId, persona, conversationId)
+      if (generatedResultReceipts) {
+        const pendingResult = databaseHandle.prepare(`
+          SELECT client_turn_id FROM tavern_generated_results
+          WHERE owner_id = ? AND conversation_id = ?
+          ORDER BY created_at ASC LIMIT 1
+        `).get(ownerId, conversationId)
+        if (pendingResult) {
+          throw memoryError(409, 'tavern_generated_result_pending', 'A generated result must be committed before another turn can start.', {
+            retryable: true,
+          })
+        }
+      }
       const existingUser = databaseHandle.prepare(`
         SELECT * FROM tavern_turns WHERE owner_id = ? AND conversation_id = ? AND client_turn_id = ? AND role = 'user'
       `).get(ownerId, conversationId, clientTurnId)
@@ -687,7 +733,7 @@ export function createTavernConversationStore({
 
   function replayCompletedTurn({ ownerId: ownerInput, persona: personaInput, conversationId: conversationInput, clientTurnId: clientInput, message, requestHash } = {}) {
     const ownerId = ownerValue(ownerInput)
-    const persona = personaValue(personaInput)
+    const persona = personaValue(personaInput, personaSet)
     const conversationId = boundedId(conversationInput, 'tavern_conversation_id_invalid', 'conversationId')
     const clientTurnId = boundedId(clientInput, 'tavern_client_turn_id_invalid', 'clientTurnId')
     const cleanMessage = cleanContent(message)
@@ -715,9 +761,205 @@ export function createTavernConversationStore({
     }
   }
 
+  function generatedResultResponse(databaseHandle, row, receipt) {
+    const turns = databaseHandle.prepare(`
+      SELECT * FROM tavern_turns
+      WHERE owner_id = ? AND conversation_id = ? AND client_turn_id = ?
+      ORDER BY sequence
+    `).all(row.owner_id, row.conversation_id, receipt.client_turn_id)
+    return {
+      conversation: publicConversation(row),
+      clientTurnId: String(receipt.client_turn_id),
+      leaseId: String(receipt.lease_id),
+      answer: String(receipt.assistant_content || ''),
+      provider: String(receipt.provider || ''),
+      model: String(receipt.model || ''),
+      memory: receipt.memory_json ? JSON.parse(String(receipt.memory_json)) : null,
+      turns: turns.map(publicTurn),
+      receiptStatus: 'durable',
+    }
+  }
+
+  function saveGeneratedResult({ ownerId: ownerInput, persona: personaInput, conversationId: conversationInput, clientTurnId: clientInput, leaseId: leaseInput, requestHash, assistantContent, provider = '', model = '', memory = null } = {}) {
+    if (!generatedResultReceipts) throw new Error('Generated-result receipts are not enabled for this conversation store.')
+    const ownerId = ownerValue(ownerInput)
+    const persona = personaValue(personaInput, personaSet)
+    const conversationId = boundedId(conversationInput, 'tavern_conversation_id_invalid', 'conversationId')
+    const clientTurnId = boundedId(clientInput, 'tavern_client_turn_id_invalid', 'clientTurnId')
+    const leaseId = boundedId(leaseInput, 'tavern_turn_lease_invalid', 'leaseId')
+    const hash = boundedId(requestHash, 'tavern_request_hash_invalid', 'requestHash')
+    const content = cleanContent(assistantContent)
+    const memoryJson = memory && typeof memory === 'object' && !Array.isArray(memory) ? JSON.stringify(memory) : null
+    const providerName = String(provider || '').slice(0, 80)
+    const modelName = String(model || '').slice(0, 120)
+    const databaseHandle = db()
+    return storageTransaction(databaseHandle, () => {
+      const row = boundConversation(databaseHandle, ownerId, persona, conversationId)
+      const user = databaseHandle.prepare(`
+        SELECT * FROM tavern_turns WHERE owner_id = ? AND conversation_id = ? AND client_turn_id = ? AND role = 'user'
+      `).get(ownerId, conversationId, clientTurnId)
+      const assistant = databaseHandle.prepare(`
+        SELECT * FROM tavern_turns WHERE owner_id = ? AND conversation_id = ? AND client_turn_id = ? AND role = 'assistant'
+      `).get(ownerId, conversationId, clientTurnId)
+      if (!user || !assistant) throw memoryError(404, 'tavern_turn_not_found', 'This Tavern turn is not available.')
+      if (user.request_hash !== hash || assistant.request_hash !== hash) {
+        throw memoryError(409, 'tavern_turn_idempotency_conflict', 'This clientTurnId is already bound to a different request.')
+      }
+      if (assistant.status === 'complete') {
+        return {
+          conversation: publicConversation(row),
+          clientTurnId,
+          leaseId,
+          answer: String(assistant.content || ''),
+          provider: String(assistant.provider || ''),
+          model: String(assistant.model || ''),
+          memory: assistant.memory_json ? JSON.parse(String(assistant.memory_json)) : null,
+          turns: [publicTurn(user), publicTurn(assistant)],
+          receiptStatus: 'committed',
+        }
+      }
+      if (String(assistant.lease_id || '') !== leaseId) {
+        throw memoryError(409, 'tavern_turn_lease_conflict', 'This Tavern turn lease is no longer current.')
+      }
+      const existing = databaseHandle.prepare(`
+        SELECT * FROM tavern_generated_results
+        WHERE owner_id = ? AND conversation_id = ? AND client_turn_id = ?
+      `).get(ownerId, conversationId, clientTurnId)
+      if (existing) {
+        if (existing.request_hash !== hash
+          || existing.assistant_content !== content
+          || String(existing.provider || '') !== providerName
+          || String(existing.model || '') !== modelName) {
+          throw memoryError(409, 'tavern_generated_result_conflict', 'This turn already has a different generated result.')
+        }
+        return generatedResultResponse(databaseHandle, row, existing)
+      }
+      const nowText = timestamp()
+      databaseHandle.prepare(`
+        INSERT INTO tavern_generated_results
+          (owner_id, conversation_id, client_turn_id, request_hash, lease_id, assistant_content, content_bytes, provider, model, memory_json, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(ownerId, conversationId, clientTurnId, hash, leaseId, content, Buffer.byteLength(content, 'utf8'), providerName, modelName, memoryJson, nowText, nowText)
+      const receipt = databaseHandle.prepare(`
+        SELECT * FROM tavern_generated_results
+        WHERE owner_id = ? AND conversation_id = ? AND client_turn_id = ?
+      `).get(ownerId, conversationId, clientTurnId)
+      return generatedResultResponse(databaseHandle, row, receipt)
+    })
+  }
+
+  function getGeneratedResult({ ownerId: ownerInput, persona: personaInput, conversationId: conversationInput, clientTurnId: clientInput, message, requestHash } = {}) {
+    if (!generatedResultReceipts) return null
+    const ownerId = ownerValue(ownerInput)
+    const persona = personaValue(personaInput, personaSet)
+    const conversationId = boundedId(conversationInput, 'tavern_conversation_id_invalid', 'conversationId')
+    const clientTurnId = boundedId(clientInput, 'tavern_client_turn_id_invalid', 'clientTurnId')
+    const cleanMessage = cleanContent(message)
+    const hash = boundedId(requestHash, 'tavern_request_hash_invalid', 'requestHash')
+    const databaseHandle = db()
+    const row = boundConversation(databaseHandle, ownerId, persona, conversationId)
+    const user = databaseHandle.prepare(`
+      SELECT * FROM tavern_turns WHERE owner_id = ? AND conversation_id = ? AND client_turn_id = ? AND role = 'user'
+    `).get(ownerId, conversationId, clientTurnId)
+    if (!user) return null
+    if (user.request_hash !== hash || user.content !== cleanMessage) {
+      throw memoryError(409, 'tavern_turn_idempotency_conflict', 'This clientTurnId is already bound to a different request.')
+    }
+    const receipt = databaseHandle.prepare(`
+      SELECT * FROM tavern_generated_results
+      WHERE owner_id = ? AND conversation_id = ? AND client_turn_id = ?
+    `).get(ownerId, conversationId, clientTurnId)
+    return receipt ? generatedResultResponse(databaseHandle, row, receipt) : null
+  }
+
+  function recoverGeneratedResult({ ownerId: ownerInput, persona: personaInput, conversationId: conversationInput } = {}) {
+    if (!generatedResultReceipts) return null
+    const ownerId = ownerValue(ownerInput)
+    const persona = personaValue(personaInput, personaSet)
+    const conversationId = boundedId(conversationInput, 'tavern_conversation_id_invalid', 'conversationId')
+    const databaseHandle = db()
+    const result = storageTransaction(databaseHandle, () => {
+      const row = boundConversation(databaseHandle, ownerId, persona, conversationId)
+      const receipt = databaseHandle.prepare(`
+        SELECT * FROM tavern_generated_results
+        WHERE owner_id = ? AND conversation_id = ?
+        ORDER BY created_at ASC LIMIT 1
+      `).get(ownerId, conversationId)
+      if (!receipt) return null
+      const otherPending = databaseHandle.prepare(`
+        SELECT client_turn_id FROM tavern_turns
+        WHERE owner_id = ? AND conversation_id = ? AND role = 'assistant' AND status = 'pending'
+          AND client_turn_id != ? AND lease_expires_at > ?
+        LIMIT 1
+      `).get(ownerId, conversationId, receipt.client_turn_id, Number(now()))
+      if (otherPending) {
+        throw memoryError(409, 'tavern_turn_in_progress', 'Another Tavern turn is already being processed.', { retryable: true })
+      }
+      const user = databaseHandle.prepare(`
+        SELECT * FROM tavern_turns WHERE owner_id = ? AND conversation_id = ? AND client_turn_id = ? AND role = 'user'
+      `).get(ownerId, conversationId, receipt.client_turn_id)
+      const assistant = databaseHandle.prepare(`
+        SELECT * FROM tavern_turns WHERE owner_id = ? AND conversation_id = ? AND client_turn_id = ? AND role = 'assistant'
+      `).get(ownerId, conversationId, receipt.client_turn_id)
+      if (!user || !assistant || user.request_hash !== receipt.request_hash || assistant.request_hash !== receipt.request_hash) {
+        throw memoryError(409, 'tavern_generated_result_conflict', 'The generated result no longer matches its original turn.')
+      }
+      if (assistant.status === 'complete') {
+        databaseHandle.prepare(`
+          DELETE FROM tavern_generated_results
+          WHERE owner_id = ? AND conversation_id = ? AND client_turn_id = ?
+        `).run(ownerId, conversationId, receipt.client_turn_id)
+        return {
+          conversation: publicConversation(row),
+          clientTurnId: String(receipt.client_turn_id),
+          turns: [publicTurn(user), publicTurn(assistant)],
+          provider: String(assistant.provider || ''),
+          model: String(assistant.model || ''),
+          memory: assistant.memory_json ? JSON.parse(String(assistant.memory_json)) : null,
+          recovered: false,
+        }
+      }
+      const content = cleanContent(receipt.assistant_content)
+      const contentBytes = Buffer.byteLength(content, 'utf8')
+      assertQuota(databaseHandle, ownerId, conversationId, contentBytes - Number(assistant.content_bytes || 0))
+      const nowText = timestamp()
+      databaseHandle.prepare(`
+        UPDATE tavern_turns
+        SET content = ?, content_bytes = ?, status = 'complete', provider = ?, model = ?, memory_json = ?,
+            lease_id = NULL, lease_expires_at = NULL, updated_at = ?
+        WHERE owner_id = ? AND conversation_id = ? AND client_turn_id = ? AND role = 'assistant'
+      `).run(content, contentBytes, String(receipt.provider || '').slice(0, 80), String(receipt.model || '').slice(0, 120), receipt.memory_json || null, nowText, ownerId, conversationId, receipt.client_turn_id)
+      databaseHandle.prepare(`
+        UPDATE tavern_conversations SET revision = revision + 1, updated_at = ?
+        WHERE owner_id = ? AND conversation_id = ?
+      `).run(nowText, ownerId, conversationId)
+      databaseHandle.prepare(`
+        DELETE FROM tavern_generated_results
+        WHERE owner_id = ? AND conversation_id = ? AND client_turn_id = ?
+      `).run(ownerId, conversationId, receipt.client_turn_id)
+      const nextRow = databaseHandle.prepare('SELECT * FROM tavern_conversations WHERE owner_id = ? AND conversation_id = ?').get(ownerId, conversationId)
+      const turns = databaseHandle.prepare(`
+        SELECT * FROM tavern_turns
+        WHERE owner_id = ? AND conversation_id = ? AND client_turn_id = ?
+        ORDER BY sequence
+      `).all(ownerId, conversationId, receipt.client_turn_id)
+      return {
+        conversation: publicConversation(nextRow),
+        clientTurnId: String(receipt.client_turn_id),
+        turns: turns.map(publicTurn),
+        provider: String(receipt.provider || ''),
+        model: String(receipt.model || ''),
+        memory: receipt.memory_json ? JSON.parse(String(receipt.memory_json)) : null,
+        recovered: true,
+      }
+    })
+    if (result?.recovered) buildSegments(databaseHandle, ownerId, conversationId)
+    return result
+  }
+
   function settleTurn({ ownerId: ownerInput, persona: personaInput, conversationId: conversationInput, clientTurnId: clientInput, assistantContent = '', status, leaseId: leaseInput = '', provider = '', model = '', memory = null, media = [] }) {
     const ownerId = ownerValue(ownerInput)
-    const persona = personaValue(personaInput)
+    const persona = personaValue(personaInput, personaSet)
     const conversationId = boundedId(conversationInput, 'tavern_conversation_id_invalid', 'conversationId')
     const clientTurnId = boundedId(clientInput, 'tavern_client_turn_id_invalid', 'clientTurnId')
     const leaseId = boundedId(leaseInput, 'tavern_turn_lease_invalid', 'leaseId')
@@ -736,6 +978,12 @@ export function createTavernConversationStore({
       `).get(ownerId, conversationId, clientTurnId)
       if (!assistant) throw memoryError(404, 'tavern_turn_not_found', 'This Tavern turn is not available.')
       if (assistant.status === 'complete') {
+        if (generatedResultReceipts) {
+          databaseHandle.prepare(`
+            DELETE FROM tavern_generated_results
+            WHERE owner_id = ? AND conversation_id = ? AND client_turn_id = ?
+          `).run(ownerId, conversationId, clientTurnId)
+        }
         const turns = databaseHandle.prepare('SELECT * FROM tavern_turns WHERE owner_id = ? AND conversation_id = ? AND client_turn_id = ? ORDER BY sequence').all(ownerId, conversationId, clientTurnId)
         const user = turns.find((turn) => turn.role === 'user')
         return { conversation: publicConversation(row), turns: turns.map(publicTurn), replay: true, provider: String(assistant.provider || ''), model: String(assistant.model || ''), draw: user?.draw_json ? JSON.parse(String(user.draw_json)) : null, memory: assistant.memory_json ? JSON.parse(String(assistant.memory_json)) : null }
@@ -751,6 +999,12 @@ export function createTavernConversationStore({
         UPDATE tavern_conversations SET revision = revision + 1, updated_at = ?
         WHERE owner_id = ? AND conversation_id = ?
       `).run(nowText, ownerId, conversationId)
+      if (status === 'complete' && generatedResultReceipts) {
+        databaseHandle.prepare(`
+          DELETE FROM tavern_generated_results
+          WHERE owner_id = ? AND conversation_id = ? AND client_turn_id = ?
+        `).run(ownerId, conversationId, clientTurnId)
+      }
       const nextRow = databaseHandle.prepare('SELECT * FROM tavern_conversations WHERE owner_id = ? AND conversation_id = ?').get(ownerId, conversationId)
       const turns = databaseHandle.prepare('SELECT * FROM tavern_turns WHERE owner_id = ? AND conversation_id = ? AND client_turn_id = ? ORDER BY sequence').all(ownerId, conversationId, clientTurnId)
       const user = turns.find((turn) => turn.role === 'user')
@@ -772,7 +1026,7 @@ export function createTavernConversationStore({
 
   function getMessages({ ownerId: ownerInput, persona: personaInput, conversationId: conversationInput, before = '', limit = 40 } = {}) {
     const ownerId = ownerValue(ownerInput)
-    const persona = personaValue(personaInput)
+    const persona = personaValue(personaInput, personaSet)
     const conversationId = boundedId(conversationInput, 'tavern_conversation_id_invalid', 'conversationId')
     const pageLimit = Math.max(1, Math.min(MAX_PAGE_LIMIT, Number.parseInt(String(limit || 40), 10) || 40))
     const beforeSequence = decodeCursor(before)
@@ -840,7 +1094,7 @@ export function createTavernConversationStore({
   }
 
   function latestDrawForContext({ownerId:ownerInput,persona:personaInput,conversationId:conversationInput}={}) {
-    const ownerId=ownerValue(ownerInput),persona=personaValue(personaInput),conversationId=boundedId(conversationInput,'tavern_conversation_id_invalid','conversationId'),databaseHandle=db()
+    const ownerId=ownerValue(ownerInput),persona=personaValue(personaInput,personaSet),conversationId=boundedId(conversationInput,'tavern_conversation_id_invalid','conversationId'),databaseHandle=db()
     boundConversation(databaseHandle,ownerId,persona,conversationId)
     if(!['eastern-oracle','tarot-reader'].includes(persona))return null
     // This is a past server draw, not permission to create/reinterpret an expired receipt.
@@ -855,7 +1109,7 @@ export function createTavernConversationStore({
 
   function contextForProvider({ ownerId: ownerInput, persona: personaInput, conversationId: conversationInput, model, protocol = 'chat-completions', metadata = null, currentMessage, systemPrompt, contextWindowOverride = null, maxOutboundBytes = TAVERN_MEMORY_MAX_PROVIDER_BYTES, excludeClientTurnId = '' } = {}) {
     const ownerId = ownerValue(ownerInput)
-    const persona = personaValue(personaInput)
+    const persona = personaValue(personaInput, personaSet)
     const conversationId = boundedId(conversationInput, 'tavern_conversation_id_invalid', 'conversationId')
     const databaseHandle = db()
     const row = boundConversation(databaseHandle, ownerId, persona, conversationId)
@@ -904,14 +1158,30 @@ export function createTavernConversationStore({
 
   function deleteConversation({ ownerId: ownerInput, persona: personaInput, conversationId: conversationInput } = {}) {
     const ownerId = ownerValue(ownerInput)
-    const persona = personaValue(personaInput)
+    const persona = personaValue(personaInput, personaSet)
     const conversationId = boundedId(conversationInput, 'tavern_conversation_id_invalid', 'conversationId')
     const databaseHandle = db()
     storageTransaction(databaseHandle, () => {
       boundConversation(databaseHandle, ownerId, persona, conversationId)
+      if (rejectDeleteWhilePending) {
+        const pending = databaseHandle.prepare(`
+          SELECT client_turn_id FROM tavern_turns
+          WHERE owner_id = ? AND conversation_id = ? AND role = 'assistant'
+            AND status = 'pending' AND lease_expires_at > ?
+          LIMIT 1
+        `).get(ownerId, conversationId, Number(now()))
+        if (pending) {
+          throw memoryError(409, 'tavern_turn_in_progress', 'A live generation must finish before this conversation can be deleted.', {
+            retryable: true,
+          })
+        }
+      }
       if (extendedMemory) {
         databaseHandle.prepare('DELETE FROM tavern_segment_terms WHERE owner_id = ? AND conversation_id = ?').run(ownerId, conversationId)
         databaseHandle.prepare('DELETE FROM tavern_segments WHERE owner_id = ? AND conversation_id = ?').run(ownerId, conversationId)
+      }
+      if (generatedResultReceipts) {
+        databaseHandle.prepare('DELETE FROM tavern_generated_results WHERE owner_id = ? AND conversation_id = ?').run(ownerId, conversationId)
       }
       databaseHandle.prepare('DELETE FROM tavern_turns WHERE owner_id = ? AND conversation_id = ?').run(ownerId, conversationId)
       if (extendedMemory) databaseHandle.prepare("UPDATE tavern_imports SET status = 'deleted' WHERE owner_id = ? AND persona = ? AND conversation_id = ?").run(ownerId, persona, conversationId)
@@ -936,6 +1206,9 @@ export function createTavernConversationStore({
     resumeConversation,
     beginTurn,
     replayCompletedTurn,
+    saveGeneratedResult,
+    getGeneratedResult,
+    recoverGeneratedResult,
     completeTurn,
     failTurn,
     getMessages,
