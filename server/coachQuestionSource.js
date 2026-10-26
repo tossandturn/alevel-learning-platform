@@ -96,10 +96,13 @@ export function createCoachSourceStream(){
   const out=pending.slice(0,end);pending=pending.slice(end);return out
  },finish(){if(hidden)return'';const partial=PRIVATE_MARKERS.some(m=>m.toLowerCase().startsWith(pending.trim().toLowerCase())&&pending.trim().length>=3),out=partial?'':pending.trimEnd();pending='';return out}}
 }
+export function coachQuestionSourceText(source){
+ const text=source.status==='matched'?`${source.method==='bound-record'?'练习原题记录':'题干匹配'}：${source.reference}\n试卷文件：${source.paperFile}${source.method==='recognized-text-match'?'\n依据图片识别的题干匹配，请核对题干与数值是否一致。':''}`:source.status==='paper-matched'?`已定位原卷：${source.reference}\n试卷文件：${source.paperFile}\n题号尚未核实，请按上述 PDF 页码核对。`:source.status==='ambiguous'?`找到多个相同或高度重合的原卷记录，暂不能确认唯一出处。${source.candidates?.length?'\n'+source.candidates.map(s=>'候选：'+s.reference+'（'+s.paperFile+'）').join('\n'):''}\n可补充带卷面代码和题号的图片。`:'暂未确认题目出处。请尽量保留题干、已知数值和图示；仅有答案、短公式或未收录试卷时无法可靠定位。'
+ return '## 题目出处\n'+text
+}
 export function appendCoachQuestionSource(answer,source){
  const cleanAnswer=extractCoachSourceTrailer(answer).answer.trimEnd();if(!cleanAnswer.trim())return''
- const text=source.status==='matched'?`${source.method==='bound-record'?'练习原题记录':'题干匹配'}：${source.reference}\n试卷文件：${source.paperFile}${source.method==='recognized-text-match'?'\n依据图片识别的题干匹配，请核对题干与数值是否一致。':''}`:source.status==='paper-matched'?`已定位原卷：${source.reference}\n试卷文件：${source.paperFile}\n题号尚未核实，请按上述 PDF 页码核对。`:source.status==='ambiguous'?`找到多个相同或高度重合的原卷记录，暂不能确认唯一出处。${source.candidates?.length?'\n'+source.candidates.map(s=>'候选：'+s.reference+'（'+s.paperFile+'）').join('\n'):''}\n可补充带卷面代码和题号的图片。`:'暂未确认题目出处。请尽量保留题干、已知数值和图示；仅有答案、短公式或未收录试卷时无法可靠定位。'
- return cleanAnswer+'\n\n## 题目出处\n'+text
+ return cleanAnswer+'\n\n'+coachQuestionSourceText(source)
 }
 export function coachSourceInstruction({hasImages=false,matched=false}={}){
  return[

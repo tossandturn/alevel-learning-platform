@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { loadTavernProvider } from './tavernProvider.js'
 import { loadStemAcademicProvider } from './stemAcademicProvider.js'
-import {createCoachQuestionSourceResolver,createCoachSourceStream,extractCoachSourceTrailer,appendCoachQuestionSource,coachSourceInstruction} from './coachQuestionSource.js'
+import {createCoachQuestionSourceResolver,createCoachSourceStream,extractCoachSourceTrailer,coachQuestionSourceText} from './coachQuestionSource.js'
 import {TAVERN_MEDIA_VERSION,TAVERN_MEDIA_PREFIX,loadTavernMediaCatalog,selectTavernMediaCandidates,tavernMediaSystemPrompt,normalizeTavernMediaReply,serveTavernMedia,DEFAULT_TAVERN_MEDIA_ROOT} from './tavernMedia.js'
 import {createDrawArtHandler} from './tavernDrawArt.js'
 import { isAiMarkablePastPaperItem, studyQuestionBank } from '../src/data/questionBank.js'
@@ -1498,11 +1498,47 @@ function coachResponseFields(policy, feature, answerStatus, draw = null) {
   }
 }
 
-function coachSourcePresentation({answer,source,resolver,message,context,authorization,hasImages}) {
+const DEFERRED_SOURCE_PROMPT='\nAnswer the current question only. Paper-origin identification is a separate user-confirmed action after this answer. Do not identify or guess the exam year, paper or question number, do not transcribe for retrieval, and do not append source headings or private lookup metadata.'
+function coachSourcePresentation({answer,source}) {
   if(!source)return{answer}
   const parsed=extractCoachSourceTrailer(answer)
-  const questionSource=source.status==='matched'?source:resolver.resolve({message,context,authorization,hasImages,lookupText:parsed.lookupText})
-  return{answer:appendCoachQuestionSource(parsed.answer,questionSource),questionSource}
+  return{answer:parsed.answer,sourceLookupAvailable:source.available!==false}
+}
+
+async function handleCoachSource(request,response,visionProvider,env,telemetry,timeoutConfig,authorizeCoachRequest,resolver){
+  const payload=await readJsonBody(request)
+  if(!authenticatedStemUser(request,env))throw Object.assign(new Error('请登录后识别题目出处。'),{statusCode:401,code:'coach_auth_required'})
+  if(payload.confirmed!==true)throw Object.assign(new Error('请先确认是否识别题目出处。'),{statusCode:400,code:'source_confirmation_required'})
+  const authorization=typeof authorizeCoachRequest==='function'?await authorizeCoachRequest({request,payload}):null
+  const feature=resolveCoachFeature({feature:payload.feature||'answers',persona:payload.persona})
+  validateCoachFeaturePayload(feature,payload)
+  const context=applyCoachAuthorization(safeCoachContext(payload.context),authorization)
+  if(feature.feature==='tavern'||String(payload.context?.product||'').toLowerCase().includes('ielts'))throw Object.assign(new Error('当前功能不支持真题出处查询。'),{statusCode:400,code:'source_scope_invalid'})
+  const message=compactText(payload.message,3000),policy=resolveCoachRequestPolicy({message,context,authorization,feature,verifiedSubmitted:Boolean(authorization?.submitted)||verifiedCoachSubmission(payload,request,env)})
+  if(['active-exam','unverified-bound-assessment'].includes(policy.assessmentState))throw Object.assign(new Error('请先完成并提交考试，再查询出处。'),{statusCode:403,code:'coach_exam_in_progress'})
+  assertTavernDrawAssessmentAllowed(authorization)
+  const imageDataUrls=coachImageDataUrls(payload),hasImages=imageDataUrls.length>0
+  if(!message&&!hasImages)throw Object.assign(new Error('请提供原题或题目照片。'),{statusCode:400,code:'source_input_required'})
+  let source=resolver.resolve({message,context,authorization,hasImages})
+  if(hasImages&&source.status!=='matched'){
+    const provider=providerCandidates(visionProvider)[0]
+    if(!provider)throw Object.assign(new Error('出处识别暂不可用，原答案不受影响。'),{statusCode:503,code:'source_provider_unavailable'})
+    let images=[]
+    try{
+      images=await temporaryProviderImages(imageDataUrls,imagePublicBase(provider,request))
+      const raw=await callCompatibleAi(provider,{
+        messages:[{role:'system',content:'Extract the visible printed question faithfully for source retrieval. Return only JSON {"text":"..."}, at most 2400 characters. Keep wording, givens, numerical values, formula notation and MCQ options. Focus on the requested question if several are visible. Do not solve, explain, infer missing content, identify its source, include personal information or guess a year/paper/question number. If unreadable or not a question, return {"text":""}.'},{role:'user',content:providerMessageContent(message||'请识别这张题目图片的原题文字。',images)}],
+        json:true,disableThinking:true,outputTokenLimit:1800,temperature:0,
+        operation:'coach-source-lookup',requestId:crypto.randomUUID(),telemetry,
+        timeoutMs:Math.min(25000,timeoutConfig.visionProviderTimeoutMs),totalDeadlineMs:30000,deadlineAt:Date.now()+30000,
+      })
+      let parsed;try{parsed=JSON.parse(raw)}catch{throw Error('Invalid transcription')}
+      if(!parsed||typeof parsed.text!=='string'||parsed.text.length>2400||/[\u0000-\u0008<>]/.test(parsed.text))throw Error('Invalid transcription')
+      source=resolver.resolve({message,context,authorization,hasImages:true,lookupText:parsed.text})
+    }catch{throw Object.assign(new Error('出处识别暂未完成，原答案已保留，可以重试。'),{statusCode:503,code:'source_lookup_failed'})}
+    finally{images.forEach(image=>image.cleanup())}
+  }
+  return sendJson(response,200,{questionSource:source,sourceText:coachQuestionSourceText(source)})
 }
 
 function coachUnavailablePayload({ policy, feature, localAnswer, providerStatus, warning, provider = null, draw = null }) {
@@ -1842,8 +1878,8 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
     : { providerTimeoutMs: timeoutConfig.providerTimeoutMs, totalDeadlineMs: timeoutConfig.totalDeadlineMs }
   const deadlineAt = Date.now() + requestBudget.totalDeadlineMs
   const requestId = crypto.randomUUID()
-  const source=feature.feature!=='tavern'&&questionSourceResolver?questionSourceResolver.resolve({message,context,authorization,hasImages}):null
-  const sourcePrompt=source?'\n'+coachSourceInstruction({hasImages,matched:source.status==='matched'}):''
+  const source=feature.feature!=='tavern'&&questionSourceResolver?{status:'deferred',available:policy.assessmentState!=='unverified-bound-assessment'}:null
+  const sourcePrompt=source?DEFERRED_SOURCE_PROMPT:''
   let lastError = null
   let lastMemory = null
   let lastAttemptedProvider = activeProviders[0]
@@ -2316,8 +2352,8 @@ async function handleCoachStream(request, response, provider, visionProvider, li
     : { providerTimeoutMs: timeoutConfig.providerTimeoutMs, totalDeadlineMs: timeoutConfig.totalDeadlineMs }
   const deadlineAt = Date.now() + requestBudget.totalDeadlineMs
   const requestId = crypto.randomUUID()
-  const source=feature.feature!=='tavern'&&questionSourceResolver?questionSourceResolver.resolve({message,context,authorization,hasImages}):null
-  const sourcePrompt=source?'\n'+coachSourceInstruction({hasImages,matched:source.status==='matched'}):''
+  const source=feature.feature!=='tavern'&&questionSourceResolver?{status:'deferred',available:policy.assessmentState!=='unverified-bound-assessment'}:null
+  const sourcePrompt=source?DEFERRED_SOURCE_PROMPT:''
   let streamedAnswer = ''
   let lastPartialAnswer = ''
   let lastError = null
@@ -2731,6 +2767,7 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
       if (request.method === 'GET' && requestUrl.pathname.startsWith('/api/ai/tavern/conversations/') && requestUrl.pathname.endsWith('/messages')) return await handleTavernConversationMessages(requestUrl, request, response, env, authorizeCoachRequest, conversationStore())
       if (request.method === 'DELETE' && requestUrl.pathname.startsWith('/api/ai/tavern/conversations/')) return await handleTavernConversationDelete(requestUrl, request, response, env, authorizeCoachRequest, conversationStore())
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach') return await handleCoach(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStore,tavernMediaCatalog||loadTavernMediaCatalog(),tavernProvider,questionSourceResolver)
+      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach/source') return await handleCoachSource(request,response,config.vision,env,telemetry,timeoutConfig,authorizeCoachRequest,questionSourceResolver)
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach/stream') return await handleCoachStream(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStore,tavernProvider,questionSourceResolver)
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/mark-handwriting') return await handleHandwritingMark(request, response, config.vision, libraryRoot, allowedSubjects, sourceAssetRoot, env, currentAiMarkingQuestionBank(), telemetry, timeoutConfig)
       return sendJson(response, 404, { error: 'AI route not found.' })
