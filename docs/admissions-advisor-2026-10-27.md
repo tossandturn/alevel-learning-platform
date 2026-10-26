@@ -19,6 +19,14 @@ Focused tests: `npm run test:admissions-advisor`. Regressions include existing C
 
 Deployment is a separate phase, requiring a fresh strict shared-server gate, pinned three-file artifact, verified rollback, unchanged IELTS services and live acceptance. No production build, database migration, provider configuration change or public Mini Program publication is implied by this document. Final deployment/upload status is recorded in the acceptance receipt, not inferred from tests.
 
+### Verified release receipt
+
+Runtime `a1a5d265032f2ad6c7c2ed05bffaf38fac6123c9` was deployed as a pinned three-file overlay. Before/after upload, activation, restart and isolated live acceptance gates all passed. Swap remained 9.28%; free disk approximately 7.67 GiB; IELTS process identity/restart count stayed unchanged. Existing database data, environment, provider settings and Nginx configuration were not changed. Rollback code hashes were verified.
+
+Final focused API suite: PASS (12 synthetic provider calls, 35 authorization-hook checks). Independent review repeated the expired-lease/receipt-recovery adversarial probe; no outstanding P1/P2 findings. The receipt flags and new receipt table are enabled only in the isolated admissions store.
+
+Real configured-provider acceptance used temporary synthetic identity/history with deployed middleware on loopback. Planning completed in 4.607 seconds and its contextual email follow-up in 4.451 seconds. Canonical history, same-turn replay without a new generation and synthetic deletion passed. These are small server-side samples, not physical-device latency or a broad admissions-accuracy benchmark. Public HTTPS unsigned resume returns 401. Local evidence is under `D:/CodexWork/admissions-advisor-20261027/`.
+
 ## References
 
 - [UCAS AI/personal-statement guidance](https://www.ucas.com/applying/applying-to-university/writing-your-personal-statement/a-guide-to-using-ai-and-chatgpt-with-your-personal-statement): authenticity, permitted planning/checking support and destination-specific rules.
