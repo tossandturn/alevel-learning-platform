@@ -12,6 +12,7 @@ import { resolveAiPdfIngestionRoot } from './server/aiPdfIngestionCandidates.js'
 import { createCoachAttemptAuthorizer, createCurriculumPracticeAccess, createStemApi } from './server/stemApi.js'
 import { createCurriculumPracticeApi } from './server/curriculumPracticeApi.js'
 import { createTopicPdfRenderer } from './server/topicPdfRenderer.js'
+import { createPdfDownloadPolicy, authorizePdfFile, applyPdfQuotaHeaders, pdfNotModified, sendPdfAccessError } from './server/pdfDownloadPolicy.js'
 import { isPaperAvailableToStudents } from './src/lib/paperGovernance.js'
 import { mergeRuntimeEnv } from './src/lib/runtimeEnv.js'
 import { resolveLibraryRoot } from './server/pdfLibrary.js'
@@ -87,13 +88,14 @@ function recordPdfAccess(env, item, { outcome, statusCode, ranged }) {
     })
 }
 
-export async function sendLocalPdf(request, response, next, env, runtimePdfDocuments = () => []) {
+export async function sendLocalPdf(request, response, next, env, runtimePdfDocuments = () => [], { authorizeFile } = {}) {
   const requestUrl = new URL(request.url, 'http://127.0.0.1')
   const segments = requestUrl.pathname.split('/').filter(Boolean).map(decodeURIComponent)
   if (segments[0] !== 'local-pdf') return next()
+  if (!['GET','HEAD'].includes(request.method)) { response.statusCode=405;response.setHeader('Allow','GET, HEAD');response.end();return }
 
   const [, subject, fileName] = segments
-  if (!ALLOWED_SUBJECTS.has(subject) || !fileName || path.basename(fileName) !== fileName || !fileName.endsWith('.pdf')) {
+  if (segments.length!==3 || !ALLOWED_SUBJECTS.has(subject) || !fileName || path.basename(fileName) !== fileName || !fileName.endsWith('.pdf')) {
     response.statusCode = 400
     response.end('Invalid local PDF path')
     return
@@ -159,8 +161,15 @@ export async function sendLocalPdf(request, response, next, env, runtimePdfDocum
   response.setHeader('Cache-Control', 'private, max-age=3600')
   response.setHeader('ETag', etag)
 
+  if (pdfNotModified(request,etag)) {
+    applyPdfQuotaHeaders(response,await authorizePdfFile({env,authorizeFile,request,sha256:catalogItem.sha256,consume:false}))
+    response.statusCode=304;response.end();return
+  }
+
   if (!range) {
+    applyPdfQuotaHeaders(response,await authorizePdfFile({env,authorizeFile,request,sha256:catalogItem.sha256,consume:request.method==='GET'}))
     response.setHeader('Content-Length', stat.size)
+    if(request.method==='HEAD'){response.end();return}
     recordPdfAccess(env, catalogItem, { outcome: 'served', statusCode: 200, ranged: false })
     fs.createReadStream(filePath).pipe(response)
     return
@@ -185,9 +194,11 @@ export async function sendLocalPdf(request, response, next, env, runtimePdfDocum
     return
   }
 
+  applyPdfQuotaHeaders(response,await authorizePdfFile({env,authorizeFile,request,sha256:catalogItem.sha256,consume:request.method==='GET'}))
   response.statusCode = 206
   response.setHeader('Content-Range', `bytes ${start}-${end}/${stat.size}`)
   response.setHeader('Content-Length', end - start + 1)
+  if(request.method==='HEAD'){response.end();return}
   recordPdfAccess(env, catalogItem, { outcome: 'served', statusCode: 206, ranged: true })
   fs.createReadStream(filePath, { start, end }).pipe(response)
 }
@@ -505,6 +516,10 @@ function localCieLibrary(env) {
     timeoutMs: env.STEM_TOPIC_PDF_TIMEOUT_MS,
   })
   const stemApi = createStemApi({ env, topicQuestionBankProvider: runtimeAiGroups, libraryRoot, topicPdfRenderer })
+  const pdfAccess = createCurriculumPracticeAccess({env})
+  const pdfQuota = createPdfDownloadPolicy({env,authenticateRequest:pdfAccess.authenticatePdfRequest,databaseProvider:pdfAccess.databaseProvider})
+  const pdfOptions = {authorizeFile:context=>pdfQuota.authorize(context)}
+  const pdfFailure = (response,next,error)=>{if(!sendPdfAccessError(response,error))next(error)}
   const curriculumReleaseRoot = env.STEM_CURRICULUM_PRACTICE_RELEASE_ROOT || '/home/ubuntu/alevel-physics/curriculum-practice/current'
   const curriculumPracticeApi = createCurriculumPracticeApi({
     releaseRoot: curriculumReleaseRoot,
@@ -534,7 +549,7 @@ function localCieLibrary(env) {
       server.middlewares.use(stemApi)
       server.middlewares.use(aiApi)
       server.middlewares.use((request, response, next) => {
-        void sendLocalPdf(request, response, next, env, runtimePdfDocuments).catch(next)
+        void sendLocalPdf(request, response, next, env, runtimePdfDocuments, pdfOptions).catch(error=>pdfFailure(response,next,error))
       })
     },
     configurePreviewServer(server) {
@@ -546,7 +561,7 @@ function localCieLibrary(env) {
       server.middlewares.use(stemApi)
       server.middlewares.use(aiApi)
       server.middlewares.use((request, response, next) => {
-        void sendLocalPdf(request, response, next, env, runtimePdfDocuments).catch(next)
+        void sendLocalPdf(request, response, next, env, runtimePdfDocuments, pdfOptions).catch(error=>pdfFailure(response,next,error))
       })
     },
   }

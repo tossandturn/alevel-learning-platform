@@ -10,6 +10,7 @@ import { MIN_QUESTION_GROUPS_PER_TEST, MIN_VERIFIED_GROUPS_FOR_PRACTICE } from '
 import { PAPER_STUDY_MODES } from '../src/lib/paperStudyMode.js'
 import { createNativePaperCatalog } from './nativePaperCatalog.js'
 import { createCurriculumPaperCatalog } from './curriculumPaperCatalog.js'
+import { createPdfDownloadPolicy } from './pdfDownloadPolicy.js'
 import { createNativeQuestionImages } from './nativeQuestionImages.js'
 import { sendPublicCatalogJson } from './publicCatalogJson.js'
 import { createAnnouncementBoard } from './announcementBoard.js'
@@ -775,6 +776,12 @@ export function createCurriculumPracticeAccess({ env = process.env, questionBank
   const signingKey = String(env.STEM_INTERNAL_AUTH_KEY || env.STEM_IDENTITY_SIGNING_KEY || '')
   return Object.freeze({
     authenticateRequest: (request) => identityFromRequest(request, signingKey),
+    authenticatePdfRequest: (request) => {
+      if(request.headers.authorization)return identityFromRequest(request,signingKey)
+      const user=nativeSessionIdentity(request,appDatabase(env,questionBank,{synchronizeSource:false}))
+      if(!user)throw Object.assign(new Error('Sign in to download.'),{statusCode:401})
+      return user
+    },
     // AP/IB has separate session tables and never reseeds CIE attempts/mastery.
     databaseProvider: () => appDatabase(env, questionBank, { synchronizeSource: false }),
   })
@@ -1523,7 +1530,7 @@ function appDatabase(env, questionBank = unifiedQuestionBank, { synchronizeSourc
   migrateRouteScope(database)
   migrateRegisteredRouteStages(database)
   migrateSubmissionIdempotency(database)
-  seedCurrentQuestionBank(database, questionBank)
+  if (synchronizeSource) seedCurrentQuestionBank(database, questionBank)
   return database
 }
 
@@ -2565,7 +2572,9 @@ export function nativePaperContext(questionBank, { routeId, stage, paperId }) {
 
 export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQuestionBankProvider = null, fetchImpl = fetch, libraryRoot = null, topicPdfRenderer = null, paperCatalogDirectory, curriculumPaperCatalogOptions = null, wholePaperMarkingOptions = null }) {
   const nativePaperCatalog = createNativePaperCatalog({ directory: paperCatalogDirectory })
-  const curriculumPaperCatalog = createCurriculumPaperCatalog({ ...(curriculumPaperCatalogOptions || {}), env })
+  const pdfAccess = createCurriculumPracticeAccess({env,questionBank})
+  const pdfQuota = createPdfDownloadPolicy({env,fetchImpl,authenticateRequest:pdfAccess.authenticatePdfRequest,databaseProvider:pdfAccess.databaseProvider})
+  const curriculumPaperCatalog = createCurriculumPaperCatalog({ ...(curriculumPaperCatalogOptions || {}), env, authorizeFile:context=>pdfQuota.authorize(context) })
   const nativeQuestionImages = createNativeQuestionImages({getQuestionBank:()=>currentTopicPracticeQuestionBank(),libraryRoot,env})
   // A single shared server key is sufficient for both the internal account
   // request and the short-lived STEM API token. The legacy identity key is a
