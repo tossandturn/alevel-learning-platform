@@ -2011,10 +2011,12 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, m
   }
   let idleTimeout = null
   let deadlineTimeout = null
+  let streamController = null
   let answer = ''
   try {
     requestTimeoutMs = effectiveAiTimeoutMs(timeoutMs, deadlineAt, timeoutCapMs)
     const controller = new AbortController()
+    streamController = controller
     const resetIdleTimeout = () => {
       if (idleTimeout) clearTimeout(idleTimeout)
       const idleTimeoutMs = effectiveAiTimeoutMs(timeoutMs, deadlineAt, timeoutCapMs)
@@ -2144,7 +2146,17 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, m
       buffer += decoder.decode(value || new Uint8Array(), { stream: !done })
       const lines = buffer.split(/\r?\n/)
       buffer = lines.pop() || ''
-      for (const line of lines) await consumeLine(line)
+      for (const line of lines) {
+        await consumeLine(line)
+        if (receivedDone) break
+      }
+      // SSE completion is semantic, independent of an upstream keeping its
+      // HTTP connection open. Do not turn a complete answer into a timeout.
+      if (receivedDone) {
+        try { await reader.cancel() } catch { /* Completion was already parsed. */ }
+        buffer = ''
+        break
+      }
       if (done) break
     }
     if (buffer) await consumeLine(buffer)
@@ -2167,6 +2179,7 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, m
   } finally {
     if (idleTimeout) clearTimeout(idleTimeout)
     if (deadlineTimeout) clearTimeout(deadlineTimeout)
+    streamController?.abort()
     emitProviderTelemetry(telemetry, {
       requestId,
       operation,

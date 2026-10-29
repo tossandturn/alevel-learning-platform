@@ -145,7 +145,7 @@
     "test:coach-four-modes": "node scripts/test-coach-four-modes.mjs && node scripts/test-coach-four-modes-api.mjs",
     "test:tavern-divination": "node scripts/test-tavern-divination.mjs && node scripts/test-tavern-divination-api.mjs",
     "test:tavern-long-memory": "node scripts/test-tavern-long-memory.mjs && node scripts/test-tavern-long-memory-api.mjs",
-    "test:coach-stream-protocol": "node scripts/test-coach-stream-protocol.mjs",
+    "test:coach-stream-protocol": "node scripts/test-coach-stream-protocol.mjs && node scripts/test-coach-provider-completion.mjs",
     "test:tavern-deepseek": "node scripts/test-tavern-provider.mjs && node scripts/test-tavern-deepseek-api.mjs",
     "test:stem-deepseek": "node scripts/test-stem-deepseek.mjs",
     "test:shared-account-env": "node scripts/test-shared-account-env-contract.mjs",
