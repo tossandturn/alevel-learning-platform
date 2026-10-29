@@ -16,14 +16,17 @@ const root=fs.mkdtempSync(path.resolve('.tmp-test/tavern-deepseek-'))
 const env={AI_PROVIDER:'openai',OPENAI_API_KEY:'synthetic-academic-key',OPENAI_CHAT_BASE_URL:'https://academic.invalid/v1',OPENAI_API_PROTOCOL:'chat-completions',OPENAI_COACH_MODEL:'academic-text-fixture',OPENAI_VISION_MODEL:'academic-vision-fixture',STEM_INTERNAL_AUTH_KEY:signing,STEM_TAVERN_PROVIDER:'deepseek',STEM_TAVERN_DEEPSEEK_API_KEY:'synthetic-tavern-key'}
 const sharedBefore=providerConfig(env),calls=[]
 const content=Buffer.from('test-image'),sha256=crypto.createHash('sha256').update(content).digest('hex')
-const catalog=compileTavernMediaCatalog({schemaVersion:'tavern-media.v1',revision:'test',items:[{id:'test-hug',kind:'sticker',caption:'抱抱',alt:'原创猫抱抱',tags:['抱抱'],file:'test-'+sha256.slice(0,16)+'.jpg',sha256,width:960,height:720,frame:{columns:4,rows:3,column:0,row:0}}]})
-const realFetch=globalThis.fetch;let failing=false
+const catalog=compileTavernMediaCatalog({schemaVersion:'tavern-media.v1',revision:'test',items:[0,1].map(column=>({id:column?'test-wave':'test-hug',kind:'sticker',caption:column?'挥手':'抱抱',alt:column?'原创猫挥手':'原创猫抱抱',tags:['抱抱'],file:'test-'+sha256.slice(0,16)+'.jpg',sha256,width:960,height:720,frame:{columns:4,rows:3,column,row:0}}))})
+const realFetch=globalThis.fetch;let failing=false,jsonEmptyOnce=false,alwaysEmpty=false
 globalThis.fetch=async(url,options)=>{
  const address=String(url)
  if(address==='https://api.deepseek.com/v1/chat/completions'||address==='https://academic.invalid/v1/chat/completions'){
   const body=JSON.parse(options.body),deepseek=address.includes('api.deepseek.com')
   calls.push({deepseek,body})
   if(deepseek&&failing)return new Response('private-provider-body-must-not-leak',{status:503})
+  if(deepseek&&(alwaysEmpty||jsonEmptyOnce&&body.response_format)){
+   jsonEmptyOnce=false;return new Response(JSON.stringify({choices:[{message:{content:''},finish_reason:'stop'}]}),{headers:{'Content-Type':'application/json'}})
+  }
   if(body.stream)return new Response('data: '+JSON.stringify({choices:[{delta:{content:'流式回复'},finish_reason:null}]})+'\n\ndata: '+JSON.stringify({choices:[{delta:{},finish_reason:'stop'}]})+'\n\ndata: [DONE]\n\n',{headers:{'Content-Type':'text/event-stream'}})
   const media=JSON.stringify(body.messages).includes('Media-enabled reply contract')
   const answer=deepseek?(media?JSON.stringify({text:'给你抱抱。',media:['test-hug']}):'旧客户端纯文字。'):'学科回复。'
@@ -65,8 +68,25 @@ try{
  const failed=await request('/api/ai/coach',retryTurn)
  assert.notEqual(failed.json.mode,'ai');assert.equal(calls.length,beforeFailure+1,'no unrelated fallback provider may receive Tavern text')
  assert.ok(!JSON.stringify(failed.json).includes('private-provider-body'))
+ const reopenedAfterFailure=await request('/api/ai/tavern/conversations/resume',{persona:'keeper'})
+ assert.ok(reopenedAfterFailure.json.messages.every(item=>item.status==='complete'&&item.content.trim()),'failed empty assistant records must never break native history normalization')
+ assert.deepEqual(reopenedAfterFailure.json.messages,reply.json.turns,'resume exposes complete pairs while preserving failed records for logical retry')
+ const pageAfterFailure=await request('/api/ai/tavern/conversations/'+turn.conversationId+'/messages?persona=keeper',null,'GET')
+ assert.deepEqual(pageAfterFailure.json.messages,reply.json.turns,'paginated history must use the same complete-pair contract')
  failing=false;const retried=await request('/api/ai/coach',retryTurn)
  assert.equal(retried.json.mode,'ai');assert.equal(retried.json.conversation.turnCount,4)
+ const emptyTurn={...turn,message:'只回忆刚才的话题',clientTurnId:'deepseek-fixture-turn-empty',expectedRevision:retried.json.conversation.revision}
+ const beforeEmpty=calls.length;jsonEmptyOnce=true
+ const rescued=await request('/api/ai/coach',emptyTurn)
+ assert.equal(rescued.json.mode,'ai','a stopped but empty DeepSeek JSON response gets one same-provider text-format recovery')
+ assert.equal(calls.length,beforeEmpty+2);assert.equal(calls.at(-1).body.response_format,undefined)
+ assert.deepEqual(calls.at(-1).body.messages,calls.at(-2).body.messages,'retry preserves exact trusted persona/history/draw')
+ const rescueReplay=await request('/api/ai/coach',emptyTurn)
+ assert.equal(calls.length,beforeEmpty+2);assert.deepEqual(rescueReplay.json.turns,rescued.json.turns)
+ alwaysEmpty=true;const boundedEmptyStart=calls.length
+ const bounded=await request('/api/ai/coach',{...emptyTurn,clientTurnId:'deepseek-fixture-turn-empty-limit',expectedRevision:rescued.json.conversation.revision})
+ assert.notEqual(bounded.json.mode,'ai');assert.equal(calls.length,boundedEmptyStart+2,'never retry an empty response without a bound')
+ alwaysEmpty=false
  assert.equal(tavernModelContextWindow('deepseek-flash').tokens,1_000_000)
  assert.equal(tavernModelContextWindow('deepseek-flash').verified,true)
  const status=await request('/api/ai/status',null,'GET')

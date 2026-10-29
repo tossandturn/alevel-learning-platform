@@ -251,6 +251,7 @@ async function handleTavernConversationResume(request, response, env, authorizeC
     persona: feature.persona,
     conversationId: conversation.id,
     limit: 40,
+    completePairsOnly: true,
   })
   return sendJson(response, 200, {
     conversation,
@@ -285,6 +286,7 @@ async function handleTavernConversationMessages(requestUrl, request, response, e
     conversationId,
     before: requestUrl.searchParams.get('before') || '',
     limit: Number(rawLimit),
+    completePairsOnly: true,
   }))
 }
 
@@ -1368,10 +1370,17 @@ export async function callCompatibleAi(provider, { messages, temperature = 0.2, 
       schemaStatus = 'invalid'
       throw aiResponseSchemaError('AI Responses provider did not complete the response.')
     }
-    if (!isResponsesProvider(provider)) requireCompletedChatChoice(payload)
+    if (!isResponsesProvider(provider)) {
+      try { requireCompletedChatChoice(payload) }
+      catch (error) { schemaStatus = 'invalid'; throw error }
+    }
     const answer = isResponsesProvider(provider)
       ? responseOutputText(payload)
       : String(payload?.choices?.[0]?.message?.content || '').trim()
+    if (!answer && !isResponsesProvider(provider) && Array.isArray(payload?.choices)) {
+      schemaStatus = 'invalid'
+      throw Object.assign(aiResponseSchemaError('AI provider completed with empty content.'), { code: 'AI_RESPONSE_EMPTY' })
+    }
     if ((!isResponsesProvider(provider) && !Array.isArray(payload?.choices)) || !answer) {
       schemaStatus = 'invalid'
       throw aiResponseSchemaError('AI provider returned an invalid response schema.')
@@ -1392,7 +1401,8 @@ export async function callCompatibleAi(provider, { messages, temperature = 0.2, 
     if (!failureClass) {
       failureClass = error?.code === 'AI_REQUEST_DEADLINE'
         ? 'total_deadline'
-        : finalState === 'timeout' ? 'provider_timeout' : statusCode >= 400 ? 'provider_http_error' : 'transport_error'
+        : finalState === 'timeout' ? 'provider_timeout' : statusCode >= 400 ? 'provider_http_error'
+          : ['AI_RESPONSE_SCHEMA_INVALID', 'AI_RESPONSE_EMPTY'].includes(error?.code) ? 'response_schema' : 'transport_error'
     }
     throw error
   } finally {
@@ -1910,7 +1920,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
           })
         : null
       lastMemory = selectedTavernContext?.memory || null
-      const answer = await callCompatibleAi(activeProvider, {
+      const providerOptions = {
         messages: [{ role: 'system', content: selectedTavernContext?.systemPrompt || coachFeatureSystemPrompt(feature, policy, context, draw)+sourcePrompt }, ...(selectedTavernContext?.history || history), { role: 'user', content }],
         json: activeProvider.name === 'deepseek' && Boolean(selectedTavernContext?.mediaCandidates.length),
         temperature: 0.2,
@@ -1932,7 +1942,17 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
             reasoningEffortOverride: isResponsesProvider(activeProvider) && String(activeProvider.model).toLowerCase() === 'gpt-5.5' ? 'none' : '',
           } : {}),
         } : {}),
-      })
+      }
+      let answer
+      try { answer = await callCompatibleAi(activeProvider, providerOptions) }
+      catch (error) {
+        // DeepSeek documents occasional empty content in JSON mode. Recover
+        // once without that constraint, preserving the prompt, owner history,
+        // provider and original deadline. Never retry refusals/truncation/HTTP
+        // errors here, and never expose an empty reply as a completed message.
+        if (feature.feature !== 'tavern' || !providerOptions.json || error?.code !== 'AI_RESPONSE_EMPTY') throw error
+        answer = await callCompatibleAi(activeProvider, { ...providerOptions, json: false, providerAttempt: providerIndex + 2 })
+      }
       const reply=selectedTavernContext?.mediaCandidates.length?normalizeTavernMediaReply(answer,{catalog:mediaCatalog,candidates:selectedTavernContext.mediaCandidates}):{text:answer,media:[]}
       if(!reply.text)throw Object.assign(new Error('AI reply media schema invalid'),{code:'AI_RESPONSE_SCHEMA_INVALID'})
       if(source&&!extractCoachSourceTrailer(reply.text).answer.trim())throw Object.assign(new Error('AI answer was empty after source metadata removal'),{code:'AI_RESPONSE_SCHEMA_INVALID'})

@@ -1024,7 +1024,7 @@ export function createTavernConversationStore({
     return settleTurn({ ...input, status })
   }
 
-  function getMessages({ ownerId: ownerInput, persona: personaInput, conversationId: conversationInput, before = '', limit = 40 } = {}) {
+  function getMessages({ ownerId: ownerInput, persona: personaInput, conversationId: conversationInput, before = '', limit = 40, completePairsOnly = false } = {}) {
     const ownerId = ownerValue(ownerInput)
     const persona = personaValue(personaInput, personaSet)
     const conversationId = boundedId(conversationInput, 'tavern_conversation_id_invalid', 'conversationId')
@@ -1032,9 +1032,19 @@ export function createTavernConversationStore({
     const beforeSequence = decodeCursor(before)
     const databaseHandle = db()
     const row = boundConversation(databaseHandle, ownerId, persona, conversationId)
+    // Native Tavern history accepts only canonical, nonempty completed messages.
+    // Keep failed/pending rows in storage for idempotent retry, but exclude their
+    // whole pair before applying pagination. Advisor recovery retains the default.
+    const visibility = completePairsOnly ? ` AND status = 'complete' AND content_bytes > 0
+      AND EXISTS (SELECT 1 FROM tavern_turns AS partner
+        WHERE partner.owner_id = tavern_turns.owner_id
+          AND partner.conversation_id = tavern_turns.conversation_id
+          AND partner.client_turn_id = tavern_turns.client_turn_id
+          AND partner.role != tavern_turns.role
+          AND partner.status = 'complete' AND partner.content_bytes > 0)` : ''
     const headers = databaseHandle.prepare(`
       SELECT sequence, content_bytes FROM tavern_turns
-      WHERE owner_id = ? AND conversation_id = ? AND sequence < ?
+      WHERE owner_id = ? AND conversation_id = ? AND sequence < ?${visibility}
       ORDER BY sequence DESC LIMIT ?
     `).all(ownerId, conversationId, beforeSequence || Number.MAX_SAFE_INTEGER, pageLimit)
     const selectedSequences = []

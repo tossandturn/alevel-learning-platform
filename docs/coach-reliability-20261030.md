@@ -16,8 +16,15 @@ Provider completion now ends the read loop immediately, releases the reader and 
 
 Client transfer work is scoped to STEM Coach: sub-megabyte image preparation and page-memory reuse on retry preserve the same request fingerprint. Other IELTS photo consumers retain their existing pipeline. Client and backend deployment evidence are separate; an uploaded development version is not proof that the user's experience version points to it.
 
+## Final-sweep Tavern regression
+
+A real synthetic draw follow-up failed, and the next native resume rejected an empty failed assistant row (`message.content` invalid). Native Tavern resume/message APIs now select completed nonempty pairs before pagination. Pending/failed rows remain in the store, retaining revision, lease and idempotent retry behavior; adviser recovery uses the unchanged default history view.
+
+DeepSeek documents occasional empty JSON-mode content. Only an explicitly stopped, empty JSON response can receive one same-provider retry without the JSON constraint, within the original deadline and with identical trusted prompt/history. Refusals, truncation and HTTP failures are not retried by this rule; output still undergoes media allowlist/schema validation. Schema failures are now classified separately from transport failures. The local regressions cover resumed failed history, pagination through failed turns, a single recovery, completed replay and a second empty response stopping safely.
+
 ## References
 
 - [DeepSeek request keep-alive documentation](https://api-docs.deepseek.com/quick_start/rate_limit/): transport activity is not answer completion.
 - [Original DeepSeek streaming recipe](https://github.com/deepseek-ai/deepseek-recipe/blob/main/docs/streaming.md): streaming protocol reference; no implementation copied.
+- [DeepSeek JSON output](https://api-docs.deepseek.com/guides/json_mode/): documented empty-content edge case and mandatory validation.
 - [Microsoft long-running operation guidance](https://github.com/microsoft/api-guidelines/blob/a7022a299442a8352431874e63ec4dff548a1b81/azure/Guidelines.md#long-running-operations): preserve job identity across transport retries.

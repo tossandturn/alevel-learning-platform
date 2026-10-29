@@ -86,6 +86,7 @@ assert.equal(inflightRecovered.providerCallRequired, true)
 assert.equal(inflightRecovered.conversation.revision, inflightFirst.conversation.revision + 2, 'expiring the abandoned turn and reserving its replacement are separate canonical revisions')
 const inflightMessages = store.getMessages({ ownerId: 'ielts:7003', persona: 'keeper', conversationId: inflightConversation.id, limit: 10 }).messages
 assert.equal(inflightMessages.find((turn) => turn.id === 'inflight-client-0001:assistant')?.status, 'interrupted')
+assert.deepEqual(store.getMessages({ ownerId: 'ielts:7003', persona: 'keeper', conversationId: inflightConversation.id, limit: 10, completePairsOnly: true }).messages, [], 'canonical native history hides pending and interrupted pairs without destroying their recovery state')
 assert.throws(() => store.beginTurn({
   ownerId: 'ielts:7003', persona: 'keeper', conversationId: inflightConversation.id,
   clientTurnId: 'inflight-client-0001', expectedRevision: inflightFirst.conversation.revision,
@@ -186,6 +187,19 @@ assert.ok(newestPage.nextBefore)
 const previousPage = store.getMessages({ ownerId: 'ielts:7001', persona: 'keeper', conversationId: resumed.id, before: newestPage.nextBefore, limit: 40 })
 assert.equal(previousPage.messages.at(-1).sequence, 370)
 assert.equal(previousPage.messages[0].sequence, 331)
+
+const filteredHistory = store.resumeConversation({ ownerId: 'ielts:7010', persona: 'keeper' })
+let filteredRevision = filteredHistory.revision
+for (let i = 0; i < 24; i++) {
+  const input = { ownerId: 'ielts:7010', persona: 'keeper', conversationId: filteredHistory.id, clientTurnId: `filtered-history-${i}`, expectedRevision: filteredRevision, message: `user-${i}`, requestHash: `filtered-hash-${i}` }
+  const pending = store.beginTurn(input)
+  const settled = i < 2 ? store.completeTurn({ ...input, leaseId: pending.leaseId, assistantContent: `reply-${i}` }) : store.failTurn({ ...input, leaseId: pending.leaseId, status: 'unavailable' })
+  filteredRevision = settled.conversation.revision
+}
+const filteredPage = store.getMessages({ ownerId: 'ielts:7010', persona: 'keeper', conversationId: filteredHistory.id, completePairsOnly: true, limit: 2 })
+assert.deepEqual(filteredPage.messages.map(turn => turn.content), ['user-1', 'reply-1'], 'filter before LIMIT so many failed turns cannot hide completed history')
+const filteredOlder = store.getMessages({ ownerId: 'ielts:7010', persona: 'keeper', conversationId: filteredHistory.id, completePairsOnly: true, before: filteredPage.nextBefore, limit: 2 })
+assert.deepEqual(filteredOlder.messages.map(turn => turn.content), ['user-0', 'reply-0'])
 
 const context = store.contextForProvider({
   ownerId: 'ielts:7001',
