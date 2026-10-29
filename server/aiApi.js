@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { createCoachJobs } from './coachJobs.js'
 import crypto from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
@@ -2208,8 +2209,8 @@ function finishCommittedCoachStream(response, payload) {
   }
 }
 
-async function handleCoachStream(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStoreProvider, tavernProvider = null, questionSourceResolver = null) {
-  const payload = await readJsonBody(request)
+async function handleCoachStream(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStoreProvider, tavernProvider = null, questionSourceResolver = null, submittedPayload = null) {
+  const payload = submittedPayload || await readJsonBody(request)
   const authorization = typeof authorizeCoachRequest === 'function'
     ? await authorizeCoachRequest({ request, payload })
     : null
@@ -2717,7 +2718,7 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
   return sendJson(response, 200, { mode: 'offline', code: 'vision_review_failed', provider: lastAttemptedProvider.name, providerStatus: 'error', error: providerMessage(lastError, lastAttemptedProvider), retryable: true })
 }
 
-export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null, authorizeCoachRequest = null, tavernDivinationStore = null, tavernConversationStore = null, tavernMemoryRoot = null, tavernMediaCatalog=null, tavernMediaRoot=DEFAULT_TAVERN_MEDIA_ROOT, admissionsConversationStore = null, admissionsMemoryRoot = null, admissionsCallCompatibleAiStream = callCompatibleAiStream, ieltsTeacherConversationStore = null, ieltsTeacherMemoryRoot = null, ieltsTeacherCallCompatibleAiStream = callCompatibleAiStream }) {
+export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null, authorizeCoachRequest = null, tavernDivinationStore = null, tavernConversationStore = null, tavernMemoryRoot = null, tavernMediaCatalog=null, tavernMediaRoot=DEFAULT_TAVERN_MEDIA_ROOT, admissionsConversationStore = null, admissionsMemoryRoot = null, admissionsCallCompatibleAiStream = callCompatibleAiStream, ieltsTeacherConversationStore = null, ieltsTeacherMemoryRoot = null, ieltsTeacherCallCompatibleAiStream = callCompatibleAiStream, coachJobsRoot = null }) {
   const legacyConfig = providerConfig(env)
   const config = studentProviderConfig(env, legacyConfig)
   const tavernProvider = loadTavernProvider({ env }) || legacyConfig.coach
@@ -2764,6 +2765,27 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
     }
   }
   const questionSourceResolver=createCoachQuestionSourceResolver({questionBankProvider:currentAiMarkingQuestionBank,libraryRoot})
+  const coachJobs=createCoachJobs({
+    root:()=>coachJobsRoot||resolveTavernMemoryRoot(env),
+    authenticate:request=>authenticatedStemUser(request,env),readBody:readJsonBody,sendJson,
+    async validate(request,payload,polling){
+      if(!payload||typeof payload!=='object'||Array.isArray(payload))throw Object.assign(new Error('答疑请求无效。'),{statusCode:400})
+      const feature=resolveCoachFeature({feature:payload.feature,persona:payload.persona})
+      if(feature.feature==='tavern'||feature.feature==='pdf')throw Object.assign(new Error('此入口仅用于学科答疑。'),{statusCode:400,code:'coach_job_feature_invalid'})
+      validateCoachFeaturePayload(feature,payload)
+      const authorization=await authorizeCoachRequest?.({request,payload})
+      const context=applyCoachAuthorization(safeCoachContext(payload.context),authorization)
+      const policy=resolveCoachRequestPolicy({typedIntent:payload.helpIntent,message:compactText(payload.message,3000),context,authorization,verifiedSubmitted:Boolean(authorization?.submitted)||(!polling&&verifiedCoachSubmission(payload,request,env)),feature})
+      if(policy.assessmentState==='active-exam')throw Object.assign(new Error('请提交模拟考试后再使用 AI。'),{statusCode:403,code:'coach_exam_in_progress'})
+      if(!polling&&!compactText(payload.message,3000)&&!coachImageDataUrls(payload).length)throw Object.assign(new Error('请提供题目或图片。'),{statusCode:400})
+      if(!polling)coachImageDataUrls(payload)
+      const binding={}
+      for(const key of ['attemptId','routeId','stage','view','mode','studyMode','paperStudyMode','assessmentMode','responseStatus','paperId','questionId','questionNumber','partId'])if(context[key]!==undefined)binding[key]=context[key]
+      for(const key of ['paper','question','part'])if(context[key])binding[key]={id:context[key].id,...(key==='question'?{number:context[key].number}:{})}
+      return {feature:payload.feature,helpIntent:payload.helpIntent,attemptId:payload.attemptId,context:binding}
+    },
+    run:(request,response,payload)=>handleCoachStream(request,response,config.coach,config.vision,libraryRoot,allowedSubjects,env,telemetry,timeoutConfig,authorizeCoachRequest,divinationStore,conversationStore,tavernProvider,questionSourceResolver,payload),
+  })
   const aiApi = async function aiApi(request, response, next) {
     const requestUrl = new URL(request.url, 'http://127.0.0.1')
     if (!requestUrl.pathname.startsWith('/api/ai/')) return next()
@@ -2790,6 +2812,7 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
       }
       if (await admissionsAdvisor.handle(request, response, requestUrl)) return
       if (await ieltsTeacher.handle(request, response, requestUrl)) return
+      if (await coachJobs.handle(request, response, requestUrl)) return
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/tavern/draw') return await handleTavernDraw(request, response, env, authorizeCoachRequest, divinationStore)
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/tavern/conversations/resume') return await handleTavernConversationResume(request, response, env, authorizeCoachRequest, conversationStore())
       if (request.method === 'GET' && requestUrl.pathname.startsWith('/api/ai/tavern/conversations/') && requestUrl.pathname.endsWith('/messages')) return await handleTavernConversationMessages(requestUrl, request, response, env, authorizeCoachRequest, conversationStore())
@@ -2810,9 +2833,11 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
     }
   }
   aiApi.close = () => {
+    const jobsClosing=coachJobs.close()
     admissionsAdvisor.close()
     ieltsTeacher.close()
     activeConversationStore?.close?.()
+    return jobsClosing
   }
   return aiApi
 }
