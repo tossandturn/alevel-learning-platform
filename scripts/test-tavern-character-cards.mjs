@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { buildTavernSystemPrompt, resolveCoachFeature, tavernPresetDescriptors } from '../server/coachFeatures.js'
 import { TAVERN_CHARACTER_VERSION, tavernCharacterCard, tavernCharacterPrompt } from '../server/tavernPersonas.js'
+import { TAVERN_PRESENTATION } from '../server/tavernPresentation.js'
 
 const expected = ['keeper', 'study-buddy', 'cat-companion', 'story-traveler', 'xianxia-guide', 'mystery-guide', 'eastern-oracle', 'tarot-reader']
 assert.equal(TAVERN_CHARACTER_VERSION, 'tavern-characters.v2')
@@ -13,6 +14,8 @@ for (const id of expected) {
   assert.ok(card.examples.length >= 3)
   assert.ok(card.examples.every(example => Object.isFrozen(example) && example.user && example.reply))
   names.add(card.name)
+  assert.ok(TAVERN_PRESENTATION[id].name.startsWith(card.name))
+  if (['eastern-oracle', 'tarot-reader'].includes(id)) assert.ok(TAVERN_PRESENTATION[id].starters.every(text => !/刚才|刚抽|那张|那一卦/.test(text)), 'empty-history starters must not assume a prior draw')
   const prompt = buildTavernSystemPrompt(resolveCoachFeature({ feature: 'tavern', persona: id }))
   assert.ok(prompt.includes(card.name) && prompt.includes(card.preferences))
   assert.ok(prompt.includes(tavernCharacterPrompt(id)))
