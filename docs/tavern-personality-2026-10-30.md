@@ -19,3 +19,20 @@ Tavern JSON and SSE routes use temperature 0.8 with thinking disabled and the or
 - Native 1.0.73 preview displays the new eight-role catalog without changing its icon/layout implementation. A preview-only automator argument proxy could not be frozen; the test harness was corrected to parse serialized JSON inside the runtime. This was not a normal HTTP-client defect.
 
 Detailed synthetic evidence and deployment receipts are maintained separately under `D:/CodexWork/tavern-personality-20261030/`. Native live-route and deployment results must be recorded after publication; local and direct-provider passes alone are not production acceptance. Physical phone testing is not represented by simulator QA.
+
+## Published and accepted
+
+Runtime commit `3fc5a5ca09406ab00ed767aaaebe4162b3c76517` is deployed as a four-file allowlisted overlay, with verified original-file backups. Gates passed before/after staging, activation and the one STEM-only restart. All four deployed hashes match the pinned Git objects. Existing runtime routing overlays and conversation-store source remain unchanged; the IELTS process PID/restart count and health remained unchanged.
+
+Remote presentation revision `tavern-personality-v2-20261030` is published to develop, trial and release with expected-current CAS and immutable previous revisions retained. Each publication passed pre/post resource and service checks, preserved non-Tavern configuration and required no configuration-service restart. First-use oracle starters were checked not to assume an existing draw.
+
+Production native-client acceptance used the frozen 1.0.73 package and an isolated synthetic QA account:
+
+- Actual page submit returned a contextual banter reply plus an allowlisted original sticker; no loading/error state remained. Three short text turns took approximately 2.50 s, 1.13 s and 1.49 s in the simulator; these are samples, not a phone/network SLA or academic-photo timing.
+- Re-entering the page preserved the requested nickname and drink preference. The reply accurately repeated the stated nickname, preferred drink and excluded drink without adding another fact.
+- Keeper memory test completed. Tarot returned three unique matching card images, preserved upright/reversed orientation and recalled the exact prior cards. The hexagram image and subsequent name recall also matched.
+- All eight final character identity probes used real DeepSeek and returned their intended name. All eight distinguished their own background/examples from absent user pet facts.
+- Native screenshots cover the companion, story and oracle catalogs and an actual reply/sticker. No CSS, new icons or bundle were shipped. Physical phone, tablet, landscape and assistive-technology revalidation were not performed for this backend/presentation-only patch.
+- Synthetic test runtime credentials were never exported; the pre-test native storage was restored and the synthetic runtime session removed. The user's pre-existing project configuration checksum remains unchanged.
+
+Evidence: `acceptance.json`, `tavern-deployment-*.json`, `config-publish-*.json`, `feature-*.json`, `native-dialogue-*.json`, `live-chat.png`, `live-fortune-cards.png`, `live-story-cards.png` in the task evidence folder. `acceptance.json` records PASS with the physical-device and subjective-style limitations explicitly retained. Generated conversation remains probabilistic; this release does not claim every future wording or puzzle inference will be correct.
