@@ -1923,7 +1923,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
       const providerOptions = {
         messages: [{ role: 'system', content: selectedTavernContext?.systemPrompt || coachFeatureSystemPrompt(feature, policy, context, draw)+sourcePrompt }, ...(selectedTavernContext?.history || history), { role: 'user', content }],
         json: activeProvider.name === 'deepseek' && Boolean(selectedTavernContext?.mediaCandidates.length),
-        temperature: 0.2,
+        temperature: feature.feature === 'tavern' ? 0.8 : 0.2,
         metadata: selectedTavernContext?.metadata || coachProviderMetadata(feature, context),
         operation: feature.feature === 'tavern' ? 'coach-tavern' : hasImages ? 'coach-vision' : 'coach',
         requestId,
@@ -2434,7 +2434,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
         })
         const result = await callCompatibleAiStream(activeProvider, {
           messages: [{ role: 'system', content: selectedTavernContext?.systemPrompt || coachFeatureSystemPrompt(feature, policy, context, draw)+sourcePrompt }, ...(selectedTavernContext?.history || history), { role: 'user', content }],
-          temperature: 0.2,
+          temperature: feature.feature === 'tavern' ? 0.8 : 0.2,
           metadata: selectedTavernContext?.metadata || coachProviderMetadata(feature, context),
           operation: feature.feature === 'tavern' ? 'coach-tavern-stream' : hasImages ? 'coach-vision-stream' : 'coach-stream',
           requestId,

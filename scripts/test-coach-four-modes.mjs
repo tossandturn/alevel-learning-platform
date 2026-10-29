@@ -9,6 +9,7 @@ import {
   validateCoachFeaturePayload,
 } from '../server/coachFeatures.js'
 import { resolveCoachRequestPolicy } from '../server/coachPolicy.js'
+import { TAVERN_PRESENTATION } from '../server/tavernPresentation.js'
 
 const learningContext = { view: 'coach-photo', subject: { code: '9702', name: 'Physics' }, stage: 'AS' }
 
@@ -89,18 +90,15 @@ for (const preset of presetDescriptors) {
 assert.equal(new Set(presetDescriptors.map(({ tagline }) => tagline)).size, 8)
 assert.equal(new Set(presetDescriptors.map(({ greeting }) => greeting)).size, 8)
 assert.equal(new Set(presetDescriptors.map(({ starters }) => starters.join('\n'))).size, 8)
-assert.deepEqual(presetDescriptors.slice(0, 6), [
-  { id: 'keeper', title: '温柔树洞', tagline: '先接住你的心情，再慢慢聊。', genreTag: '倾听陪伴', greeting: '今晚的树洞给你留着。想讲点什么，或者只想有人陪你待一会儿？', starters: ['今天有件事想说说', '陪我安静聊一会儿', '给我一个轻松的小问题'] },
-  { id: 'study-buddy', title: '嘴替损友', tagline: '嘴上吐槽，立场永远在你这边。', genreTag: '轻松吐槽', greeting: '来了？先把今天最想吐槽的一件事放桌上，我保证只损事情，不损你。', starters: ['替我吐槽一下今天', '来个不伤人的损友点评', '陪我聊点没用但好玩的'] },
-  { id: 'cat-companion', title: '傲娇猫猫', tagline: '假装不在意，其实一直在听。', genreTag: '猫系陪伴', greeting: '我只是刚好路过，才不是在等你。说吧，今天要聊天、接话，还是听一句别扭的夸奖？', starters: ['猫猫今天在忙什么', '陪我玩三轮接话', '傲娇地夸我一句'] },
-  { id: 'story-traveler', title: '奇幻冒险', tagline: '一句选择，就能走进另一个世界。', genreTag: '互动奇幻', greeting: '旅馆窗外，一封会发光的无名信正等人拆开。你想直接读信，还是先问问送信的银翼鸟？', starters: ['带我走进一座浮空城', '给我两个冒险选择', '继续一段雨夜旅程'] },
-  { id: 'xianxia-guide', title: '江湖剑客', tagline: '一盏热茶，一段属于你的江湖路。', genreTag: '江湖奇遇', greeting: '客官，夜雨封山，前方古镇却亮着一盏无人看守的灯。是进镇避雨，还是沿河道继续赶路？', starters: ['陪我夜探一座古镇', '来一段江湖偶遇', '给我三个行路选择'] },
-  { id: 'mystery-guide', title: '侦探茶室', tagline: '线索都在桌上，真相等你开口。', genreTag: '轻推理', greeting: '茶室打烊后，柜台上的蓝色信封不翼而飞：地板是干的，窗户开着，茶壶却还很烫。你想先查哪条线索？', starters: ['出一道三条线索的小案', '让我询问一位虚构嫌疑人', '继续刚才的谜案'] },
-])
-assert.deepEqual(presetDescriptors.slice(6), [
-  { id: 'eastern-oracle', title: '东方玄学', tagline: '随机起一卦，换个角度看当下。', genreTag: '东方卦签', greeting: '这里的卦签只作休闲启发，不替你决定人生。想带着一个轻问题抽一卦，还是直接看看今天的随机提示？', starters: ['为我随机抽一卦', '用卦签换个角度想想', '解释我刚抽到的卦'], divinationKind: 'hexagram', supportedSpreads: ['single'] },
-  { id: 'tarot-reader', title: '西方塔罗', tagline: '抽一张牌，把问题换个角度摆上桌。', genreTag: '塔罗娱乐', greeting: '牌面只是休闲联想的镜子，不是预言。你想抽单张提示，还是三张看看过去主题、当下主题和可能的方向？', starters: ['抽一张当下提示', '抽三张主题牌', '解读我刚抽到的牌'], divinationKind: 'tarot', supportedSpreads: ['single', 'three'] },
-])
+for (const preset of presetDescriptors) {
+  const presentation = TAVERN_PRESENTATION[preset.id]
+  assert.ok(Object.isFrozen(presentation) && Object.isFrozen(presentation.starters))
+  assert.equal(preset.greeting, presentation.greeting, 'prompt opening and remote presentation use the same source')
+  assert.equal(preset.tagline, presentation.tagline)
+  assert.deepEqual(preset.starters, presentation.starters)
+}
+assert.deepEqual(presetDescriptors[6].supportedSpreads, ['single'])
+assert.deepEqual(presetDescriptors[7].supportedSpreads, ['single', 'three'])
 
 const personaPrompts = new Map()
 for (const [persona, title] of expectedTavernPresets) {
@@ -145,8 +143,8 @@ for (const persona of ['story-traveler', 'xianxia-guide']) {
   assert.match(prompt, /dialogue.*thoughts.*emotions.*inventory.*owned or acquired item/i)
   assert.match(prompt, /objects and events.*world or NPC.*let the user choose/i)
 }
-assert.match(personaPrompts.get('mystery-guide'), /exactly one observation or deduction question per turn/i)
-assert.match(personaPrompts.get('mystery-guide'), /no second optional question.*no choice follow-up/i)
+assert.match(personaPrompts.get('mystery-guide'), /at most one observation or deduction question/i)
+assert.match(personaPrompts.get('mystery-guide'), /ordinary conversation needs no puzzle or question/i)
 assert.match(personaPrompts.get('mystery-guide'), /never state a guess as fact/i)
 assert.match(personaPrompts.get('eastern-oracle'), /entertainment|reflective/i)
 assert.match(personaPrompts.get('eastern-oracle'), /birth chart|生辰|fatality|medical|financial|legal/i)
@@ -156,8 +154,8 @@ for (const persona of ['eastern-oracle', 'tarot-reader']) {
   const prompt = personaPrompts.get(persona)
   assert.match(prompt, /reflection question or metaphor/i)
   assert.match(prompt, /never.*proof.*actual past.*current mood.*personality.*another person's intent.*future/i)
-  assert.match(prompt, /如果……，可以想想……/)
-  assert.match(prompt, /你其实…….*你曾经……/)
+  assert.match(prompt, /uncertainty naturally without a compulsory sentence formula/i)
+  assert.match(prompt, /without.*unsupported assertions about the user/i)
   assert.match(prompt, /start directly.*without.*welcom.*static opening/i)
 }
 assert.equal(resolveCoachFeature({ feature: 'tavern' }).persona, 'keeper')

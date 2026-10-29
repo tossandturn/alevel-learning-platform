@@ -47,6 +47,8 @@ try{
  assert.deepEqual(calls[0].body.thinking,{type:'disabled'})
  assert.equal(calls[0].body.enable_thinking,undefined)
  assert.equal(calls[0].body.model,'deepseek-flash')
+ assert.equal(calls[0].body.temperature,0.8,'Tavern has its own conversational sampling; the client cannot select it')
+ assert.ok(calls[0].body.messages[0].content.includes('示例不是聊天历史'))
  const opened=await request('/api/ai/tavern/conversations/resume',{persona:'keeper'})
  const turn={feature:'tavern',persona:'keeper',message:'抱抱我',mediaVersion:'tavern-media.v1',conversationId:opened.json.conversation.id,clientTurnId:'deepseek-fixture-turn-01',expectedRevision:opened.json.conversation.revision}
  const reply=await request('/api/ai/coach',turn)
@@ -59,10 +61,12 @@ try{
  const academic=await request('/api/ai/coach',{feature:'answers',message:'请给我完整解答 2+2',context:{view:'practice'}})
  assert.equal(academic.json.provider,'openai');assert.equal(calls.at(-1).body.model,'academic-text-fixture')
  assert.equal(calls.at(-1).body.thinking,undefined)
+ assert.equal(calls.at(-1).body.temperature,0.2,'academic sampling is unchanged')
  assert.deepEqual(providerConfig(env),sharedBefore,'shared Coach and vision configuration must remain identical')
  const stream=await fetch(base+'/api/ai/coach/stream',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({feature:'tavern',persona:'keeper',message:'流式测试'})})
  const sse=await stream.text();assert.match(sse,/event: delta/);assert.match(sse,/event: done/);assert.match(sse,/"provider":"deepseek"/)
  assert.deepEqual(calls.at(-1).body.thinking,{type:'disabled'});assert.equal(calls.at(-1).body.stream,true)
+ assert.equal(calls.at(-1).body.temperature,0.8,'SSE uses the same Tavern sampling as JSON')
  const retryTurn={...turn,message:'失败后重试',clientTurnId:'deepseek-fixture-turn-02',expectedRevision:reply.json.conversation.revision}
  const beforeFailure=calls.length;failing=true
  const failed=await request('/api/ai/coach',retryTurn)
