@@ -5,10 +5,12 @@ const flag=value=>['1','true','yes','on'].includes(String(value||'').trim().toLo
 const unavailable=()=>Object.assign(new Error('下载额度暂时无法核验，请稍后重试；已下载进度会保留。'),{statusCode:503,code:'pdf_quota_unavailable'})
 const authRequired=()=>Object.assign(new Error('请登录后继续下载，已下载进度会保留。'),{statusCode:401,code:'pdf_auth_required',headers:{'X-Pdf-Access-Code':'pdf_auth_required'}})
 const canonical=value=>typeof value==='string'&&/^ielts:[1-9]\d{0,14}$/.test(value)&&Number.isSafeInteger(Number(value.slice(6)))
-const quotaEnabled=env=>flag(env.STEM_PDF_DOWNLOAD_QUOTA_ENABLED)&&flag(env.STEM_PDF_DOWNLOAD_QUOTA_READY)
+// This marker only opts a compatible client into stricter checks. It never
+// supplies identity or entitlement and never relaxes the global rollout gate.
+const quotaEnabled=(env,request)=>flag(env.STEM_PDF_DOWNLOAD_QUOTA_ENABLED)&&flag(env.STEM_PDF_DOWNLOAD_QUOTA_READY)||request?.headers?.['x-stemist-download-policy']==='shared-files-v1'
 
 export async function authorizePdfFile({env={},authorizeFile,request,sha256,consume=true}={}){
-  const required=quotaEnabled(env)
+  const required=quotaEnabled(env,request)
   if(typeof authorizeFile!=='function'){
     if(required)throw unavailable()
     return null
@@ -21,7 +23,7 @@ export async function authorizePdfFile({env={},authorizeFile,request,sha256,cons
 
 export function createPdfDownloadPolicy({env={},authenticateRequest,databaseProvider,fetchImpl=fetch,clock=Date.now,timeoutMs=3000}={}){
   const ledgers=new WeakMap(),inflight=new Map()
-  const enabled=()=>quotaEnabled(env)
+  const enabled=request=>quotaEnabled(env,request)
   function ledger(){const database=databaseProvider();let result=ledgers.get(database);if(!result){result=createPdfDownloadLedger({database,clock});ledgers.set(database,result)}return result}
   async function membership(userId){
     if(inflight.has(userId))return inflight.get(userId)
@@ -50,7 +52,7 @@ export function createPdfDownloadPolicy({env={},authenticateRequest,databaseProv
     inflight.set(userId,pending);return pending
   }
   async function authorize({request,sha256,consume=true}={}){
-    if(!enabled())return null
+    if(!enabled(request))return null
     let user
     try{user=await authenticateRequest(request)}catch(error){if(error?.statusCode===401||error?.status===401)throw authRequired();throw unavailable()}
     if(!canonical(user?.id))throw authRequired()
@@ -69,7 +71,7 @@ export function createPdfDownloadPolicy({env={},authenticateRequest,databaseProv
 export function applyPdfQuotaHeaders(response,quota){
   if(!quota)return
   response.setHeader('Cache-Control','private, no-store')
-  response.setHeader('Vary','Authorization, Cookie')
+  response.setHeader('Vary','Authorization, Cookie, X-Stemist-Download-Policy')
   if(quota.metadataOnly)return
   response.setHeader('X-Pdf-Quota-Limit',String(quota.limit))
   response.setHeader('X-Pdf-Quota-Used',String(quota.used))
@@ -91,7 +93,7 @@ export function sendPdfAccessError(response,error){
   response.setHeader('Content-Type','application/json; charset=utf-8')
   response.setHeader('Content-Length',String(body.length))
   response.setHeader('Cache-Control','private, no-store')
-  response.setHeader('Vary','Authorization, Cookie')
+  response.setHeader('Vary','Authorization, Cookie, X-Stemist-Download-Policy')
   response.setHeader('X-Pdf-Access-Code',error.code)
   for(const name of ['ETag','Content-Range','Content-Disposition','Accept-Ranges'])response.removeHeader(name)
   for(const [key,value] of Object.entries(error.headers||{}))response.setHeader(key,value)

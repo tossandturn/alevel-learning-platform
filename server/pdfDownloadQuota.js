@@ -57,7 +57,7 @@ export function createPdfDownloadLedger({ database, clock = Date.now }) {
       }
       const quota = result(userId, period, unlimited, false)
       if (!unlimited && quota.remaining === 0) {
-        throw Object.assign(new Error('今日 2 份免费下载额度已用完，真题与答案合计；北京时间次日零点恢复。'), { statusCode:429, code:'pdf_daily_limit_reached', quota:{...quota,allowed:false}, headers:{'X-Pdf-Access-Code':'pdf_daily_limit_reached','X-Pdf-Quota-Limit':'2','X-Pdf-Quota-Remaining':'0','X-Pdf-Quota-Reset':period.resetAt,'Retry-After':String(Math.max(1,Math.ceil((Date.parse(period.resetAt)-now)/1000)))} })
+        throw Object.assign(new Error('今日 2 份免费下载额度已用完，PDF 与听力音频合计；北京时间次日零点恢复，已缓存文件仍可打开。'), { statusCode:429, code:'pdf_daily_limit_reached', quota:{...quota,allowed:false}, headers:{'X-Pdf-Access-Code':'pdf_daily_limit_reached','X-Pdf-Quota-Limit':'2','X-Pdf-Quota-Remaining':'0','X-Pdf-Quota-Reset':period.resetAt,'Retry-After':String(Math.max(1,Math.ceil((Date.parse(period.resetAt)-now)/1000)))} })
       }
       insert.run(userId, period.day, sha256, unlimited ? 'member' : 'free', new Date(now).toISOString())
       const granted = result(userId, period, unlimited, false)

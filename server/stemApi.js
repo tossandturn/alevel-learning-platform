@@ -12,6 +12,7 @@ import { createNativePaperCatalog } from './nativePaperCatalog.js'
 import { createCurriculumPaperCatalog } from './curriculumPaperCatalog.js'
 import { createPdfDownloadPolicy } from './pdfDownloadPolicy.js'
 import { createIeltsPaperDownloads } from './ieltsPaperDownloads.js'
+import { createIeltsAudioDownloads } from './ieltsAudioDownloads.js'
 import { createNativeQuestionImages } from './nativeQuestionImages.js'
 import { sendPublicCatalogJson } from './publicCatalogJson.js'
 import { createAnnouncementBoard } from './announcementBoard.js'
@@ -2579,6 +2580,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
   // legacy route rollout flags unchanged while sharing the exact same ledger.
   const ieltsPdfQuota=createPdfDownloadPolicy({env:{...env,STEM_PDF_DOWNLOAD_QUOTA_ENABLED:'1',STEM_PDF_DOWNLOAD_QUOTA_READY:'1'},fetchImpl,authenticateRequest:pdfAccess.authenticatePdfRequest,databaseProvider:pdfAccess.databaseProvider})
   const ieltsPaperDownloads=createIeltsPaperDownloads({root:env.STEM_IELTS_DOWNLOADS_ROOT||undefined,authorizeFile:context=>ieltsPdfQuota.authorize(context)})
+  const ieltsAudioDownloads=createIeltsAudioDownloads({root:env.STEM_IELTS_AUDIO_DOWNLOADS_ROOT||undefined,authorizeFile:context=>ieltsPdfQuota.authorize(context)})
   const curriculumPaperCatalog = createCurriculumPaperCatalog({ ...(curriculumPaperCatalogOptions || {}), env, authorizeFile:context=>pdfQuota.authorize(context) })
   const nativeQuestionImages = createNativeQuestionImages({getQuestionBank:()=>currentTopicPracticeQuestionBank(),libraryRoot,env})
   // A single shared server key is sufficient for both the internal account
@@ -2731,6 +2733,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
     try {
       if (await curriculumPaperCatalog.handle(request, response, url)) return
       if (await ieltsPaperDownloads.handle(request, response, url)) return
+      if (await ieltsAudioDownloads.handle(request, response, url)) return
       if(request.method==='GET'&&url.pathname==='/api/stem/practice-source-image'){
         const result=await nativeQuestionImages.image(Object.fromEntries(url.searchParams))
         response.setHeader('Content-Type',result.contentType);response.setHeader('Cache-Control','public, max-age=60, must-revalidate');response.setHeader('ETag','"'+result.sha256+'"');response.setHeader('X-Content-Type-Options','nosniff')
