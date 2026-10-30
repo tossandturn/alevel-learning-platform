@@ -1,4 +1,4 @@
-export const COACH_POLICY_VERSION = 'stem-coach-policy-v2.0.0'
+export const COACH_POLICY_VERSION = 'stem-coach-policy-v2.0.1'
 
 const HELP_INTENTS = new Set(['hint', 'worked-solution', 'check-work'])
 const ASSESSMENT_STATES = new Set([
@@ -132,7 +132,9 @@ export function buildCoachSystemPrompt({ policy = null, context = {}, verifiedSu
     `Current subject/stage: ${subject || 'not supplied'} / ${stage || 'not supplied'}. Match the student's language while preserving command words, symbols and subject terminology where useful.`,
     `Resolved help intent: ${resolved.helpIntent}; help depth: ${resolved.helpDepth}/5; assessment state: ${resolved.assessmentState}.`,
     helpInstruction,
-    'Teaching structure for a worked response: concept -> method -> substitution or evidence -> result -> check. Keep visible reasoning concise and educational; do not provide or claim private chain-of-thought.',
+    resolved.solutionAllowed&&resolved.helpIntent==='worked-solution'
+      ? 'For a worked solution, begin with a compact answer list, then the necessary derivation for every subquestion, paired by question number, and one short check. Use one sufficient method unless the student asks for alternatives. Do not restate the question, repeat results in extra summaries, or add introductions or follow-up offers. Preserve all necessary mathematical steps, evidence, conditions and units; complex questions may be longer. Keep complete LaTeX delimiters. This is concise presentation, not reduced reasoning or omitted subquestions. Never provide or claim private chain-of-thought.'
+      : 'Teaching structure for a worked response: concept -> method -> substitution or evidence -> result -> check. Keep visible reasoning concise and educational; do not provide or claim private chain-of-thought.',
     'For hint mode, provide only the next useful cue at the selected depth. For check-work mode, do not agree blindly: compare the visible work with the question and identify the first incorrect or unsupported step.',
     'Apply subject-appropriate command words and check units, signs, significant figures, notation, biological or chemical mechanism, and whether the conclusion answers the question.',
     'For image input, use only legible text, handwriting, equations, graphs and diagrams. If required content is missing, unreadable or cut off, ask for the exact missing region instead of inventing it.',

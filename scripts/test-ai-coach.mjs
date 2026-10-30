@@ -339,7 +339,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
   assert.equal(providerBodies.length, 1, 'a detailed request should escalate to the configured provider')
   assert.equal(providerTelemetry.length, 1, 'a real Coach provider call must emit one safe telemetry event')
   assert.deepEqual(
-    { ...providerTelemetry[0], durationMs: undefined },
+    { ...providerTelemetry[0], durationMs: undefined, timing:undefined },
     {
       requestId: providerTelemetry[0].requestId,
       operation: 'coach-stream',
@@ -353,10 +353,13 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
       schemaStatus: 'valid',
       finalState: 'connected',
       durationMs: undefined,
+      timing:undefined,
     },
     'provider telemetry must contain only the safe operational fields required by the production contract',
   )
   assert.ok(Number.isFinite(providerTelemetry[0].durationMs) && providerTelemetry[0].durationMs >= 0, 'provider telemetry must record a non-negative duration')
+  assert.ok(providerTelemetry[0].timing.firstAnswerMs>=0)
+  assert.ok(Object.values(providerTelemetry[0].timing).every(value=>Number.isFinite(value)&&value>=0),'segmented telemetry stays numeric-only')
   const providerUserMessage = providerBodies[0].messages.at(-1)
   const providerText = typeof providerUserMessage.content === 'string'
     ? providerUserMessage.content
@@ -474,7 +477,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
       answer: 'non-stream answer',
       sourceLookupAvailable:true,
       model: 'qwen-test-non-stream',
-      coachPolicyVersion: 'stem-coach-policy-v2.0.0',
+      coachPolicyVersion: 'stem-coach-policy-v2.0.1',
       coachHelpIntent: 'hint',
       coachHelpDepth: 3,
       coachSolutionAllowed: false,

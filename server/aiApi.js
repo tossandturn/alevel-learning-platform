@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import { createCoachJobs } from './coachJobs.js'
+import {createAiTiming,safeAiTiming} from './aiTiming.js'
 import crypto from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
@@ -1294,6 +1295,7 @@ function emitProviderTelemetry(telemetry, event) {
     schemaStatus: String(event.schemaStatus || 'unknown').slice(0, 40),
     durationMs: Math.max(0, Number(event.durationMs) || 0),
     finalState: String(event.finalState || 'error').slice(0, 40),
+    ...(event.timing?{timing:safeAiTiming(event.timing)}:{}),
   }
   if (event.failureClass || event.finalState !== 'connected') {
     const totalDeadlineMs = Number(event.totalDeadlineMs)
@@ -2017,8 +2019,9 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   })
 }
 
-async function callCompatibleAiStream(provider, { messages, temperature = 0.2, metadata = null, onDelta, operation = 'ai-stream', requestId = '', providerAttempt = 1, fallbackPath = '', fallback = false, telemetry = null, timeoutMs = DEFAULT_AI_PROVIDER_TIMEOUT_MS, maxTimeoutMs = MAX_AI_PROVIDER_TIMEOUT_MS, totalDeadlineMs = null, deadlineAt = null, outputTokenLimit = null, disableThinking = false, storeResponse = null, reasoningEffortOverride = '' }) {
+export async function callCompatibleAiStream(provider, { messages, temperature = 0.2, metadata = null, onDelta, onTiming = null, operation = 'ai-stream', requestId = '', providerAttempt = 1, fallbackPath = '', fallback = false, telemetry = null, timeoutMs = DEFAULT_AI_PROVIDER_TIMEOUT_MS, maxTimeoutMs = MAX_AI_PROVIDER_TIMEOUT_MS, totalDeadlineMs = null, deadlineAt = null, outputTokenLimit = null, disableThinking = false, storeResponse = null, reasoningEffortOverride = '' }) {
   const startedAt = Date.now()
+  const timing=createAiTiming()
   let statusCode = null
   let schemaStatus = 'not-checked'
   let finalState = provider.apiKey ? 'error' : 'not_configured'
@@ -2054,12 +2057,15 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, m
       }, remainingDeadlineMs)
     }
     resetIdleTimeout()
+    const body=JSON.stringify(providerRequestBody(provider, { messages, temperature, stream: true, metadata, outputTokenLimit, disableThinking, storeResponse, reasoningEffortOverride }))
+    timing.mark('serializationMs')
     const response = await fetch(providerEndpoint(provider), {
       method: 'POST',
       headers: { Authorization: `Bearer ${provider.apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(providerRequestBody(provider, { messages, temperature, stream: true, metadata, outputTokenLimit, disableThinking, storeResponse, reasoningEffortOverride })),
+      body,
       signal: controller.signal,
     })
+    timing.mark('responseHeadersMs')
     resetIdleTimeout()
     statusCode = response.status
     if (!response.ok) {
@@ -2089,6 +2095,9 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, m
         throw new Error('AI provider returned an invalid response schema.')
       }
       schemaStatus = 'valid'
+      timing.usage(payload)
+      timing.mark('firstAnswerMs')
+      timing.mark('streamCompleteMs')
       await onDelta?.(answer)
       finalState = 'connected'
       return { answer, providerStatus: 'connected' }
@@ -2114,6 +2123,7 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, m
       const data = clean.slice(5).trim()
       if (!data) return
       if (data === '[DONE]') {
+        timing.mark('streamCompleteMs')
         receivedDone = true
         eventName = ''
         return
@@ -2126,6 +2136,9 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, m
         throw aiResponseSchemaError(error)
       }
       const responseEventType = String(payload?.type || eventName || '')
+      timing.usage(payload)
+      const reasoning=payload?.choices?.[0]?.delta?.reasoning_content
+      if(typeof reasoning==='string'&&reasoning.length){timing.mark('firstChunkMs');timing.mark('firstReasoningMs')}
       if (responseEventType === 'response.failed' || responseEventType === 'response.error') {
         throw new Error(compactText(payload?.error?.message || payload?.message || 'AI provider stream failed.', 240))
       }
@@ -2139,10 +2152,12 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, m
         if (!answer) {
           const completedText = responseOutputText(payload)
           if (completedText) {
+            timing.mark('firstAnswerMs')
             answer += completedText
             await onDelta?.(completedText)
           }
         }
+        timing.mark('streamCompleteMs')
         receivedDone = true
         eventName = ''
         return
@@ -2155,6 +2170,8 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, m
         ? String(payload?.delta || (responseEventType === 'response.output_text.done' ? payload?.text || '' : ''))
         : String(payload?.choices?.[0]?.delta?.content || payload?.choices?.[0]?.message?.content || '')
       if (!delta) return
+      timing.mark('firstChunkMs')
+      timing.mark('firstAnswerMs')
       answer += delta
       await onDelta?.(delta)
       eventName = ''
@@ -2200,6 +2217,8 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, m
     if (idleTimeout) clearTimeout(idleTimeout)
     if (deadlineTimeout) clearTimeout(deadlineTimeout)
     streamController?.abort()
+    const measuredTiming=timing.snapshot()
+    try{onTiming?.(measuredTiming)}catch{/* Diagnostics cannot change an answer. */}
     emitProviderTelemetry(telemetry, {
       requestId,
       operation,
@@ -2216,6 +2235,7 @@ async function callCompatibleAiStream(provider, { messages, temperature = 0.2, m
       finalState,
       failureClass,
       durationMs: Date.now() - startedAt,
+      timing:measuredTiming,
     })
   }
 }
@@ -2243,6 +2263,8 @@ function finishCommittedCoachStream(response, payload) {
 }
 
 async function handleCoachStream(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStoreProvider, tavernProvider = null, questionSourceResolver = null, submittedPayload = null) {
+  const handlerStarted=performance.now(),providerTimings=[]
+  let preparationMs=0,providerEnded=handlerStarted
   const payload = submittedPayload || await readJsonBody(request)
   const authorization = typeof authorizeCoachRequest === 'function'
     ? await authorizeCoachRequest({ request, payload })
@@ -2432,12 +2454,14 @@ async function handleCoachStream(request, response, provider, visionProvider, li
           ...coachResponseFields(policy, feature, 'pending', draw),
           ...tavernConversationResponse(state, lastMemory),
         })
+        if(providerIndex===0)preparationMs=Math.round(performance.now()-handlerStarted)
         const result = await callCompatibleAiStream(activeProvider, {
           messages: [{ role: 'system', content: selectedTavernContext?.systemPrompt || coachFeatureSystemPrompt(feature, policy, context, draw)+sourcePrompt }, ...(selectedTavernContext?.history || history), { role: 'user', content }],
           temperature: feature.feature === 'tavern' ? 0.8 : 0.2,
           metadata: selectedTavernContext?.metadata || coachProviderMetadata(feature, context),
           operation: feature.feature === 'tavern' ? 'coach-tavern-stream' : hasImages ? 'coach-vision-stream' : 'coach-stream',
           requestId,
+          onTiming:timing=>{providerEnded=performance.now();providerTimings.push({requestId,attempt:providerIndex+1,...timing})},
           providerAttempt: providerIndex + 1,
           fallbackPath: activeProviders.slice(0, providerIndex + 1).map((candidate) => candidate.name).join('>'),
           fallback: providerIndex > 0,
@@ -2510,6 +2534,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
         mode: 'ai',
         provider: successfulProvider.name,
         providerStatus: 'connected',
+        timing:{version:1,preparationMs,providers:providerTimings,finalizeMs:Math.round(performance.now()-providerEnded),handlerTotalMs:Math.round(performance.now()-handlerStarted)},
         ...presentation,
         model: successfulProvider.model,
         ...coachResponseFields(policy, feature, 'complete', draw),
@@ -2570,6 +2595,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
         })
     sendCoachEvent(response, 'done', {
       ...unavailable,
+      timing:{version:1,preparationMs,providers:providerTimings,finalizeMs:Math.round(performance.now()-providerEnded),handlerTotalMs:Math.round(performance.now()-handlerStarted)},
       ...tavernConversationResponse(failedState ? { ...failedState, clientTurnId: state.clientTurnId } : null, lastMemory),
     })
     response.end()

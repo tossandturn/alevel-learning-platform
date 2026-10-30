@@ -10,15 +10,17 @@ const key='synthetic-coach-job-test-key'
 function token(owner=1){const at=Math.floor(Date.now()/1000),a=Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url'),b=Buffer.from(JSON.stringify({iss:'ieltsist.com',aud:'stem.ieltsist.com',sub:`ielts:${owner}`,iat:at,exp:at+600})).toString('base64url');return `${a}.${b}.${crypto.createHmac('sha256',key).update(`${a}.${b}`).digest('base64url')}`}
 const listen=s=>new Promise(resolve=>s.listen(0,'127.0.0.1',()=>resolve(`http://127.0.0.1:${s.address().port}`)))
 let calls=0,exam=false
+const events=[]
 const provider=http.createServer(async(req,res)=>{
  for await(const chunk of req){} calls++
  res.writeHead(200,{'Content-Type':'text/event-stream'})
+ res.write(': keep-alive\n\ndata: {"choices":[{"delta":{"reasoning_content":"synthetic-private-reasoning"}}]}\n\n')
  res.write('data: {"choices":[{"delta":{"content":"先看受力图。"}}]}\n\n')
  await new Promise(resolve=>setTimeout(resolve,150))
  res.end('data: {"choices":[{"delta":{"content":"再列方程。"}}]}\n\ndata: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n')
 })
 const p=await listen(provider)
-const options={env:{AI_PROVIDER:'qwen',STEM_INTERNAL_AUTH_KEY:key,COACH_AI_API_KEY:'synthetic',COACH_AI_BASE_URL:p,COACH_AI_MODEL:'test',VISION_AI_API_KEY:'synthetic',VISION_AI_BASE_URL:p,VISION_AI_MODEL:'test'},libraryRoot:root,allowedSubjects:new Set(),coachJobsRoot:root,telemetry(){},authorizeCoachRequest:()=>exam?{coachAccess:{binding:'authoritative-attempt',assessmentState:'active-exam',solutionAllowed:false}}:null}
+const options={env:{AI_PROVIDER:'qwen',STEM_INTERNAL_AUTH_KEY:key,COACH_AI_API_KEY:'synthetic',COACH_AI_BASE_URL:p,COACH_AI_MODEL:'test',VISION_AI_API_KEY:'synthetic',VISION_AI_BASE_URL:p,VISION_AI_MODEL:'test'},libraryRoot:root,allowedSubjects:new Set(),coachJobsRoot:root,telemetry:event=>events.push(event),authorizeCoachRequest:()=>exam?{coachAccess:{binding:'authoritative-attempt',assessmentState:'active-exam',solutionAllowed:false}}:null}
 let api=createAiApi(options)
 const server=http.createServer((req,res)=>api(req,res,()=>{res.statusCode=404;res.end()}))
 const base=await listen(server),id='cj-testing1234567890123',body={feature:'steps',helpIntent:'hint',message:'请详细提示如何解题',context:{view:'coach-photo'}}
@@ -38,6 +40,15 @@ try{
  const completed=await request(id)
  assert.equal(completed.body.status,'succeeded')
  assert.match(completed.body.result.answer,/再列方程/)
+ assert.equal(completed.body.result.timing?.version,1,'durable result includes segmented latency')
+ const timing=completed.body.result.timing
+ assert.ok(timing.bodyReadMs>=0&&timing.validationMs>=0&&timing.serverTotalMs>=150)
+ assert.equal(timing.providers.length,1)
+ assert.equal(timing.providers[0].requestId,events[0].requestId)
+ assert.ok(events[0].timing.firstAnswerMs>=events[0].timing.firstReasoningMs)
+ assert.ok(events[0].timing.outputMs>=140)
+ assert.ok(events[0].timing.totalMs>=events[0].timing.firstAnswerMs)
+ assert.doesNotMatch(JSON.stringify(timing),/synthetic-private|Bearer|先看受力图/)
  assert.equal(calls,1,'retry must not repeat model generation')
  exam=true;assert.equal((await request(id)).status,403,'polling rechecks current assessment authority');exam=false
  // Drop the initial response connection, then recover by client-generated id.
