@@ -163,7 +163,8 @@
     "qa:0625": "node scripts/qa-reviewed-0625-s25.cjs",
     "qa:ai-first-mistakes-syllabus": "node scripts/qa-ai-first-mistakes-syllabus.cjs",
     "qa:coach": "node scripts/qa-coach-generated.cjs",
-    "preview": "vite preview --configLoader native"
+    "preview": "vite preview --configLoader native",
+    "test:coach-effort": "node scripts/test-coach-effort.mjs && node scripts/test-coach-effort-transport.mjs && node scripts/test-coach-effort-api.mjs && node scripts/test-coach-effort-lease.mjs && node scripts/test-coach-effort-marking-schema.mjs && node scripts/test-coach-effort-whole-paper.mjs"
   },
   "dependencies": {
     "@napi-rs/canvas": "0.1.100",

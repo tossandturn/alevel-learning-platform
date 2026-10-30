@@ -1,4 +1,5 @@
 import crypto from 'node:crypto'
+import {coachEffort,withCoachEffort,coachEffortOutputLimit} from './coachEffort.js'
 
 import {
   callCompatibleAi,
@@ -249,11 +250,12 @@ export function createWholePaperAiRunner({ env = process.env, telemetry = null }
   const config = studentProviderConfig(env)
   const configuredTimeout = timeoutMs(env)
   return async function runWholePaperAi({ job = {}, answerPages = [], questionPaperPages = [], markSchemePages = [], deadlineAt = null, signal = null } = {}) {
+    const effort=coachEffort(job.reasoningEffort)
     if (!answerPages.length || answerPages.some((page) => !/^data:image\/(?:png|jpeg|jpg|webp);base64,/.test(String(page?.dataUrl || '')))) {
       throw wholePaperError('answer_pages_unavailable', 'The student answer pages could not be prepared for visual marking.', { statusCode: 422, retryable: false })
     }
     if (signal?.aborted) throw wholePaperError('marking_timeout', 'Whole-paper marking timed out.')
-    const candidates = providerCandidates(config.vision)
+    const candidates = providerCandidates(withCoachEffort(config.vision,effort))
     if (!candidates.length) throw wholePaperError('vision_not_configured', 'AI vision marking is not configured.')
     const allPages = [...answerPages, ...questionPaperPages, ...markSchemePages]
     if (allPages.length > WHOLE_PAPER_AI_MAX_IMAGES) {
@@ -343,6 +345,7 @@ export function createWholePaperAiRunner({ env = process.env, telemetry = null }
           telemetry,
           timeoutMs: configuredTimeout,
           maxTimeoutMs: WHOLE_PAPER_AI_MAX_TIMEOUT_MS,
+          ...(effort?{outputTokenLimit:coachEffortOutputLimit(effort,null)}:{}),
           ...privateResponsesOptions(provider),
           totalDeadlineMs: Number.isFinite(deadlineAt) ? Math.max(0, deadlineAt - Date.now()) : null,
           deadlineAt,

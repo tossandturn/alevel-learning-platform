@@ -1,4 +1,5 @@
 import { TAVERN_DIVINATION_CONFIG } from './tavernDivination.js'
+import {coachEffort} from './coachEffort.js'
 import { tavernCharacterPrompt } from './tavernPersonas.js'
 import { TAVERN_PRESENTATION } from './tavernPresentation.js'
 
@@ -200,6 +201,7 @@ export function resolveCoachFeature({ feature = '', persona = '' } = {}) {
 }
 
 export function validateCoachFeaturePayload(feature, payload = {}) {
+  coachEffort(payload.reasoningEffort)
   if(Object.hasOwn(payload,'mediaVersion')&&(feature.feature!=='tavern'||payload.mediaVersion!=='tavern-media.v1'))throw featureError(400,'coach_media_version_invalid','This media reply capability is not supported.')
   if (feature.rejectCoachEndpoint) {
     throw featureError(409, 'coach_pdf_marking_required', 'Open PDF 阅卷 to upload and mark a complete paper.', { action: feature.dedicatedPath })

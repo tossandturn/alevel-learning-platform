@@ -136,6 +136,7 @@ try {
     title: 'Physics whole-paper practice',
     studentLabel: 'Student A',
     instructions: 'Review clarity only. This is report context, not a model instruction.',
+    reasoningEffort: 'high',
     routeId: 'cie-9702-as-physics',
     stage: 'AS',
     paperId: 'student-uploaded-mock-1',
@@ -149,6 +150,7 @@ try {
   const created = await call(api, { method: 'POST', url: '/api/stem/paper-marking-jobs', token: ownerToken, json: createBody })
   assert.equal(created.statusCode, 201, JSON.stringify(created.payload))
   assert.equal(created.payload.status, 'draft')
+  assert.equal(created.payload.reasoningEffort,'high')
   assert.match(created.payload.expiresAt, /^\d{4}-\d{2}-\d{2}T/)
   assert.equal(created.payload.assets.length, 4)
   assert.ok(created.payload.assets.every((asset) => asset.status === 'awaiting-upload' && asset.clientAssetId && asset.assetId && asset.fileName))
@@ -160,6 +162,8 @@ try {
   assert.equal(idempotentCreate.statusCode, 200)
   assert.equal(idempotentCreate.payload.jobId, jobId)
   assert.equal(idempotentCreate.payload.duplicate, true)
+  assert.equal((await call(api,{method:'POST',url:'/api/stem/paper-marking-jobs',token:ownerToken,json:{...createBody,reasoningEffort:'max'}})).statusCode,409,'changing job effort requires a new request ID')
+  assert.equal((await call(api,{method:'POST',url:'/api/stem/paper-marking-jobs',token:ownerToken,json:{...createBody,clientRequestId:'invalid-effort-0001',reasoningEffort:'medium'}})).statusCode,400)
   const conflictingCreate = await call(api, { method: 'POST', url: '/api/stem/paper-marking-jobs', token: ownerToken, json: { ...createBody, title: 'Changed title' } })
   assert.equal(conflictingCreate.statusCode, 409)
   assert.equal(conflictingCreate.payload.code, 'idempotency_conflict')
@@ -218,6 +222,8 @@ try {
 
   const completed = await waitForStatus(api, jobId, ownerToken, ['completed'])
   assert.equal(runnerCalls.length, 1, 'duplicate submit must not start or charge a second processing attempt')
+  assert.equal(runnerCalls[0].job.reasoningEffort,'high','persisted effort must reach the worker')
+  assert.equal(completed.payload.reasoningEffort,'high','history must retain the job effort')
   assert.equal(completed.payload.result.assessmentMode, 'ai-provisional')
   assert.equal(completed.payload.result.provisionalScore, null, 'missing pages/questions must suppress an apparently complete total')
   assert.equal(completed.payload.result.maxScore, null)

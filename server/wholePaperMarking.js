@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import {coachEffort} from './coachEffort.js'
 
 import {
   WHOLE_PAPER_LIMITS,
@@ -219,7 +220,7 @@ function normalizeFileSpec(value) {
 
 function normalizeCreatePayload(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw serviceError('job_request_invalid', 'A whole-paper marking request is required.')
-  const allowed = new Set(['schemaVersion', 'clientRequestId', 'title', 'studentLabel', 'instructions', 'routeId', 'stage', 'paperId', 'files'])
+  const allowed = new Set(['schemaVersion', 'clientRequestId', 'title', 'studentLabel', 'instructions', 'routeId', 'stage', 'paperId', 'files', 'reasoningEffort'])
   if (Object.keys(value).some((key) => !allowed.has(key))) throw serviceError('job_request_invalid', 'The marking request contains unsupported fields.')
   if (value.schemaVersion !== WHOLE_PAPER_JOB_SCHEMA_VERSION) throw serviceError('job_schema_invalid', `schemaVersion must be ${WHOLE_PAPER_JOB_SCHEMA_VERSION}.`)
   const clientRequestId = text(value.clientRequestId, 100)
@@ -250,6 +251,7 @@ function normalizeCreatePayload(value) {
   if (totalSize > WHOLE_PAPER_LIMITS.maxJobBytes) throw serviceError('job_size_limit', 'The whole marking job must be 40 MiB or smaller.', 413)
   return Object.freeze({
     schemaVersion: WHOLE_PAPER_JOB_SCHEMA_VERSION,
+    ...(value.reasoningEffort!==undefined?{reasoningEffort:coachEffort(value.reasoningEffort)}:{}),
     clientRequestId,
     title,
     studentLabel,
@@ -275,6 +277,7 @@ function ensureTables(database) {
       route_id TEXT NOT NULL,
       stage TEXT NOT NULL,
       paper_id TEXT NOT NULL,
+      reasoning_effort TEXT CHECK (reasoning_effort IS NULL OR reasoning_effort IN ('low','high','max')),
       status TEXT NOT NULL,
       progress_json TEXT NOT NULL,
       submission_hash TEXT,
@@ -319,6 +322,7 @@ function ensureTables(database) {
     CREATE INDEX IF NOT EXISTS idx_whole_paper_assets_job ON whole_paper_marking_assets(job_id, role, file_order);
     CREATE INDEX IF NOT EXISTS idx_whole_paper_assets_user ON whole_paper_marking_assets(user_id, status);
   `)
+  if(!database.prepare('PRAGMA table_info(whole_paper_marking_jobs)').all().some(column=>column.name==='reasoning_effort'))database.exec("ALTER TABLE whole_paper_marking_jobs ADD COLUMN reasoning_effort TEXT CHECK (reasoning_effort IS NULL OR reasoning_effort IN ('low','high','max'))")
 }
 
 function safeResult(value, hasQuestionPaper, hasMarkScheme) {
@@ -615,6 +619,7 @@ export function createWholePaperMarkingService({
       routeId: row.route_id || null,
       stage: row.stage || null,
       paperId: row.paper_id || null,
+      ...(row.reasoning_effort?{reasoningEffort:row.reasoning_effort}:{}),
       progress: publicProgress(row, storedAssets),
       assets,
       processingAttempt: Number(row.processing_attempt) || 0,
@@ -685,11 +690,11 @@ export function createWholePaperMarkingService({
     try {
       database.prepare(`
         INSERT INTO whole_paper_marking_jobs
-          (id, user_id, client_request_id, request_hash, title, student_label, instructions, route_id, stage, paper_id,
+          (id, user_id, client_request_id, request_hash, title, student_label, instructions, route_id, stage, paper_id, reasoning_effort,
            status, progress_json, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?)
       `).run(jobId, user.id, normalized.clientRequestId, hash, normalized.title, normalized.studentLabel, normalized.instructions,
-        normalized.routeId, normalized.stage, normalized.paperId,
+        normalized.routeId, normalized.stage, normalized.paperId, normalized.reasoningEffort??null,
         JSON.stringify(storedProgress('awaiting-upload', {}, {}, createdAt)), createdAt, createdAt)
       for (const file of normalized.files) {
         database.prepare(`
@@ -997,7 +1002,7 @@ export function createWholePaperMarkingService({
     const renderedPages = answerPages.length + questionPaperPages.length + markSchemePages.length
     updateProgress(job, { stage: 'ai-review', completedPages: renderedPages, totalPages: totalVisualPages })
     const rawResult = await runAi({
-      job: { id: job.id, title: job.title, studentLabel: job.student_label, instructions: job.instructions, routeId: job.route_id, stage: job.stage, paperId: job.paper_id },
+      job: { id: job.id, title: job.title, studentLabel: job.student_label, instructions: job.instructions, routeId: job.route_id, stage: job.stage, paperId: job.paper_id, ...(job.reasoning_effort?{reasoningEffort:job.reasoning_effort}:{}) },
       answerPages,
       questionPaperPages,
       markSchemePages,

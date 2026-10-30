@@ -604,7 +604,8 @@ export function createTavernConversationStore({
     return publicConversation(result)
   }
 
-  function beginTurn({ ownerId: ownerInput, persona: personaInput, conversationId: conversationInput, clientTurnId: clientInput, expectedRevision, message, requestHash, draw = null } = {}) {
+  function beginTurn({ ownerId: ownerInput, persona: personaInput, conversationId: conversationInput, clientTurnId: clientInput, expectedRevision, message, requestHash, draw = null, leaseDurationMs = leaseTtlMs } = {}) {
+    if(!Number.isInteger(leaseDurationMs)||leaseDurationMs<1000||leaseDurationMs>10*60*1000)throw memoryError(400,'tavern_lease_invalid','Invalid internal generation lease.')
     const ownerId = ownerValue(ownerInput)
     const persona = personaValue(personaInput, personaSet)
     const conversationId = boundedId(conversationInput, 'tavern_conversation_id_invalid', 'conversationId')
@@ -664,7 +665,7 @@ export function createTavernConversationStore({
         databaseHandle.prepare(`
           UPDATE tavern_turns SET content = '', content_bytes = 0, status = 'pending', provider = NULL, model = NULL, memory_json = NULL, lease_id = ?, lease_expires_at = ?, updated_at = ?
           WHERE owner_id = ? AND conversation_id = ? AND client_turn_id = ? AND role = 'assistant'
-        `).run(leaseId, leaseNow + leaseTtlMs, nowText, ownerId, conversationId, clientTurnId)
+        `).run(leaseId, leaseNow + leaseDurationMs, nowText, ownerId, conversationId, clientTurnId)
         databaseHandle.prepare(`
           UPDATE tavern_conversations SET revision = revision + 1, updated_at = ?
           WHERE owner_id = ? AND conversation_id = ?
@@ -720,7 +721,7 @@ export function createTavernConversationStore({
         INSERT INTO tavern_turns
           (owner_id, conversation_id, sequence, turn_id, client_turn_id, role, content, content_bytes, status, request_hash, lease_id, lease_expires_at, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, 'assistant', '', 0, 'pending', ?, ?, ?, ?, ?)
-      `).run(ownerId, conversationId, assistantSequence, `${clientTurnId}:assistant`, clientTurnId, hash, leaseId, Number(now()) + leaseTtlMs, nowText, nowText)
+      `).run(ownerId, conversationId, assistantSequence, `${clientTurnId}:assistant`, clientTurnId, hash, leaseId, Number(now()) + leaseDurationMs, nowText, nowText)
       databaseHandle.prepare(`
         UPDATE tavern_conversations SET revision = revision + 1, turn_count = turn_count + 2, next_sequence = ?, updated_at = ?
         WHERE owner_id = ? AND conversation_id = ?

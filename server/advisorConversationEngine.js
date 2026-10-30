@@ -1,11 +1,12 @@
 import crypto from 'node:crypto'
+import {coachEffort,withCoachEffort,coachEffortBudget,coachEffortOutputLimit} from './coachEffort.js'
 
 import { createTavernConversationStore } from './tavernConversationStore.js'
 
 const MAX_JSON_BODY_BYTES = 128 * 1024
 const MAX_PAGE_LIMIT = 40
 const RESUME_FIELDS = new Set(['conversationId'])
-const STREAM_FIELDS = new Set(['conversationId', 'clientTurnId', 'expectedRevision', 'message'])
+const STREAM_FIELDS = new Set(['conversationId', 'clientTurnId', 'expectedRevision', 'message', 'reasoningEffort'])
 const MESSAGE_QUERY_FIELDS = new Set(['before', 'limit'])
 
 function advisorError(statusCode, code, message, extra = {}) {
@@ -137,13 +138,14 @@ function advisorMessage(role, value) {
   return clean
 }
 
-function logicalRequestHash(role, { conversationId, clientTurnId, message }) {
+function logicalRequestHash(role, { conversationId, clientTurnId, message, reasoningEffort }) {
   return crypto.createHash('sha256').update(JSON.stringify({
     feature: role.feature,
     persona: role.persona,
     conversationId,
     clientTurnId,
     message,
+    ...(reasoningEffort!==undefined?{reasoningEffort}:{}),
   })).digest('hex')
 }
 
@@ -286,7 +288,7 @@ export function createAdvisorConversationEngine({
   const role = assertRoleConfig(rawRole)
   if (typeof authenticateRequest !== 'function') throw new Error(copy(role, 'authenticatorRequired'))
   if (typeof callCompatibleAiStream !== 'function') throw new Error(copy(role, 'streamTransportRequired'))
-  const candidates = Array.isArray(providerCandidates) ? [...providerCandidates] : []
+  const defaultCandidates = Array.isArray(providerCandidates) ? [...providerCandidates] : []
   const providerTimeoutMs = Math.min(45_000, Math.max(250, Number(timeoutConfig.providerTimeoutMs) || 25_000))
   const totalDeadlineMs = Math.min(role.maxDeadlineMs, Math.max(250, Number(timeoutConfig.totalDeadlineMs) || 50_000))
   const conversationsPrefix = `${role.apiPrefix}conversations/`
@@ -403,7 +405,7 @@ export function createAdvisorConversationEngine({
   async function streamConversation(request, response) {
     const payload = objectPayload(role, await readJsonBody(role, request))
     assertAllowedFields(role, payload, STREAM_FIELDS)
-    if ([...STREAM_FIELDS].some((field) => !Object.hasOwn(payload, field))) {
+    if ([...STREAM_FIELDS].some((field) => field!=='reasoningEffort'&&!Object.hasOwn(payload, field))) {
       throw roleError(role, 400, 'request_invalid', 'streamFieldsRequired')
     }
     const conversationId = boundedIdentifier(role, payload.conversationId, 'conversationId')
@@ -412,8 +414,10 @@ export function createAdvisorConversationEngine({
       throw roleError(role, 400, 'request_invalid', 'revisionInvalid')
     }
     const message = advisorMessage(role, payload.message)
+    const effort=coachEffort(payload.reasoningEffort)
+    const requestBudget=coachEffortBudget(effort,{providerTimeoutMs,totalDeadlineMs})
     const ownerId = await authorize(request)
-    const requestHash = logicalRequestHash(role, { conversationId, clientTurnId, message })
+    const requestHash = logicalRequestHash(role, { conversationId, clientTurnId, message, reasoningEffort:payload.reasoningEffort })
     const completedReplay = storeCall(role, () => store().replayCompletedTurn({
       ownerId,
       persona: role.persona,
@@ -440,6 +444,7 @@ export function createAdvisorConversationEngine({
       generatedReceipt ||= volatileGeneratedResult({ ownerId, conversationId, clientTurnId, message, requestHash })
       if (!generatedReceipt && receiptReadError) throw receiptReadError
     }
+    const candidates=effort&&!completedReplay&&!generatedReceipt?defaultCandidates.map(provider=>withCoachEffort(provider,effort)):defaultCandidates
     const state = completedReplay || generatedReceipt || storeCall(role, () => store().beginTurn({
       ownerId,
       persona: role.persona,
@@ -448,11 +453,12 @@ export function createAdvisorConversationEngine({
       expectedRevision: payload.expectedRevision,
       message,
       requestHash,
+      leaseDurationMs:effort?Math.max(90000,requestBudget.totalDeadlineMs+15000):undefined,
     }))
 
     const canonicalMessage = state.turns.find((turn) => turn.role === 'user')?.content || message
     const metadata = { stemCoachContext: { feature: role.feature, persona: role.persona } }
-    const deadlineAt = Date.now() + totalDeadlineMs
+    const deadlineAt = Date.now() + requestBudget.totalDeadlineMs
     const requestId = crypto.randomUUID()
     let lastProvider = candidates[0] || null
     let lastContextMemory = null
@@ -596,10 +602,11 @@ export function createAdvisorConversationEngine({
             fallbackPath: candidates.slice(0, providerIndex + 1).map((candidate) => candidate.name).join('>'),
             fallback: providerIndex > 0,
             telemetry,
-            timeoutMs: providerTimeoutMs,
-            totalDeadlineMs,
+            timeoutMs: requestBudget.providerTimeoutMs,
+            maxTimeoutMs:requestBudget.maxTimeoutMs,
+            totalDeadlineMs:requestBudget.totalDeadlineMs,
             deadlineAt,
-            outputTokenLimit: 4096,
+            outputTokenLimit:coachEffortOutputLimit(effort,4096),
             storeResponse: false,
             onDelta: async (delta) => {
               const text = String(delta || '')

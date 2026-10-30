@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import { createCoachJobs } from './coachJobs.js'
 import {createAiTiming,safeAiTiming} from './aiTiming.js'
+import {coachEffort,withCoachEffort,coachEffortBudget,coachEffortOutputLimit} from './coachEffort.js'
 import crypto from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
@@ -1117,7 +1118,8 @@ function responsesInstructions(messages = []) {
 
 function providerRequestBody(provider, { messages, temperature = 0.2, stream = false, json = false, metadata = null, outputTokenLimit = null, disableThinking = false, storeResponse = null, reasoningEffortOverride = '' }) {
   const safeMetadata = providerMetadata(metadata)
-  const boundedOutputTokens = Number.isInteger(outputTokenLimit) && outputTokenLimit > 0 ? Math.min(8192, outputTokenLimit) : null
+  const outputCap = provider.name === 'deepseek' && provider.studentEffort ? coachEffortOutputLimit(provider.studentEffort,8192) : 8192
+  const boundedOutputTokens = Number.isInteger(outputTokenLimit) && outputTokenLimit > 0 ? Math.min(outputCap, outputTokenLimit) : null
   if (isResponsesProvider(provider)) {
     const instructions = responsesInstructions(messages)
     return {
@@ -1676,6 +1678,7 @@ function tavernLogicalRequestHash({ feature, payload, message }) {
     message,
     drawId: String(payload.drawId || ''),
     attemptId: String(payload.attemptId || ''),
+    ...(payload.reasoningEffort !== undefined ? {reasoningEffort:coachEffort(payload.reasoningEffort)} : {}),
   })).digest('hex')
 }
 
@@ -1777,6 +1780,8 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
     : null
   const feature = resolveCoachFeature({ feature: payload.feature, persona: payload.persona })
   validateCoachFeaturePayload(feature, payload)
+  const effort = coachEffort(payload.reasoningEffort)
+  if(effort)withCoachEffort(feature.feature==='tavern'&&tavernProvider?tavernProvider:payload.imageDataUrl||payload.imageDataUrls?.length?visionProvider:provider,effort)
   const message = compactText(payload.message, feature.feature === 'tavern' ? 12_000 : 3000)
   const stateRequest = statefulTavernRequest(feature, payload)
   const history = feature.feature === 'tavern'
@@ -1840,6 +1845,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
       message: storedMessage,
       requestHash,
       draw,
+      leaseDurationMs:effort?coachEffortBudget(effort,{totalDeadlineMs:75000}).totalDeadlineMs+15000:undefined,
     }),
     clientTurnId: stateRequest.clientTurnId,
   } : null
@@ -1863,7 +1869,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
     throw Object.assign(new Error('Sign in to STEM before using detailed AI Coach.'), { statusCode: 401 })
   }
   const configuredProvider = feature.feature === 'tavern' && tavernProvider ? tavernProvider : hasImages ? visionProvider : provider
-  const activeProviders = providerCandidates(configuredProvider)
+  const activeProviders = effort ? providerCandidates(withCoachEffort(configuredProvider,effort)) : providerCandidates(configuredProvider)
   if (!activeProviders.length) {
     const failedState = state ? stateStore.failTurn({
       ownerId: authenticatedUserId,
@@ -1888,9 +1894,9 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   const userText = feature.feature === 'tavern'
     ? coachTavernRequestContext(feature, message)
     : coachRequestContext(context, message)
-  const requestBudget = hasImages
+  const requestBudget = coachEffortBudget(effort, hasImages
     ? { providerTimeoutMs: timeoutConfig.visionProviderTimeoutMs, totalDeadlineMs: timeoutConfig.visionTotalDeadlineMs }
-    : { providerTimeoutMs: timeoutConfig.providerTimeoutMs, totalDeadlineMs: timeoutConfig.totalDeadlineMs }
+    : { providerTimeoutMs: timeoutConfig.providerTimeoutMs, totalDeadlineMs: timeoutConfig.totalDeadlineMs })
   const deadlineAt = Date.now() + requestBudget.totalDeadlineMs
   const requestId = crypto.randomUUID()
   const source=feature.feature!=='tavern'&&questionSourceResolver?{status:'deferred',available:policy.assessmentState!=='unverified-bound-assessment'}:null
@@ -1934,16 +1940,17 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
         fallback: providerIndex > 0,
         telemetry,
         timeoutMs: requestBudget.providerTimeoutMs,
+        maxTimeoutMs:requestBudget.maxTimeoutMs,
         totalDeadlineMs: requestBudget.totalDeadlineMs,
         deadlineAt,
         ...(feature.feature === 'tavern' ? {
-          outputTokenLimit: 2048,
-          disableThinking: true,
+          outputTokenLimit: coachEffortOutputLimit(effort,2048),
+          disableThinking: !effort,
           ...(state ? {
             storeResponse: false,
             reasoningEffortOverride: isResponsesProvider(activeProvider) && String(activeProvider.model).toLowerCase() === 'gpt-5.5' ? 'none' : '',
           } : {}),
-        } : {}),
+        } : effort ? {outputTokenLimit:coachEffortOutputLimit(effort,null)} : {}),
       }
       let answer
       try { answer = await callCompatibleAi(activeProvider, providerOptions) }
@@ -2271,6 +2278,8 @@ async function handleCoachStream(request, response, provider, visionProvider, li
     : null
   const feature = resolveCoachFeature({ feature: payload.feature, persona: payload.persona })
   validateCoachFeaturePayload(feature, payload)
+  const effort = coachEffort(payload.reasoningEffort)
+  if(effort)withCoachEffort(feature.feature==='tavern'&&tavernProvider?tavernProvider:payload.imageDataUrl||payload.imageDataUrls?.length?visionProvider:provider,effort)
   const message = compactText(payload.message, feature.feature === 'tavern' ? 12_000 : 3000)
   const stateRequest = statefulTavernRequest(feature, payload)
   const history = feature.feature === 'tavern'
@@ -2323,6 +2332,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
       message: storedMessage,
       requestHash,
       draw,
+      leaseDurationMs:effort?coachEffortBudget(effort,{totalDeadlineMs:75000}).totalDeadlineMs+15000:undefined,
     }),
     clientTurnId: stateRequest.clientTurnId,
   } : completedReplay ? { ...completedReplay, clientTurnId: stateRequest.clientTurnId } : null
@@ -2376,7 +2386,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
     return
   }
   const configuredProvider = feature.feature === 'tavern' && tavernProvider ? tavernProvider : hasImages ? visionProvider : provider
-  const activeProviders = providerCandidates(configuredProvider)
+  const activeProviders = effort ? providerCandidates(withCoachEffort(configuredProvider,effort)) : providerCandidates(configuredProvider)
   if (!activeProviders.length) {
     const failedState = state ? stateStore.failTurn({
       ownerId: authenticatedUserId,
@@ -2405,9 +2415,9 @@ async function handleCoachStream(request, response, provider, visionProvider, li
   const userText = feature.feature === 'tavern'
     ? coachTavernRequestContext(feature, message)
     : coachRequestContext(context, message)
-  const requestBudget = hasImages
+  const requestBudget = coachEffortBudget(effort, hasImages
     ? { providerTimeoutMs: timeoutConfig.visionProviderTimeoutMs, totalDeadlineMs: timeoutConfig.visionTotalDeadlineMs }
-    : { providerTimeoutMs: timeoutConfig.providerTimeoutMs, totalDeadlineMs: timeoutConfig.totalDeadlineMs }
+    : { providerTimeoutMs: timeoutConfig.providerTimeoutMs, totalDeadlineMs: timeoutConfig.totalDeadlineMs })
   const deadlineAt = Date.now() + requestBudget.totalDeadlineMs
   const requestId = crypto.randomUUID()
   const source=feature.feature!=='tavern'&&questionSourceResolver?{status:'deferred',available:policy.assessmentState!=='unverified-bound-assessment'}:null
@@ -2467,16 +2477,17 @@ async function handleCoachStream(request, response, provider, visionProvider, li
           fallback: providerIndex > 0,
           telemetry,
           timeoutMs: requestBudget.providerTimeoutMs,
+          maxTimeoutMs:requestBudget.maxTimeoutMs,
           totalDeadlineMs: requestBudget.totalDeadlineMs,
           deadlineAt,
           ...(feature.feature === 'tavern' ? {
-            outputTokenLimit: 2048,
-            disableThinking: true,
+            outputTokenLimit: coachEffortOutputLimit(effort,2048),
+            disableThinking: !effort,
             ...(state ? {
               storeResponse: false,
               reasoningEffortOverride: isResponsesProvider(activeProvider) && String(activeProvider.model).toLowerCase() === 'gpt-5.5' ? 'none' : '',
             } : {}),
-          } : {}),
+          } : effort ? {outputTokenLimit:coachEffortOutputLimit(effort,null)} : {}),
           onDelta: async (delta) => {
             attemptAnswer += delta
             const visible=sourceStream?sourceStream.push(delta):delta

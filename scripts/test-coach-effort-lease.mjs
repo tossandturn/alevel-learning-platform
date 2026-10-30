@@ -1,0 +1,7 @@
+import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import path from 'node:path'
+import {createTavernConversationStore} from '../server/tavernConversationStore.js'
+fs.mkdirSync('.tmp-test',{recursive:true});const root=fs.mkdtempSync(path.resolve('.tmp-test/effort-lease-'));let now=Date.UTC(2026,9,30)
+const store=createTavernConversationStore({root,now:()=>now,leaseTtlMs:1000}),ownerId='ielts:8814',persona='keeper'
+try{const conversation=store.resumeConversation({ownerId,persona});const state=store.beginTurn({ownerId,persona,conversationId:conversation.id,clientTurnId:'selected-max-turn',message:'hello',requestHash:'a'.repeat(64),expectedRevision:conversation.revision,leaseDurationMs:130000});now+=110000;assert.throws(()=>store.beginTurn({ownerId,persona,conversationId:conversation.id,clientTurnId:'competing-turn-2',message:'another',requestHash:'b'.repeat(64),expectedRevision:state.conversation.revision}),e=>/in_progress/.test(e.code),'selected long thought must retain its owned generation lease');const done=store.completeTurn({ownerId,persona,conversationId:conversation.id,clientTurnId:'selected-max-turn',leaseId:state.leaseId,assistantContent:'hello back',provider:'deepseek',model:'deepseek-flash'});assert.equal(done.turns.at(-1).content,'hello back');console.log('Coach effort lease: in-flight long reasoning cannot be duplicated or expire before bounded completion PASS.')}finally{store.close();assert.equal(path.dirname(root),path.resolve('.tmp-test'));fs.rmSync(root,{recursive:true,force:true})}
