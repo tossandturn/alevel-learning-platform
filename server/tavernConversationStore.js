@@ -110,6 +110,28 @@ function publicTurn(row) {
   }
 }
 
+// Render-only history metadata. Never returns owner/nonce/provider fields or
+// authorizes another interpretation of an expired receipt.
+function publicHistoryDraw(encoded, persona) {
+  if (!encoded || !['tarot-reader', 'eastern-oracle'].includes(persona) || Buffer.byteLength(String(encoded), 'utf8') > 16 * 1024) return null
+  try {
+    const value = JSON.parse(String(encoded)), kind = persona === 'tarot-reader' ? 'tarot' : 'hexagram'
+    const id = item => typeof item === 'string' && /^[A-Za-z0-9:_-]{1,160}$/.test(item)
+    const text = (item, max) => typeof item === 'string' && item.trim() && item.length <= max
+    const time = item => typeof item === 'number' ? item : Date.parse(item)
+    if (!value || value.kind !== kind || !id(value.id) || !text(value.deckVersion, 80) || value.entertainmentOnly !== true) return null
+    if (!['single', 'three'].includes(value.spread) || kind === 'hexagram' && value.spread !== 'single') return null
+    const createdAt = time(value.createdAt), expiresAt = time(value.expiresAt)
+    if (!Number.isFinite(createdAt) || createdAt < 0 || !Number.isFinite(expiresAt) || expiresAt <= createdAt || !Array.isArray(value.cards) || value.cards.length !== (value.spread === 'three' ? 3 : 1)) return null
+    const cards = [], seen = new Set()
+    for (const card of value.cards) {
+      if (!card || !id(card.id) || seen.has(card.id) || !text(card.name, 120) || !text(card.position, 80) || kind === 'tarot' && !['upright', 'reversed'].includes(card.orientation)) return null
+      seen.add(card.id); cards.push({ id: card.id, name: card.name, position: card.position, ...(kind === 'tarot' ? { orientation: card.orientation } : {}) })
+    }
+    return { id: value.id, kind, spread: value.spread, deckVersion: value.deckVersion, createdAt, expiresAt, entertainmentOnly: true, cards }
+  } catch { return null }
+}
+
 function tokenize(value) {
   const text = String(value || '').normalize('NFKC').toLowerCase()
   const latin = text.match(/[a-z0-9]{2,}/g) || []
@@ -1056,8 +1078,16 @@ export function createTavernConversationStore({
       selectedSequences.push(Number(header.sequence))
       estimatedBytes += rowBytes
     }
-    const selectTurn = databaseHandle.prepare('SELECT * FROM tavern_turns WHERE owner_id = ? AND conversation_id = ? AND sequence = ?')
-    let messages = selectedSequences.map((sequence) => selectTurn.get(ownerId, conversationId, sequence)).filter(Boolean).reverse().map(publicTurn)
+    const selectTurn = databaseHandle.prepare(`SELECT result.*, source.draw_json AS history_draw_json
+      FROM tavern_turns AS result LEFT JOIN tavern_turns AS source
+        ON result.role = 'assistant' AND source.role = 'user'
+        AND source.owner_id = result.owner_id AND source.conversation_id = result.conversation_id
+        AND source.client_turn_id = result.client_turn_id
+      WHERE result.owner_id = ? AND result.conversation_id = ? AND result.sequence = ?`)
+    let messages = selectedSequences.map((sequence) => selectTurn.get(ownerId, conversationId, sequence)).filter(Boolean).reverse().map((turn) => {
+      const message = publicTurn(turn), draw = turn.role === 'assistant' && turn.status === 'complete' ? publicHistoryDraw(turn.history_draw_json, persona) : null
+      return draw ? { ...message, draw } : message
+    })
     let nextBefore = messages.length && messages[0].sequence > 1 ? encodeCursor(messages[0].sequence) : null
     const conversation = publicConversation(row)
     while (messages.length > 1 && Buffer.byteLength(JSON.stringify({ conversation, messages, nextBefore }), 'utf8') > MAX_PAGE_SERIALIZED_BYTES) {
