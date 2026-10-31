@@ -32,18 +32,34 @@ export function readCoachUploadJson(request, maxBytes = DEFAULT_MAX_BODY_BYTES) 
     let bytes = 0
     let settled = false
     let ended = false
-    const cleanup = () => {
+    let closeSeen = false
+    let transportCleanupScheduled = false
+    const cleanupBody = () => {
       request.off('data', onData)
       request.off('end', onEnd)
       request.off('aborted', onAborted)
+    }
+    const cleanupAll = () => {
+      cleanupBody()
       request.off('close', onClose)
       request.off('error', onError)
     }
-    const fail = error => {
+    const scheduleTransportCleanup = () => {
+      if (transportCleanupScheduled) return
+      transportCleanupScheduled = true
+      setImmediate(() => {
+        request.off('close', onClose)
+        request.off('error', onError)
+      })
+    }
+    const fail = (error, { transport = false } = {}) => {
       if (settled) return
       settled = true
       chunks.length = 0
-      cleanup()
+      if (transport) {
+        cleanupBody()
+        if (closeSeen) scheduleTransportCleanup()
+      } else cleanupAll()
       reject(error)
     }
     const onData = chunk => {
@@ -63,15 +79,23 @@ export function readCoachUploadJson(request, maxBytes = DEFAULT_MAX_BODY_BYTES) 
         if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid')
         settled = true
         chunks.length = 0
-        cleanup()
+        cleanupAll()
         resolve(value)
       } catch {
         fail(failure(400, 'coach_upload_json_invalid', '图片上传请求必须是有效 JSON。'))
       }
     }
-    const onAborted = () => fail(failure(400, 'coach_upload_request_aborted', '图片分块请求未完整接收。'))
-    const onClose = () => { if (!ended) onAborted() }
-    const onError = () => onAborted()
+    const onAborted = () => fail(failure(400, 'coach_upload_request_aborted', '图片分块请求未完整接收。'), { transport: true })
+    const onClose = () => {
+      closeSeen = true
+      if (!ended && !settled) onAborted()
+      request.off('close', onClose)
+      scheduleTransportCleanup()
+    }
+    const onError = () => {
+      if (!settled) onAborted()
+      if (closeSeen) scheduleTransportCleanup()
+    }
     request.on('data', onData)
     request.on('end', onEnd)
     request.on('aborted', onAborted)

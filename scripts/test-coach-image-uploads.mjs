@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
+import { EventEmitter } from 'node:events'
 import fs from 'node:fs'
 import http from 'node:http'
 import os from 'node:os'
@@ -98,6 +99,41 @@ try {
     ]),
     error => error.code === 'coach_upload_request_aborted',
   )
+
+  for (const sequence of [['aborted', 'error', 'close'], ['close', 'error']]) {
+    const syntheticRequest = new EventEmitter()
+    syntheticRequest.headers = {}
+    const read = coachUploads.readCoachUploadJson(syntheticRequest).catch(error => error.code)
+    syntheticRequest.emit('data', Buffer.from('{'))
+    let transportThrow = null
+    try {
+      for (const event of sequence) {
+        if (event === 'error') syntheticRequest.emit('error', new Error('synthetic post-abort transport error'))
+        else syntheticRequest.emit(event)
+      }
+    } catch (error) {
+      transportThrow = error
+    }
+    assert.equal(transportThrow, null, `${sequence.join('->')} must consume its late transport error`)
+    assert.equal(await read, 'coach_upload_request_aborted')
+    await new Promise(resolve => setImmediate(resolve))
+    for (const event of ['data', 'end', 'aborted', 'close', 'error']) assert.equal(syntheticRequest.listenerCount(event), 0, `${event} listener leaked after ${sequence.join('->')}`)
+  }
+
+  const callerRequest = new EventEmitter()
+  callerRequest.headers = {}
+  let callerErrors = 0
+  const callerError = () => { callerErrors += 1 }
+  callerRequest.on('error', callerError)
+  const callerRead = coachUploads.readCoachUploadJson(callerRequest).catch(error => error.code)
+  callerRequest.emit('aborted')
+  callerRequest.emit('error', new Error('synthetic caller-visible transport error'))
+  callerRequest.emit('close')
+  assert.equal(await callerRead, 'coach_upload_request_aborted')
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(callerErrors, 1)
+  assert.equal(callerRequest.listenerCount('error'), 1, 'reader cleanup must preserve caller error listeners')
+  callerRequest.off('error', callerError)
 
   assert.equal((await request('/api/ai/coach/uploads/capabilities', { authenticated: false })).status, 401)
   const capabilities = await request('/api/ai/coach/uploads/capabilities')
