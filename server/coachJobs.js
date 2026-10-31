@@ -4,7 +4,7 @@ import {createCoachJobStore,coachJobId} from './coachJobStore.js'
 
 // Detached execution reuses the exact existing Coach policy/provider pipeline.
 // A phone disconnect affects polling only, never the generation or committed result.
-export function createCoachJobs({root,authenticate,validate,readBody,run,sendJson}){
+export function createCoachJobs({root,authenticate,validate,readBody,resolvePayload=(owner,payload)=>payload,run,sendJson}){
   let store=null
   const jobs=()=>store||(store=createCoachJobStore({root:path.join(root(),'academic-coach-jobs')}))
   const running=new Set()
@@ -48,8 +48,9 @@ export function createCoachJobs({root,authenticate,validate,readBody,run,sendJso
         sendJson(response,405,{code:'coach_job_method',error:'请求方式不支持。'});return true
       }
       const receivedAt=performance.now()
-      const payload=await readBody(request)
+      const rawPayload=await readBody(request)
       const bodyReadMs=Math.round(performance.now()-receivedAt),validationStarted=performance.now()
+      const payload=await resolvePayload(owner,rawPayload)
       const scope=await validate(request,payload,false)
       const validationMs=Math.round(performance.now()-validationStarted)
       const hash=crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex')

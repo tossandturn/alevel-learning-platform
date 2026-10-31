@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import { createCoachJobs } from './coachJobs.js'
+import { createCoachImageUploads } from './coachImageUploads.js'
 import {createAiTiming,safeAiTiming} from './aiTiming.js'
 import {coachEffort,withCoachEffort,coachEffortBudget,coachEffortOutputLimit} from './coachEffort.js'
 import crypto from 'node:crypto'
@@ -2802,7 +2803,7 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
   return sendJson(response, 200, { mode: 'offline', code: 'vision_review_failed', provider: lastAttemptedProvider.name, providerStatus: 'error', error: providerMessage(lastError, lastAttemptedProvider), retryable: true })
 }
 
-export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null, authorizeCoachRequest = null, tavernDivinationStore = null, tavernConversationStore = null, tavernMemoryRoot = null, tavernMediaCatalog=null, tavernMediaRoot=DEFAULT_TAVERN_MEDIA_ROOT, admissionsConversationStore = null, admissionsMemoryRoot = null, admissionsCallCompatibleAiStream = callCompatibleAiStream, ieltsTeacherConversationStore = null, ieltsTeacherMemoryRoot = null, ieltsTeacherCallCompatibleAiStream = callCompatibleAiStream, coachJobsRoot = null }) {
+export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null, authorizeCoachRequest = null, tavernDivinationStore = null, tavernConversationStore = null, tavernMemoryRoot = null, tavernMediaCatalog=null, tavernMediaRoot=DEFAULT_TAVERN_MEDIA_ROOT, admissionsConversationStore = null, admissionsMemoryRoot = null, admissionsCallCompatibleAiStream = callCompatibleAiStream, ieltsTeacherConversationStore = null, ieltsTeacherMemoryRoot = null, ieltsTeacherCallCompatibleAiStream = callCompatibleAiStream, coachJobsRoot = null, coachImageUploadsOptions = null }) {
   const legacyConfig = providerConfig(env)
   const config = studentProviderConfig(env, legacyConfig)
   const tavernProvider = loadTavernProvider({ env }) || legacyConfig.coach
@@ -2849,9 +2850,13 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
     }
   }
   const questionSourceResolver=createCoachQuestionSourceResolver({questionBankProvider:currentAiMarkingQuestionBank,libraryRoot})
+  const coachImageUploads=createCoachImageUploads({
+    authenticate:request=>authenticatedStemUser(request,env),sendJson,options:coachImageUploadsOptions||{},
+  })
   const coachJobs=createCoachJobs({
     root:()=>coachJobsRoot||resolveTavernMemoryRoot(env),
-    authenticate:request=>authenticatedStemUser(request,env),readBody:readJsonBody,sendJson,
+    authenticate:request=>authenticatedStemUser(request,env),readBody:readJsonBody,
+    resolvePayload:(owner,payload)=>coachImageUploads.resolvePayload(owner,payload),sendJson,
     async validate(request,payload,polling){
       if(!payload||typeof payload!=='object'||Array.isArray(payload))throw Object.assign(new Error('答疑请求无效。'),{statusCode:400})
       const feature=resolveCoachFeature({feature:payload.feature,persona:payload.persona})
@@ -2877,6 +2882,7 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
       if (drawArtHandler(request, response, requestUrl)) return
       if (request.method === 'GET' && requestUrl.pathname.startsWith('/api/ai/image/')) return handleTemporaryImage(requestUrl, response)
       if (request.method === 'GET' && requestUrl.pathname.startsWith(TAVERN_MEDIA_PREFIX)) return serveTavernMedia(requestUrl,response,tavernMediaCatalog||loadTavernMediaCatalog(),tavernMediaRoot)
+      if (await coachImageUploads.handle(request,response,requestUrl)) return
       if (request.method === 'GET' && requestUrl.pathname === '/api/ai/status') {
         const coachProvider = providerCandidates(config.coach)[0]
         const visionProvider = providerCandidates(config.vision)[0]
@@ -2921,6 +2927,7 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
     admissionsAdvisor.close()
     ieltsTeacher.close()
     activeConversationStore?.close?.()
+    coachImageUploads.close()
     return jobsClosing
   }
   return aiApi
