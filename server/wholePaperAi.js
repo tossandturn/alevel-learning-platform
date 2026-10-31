@@ -1,4 +1,5 @@
 import crypto from 'node:crypto'
+import {bilingualCoachPolicy} from './coachBilingual.js'
 import {coachEffort,withCoachEffort,coachEffortOutputLimit} from './coachEffort.js'
 
 import {
@@ -296,10 +297,11 @@ export function createWholePaperAiRunner({ env = process.env, telemetry = null }
       'When a complete top-level score pair is present, every question must have a score pair and the question-level scores and maxima must sum exactly to the top-level provisionalScore and maxScore.',
       'When missingPages or missingQuestions is non-empty, set the top-level, question-level and criterion score fields to null while preserving grounded qualitative feedback.',
       'Use JSON null for unavailable scores. Do not use empty strings, numeric strings, confidence labels, or invented zeroes as substitutes.',
-      'Write summary, rationale, and criteria comments in Simplified Chinese while preserving original question labels, mathematical symbols, units, and technical terms.',
-      'Keep every explanation concise: summary at most 240 Chinese characters, each rationale at most 240, each criterion comment at most 120, and each evidence item at most 120.',
+      'Write generated summary, rationale, descriptive evidence, and criteria comments as adjacent Chinese/English sentence pairs, preserving original question labels, mathematical symbols, units, and verbatim student evidence.',
+      'Keep every explanation concise: the Chinese rendition of summary at most 240 characters, each rationale at most 240, each criterion comment at most 120, and each descriptive evidence item at most 120; use an equally concise English counterpart. Do not double formulas or source quotations.',
       'Do not repeat the rubric, page inventory, or the same evidence. Concision never permits omitting a required criterion, evidence item, error diagnosis, dependency, or score reconciliation field.',
       'Scores, when allowed, must satisfy 0 <= provisionalScore <= maxScore. Evidence must point to visible student work.',
+      bilingualCoachPolicy({structured:true}),
     ].join('\n')
     let lastError = null
     for (const [providerIndex, provider] of candidates.entries()) {

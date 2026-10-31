@@ -5,6 +5,7 @@ import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
 import { createAiApi, providerConfig } from '../server/aiApi.js'
+import { COACH_POLICY_VERSION } from '../server/coachPolicy.js'
 import { parseCoachMessage } from '../src/lib/coachMessage.js'
 import { PracticeInventoryError, buildCoachPractice, coachPracticeOptions } from '../src/lib/verifiedPracticeCatalog.js'
 
@@ -477,7 +478,7 @@ GMm/r^2=mv^2/r,\qquad v=2πr/T,
       answer: 'non-stream answer',
       sourceLookupAvailable:true,
       model: 'qwen-test-non-stream',
-      coachPolicyVersion: 'stem-coach-policy-v2.0.1',
+      coachPolicyVersion: COACH_POLICY_VERSION,
       coachHelpIntent: 'hint',
       coachHelpDepth: 3,
       coachSolutionAllowed: false,

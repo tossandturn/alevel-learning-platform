@@ -1,0 +1,15 @@
+# Bilingual AI Coach and public-membership release plan
+
+> For implementer: use TDD and preserve authorization, scoring and idempotency contracts.
+
+Goal: every new student-facing AI Coach prose sentence has an adjacent Chinese/English equivalent, with one provider generation rather than a second translation call. Prepare public membership only after actual Android and iOS acceptance.
+
+Architecture: a shared server-owned bilingual output policy is included by academic Coach, all Tavern roles, admissions advisor, IELTS teacher and whole-paper marking. Canonical module headings, JSON keys, numeric marks, LaTeX, code and verbatim source evidence stay intact; each generated prose sentence is paired. Existing histories and completed grades are never rewritten. The separate IELTS practice grading and real-time oral-exam service remain outside this Coach-only change, consistent with the user's prior protection.
+
+1. Add focused tests for all five prompt builders / whole-paper transport. Run RED before adding shared policy.
+2. Add `server/coachBilingual.js`; wire `coachPolicy.js`, `coachFeatures.js`, `admissionsAdvisor.js`, `ieltsTeacher.js`, `wholePaperAi.js`. Remove contradictory single-language default instructions; preserve concise response, persona and score boundaries. English draft word limits apply to the English rendition, not its Chinese companion.
+3. Run Coach, role, stream, job, PDF and shared-history regressions. Test real text/photo, hint/check, role replies and structured feedback against production; sample exact bilingual pairing and formulas, not merely provider200.
+4. Deploy only matched allowlisted files after readiness/backup/active-job checks; do not copy stale quota or membership files across separate checkouts. No provider endpoint/key change is authorized by an unverified hostname.
+5. Membership: price remains2880fen /30days/manual renewal. Existing Android paid/refund evidence verified; new iOS canary is only for the user-designated account,2hours,one new order, no agent-triggered charge. Await buyer-confirmed iOS payment and exact refund acceptance before full public checkout. Preserve free calculator and existing two-file PDF/audio allowance; do not silently turn on unrelated all-feature enforcement.
+
+Research: DeepSeek official docs https://api-docs.deepseek.com/ document api.deepseek.com. User-suggested sg.deepseek.com failed DNS on Windows and the Singapore host; no credentials sent. Tencent's actual Singapore TokenHub origin is separately documented at https://intl.cloud.tencent.com/zh/document/product/1300/80632 and requires its own site credential. GitHub-first payment reference: https://github.com/TencentCloudBase/CloudBase-AI-Toolkit/blob/main/config/source/skills/cloudbase-wechat-integration/references/virtual-payment.md ; protocol references only, no code or dependency copied. WeChat web-reader failed non-retryably; original Tencent SDK/reference and existing verified adapter tests remain evidence, not a substitute for real iOS payment.

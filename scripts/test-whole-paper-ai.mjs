@@ -325,6 +325,8 @@ try {
   assert.match(requests[0].body.messages[0].content, /satisfies an explicit M1.*award M1 and not A1.*not collapse.*zero/i, 'the prompt must preserve an earned method mark when the dependent accuracy mark fails')
   assert.match(requests[0].body.messages[0].content, /criteria totals must equal the question/i, 'the prompt must reconcile mark-point criteria to each question score')
   assert.match(requests[0].body.messages[0].content, /Keep every explanation concise/i)
+  assert.match(requests[0].body.messages[0].content, /stem-coach-bilingual-v1/)
+  assert.match(requests[0].body.messages[0].content, /each generated user-facing prose string/)
   assert.match(requests[0].body.messages[0].content, /Do not repeat the rubric, page inventory, or the same evidence/i)
   const requestContext = JSON.parse(requests[0].body.messages[1].content[0].text)
   assert.equal(requestContext.routeId, 'cie-9702-as-physics')
