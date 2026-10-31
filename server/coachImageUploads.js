@@ -20,7 +20,7 @@ export function coachImageUploadId(value) {
   return value
 }
 
-function readBoundedJson(request, maxBytes = DEFAULT_MAX_BODY_BYTES) {
+export function readCoachUploadJson(request, maxBytes = DEFAULT_MAX_BODY_BYTES) {
   return new Promise((resolve, reject) => {
     const advertisedLength = String(request.headers?.['content-length'] || '')
     if (/^\d+$/.test(advertisedLength) && Number(advertisedLength) > maxBytes) {
@@ -30,31 +30,53 @@ function readBoundedJson(request, maxBytes = DEFAULT_MAX_BODY_BYTES) {
     }
     const chunks = []
     let bytes = 0
-    let tooLarge = false
-    request.on('data', chunk => {
-      if (tooLarge) return
+    let settled = false
+    let ended = false
+    const cleanup = () => {
+      request.off('data', onData)
+      request.off('end', onEnd)
+      request.off('aborted', onAborted)
+      request.off('close', onClose)
+      request.off('error', onError)
+    }
+    const fail = error => {
+      if (settled) return
+      settled = true
+      chunks.length = 0
+      cleanup()
+      reject(error)
+    }
+    const onData = chunk => {
       bytes += chunk.length
       if (bytes > maxBytes) {
-        tooLarge = true
-        chunks.length = 0
+        fail(failure(413, 'coach_upload_body_too_large', '图片分块请求过大。'))
+        request.resume?.()
         return
       }
       chunks.push(chunk)
-    })
-    request.on('end', () => {
-      if (tooLarge) {
-        reject(failure(413, 'coach_upload_body_too_large', '图片分块请求过大。'))
-        return
-      }
+    }
+    const onEnd = () => {
+      ended = true
+      if (settled) return
       try {
         const value = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}')
         if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid')
+        settled = true
+        chunks.length = 0
+        cleanup()
         resolve(value)
       } catch {
-        reject(failure(400, 'coach_upload_json_invalid', '图片上传请求必须是有效 JSON。'))
+        fail(failure(400, 'coach_upload_json_invalid', '图片上传请求必须是有效 JSON。'))
       }
-    })
-    request.on('error', reject)
+    }
+    const onAborted = () => fail(failure(400, 'coach_upload_request_aborted', '图片分块请求未完整接收。'))
+    const onClose = () => { if (!ended) onAborted() }
+    const onError = () => onAborted()
+    request.on('data', onData)
+    request.on('end', onEnd)
+    request.on('aborted', onAborted)
+    request.on('close', onClose)
+    request.on('error', onError)
   })
 }
 
@@ -150,7 +172,7 @@ export function createCoachImageUploadStore({
         receivedChars: 0,
         status: 'uploading',
         expiresAt: now() + ttlMs,
-        parts: [],
+        storage: Buffer.alloc(base64Length),
         base64: '',
       }
       uploads.set(safeId, entry)
@@ -171,7 +193,7 @@ export function createCoachImageUploadStore({
       if (offset < entry.receivedChars) {
         const repeated = entry.status === 'ready'
           ? entry.base64.slice(offset, end) === chunk
-          : entry.parts.some(part => part.offset === offset && part.chunk === chunk)
+          : entry.storage.toString('ascii', offset, end) === chunk
         if (repeated && end <= entry.receivedChars) return snapshot(entry)
         throw failure(409, 'coach_upload_offset_conflict', '图片上传位置已变化，请刷新上传状态。')
       }
@@ -182,7 +204,7 @@ export function createCoachImageUploadStore({
       if (end > entry.base64Length || (!finalChunk && (chunk.length % 4 !== 0 || chunk.includes('=')))) {
         throw failure(400, 'coach_upload_chunk_invalid', '图片分块无效。')
       }
-      entry.parts.push({ offset, chunk })
+      entry.storage.write(chunk, offset, chunk.length, 'ascii')
       entry.receivedChars = end
       return snapshot(entry)
     },
@@ -190,8 +212,8 @@ export function createCoachImageUploadStore({
       const entry = owned(owner, id)
       if (entry.status === 'ready') return snapshot(entry)
       if (entry.receivedChars !== entry.base64Length) throw failure(409, 'coach_upload_incomplete', '图片尚未上传完成。')
-      const base64 = entry.parts.map(part => part.chunk).join('')
-      if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(base64)) {
+      const base64 = entry.storage.toString('ascii')
+      if (base64.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(base64)) {
         throw failure(422, 'coach_upload_base64_invalid', '图片编码无效。')
       }
       const bytes = Buffer.from(base64, 'base64')
@@ -203,7 +225,7 @@ export function createCoachImageUploadStore({
       if (!hasImageMagic(bytes, entry.mimeType)) throw failure(422, 'coach_upload_mime_mismatch', '图片格式与声明不一致。')
       entry.status = 'ready'
       entry.base64 = base64
-      entry.parts = []
+      entry.storage = null
       return snapshot(entry)
     },
     resolve(owner, ids) {
@@ -220,6 +242,17 @@ export function createCoachImageUploadStore({
       const entry = owned(owner, id)
       remove(entry.id)
       return { protocol: COACH_IMAGE_UPLOAD_PROTOCOL, id: entry.id, deleted: true }
+    },
+    storageStats() {
+      cleanup()
+      let allocatedChars = 0
+      let storageUnits = 0
+      for (const entry of uploads.values()) {
+        if (entry.storage) allocatedChars += entry.storage.length
+        else allocatedChars += Buffer.byteLength(entry.base64, 'ascii')
+        storageUnits += 1
+      }
+      return { entries: uploads.size, reservedChars, allocatedChars, storageUnits }
     },
     close() {
       clearInterval(sweep)
@@ -253,13 +286,13 @@ export function createCoachImageUploads({ authenticate, sendJson, options = {} }
           sendJson(response, 405, { code: 'coach_upload_method', error: '请求方式不支持。' })
           return true
         }
-        await readBoundedJson(request)
+        await readCoachUploadJson(request)
         sendJson(response, 200, store.complete(owner, id))
         return true
       }
       if (request.method === 'GET') sendJson(response, 200, store.get(owner, id))
-      else if (request.method === 'PUT') sendJson(response, 200, store.initialize(owner, id, await readBoundedJson(request)))
-      else if (request.method === 'PATCH') sendJson(response, 200, store.append(owner, id, await readBoundedJson(request)))
+      else if (request.method === 'PUT') sendJson(response, 200, store.initialize(owner, id, await readCoachUploadJson(request)))
+      else if (request.method === 'PATCH') sendJson(response, 200, store.append(owner, id, await readCoachUploadJson(request)))
       else if (request.method === 'DELETE') sendJson(response, 200, store.delete(owner, id))
       else sendJson(response, 405, { code: 'coach_upload_method', error: '请求方式不支持。' })
       return true

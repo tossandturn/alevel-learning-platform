@@ -4,8 +4,12 @@ import fs from 'node:fs'
 import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
+import { PassThrough } from 'node:stream'
 
 import { createAiApi } from '../server/aiApi.js'
+import * as coachUploads from '../server/coachImageUploads.js'
+
+const { createCoachImageUploadStore } = coachUploads
 
 const protocol = 'stem-coach-image-upload-v1'
 const chunkChars = 65_536
@@ -81,6 +85,20 @@ const append = (id, offset, chunk, owner = 1) => request(uploadPath(id), { metho
 const complete = (id, owner = 1) => request(`${uploadPath(id)}/complete`, { method: 'POST', owner, body: {} })
 
 try {
+  assert.equal(typeof coachUploads.readCoachUploadJson, 'function', 'bounded upload reader must be directly testable')
+  const interrupted = new PassThrough()
+  interrupted.headers = {}
+  const interruptedRead = coachUploads.readCoachUploadJson(interrupted)
+  interrupted.write('{"offset":0,"chunk":"AAAA')
+  interrupted.destroy()
+  await assert.rejects(
+    Promise.race([
+      interruptedRead,
+      new Promise((_, reject) => setTimeout(() => reject(Object.assign(new Error('reader hung after premature close'), { code: 'test_timeout' })), 500)),
+    ]),
+    error => error.code === 'coach_upload_request_aborted',
+  )
+
   assert.equal((await request('/api/ai/coach/uploads/capabilities', { authenticated: false })).status, 401)
   const capabilities = await request('/api/ai/coach/uploads/capabilities')
   assert.equal(capabilities.status, 200)
@@ -106,6 +124,8 @@ try {
   const repeatedPatch = await append(readyId, 0, firstChunk)
   assert.equal(repeatedPatch.status, 200)
   assert.equal(repeatedPatch.body.receivedChars, split, 'lost acknowledgement retry must not append twice')
+  assert.equal((await append(readyId, 0, firstChunk.slice(0, 16))).status, 200, 'matching retry may use a smaller boundary')
+  assert.equal((await append(readyId, 16, firstChunk.slice(16))).status, 200, 'matching retry may begin inside an accepted chunk')
   const offsetConflict = await append(readyId, split + 4, secondChunk)
   assert.equal(offsetConflict.status, 409)
   assert.equal(offsetConflict.body.code, 'coach_upload_offset_conflict')
@@ -129,6 +149,26 @@ try {
   assert.equal(oversizedBody.status, 413)
   assert.equal((await request(uploadPath(oversizedBodyId))).body.receivedChars, 0)
   await request(uploadPath(oversizedBodyId), { method: 'DELETE' })
+
+  const abortedId = 'cu-abortedChunk123456789'
+  await request(uploadPath(abortedId), { method: 'PUT', body: { mimeType: 'image/png', base64Length: 8, base64Sha256: sha('AAAAAAAA') } })
+  await Promise.race([
+    new Promise(resolve => {
+      const partial = http.request(`${base}${uploadPath(abortedId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': '80', Authorization: `Bearer ${token()}` },
+      })
+      partial.on('response', response => { response.resume(); response.on('end', resolve) })
+      partial.on('error', resolve)
+      partial.on('close', resolve)
+      partial.write('{"offset":0,"chunk":"AAAA')
+      setTimeout(() => partial.destroy(), 5)
+    }),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('aborted HTTP upload did not settle')), 500)),
+  ])
+  await new Promise(resolve => setTimeout(resolve, 20))
+  assert.equal((await request(uploadPath(abortedId))).body.receivedChars, 0, 'premature HTTP close must not append a partial chunk')
+  await request(uploadPath(abortedId), { method: 'DELETE' })
 
   const nonCanonicalId = 'cu-noncanonical123456789'
   await init(nonCanonicalId, 'AB==')
@@ -165,6 +205,28 @@ try {
     assert.equal((await complete(fixture.id)).body.status, 'ready')
     await request(uploadPath(fixture.id), { method: 'DELETE' })
   }
+
+  const maximumImage = Buffer.alloc(maxImageBytes)
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(maximumImage)
+  const maximumBase64 = maximumImage.toString('base64')
+  assert.equal(maximumBase64.length, maxBase64Chars)
+  const maximumId = 'cu-maximumImage123456789'
+  assert.equal((await init(maximumId, maximumBase64, 40)).status, 200)
+  for (let offset = 0; offset < maximumBase64.length; offset += chunkChars) {
+    const result = await append(maximumId, offset, maximumBase64.slice(offset, offset + chunkChars), 40)
+    assert.equal(result.status, 200)
+  }
+  const maximumComplete = await complete(maximumId, 40)
+  assert.equal(maximumComplete.status, 200)
+  assert.equal(maximumComplete.body.status, 'ready')
+  await request(uploadPath(maximumId), { method: 'DELETE', owner: 40 })
+
+  const invalidTerminalId = 'cu-invalidTerminal1234567'
+  await request(uploadPath(invalidTerminalId), { method: 'PUT', owner: 41, body: { mimeType: 'image/png', base64Length: 4, base64Sha256: sha('AAA!') } })
+  const invalidTerminal = await append(invalidTerminalId, 0, 'AAA!', 41)
+  assert.equal(invalidTerminal.status, 400)
+  assert.equal(invalidTerminal.body.code, 'coach_upload_chunk_invalid')
+  await request(uploadPath(invalidTerminalId), { method: 'DELETE', owner: 41 })
 
   const unfinishedId = 'cu-unfinished1234567890'
   await init(unfinishedId)
@@ -279,6 +341,14 @@ try {
   await init(expiredId)
   clock += 51
   assert.ok([404, 410].includes((await request(uploadPath(expiredId))).status))
+
+  const stressStore = createCoachImageUploadStore()
+  const stressId = 'cu-smallChunkStress1234567'
+  stressStore.initialize('ielts:9988', stressId, { mimeType: 'image/png', base64Length: maxBase64Chars, base64Sha256: '0'.repeat(64) })
+  for (let offset = 0; offset < 400_000; offset += 4) stressStore.append('ielts:9988', stressId, { offset, chunk: 'AAAA' })
+  assert.equal(stressStore.get('ielts:9988', stressId).receivedChars, 400_000)
+  assert.deepEqual(stressStore.storageStats(), { entries: 1, reservedChars: maxBase64Chars, allocatedChars: maxBase64Chars, storageUnits: 1 })
+  stressStore.close()
 
   console.log('PASS Coach resumable uploads: auth/capabilities/idempotent chunks/owner/TTL/restart/limits/integrity/jobs/legacy/recovery')
 } finally {
