@@ -50,9 +50,10 @@ const api = createAiApi({
   allowedSubjects: new Set(),
   coachJobsRoot: root,
   telemetry: () => {},
-  authorizeCoachRequest: async () => {
+  authorizeCoachRequest: async ({payload}={}) => {
     if (unexpected) throw Object.assign(new Error('synthetic authorization outage'), { statusCode: 503, code: 'synthetic_auth_outage' })
-    return exam ? { coachAccess: { binding: 'authoritative-attempt', assessmentState: 'active-exam', solutionAllowed: false } } : null
+    const attemptId=payload?.context?.attemptId||payload?.attemptId
+    return exam&&attemptId ? { coachAccess: { binding: 'authoritative-attempt', assessmentState: 'active-exam', solutionAllowed: false } } : null
   },
 })
 const server = http.createServer((request, response) => api(request, response, () => {
@@ -107,10 +108,11 @@ try {
   assert.doesNotMatch(JSON.stringify(firstDone.body.task), /PRIVATE_REASONING|Explain the next step|data:image|Bearer/)
 
   const instantId = 'cj-taskInstant123456789'
-  const instant = await request(jobPath(instantId), { method: 'POST', body: { feature: 'answers', helpIntent: 'hint', message: 'Immediate low answer.', saveTask: false, context: { view: 'practice' } } })
+  const instant = await request(jobPath(instantId), { method: 'POST', body: { feature: 'answers', helpIntent: 'hint', message: 'Immediate low answer.', saveTask: false, attemptId:'attempt-instant',context: { view: 'practice',attemptId:'attempt-instant' } } })
   assert.equal(instant.status, 202)
   assert.deepEqual(instant.body.task.persistence, { saved: false, retentionMs: 600_000 })
   await waitForJob(instantId)
+  exam=true;assert.equal((await request(jobPath(instantId))).status,403,'same-process instant GET rechecks its RAM attempt scope');exam=false
 
   const callsBeforeInvalidPersistence = providerCalls
   const lowSaved = await request(jobPath('cj-taskLowSaved123456789'), { method: 'POST', body: { feature: 'answers', helpIntent: 'hint', message: 'Invalid saved low.', saveTask: true, context: { view: 'practice' } } })
@@ -128,7 +130,7 @@ try {
   await waitForJob(highInstantId)
 
   const secondId = 'cj-taskImage12345678901'
-  const secondBody = { feature: 'answers', helpIntent: 'worked-solution', message: 'Analyze this.', imageDataUrls: [image], reasoningEffort: 'high', saveTask: true, context: { view: 'coach-photo' } }
+  const secondBody = { feature: 'answers', helpIntent: 'worked-solution', message: 'Analyze this.', imageDataUrls: [image], reasoningEffort: 'high', saveTask: true, attemptId:'attempt-saved-image',context: { view: 'coach-photo',attemptId:'attempt-saved-image' } }
   const second = await request(jobPath(secondId), { method: 'POST', body: secondBody })
   assert.equal(second.status, 202)
   assert.equal(second.body.task.reasoning.requestedEffort, 'high')
@@ -139,7 +141,7 @@ try {
   const persistenceConflict = await request(jobPath(secondId), { method: 'POST', body: { ...secondBody, saveTask: false } })
   assert.equal(persistenceConflict.status, 409, 'saveTask mode participates in the existing idempotency hash')
   const maxId = 'cj-taskMax1234567890123'
-  const maximum = await request(jobPath(maxId), { method: 'POST', body: { feature: 'answers', helpIntent: 'hint', message: 'Use maximum reasoning.', reasoningEffort: 'max', saveTask: true, context: { view: 'practice' } } })
+  const maximum = await request(jobPath(maxId), { method: 'POST', body: { feature: 'answers', helpIntent: 'hint', message: 'Use maximum reasoning.', reasoningEffort: 'max', saveTask: true, attemptId:'attempt-saved-max',context: { view: 'practice',attemptId:'attempt-saved-max' } } })
   assert.equal(maximum.status, 202)
   assert.equal(maximum.body.task.reasoning.effectiveEffort, 'max')
   assert.equal(maximum.body.task.persistence.saved, true)

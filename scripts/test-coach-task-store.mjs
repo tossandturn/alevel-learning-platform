@@ -32,6 +32,8 @@ let store = null
 let capacity = null
 let capacityRoot = ''
 let inspection = null
+let ramStore = null
+let ramRoot = ''
 
 try {
   const legacyFile = path.join(root, 'academic-coach-jobs.sqlite')
@@ -136,6 +138,14 @@ try {
   assert.equal(instant.expiresAt, now + 600_000)
   now += 1000
   store.finish(owner, instantId, result('Instant answer'))
+  const instantBeforeDuplicate=store.get(owner,instantId),samplesBeforeDuplicate=(()=>{const db=new Database(legacyFile);try{return db.prepare('SELECT COUNT(*) AS n FROM coach_job_duration_samples').get().n}finally{db.close()}})()
+  now+=1000
+  store.finish(owner,instantId,result('Late duplicate must be ignored'))
+  const instantAfterDuplicate=store.get(owner,instantId),samplesAfterDuplicate=(()=>{const db=new Database(legacyFile);try{return db.prepare('SELECT COUNT(*) AS n FROM coach_job_duration_samples').get().n}finally{db.close()}})()
+  assert.equal(instantAfterDuplicate.answer,instantBeforeDuplicate.answer,'duplicate finish cannot replace RAM answer')
+  assert.deepEqual(instantAfterDuplicate.result,instantBeforeDuplicate.result,'duplicate finish cannot replace terminal result')
+  assert.deepEqual(instantAfterDuplicate.task,instantBeforeDuplicate.task,'duplicate finish cannot rewrite terminal task timestamps')
+  assert.equal(samplesAfterDuplicate,samplesBeforeDuplicate,'duplicate finish cannot add an ETA sample')
   assert.ok(store.listCandidates(owner, { limit: 60 }).items.every(item => item.snapshot.id !== instantId), 'instant jobs never enter saved task history')
 
   const expiringId = 'cj-expiring123456789012'
@@ -189,11 +199,28 @@ try {
   fs.rmSync(capacityRoot, { recursive: true, force: true })
   capacityRoot = ''
 
+  ramRoot=fs.mkdtempSync(path.join(os.tmpdir(),'coach-task-ram-capacity-'))
+  ramStore=createCoachJobStore({root:ramRoot,now:()=>now,maxRows:200,maxActive:1})
+  let firstRamArgs=null
+  for(let index=0;index<128;index++){
+    const id=`cj-ramCapacity${String(index).padStart(3,'0')}123456`
+    const args={owner,id,hash:hash(id),scope,taskProfile:profile({saved:false,retentionMs:600_000,persistenceMode:'instant'})}
+    if(index===0)firstRamArgs=args
+    ramStore.begin(args);now+=100;ramStore.finish(owner,id,result(`RAM ${index}`))
+  }
+  assert.equal(ramStore.begin(firstRamArgs).created,false,'same instant ID remains idempotent at RAM capacity')
+  const overflowId='cj-ramCapacityOverflow1234'
+  assert.throws(()=>ramStore.begin({owner,id:overflowId,hash:hash(overflowId),scope,taskProfile:profile({saved:false,retentionMs:600_000,persistenceMode:'instant'})}),error=>error.statusCode===429&&error.code==='coach_job_busy')
+  assert.equal(ramStore.get(owner,firstRamArgs.id).status,'succeeded','capacity refusal never evicts an existing instant task')
+  ramStore.close();ramStore=null;fs.rmSync(ramRoot,{recursive:true,force:true});ramRoot=''
+
   console.log('PASS Coach task store: additive migration, legacy/instant/saved retention, stages, calibrated/exceeded estimates, cursor list and bounded capacity')
 } finally {
   try { store?.close() } catch {}
   try { capacity?.close() } catch {}
   try { inspection?.close() } catch {}
+  try { ramStore?.close() } catch {}
   if (capacityRoot) fs.rmSync(capacityRoot, { recursive: true, force: true })
+  if (ramRoot) fs.rmSync(ramRoot, { recursive: true, force: true })
   fs.rmSync(root, { recursive: true, force: true })
 }

@@ -152,17 +152,20 @@ export function createCoachJobStore({root,now=Date.now,ttlMs=86400000,maxActive=
       return snapshot(row(owner,id))
     },
     finish(owner,id,result){
+      const value=row(owner,id)
+      if(value.status!=='running')return snapshot(value)
       if(Buffer.byteLength(JSON.stringify(result))>131072)throw failure(502,'coach_answer_too_large','回答过长，未完整生成。')
       const success=(result.mode==='ai'&&result.providerStatus==='connected'||result.mode==='local'&&result.providerStatus==='skipped')&&Boolean(result.answer)&&!result.partial&&result.answerStatus!=='partial'
-      const value=row(owner,id),memory=memoryFor(value),at=now(),type=success?'complete':'failed',task=applyCoachTaskEvent(taskFor(value),{type,at},at)
+      const memory=memoryFor(value),at=now(),type=success?'complete':'failed',task=applyCoachTaskEvent(taskFor(value),{type,at},at)
       if(result.provider)task.model.provider=String(result.provider).slice(0,40)
       if(result.model)task.model.id=String(result.model).slice(0,120)
       const duration=success&&result.mode==='ai'?Math.max(0,at-value.created):null
       if(success&&result.mode==='ai')recordSample(task,duration,at)
       if(memory){memory.task=task;memory.answer=result.answer||'';memory.result=result;db.prepare("UPDATE coach_jobs SET status=?,stage=?,answer='',result=NULL,task_json=NULL,model=NULL,effort=NULL,thinking_enabled=NULL,input_kind=NULL,help_intent=NULL,duration_ms=NULL,completed=?,updated=? WHERE owner=? AND id=? AND status='running'")
-        .run(success?'succeeded':'failed',type,at,at,ownerKey(owner),id);return}
+        .run(success?'succeeded':'failed',type,at,at,ownerKey(owner),id);return snapshot(row(owner,id))}
       db.prepare("UPDATE coach_jobs SET status=?,stage=?,answer=?,result=?,task_json=?,model=?,duration_ms=?,completed=?,updated=? WHERE owner=? AND id=? AND status='running'")
         .run(success?'succeeded':'failed',type,result.answer||'',JSON.stringify(result),encodeTask(task),task.model.id,duration,at,at,ownerKey(owner),id)
+      return snapshot(row(owner,id))
     },
     fail(owner,id){
       const value=row(owner,id)
