@@ -161,7 +161,15 @@ export function createCoachImageUploadStore({
   })
 
   return {
-    capabilities: Object.freeze({ protocol: COACH_IMAGE_UPLOAD_PROTOCOL, enabled: true, chunkChars, maxImageBytes, ttlMs }),
+    capabilities: Object.freeze({
+      protocol: COACH_IMAGE_UPLOAD_PROTOCOL,
+      enabled: true,
+      chunkChars,
+      chunkMethod: 'POST',
+      chunkPathSuffix: '/chunks',
+      maxImageBytes,
+      ttlMs,
+    }),
     initialize(owner, id, metadata) {
       const safeId = coachImageUploadId(id)
       const mimeType = String(metadata?.mimeType || '').trim().toLowerCase()
@@ -304,7 +312,16 @@ export function createCoachImageUploads({ authenticate, sendJson, options = {} }
       }
       const suffix = url.pathname.slice(prefix.length)
       const completeMatch = /^([^/]+)\/complete$/.exec(suffix)
-      const id = coachImageUploadId(completeMatch ? completeMatch[1] : suffix)
+      const chunkMatch = /^([^/]+)\/chunks$/.exec(suffix)
+      const id = coachImageUploadId(completeMatch ? completeMatch[1] : chunkMatch ? chunkMatch[1] : suffix)
+      if (chunkMatch) {
+        if (request.method !== 'POST') {
+          sendJson(response, 405, { code: 'coach_upload_method', error: '请求方式不支持。' })
+          return true
+        }
+        sendJson(response, 200, store.append(owner, id, await readCoachUploadJson(request)))
+        return true
+      }
       if (completeMatch) {
         if (request.method !== 'POST') {
           sendJson(response, 405, { code: 'coach_upload_method', error: '请求方式不支持。' })

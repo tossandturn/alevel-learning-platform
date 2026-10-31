@@ -83,6 +83,7 @@ const uploadPath = id => `/api/ai/coach/uploads/${id}`
 const metadata = (base64 = pngBase64, mimeType = 'image/png') => ({ mimeType, base64Length: base64.length, base64Sha256: sha(base64) })
 const init = (id, base64 = pngBase64, owner = 1, mimeType = 'image/png') => request(uploadPath(id), { method: 'PUT', owner, body: metadata(base64, mimeType) })
 const append = (id, offset, chunk, owner = 1) => request(uploadPath(id), { method: 'PATCH', owner, body: { offset, chunk } })
+const appendPost = (id, offset, chunk, owner = 1, authenticated = true) => request(`${uploadPath(id)}/chunks`, { method: 'POST', owner, authenticated, body: { offset, chunk } })
 const complete = (id, owner = 1) => request(`${uploadPath(id)}/complete`, { method: 'POST', owner, body: {} })
 
 try {
@@ -138,7 +139,7 @@ try {
   assert.equal((await request('/api/ai/coach/uploads/capabilities', { authenticated: false })).status, 401)
   const capabilities = await request('/api/ai/coach/uploads/capabilities')
   assert.equal(capabilities.status, 200)
-  assert.deepEqual(capabilities.body, { protocol, enabled: true, chunkChars, maxImageBytes, ttlMs: 900_000 })
+  assert.deepEqual(capabilities.body, { protocol, enabled: true, chunkChars, chunkMethod: 'POST', chunkPathSuffix: '/chunks', maxImageBytes, ttlMs: 900_000 })
 
   const readyId = 'cu-readyImage1234567890'
   const initialized = await init(readyId)
@@ -154,18 +155,21 @@ try {
   const split = 32
   const firstChunk = pngBase64.slice(0, split)
   const secondChunk = pngBase64.slice(split)
-  const firstPatch = await append(readyId, 0, firstChunk)
+  assert.equal((await appendPost(readyId, 0, firstChunk, 1, false)).status, 401)
+  assert.equal((await request(`${uploadPath(readyId)}/chunks`, { method: 'GET' })).status, 405)
+  const firstPatch = await appendPost(readyId, 0, firstChunk)
   assert.equal(firstPatch.status, 200)
   assert.equal(firstPatch.body.receivedChars, split)
   const repeatedPatch = await append(readyId, 0, firstChunk)
   assert.equal(repeatedPatch.status, 200)
   assert.equal(repeatedPatch.body.receivedChars, split, 'lost acknowledgement retry must not append twice')
-  assert.equal((await append(readyId, 0, firstChunk.slice(0, 16))).status, 200, 'matching retry may use a smaller boundary')
-  assert.equal((await append(readyId, 16, firstChunk.slice(16))).status, 200, 'matching retry may begin inside an accepted chunk')
-  const offsetConflict = await append(readyId, split + 4, secondChunk)
+  assert.equal((await appendPost(readyId, 0, firstChunk.slice(0, 16))).status, 200, 'matching POST retry may use a smaller boundary')
+  assert.equal((await appendPost(readyId, 16, firstChunk.slice(16))).status, 200, 'matching POST retry may begin inside an accepted chunk')
+  assert.equal((await appendPost(readyId, 0, firstChunk, 2)).status, 404, 'POST chunk alias keeps owner isolation')
+  const offsetConflict = await appendPost(readyId, split + 4, secondChunk)
   assert.equal(offsetConflict.status, 409)
   assert.equal(offsetConflict.body.code, 'coach_upload_offset_conflict')
-  assert.equal((await append(readyId, split, secondChunk)).body.receivedChars, pngBase64.length)
+  assert.equal((await appendPost(readyId, split, secondChunk)).body.receivedChars, pngBase64.length)
   const completed = await complete(readyId)
   assert.equal(completed.status, 200)
   assert.equal(completed.body.status, 'ready')
