@@ -7,7 +7,7 @@ export function coachEffort(value) {
 export function withCoachEffort(provider, effort) {
   if (effort === null) return provider
   coachEffort(effort)
-  if (provider?.name !== 'deepseek' || !['deepseek-flash','deepseek-v4-flash','deepseek-v4-pro'].includes(provider.model)) {
+  if (provider?.name !== 'deepseek' || !['deepseek-flash','deepseek-v4-flash','deepseek-v4.1-flash','deepseek-v4-pro'].includes(provider.model)) {
     throw Object.assign(new Error('当前服务暂不支持所选思考强度，请稍后重试。'), {statusCode:503, code:'coach_effort_unsupported'})
   }
   const {fallback,...configured}=provider

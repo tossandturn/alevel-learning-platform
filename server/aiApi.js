@@ -1116,6 +1116,23 @@ function responsesInstructions(messages = []) {
   return instructions.join('\n\n') || null
 }
 
+function deepseekThinkingRequest(provider, { disableThinking = false, reasoningEffortOverride = '' } = {}) {
+  if (provider.name !== 'deepseek' || (!disableThinking && !provider.thinkingMode)) return {}
+  const enabled = !disableThinking && provider.thinkingMode === 'enabled'
+  const requestedEffort = String(reasoningEffortOverride || provider.reasoningEffort || 'low').trim().toLowerCase()
+  const reasoningEffort = ['low', 'high', 'max'].includes(requestedEffort) ? requestedEffort : 'low'
+  if (provider.thinkingProtocol === 'enable-thinking') {
+    return {
+      enable_thinking: enabled,
+      ...(enabled ? { reasoning_effort: reasoningEffort } : {}),
+    }
+  }
+  return {
+    thinking: { type: disableThinking ? 'disabled' : provider.thinkingMode },
+    ...(enabled ? { reasoning_effort: provider.reasoningEffort || 'low' } : {}),
+  }
+}
+
 function providerRequestBody(provider, { messages, temperature = 0.2, stream = false, json = false, metadata = null, outputTokenLimit = null, disableThinking = false, storeResponse = null, reasoningEffortOverride = '' }) {
   const safeMetadata = providerMetadata(metadata)
   const outputCap = provider.name === 'deepseek' && provider.studentEffort ? coachEffortOutputLimit(provider.studentEffort,8192) : 8192
@@ -1141,10 +1158,7 @@ function providerRequestBody(provider, { messages, temperature = 0.2, stream = f
     stream,
     ...(boundedOutputTokens ? { max_tokens: boundedOutputTokens } : {}),
     ...(disableThinking && provider.name === 'qwen' && /^qwen3\.7-(?:max|plus)$/i.test(String(provider.model || '')) ? { enable_thinking: false } : {}),
-    ...(provider.name === 'deepseek' && (disableThinking || provider.thinkingMode) ? {
-      thinking: { type: disableThinking ? 'disabled' : provider.thinkingMode },
-      ...(!disableThinking && provider.thinkingMode === 'enabled' ? { reasoning_effort: provider.reasoningEffort || 'low' } : {}),
-    } : {}),
+    ...deepseekThinkingRequest(provider, { disableThinking, reasoningEffortOverride }),
     ...(json ? { response_format: { type: 'json_object' } } : {}),
     ...(safeMetadata ? { metadata: safeMetadata } : {}),
   }
