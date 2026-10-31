@@ -2041,9 +2041,11 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   })
 }
 
-export async function callCompatibleAiStream(provider, { messages, temperature = 0.2, metadata = null, onDelta, onTiming = null, operation = 'ai-stream', requestId = '', providerAttempt = 1, fallbackPath = '', fallback = false, telemetry = null, timeoutMs = DEFAULT_AI_PROVIDER_TIMEOUT_MS, maxTimeoutMs = MAX_AI_PROVIDER_TIMEOUT_MS, totalDeadlineMs = null, deadlineAt = null, outputTokenLimit = null, disableThinking = false, storeResponse = null, reasoningEffortOverride = '' }) {
+export async function callCompatibleAiStream(provider, { messages, temperature = 0.2, metadata = null, onDelta, onTiming = null, onActivity = null, operation = 'ai-stream', requestId = '', providerAttempt = 1, fallbackPath = '', fallback = false, telemetry = null, timeoutMs = DEFAULT_AI_PROVIDER_TIMEOUT_MS, maxTimeoutMs = MAX_AI_PROVIDER_TIMEOUT_MS, totalDeadlineMs = null, deadlineAt = null, outputTokenLimit = null, disableThinking = false, storeResponse = null, reasoningEffortOverride = '' }) {
   const startedAt = Date.now()
   const timing=createAiTiming()
+  const activities=new Set()
+  const activity=type=>{if(activities.has(type))return;activities.add(type);try{onActivity?.({type,at:Date.now()})}catch{/* Activity diagnostics cannot change provider behavior. */}}
   let statusCode = null
   let schemaStatus = 'not-checked'
   let finalState = provider.apiKey ? 'error' : 'not_configured'
@@ -2081,6 +2083,7 @@ export async function callCompatibleAiStream(provider, { messages, temperature =
     resetIdleTimeout()
     const body=JSON.stringify(providerRequestBody(provider, { messages, temperature, stream: true, metadata, outputTokenLimit, disableThinking, storeResponse, reasoningEffortOverride }))
     timing.mark('serializationMs')
+    activity('request_sent')
     const response = await fetch(providerEndpoint(provider), {
       method: 'POST',
       headers: { Authorization: `Bearer ${provider.apiKey}`, 'Content-Type': 'application/json' },
@@ -2088,6 +2091,7 @@ export async function callCompatibleAiStream(provider, { messages, temperature =
       signal: controller.signal,
     })
     timing.mark('responseHeadersMs')
+    activity('response_headers')
     resetIdleTimeout()
     statusCode = response.status
     if (!response.ok) {
@@ -2120,7 +2124,9 @@ export async function callCompatibleAiStream(provider, { messages, temperature =
       timing.usage(payload)
       timing.mark('firstAnswerMs')
       timing.mark('streamCompleteMs')
+      activity('answer_delta')
       await onDelta?.(answer)
+      activity('stream_complete')
       finalState = 'connected'
       return { answer, providerStatus: 'connected' }
     }
@@ -2146,6 +2152,7 @@ export async function callCompatibleAiStream(provider, { messages, temperature =
       if (!data) return
       if (data === '[DONE]') {
         timing.mark('streamCompleteMs')
+        activity('stream_complete')
         receivedDone = true
         eventName = ''
         return
@@ -2160,7 +2167,8 @@ export async function callCompatibleAiStream(provider, { messages, temperature =
       const responseEventType = String(payload?.type || eventName || '')
       timing.usage(payload)
       const reasoning=payload?.choices?.[0]?.delta?.reasoning_content
-      if(typeof reasoning==='string'&&reasoning.length){timing.mark('firstChunkMs');timing.mark('firstReasoningMs')}
+      if(typeof reasoning==='string'&&reasoning.length){timing.mark('firstChunkMs');timing.mark('firstReasoningMs');activity('reasoning_activity')}
+      if(/^response\.(?:reasoning|reasoning_text)/.test(responseEventType)&&typeof payload?.delta==='string'&&payload.delta.length)activity('reasoning_activity')
       if (responseEventType === 'response.failed' || responseEventType === 'response.error') {
         throw new Error(compactText(payload?.error?.message || payload?.message || 'AI provider stream failed.', 240))
       }
@@ -2175,11 +2183,13 @@ export async function callCompatibleAiStream(provider, { messages, temperature =
           const completedText = responseOutputText(payload)
           if (completedText) {
             timing.mark('firstAnswerMs')
+            activity('answer_delta')
             answer += completedText
             await onDelta?.(completedText)
           }
         }
         timing.mark('streamCompleteMs')
+        activity('stream_complete')
         receivedDone = true
         eventName = ''
         return
@@ -2194,6 +2204,7 @@ export async function callCompatibleAiStream(provider, { messages, temperature =
       if (!delta) return
       timing.mark('firstChunkMs')
       timing.mark('firstAnswerMs')
+      activity('answer_delta')
       answer += delta
       await onDelta?.(delta)
       eventName = ''
@@ -2284,7 +2295,7 @@ function finishCommittedCoachStream(response, payload) {
   }
 }
 
-async function handleCoachStream(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStoreProvider, tavernProvider = null, questionSourceResolver = null, submittedPayload = null) {
+async function handleCoachStream(request, response, provider, visionProvider, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStoreProvider, tavernProvider = null, questionSourceResolver = null, submittedPayload = null, taskActivity = null) {
   const handlerStarted=performance.now(),providerTimings=[]
   let preparationMs=0,providerEnded=handlerStarted
   const payload = submittedPayload || await readJsonBody(request)
@@ -2386,6 +2397,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
 
   const localAnswer = localCoachReply(context, policy)
   if (shouldUseLocalCoachFirst({ message, hasImages, policy, feature })) {
+    try{taskActivity?.({type:'local',at:Date.now()})}catch{/* Task progress cannot change a local answer. */}
     const policyFields = coachResponseFields(policy, feature, 'local-guidance', draw)
     sendCoachEvent(response, 'meta', { mode: 'local', providerStatus: 'skipped', canEscalate: true, ...policyFields })
     sendCoachEvent(response, 'delta', { text: localAnswer })
@@ -2471,6 +2483,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
             })
           : null
         lastMemory = selectedTavernContext?.memory || null
+        try{taskActivity?.({type:'requesting_model',at:Date.now(),provider:activeProvider.name,model:activeProvider.model})}catch{/* Task progress cannot change provider behavior. */}
         sendCoachEventOrThrow(response, 'meta', {
           mode: 'ai',
           provider: activeProvider.name,
@@ -2486,6 +2499,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
           metadata: selectedTavernContext?.metadata || coachProviderMetadata(feature, context),
           operation: feature.feature === 'tavern' ? 'coach-tavern-stream' : hasImages ? 'coach-vision-stream' : 'coach-stream',
           requestId,
+          onActivity:event=>{try{taskActivity?.(event)}catch{/* Task progress cannot change provider behavior. */}},
           onTiming:timing=>{providerEnded=performance.now();providerTimings.push({requestId,attempt:providerIndex+1,...timing})},
           providerAttempt: providerIndex + 1,
           fallbackPath: activeProviders.slice(0, providerIndex + 1).map((candidate) => candidate.name).join('>'),
@@ -2556,6 +2570,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
         model: successfulProvider.model,
         memory,
       }) : null
+      try{taskActivity?.({type:'finalizing',at:Date.now()})}catch{/* Task progress cannot change the answer. */}
       finishCommittedCoachStream(response, {
         mode: 'ai',
         provider: successfulProvider.name,
@@ -2866,14 +2881,28 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
       const context=applyCoachAuthorization(safeCoachContext(payload.context),authorization)
       const policy=resolveCoachRequestPolicy({typedIntent:payload.helpIntent,message:compactText(payload.message,3000),context,authorization,verifiedSubmitted:Boolean(authorization?.submitted)||(!polling&&verifiedCoachSubmission(payload,request,env)),feature})
       if(policy.assessmentState==='active-exam')throw Object.assign(new Error('请提交模拟考试后再使用 AI。'),{statusCode:403,code:'coach_exam_in_progress'})
-      if(!polling&&!compactText(payload.message,3000)&&!coachImageDataUrls(payload).length)throw Object.assign(new Error('请提供题目或图片。'),{statusCode:400})
-      if(!polling)coachImageDataUrls(payload)
+      const images=polling?[]:coachImageDataUrls(payload)
+      if(!polling&&!compactText(payload.message,3000)&&!images.length)throw Object.assign(new Error('请提供题目或图片。'),{statusCode:400})
       const binding={}
       for(const key of ['attemptId','routeId','stage','view','mode','studyMode','paperStudyMode','assessmentMode','responseStatus','paperId','questionId','questionNumber','partId'])if(context[key]!==undefined)binding[key]=context[key]
       for(const key of ['paper','question','part'])if(context[key])binding[key]={id:context[key].id,...(key==='question'?{number:context[key].number}:{})}
-      return {feature:payload.feature,helpIntent:payload.helpIntent,attemptId:payload.attemptId,context:binding}
+      const scope={feature:feature.feature,helpIntent:policy.helpIntent,attemptId:payload.attemptId,context:binding}
+      if(polling)return{scope}
+      const requestedEffort=coachEffort(payload.reasoningEffort),configured=images.length?config.vision:config.coach
+      const selected=requestedEffort?withCoachEffort(configured,requestedEffort):configured,active=providerCandidates(selected)[0]||selected
+      const saveTaskProvided=Object.hasOwn(payload,'saveTask')
+      if(saveTaskProvided&&typeof payload.saveTask!=='boolean')throw Object.assign(new Error('保存任务选项无效。'),{statusCode:400,code:'coach_task_persistence_invalid'})
+      const effectiveEffort=requestedEffort||active?.reasoningEffort||'low'
+      if(payload.saveTask===true&&!['high','max'].includes(effectiveEffort))throw Object.assign(new Error('仅 high 或 max 深度思考可保存任务。'),{statusCode:400,code:'coach_task_persistence_effort'})
+      const saved=payload.saveTask===true,persistenceMode=saved?'saved':saveTaskProvided?'instant':'legacy',retentionMs=saved?259200000:saveTaskProvided?600000:86400000
+      return{scope,taskProfile:{
+        requestedEffort:payload.reasoningEffort===undefined?null:requestedEffort,
+        effectiveEffort,
+        thinkingEnabled:active?.thinkingMode==='enabled',inputKind:images.length?'image':'text',imageCount:images.length,
+        helpIntent:policy.helpIntent,provider:active?.name||null,model:active?.model||null,saved,retentionMs,persistenceMode,
+      }}
     },
-    run:(request,response,payload)=>handleCoachStream(request,response,config.coach,config.vision,libraryRoot,allowedSubjects,env,telemetry,timeoutConfig,authorizeCoachRequest,divinationStore,conversationStore,tavernProvider,questionSourceResolver,payload),
+    run:(request,response,payload,taskActivity)=>handleCoachStream(request,response,config.coach,config.vision,libraryRoot,allowedSubjects,env,telemetry,timeoutConfig,authorizeCoachRequest,divinationStore,conversationStore,tavernProvider,questionSourceResolver,payload,taskActivity),
   })
   const aiApi = async function aiApi(request, response, next) {
     const requestUrl = new URL(request.url, 'http://127.0.0.1')
