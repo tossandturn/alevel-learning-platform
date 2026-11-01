@@ -25,6 +25,7 @@ assert.equal(assessed.verification.courseMatched, false)
 assert.equal(assessed.verification.apFixedCountStatus, 'not_published_in_source')
 assert.match(assessed.evidence, /SAT or ACT/)
 assert.match(assessed.evidence, /self-report Advanced Placement/)
+assert.doesNotMatch(assessed.sourceExcerpt, /Page heading:|学校级政策|institution-requirements/)
 assert.match(assessed.verification.limitations.join(' '), /未公布固定.*AP.*不能.*不要求/)
 
 const withMajor = planAdmissionsResearch({ message: 'MIT机械工程AP申请要求？', institutions })

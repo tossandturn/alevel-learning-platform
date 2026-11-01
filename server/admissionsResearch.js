@@ -8,6 +8,7 @@ import { boundedAdmissionsOperation } from './admissionsResearchDeadline.js'
 import { createAdmissionsSearchProvider } from './admissionsSearchProvider.js'
 import { admissionsInstitutions, planAdmissionsResearch, researchScope } from './admissionsResearchContext.js'
 import { assessAdmissionsPage, admissionsEvidencePreparation, newAdmissionsSourceId } from './admissionsResearchEvidence.js'
+import { admissionsSourceExcerpt, createAdmissionsPreviewDescriptor } from './admissionsPreviewContract.js'
 
 const DEFAULT_TIMEOUT_MS = 8_000
 const DEFAULT_MAX_BYTES = 256 * 1024
@@ -416,12 +417,15 @@ export function createAdmissionsResearch({
           const actualUrl = normalizeAdmissionsPublicUrl(page?.url || candidate.url, domainsForSchool).href
           const assessment = assessAdmissionsPage(page, plan)
           if (assessment.rejection) return { code: 'ADMISSIONS_COURSE_EVIDENCE_MISSING' }
+          const retrievedAt = new Date(now()).toISOString()
           return {
             source: {
               id: '', title: cleanText(page.title || `${plan.school.name} ${plan.course?.name || plan.kind}`, 180),
-              url: actualUrl, official: true, retrievedAt: new Date(now()).toISOString(),
+              url: actualUrl, official: true, retrievedAt,
               applicableYears: assessment.applicableYears,
               verification: assessment.verification,
+              excerpt: admissionsSourceExcerpt(assessment.sourceExcerpt),
+              preview: createAdmissionsPreviewDescriptor({ sourceUrl: actualUrl, now: Date.parse(retrievedAt) }),
               textSha256: crypto.createHash('sha256').update(String(page.text || '')).digest('hex'),
             },
             evidence: assessment.evidence,

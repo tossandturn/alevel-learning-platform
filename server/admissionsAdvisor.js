@@ -3,6 +3,8 @@ import {bilingualCoachPolicy} from './coachBilingual.js'
 
 import { createAdvisorConversationEngine } from './advisorConversationEngine.js'
 import { createAdmissionsResearch } from './admissionsResearch.js'
+import { createAdmissionsPreviewCapture } from './admissionsPreviewCapture.js'
+import { createAdmissionsPreviewService } from './admissionsPreviewService.js'
 import { resolveTavernMemoryRoot } from './tavernConversationStore.js'
 
 export const ADMISSIONS_ADVISOR_PERSONA = 'admissions-advisor'
@@ -128,11 +130,24 @@ const ADMISSIONS_ROLE = Object.freeze({
 })
 
 export function createAdmissionsAdvisor(options = {}) {
-  const { prepareTurn = null, researchOptions = null, ...engineOptions } = options
+  const { prepareTurn = null, researchOptions = null, previewOptions = null, ...engineOptions } = options
   const research = prepareTurn ? null : createAdmissionsResearch({ env: engineOptions.env || process.env, ...(researchOptions || {}) })
-  return createAdvisorConversationEngine({
+  const engine = createAdvisorConversationEngine({
     ...engineOptions,
     role: ADMISSIONS_ROLE,
     prepareTurn: prepareTurn || research.prepareTurn,
+  })
+  const capture = previewOptions?.captureSource
+    ? null
+    : createAdmissionsPreviewCapture(previewOptions?.captureOptions || {})
+  const previews = createAdmissionsPreviewService({
+    authenticateRequest: engineOptions.authenticateRequest,
+    resolveSource: input => engine.researchSourceForPreview(input),
+    captureSource: previewOptions?.captureSource || capture?.captureSource || null,
+    ...(previewOptions?.serviceOptions || {}),
+  })
+  return Object.freeze({
+    handle: async (request, response, requestUrl) => await previews.handle(request, response, requestUrl) || engine.handle(request, response, requestUrl),
+    close: () => { previews.close(); capture?.close(); engine.close() },
   })
 }

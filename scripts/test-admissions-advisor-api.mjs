@@ -8,6 +8,8 @@ import path from 'node:path'
 import { createAiApi } from '../server/aiApi.js'
 import { createTavernConversationStore } from '../server/tavernConversationStore.js'
 import { admissionsEvidencePreparation } from '../server/admissionsResearchEvidence.js'
+import { admissionsSourceExcerpt, createAdmissionsPreviewDescriptor } from '../server/admissionsPreviewContract.js'
+const previewTinyPng = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlpeR0AAAAASUVORK5CYII='
 
 const signingKey = 'synthetic-admissions-advisor-signing-key'
 
@@ -203,10 +205,11 @@ const admissionsResearchSources = [{
   title: 'Oxford Physics entry requirements',
   url: 'https://www.ox.ac.uk/admissions/undergraduate/courses/course-listing/physics',
   official: true,
-  checkedOn: '2026-10-23',
   retrievedAt: '2026-11-01T09:30:00.000Z',
   applicableYears: ['2027'],
   verification: { courseMatched: true, yearMatched: true, requestedYear: '2027', yearStatus: 'matched' },
+  excerpt: admissionsSourceExcerpt('Oxford Physics 2027 entry. A*AA including Mathematics and Physics.'),
+  preview: createAdmissionsPreviewDescriptor({ sourceUrl: 'https://www.ox.ac.uk/admissions/undergraduate/courses/course-listing/physics', now: Date.parse('2026-11-01T09:30:00.000Z') }),
 }]
 const researchHistories = []
 async function admissionsPrepareTurn({ message, history, onActivity }) {
@@ -273,6 +276,9 @@ const createTestApi = () => createAiApi({
   admissionsConversationStore: admissionsStoreForApi,
   admissionsCallCompatibleAiStream,
   admissionsPrepareTurn,
+  admissionsPreviewOptions: {
+    captureSource: async () => ({ mimeType: 'image/png', base64: previewTinyPng, width: 390, height: 900 }),
+  },
 })
 let api = createTestApi()
 const server = appServer((request, response, next) => api(request, response, next))
@@ -476,6 +482,18 @@ try {
   assert.ok(evidenceEnvelope, 'trusted source metadata must be in a separate server-owned message')
   assert.ok(researchHistories.at(-1).some(turn => turn.role === 'user' && turn.content === successBody.message), 'research must receive current owner conversation context')
   assert.equal(admissionsResearchCalls, 1)
+  const researchedAssistant = researchedDone.turns.find(turn => turn.role === 'assistant')
+  assert.equal(researchedAssistant.research.sources[0].excerpt, admissionsResearchSources[0].excerpt)
+  assert.equal(researchedAssistant.research.sources[0].preview.path, '/api/ai/admissions/source-preview')
+  assert.doesNotMatch(JSON.stringify(researchedAssistant.research), /base64/i, 'conversation metadata must never persist screenshot bytes')
+  const preview = await call('/api/ai/admissions/source-preview', { body: { conversationId: researchedDone.conversation.id, turnId: researchedAssistant.id, sourceId: admissionsResearchSources[0].id } })
+  assert.equal(preview.response.status, 200, preview.text)
+  assert.equal(preview.payload.preview.kind, 'static-webpage-screenshot')
+  assert.equal(preview.payload.preview.mimeType, 'image/png')
+  const foreignPreview = await call('/api/ai/admissions/source-preview', { owner: 8802, body: { conversationId: researchedDone.conversation.id, turnId: researchedAssistant.id, sourceId: admissionsResearchSources[0].id } })
+  assert.equal(foreignPreview.response.status, 404)
+  const resumedResearch = await call('/api/ai/admissions/conversations/resume', { body: { conversationId: researchedDone.conversation.id } })
+  assert.equal(resumedResearch.payload.messages.find(turn => turn.id === researchedAssistant.id).research.sources[0].id, admissionsResearchSources[0].id)
   conversation = researchedDone.conversation
 
   const callsBeforeResearchReplay = providerCalls

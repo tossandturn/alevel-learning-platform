@@ -33,6 +33,7 @@ for (const fixture of cases) {
   assert.equal(result.verification.courseName, fixture.programme)
   assert.equal(result.verification.kind, 'course-requirements')
   assert.match(result.evidence, /actual application programme/i)
+  assert.doesNotMatch(result.sourceExcerpt, /Actual application programme:|Requested direction:/)
   assert.match(result.evidence, new RegExp(fixture.programme))
   assert.ok(result.verification.limitations.some(text => text.includes(fixture.programme)))
 

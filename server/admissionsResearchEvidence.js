@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import { admissionsPublicCourseName } from './admissionsResearchContext.js'
 import { bodyConfirmedAdmissionsProgramme } from './admissionsProgrammeMapping.js'
+import { publicAdmissionsResearch } from './admissionsPreviewContract.js'
 
 const compact = value => String(value || '').replace(/\s+/g, ' ').trim()
 const safeLabel = value => compact(value).replace(/[\u005b\u005d<>`\\]/g, '').slice(0, 180)
@@ -80,9 +81,13 @@ export function assessAdmissionsPage(page, plan) {
     ...(programme ? [programme.limitation] : []),
     ...((plan.qualification === 'AP' || apDiscussed) && apFixedCountStatus === 'not_published_in_source' ? ['该来源未公布固定 AP 门数；不能据此推断官方不要求 AP。'] : []),
   ]
+  const excerptIndex = ranked[0]?.index
+  const sourceExcerpt = Number.isInteger(excerptIndex)
+    ? paragraphs.slice(Math.max(0, excerptIndex - 2), excerptIndex + 5).join('\n').slice(0, 900)
+    : ''
   const evidence = [`Page heading: ${identity}`, ...(programme ? [programme.evidence] : []), ...yearMatches.slice(0, 3).map(match => content.slice(Math.max(0, match.index - 60), match.index + 150)), ...requirements]
     .join('\n').slice(0, 8_000)
-  return { rejection, evidence, applicableYears, verification: {
+  return { rejection, evidence, sourceExcerpt, applicableYears, verification: {
     courseMatched: !institutionPolicy && courseMatched, yearMatched, requestedYear: plan.year || null,
     courseName: institutionPolicy ? null : programme?.mapping.applicationProgramme || plan.course?.name || titleCourse?.name || null,
     requestedCourse: plan.course?.name || null,
@@ -112,11 +117,11 @@ export function sanitizeAdmissionsCitations(answer, sources = []) {
 }
 
 export function admissionsEvidencePreparation({ message, status, scope, sources = [], evidence = [], code = null, missingFields = [], searchMode = 'deepseek-search-fetch' }) {
-  const research = {
+  const research = publicAdmissionsResearch({
     status, sourceCount: sources.length, sources,
     ...(status === 'not_requested' ? {} : { searchMode, scope }),
     ...(code ? { code } : {}), ...(missingFields.length ? { missingFields } : {}),
-  }
+  })
   const envelope = {
     schemaVersion: 'stem-admissions-evidence-v1',
     scope,
@@ -149,5 +154,5 @@ export function admissionsEvidencePreparation({ message, status, scope, sources 
 }
 
 export function newAdmissionsSourceId(index) {
-  return `S${index + 1}-${crypto.randomBytes(6).toString('hex')}`
+  return `S${index + 1}-${crypto.randomBytes(12).toString('hex')}`
 }

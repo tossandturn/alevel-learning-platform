@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import { publicAdmissionsResearch } from './admissionsPreviewContract.js'
 import {normalizeTavernMediaItems,storedTavernMedia,tavernMediaProviderContent} from './tavernMedia.js'
 
 export const TAVERN_MEMORY_SCHEMA_VERSION = 'stem-tavern-memory.v1'
@@ -100,6 +101,10 @@ function publicConversation(row) {
 
 function publicTurn(row) {
   const media=row.role==='assistant'&&row.status==='complete'?storedTavernMedia(row.memory_json):[]
+  let research = null
+  if (row.role === 'assistant' && row.status === 'complete' && row.memory_json) {
+    try { research = publicAdmissionsResearch(JSON.parse(String(row.memory_json))?.advisorResearch) } catch { /* Invalid legacy metadata stays private. */ }
+  }
   return {
     id: String(row.turn_id),
     role: String(row.role),
@@ -107,6 +112,7 @@ function publicTurn(row) {
     sequence: Number(row.sequence),
     status: String(row.status),
     ...(media.length?{media}:{}),
+    ...(research ? { research } : {}),
   }
 }
 
@@ -1197,6 +1203,27 @@ export function createTavernConversationStore({
     })
   }
 
+  function researchSourceForPreview({ ownerId: ownerInput, persona: personaInput, conversationId: conversationInput, turnId: turnInput, sourceId: sourceInput } = {}) {
+    const ownerId = ownerValue(ownerInput)
+    const persona = personaValue(personaInput, personaSet)
+    const conversationId = boundedId(conversationInput, 'tavern_conversation_id_invalid', 'conversationId')
+    const turnId = boundedId(turnInput, 'tavern_turn_id_invalid', 'turnId')
+    const sourceId = boundedId(sourceInput, 'tavern_source_id_invalid', 'sourceId')
+    const row = db().prepare(`
+      SELECT t.memory_json FROM tavern_turns t
+      JOIN tavern_conversations c ON c.owner_id = t.owner_id AND c.conversation_id = t.conversation_id
+      WHERE t.owner_id = ? AND t.conversation_id = ? AND t.turn_id = ?
+        AND t.role = 'assistant' AND t.status = 'complete'
+        AND c.persona = ? AND c.active = 1
+      LIMIT 1
+    `).get(ownerId, conversationId, turnId, persona)
+    if (!row?.memory_json) return null
+    try {
+      const research = publicAdmissionsResearch(JSON.parse(String(row.memory_json))?.advisorResearch)
+      return research?.sources.find(source => source.id === sourceId) || null
+    } catch { return null }
+  }
+
   function deleteConversation({ ownerId: ownerInput, persona: personaInput, conversationId: conversationInput } = {}) {
     const ownerId = ownerValue(ownerInput)
     const persona = personaValue(personaInput, personaSet)
@@ -1255,6 +1282,7 @@ export function createTavernConversationStore({
     getMessages,
     latestDrawForContext,
     contextForProvider,
+    researchSourceForPreview,
     deleteConversation,
     close,
   })

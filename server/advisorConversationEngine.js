@@ -922,6 +922,9 @@ export function createAdvisorConversationEngine({
 
   return Object.freeze({
     handle,
+    researchSourceForPreview: ({ ownerId, conversationId, turnId, sourceId }) => storeCall(role, () => store().researchSourceForPreview({
+      ownerId, persona: role.persona, conversationId, turnId, sourceId,
+    })),
     close: () => {
       volatileGeneratedResults.clear()
       activeStore?.close?.()
