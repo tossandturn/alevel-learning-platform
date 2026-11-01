@@ -105,9 +105,10 @@ node scripts/hash-admissions-preview-runtime.mjs /absolute/runtime/directory
 
 ## Isolation
 
-The server creates one ephemeral container per requested source preview and
-copies the fixed artifact with `docker cp`; it mounts no host directory and no
-Docker socket. Runtime constraints are:
+The server creates one ephemeral container per requested source preview. The
+only host bind is the fully hash-verified, fixed, public runtime artifact at
+`/runtime`, mounted read-only. No user directory, credential location or Docker
+socket is mounted. Runtime constraints are:
 
 - non-root `1000:1000`, `chromiumSandbox: true`, no `--no-sandbox`;
 - `--network none`, read-only root, private IPC, independent 128 MB shm;

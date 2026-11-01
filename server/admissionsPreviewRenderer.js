@@ -56,6 +56,10 @@ export function validatedPreviewRendererConfig({ artifactRoot = DEFAULT_ADMISSIO
   const manifestPath = path.join(root, 'manifest.json')
   const manifestStat = fs.lstatSync(manifestPath, { throwIfNoEntry: false })
   if (!manifestStat) return { configured: false, reason: 'renderer_unavailable', artifactRoot: root }
+  const rootStat = fs.lstatSync(root)
+  if (!rootStat.isDirectory() || rootStat.isSymbolicLink() || /[,\r\n]/.test(root)) throw new Error('Admissions preview runtime root is invalid.')
+  const allowedRootEntries = new Set(['manifest.json', 'renderer.cjs', 'seccomp_profile.json', 'playwright-core-1.64.1.tgz', 'LICENSE-playwright', 'package'])
+  if (fs.readdirSync(root).some(name => !allowedRootEntries.has(name))) throw new Error('Admissions preview runtime contains an unexpected entry.')
   if (!manifestStat.isFile() || manifestStat.isSymbolicLink() || manifestStat.size > 8 * 1024) throw new Error('Admissions preview manifest is invalid.')
   let manifest
   try { manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) } catch { throw new Error('Admissions preview manifest is invalid JSON.') }
@@ -87,7 +91,8 @@ export function validatedPreviewRendererConfig({ artifactRoot = DEFAULT_ADMISSIO
   return { configured: true, image, artifactRoot: root, seccompPath }
 }
 
-export function dockerAdmissionsPreviewCreateArgs({ image, name, seccompPath = '/opt/stemist/playwright-1.64.1-seccomp.json' }) {
+export function dockerAdmissionsPreviewCreateArgs({ image, name, artifactRoot, seccompPath = '/opt/stemist/playwright-1.64.1-seccomp.json' }) {
+  if (!path.isAbsolute(artifactRoot) || /[,\r\n]/.test(artifactRoot)) throw new Error('Admissions preview mount path is invalid.')
   return [
     'create', '--name', name,
     '--interactive',
@@ -98,6 +103,7 @@ export function dockerAdmissionsPreviewCreateArgs({ image, name, seccompPath = '
     '--pids-limit', '128', '--cpus', '1', '--memory', '512m', '--shm-size', '128m',
     '--user', '1000:1000', '--ipc', 'private',
     '--env', 'HOME=/tmp', '--env', 'PLAYWRIGHT_BROWSERS_PATH=/ms-playwright',
+    '--mount', `type=bind,src=${artifactRoot},dst=/runtime,readonly`,
     '--workdir', '/runtime',
     image, 'node', '/runtime/renderer.cjs',
   ]
@@ -140,22 +146,21 @@ function runAttached(containerId, input, timeoutMs = 10_000) {
   })
 }
 
-export async function runDockerAdmissionsPreview({ configuration, bundle, deadlineAt = Date.now() + 10_000 }) {
+export async function runDockerAdmissionsPreview({ configuration, bundle, deadlineAt = Date.now() + 10_000, execDocker = execFileAsync, runAttachedDocker = runAttached }) {
   const name = `stem-admissions-preview-${crypto.randomBytes(8).toString('hex')}`
   let containerId = ''
   try {
     const remaining = () => Math.max(1, deadlineAt - Date.now())
     if (remaining() <= 1) throw renderError('ADMISSIONS_PREVIEW_RENDER_TIMEOUT', 'Preview renderer deadline expired.')
-    const created = await execFileAsync('docker', dockerAdmissionsPreviewCreateArgs({ image: configuration.image, name, seccompPath: configuration.seccompPath }), { windowsHide: true, timeout: Math.min(8_000, remaining()), maxBuffer: 64 * 1024 })
+    const created = await execDocker('docker', dockerAdmissionsPreviewCreateArgs({ image: configuration.image, name, artifactRoot: configuration.artifactRoot, seccompPath: configuration.seccompPath }), { windowsHide: true, timeout: Math.min(8_000, remaining()), maxBuffer: 64 * 1024 })
     containerId = String(created.stdout || '').trim()
     if (!/^[a-f0-9]{12,64}$/i.test(containerId)) throw renderError('ADMISSIONS_PREVIEW_RENDERER_UNAVAILABLE', 'Preview container was not created.')
-    await execFileAsync('docker', ['cp', `${configuration.artifactRoot}${path.sep}.`, `${containerId}:/runtime`], { windowsHide: true, timeout: Math.min(8_000, remaining()), maxBuffer: 64 * 1024 })
-    return await runAttached(containerId, bundle, Math.min(10_000, remaining()))
+    return await runAttachedDocker(containerId, bundle, Math.min(10_000, remaining()))
   } catch (error) {
-    if (error?.code?.startsWith('ADMISSIONS_')) throw error
+    if (String(error?.code || '').startsWith('ADMISSIONS_')) throw error
     throw renderError('ADMISSIONS_PREVIEW_RENDERER_UNAVAILABLE', 'Preview renderer is unavailable.')
   } finally {
-    if (containerId) await execFileAsync('docker', ['rm', '-f', containerId], { windowsHide: true, timeout: 5_000, maxBuffer: 64 * 1024 }).catch(() => {})
+    if (containerId) await execDocker('docker', ['rm', '-f', containerId], { windowsHide: true, timeout: 5_000, maxBuffer: 64 * 1024 }).catch(() => {})
   }
 }
 
