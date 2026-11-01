@@ -23,6 +23,25 @@ const emptyCatalogResult = await emptyCatalogResearch.prepareTurn({ message: '�
 assert.equal(emptyCatalogResult.publicFields.research.status, 'complete')
 assert.equal(emptyCatalogResult.publicFields.research.sourceCount, 1)
 assert.match(emptyCatalogQuery, /site:imperial\.ac\.uk/)
+const fallbackMit = planAdmissionsResearch({ message: '请查询MIT国际本科一般申请要求和AP要求。', institutions: fallbackInstitutions })
+assert.deepEqual(fallbackMit.missing, [])
+assert.equal(fallbackMit.school.domain, 'mitadmissions.org')
+assert.match(fallbackMit.query, /MIT undergraduate entry requirements AP site:mitadmissions\.org/)
+let emptyMitQuery = ''
+const emptyMitResearch = createAdmissionsResearch({
+  sourceCatalog: [],
+  searchPublicSources: async ({ query }) => {
+    emptyMitQuery = query
+    return [{ title: 'Tests & scores', url: 'https://mitadmissions.org/apply/firstyear/tests-scores/' }]
+  },
+  readPublicPage: async url => ({ url, title: 'Tests & scores | MIT Admissions', text: '# Tests & scores\nFirst-year applicants must submit SAT or ACT results.\nApplicants should self-report Advanced Placement examinations taken or planned.' }),
+  resolveAddresses: async () => [{ address: '8.8.8.8', family: 4 }],
+})
+const emptyMitResult = await emptyMitResearch.prepareTurn({ message: '请查询MIT国际本科一般申请要求和AP要求。' })
+assert.equal(emptyMitResult.publicFields.research.status, 'partial')
+assert.equal(emptyMitResult.publicFields.research.sourceCount, 1)
+assert.equal(emptyMitResult.publicFields.research.sources[0].verification.kind, 'institution-requirements')
+assert.match(emptyMitQuery, /site:mitadmissions\.org/)
 const current = planAdmissionsResearch({ message: '几个A*？', history: [{ role: 'user', content: 'IC机械工程' }], institutions })
 assert.equal(current.requested, true)
 assert.deepEqual(current.missing, [], 'a target entry year is optional and must not cause a clarification loop')
