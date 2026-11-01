@@ -32,6 +32,18 @@ contain the original student question, name, email, grades, essay, or full histo
 Recent owned user turns supply missing public scope; assistant guesses do not.
 Pure edits and general school-selection planning do not search unnecessarily.
 A target year is optional: the answer reports the retrieved page year separately.
+General undergraduate policy also does not require a major. Official institution
+policy pages may be retained when a course is already known, labelled
+`institution-requirements` with `courseOfferVerified: false`. Specific course
+pages must still match the requested course. The absence of a published AP exam
+count is reported only as `not_published_in_source`, never as an inference that
+AP is not required.
+For named directions, a small institution-bound mapping also accepts Oxford
+Engineering Science or Cambridge Engineering for Mechanical Engineering, and
+Imperial Computing for Computer Science, only when the fetched body confirms
+the relationship. `programmeMapping` records the actual application programme;
+later specialisation is stated only with supporting progression evidence. A
+title-only alias or unrelated course/another institution remains rejected.
 
 The local directory establishes official domains and institution aliases only;
 matching that directory is not a successful search. Actual Search results are
@@ -63,14 +75,19 @@ Read-only smoke, on the approved candidate checkout as the service user:
 ```text
 npm run smoke:admissions-research
 npm run smoke:admissions-research -- --current
+npm run smoke:admissions-research -- --mit-general
 node scripts/smoke-admissions-research.mjs --direct-course
 ```
 
 The first two exercise official Search and Fetch for a fixed public Imperial
 Mechanical Engineering query, respectively with and without a target year.
-The third reads a fixed Sheffield Mechanical Engineering course page directly.
+`--mit-general` probes MIT institution-level undergraduate/AP policy without a
+major or target year. The direct-course command reads a fixed Sheffield
+Mechanical Engineering course page directly.
 They never call a model, read student records, mutate application state, or print
 keys, provider bodies, or student text. Output contains status/code, public course
 URLs/domains, body evidence flags/hash, page years, phases and elapsed time.
-Exit 0 means the fixed probe obtained adequate evidence; exit 2 is blocked or
+Exit 0 means the fixed probe obtained adequate evidence; a MIT general-policy
+probe may explicitly report a partial/unconfirmed entry year while succeeding
+on applicable institution policy. Exit 2 is blocked or
 incomplete. This does not verify production chat, device behavior or deployment.

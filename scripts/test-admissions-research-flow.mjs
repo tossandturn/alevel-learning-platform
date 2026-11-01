@@ -121,7 +121,7 @@ try {
   const clarify = await ask(fresh, '几个A*？', 9913)
   assert.equal(clarify.result.data.mode, 'ai')
   assert.equal(clarify.result.data.providerStatus, 'connected')
-  assert.deepEqual(clarify.result.data.research.missingFields, ['institution', 'course'])
+  assert.deepEqual(clarify.result.data.research.missingFields, ['institution'])
   assert.equal(modelCalls, beforeClarify + 1, 'necessary clarification remains a real AI completion for legacy clients')
 
   const beforeFailure = modelCalls

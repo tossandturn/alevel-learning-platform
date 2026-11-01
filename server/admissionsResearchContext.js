@@ -135,6 +135,7 @@ export function planAdmissionsResearch({ message = '', history = [], institution
   let year = ''
   let directCourseUrl = ''
   let kind = 'undergraduate entry requirements'
+  let qualification = ''
   const turns = [...history.filter(turn => turn?.role === 'user').slice(-20), { role: 'user', content: text }]
   for (const turn of turns) {
     const content = String(turn.content || '').slice(0, 12_000)
@@ -145,17 +146,21 @@ export function planAdmissionsResearch({ message = '', history = [], institution
     if (matchedCourse) { course = matchedCourse; directCourseUrl = '' }
     if (directUrl) directCourseUrl = directUrl
     year = explicitYear(content) || year
+    if (/\bAP\b|Advanced Placement/iu.test(content)) qualification = 'AP'
+    else if (/\bIB\b|International Baccalaureate/iu.test(content)) qualification = 'IB'
+    else if (/A[- ]?levels?|A\*|A[ -]?Level|\bA\*AA\b/iu.test(content)) qualification = 'A-Level'
     if (FACT_REQUEST.test(content) || EXPLICIT_LOOKUP.test(content)) kind = requirementKind(content)
   }
   // A changed subject replaces the previous one; it never adds private profile text to a query.
   course = currentCourse || course
-  const missing = [!school && 'institution', !course && !directCourseUrl && kind === 'undergraduate entry requirements' && 'course'].filter(Boolean)
-  if (missing.length) return { requested: true, school, course, year, kind, directCourseUrl, missing, query: '' }
-  const suffix = `${year ? `${year} ` : ''}${kind} site:${school.domain}`
-  const prefix = `${school.name} ${course?.name || ''}`.trim()
+  if (/一般|通用|全校|统一|general|university-wide|institution-wide/iu.test(text) && !currentCourse) { course = null; directCourseUrl = '' }
+  const missing = [!school && 'institution', !school && !course && !directCourseUrl && !qualification && kind === 'undergraduate entry requirements' && 'course'].filter(Boolean)
+  if (missing.length) return { requested: true, school, course, year, kind, qualification, directCourseUrl, missing, query: '' }
+  const suffix = `${year ? `${year} ` : ''}${kind}${qualification ? ` ${qualification}` : ''} site:${school.domain}`
+  const prefix = [school.name, course?.name].filter(Boolean).join(' ')
   const publicName = Array.from(`${prefix} ${suffix}`).length <= 128 ? prefix : course?.name || ''
   const query = `${publicName} ${suffix}`.trim()
-  return { requested: true, school, course, year, kind, directCourseUrl, missing: [], query }
+  return { requested: true, school, course, year, kind, qualification, directCourseUrl, missing: [], query }
 }
 
 export function researchScope(plan) {
@@ -164,5 +169,6 @@ export function researchScope(plan) {
     course: plan.course?.name || null,
     entryYear: plan.year || null,
     requirement: plan.kind || null,
+    qualification: plan.qualification || null,
   }
 }

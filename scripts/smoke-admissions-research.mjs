@@ -21,8 +21,10 @@ try {
   } else {
     const research = createAdmissionsResearch()
     const phases = []
+    const generalPolicy = process.argv.includes('--mit-general')
     const result = await research.prepareTurn({
-      message: process.argv.includes('--current')
+      message: generalPolicy ? 'Verify MIT general international undergraduate application and AP requirements.'
+        : process.argv.includes('--current')
         ? 'Verify Imperial College London Mechanical Engineering undergraduate entry requirements.'
         : 'Verify Imperial College London Mechanical Engineering undergraduate entry requirements for 2027.',
       onActivity: event => phases.push(event.phase),
@@ -33,7 +35,8 @@ try {
       sources: sources.map(source => ({ officialDomain: new URL(source.url).hostname, courseUrl: source.url, applicableYears: source.applicableYears, verification: source.verification, textSha256: source.textSha256 })),
       durationMs: Math.round(performance.now() - started),
     }))
-    if (status !== 'complete') process.exitCode = 2
+    const applicableGeneralPolicy = generalPolicy && sourceCount > 0 && sources.every(source => source.verification.kind === 'institution-requirements' && source.verification.substantiveRequirements)
+    if (status !== 'complete' && !applicableGeneralPolicy) process.exitCode = 2
   }
 } catch (error) {
   console.log(JSON.stringify({ status: 'blocked', code: /^ADMISSIONS_[A-Z_\d]+$/.test(error?.code || '') ? error.code : 'ADMISSIONS_PROBE_FAILED', durationMs: Math.round(performance.now() - started) }))
