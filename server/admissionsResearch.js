@@ -135,12 +135,30 @@ export function extractAdmissionsPageText(html, maxChars = DEFAULT_MAX_PAGE_CHAR
     .replace(/<(script|style|noscript|svg|iframe|form|template|nav|footer|header|aside)\b[^>]*>[\s\S]*?<\/\1\s*>/giu, ' ')
     .replace(/<(br|\/p|\/div|\/li|\/tr|\/h[1-6]|\/section|\/article|\/main)\b[^>]*>/giu, '\n')
     .replace(/<[^>]+>/g, ' ')
-  return decodeHtmlEntities(withoutActive)
+  const normalized = decodeHtmlEntities(withoutActive)
+    .replace(/\r\n?/g, '\n')
     .replace(/[\t\f\v ]+/g, ' ')
     .replace(/ *\n */g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
-    .slice(0, Math.max(1, Number(maxChars) || DEFAULT_MAX_PAGE_CHARS))
+  const anchors = [...normalized.matchAll(/minimum entry standard|entry qualifications?|qualifications required|subjects required|entry requirements?|admission requirements?|academic requirements?|standard offer|A[- ]?levels?|english language requirements?|testing requirements?|application deadline|start date|UCAS course code|to include|required subjects?|入学要求|申请要求|语言要求/giu)]
+    .slice(0, 160)
+    .map(match => {
+      const text = normalized.slice(Math.max(0, match.index - 500), match.index + 12_000)
+      const score = 1
+        + (/\b(?:[A-G]\*?){3,4}\b|\bA\*(?=\s|$)|\b\d{2}\s+points?\b/u.test(text) ? 4 : 0)
+        + (/Mathematics|Maths|Physics|Chemistry|Biology/iu.test(text) ? 3 : 0)
+        + (/start date[\s\S]{0,80}(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+20\d{2}/iu.test(text) ? 2 : 0)
+        - (/navigation|site menu|footer links/iu.test(text.slice(0, 500)) ? 2 : 0)
+      return { index: match.index, score, text }
+    })
+    .sort((left, right) => right.score - left.score || left.index - right.index)
+    .slice(0, 12)
+    .map(item => item.text)
+  const priority = [...new Set(anchors)]
+  const identity = normalized.slice(0, 1_500)
+  const ordered = priority.length ? `${priority.join('\n\n')}\n\n${identity}\n\n${normalized}` : normalized
+  return ordered.slice(0, Math.max(1, Number(maxChars) || DEFAULT_MAX_PAGE_CHARS))
 }
 
 function htmlTitle(html) {
@@ -362,6 +380,7 @@ export function createAdmissionsResearch({
   sourceCatalog = null,
   searchPublicSources = null,
   readPublicPage = null,
+  fetchReadPublicPage = null,
   resolveAddresses = defaultResolveAddresses,
   providerOptions = {},
   now = () => new Date(),
@@ -372,9 +391,6 @@ export function createAdmissionsResearch({
   const institutions = admissionsInstitutions(catalog, academicRoot)
   const provider = searchPublicSources ? null : createAdmissionsSearchProvider({ env, ...providerOptions })
   const search = searchPublicSources || provider.search
-  const readPage = readPublicPage || (provider
-    ? (url, options) => provider.fetchPage(url, options)
-    : createAdmissionsPageReader({ allowedDomains: new Set(institutions.map(item => item.domain)) }))
   const searchMode = searchPublicSources ? 'injected-search-fetch' : 'deepseek-search-fetch'
 
   return Object.freeze({
@@ -397,6 +413,15 @@ export function createAdmissionsResearch({
         return prepare({ status: 'unavailable', code: /^ADMISSIONS_[A-Z_\d]+$/.test(error?.code || '') ? error.code : 'ADMISSIONS_SEARCH_FAILED' })
       }
       const domainsForSchool = new Set(institutions.filter(item => item.name === plan.school.name).map(item => item.domain))
+      const directReader = readPublicPage || createAdmissionsPageReader({
+        allowedDomains: domainsForSchool,
+        resolveAddresses,
+        timeoutMs: 4_000,
+        maxBytes: 512 * 1024,
+        maxPageChars: 60_000,
+        maxRedirects: 3,
+      })
+      const fallbackReader = fetchReadPublicPage || (provider ? (url, options) => provider.fetchPage(url, options) : null)
       const directUrls = [...(plan.directCourseUrl ? [plan.directCourseUrl] : []), ...(canonicalMessage.match(URL_PATTERN) || [])].flatMap(raw => {
         try { return [{ url: normalizeAdmissionsPublicUrl(raw, domainsForSchool).href }] } catch { return [] }
       })
@@ -409,27 +434,38 @@ export function createAdmissionsResearch({
       if (!selected.length) return prepare({ status: 'no_results', code: 'ADMISSIONS_OFFICIAL_RESULTS_EMPTY' })
       onActivity?.({ phase: 'fetch' })
       const results = await Promise.all(selected.map(async (candidate) => {
+        const readAndAssess = async (reader, transport, timeoutMs) => {
+          if (typeof reader !== 'function') return { code: 'ADMISSIONS_COURSE_EVIDENCE_MISSING' }
+          try {
+            const page = await boundedAdmissionsOperation(() => reader(candidate.url, { deadlineAt: researchDeadline }), {
+              timeoutMs, deadlineAt: researchDeadline, code: transport === 'direct-pinned-html' ? 'ADMISSIONS_DIRECT_READ_TIMEOUT' : 'ADMISSIONS_FETCH_TIMEOUT',
+            })
+            const actualUrl = normalizeAdmissionsPublicUrl(page?.url || candidate.url, domainsForSchool).href
+            const assessment = assessAdmissionsPage(page, plan)
+            if (assessment.rejection) return { code: 'ADMISSIONS_COURSE_EVIDENCE_MISSING', rejection: assessment.rejection }
+            const retrievedAt = new Date(now()).toISOString()
+            return {
+              source: {
+                id: '', title: cleanText(page.title || `${plan.school.name} ${plan.course?.name || plan.kind}`, 180),
+                url: actualUrl, official: true, retrievedAt,
+                applicableYears: assessment.applicableYears,
+                verification: { ...assessment.verification, transport },
+                excerpt: admissionsSourceExcerpt(assessment.sourceExcerpt),
+                preview: createAdmissionsPreviewDescriptor({ sourceUrl: actualUrl, now: Date.parse(retrievedAt) }),
+                textSha256: crypto.createHash('sha256').update(String(page.text || '')).digest('hex'),
+              },
+              evidence: assessment.evidence,
+            }
+          } catch (error) {
+            return { code: /^ADMISSIONS_[A-Z_\d]+$/.test(error?.code || '') ? error.code : transport === 'direct-pinned-html' ? 'ADMISSIONS_DIRECT_READ_FAILED' : 'ADMISSIONS_FETCH_FAILED' }
+          }
+        }
         try {
           await validateAdmissionsPublicUrl(candidate.url, { allowedDomains: domainsForSchool, resolveAddresses, deadlineAt: researchDeadline })
-          const page = await boundedAdmissionsOperation(() => readPage(candidate.url, { deadlineAt: researchDeadline }), {
-            timeoutMs: 8_000, deadlineAt: researchDeadline, code: 'ADMISSIONS_FETCH_TIMEOUT',
-          })
-          const actualUrl = normalizeAdmissionsPublicUrl(page?.url || candidate.url, domainsForSchool).href
-          const assessment = assessAdmissionsPage(page, plan)
-          if (assessment.rejection) return { code: 'ADMISSIONS_COURSE_EVIDENCE_MISSING' }
-          const retrievedAt = new Date(now()).toISOString()
-          return {
-            source: {
-              id: '', title: cleanText(page.title || `${plan.school.name} ${plan.course?.name || plan.kind}`, 180),
-              url: actualUrl, official: true, retrievedAt,
-              applicableYears: assessment.applicableYears,
-              verification: assessment.verification,
-              excerpt: admissionsSourceExcerpt(assessment.sourceExcerpt),
-              preview: createAdmissionsPreviewDescriptor({ sourceUrl: actualUrl, now: Date.parse(retrievedAt) }),
-              textSha256: crypto.createHash('sha256').update(String(page.text || '')).digest('hex'),
-            },
-            evidence: assessment.evidence,
-          }
+          const direct = await readAndAssess(directReader, 'direct-pinned-html', 4_000)
+          if (direct.source) return direct
+          const fallback = await readAndAssess(fallbackReader, 'deepseek-fetch', 8_000)
+          return fallback.source ? fallback : { code: fallback.code || direct.code }
         } catch (error) {
           return { code: /^ADMISSIONS_[A-Z_\d]+$/.test(error?.code || '') ? error.code : 'ADMISSIONS_FETCH_FAILED' }
         }

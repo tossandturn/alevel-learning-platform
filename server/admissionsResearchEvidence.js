@@ -47,27 +47,35 @@ export function assessAdmissionsPage(page, plan) {
   const policyPattern = /(?=[^\n]{0,600}\b(?:require(?:d|s)?|must|should|recommend(?:ed)?|self[- ]report|do not have)\b)(?=[^\n]{0,600}\b(?:SAT|ACT|AP|Advanced Placement|qualifications?|transcripts?|classes?|grades?|school|application|undergraduate|admission|language|proficiency)\b)[^\n]{20,600}/iu
   const policyRelevant = institutionPolicy && policyPattern.test(plain) && (plan.kind === 'undergraduate entry requirements'
     || (plan.kind === 'English language requirements' && /English|language|proficiency|IELTS|TOEFL/iu.test(plain)))
-  const substantive = policyRelevant || (plan.kind === 'English language requirements' ? languagePattern.test(plain)
-    : plan.kind === 'application deadline' ? deadlinePattern.test(plain)
-      : plan.kind === 'tuition fees' ? feePattern.test(plain) : gradePattern.test(plain))
+  const anchorPattern = plan.kind === 'English language requirements' ? /english language requirements?|language tests?|IELTS|TOEFL|英语|语言要求/iu
+    : plan.kind === 'application deadline' ? /application deadline|apply by|closing date|截止/iu
+      : plan.kind === 'tuition fees' ? /tuition|course fees?|学费/iu
+        : /minimum entry standard|entry qualifications?|qualifications required|subjects required|entry requirements?|admission requirements?|academic requirements?|standard offer|A[- ]?levels?|to include|required subjects?|录取要求|入学要求/iu
   const ranked = paragraphs.map((line, index) => {
-    const window = paragraphs.slice(index, index + 3).join('\n').replace(/\\([*])/g, '$1')
+    if (!institutionPolicy && (!anchorPattern.test(line) || /navigation|menu|browse|directory|footer/iu.test(line))) return { score: 0, snippet: '', primaryMatched: false }
+    const window = paragraphs.slice(Math.max(0, index - 1), index + 9).join('\n').replace(/\\([*])/g, '$1')
     const primary = plan.kind === 'English language requirements' ? languagePattern
       : plan.kind === 'application deadline' ? deadlinePattern
         : plan.kind === 'tuition fees' ? feePattern : institutionPolicy ? policyPattern : gradePattern
     const match = primary.exec(window) || languagePattern.exec(window)
-    if (!match) return { score: 0, snippet: '' }
+    if (!match) return { score: 0, snippet: '', primaryMatched: false }
     const snippet = window.slice(Math.max(0, match.index - 180), match.index + 950)
     const subjectCondition = /Mathematics|Maths|Physics|Chemistry|Biology/iu.test(snippet)
-    const score = primary.test(window) ? 4 + (subjectCondition ? 2 : 0) : 3
-    return { index, score, snippet }
+    const primaryMatched = primary.test(window)
+    const score = primaryMatched ? 4 + (subjectCondition ? 2 : 0) : 3
+    return { index, score, snippet, primaryMatched }
   }).filter(item => item.score > 1).sort((a, b) => b.score - a.score || a.index - b.index)
+  const substantive = policyRelevant || ranked.some(item => item.primaryMatched)
   const requirements = [...new Set(ranked.map(item => item.snippet))].slice(0, 7)
   const language = languagePattern.exec(plain)
   if (language) requirements.push(plain.slice(Math.max(0, language.index - 80), language.index + 500))
-  const yearMatches = [...content.matchAll(/\b(20\d{2})(?:[-/](?:20)?\d{2})?\s*(?:entry|intake|admission)|(?:entry|intake|admission)\s*(?:in|for|year|:)?\s*(20\d{2})|\b(20\d{2})年入学/giu)]
-  const applicableYears = [...new Set(yearMatches
-    .map(match => match[1] || match[2] || match[3]))].slice(0, 6)
+  const yearEvidence = [
+    ...[...content.matchAll(/\b(20\d{2})(?:[-/](?:20)?\d{2})?\s*(?:entry|intake|admission)|(?:entry|intake|admission)\s*(?:in|for|year|:)?\s*(20\d{2})|\b(20\d{2})年入学/giu)]
+      .map(match => ({ year: match[1] || match[2] || match[3], index: match.index })),
+    ...[...content.matchAll(/(?:^|\n)\s*start date\s*(?:\n|:|-)?\s*(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+(20\d{2})\b/gimu)]
+      .map(match => ({ year: match[1], index: match.index })),
+  ]
+  const applicableYears = [...new Set(yearEvidence.map(item => item.year))].slice(0, 6)
   const yearMatched = plan.year ? applicableYears.includes(plan.year) : null
   const rejection = !courseMatched && !institutionPolicy ? 'course_mismatch'
     : !plan.course && !plan.directCourseUrl && !institutionPolicy ? 'institution_policy_unconfirmed'
@@ -85,7 +93,7 @@ export function assessAdmissionsPage(page, plan) {
   const sourceExcerpt = Number.isInteger(excerptIndex)
     ? paragraphs.slice(Math.max(0, excerptIndex - 2), excerptIndex + 5).join('\n').slice(0, 900)
     : ''
-  const evidence = [`Page heading: ${identity}`, ...(programme ? [programme.evidence] : []), ...yearMatches.slice(0, 3).map(match => content.slice(Math.max(0, match.index - 60), match.index + 150)), ...requirements]
+  const evidence = [`Page heading: ${identity}`, ...(programme ? [programme.evidence] : []), ...yearEvidence.slice(0, 3).map(item => content.slice(Math.max(0, item.index - 60), item.index + 180)), ...requirements]
     .join('\n').slice(0, 8_000)
   return { rejection, evidence, sourceExcerpt, applicableYears, verification: {
     courseMatched: !institutionPolicy && courseMatched, yearMatched, requestedYear: plan.year || null,
@@ -99,7 +107,7 @@ export function assessAdmissionsPage(page, plan) {
     yearStatus: !plan.year ? 'target_not_specified' : yearMatched ? 'matched' : applicableYears.length ? 'mismatch' : 'not_verified',
     pageYearVerified: applicableYears.length > 0,
     substantiveRequirements: substantive,
-    gradeEvidence: gradePattern.test(plain),
+    gradeEvidence: plan.kind === 'undergraduate entry requirements' && ranked.some(item => item.primaryMatched && gradePattern.test(item.snippet)),
     subjectConditionEvidence: /Mathematics|Maths|Physics|Chemistry|Biology/iu.test(requirements.join('\n')),
   } }
 }
