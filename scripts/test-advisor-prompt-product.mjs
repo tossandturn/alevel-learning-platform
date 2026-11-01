@@ -58,9 +58,9 @@ function assertPromptDeliveryStyle(prompt, roleLabel) {
 }
 
 test('protected admissions prompt boundaries remain explicit and compact', () => {
-  assert.ok(Array.from(admissionsPrompt).length <= 8_500, 'admissions prompt must stay within the product prompt budget')
+  assert.ok(Array.from(admissionsPrompt).length <= 12_500, 'admissions prompt must stay within the bilingual product prompt budget')
   assert.match(admissionsPrompt, /fixed server-owned role/i)
-  assert.match(admissionsPrompt, /no live browsing tool/i)
+  assert.match(admissionsPrompt, /no unrestricted live browsing tool/i)
   assert.match(admissionsPrompt, /never fabricate/i)
   assert.match(admissionsPrompt, /never guarantee/i)
   assert.match(admissionsPrompt, /at most three/i)
@@ -68,7 +68,7 @@ test('protected admissions prompt boundaries remain explicit and compact', () =>
 })
 
 test('protected IELTS prompt boundaries remain explicit and compact', () => {
-  assert.ok(Array.from(ieltsPrompt).length <= 8_500, 'IELTS prompt must stay within the product prompt budget')
+  assert.ok(Array.from(ieltsPrompt).length <= 11_500, 'IELTS prompt must stay within the bilingual product prompt budget')
   assert.match(ieltsPrompt, /fixed server-owned, text-only teaching role/i)
   assert.match(ieltsPrompt, /no live browsing tool/i)
   assert.match(ieltsPrompt, /Task Achievement/)

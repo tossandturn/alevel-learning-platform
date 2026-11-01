@@ -284,6 +284,7 @@ export function createAdvisorConversationEngine({
   memoryRoot = null,
   baseMemoryRoot = null,
   callCompatibleAiStream,
+  prepareTurn = null,
 } = {}) {
   const role = assertRoleConfig(rawRole)
   if (typeof authenticateRequest !== 'function') throw new Error(copy(role, 'authenticatorRequired'))
@@ -564,6 +565,41 @@ export function createAdvisorConversationEngine({
         return
       }
 
+      let turnPreparation = {
+        providerMessage: canonicalMessage,
+        publicFields: {},
+        answerSuffix: '',
+      }
+      if (typeof prepareTurn === 'function') {
+        try {
+          const prepared = await prepareTurn({
+            message: canonicalMessage,
+            ownerId,
+            conversationId,
+            clientTurnId,
+          })
+          if (prepared && typeof prepared === 'object') {
+            turnPreparation = {
+              providerMessage: typeof prepared.providerMessage === 'string' && prepared.providerMessage.trim()
+                ? prepared.providerMessage
+                : canonicalMessage,
+              publicFields: prepared.publicFields && typeof prepared.publicFields === 'object' && !Array.isArray(prepared.publicFields)
+                ? prepared.publicFields
+                : {},
+              answerSuffix: typeof prepared.answerSuffix === 'string' ? prepared.answerSuffix.slice(0, 12_000) : '',
+            }
+          }
+        } catch {
+          turnPreparation = {
+            providerMessage: canonicalMessage,
+            publicFields: {
+              research: { status: 'unavailable', sourceCount: 0, sources: [] },
+            },
+            answerSuffix: '',
+          }
+        }
+      }
+
       for (const [providerIndex, provider] of candidates.entries()) {
         lastProvider = provider
         let attemptAnswer = ''
@@ -586,13 +622,14 @@ export function createAdvisorConversationEngine({
             provider: provider.name,
             providerStatus: 'connecting',
             model: provider.model,
+            ...turnPreparation.publicFields,
             ...publicTurnState(state, clientTurnId),
           })
           const result = await callCompatibleAiStream(provider, {
             messages: [
               { role: 'system', content: systemPrompt },
               ...selectedContext.messages,
-              { role: 'user', content: canonicalMessage },
+              { role: 'user', content: turnPreparation.providerMessage },
             ],
             temperature: 0.2,
             metadata,
@@ -618,7 +655,12 @@ export function createAdvisorConversationEngine({
           })
           const answer = String(result?.answer || attemptAnswer).trim()
           if (!answer) throw roleError(role, 502, 'generation_incomplete', 'generationIncomplete')
-          successful = { answer, provider, memory: lastContextMemory }
+          const finalizedAnswer = `${answer.trimEnd()}${turnPreparation.answerSuffix}`.trim()
+          if (turnPreparation.answerSuffix) {
+            sendSseEventOrThrow(role, response, 'delta', { text: turnPreparation.answerSuffix })
+            streamedAnswer += turnPreparation.answerSuffix
+          }
+          successful = { answer: finalizedAnswer, provider, memory: lastContextMemory }
         } catch (error) {
           if (error?.code === role.responseTransportCode) {
             responseTransportFailure = error
@@ -706,6 +748,7 @@ export function createAdvisorConversationEngine({
           conversation: completed.conversation,
           turns: completed.turns,
           model: receipt.model,
+          ...turnPreparation.publicFields,
         })
         return
       }

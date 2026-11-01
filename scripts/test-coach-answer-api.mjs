@@ -8,6 +8,17 @@ import { COACH_POLICY_VERSION } from '../server/coachPolicy.js'
 const signingKey = 'coach-answer-policy-test-signing-key'
 const tinyPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlpeR0AAAAASUVORK5CYII='
 const providerBodies = []
+const diagramPayload = {
+  version: 'stem-diagram-v1',
+  title: 'Force diagram',
+  description: 'Illustrative free-body diagram, not to scale.',
+  width: 400,
+  height: 260,
+  elements: [
+    { type: 'rect', x: 150, y: 100, width: 100, height: 60, label: 'block' },
+    { type: 'line', x1: 200, y1: 100, x2: 200, y2: 30, arrow: true, label: 'N' },
+  ],
+}
 
 function identityToken(userId = 7001) {
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
@@ -105,12 +116,23 @@ const providerServer = http.createServer(async (request, response) => {
       response.end('data: [DONE]\n\n')
       return
     }
+    if (text.includes('VALID_DIAGRAM')) {
+      const pieces = ['Provider worked answer\n\n```stem-', `diagram\n${JSON.stringify(diagramPayload)}\n`, '```']
+      for (const piece of pieces) response.write(`data: ${JSON.stringify({ choices: [{ delta: { content: piece } }] })}\n\n`)
+      response.end('data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n')
+      return
+    }
     response.end('data: {"choices":[{"delta":{"content":"Provider worked answer"}}]}\n\ndata: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n')
     return
   }
   response.statusCode = 200
   response.setHeader('Content-Type', 'application/json')
-  response.end(JSON.stringify({ choices: [{ message: { content: text.includes('EMPTY_PROVIDER') ? '   ' : 'Provider worked answer' }, finish_reason: 'stop' }] }))
+  const answer = text.includes('VALID_DIAGRAM')
+    ? `Provider worked answer\n\n\`\`\`stem-diagram\n${JSON.stringify(diagramPayload)}\n\`\`\``
+    : text.includes('BROKEN_DIAGRAM')
+      ? 'Provider worked answer\n\n```stem-diagram\n{"version":"broken","html":"<script>"}\n```'
+      : text.includes('EMPTY_PROVIDER') ? '   ' : 'Provider worked answer'
+  response.end(JSON.stringify({ choices: [{ message: { content: answer }, finish_reason: 'stop' }] }))
 })
 
 const providerBase = await listen(providerServer)
@@ -182,7 +204,59 @@ try {
     },
   )
   assert.match(systemPrompt(providerBodies.at(-1)), /complete teaching solution and final result/i)
+  assert.match(systemPrompt(providerBodies.at(-1)), /state the governing concept or law/i)
   assert.equal(providerContext(providerBodies.at(-1))?.coachHelpIntent, 'worked-solution')
+
+  const oldClientDiagram = await post('/api/ai/coach', {
+    helpIntent: 'worked-solution',
+    message: 'VALID_DIAGRAM explain this force question.',
+    context: baseContext,
+  })
+  assert.equal(oldClientDiagram.response.status, 200, oldClientDiagram.text)
+  assert.doesNotMatch(oldClientDiagram.payload?.answer || '', /stem-diagram|"version"|"elements"/)
+  assert.doesNotMatch(systemPrompt(providerBodies.at(-1)), /stem-diagram-v1/)
+
+  const diagramSolution = await post('/api/ai/coach', {
+    helpIntent: 'worked-solution',
+    message: 'VALID_DIAGRAM explain this force question.',
+    diagramFormat: 'stem-diagram-v1',
+    context: baseContext,
+  })
+  assert.equal(diagramSolution.response.status, 200, diagramSolution.text)
+  assert.match(diagramSolution.payload?.answer || '', /```stem-diagram/)
+  assert.match(diagramSolution.payload?.answer || '', /"version":"stem-diagram-v1"/)
+  assert.match(systemPrompt(providerBodies.at(-1)), /stem-diagram-v1/)
+  assert.match(systemPrompt(providerBodies.at(-1)), /illustrative unless the supplied data make it exact/i)
+
+  const brokenDiagram = await post('/api/ai/coach', {
+    helpIntent: 'worked-solution',
+    message: 'BROKEN_DIAGRAM explain this force question.',
+    diagramFormat: 'stem-diagram-v1',
+    context: baseContext,
+  })
+  assert.equal(brokenDiagram.response.status, 200, brokenDiagram.text)
+  assert.doesNotMatch(brokenDiagram.payload?.answer || '', /stem-diagram|"version"|<script>/)
+
+  const invalidFormatCalls = providerBodies.length
+  const invalidDiagramFormat = await post('/api/ai/coach', {
+    helpIntent: 'worked-solution',
+    message: 'VALID_DIAGRAM explain this force question.',
+    diagramFormat: 'raw-json',
+    context: baseContext,
+  })
+  assert.equal(invalidDiagramFormat.response.status, 400, invalidDiagramFormat.text)
+  assert.equal(invalidDiagramFormat.payload?.code, 'coach_diagram_format_invalid')
+  assert.equal(providerBodies.length, invalidFormatCalls)
+
+  const streamedDiagram = await post('/api/ai/coach/stream', {
+    helpIntent: 'worked-solution',
+    message: 'VALID_DIAGRAM explain this force question.',
+    diagramFormat: 'stem-diagram-v1',
+    context: baseContext,
+  })
+  assert.equal(streamedDiagram.response.status, 200, streamedDiagram.text)
+  assert.match(sseDone(streamedDiagram.text).answer || '', /```stem-diagram/)
+  assert.match(streamedDiagram.text, /stem-diagram-v1/)
 
   const photoSolution = await post('/api/ai/coach/stream', {
     message: '请完整分析照片里的题并给出最终答案。',

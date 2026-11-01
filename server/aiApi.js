@@ -10,6 +10,7 @@ import { loadTavernProvider } from './tavernProvider.js'
 import { loadStemAcademicProvider } from './stemAcademicProvider.js'
 import { createAdmissionsAdvisor } from './admissionsAdvisor.js'
 import { createIeltsTeacher } from './ieltsTeacher.js'
+import {createCoachDiagramStream,resolveCoachDiagramFormat,sanitizeCoachDiagramAnswer} from './coachDiagram.js'
 import {createCoachQuestionSourceResolver,createCoachSourceStream,extractCoachSourceTrailer,coachQuestionSourceText} from './coachQuestionSource.js'
 import {TAVERN_MEDIA_VERSION,TAVERN_MEDIA_PREFIX,loadTavernMediaCatalog,selectTavernMediaCandidates,tavernMediaSystemPrompt,normalizeTavernMediaReply,serveTavernMedia,DEFAULT_TAVERN_MEDIA_ROOT} from './tavernMedia.js'
 import {createDrawArtHandler} from './tavernDrawArt.js'
@@ -1647,8 +1648,8 @@ function trustedTavernDraw({ feature, payload, ownerId, divinationStore }) {
   return divinationStore.resolveDraw({ ownerId, persona: feature.persona, drawId: payload.drawId })
 }
 
-function coachFeatureSystemPrompt(feature, policy, context, draw = null) {
-  if (feature.feature !== 'tavern') return buildCoachSystemPrompt({ policy, context, feature })
+function coachFeatureSystemPrompt(feature, policy, context, draw = null, diagramFormat = '') {
+  if (feature.feature !== 'tavern') return buildCoachSystemPrompt({ policy, context, feature, diagramFormat })
   const basePrompt = buildTavernSystemPrompt(feature)
   return draw ? `${basePrompt}\n${tavernDrawSystemPrompt(draw)}` : basePrompt
 }
@@ -1795,6 +1796,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
     : null
   const feature = resolveCoachFeature({ feature: payload.feature, persona: payload.persona })
   validateCoachFeaturePayload(feature, payload)
+  const diagramFormat = resolveCoachDiagramFormat(payload, feature)
   const effort = coachEffort(payload.reasoningEffort)
   if(effort)withCoachEffort(feature.feature==='tavern'&&tavernProvider?tavernProvider:payload.imageDataUrl||payload.imageDataUrls?.length?visionProvider:provider,effort)
   const message = compactText(payload.message, feature.feature === 'tavern' ? 12_000 : 3000)
@@ -1944,7 +1946,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
         : null
       lastMemory = selectedTavernContext?.memory || null
       const providerOptions = {
-        messages: [{ role: 'system', content: selectedTavernContext?.systemPrompt || coachFeatureSystemPrompt(feature, policy, context, draw)+sourcePrompt }, ...(selectedTavernContext?.history || history), { role: 'user', content }],
+        messages: [{ role: 'system', content: selectedTavernContext?.systemPrompt || coachFeatureSystemPrompt(feature, policy, context, draw, diagramFormat)+sourcePrompt }, ...(selectedTavernContext?.history || history), { role: 'user', content }],
         json: activeProvider.name === 'deepseek' && Boolean(selectedTavernContext?.mediaCandidates.length),
         temperature: feature.feature === 'tavern' ? 0.8 : 0.2,
         metadata: selectedTavernContext?.metadata || coachProviderMetadata(feature, context),
@@ -1978,9 +1980,10 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
         answer = await callCompatibleAi(activeProvider, { ...providerOptions, json: false, providerAttempt: providerIndex + 2 })
       }
       const reply=selectedTavernContext?.mediaCandidates.length?normalizeTavernMediaReply(answer,{catalog:mediaCatalog,candidates:selectedTavernContext.mediaCandidates}):{text:answer,media:[]}
-      if(!reply.text)throw Object.assign(new Error('AI reply media schema invalid'),{code:'AI_RESPONSE_SCHEMA_INVALID'})
-      if(source&&!extractCoachSourceTrailer(reply.text).answer.trim())throw Object.assign(new Error('AI answer was empty after source metadata removal'),{code:'AI_RESPONSE_SCHEMA_INVALID'})
-      successfulProviderResult = { answer:reply.text, media:reply.media, provider: activeProvider, memory: lastMemory }
+      const safeReplyText=sanitizeCoachDiagramAnswer(reply.text,{enabled:Boolean(diagramFormat)}).trim()
+      if(!safeReplyText)throw Object.assign(new Error('AI reply media or diagram schema invalid'),{code:'AI_RESPONSE_SCHEMA_INVALID'})
+      if(source&&!extractCoachSourceTrailer(safeReplyText).answer.trim())throw Object.assign(new Error('AI answer was empty after source metadata removal'),{code:'AI_RESPONSE_SCHEMA_INVALID'})
+      successfulProviderResult = { answer:safeReplyText, media:reply.media, provider: activeProvider, memory: lastMemory }
     } catch (error) {
       lastError = error
     } finally {
@@ -2010,6 +2013,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
       ...presentation,
       answer:completedState?.turns.find(turn=>turn.role==='assistant')?.content||presentation.answer,
       model: successfulProvider.model,
+      ...(diagramFormat ? { diagramFormat } : {}),
       ...coachResponseFields(policy, feature, 'complete', draw),
       ...tavernConversationResponse(completedState ? { ...completedState, clientTurnId: state.clientTurnId } : null, memory),
     }
@@ -2304,6 +2308,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
     : null
   const feature = resolveCoachFeature({ feature: payload.feature, persona: payload.persona })
   validateCoachFeaturePayload(feature, payload)
+  const diagramFormat = resolveCoachDiagramFormat(payload, feature)
   const effort = coachEffort(payload.reasoningEffort)
   if(effort)withCoachEffort(feature.feature==='tavern'&&tavernProvider?tavernProvider:payload.imageDataUrl||payload.imageDataUrls?.length?visionProvider:provider,effort)
   const message = compactText(payload.message, feature.feature === 'tavern' ? 12_000 : 3000)
@@ -2465,6 +2470,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
       let providerImages = []
       let attemptAnswer = ''
       const sourceStream=source?createCoachSourceStream():null
+      const diagramStream=createCoachDiagramStream({enabled:Boolean(diagramFormat)})
       try {
         providerImages = await temporaryProviderImages(imageDataUrls, imagePublicBase(activeProvider, request))
         const content = providerMessageContent(userText, providerImages)
@@ -2494,7 +2500,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
         })
         if(providerIndex===0)preparationMs=Math.round(performance.now()-handlerStarted)
         const result = await callCompatibleAiStream(activeProvider, {
-          messages: [{ role: 'system', content: selectedTavernContext?.systemPrompt || coachFeatureSystemPrompt(feature, policy, context, draw)+sourcePrompt }, ...(selectedTavernContext?.history || history), { role: 'user', content }],
+          messages: [{ role: 'system', content: selectedTavernContext?.systemPrompt || coachFeatureSystemPrompt(feature, policy, context, draw, diagramFormat)+sourcePrompt }, ...(selectedTavernContext?.history || history), { role: 'user', content }],
           temperature: feature.feature === 'tavern' ? 0.8 : 0.2,
           metadata: selectedTavernContext?.metadata || coachProviderMetadata(feature, context),
           operation: feature.feature === 'tavern' ? 'coach-tavern-stream' : hasImages ? 'coach-vision-stream' : 'coach-stream',
@@ -2519,24 +2525,30 @@ async function handleCoachStream(request, response, provider, visionProvider, li
           } : effort ? {outputTokenLimit:coachEffortOutputLimit(effort,null)} : {}),
           onDelta: async (delta) => {
             attemptAnswer += delta
-            const visible=sourceStream?sourceStream.push(delta):delta
+            const sourceVisible=sourceStream?sourceStream.push(delta):delta
+            const visible=diagramStream.push(sourceVisible)
             if(visible)sendCoachEventOrThrow(response, 'delta', { text: visible })
           },
         })
-        if(source&&!extractCoachSourceTrailer(result.answer||attemptAnswer).answer.trim())throw Object.assign(new Error('AI answer was empty after source metadata removal'),{code:'AI_RESPONSE_SCHEMA_INVALID'})
-        const remainder=sourceStream?.finish()
+        const rawAnswer=result.answer||attemptAnswer
+        const safeAnswer=sanitizeCoachDiagramAnswer(rawAnswer,{enabled:Boolean(diagramFormat)}).trim()
+        if(!safeAnswer||source&&!extractCoachSourceTrailer(safeAnswer).answer.trim())throw Object.assign(new Error('AI answer was empty after source or diagram validation'),{code:'AI_RESPONSE_SCHEMA_INVALID'})
+        const sourceRemainder=sourceStream?.finish()||''
+        const remainder=diagramStream.push(sourceRemainder)+diagramStream.finish()
         if(remainder)sendCoachEventOrThrow(response,'delta',{text:remainder})
-        streamedAnswer = result.answer || attemptAnswer
+        streamedAnswer = safeAnswer
         successfulStreamResult = { answer: streamedAnswer, provider: activeProvider, memory: lastMemory }
       } catch (error) {
         lastError = error
         if (error?.code === 'COACH_RESPONSE_TRANSPORT') {
-          lastPartialAnswer=source?extractCoachSourceTrailer(attemptAnswer).answer:attemptAnswer
+          const partialSource=source?extractCoachSourceTrailer(attemptAnswer).answer:attemptAnswer
+          lastPartialAnswer=sanitizeCoachDiagramAnswer(partialSource,{enabled:Boolean(diagramFormat)}).trimEnd()
           responseTransportFailure = error
           break
         }
         if (attemptAnswer) {
-          lastPartialAnswer = source?extractCoachSourceTrailer(attemptAnswer).answer:attemptAnswer
+          const partialSource=source?extractCoachSourceTrailer(attemptAnswer).answer:attemptAnswer
+          lastPartialAnswer = sanitizeCoachDiagramAnswer(partialSource,{enabled:Boolean(diagramFormat)}).trimEnd()
           if (providerIndex < activeProviders.length - 1) {
             try {
               sendCoachEventOrThrow(response, 'reset', { provider: activeProvider.name })
@@ -2578,6 +2590,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
         timing:{version:1,preparationMs,providers:providerTimings,finalizeMs:Math.round(performance.now()-providerEnded),handlerTotalMs:Math.round(performance.now()-handlerStarted)},
         ...presentation,
         model: successfulProvider.model,
+        ...(diagramFormat ? { diagramFormat } : {}),
         ...coachResponseFields(policy, feature, 'complete', draw),
         ...tavernConversationResponse(completedState ? { ...completedState, clientTurnId: state.clientTurnId } : null, memory),
       })
@@ -2818,7 +2831,7 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
   return sendJson(response, 200, { mode: 'offline', code: 'vision_review_failed', provider: lastAttemptedProvider.name, providerStatus: 'error', error: providerMessage(lastError, lastAttemptedProvider), retryable: true })
 }
 
-export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null, authorizeCoachRequest = null, tavernDivinationStore = null, tavernConversationStore = null, tavernMemoryRoot = null, tavernMediaCatalog=null, tavernMediaRoot=DEFAULT_TAVERN_MEDIA_ROOT, admissionsConversationStore = null, admissionsMemoryRoot = null, admissionsCallCompatibleAiStream = callCompatibleAiStream, ieltsTeacherConversationStore = null, ieltsTeacherMemoryRoot = null, ieltsTeacherCallCompatibleAiStream = callCompatibleAiStream, coachJobsRoot = null, coachImageUploadsOptions = null }) {
+export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null, authorizeCoachRequest = null, tavernDivinationStore = null, tavernConversationStore = null, tavernMemoryRoot = null, tavernMediaCatalog=null, tavernMediaRoot=DEFAULT_TAVERN_MEDIA_ROOT, admissionsConversationStore = null, admissionsMemoryRoot = null, admissionsCallCompatibleAiStream = callCompatibleAiStream, admissionsPrepareTurn = null, admissionsResearchOptions = null, ieltsTeacherConversationStore = null, ieltsTeacherMemoryRoot = null, ieltsTeacherCallCompatibleAiStream = callCompatibleAiStream, coachJobsRoot = null, coachImageUploadsOptions = null }) {
   const legacyConfig = providerConfig(env)
   const config = studentProviderConfig(env, legacyConfig)
   const tavernProvider = loadTavernProvider({ env }) || legacyConfig.coach
@@ -2843,6 +2856,8 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
     memoryRoot: admissionsMemoryRoot,
     baseMemoryRoot: tavernMemoryRoot,
     callCompatibleAiStream: admissionsCallCompatibleAiStream,
+    prepareTurn: admissionsPrepareTurn,
+    researchOptions: admissionsResearchOptions,
   })
   const ieltsTeacher = createIeltsTeacher({
     env,

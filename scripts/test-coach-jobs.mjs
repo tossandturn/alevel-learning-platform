@@ -50,6 +50,15 @@ try{
  assert.ok(events[0].timing.totalMs>=events[0].timing.firstAnswerMs)
  assert.doesNotMatch(JSON.stringify(timing),/synthetic-private|Bearer|先看受力图/)
  assert.equal(calls,1,'retry must not repeat model generation')
+ const diagramId='cj-diagram12345678901234',diagramBody={...body,diagramFormat:'stem-diagram-v1'}
+ assert.equal((await request(diagramId,{method:'POST',payload:diagramBody})).status,202)
+ assert.equal((await request(diagramId,{method:'POST',payload:diagramBody})).body.created,false,'same diagram capability must reuse the job')
+ assert.equal((await request(diagramId,{method:'POST',payload:body})).status,409,'removing diagram capability must change the job fingerprint')
+ await new Promise(resolve=>setTimeout(resolve,250))
+ const diagramCompleted=await request(diagramId)
+ assert.equal(diagramCompleted.body.status,'succeeded')
+ assert.equal(diagramCompleted.body.result.diagramFormat,'stem-diagram-v1','the durable job result must retain the requested capability')
+ assert.equal(calls,2,'diagram capability retries must not repeat model generation')
  exam=true;assert.equal((await request(id)).status,403,'polling rechecks current assessment authority');exam=false
  // Drop the initial response connection, then recover by client-generated id.
  const lost='cj-lostack1234567890123'
@@ -59,11 +68,11 @@ try{
  })
  await new Promise(resolve=>setTimeout(resolve,250))
  assert.equal((await request(lost)).body.status,'succeeded')
- assert.equal(calls,2)
+ assert.equal(calls,3)
  await api.close();api=createAiApi(options)
  assert.equal((await request(lost)).body.result.answer,'先看受力图。再列方程。','completed results remain recoverable after worker restart')
- assert.equal(calls,2)
- console.log('PASS Coach jobs: lost connection, idempotent POST, private GET, policy recheck, restart, unchanged provider.')
+ assert.equal(calls,3)
+ console.log('PASS Coach jobs: lost connection, idempotent capability hash, private GET, policy recheck, restart, unchanged provider.')
 }finally{
  await api.close();server.closeAllConnections();provider.closeAllConnections()
  await Promise.all([new Promise(r=>server.close(r)),new Promise(r=>provider.close(r))])
