@@ -25,7 +25,7 @@ const SCHOOL_NAMES = {
   'bristol.ac.uk': ['University of Bristol', 'Bristol', '布里斯托大学', '布里斯托'],
   'sheffield.ac.uk': ['University of Sheffield', 'Sheffield', '谢菲尔德大学', '谢菲尔德'],
 }
-const EDIT = /\b(?:draft|rewrite|edit|tighten|shorten|proofread|grammar|translate|wording|personal statement|email|letter)\b|草拟|起草|润色|改写|缩短|校对|语法|翻译|措辞|个人陈述|邮件|信件/iu
+const EDIT = /\b(?:draft|rewrite|edit|tighten|shorten|proofread|grammar|translate|wording|personal statement|email|letter)\b|草拟|起草|润色|改写|缩短|校对|语法|翻译|(?:翻|译)(?:成|为)(?:英文|英语|中文)|用(?:英文|英语|中文)表达|措辞|个人陈述|邮件|信件/iu
 const EXPLICIT_LOOKUP = /\b(?:verify|fact[- ]?check|research|look up|search|check (?:the )?(?:current|official|latest)|cite (?:the )?(?:official|source))\b|核实|查证|检索|查一下|查官网|核对.{0,8}(?:要求|政策|官网|条件)/iu
 const FACT_REQUEST = /\b(?:current|latest|official|requirements?|deadline|tuition|fees?|policy|grades?|A\*|A[- ]?levels?|IELTS|IB|AP)\b|官网|官方|最新|目前|来源|引用|截止|要求|条件|学费|政策|几个\s*A\*?|多少.{0,5}(?:分|星|A)|成绩/iu
 const FOLLOWUP = /[?？]|\bwhat about\b|\band\b|呢|那|这个|这个专业/iu

@@ -29,6 +29,13 @@ await new Promise((resolve, reject) => pinnedLookup('www.ox.ac.uk', { all: true 
 
 assert.equal(shouldResearchAdmissions('Please tighten this paragraph without changing its meaning.'), false)
 assert.equal(shouldResearchAdmissions('Draft a polite email asking an admissions office a question.'), false)
+assert.equal(shouldResearchAdmissions('请把这句话翻成英语，不添加其他信息：我想咨询本科机械工程的申请要求。'), false)
+for (const translationOnly of [
+  '请把这句话翻为英文：我想咨询本科机械工程的申请要求。',
+  '请将这句话译成中文：I want to ask about undergraduate admission requirements.',
+  '请用英文表达：我想咨询本科机械工程的申请要求。',
+]) assert.equal(shouldResearchAdmissions(translationOnly), false, `translation-only text must not trigger research: ${translationOnly}`)
+assert.equal(shouldResearchAdmissions('请把这句话翻成英语，并核实当前本科机械工程申请要求。'), true, 'explicit verification must override translation-only classification')
 assert.equal(shouldResearchAdmissions('Check the current Oxford Physics entry requirements for 2027.'), true)
 assert.equal(shouldResearchAdmissions('Verify this official course page: https://www.ox.ac.uk/admissions/undergraduate'), true)
 
