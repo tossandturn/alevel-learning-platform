@@ -63,12 +63,33 @@ assert.equal(failed.publicFields.research.status, 'insufficient_evidence')
 assert.equal(failed.publicFields.research.sourceCount, 0)
 assert.equal(failed.publicFields.research.code, 'ADMISSIONS_SEARCH_HTTP_404')
 
+const trackedCourseUrl = `${url}?utm_source=miragenews&utm_medium=miragenews&utm_campaign=news`
+const selectedUrls = []
+const filteredCandidates = createAdmissionsResearch({
+  sourceCatalog: [], resolveAddresses: addresses,
+  searchPublicSources: async () => [
+    { title: 'Accepted qualifications PDF', url: 'https://www.imperial.ac.uk/study/international-students/accepted-qualifications.pdf' },
+    { title: 'Old course document', url: 'https://www.imperial.ac.uk/study/documents/mechanical-engineering.docx' },
+    { title: 'Archived admissions page', url: 'https://www.imperial.ac.uk/study/archive/mechanical-engineering/' },
+    { title: 'Mechanical Engineering MEng', url: trackedCourseUrl },
+  ],
+  readPublicPage: async (candidateUrl) => {
+    selectedUrls.push(candidateUrl)
+    return { ...verified2027, url: trackedCourseUrl }
+  },
+  fetchReadPublicPage: async () => { throw Error('verified direct course HTML must not fall back') },
+})
+const filteredResult = await filteredCandidates.prepareTurn({ message })
+assert.deepEqual(selectedUrls, [url], 'non-HTML documents and archive paths must not consume the top-three read budget')
+assert.equal(filteredResult.publicFields.research.sourceCount, 1)
+assert.equal(filteredResult.publicFields.research.sources[0].url, url, 'tracking parameters must never persist in source URLs')
+
 const longHtml = `<main><h1>Mechanical Engineering</h1>${'<p>Course directory and campus information.</p>'.repeat(5000)}<h2>Minimum entry standard</h2><p>A*A*A or A*AAA including Mathematics and Physics.</p></main>`
 const prioritized = extractAdmissionsPageText(longHtml, 60_000)
 assert.ok(prioritized.length <= 60_000)
 assert.match(prioritized.slice(0, 2_000), /Minimum entry standard/)
 assert.match(prioritized.slice(0, 2_000), /A\*A\*A or A\*AAA including Mathematics and Physics/)
-const realisticHtml = `<main>\r\n<h1>Mechanical Engineering</h1>\r\n<h2>Minimum entry standard</h2><p>A*A*A or A*AAA (A-level)</p><dl><dt>Start date</dt><dd>October 2027</dd><dt>UCAS course code</dt><dd>H301</dd></dl>${'<section><h3>Study option</h3><p>Course structure, facilities and campus information.</p></section>'.repeat(5_000)}<h3>To include</h3><p>A* in Mathematics</p><p>A or A* in Physics</p><p>A in another subject</p></main>`
+const realisticHtml = `<main>\r\n<h1>Mechanical Engineering</h1>\r\n<h2>Minimum entry standard</h2><p>A*A*A or A*AAA (A-level)</p><dl><dt>Start date</dt><dd>October 2027</dd><dt>UCAS course code</dt><dd>H301</dd></dl>${'<section><h3>A-level study option</h3><p>Course structure includes a Mathematics module, facilities and campus information.</p></section>'.repeat(5_000)}<h3>To include</h3><p>A* in Mathematics</p><p>A or A* in Physics (A* required with three A-levels; at least A with four)</p><p>A in a third or fourth subject</p></main>`
 const realisticText = extractAdmissionsPageText(realisticHtml, 60_000)
 assert.equal(realisticText.length, 60_000, 'the realistic page reaches the reader output cap')
 assert.match(realisticText.slice(0, 15_000), /Minimum entry standard/)
@@ -83,4 +104,14 @@ assert.deepEqual(realisticAssessment.applicableYears, ['2027'])
 assert.equal(realisticAssessment.verification.yearMatched, true)
 assert.equal(realisticAssessment.verification.gradeEvidence, true)
 assert.equal(realisticAssessment.verification.subjectConditionEvidence, true)
-console.log('Admissions direct-first: verified HTML, Fetch fallback, one 18s deadline, honest year partial, navigation rejection and 60k requirement prioritization passed.')
+
+const courseContentOnly = assessAdmissionsPage({
+  url,
+  title: 'Mechanical Engineering MEng | Imperial College London',
+  text: '# Mechanical Engineering\n## Minimum entry standard\nA*A*A or A*AAA\n## Course content\nMathematics for engineers is taught in the first year.',
+}, {
+  school: { domain: 'imperial.ac.uk' }, course: { name: 'Mechanical Engineering', aliases: ['Mechanical Engineering'] }, year: null, kind: 'undergraduate entry requirements',
+})
+assert.equal(courseContentOnly.verification.gradeEvidence, true)
+assert.equal(courseContentOnly.verification.subjectConditionEvidence, false, 'course content is not a published subject-entry condition')
+console.log('Admissions direct-first: verified HTML, strict candidate canonicalization, Fetch fallback, one 18s deadline, honest year partial, navigation rejection and requirement prioritization passed.')

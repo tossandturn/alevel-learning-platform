@@ -14,14 +14,19 @@ function entityIn(value, aliases) {
   })
 }
 
-function institutionPolicyPage(page, heading) {
+function institutionPolicyPage(page, heading, content) {
   let pathname
   try { pathname = new URL(page.url).pathname } catch { return false }
+  const label = String(heading || page.title || '').split(/\||\s[-–]\s/u)[0].trim()
+  if (/\/(?:transfer|transfers|graduate|postgraduate)(?:\/|$)|\b(?:transfer|graduate|postgraduate)\b/iu.test(`${pathname} ${label}`)) return false
   const generalPath = /\/(?:apply|applying|admissions?|undergraduate|international)\//iu.test(pathname)
   const specificCourse = /\/(?:courses?|degrees?|programmes?|programs?|course-listing)\/(?!admissions-requirements(?:\/|$))/iu.test(pathname)
-  const label = String(heading || page.title || '').split(/\||\s[-–]\s/u)[0].trim()
   const genericHeading = /^(?:international (?:applicants|students|qualifications)|tests?\s*(?:&|and)\s*scores|(?:undergraduate|first[- ]year) (?:admissions?|applicants?|entry requirements)|(?:general |course )?(?:admission|entry|application|language) requirements|accepted qualifications|applying to|how to apply|english language (?:requirements|tests)|testing (?:requirement|policy))/iu.test(label)
-  return generalPath && !specificCourse && genericHeading
+  if (generalPath && !specificCourse && genericHeading) return true
+  if (!/\/help\/faq\//iu.test(pathname)) return false
+  const requirementQuestion = /required classes?|language requirements?|(?:what|which).*(?:required|need)|application requirements?|admission requirements?/iu.test(label)
+  const explicitApplicantPolicy = /(?:we don['’]t have any required classes|doesn['’]t require applicants?|applicants? (?:must|need|required) (?:submit|complete|take|have)|ideal preparation to include)/iu.test(content)
+  return (requirementQuestion || explicitApplicantPolicy) && explicitApplicantPolicy
 }
 
 export function assessAdmissionsPage(page, plan) {
@@ -31,7 +36,7 @@ export function assessAdmissionsPage(page, plan) {
   // Only the page title, main heading or first paragraph can bind its course.
   // A menu listing many programmes is never a course identity proof.
   const identity = `${page?.title || ''}\n${headings[0] || content.slice(0, 250)}`
-  const institutionPolicy = institutionPolicyPage(page, headings[0] || content.split('\n').find(line => line.trim()))
+  const institutionPolicy = institutionPolicyPage(page, headings[0] || content.split('\n').find(line => line.trim()), content)
   const programme = bodyConfirmedAdmissionsProgramme(page, plan, content, headings[0])
   const titleCourse = plan.directCourseUrl && !plan.course
     ? admissionsPublicCourseName(String(page?.title || headings[0] || '').split(/\||\s-\s|·/u)[0])
@@ -41,10 +46,11 @@ export function assessAdmissionsPage(page, plan) {
   const paragraphs = content.split(/\n\s*\n|\n/).map(compact).filter(Boolean)
   const plain = content.replace(/\\([*])/g, '$1')
   const gradePattern = /\b(?:[A-G]\*?){3,4}\b|\bA\*(?=\s|$)|(?:IB|Baccalaureate|UCAS|AP)[^\n]{0,80}\b\d{1,3}\b|no (?:fixed|minimum) (?:grades?|scores?)/u
+  const subjectConditionPattern = /(?:to include|required subjects?|subjects required|including|must include|ideal preparation to include)[\s\S]{0,400}\b(?:Mathematics|Maths|Physics|Chemistry|Biology)\b|\b[A-G]\*?(?:\s*(?:or|\/)\s*[A-G]\*?)?\s+in\s+(?:Mathematics|Maths|Physics|Chemistry|Biology)\b/iu
   const languagePattern = /(?:IELTS|TOEFL|PTE|Duolingo)[\s\S]{0,120}\d+(?:\.\d+)?/iu
   const deadlinePattern = /(?:deadline|closing date|apply by|applications? close)[^\n]{0,100}(?:\d{1,2}\s+[A-Za-z]+|[A-Za-z]+\s+\d{1,2}|20\d{2}-\d\d-\d\d)/iu
   const feePattern = /[£$€]\s*\d[\d,.]*/u
-  const policyPattern = /(?=[^\n]{0,600}\b(?:require(?:d|s)?|must|should|recommend(?:ed)?|self[- ]report|do not have)\b)(?=[^\n]{0,600}\b(?:SAT|ACT|AP|Advanced Placement|qualifications?|transcripts?|classes?|grades?|school|application|undergraduate|admission|language|proficiency)\b)[^\n]{20,600}/iu
+  const policyPattern = /(?=[^\n]{0,600}\b(?:require(?:d|s)?|must|should|recommend(?:ed)?|self[- ]report|do not have|don['’]t have|doesn['’]t require|ideal preparation)\b)(?=[^\n]{0,600}\b(?:SAT|ACT|AP|Advanced Placement|qualifications?|transcripts?|classes?|advanced courses?|grades?|school|applicants?|application|undergraduate|admission|language|proficiency|calculus|physics|chemistry)\b)[^\n]{20,600}/iu
   const policyRelevant = institutionPolicy && policyPattern.test(plain) && (plan.kind === 'undergraduate entry requirements'
     || (plan.kind === 'English language requirements' && /English|language|proficiency|IELTS|TOEFL/iu.test(plain)))
   const anchorPattern = plan.kind === 'English language requirements' ? /english language requirements?|language tests?|IELTS|TOEFL|英语|语言要求/iu
@@ -53,14 +59,15 @@ export function assessAdmissionsPage(page, plan) {
         : /minimum entry standard|entry qualifications?|qualifications required|subjects required|entry requirements?|admission requirements?|academic requirements?|standard offer|A[- ]?levels?|to include|required subjects?|录取要求|入学要求/iu
   const ranked = paragraphs.map((line, index) => {
     if (!institutionPolicy && (!anchorPattern.test(line) || /navigation|menu|browse|directory|footer/iu.test(line))) return { score: 0, snippet: '', primaryMatched: false }
-    const window = paragraphs.slice(Math.max(0, index - 1), index + 9).join('\n').replace(/\\([*])/g, '$1')
+    const window = (institutionPolicy ? paragraphs.slice(index, index + 2) : paragraphs.slice(Math.max(0, index - 1), index + 9)).join('\n').replace(/\\([*])/g, '$1')
     const primary = plan.kind === 'English language requirements' ? languagePattern
       : plan.kind === 'application deadline' ? deadlinePattern
         : plan.kind === 'tuition fees' ? feePattern : institutionPolicy ? policyPattern : gradePattern
     const match = primary.exec(window) || languagePattern.exec(window)
     if (!match) return { score: 0, snippet: '', primaryMatched: false }
-    const snippet = window.slice(Math.max(0, match.index - 180), match.index + 950)
-    const subjectCondition = /Mathematics|Maths|Physics|Chemistry|Biology/iu.test(snippet)
+    const policyLine = institutionPolicy ? [line, paragraphs[index + 1]].find(item => policyPattern.test(item || '')) : ''
+    const snippet = institutionPolicy ? String(policyLine || window).slice(0, 950) : window.slice(Math.max(0, match.index - 180), match.index + 950)
+    const subjectCondition = subjectConditionPattern.test(snippet)
     const primaryMatched = primary.test(window)
     const score = primaryMatched ? 4 + (subjectCondition ? 2 : 0) : 3
     return { index, score, snippet, primaryMatched }
@@ -84,14 +91,16 @@ export function assessAdmissionsPage(page, plan) {
   const fixedApCount = /\b(?:at least|minimum of|require(?:s|d)?|need|must (?:take|complete|have))\s+(?:\d{1,2}|one|two|three|four|five|six)\s+(?:AP|Advanced Placement)\s+(?:exams?|subjects?|courses?)/iu.test(plain)
   const explicitlyNoFixedApCount = /\bno (?:fixed|minimum|required) number of (?:AP|Advanced Placement)\b/iu.test(plain)
   const apFixedCountStatus = fixedApCount ? 'published' : explicitlyNoFixedApCount ? 'explicitly_no_fixed_count' : 'not_published_in_source'
+  const creditPolicyPage = /\/help\/faq\/[^/]*(?:ap|ib)[^/]*credit/iu.test(page?.url || '') || /(?:AP|IB).*college credit/iu.test(page?.title || '')
   const limitations = [
     ...(institutionPolicy ? ['学校级本科政策，不能作为具体专业的 offer 分数或录取保证。'] : []),
+    ...(institutionPolicy && creditPolicyPage ? ['AP/IB college credit is not an admissions cutoff; only the explicit applicant-preparation statement is used.'] : []),
     ...(programme ? [programme.limitation] : []),
     ...((plan.qualification === 'AP' || apDiscussed) && apFixedCountStatus === 'not_published_in_source' ? ['该来源未公布固定 AP 门数；不能据此推断官方不要求 AP。'] : []),
   ]
   const excerptIndex = ranked[0]?.index
   const sourceExcerpt = Number.isInteger(excerptIndex)
-    ? paragraphs.slice(Math.max(0, excerptIndex - 2), excerptIndex + 5).join('\n').slice(0, 900)
+    ? (institutionPolicy ? ranked[0].snippet : paragraphs.slice(Math.max(0, excerptIndex - 2), excerptIndex + 5).join('\n')).slice(0, 900)
     : ''
   const evidence = [`Page heading: ${identity}`, ...(programme ? [programme.evidence] : []), ...yearEvidence.slice(0, 3).map(item => content.slice(Math.max(0, item.index - 60), item.index + 180)), ...requirements]
     .join('\n').slice(0, 8_000)
@@ -108,7 +117,7 @@ export function assessAdmissionsPage(page, plan) {
     pageYearVerified: applicableYears.length > 0,
     substantiveRequirements: substantive,
     gradeEvidence: plan.kind === 'undergraduate entry requirements' && ranked.some(item => item.primaryMatched && gradePattern.test(item.snippet)),
-    subjectConditionEvidence: /Mathematics|Maths|Physics|Chemistry|Biology/iu.test(requirements.join('\n')),
+    subjectConditionEvidence: requirements.some(item => subjectConditionPattern.test(item)),
   } }
 }
 

@@ -18,6 +18,9 @@ const DEFAULT_MAX_SOURCES = 3
 const MAX_REDIRECTS = 3
 
 const URL_PATTERN = /https:\/\/[^\s<>{}\u005b\u005d"']+/giu
+const TRACKING_QUERY_PARAMETERS = new Set(['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'utm_id'])
+const NON_HTML_ADMISSIONS_PATH = /\.(?:pdf|docx?|xlsx?|pptx?|zip|rar)(?:$|\/)/iu
+const NON_CURRENT_ADMISSIONS_PATH = /\/(?:archive|archives|documents?|office)(?:\/|$)/iu
 
 function researchError(code, message) {
   return Object.assign(new Error(message), { code })
@@ -141,23 +144,33 @@ export function extractAdmissionsPageText(html, maxChars = DEFAULT_MAX_PAGE_CHAR
     .replace(/ *\n */g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
-  const anchors = [...normalized.matchAll(/minimum entry standard|entry qualifications?|qualifications required|subjects required|entry requirements?|admission requirements?|academic requirements?|standard offer|A[- ]?levels?|english language requirements?|testing requirements?|application deadline|start date|UCAS course code|to include|required subjects?|入学要求|申请要求|语言要求/giu)]
-    .slice(0, 160)
-    .map(match => {
-      const text = normalized.slice(Math.max(0, match.index - 500), match.index + 12_000)
-      const score = 1
-        + (/\b(?:[A-G]\*?){3,4}\b|\bA\*(?=\s|$)|\b\d{2}\s+points?\b/u.test(text) ? 4 : 0)
-        + (/Mathematics|Maths|Physics|Chemistry|Biology/iu.test(text) ? 3 : 0)
-        + (/start date[\s\S]{0,80}(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+20\d{2}/iu.test(text) ? 2 : 0)
-        - (/navigation|site menu|footer links/iu.test(text.slice(0, 500)) ? 2 : 0)
-      return { index: match.index, score, text }
-    })
-    .sort((left, right) => right.score - left.score || left.index - right.index)
-    .slice(0, 12)
-    .map(item => item.text)
-  const priority = [...new Set(anchors)]
   const identity = normalized.slice(0, 1_500)
-  const ordered = priority.length ? `${priority.join('\n\n')}\n\n${identity}\n\n${normalized}` : normalized
+  const ranges = []
+  const addRange = (index, before, after, score) => {
+    const start = Math.max(0, index - before)
+    const end = Math.min(normalized.length, index + after)
+    const text = normalized.slice(start, end)
+    ranges.push({ start, end, score, text })
+  }
+  for (const match of normalized.matchAll(/to include|required subjects?|subjects required|minimum entry standard|entry qualifications?|qualifications required|entry requirements?|admission requirements?|academic requirements?|standard offer|english language requirements?|testing requirements?|application deadline|入学要求|申请要求|语言要求/giu)) {
+    const anchor = match[0]
+    const text = normalized.slice(Math.max(0, match.index - 400), Math.min(normalized.length, match.index + 4_000))
+    const score = (/to include|required subjects?|subjects required/iu.test(anchor) ? 100 : 40)
+      + (/\b(?:[A-G]\*?){3,4}\b|\b[A-G]\*?\s+(?:or\s+[A-G]\*?\s+)?in\s+(?:Mathematics|Maths|Physics|Chemistry|Biology)\b|\b\d{2}\s+points?\b/iu.test(text) ? 20 : 0)
+      + (/to include|required subjects?|subjects required|including|must include/iu.test(text) ? 15 : 0)
+    addRange(match.index, 400, 4_000, score)
+  }
+  for (const match of normalized.matchAll(/start date\s*(?:\n|:|-)?\s*(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+20\d{2}/giu)) {
+    addRange(match.index, 120, 800, 80)
+  }
+  const selected = []
+  for (const candidate of ranges.sort((left, right) => right.score - left.score || left.start - right.start)) {
+    if (candidate.end <= identity.length || selected.some(item => candidate.start < item.end && candidate.end > item.start)) continue
+    selected.push(candidate)
+    if (selected.length >= 8) break
+  }
+  const priority = selected.map(item => item.text)
+  const ordered = priority.length ? `${identity}\n\n${priority.join('\n\n')}\n\n${normalized}` : normalized
   return ordered.slice(0, Math.max(1, Number(maxChars) || DEFAULT_MAX_PAGE_CHARS))
 }
 
@@ -233,8 +246,12 @@ export function normalizeAdmissionsPublicUrl(rawUrl, allowedDomains) {
   if (url.protocol !== 'https:' || url.username || url.password || (url.port && url.port !== '443')) {
     throw researchError('ADMISSIONS_SOURCE_URL_BLOCKED', 'Admissions sources must use credential-free HTTPS on the standard port.')
   }
-  if ([...url.searchParams.keys()].some((key) => /(?:^|_)(?:access_?token|token|api_?key|auth|authorization|password|session|signature|secret|code)(?:$|_)/iu.test(key))) {
+  const queryKeys = [...url.searchParams.keys()]
+  if (queryKeys.some((key) => /(?:^|_)(?:access_?token|token|api_?key|auth|authorization|password|session|signature|secret|code)(?:$|_)/iu.test(key.toLowerCase().replace(/[^a-z\d]+/g, '_')))) {
     throw researchError('ADMISSIONS_SOURCE_URL_BLOCKED', 'Admissions source URLs must not contain credential-like query parameters.')
+  }
+  if (queryKeys.some(key => !TRACKING_QUERY_PARAMETERS.has(key.toLowerCase()))) {
+    throw researchError('ADMISSIONS_SOURCE_URL_BLOCKED', 'Public course URLs may contain only recognized tracking query parameters.')
   }
   url.hash = ''
   const hostname = url.hostname.toLowerCase().replace(/\.$/, '')
@@ -244,12 +261,21 @@ export function normalizeAdmissionsPublicUrl(rawUrl, allowedDomains) {
   if (!isAllowedHostname(hostname, allowedDomains)) {
     throw researchError('ADMISSIONS_SOURCE_DOMAIN_BLOCKED', 'Admissions source is outside the reviewed official-domain directory.')
   }
-  // Public retrieval never needs account/session query data.
-  if (url.search) throw researchError('ADMISSIONS_SOURCE_URL_BLOCKED', 'Public course URLs must not contain query data.')
   if (/\/(?:login|signin|account|portal|student|admin|user|profile)(?:\/|$)|@|%40/iu.test(url.pathname)) {
     throw researchError('ADMISSIONS_SOURCE_URL_BLOCKED', 'Private portal paths are not public admissions sources.')
   }
+  // Recognized tracking values are discarded before retrieval and persistence.
+  url.search = ''
   return url
+}
+
+function isCurrentAdmissionsHtmlCandidate(url, { allowTransfer = false } = {}) {
+  let pathname
+  try { pathname = decodeURIComponent(url.pathname) } catch { return false }
+  if (NON_HTML_ADMISSIONS_PATH.test(pathname) || NON_CURRENT_ADMISSIONS_PATH.test(pathname)) return false
+  if (!allowTransfer && /\/(?:transfer|transfers)(?:\/|$)/iu.test(pathname)) return false
+  if (/\/(?:graduate|postgraduate)(?:\/|$)/iu.test(pathname)) return false
+  return true
 }
 
 export async function validateAdmissionsPublicUrl(rawUrl, { allowedDomains, resolveAddresses = defaultResolveAddresses, deadlineAt = Infinity, timeoutMs = 2_000 } = {}) {
@@ -422,12 +448,18 @@ export function createAdmissionsResearch({
         maxRedirects: 3,
       })
       const fallbackReader = fetchReadPublicPage || (provider ? (url, options) => provider.fetchPage(url, options) : null)
+      const allowTransfer = /\btransfer(?:ring)?\b|转学/iu.test(canonicalMessage)
       const directUrls = [...(plan.directCourseUrl ? [plan.directCourseUrl] : []), ...(canonicalMessage.match(URL_PATTERN) || [])].flatMap(raw => {
-        try { return [{ url: normalizeAdmissionsPublicUrl(raw, domainsForSchool).href }] } catch { return [] }
+        try {
+          const url = normalizeAdmissionsPublicUrl(raw, domainsForSchool)
+          return isCurrentAdmissionsHtmlCandidate(url, { allowTransfer }) ? [{ url: url.href }] : []
+        } catch { return [] }
       })
       const selected = [...new Map([...directUrls, ...(Array.isArray(found) ? found : [])].flatMap(raw => {
         try {
-          const url = normalizeAdmissionsPublicUrl(raw.url, domainsForSchool).href
+          const normalized = normalizeAdmissionsPublicUrl(raw.url, domainsForSchool)
+          if (!isCurrentAdmissionsHtmlCandidate(normalized, { allowTransfer })) return []
+          const url = normalized.href
           return [[url, { url }]]
         } catch { return [] }
       })).values()].slice(0, Math.min(DEFAULT_MAX_SOURCES, Math.max(1, Number(maxSources) || DEFAULT_MAX_SOURCES)))

@@ -44,6 +44,46 @@ assert.equal(noAp.verification.apFixedCountStatus, 'not_published_in_source')
 assert.equal(noAp.verification.apDiscussed, false)
 assert.notEqual(noAp.verification.apFixedCountStatus, 'not_required')
 
+const requiredClassesFaq = {
+  url: 'https://mitadmissions.org/help/faq/required-classes-language-requirements/',
+  title: 'Does MIT have required classes or language requirements? | MIT Admissions',
+  text: '# Does MIT have required classes or language requirements?\nWe don\'t have any required classes, but we consider an ideal preparation to include calculus, physics, chemistry, biology, and four years of English.',
+}
+const requiredClassesAssessment = assessAdmissionsPage(requiredClassesFaq, general)
+assert.equal(requiredClassesAssessment.rejection, null, 'a reviewed admissions FAQ with an explicit first-year preparation policy is usable')
+assert.equal(requiredClassesAssessment.verification.kind, 'institution-requirements')
+assert.match(requiredClassesAssessment.evidence, /ideal preparation to include calculus, physics, chemistry/)
+
+const apCreditFaq = {
+  url: 'https://mitadmissions.org/help/faq/ap-ib-college-credit/',
+  title: 'Will I receive AP/IB college credit? | MIT Admissions',
+  text: '# Will I receive AP/IB college credit?\nMIT doesn\'t require applicants to take advanced courses beyond what is commonly available in high school.\n## College credit\nStudents may receive placement or credit after enrollment based on departmental policies.',
+}
+const apCreditAssessment = assessAdmissionsPage(apCreditFaq, general)
+assert.equal(apCreditAssessment.rejection, null, 'an explicit applicant preparation statement remains evidence even on a credit FAQ')
+assert.match(apCreditAssessment.evidence, /doesn't require applicants to take advanced courses/)
+assert.doesNotMatch(apCreditAssessment.evidence, /Students may receive placement or credit/)
+assert.match(apCreditAssessment.verification.limitations.join(' '), /credit.*not.*admission|学分.*不是.*录取/iu)
+assert.equal(apCreditAssessment.verification.apFixedCountStatus, 'not_published_in_source')
+
+const transferPage = assessAdmissionsPage({
+  url: 'https://mitadmissions.org/apply/transfer/before-applying/',
+  title: 'Before applying as a transfer student | MIT Admissions',
+  text: '# Before applying as a transfer student\nTransfer applicants must complete calculus and physics before applying.',
+}, general)
+assert.equal(transferPage.rejection, 'institution_policy_unconfirmed', 'transfer policy cannot answer an unspecified first-year undergraduate query')
+const admissionsBlog = assessAdmissionsPage({
+  url: 'https://mitadmissions.org/blogs/entry/preparing-for-mit/',
+  title: 'Preparing for MIT | MIT Admissions',
+  text: '# Preparing for MIT\nApplicants should study calculus and physics when available.',
+}, general)
+assert.equal(admissionsBlog.rejection, 'institution_policy_unconfirmed', 'ordinary admissions blog content is not an approved policy page')
+const creditOnlyFaq = assessAdmissionsPage({
+  ...apCreditFaq,
+  text: '# Will I receive AP/IB college credit?\nStudents may receive placement or credit after enrollment based on departmental policies.',
+}, general)
+assert.equal(creditOnlyFaq.rejection, 'institution_policy_unconfirmed', 'credit information alone is not an admissions requirement')
+
 let calls = 0
 const research = createAdmissionsResearch({ sourceCatalog: catalog,
   searchPublicSources: async () => { calls += 1; return [{ title: 'MIT', url: policyPage.url }] },
@@ -59,4 +99,22 @@ assert.match(prepared.systemMessage, /institution-requirements/)
 assert.match(prepared.answerSuffix, /学校级政策/)
 const modelContext = admissionsEvidencePreparation({ message: 'MIT机械工程AP要求？', status: 'partial', sources: prepared.publicFields.research.sources, evidence: [assessed.evidence] })
 assert.match(modelContext.systemMessage, /not.*course.*offer/i)
-console.log('Admissions institution policy: MIT undergraduate/AP without a major, applicable unified policy with a major, strict course mismatch and no AP-count inference passed.')
+
+const firstYearReads = []
+const transferUrl = 'https://mitadmissions.org/apply/transfer/before-applying/'
+const firstYearResearch = createAdmissionsResearch({ sourceCatalog: catalog,
+  searchPublicSources: async () => [
+    { title: 'Before applying as a transfer student', url: transferUrl },
+    { title: requiredClassesFaq.title, url: requiredClassesFaq.url },
+  ],
+  readPublicPage: async (candidateUrl) => {
+    firstYearReads.push(candidateUrl)
+    if (candidateUrl === requiredClassesFaq.url) return requiredClassesFaq
+    return { url: candidateUrl, title: 'Transfer admissions', text: '# Transfer admissions\nTransfer applicants must complete calculus.' }
+  },
+  resolveAddresses: async () => [{ address: '8.8.8.8', family: 4 }],
+})
+const firstYearPrepared = await firstYearResearch.prepareTurn({ message: 'MIT国际本科一般申请要求和AP要求是什么？' })
+assert.deepEqual(firstYearReads, [requiredClassesFaq.url], 'an unspecified undergraduate query must not spend its read budget on transfer pages')
+assert.equal(firstYearPrepared.publicFields.research.sourceCount, 1)
+console.log('Admissions institution policy: MIT first-year FAQ evidence, transfer/blog/credit-only exclusions, applicable unified policy and no AP-count inference passed.')

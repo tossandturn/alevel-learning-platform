@@ -6,6 +6,7 @@ import {
   createPinnedAddressLookup,
   extractAdmissionsPageText,
   isPublicNetworkAddress,
+  normalizeAdmissionsPublicUrl,
   shouldResearchAdmissions,
 } from '../server/admissionsResearch.js'
 
@@ -67,6 +68,31 @@ assert.doesNotMatch(extracted, /do not retain/i)
 assert.doesNotMatch(extracted, /<[^>]+>/)
 
 const allowedDomains = new Set(['ox.ac.uk'])
+const canonicalTrackedUrl = normalizeAdmissionsPublicUrl(
+  'https://www.ox.ac.uk/admissions/undergraduate?utm_source=search&utm_medium=cpc&utm_campaign=autumn&utm_term=physics&utm_content=course&utm_id=42#entry',
+  allowedDomains,
+)
+assert.equal(canonicalTrackedUrl.href, 'https://www.ox.ac.uk/admissions/undergraduate')
+assert.throws(
+  () => normalizeAdmissionsPublicUrl('https://www.ox.ac.uk/admissions?utm_source=search&access_token=do-not-send', allowedDomains),
+  error => error?.code === 'ADMISSIONS_SOURCE_URL_BLOCKED' && /credential-like/iu.test(error.message),
+  'credential-like query data must be rejected before tracking canonicalization',
+)
+assert.throws(
+  () => normalizeAdmissionsPublicUrl('https://www.ox.ac.uk/admissions?utm_source=search&course=physics', allowedDomains),
+  error => error?.code === 'ADMISSIONS_SOURCE_URL_BLOCKED',
+  'tracking parameters cannot make functional query data acceptable',
+)
+assert.throws(
+  () => normalizeAdmissionsPublicUrl('https://www.ox.ac.uk/admissions?preview=true', allowedDomains),
+  error => error?.code === 'ADMISSIONS_SOURCE_URL_BLOCKED',
+  'unknown query parameters remain fail-closed',
+)
+assert.throws(
+  () => normalizeAdmissionsPublicUrl('https://www.ox.ac.uk/login?utm_source=search', allowedDomains),
+  error => error?.code === 'ADMISSIONS_SOURCE_URL_BLOCKED',
+  'tracking parameters cannot make private portal paths acceptable',
+)
 const requests = []
 const pageReader = createAdmissionsPageReader({
   allowedDomains,
