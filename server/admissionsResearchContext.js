@@ -45,7 +45,14 @@ function containsEntity(text, alias) {
 }
 
 export function admissionsInstitutions(catalog, rootDomain) {
-  const grouped = new Map()
+  // Reviewed domains are the minimum public-scope registry. Catalogs enrich
+  // titles and sources, but a missing release artifact cannot erase a known
+  // institution or turn its explicit name into a clarification loop.
+  const grouped = new Map(Object.entries(SCHOOL_NAMES).map(([domain, aliases]) => [domain, {
+    domain,
+    name: aliases[0],
+    aliases: [...new Set([...aliases, domain, `www.${domain}`])],
+  }]))
   for (const source of catalog) {
     const domain = rootDomain(new URL(source.url).hostname)
     if (!domain) continue

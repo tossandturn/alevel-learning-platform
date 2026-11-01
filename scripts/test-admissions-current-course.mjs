@@ -1,8 +1,28 @@
 import assert from 'node:assert/strict'
 import { admissionsInstitutions, planAdmissionsResearch } from '../server/admissionsResearchContext.js'
 import { assessAdmissionsPage } from '../server/admissionsResearchEvidence.js'
+import { createAdmissionsResearch } from '../server/admissionsResearch.js'
 
 const institutions = admissionsInstitutions([{ title: 'Imperial undergraduate courses', url: 'https://www.imperial.ac.uk/study/courses/' }], () => 'imperial.ac.uk')
+const fallbackInstitutions = admissionsInstitutions([], hostname => hostname)
+const fallbackImperial = planAdmissionsResearch({ message: '请查询帝国理工学院机械工程本科2027年入学A-Level要求。', institutions: fallbackInstitutions })
+assert.deepEqual(fallbackImperial.missing, [], 'reviewed built-in institutions must survive an absent catalog')
+assert.equal(fallbackImperial.school.domain, 'imperial.ac.uk')
+assert.match(fallbackImperial.query, /Imperial College London Mechanical Engineering 2027 undergraduate entry requirements A-Level site:imperial\.ac\.uk/)
+let emptyCatalogQuery = ''
+const emptyCatalogResearch = createAdmissionsResearch({
+  sourceCatalog: [],
+  searchPublicSources: async ({ query }) => {
+    emptyCatalogQuery = query
+    return [{ title: 'Mechanical Engineering MEng', url: 'https://www.imperial.ac.uk/study/courses/undergraduate/mechanical-engineering/' }]
+  },
+  readPublicPage: async url => ({ url, title: 'Mechanical Engineering MEng | Imperial College London', text: '# Mechanical Engineering\n2027 entry\nA-level offer: A*A*A including Mathematics and Physics.' }),
+  resolveAddresses: async () => [{ address: '8.8.8.8', family: 4 }],
+})
+const emptyCatalogResult = await emptyCatalogResearch.prepareTurn({ message: '请查询帝国理工学院机械工程本科2027年入学A-Level要求。' })
+assert.equal(emptyCatalogResult.publicFields.research.status, 'complete')
+assert.equal(emptyCatalogResult.publicFields.research.sourceCount, 1)
+assert.match(emptyCatalogQuery, /site:imperial\.ac\.uk/)
 const current = planAdmissionsResearch({ message: '几个A*？', history: [{ role: 'user', content: 'IC机械工程' }], institutions })
 assert.equal(current.requested, true)
 assert.deepEqual(current.missing, [], 'a target entry year is optional and must not cause a clarification loop')
