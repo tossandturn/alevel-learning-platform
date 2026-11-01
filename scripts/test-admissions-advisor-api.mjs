@@ -201,7 +201,7 @@ let providerCalls = 0
 const providerInputs = []
 let admissionsResearchCalls = 0
 const admissionsResearchSources = [{
-  id: 'S1-test001',
+  id: 'S1-0123456789abcdef01234567',
   title: 'Oxford Physics entry requirements',
   url: 'https://www.ox.ac.uk/admissions/undergraduate/courses/course-listing/physics',
   official: true,
@@ -447,6 +447,10 @@ try {
   assert.match(systemPrompt, /按你提供的材料，尚未独立核验/)
   assert.match(systemPrompt, /user-provided facts, explicit assumptions, qualitative advice/i)
   assert.match(systemPrompt, /never treat an arbitrary user URL as approved evidence/i)
+  assert.match(systemPrompt, /server evidence.{0,100}self-contained Chinese explanation/is)
+  assert.match(systemPrompt, /links?.{0,60}optional verification/is)
+  assert.match(systemPrompt, /excerpt card.{0,60}not a screenshot/is)
+  assert.match(admissionsResearchSources[0].id, /^S1-[a-f0-9]{24}$/)
   assert.match(systemPrompt, /academic worked solutions and formal marking/i)
   assert.match(systemPrompt, /existing Steps, Answers, or PDF workflows/i)
   assert.equal(firstProviderInput.options.messages.at(-1).content, successBody.message)

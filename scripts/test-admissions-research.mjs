@@ -179,7 +179,7 @@ assert.equal(readCalls, 1)
 assert.equal(researched.publicFields.research.status, 'complete')
 assert.equal(researched.publicFields.research.sourceCount, 1)
 const verified = researched.publicFields.research.sources[0]
-assert.match(verified.id, /^S1-[a-f0-9]+$/)
+assert.match(verified.id, /^S1-[a-f0-9]{24}$/, 'server source IDs are a stable ordinal plus 24 lowercase hex characters')
 assert.deepEqual(verified.applicableYears, ['2027'], 'body evidence, not catalog metadata, determines applicable years')
 assert.equal(verified.verification.courseMatched, true)
 assert.equal(verified.verification.yearMatched, true)

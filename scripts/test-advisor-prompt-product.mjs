@@ -67,6 +67,17 @@ test('protected admissions prompt boundaries remain explicit and compact', () =>
   assert.match(admissionsPrompt, /do not infer or import Tavern history/i)
 })
 
+test('researched admissions answers are self-contained for students without foreign-site access', () => {
+  assert.match(admissionsPrompt, /server evidence.{0,100}self-contained Chinese explanation/is)
+  assert.match(admissionsPrompt, /key original wording.{0,80}necessary English terms.{0,80}source date/is)
+  assert.match(admissionsPrompt, /links?.{0,60}optional verification/is)
+  assert.match(admissionsPrompt, /do not ask.{0,80}(?:open|visit).{0,80}(?:foreign|official).{0,80}(?:understand|obtain)/is)
+  assert.match(admissionsPrompt, /do not ask the student to research.{0,80}already retrieved/is)
+  assert.match(admissionsPrompt, /source cards?.{0,80}after the explanation/is)
+  assert.match(admissionsPrompt, /excerpt card.{0,60}not a screenshot/is)
+  assert.match(admissionsPrompt, /never promise.{0,80}screenshot/is)
+})
+
 test('protected IELTS prompt boundaries remain explicit and compact', () => {
   assert.ok(Array.from(ieltsPrompt).length <= 11_500, 'IELTS prompt must stay within the bilingual product prompt budget')
   assert.match(ieltsPrompt, /fixed server-owned, text-only teaching role/i)
