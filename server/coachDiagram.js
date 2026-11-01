@@ -4,6 +4,7 @@ const OPEN_FENCE = '```stem-diagram'
 const CLOSE_FENCE = '```'
 const MAX_ELEMENTS = 60
 const MAX_POLYLINE_POINTS = 100
+const MAX_TOTAL_POLYLINE_POINTS = 1200
 const MAX_BUFFER_CHARS = 64 * 1024
 const ROOT_FIELDS = new Set(['version', 'title', 'description', 'width', 'height', 'elements'])
 const ELEMENT_FIELDS = Object.freeze({
@@ -128,6 +129,8 @@ export function validateCoachDiagram(value) {
   if (!Array.isArray(value.elements) || value.elements.length < 1 || value.elements.length > MAX_ELEMENTS) {
     throw diagramError(`diagram must contain 1 to ${MAX_ELEMENTS} elements.`)
   }
+  const totalPoints = value.elements.reduce((total, element) => total + (element?.type === 'polyline' && Array.isArray(element.points) ? element.points.length : 0), 0)
+  if (totalPoints > MAX_TOTAL_POLYLINE_POINTS) throw diagramError(`diagram may contain at most ${MAX_TOTAL_POLYLINE_POINTS} polyline points in total.`)
   return {
     version: COACH_DIAGRAM_FORMAT,
     title: boundedText(value.title, 'diagram title', 100),

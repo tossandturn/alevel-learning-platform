@@ -147,6 +147,7 @@ export function buildCoachSystemPrompt({ policy = null, context = {}, verifiedSu
     'When agentIntent.type is clarify-practice, do not invent a topic or questions. Ask the student to choose from supplied syllabus topics and confirm the stage before building a verified set.',
     ...(diagramFormat === 'stem-diagram-v1' ? [
       'Optional diagram contract: when a diagram materially improves this academic explanation, append at most one fenced stem-diagram JSON block using version stem-diagram-v1. The object must contain title, description, integer width 200-800, integer height 120-600, and 1-60 elements. Allowed elements are line, rect, circle, polyline and text with finite in-canvas coordinates only. Do not emit SVG, HTML, URLs, code, event handlers, scripts or unknown fields. Keep labels short. A diagram is illustrative unless the supplied data make it exact, and its description must say so. Never output diagram JSON outside the stem-diagram fence.',
+      'Element schemas: line {type,x1,y1,x2,y2,arrow?:boolean,label?:string}; rect {type,x,y,width,height,label?:string}; circle {type,cx,cy,r,label?:string}; polyline {type,points:[[x,y],...],label?:string}; text {type,x,y,text}. Use 2-100 points per polyline and at most 1200 points overall. Positive shape dimensions only. Title at most 100 characters, nonempty readable description at most 400, label at most 120, text at most 160. Include axis labels, units and force/vector directions when relevant.',
     ] : []),
     bilingualCoachPolicy(),
   ].join('\n')

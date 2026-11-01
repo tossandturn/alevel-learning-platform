@@ -482,6 +482,8 @@ export function createAdvisorConversationEngine({
           conversation: completedReplay.conversation,
           turns: completedReplay.turns,
           model: completedReplay.model || undefined,
+          ...(completedReplay.memory?.advisorResearch ? { research: completedReplay.memory.advisorResearch } : {}),
+          ...(completedReplay.memory?.advisorOutcome || {}),
           replayed: true,
         }
         sendSseEventOrThrow(role, response, 'meta', { ...result, answer: undefined })
@@ -537,6 +539,8 @@ export function createAdvisorConversationEngine({
           conversation: completed.conversation,
           turns: completed.turns,
           model: generatedReceipt.model || undefined,
+          ...(generatedReceipt.memory?.advisorResearch ? { research: generatedReceipt.memory.advisorResearch } : {}),
+          ...(generatedReceipt.memory?.advisorOutcome || {}),
           replayed: true,
           commitRecovered: true,
         }
@@ -567,29 +571,49 @@ export function createAdvisorConversationEngine({
 
       let turnPreparation = {
         providerMessage: canonicalMessage,
+        systemMessage: '',
         publicFields: {},
         answerSuffix: '',
+        sanitizeAnswer: null,
       }
       if (typeof prepareTurn === 'function') {
+        const history = storeCall(role, () => store().contextForProvider({
+          ownerId, persona: role.persona, conversationId,
+          model: candidates[0].model, protocol: candidates[0].protocol,
+          metadata, currentMessage: canonicalMessage,
+          systemPrompt: role.buildSystemPrompt(), excludeClientTurnId: clientTurnId,
+        })).messages
         try {
           const prepared = await prepareTurn({
             message: canonicalMessage,
+            history,
+            deadlineAt,
             ownerId,
             conversationId,
             clientTurnId,
+            onActivity: ({ phase }) => sendSseEventOrThrow(role, response, 'meta', {
+              mode: 'ai', providerStatus: 'researching',
+              researchPhase: phase === 'fetch' ? 'fetch' : 'search',
+              ...publicTurnState(state, clientTurnId),
+            }),
           })
           if (prepared && typeof prepared === 'object') {
             turnPreparation = {
               providerMessage: typeof prepared.providerMessage === 'string' && prepared.providerMessage.trim()
                 ? prepared.providerMessage
                 : canonicalMessage,
+              systemMessage: typeof prepared.systemMessage === 'string' ? prepared.systemMessage.slice(0, 40_000) : '',
               publicFields: prepared.publicFields && typeof prepared.publicFields === 'object' && !Array.isArray(prepared.publicFields)
                 ? prepared.publicFields
                 : {},
               answerSuffix: typeof prepared.answerSuffix === 'string' ? prepared.answerSuffix.slice(0, 12_000) : '',
+              sanitizeAnswer: typeof prepared.sanitizeAnswer === 'function' ? prepared.sanitizeAnswer : null,
+              guardedAnswer: typeof prepared.guardedAnswer === 'string' ? prepared.guardedAnswer.slice(0, 2_000) : '',
+              guardedOutcome: prepared.guardedOutcome,
             }
           }
-        } catch {
+        } catch (error) {
+          if (error?.code === role.responseTransportCode) throw error
           turnPreparation = {
             providerMessage: canonicalMessage,
             publicFields: {
@@ -600,7 +624,23 @@ export function createAdvisorConversationEngine({
         }
       }
 
+      if (turnPreparation.guardedAnswer) {
+        const { guardedAnswer, guardedOutcome, publicFields } = turnPreparation
+        const localMemory = { advisorResearch: publicFields.research, advisorOutcome: guardedOutcome }
+        const failed = storeCall(role, () => store().failTurn({
+          ownerId, persona: role.persona, conversationId, clientTurnId,
+          leaseId: state.leaseId, status: 'unavailable', assistantContent: guardedAnswer,
+          memory: localMemory,
+        }))
+        finishUncommittedStream(response, {
+          ...guardedOutcome, ...publicFields, answer: guardedAnswer,
+          ...publicTurnState(failed, clientTurnId),
+        })
+        return
+      }
+
       for (const [providerIndex, provider] of candidates.entries()) {
+        if (successful) break
         lastProvider = provider
         let attemptAnswer = ''
         const systemPrompt = role.buildSystemPrompt()
@@ -612,10 +652,12 @@ export function createAdvisorConversationEngine({
           protocol: provider.protocol,
           metadata,
           currentMessage: canonicalMessage,
-          systemPrompt,
+          systemPrompt: `${systemPrompt}\n${turnPreparation.systemMessage || ''}`,
           excludeClientTurnId: clientTurnId,
         }))
-        lastContextMemory = selectedContext.memory
+        lastContextMemory = turnPreparation.publicFields.research
+          ? { ...selectedContext.memory, advisorResearch: turnPreparation.publicFields.research }
+          : selectedContext.memory
         try {
           sendSseEventOrThrow(role, response, 'meta', {
             mode: 'ai',
@@ -629,6 +671,7 @@ export function createAdvisorConversationEngine({
             messages: [
               { role: 'system', content: systemPrompt },
               ...selectedContext.messages,
+              ...(turnPreparation.systemMessage ? [{ role: 'system', content: turnPreparation.systemMessage }] : []),
               { role: 'user', content: turnPreparation.providerMessage },
             ],
             temperature: 0.2,
@@ -649,14 +692,24 @@ export function createAdvisorConversationEngine({
               const text = String(delta || '')
               if (!text) return
               attemptAnswer += text
-              streamedAnswer += text
-              sendSseEventOrThrow(role, response, 'delta', { text })
+              if (turnPreparation.sanitizeAnswer) {
+                // No unverified URL/reference may escape in a chunk before
+                // the complete reference can be checked against this turn.
+                streamedAnswer = turnPreparation.sanitizeAnswer(attemptAnswer)
+              } else {
+                streamedAnswer += text
+                sendSseEventOrThrow(role, response, 'delta', { text })
+              }
             },
           })
           const answer = String(result?.answer || attemptAnswer).trim()
           if (!answer) throw roleError(role, 502, 'generation_incomplete', 'generationIncomplete')
-          const finalizedAnswer = `${answer.trimEnd()}${turnPreparation.answerSuffix}`.trim()
-          if (turnPreparation.answerSuffix) {
+          const safeAnswer = turnPreparation.sanitizeAnswer ? turnPreparation.sanitizeAnswer(answer) : answer
+          const finalizedAnswer = `${safeAnswer.trimEnd()}${turnPreparation.answerSuffix}`.trim()
+          if (turnPreparation.sanitizeAnswer) {
+            sendSseEventOrThrow(role, response, 'delta', { text: finalizedAnswer })
+            streamedAnswer = finalizedAnswer
+          } else if (turnPreparation.answerSuffix) {
             sendSseEventOrThrow(role, response, 'delta', { text: turnPreparation.answerSuffix })
             streamedAnswer += turnPreparation.answerSuffix
           }
@@ -749,6 +802,7 @@ export function createAdvisorConversationEngine({
           turns: completed.turns,
           model: receipt.model,
           ...turnPreparation.publicFields,
+          ...(receipt.memory?.advisorOutcome || {}),
         })
         return
       }

@@ -31,6 +31,8 @@ assert.throws(() => validateCoachDiagram({ ...validDiagram, elements: [{ type: '
 assert.throws(() => validateCoachDiagram({ ...validDiagram, elements: [{ type: 'line', x1: 0, y1: 0, x2: 401, y2: 2 }] }), /bounds/i)
 assert.throws(() => validateCoachDiagram({ ...validDiagram, elements: Array.from({ length: 61 }, () => ({ type: 'text', x: 1, y: 1, text: 'x' })) }), /60/)
 assert.throws(() => validateCoachDiagram({ ...validDiagram, elements: [{ type: 'polyline', points: Array.from({ length: 101 }, () => [1, 1]) }] }), /100/)
+assert.throws(() => validateCoachDiagram({ ...validDiagram, elements: Array.from({ length: 13 }, () => ({ type: 'polyline', points: Array.from({ length: 100 }, () => [1, 1]) })) }), /1200/)
+assert.throws(() => validateCoachDiagram({ ...validDiagram, description: '   ' }), /description/)
 
 const fence = `\`\`\`stem-diagram\n${JSON.stringify(validDiagram)}\n\`\`\``
 const expected = `Before\n\n${fence}\n\nAfter`
