@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import {createAiSseDecoder} from './aiSse.js'
 import { createCoachJobs } from './coachJobs.js'
 import { createCoachImageUploads } from './coachImageUploads.js'
 import {createAiTiming,safeAiTiming} from './aiTiming.js'
@@ -2137,28 +2138,17 @@ export async function callCompatibleAiStream(provider, { messages, temperature =
 
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
-    let buffer = ''
+    const frames = createAiSseDecoder()
     let receivedDone = false
-    let eventName = ''
     let chatFinishReason = ''
-    async function consumeLine(line) {
-      const clean = line.trim()
-      if (!clean) {
-        eventName = ''
-        return
-      }
-      if (clean.startsWith('event:')) {
-        eventName = clean.slice(6).trim()
-        return
-      }
-      if (!clean.startsWith('data:')) return
-      const data = clean.slice(5).trim()
+    const responseTextParts = new Map()
+    async function consumeEvent({event: eventName, data: rawData}) {
+      const data = rawData.trim()
       if (!data) return
       if (data === '[DONE]') {
         timing.mark('streamCompleteMs')
         activity('stream_complete')
         receivedDone = true
-        eventName = ''
         return
       }
       let payload
@@ -2172,7 +2162,7 @@ export async function callCompatibleAiStream(provider, { messages, temperature =
       timing.usage(payload)
       const reasoning=payload?.choices?.[0]?.delta?.reasoning_content
       if(typeof reasoning==='string'&&reasoning.length){timing.mark('firstChunkMs');timing.mark('firstReasoningMs');activity('reasoning_activity')}
-      if(/^response\.(?:reasoning|reasoning_text)/.test(responseEventType)&&typeof payload?.delta==='string'&&payload.delta.length)activity('reasoning_activity')
+      if(/^response\.(?:reasoning|reasoning_text)/.test(responseEventType)&&typeof payload?.delta==='string'&&payload.delta.length){timing.mark('firstChunkMs');timing.mark('firstReasoningMs');activity('reasoning_activity')}
       if (responseEventType === 'response.failed' || responseEventType === 'response.error') {
         throw new Error(compactText(payload?.error?.message || payload?.message || 'AI provider stream failed.', 240))
       }
@@ -2180,11 +2170,12 @@ export async function callCompatibleAiStream(provider, { messages, temperature =
         throw aiResponseSchemaError('AI provider stream ended incompletely.')
       }
       if (responseEventType === 'response.completed' || responseEventType === 'response.done') {
-        if (isResponsesProvider(provider) && payload?.status && payload.status !== 'completed') {
+        const completedPayload=payload?.response&&typeof payload.response==='object'?payload.response:payload
+        if (isResponsesProvider(provider) && completedPayload?.status && completedPayload.status !== 'completed') {
           throw aiResponseSchemaError('AI provider stream reported a non-completed response.')
         }
         if (!answer) {
-          const completedText = responseOutputText(payload)
+          const completedText = responseOutputText(completedPayload)
           if (completedText) {
             timing.mark('firstAnswerMs')
             activity('answer_delta')
@@ -2195,45 +2186,53 @@ export async function callCompatibleAiStream(provider, { messages, temperature =
         timing.mark('streamCompleteMs')
         activity('stream_complete')
         receivedDone = true
-        eventName = ''
         return
       }
       if (!isResponsesProvider(provider)) {
         const choice = Array.isArray(payload?.choices) ? payload.choices[0] : null
         if (choice?.finish_reason !== undefined && choice.finish_reason !== null) chatFinishReason = String(choice.finish_reason).trim().toLowerCase()
       }
-      const delta = isResponsesProvider(provider)
-        ? String(payload?.delta || (responseEventType === 'response.output_text.done' ? payload?.text || '' : ''))
-        : String(payload?.choices?.[0]?.delta?.content || payload?.choices?.[0]?.message?.content || '')
+      let delta = ''
+      if(isResponsesProvider(provider)){
+        // Only final-answer text events are visible. Reasoning/tool deltas are
+        // not answer text; output_text.done is a snapshot, not another delta.
+        const partKey=String(payload?.output_index ?? 0)+':'+String(payload?.content_index ?? 0)
+        const previous=responseTextParts.get(partKey)||''
+        if(responseEventType==='response.output_text.delta'){
+          delta=typeof payload?.delta==='string'?payload.delta:''
+          responseTextParts.set(partKey,previous+delta)
+        }else if(responseEventType==='response.output_text.done'){
+          const snapshot=typeof payload?.text==='string'?payload.text:''
+          if(!snapshot.startsWith(previous))throw aiResponseSchemaError('AI provider text snapshot conflicts with streamed text.')
+          delta=snapshot.slice(previous.length)
+          responseTextParts.set(partKey,snapshot)
+        }
+      }else{
+        delta=String(payload?.choices?.[0]?.delta?.content || payload?.choices?.[0]?.message?.content || '')
+      }
       if (!delta) return
       timing.mark('firstChunkMs')
       timing.mark('firstAnswerMs')
       activity('answer_delta')
       answer += delta
       await onDelta?.(delta)
-      eventName = ''
     }
 
     while (true) {
       const { value, done } = await reader.read()
       if (!done) resetIdleTimeout()
-      buffer += decoder.decode(value || new Uint8Array(), { stream: !done })
-      const lines = buffer.split(/\r?\n/)
-      buffer = lines.pop() || ''
-      for (const line of lines) {
-        await consumeLine(line)
+      for (const frame of frames.push(decoder.decode(value || new Uint8Array(), { stream: !done }))) {
+        await consumeEvent(frame)
         if (receivedDone) break
       }
       // SSE completion is semantic, independent of an upstream keeping its
       // HTTP connection open. Do not turn a complete answer into a timeout.
       if (receivedDone) {
         try { await reader.cancel() } catch { /* Completion was already parsed. */ }
-        buffer = ''
         break
       }
       if (done) break
     }
-    if (buffer) await consumeLine(buffer)
     answer = answer.trim()
     if (!answer || !receivedDone || (!isResponsesProvider(provider) && chatFinishReason !== 'stop')) {
       schemaStatus = 'invalid'
@@ -2244,6 +2243,7 @@ export async function callCompatibleAiStream(provider, { messages, temperature =
     return { answer, providerStatus: 'connected' }
   } catch (error) {
     finalState = error?.name === 'AbortError' ? 'timeout' : 'error'
+    if(error?.code==='AI_RESPONSE_SCHEMA_INVALID'){schemaStatus='invalid';failureClass='response_schema'}
     if (!failureClass) {
       failureClass = error?.code === 'AI_REQUEST_DEADLINE'
         ? 'total_deadline'
