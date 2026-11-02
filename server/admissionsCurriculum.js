@@ -2,7 +2,7 @@
 // A client label or a search snippet cannot extend this public-source boundary.
 const CAMBRIDGE = 'https://www.cambridgeinternational.org/programmes-and-qualifications/cambridge-advanced/cambridge-international-as-and-a-levels/'
 export const ADMISSIONS_CURRICULA = Object.freeze([
-  { id: 'alevel', name: 'A-Level', organization: 'Cambridge International', domain: 'cambridgeinternational.org', domains: ['cambridgeinternational.org'], aliases: ['A-Level', 'A Level', 'ALevel', 'Cambridge International AS'],
+  { id: 'alevel', name: 'A-Level', organization: 'Cambridge International', domain: 'cambridgeinternational.org', domains: ['cambridgeinternational.org'], aliases: ['A-Level', 'A Level', 'A-Levels', 'A Levels', 'ALevel', 'Cambridge International AS'],
     overviewUrl: CAMBRIDGE + 'curriculum/', assessmentUrl: CAMBRIDGE + 'qualification/', path: '/programmes-and-qualifications/cambridge-advanced/cambridge-international-as-and-a-levels/' },
   { id: 'ap', name: 'AP', organization: 'College Board', domain: 'apstudents.collegeboard.org', domains: ['collegeboard.org'], aliases: ['AP', 'Advanced Placement'],
     overviewUrl: 'https://apstudents.collegeboard.org/what-is-ap', catalogueUrl: 'https://apstudents.collegeboard.org/courses', assessmentUrl: 'https://apstudents.collegeboard.org/about-ap-scores', path: '/' },
@@ -24,8 +24,12 @@ export function curriculumOrganizationFreeText(value) {
 function matchesAlias(text, alias) {
   const normalized = text.toLowerCase().replace(/[-–]/g, ' ')
   const wanted = alias.toLowerCase().replace(/[-–]/g, ' ')
-  const index = normalized.indexOf(wanted)
-  return index >= 0 && !/[a-z]/.test(normalized[index - 1] || '') && !/[a-z]/.test(normalized[index + wanted.length] || '')
+  let index = normalized.indexOf(wanted)
+  while (index >= 0) {
+    if (!/[a-z]/.test(normalized[index - 1] || '') && !/[a-z]/.test(normalized[index + wanted.length] || '')) return true
+    index = normalized.indexOf(wanted, index + 1)
+  }
+  return false
 }
 
 function mentionedCurriculum(text) {

@@ -44,6 +44,16 @@ test('Cambridge International A-Level is not Cambridge University without a past
   assert.equal(plan.school, null)
 })
 
+test('ordinary plural A Levels wording still resolves to the curriculum', () => {
+  const plan=planAdmissionsResearch({message:'How do A Levels courses work?',institutions})
+  assert.equal(plan.curriculum?.id,'alevel')
+})
+
+test('an earlier API substring cannot hide a later valid AP mention', () => {
+  const plan=planAdmissionsResearch({message:'不是 API 问题，我想了解 AP 课程结构。',institutions})
+  assert.equal(plan.curriculum?.id,'ap')
+})
+
 test('a university offer query using an exam qualification stays a university query', () => {
   for (const text of ['MIT本科申请 AP 要求？', 'Cambridge University A-Level entry requirements?', '剑桥大学A-Level申请要求']) {
     const plan = planAdmissionsResearch({ message: text, history: [{ role: 'user', content: prompt(board('alevel')) }], institutions })
