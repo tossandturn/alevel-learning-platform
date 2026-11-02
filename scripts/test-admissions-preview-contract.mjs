@@ -3,7 +3,10 @@ import http from 'node:http'
 import { createAdmissionsPreviewDescriptor, admissionsSourceExcerpt } from '../server/admissionsPreviewContract.js'
 import { createAdmissionsPreviewService } from '../server/admissionsPreviewService.js'
 
-let clock = Date.parse('2026-11-02T04:00:00.000Z')
+// Keep the injected cache clock relative to the real operation deadline. A
+// fixed calendar timestamp eventually makes every capture immediately expire.
+const initialClock = Date.now()
+let clock = initialClock
 const tinyPng = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlpeR0AAAAASUVORK5CYII='
 const excerpt = admissionsSourceExcerpt('Page heading: Mechanical Engineering\n2027 entry\nA*A*A including Mathematics and Physics. '.repeat(60))
 assert.ok(excerpt.length > 40 && excerpt.length <= 900)
@@ -25,7 +28,7 @@ let captureDelay = false
 const service = createAdmissionsPreviewService({
   authenticateRequest: request => request.headers.authorization === 'Bearer owner-1' ? 'owner-1' : request.headers.authorization === 'Bearer owner-2' ? 'owner-2' : null,
   resolveSource: ({ ownerId, conversationId, turnId, sourceId }) => sourcesByOwner.get(`${ownerId}:${conversationId}:${turnId}:${sourceId}`) || null,
-  now: () => clock,
+  now: () => Date.now() + clock - initialClock,
   captureTimeoutMs: 20,
   captureSource: async source => {
     captureCalls += 1
