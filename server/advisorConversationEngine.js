@@ -138,7 +138,7 @@ function advisorMessage(role, value) {
   return clean
 }
 
-function logicalRequestHash(role, { conversationId, clientTurnId, message, reasoningEffort }) {
+function logicalRequestHash(role, { conversationId, clientTurnId, message, reasoningEffort, directoryTarget }) {
   return crypto.createHash('sha256').update(JSON.stringify({
     feature: role.feature,
     persona: role.persona,
@@ -146,6 +146,7 @@ function logicalRequestHash(role, { conversationId, clientTurnId, message, reaso
     clientTurnId,
     message,
     ...(reasoningEffort!==undefined?{reasoningEffort}:{}),
+    ...(directoryTarget ? { directoryTarget } : {}),
   })).digest('hex')
 }
 
@@ -285,6 +286,7 @@ export function createAdvisorConversationEngine({
   baseMemoryRoot = null,
   callCompatibleAiStream,
   prepareTurn = null,
+  normalizeDirectoryTarget = null,
 } = {}) {
   const role = assertRoleConfig(rawRole)
   if (typeof authenticateRequest !== 'function') throw new Error(copy(role, 'authenticatorRequired'))
@@ -405,7 +407,7 @@ export function createAdvisorConversationEngine({
 
   async function streamConversation(request, response) {
     const payload = objectPayload(role, await readJsonBody(role, request))
-    assertAllowedFields(role, payload, STREAM_FIELDS)
+    assertAllowedFields(role, payload, typeof normalizeDirectoryTarget === 'function' ? new Set([...STREAM_FIELDS, 'directoryTarget']) : STREAM_FIELDS)
     if ([...STREAM_FIELDS].some((field) => field!=='reasoningEffort'&&!Object.hasOwn(payload, field))) {
       throw roleError(role, 400, 'request_invalid', 'streamFieldsRequired')
     }
@@ -418,7 +420,8 @@ export function createAdvisorConversationEngine({
     const effort=coachEffort(payload.reasoningEffort)
     const requestBudget=coachEffortBudget(effort,{providerTimeoutMs,totalDeadlineMs})
     const ownerId = await authorize(request)
-    const requestHash = logicalRequestHash(role, { conversationId, clientTurnId, message, reasoningEffort:payload.reasoningEffort })
+    const directoryTarget = Object.hasOwn(payload, 'directoryTarget') ? normalizeDirectoryTarget(payload.directoryTarget) : null
+    const requestHash = logicalRequestHash(role, { conversationId, clientTurnId, message, reasoningEffort:payload.reasoningEffort, directoryTarget })
     const completedReplay = storeCall(role, () => store().replayCompletedTurn({
       ownerId,
       persona: role.persona,
@@ -587,6 +590,7 @@ export function createAdvisorConversationEngine({
           const prepared = await prepareTurn({
             message: canonicalMessage,
             history,
+            directoryTarget,
             deadlineAt,
             ownerId,
             conversationId,

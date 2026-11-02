@@ -9,6 +9,7 @@ import { createAdmissionsSearchProvider } from './admissionsSearchProvider.js'
 import { admissionsInstitutions, planAdmissionsResearch, researchScope } from './admissionsResearchContext.js'
 import { assessAdmissionsPage, admissionsEvidencePreparation, newAdmissionsSourceId } from './admissionsResearchEvidence.js'
 import { admissionsSourceExcerpt, createAdmissionsPreviewDescriptor } from './admissionsPreviewContract.js'
+import { ADMISSIONS_CURRICULA, isCurriculumSourceCandidate } from './admissionsCurriculum.js'
 
 const DEFAULT_TIMEOUT_MS = 8_000
 const DEFAULT_MAX_BYTES = 256 * 1024
@@ -358,6 +359,7 @@ function normalizedSource(raw, index = 0) {
     checkedOn: sourceDate(raw.checkedOn || raw.sourceCheckedOn),
     applicableYears: normalizedYears(raw.applicableYears),
     aliases: Array.isArray(raw.aliases) ? raw.aliases.map((item) => cleanText(item, 120)).filter(Boolean).slice(0, 12) : [],
+    identityIds: Array.isArray(raw.identityIds) ? raw.identityIds.filter(item => typeof item === 'string' && /^[a-z0-9][a-z0-9._-]{0,99}$/.test(item)).slice(0, 20) : [],
   }
 }
 
@@ -373,6 +375,9 @@ function defaultSourceCatalog() {
     const profiles = JSON.parse(fs.readFileSync(profilesPath, 'utf8'))
     for (const item of profiles.items || []) {
       const aliases = [item.id, ...(item.aliases || [])]
+      // Institution identity must not depend on whether its admissions text
+      // shares a system-wide URL with another campus (e.g. UC campuses).
+      if (item.provenance?.website) sources.push({ id: `${item.id}-identity`, title: item.id.replaceAll('-', ' '), url: item.provenance.website, aliases, identityIds: aliases })
       for (const source of item.profile?.sources || []) {
         sources.push({
           id: `${item.id}-${source.id || 'source'}`,
@@ -396,7 +401,10 @@ function defaultSourceCatalog() {
   const deduped = new Map()
   for (const [index, source] of sources.entries()) {
     const normalized = normalizedSource(source, index)
-    if (normalized && !deduped.has(normalized.url)) deduped.set(normalized.url, normalized)
+    if (!normalized) continue
+    const existing = deduped.get(normalized.url)
+    if (existing) { existing.aliases = [...new Set([...existing.aliases, ...normalized.aliases])]; existing.identityIds = [...new Set([...existing.identityIds, ...normalized.identityIds])] }
+    else deduped.set(normalized.url, normalized)
   }
   return [...deduped.values()]
 }
@@ -406,6 +414,7 @@ export function createAdmissionsResearch({
   sourceCatalog = null,
   searchPublicSources = null,
   readPublicPage = null,
+  requestPublicPage = null,
   fetchReadPublicPage = null,
   resolveAddresses = defaultResolveAddresses,
   providerOptions = {},
@@ -418,38 +427,59 @@ export function createAdmissionsResearch({
   const provider = searchPublicSources ? null : createAdmissionsSearchProvider({ env, ...providerOptions })
   const search = searchPublicSources || provider.search
   const searchMode = searchPublicSources ? 'injected-search-fetch' : 'deepseek-search-fetch'
+  const normalizeDirectoryTarget = value => {
+    if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(key => !['kind', 'id'].includes(key))
+      || !['course', 'university'].includes(value.kind) || typeof value.id !== 'string' || !/^[a-z0-9][a-z0-9._-]{0,99}$/.test(value.id)) {
+      throw Object.assign(new Error('Directory target is invalid.'), { statusCode: 400, code: 'admissions_directory_target_invalid' })
+    }
+    if (value.kind === 'course' ? !ADMISSIONS_CURRICULA.some(item => item.id === value.id)
+      : !catalog.some(item => item.identityIds.includes(value.id))) {
+      throw Object.assign(new Error('Directory target is unknown.'), { statusCode: 400, code: 'admissions_directory_target_invalid' })
+    }
+    return { kind: value.kind, id: value.id }
+  }
 
   return Object.freeze({
-    async prepareTurn({ message = '', history = [], deadlineAt = Infinity, onActivity = null } = {}) {
+    normalizeDirectoryTarget,
+    async prepareTurn({ message = '', history = [], directoryTarget = null, deadlineAt = Infinity, onActivity = null } = {}) {
       const canonicalMessage = String(message || '')
-      const plan = planAdmissionsResearch({ message: canonicalMessage, history, institutions })
+      let target = directoryTarget ? normalizeDirectoryTarget(directoryTarget) : null
+      if (target?.kind === 'university') {
+        const source = catalog.find(item => item.identityIds.includes(target.id))
+        target = { ...target, institution: institutions.find(item => item.domain === academicRoot(new URL(source.url).hostname)) }
+      }
+      const plan = planAdmissionsResearch({ message: canonicalMessage, history, institutions, directoryTarget: target })
       const scope = researchScope(plan)
       const prepare = options => admissionsEvidencePreparation({ message: canonicalMessage, scope, searchMode, ...options })
       if (!plan.requested) return prepare({ status: 'not_requested' })
       if (plan.missing.length) return prepare({ status: 'needs_clarification', missingFields: plan.missing })
-      if (provider && !provider.status.configured) return prepare({ status: 'unavailable', code: 'ADMISSIONS_SEARCH_NOT_CONFIGURED' })
+      if (provider && !provider.status.configured && !plan.seedUrls?.length) return prepare({ status: 'unavailable', code: 'ADMISSIONS_SEARCH_NOT_CONFIGURED' })
       const researchDeadline = Math.min(deadlineAt - 12_000, Date.now() + 18_000)
       let found
       onActivity?.({ phase: 'search' })
       try {
-        found = await boundedAdmissionsOperation(() => search({ query: plan.query, limit: 6, deadlineAt: researchDeadline }), {
+        found = await boundedAdmissionsOperation(() => search({ query: plan.query, limit: 6, deadlineAt: researchDeadline, ...(plan.curriculum ? { includeContent: true } : {}) }), {
           timeoutMs: 8_000, deadlineAt: researchDeadline, code: 'ADMISSIONS_SEARCH_TIMEOUT',
         })
       } catch (error) {
-        return prepare({ status: 'unavailable', code: /^ADMISSIONS_[A-Z_\d]+$/.test(error?.code || '') ? error.code : 'ADMISSIONS_SEARCH_FAILED' })
+        if (!plan.seedUrls?.length) return prepare({ status: 'unavailable', code: /^ADMISSIONS_[A-Z_\d]+$/.test(error?.code || '') ? error.code : 'ADMISSIONS_SEARCH_FAILED' })
+        found = []
       }
-      const domainsForSchool = new Set(institutions.filter(item => item.name === plan.school.name).map(item => item.domain))
+      const domainsForSchool = new Set(plan.curriculum?.domains || institutions.filter(item => item.name === plan.school.name).map(item => item.domain))
       const directReader = readPublicPage || createAdmissionsPageReader({
         allowedDomains: domainsForSchool,
         resolveAddresses,
         timeoutMs: 4_000,
-        maxBytes: 512 * 1024,
+        // Some reviewed exam-board pages include >512 KiB of navigation HTML.
+        // Keep time, source-count and parsed-text limits unchanged.
+        maxBytes: plan.curriculum ? 2 * 1024 * 1024 : 512 * 1024,
         maxPageChars: 60_000,
         maxRedirects: 3,
+        ...(requestPublicPage ? { requestPage: requestPublicPage } : {}),
       })
       const fallbackReader = fetchReadPublicPage || (provider ? (url, options) => provider.fetchPage(url, options) : null)
       const allowTransfer = /\btransfer(?:ring)?\b|转学/iu.test(canonicalMessage)
-      const directUrls = [...(plan.directCourseUrl ? [plan.directCourseUrl] : []), ...(canonicalMessage.match(URL_PATTERN) || [])].flatMap(raw => {
+      const directUrls = [...(plan.seedUrls || []), ...(plan.directCourseUrl ? [plan.directCourseUrl] : []), ...(canonicalMessage.match(URL_PATTERN) || [])].flatMap(raw => {
         try {
           const url = normalizeAdmissionsPublicUrl(raw, domainsForSchool)
           return isCurrentAdmissionsHtmlCandidate(url, { allowTransfer }) ? [{ url: url.href }] : []
@@ -459,8 +489,9 @@ export function createAdmissionsResearch({
         try {
           const normalized = normalizeAdmissionsPublicUrl(raw.url, domainsForSchool)
           if (!isCurrentAdmissionsHtmlCandidate(normalized, { allowTransfer })) return []
+          if (plan.curriculum && !isCurriculumSourceCandidate(normalized.href, plan.curriculum)) return []
           const url = normalized.href
-          return [[url, { url }]]
+          return [[url, { url, ...(plan.curriculum && raw.contentTransport === 'deepseek-search-content' && typeof raw.pageContent === 'string' && raw.pageContent.trim().length >= 180 ? { pageContent: raw.pageContent.slice(0, 60_000), title: cleanText(raw.title, 180) } : {}) }]]
         } catch { return [] }
       })).values()].slice(0, Math.min(DEFAULT_MAX_SOURCES, Math.max(1, Number(maxSources) || DEFAULT_MAX_SOURCES)))
       if (!selected.length) return prepare({ status: 'no_results', code: 'ADMISSIONS_OFFICIAL_RESULTS_EMPTY' })
@@ -478,7 +509,7 @@ export function createAdmissionsResearch({
             const retrievedAt = new Date(now()).toISOString()
             return {
               source: {
-                id: '', title: cleanText(page.title || `${plan.school.name} ${plan.course?.name || plan.kind}`, 180),
+                id: '', title: cleanText(page.title || `${plan.curriculum?.name || plan.school.name} ${plan.course?.name || plan.kind}`, 180),
                 url: actualUrl, official: true, retrievedAt,
                 applicableYears: assessment.applicableYears,
                 verification: { ...assessment.verification, transport },
@@ -496,6 +527,12 @@ export function createAdmissionsResearch({
           await validateAdmissionsPublicUrl(candidate.url, { allowedDomains: domainsForSchool, resolveAddresses, deadlineAt: researchDeadline })
           const direct = await readAndAssess(directReader, 'direct-pinned-html', 4_000)
           if (direct.source) return direct
+          // Official Search returns page body separately from snippet/summary.
+          // It must pass the exact same source, identity and content assessment.
+          if (candidate.pageContent) {
+            const indexed = await readAndAssess(async () => ({ url: candidate.url, title: candidate.title, text: candidate.pageContent }), 'deepseek-search-content', 500)
+            if (indexed.source) return indexed
+          }
           const fallback = await readAndAssess(fallbackReader, 'deepseek-fetch', 8_000)
           return fallback.source ? fallback : { code: fallback.code || direct.code }
         } catch (error) {

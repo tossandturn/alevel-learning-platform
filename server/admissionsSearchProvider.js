@@ -107,12 +107,12 @@ export function createAdmissionsSearchProvider({ env = process.env, readOfficial
       const { key, reason, credentialSource } = configuration()
       return { provider: 'deepseek', configured: Boolean(key), reason, credentialSource, searchEndpoint: DEEPSEEK_SEARCH_ENDPOINT, fetchEndpoint: DEEPSEEK_FETCH_ENDPOINT }
     },
-    async search({ query, limit = 5, deadlineAt } = {}) {
+    async search({ query, limit = 5, deadlineAt, includeContent = false } = {}) {
       if (typeof query !== 'string' || !query.trim() || Array.from(query).length > 128) throw providerError('ADMISSIONS_SEARCH_QUERY_INVALID')
-      const result = await post(DEEPSEEK_SEARCH_ENDPOINT, { query, count: Math.min(8, Math.max(1, Number(limit) || 5)), need_content: false }, { deadlineAt })
+      const result = await post(DEEPSEEK_SEARCH_ENDPOINT, { query, count: Math.min(8, Math.max(1, Number(limit) || 5)), need_content: includeContent === true }, { deadlineAt })
       if (!Array.isArray(result?.results)) throw providerError('ADMISSIONS_SEARCH_INVALID_RESPONSE')
       return result.results.slice(0, 8).flatMap((item) => typeof item?.url === 'string' && typeof item.title === 'string'
-        ? [{ url: item.url.slice(0, 2048), title: item.title.slice(0, 180) }]
+        ? [{ url: item.url.slice(0, 2048), title: item.title.slice(0, 180), ...(includeContent === true && typeof item.content === 'string' && item.content.trim().length >= 180 ? { pageContent: item.content.slice(0, 60_000), contentTransport: 'deepseek-search-content' } : {}) }]
         : [])
     },
     async fetchPage(url, options = {}) {

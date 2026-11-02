@@ -137,6 +137,7 @@ export function createAdmissionsAdvisor(options = {}) {
     ...engineOptions,
     role: ADMISSIONS_ROLE,
     prepareTurn: prepareTurn || research.prepareTurn,
+    normalizeDirectoryTarget: research?.normalizeDirectoryTarget || null,
   })
   const capture = previewOptions?.captureSource
     ? null

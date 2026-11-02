@@ -1,3 +1,5 @@
+import { planCurriculumResearch, curriculumOrganizationFreeText } from './admissionsCurriculum.js'
+
 const COURSE_ENTITIES = [
   ['Mechanical Engineering', '机械工程'], ['Electrical Engineering', '电气工程', '电子工程'],
   ['Chemical Engineering', '化学工程'], ['Civil Engineering', '土木工程'], ['Biomedical Engineering', '生物医学工程'],
@@ -108,9 +110,10 @@ export function admissionsPublicCourseName(value) {
 
 function institutionIn(text, institutions) {
   const hosts = (String(text || '').match(/https:\/\/[^\s<>"']+/giu) || []).flatMap(raw => { try { return [new URL(raw).hostname] } catch { return [] } })
+  const nameText = curriculumOrganizationFreeText(String(text || '').replace(/https:\/\/[^\s<>"']+/giu, ' '))
   // An exact reviewed official host is stronger than an incidental title/alias.
   return institutions.find(item => hosts.some(host => host === item.domain || host.endsWith(`.${item.domain}`)))
-    || institutions.find(item => item.aliases.some(alias => containsEntity(text, alias)))
+    || institutions.find(item => item.aliases.some(alias => containsEntity(nameText, alias)))
 }
 
 function courseIn(text, institutions, allowShort = false) {
@@ -144,7 +147,9 @@ function directCourseUrlIn(text, institutions) {
   return ''
 }
 
-export function planAdmissionsResearch({ message = '', history = [], institutions = [] } = {}) {
+export function planAdmissionsResearch({ message = '', history = [], institutions = [], directoryTarget = null } = {}) {
+  const curriculumPlan = planCurriculumResearch({ message, history, directoryTarget, findInstitution: text => institutionIn(text, institutions) })
+  if (curriculumPlan) return curriculumPlan
   const intake = directoryIntake(message)
   const text = intake?.context || String(message || '')
   if (intake?.only) {
@@ -158,10 +163,10 @@ export function planAdmissionsResearch({ message = '', history = [], institution
   const lastUser = history.filter(turn => turn?.role === 'user').at(-1)?.content || ''
   const providesScope = text.length <= 120 && (currentCourse || explicitYear(text) || institutions.some(school => school.aliases.some(alias => containsEntity(text, alias))))
   const answersPriorQuestion = providesScope && (FACT_REQUEST.test(lastUser) || EXPLICIT_LOOKUP.test(lastUser))
-  const requested = !editOnly && (EXPLICIT_LOOKUP.test(text) || FACT_REQUEST.test(text) || /https:\/\//i.test(text) || (currentCourse && (FOLLOWUP.test(text) || history.length > 0)) || answersPriorQuestion)
+  const requested = !editOnly && (EXPLICIT_LOOKUP.test(text) || FACT_REQUEST.test(text) || /https:\/\//i.test(text) || (currentCourse && (FOLLOWUP.test(text) || history.length > 0)) || answersPriorQuestion || Boolean(directoryTarget))
   if (!requested) return { requested: false }
 
-  let school = null
+  let school = directoryTarget?.kind === 'university' ? directoryTarget.institution || null : null
   let course = null
   let year = ''
   let directCourseUrl = ''
@@ -187,6 +192,7 @@ export function planAdmissionsResearch({ message = '', history = [], institution
     if (FACT_REQUEST.test(content) || EXPLICIT_LOOKUP.test(content)) kind = requirementKind(content)
   }
   // A changed subject replaces the previous one; it never adds private profile text to a query.
+  if (directoryTarget?.kind === 'university') school = directoryTarget.institution || school
   course = currentCourse || course
   if (/一般|通用|全校|统一|general|university-wide|institution-wide/iu.test(text) && !currentCourse) { course = null; directCourseUrl = '' }
   const missing = [!school && 'institution', !school && !course && !directCourseUrl && !qualification && kind === 'undergraduate entry requirements' && 'course'].filter(Boolean)
@@ -200,6 +206,9 @@ export function planAdmissionsResearch({ message = '', history = [], institution
 
 export function researchScope(plan) {
   return {
+    kind: plan.curriculum ? 'curriculum' : plan.school ? 'university' : 'general',
+    ...(plan.school ? { institutionDomain: plan.school.domain } : {}),
+    ...(plan.curriculum ? { kind: 'curriculum', curriculum: plan.curriculum.name, curriculumId: plan.curriculum.id, organization: plan.curriculum.organization } : {}),
     institution: plan.school?.name || null,
     course: plan.course?.name || null,
     entryYear: plan.year || null,
