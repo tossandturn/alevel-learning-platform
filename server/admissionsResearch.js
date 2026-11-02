@@ -419,6 +419,7 @@ export function createAdmissionsResearch({
   resolveAddresses = defaultResolveAddresses,
   providerOptions = {},
   now = () => new Date(),
+  cacheNow = Date.now,
   maxSources = DEFAULT_MAX_SOURCES,
   maxContextChars = DEFAULT_MAX_CONTEXT_CHARS,
 } = {}) {
@@ -427,6 +428,13 @@ export function createAdmissionsResearch({
   const provider = searchPublicSources ? null : createAdmissionsSearchProvider({ env, ...providerOptions })
   const search = searchPublicSources || provider.search
   const searchMode = searchPublicSources ? 'injected-search-fetch' : 'deepseek-search-fetch'
+  const verifiedPageCache = new Map()
+  const cacheTtlMs = 10 * 60 * 1000
+  const rememberPage = (url, record) => {
+    verifiedPageCache.delete(url)
+    verifiedPageCache.set(url, record)
+    while (verifiedPageCache.size > 32) verifiedPageCache.delete(verifiedPageCache.keys().next().value)
+  }
   const normalizeDirectoryTarget = value => {
     if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(key => !['kind', 'id'].includes(key))
       || !['course', 'university'].includes(value.kind) || typeof value.id !== 'string' || !/^[a-z0-9][a-z0-9._-]{0,99}$/.test(value.id)) {
@@ -497,7 +505,7 @@ export function createAdmissionsResearch({
       if (!selected.length) return prepare({ status: 'no_results', code: 'ADMISSIONS_OFFICIAL_RESULTS_EMPTY' })
       onActivity?.({ phase: 'fetch' })
       const results = await Promise.all(selected.map(async (candidate) => {
-        const readAndAssess = async (reader, transport, timeoutMs) => {
+        const readAndAssess = async (reader, transport, timeoutMs, cached = null) => {
           if (typeof reader !== 'function') return { code: 'ADMISSIONS_COURSE_EVIDENCE_MISSING' }
           try {
             const page = await boundedAdmissionsOperation(() => reader(candidate.url, { deadlineAt: researchDeadline }), {
@@ -506,13 +514,14 @@ export function createAdmissionsResearch({
             const actualUrl = normalizeAdmissionsPublicUrl(page?.url || candidate.url, domainsForSchool).href
             const assessment = assessAdmissionsPage(page, plan)
             if (assessment.rejection) return { code: 'ADMISSIONS_COURSE_EVIDENCE_MISSING', rejection: assessment.rejection }
-            const retrievedAt = new Date(now()).toISOString()
+            const retrievedAt = cached?.retrievedAt || new Date(now()).toISOString()
+            if (plan.curriculum && !cached) rememberPage(candidate.url, { page: { url: actualUrl, title: String(page.title || '').slice(0, 180), text: String(page.text || '').slice(0, 60_000) }, retrievedAt, transport, storedAt: Number(cacheNow()) })
             return {
               source: {
                 id: '', title: cleanText(page.title || `${plan.curriculum?.name || plan.school.name} ${plan.course?.name || plan.kind}`, 180),
                 url: actualUrl, official: true, retrievedAt,
                 applicableYears: assessment.applicableYears,
-                verification: { ...assessment.verification, transport },
+                verification: { ...assessment.verification, transport, ...(cached ? { reusedVerifiedBody: true } : {}) },
                 excerpt: admissionsSourceExcerpt(assessment.sourceExcerpt),
                 preview: createAdmissionsPreviewDescriptor({ sourceUrl: actualUrl, now: Date.parse(retrievedAt) }),
                 textSha256: crypto.createHash('sha256').update(String(page.text || '')).digest('hex'),
@@ -524,6 +533,11 @@ export function createAdmissionsResearch({
           }
         }
         try {
+          const cached = plan.curriculum ? verifiedPageCache.get(candidate.url) : null
+          if (cached && Number(cacheNow()) - cached.storedAt >= 0 && Number(cacheNow()) - cached.storedAt < cacheTtlMs) {
+            const reused = await readAndAssess(async () => cached.page, cached.transport, 500, cached)
+            if (reused.source) return reused
+          } else if (cached) verifiedPageCache.delete(candidate.url)
           await validateAdmissionsPublicUrl(candidate.url, { allowedDomains: domainsForSchool, resolveAddresses, deadlineAt: researchDeadline })
           const direct = await readAndAssess(directReader, 'direct-pinned-html', 4_000)
           if (direct.source) return direct

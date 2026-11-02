@@ -128,6 +128,12 @@ test('IB DP must not borrow MYP rules or another official organisation', () => {
   assert.ok(assessAdmissionsPage({ ...pages.ib, url: 'https://www.evil.example/ib' }, plan).rejection)
 })
 
+test('the reviewed Cambridge path accepts case variants without changing the requested URL', () => {
+  const plan=planAdmissionsResearch({message:'A-Level课程结构是什么？',institutions})
+  const page={...pages.alevel,url:pages.alevel.url.replaceAll('/cambridge-','/Cambridge-')}
+  assert.equal(assessAdmissionsPage(page,plan).rejection,null)
+})
+
 test('board research cannot fetch an unrelated user URL or transmit credential query values', async () => {
   const reads = []
   const research = createAdmissionsResearch({ sourceCatalog: [], searchPublicSources: async () => [], readPublicPage: async url => { reads.push(url); return pages.ap }, resolveAddresses: async () => [{ address: '8.8.8.8', family: 4 }] })

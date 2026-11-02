@@ -70,8 +70,10 @@ export function planCurriculumResearch({ message = '', history = [], findInstitu
     requested, school: null, course: null, curriculum, year, kind, qualification: curriculum.name, directCourseUrl: '',
     missing: intake?.only ? ['grade', 'studiedCourses', 'targetRegionOrSubject'] : [],
     ...(intake?.only ? { intakeOnly: true } : {}),
-    query: curriculum.id === 'ap' && kind === 'curriculum structure'
-      ? `AP courses and exams site:${curriculum.domain}/courses`
+    query: kind === 'curriculum structure'
+      ? curriculum.id === 'ap' ? `AP courses and exams site:${curriculum.domain}/courses`
+        : curriculum.id === 'alevel' ? 'AS A Level curriculum site:cambridgeinternational.org/programmes-and-qualifications/cambridge-advanced/'
+          : 'IB Diploma Programme curriculum subjects core site:ibo.org/programmes/diploma-programme/'
       : `${curriculum.id === 'alevel' ? 'Cambridge International AS A Level' : curriculum.id === 'ib' ? 'IB Diploma Programme' : 'AP'} ${year ? year + ' ' : ''}${kind} site:${curriculum.domain}`,
     seedUrls: kind === 'curriculum assessment' ? [curriculum.assessmentUrl] : [curriculum.overviewUrl, curriculum.catalogueUrl].filter(Boolean),
   }
@@ -81,7 +83,8 @@ export function isCurriculumSourceCandidate(rawUrl, curriculum) {
   let url
   try { url = new URL(rawUrl) } catch { return false }
   const validHost = url.hostname === curriculum.domain || url.hostname === `www.${curriculum.domain}`
-  const validPath = curriculum.id === 'ib' ? url.pathname.startsWith(curriculum.path) || url.pathname.startsWith('/university-admission/') : url.pathname.startsWith(curriculum.path)
+  const pathname = url.pathname.toLowerCase()
+  const validPath = curriculum.id === 'ib' ? pathname.startsWith(curriculum.path) || pathname.startsWith('/university-admission/') : pathname.startsWith(curriculum.path)
   return url.protocol === 'https:' && !url.username && !url.password && validHost && validPath
 }
 

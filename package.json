@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "pretest": "npm run test:admissions-curriculum && node --test scripts/test-admissions-directory-identity.mjs && npm run test:whole-paper-marking && npm run test:catalog-compression && npm run test:native-paper-context && npm run test:objective-answers && npm run test:remediation-contracts && npm run test:remediation-runtime && npm run test:coach-help-intents",
-    "test:admissions-curriculum": "node --test scripts/test-admissions-curriculum.mjs && node scripts/test-admissions-all-directory-targets.mjs && node scripts/test-admissions-directory-target-api.mjs && node scripts/test-admissions-body-fallback.mjs",
+    "test:admissions-curriculum": "node --test scripts/test-admissions-curriculum.mjs && node scripts/test-admissions-all-directory-targets.mjs && node scripts/test-admissions-directory-target-api.mjs && node scripts/test-admissions-body-fallback.mjs && node scripts/test-admissions-public-body-cache.mjs",
     "test:catalog-compression": "node scripts/test-stem-catalog-compression.mjs && node scripts/test-native-source-region-delivery.mjs",
     "test:native-paper-context": "node scripts/test-native-paper-context.mjs && node scripts/test-native-wechat-entry.mjs && node scripts/test-native-paper-catalog.mjs && node scripts/test-native-runtime-scope.mjs && node scripts/test-native-question-images.mjs && node scripts/test-native-question-region-dedup.mjs && node scripts/test-native-question-image-legacy-urls.mjs && node scripts/test-native-source-page-cache.mjs && node scripts/test-coordinate-source-cache.mjs",
     "test:objective-answers": "node scripts/test-stem-objective-answers.mjs",
