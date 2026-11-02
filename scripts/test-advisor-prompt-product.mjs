@@ -58,7 +58,7 @@ function assertPromptDeliveryStyle(prompt, roleLabel) {
 }
 
 test('protected admissions prompt boundaries remain explicit and compact', () => {
-  assert.ok(Array.from(admissionsPrompt).length <= 12_500, 'admissions prompt must stay within the bilingual product prompt budget')
+  assert.ok(Array.from(admissionsPrompt).length <= 12_500, 'admissions prompt must stay within the product prompt budget')
   assert.match(admissionsPrompt, /fixed server-owned role/i)
   assert.match(admissionsPrompt, /no unrestricted live browsing tool/i)
   assert.match(admissionsPrompt, /never fabricate/i)
@@ -68,7 +68,7 @@ test('protected admissions prompt boundaries remain explicit and compact', () =>
 })
 
 test('researched admissions answers are self-contained for students without foreign-site access', () => {
-  assert.match(admissionsPrompt, /server evidence.{0,100}self-contained Chinese explanation/is)
+  assert.match(admissionsPrompt, /server evidence.{0,100}self-contained explanation in the student.s requested\/conversation language/is)
   assert.match(admissionsPrompt, /key original wording.{0,80}necessary English terms.{0,80}source date/is)
   assert.match(admissionsPrompt, /links?.{0,60}optional verification/is)
   assert.match(admissionsPrompt, /do not ask.{0,80}(?:open|visit).{0,80}(?:foreign|official).{0,80}(?:understand|obtain)/is)
@@ -79,7 +79,7 @@ test('researched admissions answers are self-contained for students without fore
 })
 
 test('protected IELTS prompt boundaries remain explicit and compact', () => {
-  assert.ok(Array.from(ieltsPrompt).length <= 11_500, 'IELTS prompt must stay within the bilingual product prompt budget')
+  assert.ok(Array.from(ieltsPrompt).length <= 11_500, 'IELTS prompt must stay within the product prompt budget')
   assert.match(ieltsPrompt, /fixed server-owned, text-only teaching role/i)
   assert.match(ieltsPrompt, /no live browsing tool/i)
   assert.match(ieltsPrompt, /Task Achievement/)

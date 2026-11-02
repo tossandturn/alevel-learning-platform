@@ -268,6 +268,9 @@ try {
   assert.equal(photoDone.coachHelpIntent, 'worked-solution')
   assert.equal(photoDone.coachSolutionAllowed, true)
   assert.equal(photoDone.answerStatus, 'complete')
+  assert.match(systemPrompt(providerBodies.at(-1)), /stem-coach-language-v2/)
+  assert.match(systemPrompt(providerBodies.at(-1)), /Automatic bilingual scope: academic-word-explanation/)
+  assert.match(systemPrompt(providerBodies.at(-1)), /actual question.*images.*not just.*message/is)
 
   const ordinarySolution = await post('/api/ai/coach', {
     helpIntent: 'worked-solution',
@@ -278,6 +281,7 @@ try {
   assert.equal(ordinarySolution.payload?.coachAssessmentState, 'ordinary-practice')
   assert.equal(ordinarySolution.payload?.coachHelpIntent, 'worked-solution')
   assert.equal(ordinarySolution.payload?.answerStatus, 'complete')
+  assert.match(systemPrompt(providerBodies.at(-1)), /Automatic bilingual scope: academic-word-explanation/)
 
   const callsBeforeHint = providerBodies.length
   const noAnswer = await post('/api/ai/coach/stream', {
@@ -292,6 +296,7 @@ try {
   assert.equal(hintDone.answerStatus, 'complete')
   assert.equal(providerBodies.length, callsBeforeHint + 1, 'a level-5 no-answer request may use the provider for deeper guidance')
   assert.match(systemPrompt(providerBodies.at(-1)), /Do not reveal the final answer or a complete worked solution/)
+  assert.match(systemPrompt(providerBodies.at(-1)), /English.*hint.*not.*full solution/is)
 
   const escalation = await post('/api/ai/coach/stream', {
     message: 'I used the hint. Now give the full worked solution and final result.',
@@ -315,6 +320,7 @@ try {
   })
   assert.equal(workCheck.payload?.coachHelpIntent, 'check-work')
   assert.match(systemPrompt(providerBodies.at(-1)), /first wrong or unsupported step/i)
+  assert.match(systemPrompt(providerBodies.at(-1)), /Automatic bilingual scope: none/)
 
   const failed = await post('/api/ai/coach', {
     helpIntent: 'worked-solution',

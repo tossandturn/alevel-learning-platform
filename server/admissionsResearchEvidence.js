@@ -143,6 +143,14 @@ export function sanitizeAdmissionsCitations(answer, sources = []) {
 }
 
 export function admissionsEvidencePreparation({ message, status, scope, sources = [], evidence = [], code = null, missingFields = [], searchMode = 'deepseek-search-fetch' }) {
+  // Localize server-owned copy without another model call; source quotations remain unchanged.
+  const text = String(message || '')
+  const wantsChinese = /(?:in|use|using)\s+(?:simplified\s+)?Chinese\b|(?:用|使用)(?:中文|汉语)(?:回答|解释|回复)?/iu.test(text)
+  const wantsEnglish = /(?:in|use|using)\s+English\b|(?:用|使用)(?:英文|英语)(?:回答|解释|回复)?/iu.test(text)
+  const english = !wantsChinese && (wantsEnglish || (!/\p{Script=Han}/u.test(text) && /[a-z]/iu.test(text)))
+  const copy = english
+    ? {sources:'Sources',curriculum:'Curriculum information',institution:'Institution policy',retrieved:'Retrieved',applicable:'Applicable year',unverified:'NOT VERIFIED',target:'Target year',missing:'not supplied',mismatch:'target year NOT VERIFIED'}
+    : {sources:'来源',curriculum:'课程体系说明',institution:'学校级政策',retrieved:'本次读取',applicable:'官网适用年',unverified:'未核实',target:'目标年份',missing:'未提供',mismatch:'该页未核实目标年'}
   const research = publicAdmissionsResearch({
     status, sourceCount: sources.length, sources,
     ...(status === 'not_requested' ? {} : { searchMode, scope }),
@@ -166,12 +174,12 @@ export function admissionsEvidencePreparation({ message, status, scope, sources 
     JSON.stringify(envelope),
   ].join('\n')
   const answerSuffix = sources.length
-    ? `\n\n来源 / Sources\n${sources.map(source => `- [${source.id}] ${safeLabel(source.title)}: ${source.url} （${source.verification.kind === 'curriculum-information' ? '课程体系说明 / Curriculum information；' : source.verification.kind === 'institution-requirements' ? '学校级政策 / Institution policy；' : ''}本次读取 / Retrieved: ${source.retrievedAt.slice(0, 10)}；官网适用年 / Applicable year: ${source.applicableYears.join(', ') || '未核实 / NOT VERIFIED'}；目标年份 / Target year: ${source.verification.requestedYear || '未提供 / not supplied'}${source.verification.requestedYear && !source.verification.yearMatched ? '；该页未核实目标年 / target year NOT VERIFIED' : ''}）${(source.verification.limitations || []).length ? `\n  ${source.verification.limitations.join(' ')}` : ''}`).join('\n')}`
+    ? `\n\n${copy.sources}\n${sources.map(source => `- [${source.id}] ${safeLabel(source.title)}: ${source.url} （${source.verification.kind === 'curriculum-information' ? `${copy.curriculum}；` : source.verification.kind === 'institution-requirements' ? `${copy.institution}；` : ''}${copy.retrieved}: ${source.retrievedAt.slice(0, 10)}；${copy.applicable}: ${source.applicableYears.join(', ') || copy.unverified}；${copy.target}: ${source.verification.requestedYear || copy.missing}${source.verification.requestedYear && !source.verification.yearMatched ? `；${copy.mismatch}` : ''}）${(source.verification.limitations || []).length ? `\n  ${source.verification.limitations.join(' ')}` : ''}`).join('\n')}`
     : ''
   const guardedAnswer = ['unavailable', 'no_results', 'insufficient_evidence', 'blocked'].includes(status)
       ? scope?.kind === 'curriculum'
-        ? '暂时未能读取到这门课程体系的有效官网正文，不能把摘要或记忆当作官方规则。输入已保留，请稍后重试。\nUsable official curriculum content is temporarily unavailable. Your question is preserved; please retry later.'
-        : '目前未取得与目标课程及学年对应的官网要求，暂不能核实分数或截止日期。请稍后重试。\nThe official requirements for this course and entry year could not be verified. Please retry later.'
+        ? english ? 'Usable official curriculum content is temporarily unavailable. Summaries or memory cannot verify official rules. Your question is preserved; please retry later.' : '暂时未能读取到这门课程体系的有效官网正文，不能把摘要或记忆当作官方规则。输入已保留，请稍后重试。'
+        : english ? 'The official requirements for this course and entry year could not be verified. Please retry later.' : '目前未取得与目标课程及学年对应的官网要求，暂不能核实分数或截止日期。请稍后重试。'
       : ''
   return {
     providerMessage: String(message || ''),

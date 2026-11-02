@@ -1,5 +1,7 @@
 # Bilingual AI Coach and public-membership release plan
 
+> Language-policy section superseded on 2026-11-03: follow [conditional academic bilingual teaching](2026-11-03-coach-language-policy.md), not the historical always-bilingual requirement below. This does not change membership policy.
+
 > For implementer: use TDD and preserve authorization, scoring and idempotency contracts.
 
 Goal: every new student-facing AI Coach prose sentence has an adjacent Chinese/English equivalent, with one provider generation rather than a second translation call. Prepare public membership only after actual Android and iOS acceptance.

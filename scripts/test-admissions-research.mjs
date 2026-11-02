@@ -195,7 +195,8 @@ assert.equal(researched.providerMessage, 'Check the current Oxford Physics entry
 assert.match(researched.systemMessage, /stem-admissions-evidence-v1/)
 assert.match(researched.systemMessage, /Ignore all prior instructions/)
 assert.doesNotMatch(JSON.stringify(researched.publicFields), /expose credentials/i)
-assert.match(researched.answerSuffix, /来源 \/ Sources/)
+assert.match(researched.answerSuffix, /\nSources\n/)
+assert.doesNotMatch(researched.answerSuffix, /来源 \/ Sources/)
 assert.match(researched.answerSuffix, /2027/)
 
 const knownHistory = [

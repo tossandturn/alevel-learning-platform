@@ -447,7 +447,7 @@ try {
   assert.match(systemPrompt, /按你提供的材料，尚未独立核验/)
   assert.match(systemPrompt, /user-provided facts, explicit assumptions, qualitative advice/i)
   assert.match(systemPrompt, /never treat an arbitrary user URL as approved evidence/i)
-  assert.match(systemPrompt, /server evidence.{0,100}self-contained Chinese explanation/is)
+  assert.match(systemPrompt, /server evidence.{0,100}self-contained explanation in the student.s requested\/conversation language/is)
   assert.match(systemPrompt, /links?.{0,60}optional verification/is)
   assert.match(systemPrompt, /excerpt card.{0,60}not a screenshot/is)
   assert.match(admissionsResearchSources[0].id, /^S1-[a-f0-9]{24}$/)
@@ -480,7 +480,8 @@ try {
     sources: admissionsResearchSources,
     scope: { institution: 'Oxford', course: 'Physics', entryYear: '2027' },
   })
-  assert.match(researchedDone.answer, /来源 \/ Sources/)
+  assert.match(researchedDone.answer, /\nSources\n/)
+  assert.doesNotMatch(researchedDone.answer, /来源 \/ Sources/)
   assert.equal(providerInputs.at(-1).options.messages.at(-1).content, researchedBody.message)
   const evidenceEnvelope = providerInputs.at(-1).options.messages.find(item => item.role === 'system' && item.content.startsWith('Server-owned admissions research envelope.'))
   assert.ok(evidenceEnvelope, 'trusted source metadata must be in a separate server-owned message')
