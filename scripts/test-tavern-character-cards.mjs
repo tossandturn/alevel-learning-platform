@@ -3,8 +3,8 @@ import { buildTavernSystemPrompt, resolveCoachFeature, tavernPresetDescriptors }
 import { TAVERN_CHARACTER_VERSION, tavernCharacterCard, tavernCharacterPrompt } from '../server/tavernPersonas.js'
 import { TAVERN_PRESENTATION } from '../server/tavernPresentation.js'
 
-const expected = ['keeper', 'study-buddy', 'cat-companion', 'story-traveler', 'xianxia-guide', 'mystery-guide', 'eastern-oracle', 'tarot-reader']
-assert.equal(TAVERN_CHARACTER_VERSION, 'tavern-characters.v2')
+const expected = ['keeper', 'study-buddy', 'cat-companion', 'story-traveler', 'xianxia-guide', 'mystery-guide', 'horror-guide', 'eastern-oracle', 'tarot-reader']
+assert.equal(TAVERN_CHARACTER_VERSION, 'tavern-characters.v3')
 const names = new Set()
 for (const id of expected) {
   const card = tavernCharacterCard(id)
@@ -35,4 +35,4 @@ for (const invalid of ['toString', '__proto__', 'not-a-role', null, {}]) {
   assert.equal(tavernCharacterCard(invalid), null)
   assert.throws(() => tavernCharacterPrompt(invalid), /Unknown Tavern character/)
 }
-console.log('PASS_TAVERN_CHARACTER_CARDS eight original cards, style examples, continuity, optional questions, bounded prompts')
+console.log('PASS_TAVERN_CHARACTER_CARDS nine original cards, style examples, continuity, optional questions, bounded prompts')

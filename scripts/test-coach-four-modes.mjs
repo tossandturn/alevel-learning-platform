@@ -66,6 +66,7 @@ const expectedTavernPresets = [
   ['story-traveler', '奇幻冒险'],
   ['xianxia-guide', '江湖剑客'],
   ['mystery-guide', '侦探茶室'],
+  ['horror-guide', '恐怖故事'],
   ['eastern-oracle', '东方玄学'],
   ['tarot-reader', '西方塔罗'],
 ]
@@ -87,9 +88,9 @@ for (const preset of presetDescriptors) {
   assert.ok(preset.starters.every((starter) => typeof starter === 'string' && starter.length > 0))
   assert.doesNotMatch(JSON.stringify(preset), /direction|systemPrompt|internal prompt|provider routing/i)
 }
-assert.equal(new Set(presetDescriptors.map(({ tagline }) => tagline)).size, 8)
-assert.equal(new Set(presetDescriptors.map(({ greeting }) => greeting)).size, 8)
-assert.equal(new Set(presetDescriptors.map(({ starters }) => starters.join('\n'))).size, 8)
+assert.equal(new Set(presetDescriptors.map(({ tagline }) => tagline)).size, 9)
+assert.equal(new Set(presetDescriptors.map(({ greeting }) => greeting)).size, 9)
+assert.equal(new Set(presetDescriptors.map(({ starters }) => starters.join('\n'))).size, 9)
 for (const preset of presetDescriptors) {
   const presentation = TAVERN_PRESENTATION[preset.id]
   assert.ok(Object.isFrozen(presentation) && Object.isFrozen(presentation.starters))
@@ -97,8 +98,8 @@ for (const preset of presetDescriptors) {
   assert.equal(preset.tagline, presentation.tagline)
   assert.deepEqual(preset.starters, presentation.starters)
 }
-assert.deepEqual(presetDescriptors[6].supportedSpreads, ['single'])
-assert.deepEqual(presetDescriptors[7].supportedSpreads, ['single', 'three'])
+assert.deepEqual(presetDescriptors[7].supportedSpreads, ['single'])
+assert.deepEqual(presetDescriptors[8].supportedSpreads, ['single', 'three'])
 
 const personaPrompts = new Map()
 for (const [persona, title] of expectedTavernPresets) {
@@ -128,23 +129,26 @@ for (const [persona, title] of expectedTavernPresets) {
   assert.match(prompt, /humor.*situations/i)
   personaPrompts.set(persona, prompt)
 }
-assert.equal(new Set(personaPrompts.values()).size, 8, 'each tavern persona must have a distinct server-owned prompt')
+assert.equal(new Set(personaPrompts.values()).size, 9, 'each tavern persona must have a distinct server-owned prompt')
 assert.match(personaPrompts.get('keeper'), /user-led|vent|forced positivity/i)
 assert.match(personaPrompts.get('study-buddy'), /banter|light teasing|vulnerabilit/i)
 assert.match(personaPrompts.get('cat-companion'), /mock-proud|repetitive.*喵|romantic coercion/i)
 assert.match(personaPrompts.get('story-traveler'), /2–3 meaningful options|never decide the user's action/i)
 assert.match(personaPrompts.get('xianxia-guide'), /wuxia|jianghu|weapons instruction/i)
 assert.match(personaPrompts.get('xianxia-guide'), /without deciding for the user/i)
-assert.match(personaPrompts.get('mystery-guide'), /consistent clues|stable solution|real people/i)
-assert.match(personaPrompts.get('mystery-guide'), /let the user choose/i)
+assert.match(personaPrompts.get('mystery-guide'), /河岸档案室的第九张票/)
+assert.match(personaPrompts.get('mystery-guide'), /线索不足/)
+assert.match(personaPrompts.get('mystery-guide'), /不能替用户写台词/)
+assert.match(personaPrompts.get('horror-guide'), /雨窗茶室·00:17/)
+assert.match(personaPrompts.get('horror-guide'), /超自然回声/)
 for (const persona of ['story-traveler', 'xianxia-guide']) {
   const prompt = personaPrompts.get(persona)
   assert.match(prompt, /never invent or imply.*user's past or future action/i)
   assert.match(prompt, /dialogue.*thoughts.*emotions.*inventory.*owned or acquired item/i)
   assert.match(prompt, /objects and events.*world or NPC.*let the user choose/i)
 }
-assert.match(personaPrompts.get('mystery-guide'), /at most one observation or deduction question/i)
-assert.match(personaPrompts.get('mystery-guide'), /ordinary conversation needs no puzzle or question/i)
+assert.match(personaPrompts.get('horror-guide'), /teen-appropriate supernatural mystery/i)
+assert.match(personaPrompts.get('mystery-guide'), /ordinary chat needs no puzzle/i)
 assert.match(personaPrompts.get('mystery-guide'), /never state a guess as fact/i)
 assert.match(personaPrompts.get('eastern-oracle'), /entertainment|reflective/i)
 assert.match(personaPrompts.get('eastern-oracle'), /birth chart|生辰|fatality|medical|financial|legal/i)

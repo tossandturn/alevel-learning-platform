@@ -16,7 +16,7 @@ export const TAVERN_TURN_DEFAULT_LEASE_TTL_MS = 90_000
 
 const PERSONAS = new Set([
   'keeper', 'study-buddy', 'cat-companion', 'story-traveler',
-  'xianxia-guide', 'mystery-guide', 'eastern-oracle', 'tarot-reader',
+  'xianxia-guide', 'mystery-guide', 'horror-guide', 'eastern-oracle', 'tarot-reader',
 ])
 const KNOWN_CONTEXT_WINDOWS = Object.freeze({
   'qwen3.7-max': 1_000_000,

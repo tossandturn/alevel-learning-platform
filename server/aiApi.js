@@ -8,6 +8,7 @@ import crypto from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 import { loadTavernProvider } from './tavernProvider.js'
+import { createTavernImageGenerator } from './tavernImageGeneration.js'
 import { loadStemAcademicProvider } from './stemAcademicProvider.js'
 import { createAdmissionsAdvisor } from './admissionsAdvisor.js'
 import { createIeltsTeacher } from './ieltsTeacher.js'
@@ -2831,10 +2832,11 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
   return sendJson(response, 200, { mode: 'offline', code: 'vision_review_failed', provider: lastAttemptedProvider.name, providerStatus: 'error', error: providerMessage(lastError, lastAttemptedProvider), retryable: true })
 }
 
-export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null, authorizeCoachRequest = null, tavernDivinationStore = null, tavernConversationStore = null, tavernMemoryRoot = null, tavernMediaCatalog=null, tavernMediaRoot=DEFAULT_TAVERN_MEDIA_ROOT, admissionsConversationStore = null, admissionsMemoryRoot = null, admissionsCallCompatibleAiStream = callCompatibleAiStream, admissionsPrepareTurn = null, admissionsResearchOptions = null, admissionsPreviewOptions = null, ieltsTeacherConversationStore = null, ieltsTeacherMemoryRoot = null, ieltsTeacherCallCompatibleAiStream = callCompatibleAiStream, coachJobsRoot = null, coachImageUploadsOptions = null }) {
+export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null, authorizeCoachRequest = null, tavernDivinationStore = null, tavernConversationStore = null, tavernMemoryRoot = null, tavernMediaCatalog=null, tavernMediaRoot=DEFAULT_TAVERN_MEDIA_ROOT, tavernImageGenerator = null, admissionsConversationStore = null, admissionsMemoryRoot = null, admissionsCallCompatibleAiStream = callCompatibleAiStream, admissionsPrepareTurn = null, admissionsResearchOptions = null, admissionsPreviewOptions = null, ieltsTeacherConversationStore = null, ieltsTeacherMemoryRoot = null, ieltsTeacherCallCompatibleAiStream = callCompatibleAiStream, coachJobsRoot = null, coachImageUploadsOptions = null }) {
   const legacyConfig = providerConfig(env)
   const config = studentProviderConfig(env, legacyConfig)
   const tavernProvider = loadTavernProvider({ env }) || legacyConfig.coach
+  const imageGenerator = tavernImageGenerator || createTavernImageGenerator({ env })
   const timeoutConfig = aiTimeoutConfig(env)
   const divinationStore = tavernDivinationStore || createTavernDivinationStore()
   const drawArtHandler = createDrawArtHandler()
@@ -2925,6 +2927,22 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
     if (!requestUrl.pathname.startsWith('/api/ai/')) return next()
     try {
       if (drawArtHandler(request, response, requestUrl)) return
+      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/tavern/image') {
+        const ownerId = authenticatedStemUser(request, env)
+        if (!ownerId) throw Object.assign(new Error('请登录后生成配图。'), { statusCode: 401, code: 'coach_auth_required' })
+        const payload = await readJsonBody(request)
+        if (!payload || typeof payload !== 'object' || Array.isArray(payload) || Object.keys(payload).some(key => !['persona','prompt'].includes(key))) {
+          throw Object.assign(new Error('图片请求无效。'), { statusCode: 400, code: 'tavern_image_request_invalid' })
+        }
+        const generated = await imageGenerator.generate({ ownerId, persona: payload.persona, prompt: payload.prompt })
+        response.statusCode = 200
+        response.setHeader('Content-Type', generated.mimeType)
+        response.setHeader('Content-Length', generated.bytes.length)
+        response.setHeader('Cache-Control', 'no-store')
+        response.setHeader('X-Content-Type-Options', 'nosniff')
+        response.end(generated.bytes)
+        return
+      }
       if (request.method === 'GET' && requestUrl.pathname.startsWith('/api/ai/image/')) return handleTemporaryImage(requestUrl, response)
       if (request.method === 'GET' && requestUrl.pathname.startsWith(TAVERN_MEDIA_PREFIX)) return serveTavernMedia(requestUrl,response,tavernMediaCatalog||loadTavernMediaCatalog(),tavernMediaRoot)
       if (await coachImageUploads.handle(request,response,requestUrl)) return

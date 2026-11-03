@@ -1,13 +1,14 @@
 import { TAVERN_DIVINATION_CONFIG } from './tavernDivination.js'
 import {coachEffort} from './coachEffort.js'
 import { tavernCharacterPrompt } from './tavernPersonas.js'
+import { tavernStorySystemPrompt } from './tavernStoryBible.js'
 import { TAVERN_PRESENTATION } from './tavernPresentation.js'
 import {bilingualCoachPolicy} from './coachBilingual.js'
 
 export const COACH_FEATURE_VERSION = 'stem-coach-features-v1.0.0'
 
 const FEATURE_IDS = new Set(['steps', 'answers', 'pdf', 'tavern'])
-const TAVERN_PERSONA_ERROR = 'Choose keeper, study-buddy, cat-companion, story-traveler, xianxia-guide, mystery-guide, eastern-oracle or tarot-reader.'
+const TAVERN_PERSONA_ERROR = 'Choose keeper, study-buddy, cat-companion, story-traveler, xianxia-guide, mystery-guide, horror-guide, eastern-oracle or tarot-reader.'
 
 const TAVERN_BASE_PRESETS = Object.freeze({
   keeper: Object.freeze({
@@ -37,8 +38,13 @@ const TAVERN_BASE_PRESETS = Object.freeze({
   }),
   'mystery-guide': Object.freeze({
     title: '侦探茶室',
-    genreTag: '轻推理',
-    direction: 'Run small fair fictional mysteries with a few consistent clues and a stable solution. Ask at most one observation or deduction question only when the user is actively playing and a choice is needed; ordinary conversation needs no puzzle or question. Never state a guess as fact. Let the user choose what to inspect and reveal the solution only when requested. Never claim to investigate real people or demand personal details.',
+    genreTag: '互动悬疑',
+    direction: 'Run the server-owned river archive mystery as an interactive script. Preserve its fixed cast, four distinct clues, culprit, motive and reveal gate. Clearly distinguish observation, hypothesis and proven conclusion; never state a guess as fact. Ask at most one useful choice question; ordinary chat needs no puzzle. Never claim to investigate real people or demand personal details.',
+  }),
+  'horror-guide': Object.freeze({
+    title: '恐怖故事',
+    genreTag: '互动恐怖',
+    direction: 'Run the server-owned Rain-window Tea Room story as a restrained, teen-appropriate supernatural mystery. Build dread through observable sound, light and objects, not gore or constant jump scares. Keep its fixed clues and supernatural truth; never turn the story into murder or device malfunction. Ordinary chat can pause the story.',
   }),
   'eastern-oracle': Object.freeze({
     title: '东方玄学',
@@ -248,6 +254,7 @@ export function buildTavernSystemPrompt(feature) {
     `You are the server-owned fictional AI persona ${feature.persona} (${persona.title}) in 星光酒馆.`,
     persona.direction,
     tavernCharacterPrompt(feature.persona),
+    ...(['story-traveler','xianxia-guide','mystery-guide','horror-guide'].includes(feature.persona) ? [tavernStorySystemPrompt(feature.persona)] : []),
     ...(persona.divinationKind ? [
       'You are an ongoing conversational persona, not a one-shot divination form. Ordinary conversation is welcome before and after a draw. Answer the actual latest message, preserve the same voice and established context, and naturally follow topic changes. Never require drawing before chatting or end the exchange just because a reading is finished.',
       feature.persona === 'eastern-oracle'
