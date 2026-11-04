@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import {authorizePdfFile,applyPdfQuotaHeaders,pdfNotModified,sendPdfAccessError} from './pdfDownloadPolicy.js'
 
 const DEFAULT_MANIFEST_PATH = fileURLToPath(new URL('./catalogs/curriculum-papers.json', import.meta.url))
 const BOARDS = new Set(['ap', 'ib', 'edexcel', 'oxfordaqa'])
@@ -203,7 +204,7 @@ function errorResponse(request, response, error) {
   jsonResponse(request, response, exposed.statusCode, { error: { code: exposed.code || 'curriculum_catalog_unavailable', message: exposed.message } }, exposed.headers)
 }
 
-export function createCurriculumPaperCatalog({ manifestPath = DEFAULT_MANIFEST_PATH, extraManifestPath=manifestPath===DEFAULT_MANIFEST_PATH?ALEVEL_MANIFEST_PATH:null, assetRoot, alevelAssetRoot, env = {} } = {}) {
+export function createCurriculumPaperCatalog({ manifestPath = DEFAULT_MANIFEST_PATH, extraManifestPath=manifestPath===DEFAULT_MANIFEST_PATH?ALEVEL_MANIFEST_PATH:null, assetRoot, alevelAssetRoot, env = {}, authorizeFile } = {}) {
   const resolvedManifestPath = path.resolve(manifestPath)
   const resolvedAssetRoot = assetRootValue(assetRoot, env)
   const alevelRoot=typeof (alevelAssetRoot||env.STEM_ALEVEL_ASSET_ROOT)==='string'&&path.isAbsolute(alevelAssetRoot||env.STEM_ALEVEL_ASSET_ROOT)?path.resolve(alevelAssetRoot||env.STEM_ALEVEL_ASSET_ROOT):''
@@ -400,10 +401,15 @@ export function createCurriculumPaperCatalog({ manifestPath = DEFAULT_MANIFEST_P
     }
     const start = range?.start ?? 0
     const end = range?.end ?? opened.size - 1
+    const notModified=pdfNotModified(request,etag)
+    let quota
+    try{quota=await authorizePdfFile({env,authorizeFile,request,sha256:opened.file.sha256,consume:request.method==='GET'&&!notModified})}
+    catch(error){await opened.handle.close().catch(()=>{});throw error}
     if (aborted()) {
       await opened.handle.close().catch(() => {})
       return
     }
+    if(notModified){applyPdfQuotaHeaders(response,quota);response.statusCode=304;response.setHeader('ETag',etag);await opened.handle.close().catch(()=>{});response.end();return}
     response.statusCode = range ? 206 : 200
     response.setHeader('Content-Type', 'application/pdf')
     response.setHeader('Content-Disposition', safeContentDisposition(opened.file.name, opened.file.id))
@@ -412,6 +418,7 @@ export function createCurriculumPaperCatalog({ manifestPath = DEFAULT_MANIFEST_P
     response.setHeader('Cache-Control', 'private, no-store')
     response.setHeader('ETag', etag)
     response.setHeader('X-Content-Type-Options', 'nosniff')
+    applyPdfQuotaHeaders(response,quota)
     if (range) response.setHeader('Content-Range', `bytes ${start}-${end}/${opened.size}`)
     if (request.method === 'HEAD') {
       await opened.handle.close().catch(() => {})
@@ -472,7 +479,7 @@ export function createCurriculumPaperCatalog({ manifestPath = DEFAULT_MANIFEST_P
         await serveFile(request, response, id)
         return true
       } catch (error) {
-        if (!request.aborted && !response.destroyed && !response.headersSent && !response.writableEnded) errorResponse(request, response, error)
+        if (!request.aborted && !response.destroyed && !response.headersSent && !response.writableEnded && !sendPdfAccessError(response,error)) errorResponse(request, response, error)
         return true
       }
     },

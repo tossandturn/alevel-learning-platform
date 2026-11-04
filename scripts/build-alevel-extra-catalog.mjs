@@ -1,18 +1,21 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import {paperReferencesFromHeader} from './alevel-paper-identity.mjs'
 const args=process.argv.slice(2),arg=k=>args[args.indexOf(k)+1]
 if(!args.includes('--import-root')||!args.includes('--out'))throw Error('Pass --import-root and --out')
 const root=path.resolve(arg('--import-root')),out=path.resolve(arg('--out'))
 const source=JSON.parse(fs.readFileSync(path.join(root,'source-index.json'),'utf8')),receipts=JSON.parse(fs.readFileSync(path.join(root,'download-receipts.json'),'utf8'))
-const boards={edexcel:'Edexcel IAL',oxfordaqa:'OxfordAQA'},subjects={physics:'Physics',maths:'Mathematics'},courses=Object.entries(boards).flatMap(([board,label])=>Object.entries(subjects).map(([subject,name])=>({id:board+'-ial-'+subject,board,label:label+' '+name,subject:name})))
-const key=r=>[r.board,r.subject,r.legacy?'legacy':'current',r.year,r.month,r.unit,r.variant].join('-').toLowerCase().replace(/[^a-z0-9-]/g,'-')
+const boards={edexcel:'Edexcel IAL',oxfordaqa:'OxfordAQA'},subjects={physics:'Physics',maths:'Mathematics','further-maths':'Further Mathematics'},courses=Object.entries(boards).flatMap(([board,label])=>Object.entries(subjects).map(([subject,name])=>({id:board+'-ial-'+subject,board,label:label+' '+name,subject:name})))
+for(const row of source.files){if(/^FP[1-3]$/.test(row.unit)&&row.variant.startsWith(row.unit.replace('FP','F')))row.variant=row.variant.slice(2)}
+const key=r=>[r.board,r.subject,r.legacy?'legacy':'current',r.year,r.month,r.unit,r.variant].join('-').toLowerCase().replace(/[^a-z0-9-]/g,'-').replace(/-$/,'')
 const groups=new Map();for(const row of source.files){const k=key(row);if(!groups.has(k))groups.set(k,{});const group=groups.get(k);if(group[row.kind]&&group[row.kind].sourceUrl!==row.sourceUrl)throw Error('Duplicate source pair key '+k);group[row.kind]=row}
-const refs=m=>new Set((m.paperReferences||[]).map(s=>s.toUpperCase().replace(/\s/g,'').split('/')[0]))
+const refs=m=>new Set(paperReferencesFromHeader(m.headerEvidence))
 const papers=[],review=[]
 for(const [id,group]of groups){
  const q=group.QP,m=group.MS,qr=q&&receipts[q.sourceUrl],mr=m&&receipts[m.sourceUrl]
  if(!q||qr?.status!=='verified'){review.push({id,reason:'question_file_unverified'});continue}
- const course=courses.find(c=>c.id===q.board+'-ial-'+q.subject),known=refs(qr),matching=mr?.status==='verified'&&[...refs(mr)].some(x=>known.has(x))
+ const subject=q.subject==='maths'&&/^F(?:P|M|S|[1-3])/.test(q.unit)?'further-maths':q.subject
+ const course=courses.find(c=>c.id===q.board+'-ial-'+subject),known=refs(qr),matching=mr?.status==='verified'&&[...refs(mr)].some(x=>known.has(x))
  const file=(row,receipt)=>({id:id+'-'+row.kind.toLowerCase(),name:row.name,relativePath:receipt.relativePath,sourceUrl:row.sourceUrl,bytes:receipt.bytes,pages:receipt.pages,sha256:receipt.sha256,integrityStatus:'verified',rightsStatus:'unverified'})
  const unitNumber=Number(q.unit.match(/\d+/)?.[0]),level=q.subject==='physics'?(unitNumber<=(q.board==='edexcel'?3:2)?'International AS':'International A-Level'):'International AS / A-Level 单元'
  papers.push({id,board:q.board,course:course.id,courseLabel:course.label,subject:course.subject,level:level+(q.legacy?' · 旧考纲':''),year:q.year,session:({1:'January',6:'June',10:'October'})[q.month]||String(q.month),paper:q.unit,variant:q.variant,title:`${q.year} ${String(q.month).padStart(2,'0')} · ${q.unit}${q.variant?' · '+q.variant:''}${q.legacy?' · 旧考纲':''}`,section:q.section,fullExam:true,practiceReady:false,pairStatus:matching?'verified':mr?.status==='verified'?'candidate':'missing',questionPaper:file(q,qr),markScheme:mr?.status==='verified'?file(m,mr):null})
