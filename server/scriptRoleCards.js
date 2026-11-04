@@ -1,5 +1,6 @@
 // Original character material. Inspired by the public character-card pattern,
 // not imported cards, instructions, templates or copyrighted story text.
+import {roleBookBiography} from './scriptRoleBooks.js'
 const choice=(title,prompt,a,b)=>({title,prompt,options:[{id:'open',label:a[0],consequence:a[1]},{id:'hold',label:b[0],consequence:b[1]}]})
 const card=(desire,contradiction,habit,examples,beats,decisions)=>({card:{desire,contradiction,habit,examples,beats:beats.map(([memory,entrance,discovery])=>({memory,entrance,discovery}))},missions:decisions})
 export const SCRIPT_ROLE_CARDS={
@@ -217,7 +218,7 @@ export function enrichScriptRole(gameId,role){
  if(!entry)throw Error('Missing authored script role')
  return {...role,card:{...entry.card,version:2},missions:entry.missions.map((m,stage)=>({...m,id:`${role.id}-${stage}`,stage}))}
 }
-export function visibleScriptRole(role,stage){
+export function visibleScriptRole(role,stage,gameId){
  const {card,missions,...base}=role
- return {...base,...(card?{card:{...card,beats:card.beats.slice(0,stage+1)}}:{})}
+ return {...base,biography:roleBookBiography(gameId,role),...(card?{card:{...card,beats:card.beats.slice(0,stage+1)}}:{})}
 }

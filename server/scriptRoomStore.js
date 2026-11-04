@@ -59,7 +59,7 @@ export function createScriptRoomStore({root,now=Date.now}={}){
   return {id:r.id,scriptId:r.scriptId,scriptVersion:r.scriptVersion,title:game.title,genre:game.genre,warning:game.warning,revision:r.revision,phase:r.phase,stage:r.stage,
    inviteCode:r.phase==='lobby'?r.inviteCode:'',expiresAt:r.expiresAt,isHost:r.host===who,myRoleId:me.roleId,
    seats:r.seats.map(s=>({...publicRole(game.roles.find(x=>x.id===s.roleId)),control:s.control,isMe:s.owner===who,ready:s.ready,advanced:r.advanced.includes(s.roleId),online:s.control==='ai'||now()-(seen.get(s.owner)||0)<45000})),
-   myRole:running?visibleScriptRole(own,r.stage):publicRole(own),myClues:running?game.clues.filter(c=>(r.known[me.roleId]||[]).includes(c.id)).map(c=>({...c,shared:r.publicClues.includes(c.id)})):[],publicClues,
+   myRole:running?visibleScriptRole(own,r.stage,game.id):publicRole(own),myClues:running?game.clues.filter(c=>(r.known[me.roleId]||[]).includes(c.id)).map(c=>({...c,shared:r.publicClues.includes(c.id)})):[],publicClues,
    myMissions:running?(own.missions||[]).filter(m=>m.stage<=r.stage).map(m=>({...m,choiceId:r.missionChoices?.[me.roleId]?.[m.id]||'',consequence:m.options.find(o=>o.id===r.missionChoices?.[me.roleId]?.[m.id])?.consequence||'',options:m.options.map(({id,label})=>({id,label}))})):[],
    evidenceRequests:r.phase==='play'&&game.version>=2?currentClues.filter(c=>!r.publicClues.includes(c.id)&&r.seats.some(s=>s.roleId===c.roleId&&s.control==='ai')).map(c=>({roleId:c.roleId,name:game.roles.find(s=>s.id===c.roleId).name})):[],
    searchOptions:r.phase==='play'?currentClues.filter(c=>c.roleId===me.roleId).map(c=>({id:c.id,title:c.title,found:(r.known[me.roleId]||[]).includes(c.id)})):[],
@@ -248,7 +248,7 @@ export function createScriptRoomStore({root,now=Date.now}={}){
   const disclosed=game.clues.filter(c=>r.publicClues.includes(c.id)||(r.known[job.actor]||[]).includes(c.id))
   // Never include the full game, other identities, future clues, or answer/ending fields.
   const context={title:game.title,phase:r.phase,act:game.acts[r.stage].title,objective:game.acts[r.stage].objective,
-   actor:role?visibleScriptRole(role,r.stage):{id:'dm',name:'主持人',voice:'只帮助理解当前目标，不代替玩家发言'},
+   actor:role?visibleScriptRole(role,r.stage,game.id):{id:'dm',name:'主持人',voice:'只帮助理解当前目标，不代替玩家发言'},
    participants:game.roles.map(publicRole),evidence:disclosed,messages:r.messages.filter(visible).slice(-35),
    memory:(r.npcMemory[job.actor]||[]).filter(m=>m.target==='public'||m.target===job.target).slice(-16),
    relationship:job.target==='public'?{}:r.relations[job.target]?.[job.actor]||{},
