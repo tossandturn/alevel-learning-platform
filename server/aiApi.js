@@ -2850,6 +2850,7 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
     root:()=>env.STEM_SCRIPT_ROOMS_ROOT||path.join(tavernMemoryRoot||resolveTavernMemoryRoot(env),'script-rooms'),
     authenticate:request=>authenticatedStemUser(request,env),sendJson,readBody:request=>readJsonBody(request,16*1024),
     enabled:env.STEM_SCRIPT_ROOMS_ENABLED!=='0',
+    generateImage:input=>imageGenerator.generate(input),
     generate:(messages,{requestId})=>callCompatibleAi(config.coach,{messages,requestId,operation:'script-room-actor',json:true,temperature:0.7,outputTokenLimit:4096,timeoutMs:55000,maxTimeoutMs:60000,reasoningEffortOverride:'low',telemetry}),
     ...scriptRoomOptions,
   })

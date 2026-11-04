@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "test:script-rooms": "node scripts/test-script-rooms.mjs && node scripts/test-script-room-ai.mjs && node scripts/test-script-room-api.mjs",
+    "test:script-rooms": "node scripts/test-script-rooms.mjs && node scripts/test-script-roleplay-v2.mjs && node scripts/test-script-dialogue.mjs && node scripts/test-script-room-images.mjs && node scripts/test-script-room-ai.mjs && node scripts/test-script-room-api.mjs",
     "dev": "vite",
     "pretest": "node scripts/test-ai-verification-gates.mjs && npm run test:coach-language && node scripts/test-ai-provider-sse-framing.mjs && npm run test:admissions-curriculum && node --test scripts/test-admissions-directory-identity.mjs && npm run test:whole-paper-marking && npm run test:catalog-compression && npm run test:native-paper-context && npm run test:objective-answers && npm run test:remediation-contracts && npm run test:remediation-runtime && npm run test:coach-help-intents",
     "test:admissions-curriculum": "node --test scripts/test-admissions-curriculum.mjs && node scripts/test-admissions-all-directory-targets.mjs && node scripts/test-admissions-directory-target-api.mjs && node scripts/test-admissions-body-fallback.mjs && node scripts/test-admissions-public-body-cache.mjs",
@@ -153,7 +153,7 @@
     "test:coach-answer-policy": "npm run test:coach-language && node scripts/test-coach-answer-policy.mjs && node scripts/test-coach-answer-api.mjs",
     "test:coach-four-modes": "node scripts/test-coach-four-modes.mjs && node scripts/test-coach-four-modes-api.mjs",
     "test:tavern-divination": "node scripts/test-tavern-divination.mjs && node scripts/test-tavern-divination-api.mjs",
-    "test:tavern-stories": "node scripts/test-script-rooms.mjs && node scripts/test-script-room-ai.mjs && node scripts/test-script-room-api.mjs && node scripts/test-tavern-story-state.mjs && node scripts/test-tavern-image-provider.mjs && node scripts/test-tavern-character-cards.mjs && node scripts/test-tavern-story-bibles.mjs && node scripts/test-tavern-image-generation.mjs && node scripts/test-tavern-image-jobs.mjs",
+    "test:tavern-stories": "npm run test:script-rooms && node scripts/test-tavern-role-canon-boundary.mjs && node scripts/test-tavern-story-state.mjs && node scripts/test-tavern-image-provider.mjs && node scripts/test-tavern-character-cards.mjs && node scripts/test-tavern-story-bibles.mjs && node scripts/test-tavern-image-generation.mjs && node scripts/test-tavern-image-jobs.mjs",
     "test:tavern-long-memory": "node scripts/test-tavern-long-memory.mjs && node scripts/test-tavern-long-memory-api.mjs",
     "test:coach-stream-protocol": "node scripts/test-coach-stream-protocol.mjs && node scripts/test-coach-provider-completion.mjs && node scripts/test-ai-provider-sse-framing.mjs",
     "test:tavern-deepseek": "node scripts/test-tavern-provider.mjs && node scripts/test-tavern-deepseek-api.mjs",

@@ -1,9 +1,10 @@
 // Original scripts. This module is server-only: never ship role secrets or answers to the client.
+import {enrichScriptRole,SCRIPT_VISUAL_CANON} from './scriptRoleCards.js'
 const art=file=>'/api/ai/tavern/media/v1/'+file
 const role=(id,name,tagline,biography,secret,goal,voice)=>({id,name,tagline,biography,secret,goal,voice})
 const clues=rows=>rows.map(([roleId,stage,title,text],i)=>({id:`c${i+1}`,roleId,stage,title,text}))
 const act=(title,opening,objective,image,puzzle=null)=>({title,opening,objective,image:art(image),puzzle})
-export const SCRIPT_GAMES=[
+const LEGACY_SCRIPT_GAMES=[
  {
   id:'before-rain',version:1,title:'雨停之前',genre:'情感本',duration:'35–55 分钟',difficulty:'轻推理 · 重角色',
   summary:'停运小站的最后一夜，四位旧友收到同一封迟到十年的信。卖掉它、守住它，还是让它变成另一种家？',
@@ -124,8 +125,17 @@ const covers={
  'inverted-observatory':'scriptroom-inverted-observatory-a448ac9e216e83f1.webp',
 }
 // Illustrations establish atmosphere, never encode mandatory puzzle evidence.
-for(const game of SCRIPT_GAMES){game.acts[0].image=art(covers[game.id]);if(['last-midnight','inverted-observatory'].includes(game.id))for(const stage of game.acts)stage.image=art(covers[game.id])}
+for(const game of LEGACY_SCRIPT_GAMES){game.acts[0].image=art(covers[game.id]);if(['last-midnight','inverted-observatory'].includes(game.id))for(const stage of game.acts)stage.image=art(covers[game.id])}
 function freeze(value){if(value&&typeof value==='object'&&!Object.isFrozen(value)){Object.values(value).forEach(freeze);Object.freeze(value)}return value}
+freeze(LEGACY_SCRIPT_GAMES)
+export const SCRIPT_GAMES=LEGACY_SCRIPT_GAMES.map(game=>({...JSON.parse(JSON.stringify(game)),version:2,visualCanon:SCRIPT_VISUAL_CANON[game.id],roles:game.roles.map(role=>enrichScriptRole(game.id,role))}))
+const actArt={
+ 'before-rain':['scriptroom-before-rain-second-f7f5e6be08850534.webp','scriptroom-before-rain-third-0ad1ffe21b79f85f.webp'],
+ 'thirteenth-curtain':['scriptroom-thirteenth-curtain-second-8758dd496b6c86fa.webp','scriptroom-thirteenth-curtain-third-49a6b888816ed394.webp'],
+ 'last-midnight':['scriptroom-last-midnight-second-dcaa51dd59c645b2.webp','scriptroom-last-midnight-third-a356854b8d8cd3ee.webp'],
+ 'inverted-observatory':['scriptroom-inverted-observatory-second-17d0bdb1e1e5975d.webp','scriptroom-inverted-observatory-third-5364e2d8a226046b.webp'],
+}
+for(const game of SCRIPT_GAMES){for(let i=1;i<3;i++)game.acts[i].image=art(actArt[game.id][i-1]);for(const stage of game.acts)stage.objective+=' 在“我的身份”作出本幕决定，再确认继续。'}
 freeze(SCRIPT_GAMES)
-export function scriptGame(id,version=1){return SCRIPT_GAMES.find(game=>game.id===id&&game.version===version)||null}
+export function scriptGame(id,version){return (version===1?LEGACY_SCRIPT_GAMES:SCRIPT_GAMES).find(game=>game.id===id&&(version===undefined||game.version===version))||null}
 export function publicScriptCatalog(){return SCRIPT_GAMES.map(({id,version,title,genre,duration,difficulty,summary,warning,roles,acts})=>({id,version,title,genre,duration,difficulty,summary,warning,players:'1–4 人 · AI 补位',cover:acts[0].image,roles:roles.map(({id,name,tagline})=>({id,name,tagline}))}))}

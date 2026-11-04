@@ -13,7 +13,8 @@ if (!args.includes('--source-root') || !args.includes('--archive-root')) throw E
 const sourceRoot = path.resolve(option('--source-root')), archiveRoot = path.resolve(option('--archive-root'))
 const out = path.join(root, 'public', 'tavern-media', 'v1')
 const scriptRooms=args.includes('--script-rooms')
-const manifest = JSON.parse(fs.readFileSync(path.join(root,scriptRooms?'docs/art/script-room-prompts.json':'docs/art/tavern-scene-prompts.json'),'utf8'))
+const scriptActs=args.includes('--script-acts')
+const manifest = JSON.parse(fs.readFileSync(path.join(root,scriptActs?'docs/art/script-room-act-prompts.json':scriptRooms?'docs/art/script-room-prompts.json':'docs/art/tavern-scene-prompts.json'),'utf8'))
 const hash = bytes => crypto.createHash('sha256').update(bytes).digest('hex')
 fs.mkdirSync(out,{recursive:true});fs.mkdirSync(archiveRoot,{recursive:true})
 const items=[]
@@ -30,5 +31,5 @@ for(const item of manifest.items){
 }
 const catalog={schemaVersion:'tavern-media.v1',revision:manifest.version,items}
 compileTavernMediaCatalog(catalog)
-fs.writeFileSync(path.join(out,scriptRooms?'script-scenes.json':'story-scenes.json'),JSON.stringify(catalog,null,2)+'\n','utf8')
+fs.writeFileSync(path.join(out,scriptActs?'script-act-scenes.json':scriptRooms?'script-scenes.json':'story-scenes.json'),JSON.stringify(catalog,null,2)+'\n','utf8')
 console.log(JSON.stringify({status:'PASS',scenes:items.length,totalBytes:items.reduce((n,item)=>n+fs.statSync(path.join(out,item.file)).size,0),out,archiveRoot}))

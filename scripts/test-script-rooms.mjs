@@ -17,7 +17,7 @@ for(const script of SCRIPT_GAMES){
  assert.equal(script.roles.length,4);assert.equal(script.acts.length,3);assert.equal(script.clues.length,12)
  for(const humans of [1,2,3,4]){
   const owners=Array.from({length:humans},(_,i)=>`ielts:${10000+sequence+i}`)
-  let room=store.create(owners[0],{scriptId:script.id,requestId:id()})
+  let room=store.create(owners[0],{scriptId:script.id,scriptVersion:2,requestId:id()})
   for(let i=1;i<humans;i++)room=store.join(owners[i],{inviteCode:room.inviteCode,roleId:script.roles[i].id,requestId:id()})
   for(const owner of owners){room=store.get(owners[0],room.id);room=act(owner,room,'ready')}
   room=act(owners[0],store.get(owners[0],room.id),'start')
@@ -29,7 +29,9 @@ for(const script of SCRIPT_GAMES){
     assert.ok(room.myClues.some(c=>c.id===clue.id))
     if(humans>1)assert.ok(!JSON.stringify(store.get(owners[(i+1)%humans],room.id)).includes(clue.text))
     room=act(owners[i],store.get(owners[i],room.id),'share',{clueId:clue.id})
+    if(script.version>=2){const m=room.myMissions.find(m=>m.stage===stage);room=act(owners[i],store.get(owners[i],room.id),'choose',{missionId:m.id,optionId:m.options[0].id})}
    }
+   if(script.version>=2)for(const seat of room.seats.filter(s=>s.control==='ai'))room=act(owners[0],store.get(owners[0],room.id),'requestEvidence',{roleId:seat.id})
    const puzzle=script.acts[stage].puzzle
    if(puzzle)room=act(owners[0],store.get(owners[0],room.id),'solve',{answer:puzzle.answers[0]})
    for(const owner of owners)room=act(owner,store.get(owner,room.id),'advance')

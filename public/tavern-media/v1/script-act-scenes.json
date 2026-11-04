@@ -1,0 +1,158 @@
+{
+  "schemaVersion": "tavern-media.v1",
+  "revision": "script-room-acts-20261105",
+  "items": [
+    {
+      "id": "scriptroom-before-rain-second",
+      "kind": "image",
+      "file": "scriptroom-before-rain-second-f7f5e6be08850534.webp",
+      "sha256": "f7f5e6be088505348ea2c51505343e6c65ca7f81030fb78cfa856b22f464d3bb",
+      "width": 1280,
+      "height": 853,
+      "alt": "雨停之前：旧广播室与没有说完的话",
+      "caption": "原创氛围插图 · 非解谜证据",
+      "tags": [
+        "before-rain",
+        "second",
+        "原创剧本场景"
+      ],
+      "provenance": {
+        "method": "image_gen",
+        "sourceSha256": "3f9c31eab554852454ac159ea4c2d3322baa798289594b43f42e29ca23a2a379"
+      }
+    },
+    {
+      "id": "scriptroom-before-rain-third",
+      "kind": "image",
+      "file": "scriptroom-before-rain-third-0ad1ffe21b79f85f.webp",
+      "sha256": "0ad1ffe21b79f85faf5352d8f8099a5280cb31b058531c2b67fe9f59e7721948",
+      "width": 1280,
+      "height": 853,
+      "alt": "雨停之前：天亮前的四张车票",
+      "caption": "原创氛围插图 · 非解谜证据",
+      "tags": [
+        "before-rain",
+        "third",
+        "原创剧本场景"
+      ],
+      "provenance": {
+        "method": "image_gen",
+        "sourceSha256": "ab8eeb4d7c22fdfb0f0eff52d054f79aee879bd26e2fd45dd824c57b9410a6ae"
+      }
+    },
+    {
+      "id": "scriptroom-thirteenth-curtain-second",
+      "kind": "image",
+      "file": "scriptroom-thirteenth-curtain-second-8758dd496b6c86fa.webp",
+      "sha256": "8758dd496b6c86fa6eef207ca5ba2b6e3e177b3d9467dc9eee65217476c0e62e",
+      "width": 1280,
+      "height": 853,
+      "alt": "第十三次落幕：放映间与玻璃反光",
+      "caption": "原创氛围插图 · 非解谜证据",
+      "tags": [
+        "thirteenth-curtain",
+        "second",
+        "原创剧本场景"
+      ],
+      "provenance": {
+        "method": "image_gen",
+        "sourceSha256": "3505ffc525a19c017f1549087198ae3f6c3fe728512d8ce04f0b4e5419fd7cc6"
+      }
+    },
+    {
+      "id": "scriptroom-thirteenth-curtain-third",
+      "kind": "image",
+      "file": "scriptroom-thirteenth-curtain-third-49a6b888816ed394.webp",
+      "sha256": "49a6b888816ed39455dac99a1c302ad04d20ae659ec09abcc960a07cb3d7fe0e",
+      "width": 1280,
+      "height": 853,
+      "alt": "第十三次落幕：等待核验的旧舞台",
+      "caption": "原创氛围插图 · 非解谜证据",
+      "tags": [
+        "thirteenth-curtain",
+        "third",
+        "原创剧本场景"
+      ],
+      "provenance": {
+        "method": "image_gen",
+        "sourceSha256": "7d154c266c5680292c3c0e334cc2a799d0301391b755a6d5b594abfe82436468"
+      }
+    },
+    {
+      "id": "scriptroom-last-midnight-second",
+      "kind": "image",
+      "file": "scriptroom-last-midnight-second-dcaa51dd59c645b2.webp",
+      "sha256": "dcaa51dd59c645b20fb67e593db87be5703c0e25178942b641c1ba1982f3771e",
+      "width": 1280,
+      "height": 853,
+      "alt": "零点末班车：信号间门口的回呼",
+      "caption": "原创氛围插图 · 非解谜证据",
+      "tags": [
+        "last-midnight",
+        "second",
+        "原创剧本场景"
+      ],
+      "provenance": {
+        "method": "image_gen",
+        "sourceSha256": "422193313be3ecb04599c60f8582b8c1b198a04e667cdc91f1f3083650da8c6e"
+      }
+    },
+    {
+      "id": "scriptroom-last-midnight-third",
+      "kind": "image",
+      "file": "scriptroom-last-midnight-third-a356854b8d8cd3ee.webp",
+      "sha256": "a356854b8d8cd3eed9a7233a65776cc767a4d73d8b0668a74e1efbf930ed0e91",
+      "width": 1280,
+      "height": 853,
+      "alt": "零点末班车：避雨处与归途",
+      "caption": "原创氛围插图 · 非解谜证据",
+      "tags": [
+        "last-midnight",
+        "third",
+        "原创剧本场景"
+      ],
+      "provenance": {
+        "method": "image_gen",
+        "sourceSha256": "b230185bc7de6a9603835ff7c37b34ac540e45f90ddbb4373f60ae776c374d1d"
+      }
+    },
+    {
+      "id": "scriptroom-inverted-observatory-second",
+      "kind": "image",
+      "file": "scriptroom-inverted-observatory-second-17d0bdb1e1e5975d.webp",
+      "sha256": "17d0bdb1e1e5975d1fb5e74ff4fef5e2ffa4a0a99271306fe80cee8ba4cb83dd",
+      "width": 1280,
+      "height": 853,
+      "alt": "倒悬天文馆：需要拼合的资料",
+      "caption": "原创氛围插图 · 非解谜证据",
+      "tags": [
+        "inverted-observatory",
+        "second",
+        "原创剧本场景"
+      ],
+      "provenance": {
+        "method": "image_gen",
+        "sourceSha256": "b0c430a209e3a16acf8571b4c39803ef61c3f8c46c3f81062cc67c5aca547546"
+      }
+    },
+    {
+      "id": "scriptroom-inverted-observatory-third",
+      "kind": "image",
+      "file": "scriptroom-inverted-observatory-third-5364e2d8a226046b.webp",
+      "sha256": "5364e2d8a226046bda5e24f089b6ddb5f4c3e00ac5630d943b8b11697e2cb4a5",
+      "width": 1280,
+      "height": 853,
+      "alt": "倒悬天文馆：星光下的出口",
+      "caption": "原创氛围插图 · 非解谜证据",
+      "tags": [
+        "inverted-observatory",
+        "third",
+        "原创剧本场景"
+      ],
+      "provenance": {
+        "method": "image_gen",
+        "sourceSha256": "a6d2dd39c17f516bdd0a9a5f9210b91358753d22a5626d05353ef7bcc8f2c823"
+      }
+    }
+  ]
+}
