@@ -186,7 +186,7 @@ try {
 
   const invalidBoard = await json('/api/stem/curriculum-papers?board=cie')
   assert.equal(invalidBoard.response.status, 400)
-  assert.deepEqual(invalidBoard.body, { error: { code: 'invalid_curriculum_board', message: 'board must be ap or ib.' } })
+  assert.deepEqual(invalidBoard.body, { error: { code: 'invalid_curriculum_board', message: 'Unsupported exam board.' } })
 
   const crossCourse = await json('/api/stem/curriculum-papers?board=ap&course=ib-physics')
   assert.equal(crossCourse.response.status, 400)

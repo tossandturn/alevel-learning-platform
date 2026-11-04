@@ -70,5 +70,13 @@ try{
  assert.equal(response.status,200);assert.equal(response.headers.get('content-type'),'image/png');assert.deepEqual(Buffer.from(await response.arrayBuffer()),png);assert.equal(apiCalls,1)
  const invalid=await fetch(base+'/api/ai/tavern/image',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({persona:'mystery-guide',prompt:'画图',apiKey:'must-not-accept'})})
  assert.equal(invalid.status,400);assert.equal(apiCalls,1)
+ const jobPath=base+'/api/ai/tavern/image-jobs/image-http-test-01',jobHeaders={'Content-Type':'application/json',Authorization:'Bearer '+token}
+ const job=await fetch(jobPath,{method:'PUT',headers:jobHeaders,body:JSON.stringify({persona:'mystery-guide',prompt:'画河岸',retry:true})})
+ assert.equal(job.status,202)
+ await new Promise(resolve=>setTimeout(resolve,5))
+ const status=await fetch(jobPath,{headers:jobHeaders});assert.equal((await status.json()).status,'completed')
+ const delivered=await fetch(jobPath+'/result',{headers:jobHeaders});assert.equal(delivered.status,200);assert.deepEqual(Buffer.from(await delivered.arrayBuffer()),png)
+ const replay=await fetch(jobPath,{method:'PUT',headers:jobHeaders,body:JSON.stringify({persona:'mystery-guide',prompt:'画河岸',retry:true})});assert.equal(replay.status,202);assert.equal(apiCalls,2)
+ const privateResult=await fetch(jobPath+'/result');assert.equal(privateResult.status,401)
  console.log('Tavern image generation: Singapore-only endpoint validation, explicit request, auth, output bounds, rate limits and binary response PASS')
 }finally{api.close();server.closeAllConnections?.();await new Promise(resolve=>server.close(resolve));fs.rmSync(scratch,{recursive:true,force:true})}

@@ -9,6 +9,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { loadTavernProvider } from './tavernProvider.js'
 import { createTavernImageGenerator } from './tavernImageGeneration.js'
+import { createTavernImageJobs } from './tavernImageJobs.js'
 import { createScriptRoomApi } from './scriptRoomApi.js'
 import { loadStemAcademicProvider } from './stemAcademicProvider.js'
 import { createAdmissionsAdvisor } from './admissionsAdvisor.js'
@@ -2844,6 +2845,7 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
   const config = studentProviderConfig(env, legacyConfig)
   const tavernProvider = loadTavernProvider({ env }) || legacyConfig.coach
   const imageGenerator = tavernImageGenerator || createTavernImageGenerator({ env })
+  const imageJobs=createTavernImageJobs({generator:imageGenerator})
   const scriptRooms = createScriptRoomApi({
     root:()=>env.STEM_SCRIPT_ROOMS_ROOT||path.join(tavernMemoryRoot||resolveTavernMemoryRoot(env),'script-rooms'),
     authenticate:request=>authenticatedStemUser(request,env),sendJson,readBody:request=>readJsonBody(request,16*1024),
@@ -2941,6 +2943,22 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
     if (!requestUrl.pathname.startsWith('/api/ai/')) return next()
     try {
       if (await scriptRooms.handle(request,response,requestUrl)) return
+      if(requestUrl.pathname.startsWith('/api/ai/tavern/image-jobs/')){
+        const ownerId=authenticatedStemUser(request,env)
+        if(!ownerId)throw Object.assign(Error('请登录后生成配图。'),{statusCode:401,code:'auth_required'})
+        const match=requestUrl.pathname.match(/^\/api\/ai\/tavern\/image-jobs\/([A-Za-z0-9_-]{8,160})(\/result)?$/)
+        if(!match)throw Object.assign(Error('配图路径无效。'),{statusCode:400})
+        response.setHeader('Cache-Control','no-store')
+        if(request.method==='GET'&&match[2]){const result=imageJobs.result(ownerId,match[1]);response.writeHead(200,{'Content-Type':result.mimeType,'Content-Length':result.bytes.length,'X-Content-Type-Options':'nosniff'});response.end(result.bytes);return}
+        if(request.method==='GET')return sendJson(response,200,imageJobs.status(ownerId,match[1]))
+        if(request.method==='PUT'&&!match[2]){
+          const p=await readJsonBody(request,8192)
+          if(!p||typeof p!=='object'||Array.isArray(p)||Object.keys(p).some(k=>!['persona','prompt','conversationId','retry'].includes(k))||p.retry!==undefined&&typeof p.retry!=='boolean')throw Object.assign(Error('配图请求无效。'),{statusCode:400})
+          const storyState=p.conversationId?conversationStore().storyStateForContext({ownerId,persona:p.persona,conversationId:p.conversationId}):null
+          return sendJson(response,202,imageJobs.submit({ownerId,persona:p.persona,prompt:p.prompt,conversationId:p.conversationId,storyState,requestId:match[1]},{retry:p.retry===true}))
+        }
+        throw Object.assign(Error('请求方式无效。'),{statusCode:405})
+      }
       if (drawArtHandler(request, response, requestUrl)) return
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/tavern/image') {
         const ownerId = authenticatedStemUser(request, env)
@@ -3007,7 +3025,7 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
     ieltsTeacher.close()
     activeConversationStore?.close?.()
     coachImageUploads.close()
-    return Promise.all([jobsClosing,scriptRooms.drain().then(()=>scriptRooms.close())])
+    return Promise.all([jobsClosing,scriptRooms.drain().then(()=>scriptRooms.close()),imageJobs.drain()])
   }
   return aiApi
 }

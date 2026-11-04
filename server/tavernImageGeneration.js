@@ -46,14 +46,15 @@ function imageResultUrl(value){
  if(typeof value!=='string')return null
  try{
   const url=new URL(value)
-  if(url.protocol!=='https:'||url.username||url.password||!url.hostname.startsWith('dashscope-result-')||!url.hostname.endsWith('.aliyuncs.com'))return null
+  const approved=url.hostname.startsWith('dashscope-result-')&&url.hostname.endsWith('.aliyuncs.com')||/^dashscope-[a-z0-9-]{4,64}\.oss-accelerate\.aliyuncs\.com$/.test(url.hostname)
+  if(url.protocol!=='https:'||url.username||url.password||url.port||!approved)return null
   return url
  }catch{return null}
 }
 
 export function createTavernImageGenerator({env=process.env,fetchImpl=fetch,now=()=>Date.now()}={}){
  const limits=new Map(),inFlight=new Set(),requests=new Map()
- async function generateOnce({ownerId,persona,prompt,storyState=null}={}){
+ async function generateOnce({ownerId,persona,prompt,storyState=null,longJob=false}={}){
   const owner=String(ownerId||'')
   if(!/^ielts:\d+$/.test(owner))throw failure(401,'coach_auth_required','请登录后生成配图。')
   const config=configuration(env),fullPrompt=requestPrompt(String(persona||''),prompt,storyState),time=Number(now())||Date.now(),day=Math.floor(time/86400000),previous=limits.get(owner)
@@ -64,7 +65,9 @@ export function createTavernImageGenerator({env=process.env,fetchImpl=fetch,now=
   const previousCount=previous?.day===day?previous.count:0
   limits.set(owner,{day,count:previousCount,lastAt:time})
   inFlight.add(owner)
-  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),REQUEST_TIMEOUT_MS)
+  // Live qwen-image-3.0 measured ~50 seconds before headers, then asset delivery.
+  // Only the recoverable job route has a longer generation budget; legacy calls stay bounded at 55s.
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),longJob?120_000:REQUEST_TIMEOUT_MS)
   try{
    const response=await fetchImpl(config.base+'/images/generations',{method:'POST',redirect:'error',signal:controller.signal,headers:{Authorization:`Bearer ${config.apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({model:config.model,prompt:fullPrompt,n:1,size:'1024x1024',response_format:'url'})})
    if(!response.ok)throw failure(502,'tavern_image_provider_error','图片服务暂时不可用，请稍后重试。')

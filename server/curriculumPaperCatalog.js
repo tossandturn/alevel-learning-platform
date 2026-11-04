@@ -4,7 +4,8 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const DEFAULT_MANIFEST_PATH = fileURLToPath(new URL('./catalogs/curriculum-papers.json', import.meta.url))
-const BOARDS = new Set(['ap', 'ib'])
+const BOARDS = new Set(['ap', 'ib', 'edexcel', 'oxfordaqa'])
+const ALEVEL_MANIFEST_PATH=fileURLToPath(new URL('./catalogs/alevel-extra-papers.json',import.meta.url))
 const PAIR_STATUSES = new Set(['verified', 'candidate', 'missing'])
 const RIGHTS_STATUSES = new Set(['unverified', 'licensed'])
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/
@@ -115,7 +116,8 @@ function officialSourceUrl(board, value) {
     const url = new URL(value)
     if (url.protocol !== 'https:' || url.username || url.password || url.port) return null
     const hostname = url.hostname.toLowerCase()
-    const domain = board === 'ap' ? 'collegeboard.org' : board === 'ib' ? 'ibo.org' : ''
+    if(['edexcel','oxfordaqa'].includes(board)&&['edephy.alevelclouds.com','edemat.alevelclouds.com','aqaphy.alevelclouds.com','aqamat.alevelclouds.com'].includes(hostname))return url.href
+    const domain = board === 'ap' ? 'collegeboard.org' : board === 'ib' ? 'ibo.org' : board==='edexcel'?'pearson.com':board==='oxfordaqa'?'oxfordaqa.com':''
     if (!domain || hostname !== domain && !hostname.endsWith(`.${domain}`)) return null
     return url.href
   } catch {
@@ -201,13 +203,15 @@ function errorResponse(request, response, error) {
   jsonResponse(request, response, exposed.statusCode, { error: { code: exposed.code || 'curriculum_catalog_unavailable', message: exposed.message } }, exposed.headers)
 }
 
-export function createCurriculumPaperCatalog({ manifestPath = DEFAULT_MANIFEST_PATH, assetRoot, env = {} } = {}) {
+export function createCurriculumPaperCatalog({ manifestPath = DEFAULT_MANIFEST_PATH, extraManifestPath=manifestPath===DEFAULT_MANIFEST_PATH?ALEVEL_MANIFEST_PATH:null, assetRoot, alevelAssetRoot, env = {} } = {}) {
   const resolvedManifestPath = path.resolve(manifestPath)
   const resolvedAssetRoot = assetRootValue(assetRoot, env)
+  const alevelRoot=typeof (alevelAssetRoot||env.STEM_ALEVEL_ASSET_ROOT)==='string'&&path.isAbsolute(alevelAssetRoot||env.STEM_ALEVEL_ASSET_ROOT)?path.resolve(alevelAssetRoot||env.STEM_ALEVEL_ASSET_ROOT):''
+  const rootFor=board=>['edexcel','oxfordaqa'].includes(board)?alevelRoot:resolvedAssetRoot
   const hashCache = new Map()
-  let manifestCache = null
+  const manifestCaches = new Map()
 
-  async function loadManifest() {
+  async function loadManifest(includeAlevel=false) {
     let stat
     try {
       stat = await fsp.stat(resolvedManifestPath)
@@ -215,23 +219,27 @@ export function createCurriculumPaperCatalog({ manifestPath = DEFAULT_MANIFEST_P
       catalogUnavailable()
     }
     if (!stat.isFile() || stat.size < 2 || stat.size > MAX_MANIFEST_BYTES) catalogUnavailable()
-    const signature = statSignature(stat)
+    const extraStat=includeAlevel&&extraManifestPath?await fsp.stat(extraManifestPath).catch(e=>{if(e.code==='ENOENT')return null;throw e}):null
+    if(extraStat&&(!extraStat.isFile()||extraStat.size>MAX_MANIFEST_BYTES))catalogUnavailable()
+    const signature = statSignature(stat)+(extraStat?'|'+statSignature(extraStat):'')
+    const manifestCache=manifestCaches.get(includeAlevel)
     if (manifestCache?.signature === signature) return manifestCache.value
     let payload
     try {
       payload = JSON.parse(await fsp.readFile(resolvedManifestPath, 'utf8'))
+      if(extraStat){const extra=JSON.parse(await fsp.readFile(extraManifestPath,'utf8'));normalizeManifest(extra);if(extra.courses.some(c=>!['edexcel','oxfordaqa'].includes(c.board)))catalogUnavailable();payload={...payload,courses:[...payload.courses,...extra.courses],papers:[...payload.papers,...extra.papers]}}
     } catch {
       catalogUnavailable()
     }
     const value = normalizeManifest(payload)
-    manifestCache = { signature, value }
+    manifestCaches.set(includeAlevel,{ signature, value })
     return value
   }
 
-  const canDownload = file => Boolean(resolvedAssetRoot) && file.rightsStatus === 'licensed' && file.integrityStatus === 'verified'
+  const canDownload = (file,board) => Boolean(rootFor(board)) && file.rightsStatus === 'licensed' && file.integrityStatus === 'verified'
 
   function publicFile(file, board) {
-    const downloadable = canDownload(file)
+    const downloadable = canDownload(file,board)
     return {
       id: file.id,
       name: file.name,
@@ -273,8 +281,8 @@ export function createCurriculumPaperCatalog({ manifestPath = DEFAULT_MANIFEST_P
 
   async function list(input = {}) {
     const board = String(input.board || '').trim().toLowerCase()
-    if (!BOARDS.has(board)) fail(400, 'invalid_curriculum_board', 'board must be ap or ib.')
-    const manifest = await loadManifest()
+    if (!BOARDS.has(board)) fail(400, 'invalid_curriculum_board', 'Unsupported exam board.')
+    const manifest = await loadManifest(['edexcel','oxfordaqa'].includes(board))
     const course = String(input.course || '').trim()
     if (course && (!SAFE_COURSE_ID.test(course) || manifest.coursesById.get(course)?.board !== board)) {
       fail(400, 'invalid_curriculum_scope', 'course does not belong to the selected board.')
@@ -315,7 +323,7 @@ export function createCurriculumPaperCatalog({ manifestPath = DEFAULT_MANIFEST_P
     const pages = Math.ceil(total / pageSize)
     const page = Math.min(requestedPage, Math.max(1, pages))
     const selected = matched.slice((page - 1) * pageSize, page * pageSize).map(publicPaper)
-    const downloadable = matched.filter(item => canDownload(item.questionPaper)).length
+    const downloadable = matched.filter(item => canDownload(item.questionPaper,item.board)).length
     return {
       schemaVersion: 'curriculum-papers-v1',
       board,
@@ -331,16 +339,16 @@ export function createCurriculumPaperCatalog({ manifestPath = DEFAULT_MANIFEST_P
   }
 
   async function verifiedFile(id, aborted = () => false) {
-    if (!SAFE_ID.test(id || '') || !resolvedAssetRoot) fail(404, 'curriculum_paper_file_not_found', 'Curriculum paper file was not found.')
-    const manifest = await loadManifest()
+    if (!SAFE_ID.test(id || '')) fail(404, 'curriculum_paper_file_not_found', 'Curriculum paper file was not found.')
+    const manifest = await loadManifest(/^(?:edexcel|oxfordaqa)-/.test(id))
     const record = manifest.filesById.get(id)
-    if (!record || !canDownload(record.file)) fail(404, 'curriculum_paper_file_not_found', 'Curriculum paper file was not found.')
-    const candidate = path.resolve(resolvedAssetRoot, record.file.relativePath)
-    if (!inside(resolvedAssetRoot, candidate)) fail(404, 'curriculum_paper_file_not_found', 'Curriculum paper file was not found.')
+    if (!record || !canDownload(record.file,record.board)) fail(404, 'curriculum_paper_file_not_found', 'Curriculum paper file was not found.')
+    const sourceRoot=rootFor(record.board),candidate = path.resolve(sourceRoot, record.file.relativePath)
+    if (!inside(sourceRoot, candidate)) fail(404, 'curriculum_paper_file_not_found', 'Curriculum paper file was not found.')
 
     let handle
     try {
-      const realRoot = await fsp.realpath(resolvedAssetRoot)
+      const realRoot = await fsp.realpath(sourceRoot)
       const candidateLstat = await fsp.lstat(candidate)
       if (candidateLstat.isSymbolicLink()) throw new Error('symlink')
       const realFile = await fsp.realpath(candidate)

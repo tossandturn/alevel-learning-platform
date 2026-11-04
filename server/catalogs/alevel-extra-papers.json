@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "curriculum-paper-source-v1",
+  "courses": [
+    {"id":"edexcel-ial-physics","board":"edexcel","label":"Edexcel IAL Physics · 国际物理","subject":"Physics"},
+    {"id":"edexcel-ial-maths","board":"edexcel","label":"Edexcel IAL Mathematics · 国际数学","subject":"Mathematics"},
+    {"id":"oxfordaqa-ial-physics","board":"oxfordaqa","label":"OxfordAQA 9630 · 国际物理","subject":"Physics"},
+    {"id":"oxfordaqa-ial-maths","board":"oxfordaqa","label":"OxfordAQA 9660 · 国际数学","subject":"Mathematics"}
+  ],
+  "papers": []
+}

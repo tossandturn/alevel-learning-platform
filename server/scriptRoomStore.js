@@ -112,11 +112,13 @@ export function createScriptRoomStore({root,now=Date.now}={}){
   r.jobs.push({id:crypto.randomUUID(),actor,target,trigger,stage:r.stage,status:'pending',attempts:0,lease:0})
  }
  function finish(r){
-  const game=scriptGame(r.scriptId),counts={};for(const choice of Object.values(r.votes))counts[choice]=(counts[choice]||0)+1
+  // AI recommendations never outvote the sole human in a solo game.
+  const game=scriptGame(r.scriptId),counts={},aiVotes={};for(const seat of r.seats){const choice=r.votes[seat.roleId];if(seat.control==='human')counts[choice]=(counts[choice]||0)+1;else aiVotes[seat.roleId]=choice}
+  if(!Object.keys(counts).length){r.phase='closed';return}
   const max=Math.max(...Object.values(counts)),winners=Object.keys(counts).filter(k=>counts[k]===max),tie=winners.length>1
   const selected=tie?'tie':winners[0]
   for(const j of r.jobs)if(j.status!=='done')j.status='superseded'
-  r.phase='ended';r.ending={choiceId:selected,tie,counts,truth:game.truth,text:tie?'票数相同，团队没有形成一致结论。各人的选择被保留；以下复盘不把任何人擅自算作同意。':game.endings[selected]||game.endings.other,
+  r.phase='ended';r.ending={choiceId:selected,tie,counts,aiVotes,truth:game.truth,text:tie?'票数相同，团队没有形成一致结论。各人的选择被保留；以下复盘不把任何人擅自算作同意。':game.endings[selected]||game.endings.other,
    roles:game.roles.map(({id,name,secret,goal})=>({id,name,secret,goal})),clues:game.clues}
   message(r,'dm',r.ending.text,{kind:'narration'});event(r,'ended','dm',{choiceId:selected})
  }

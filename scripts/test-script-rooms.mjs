@@ -35,8 +35,10 @@ for(const script of SCRIPT_GAMES){
    for(const owner of owners)room=act(owner,store.get(owner,room.id),'advance')
   }
   assert.equal(room.phase,'vote')
-  for(const owner of owners)room=act(owner,store.get(owner,room.id),'vote',{choiceId:script.ballot.options[0].id})
+  const choice=script.ballot.options[humans===1?1:0].id
+  for(const owner of owners)room=act(owner,store.get(owner,room.id),'vote',{choiceId:choice})
   assert.equal(room.phase,'ended');assert.ok(room.ending?.truth)
+  assert.equal(room.ending.choiceId,choice,'AI recommendations must not overrule human choices')
  }
 }
 
