@@ -4,6 +4,8 @@ import path from 'node:path'
 import {SCRIPT_GAMES,scriptGame,publicScriptCatalog} from '../server/scriptGameCatalog.js'
 import {visibleScriptRole} from '../server/scriptRoleCards.js'
 import {createScriptRoomStore} from '../server/scriptRoomStore.js'
+import {scriptActorMessages} from '../server/scriptRoomApi.js'
+assert.match(scriptActorMessages({})[0].content,/人物印象和可选开场发言不是已发生的对话/,'a role observation is not a statement spoken by the player')
 const catalog=JSON.stringify(publicScriptCatalog())
 let count=0
 for(const latest of SCRIPT_GAMES)for(const version of [1,2]){
