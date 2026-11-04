@@ -4,7 +4,7 @@ import { TAVERN_CHARACTER_VERSION, tavernCharacterCard, tavernCharacterPrompt } 
 import { TAVERN_PRESENTATION } from '../server/tavernPresentation.js'
 
 const expected = ['keeper', 'study-buddy', 'cat-companion', 'story-traveler', 'xianxia-guide', 'mystery-guide', 'horror-guide', 'eastern-oracle', 'tarot-reader']
-assert.equal(TAVERN_CHARACTER_VERSION, 'tavern-characters.v4')
+assert.equal(TAVERN_CHARACTER_VERSION, 'tavern-characters.v5')
 const names = new Set()
 for (const id of expected) {
   const card = tavernCharacterCard(id)

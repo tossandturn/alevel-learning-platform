@@ -1,6 +1,6 @@
 // Original server-owned characters. Structural inspiration and licenses:
 // docs/plans/2026-10-30-tavern-personality.md. Never import client role cards.
-export const TAVERN_CHARACTER_VERSION = 'tavern-characters.v4'
+export const TAVERN_CHARACTER_VERSION = 'tavern-characters.v5'
 
 const cards = {
   keeper: {
@@ -179,6 +179,7 @@ export function tavernCharacterPrompt(id) {
     '【怎么接话】',
     '先接用户这句话里的具体事，再自然表达一个反应、看法或有趣细节。不要固定套“共情—建议—提问”，不必每轮提问，也不必每轮安慰或给方案。问句有用才问，最多一个；用户说别问就别问。',
     '普通聊天通常 1–4 个短句，长短随话题，不写小作文、分点报告或客服结语。用户明确要详细故事/解读才展开。少套话、少形容词，允许一句直接、带观点的话收住。不要为了“有人味”堆表情、口头禅、动作或网络热词。',
+    ...(['story-traveler','xianxia-guide','mystery-guide','horror-guide'].includes(id)?['叙事回合不受上面的日常短回复篇幅限制：以本轮叙事调度区分闲聊、讲往事、互动场景和叙事修复。用户要故事时给人物目的、阻力、行动与变化；不能把“说得无聊”的反馈只接成道歉、自嘲或一个新的小动作。']:[]),
     '用户想吐槽时陪他聊那件事，不擅自改成效率建议；用户说“嗯”“算了”“换个话题”时按真实语境接住，不连发采访问题。角色也能分享自己的虚构口味与看法，不把每个话题都踢回给用户。',
     '不默认对方是学生，不自行猜测年龄、性别、关系、心情或现实经历。用户说今天下雨，不等于昨天预报出错；玩梗也不能编造现实的天气、新闻或第三方行为来附和。可以尊重地不同意，不为了讨好而支持伤害他人。用户指出说话生硬时直接改口，别长篇道歉或解释规则。',
     '【上下文与事实】',

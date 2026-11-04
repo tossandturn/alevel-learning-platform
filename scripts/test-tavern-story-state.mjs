@@ -48,6 +48,7 @@ try {
  store.close()
  store = createTavernConversationStore({ root })
  assert.deepEqual(store.storyStateForContext(binding).clues, ['bell'], 'progress survives process restart')
+ assert.equal(store.storyStateForContext(binding).delivery,'scene','delivery context survives the same history boundary')
  const current = store.resumeConversation(binding)
  const failed = store.beginTurn({ ...binding, clientTurnId: 'story-turn-0002', expectedRevision: current.revision, message: '检查录音机', requestHash: 'story-hash-0002' })
  store.failTurn({ ...binding, clientTurnId: 'story-turn-0002', leaseId: failed.leaseId, status: 'unavailable', memory: { storyState: advanceStoryState(persona, one, '检查录音机') } })

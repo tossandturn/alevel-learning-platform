@@ -1,4 +1,5 @@
 import { TAVERN_CHARACTER_LIVES } from './tavernCharacterLives.js'
+import {tavernStoryPerformancePrompt} from './tavernStoryPerformance.js'
 
 // Original, server-owned story canon. The literary references and design
 // principles are documented in docs/plans/2026-11-03-tavern-interactive-scripts.md.
@@ -125,5 +126,6 @@ export function tavernStorySystemPrompt(persona, { state = null } = {}) {
   '环境与可观察动作单独写在“【旁白】”下，使用第三人称。对白单独写在“【' + story.host + '】”或已知NPC姓名下；即使同一轮也必须换行分段。绝不输出“【我】/【用户】/【玩家】”替玩家发言。',
   '需要行动选择时末尾独立输出“【可选行动】”，给2–3个短选项，每项一行。优先用上方下一步的准确名称；选项只作建议，不代表玩家已经执行。',
   '每轮推进一个短场景，以具体感官细节、角色的矛盾和生活习惯写出人味。经历按话题自然出现，不背履历。用户闲聊时暂停推进。故事内容均为原创，不复制现成小说。',
+  tavernStoryPerformancePrompt(persona,state||{}),
  ].filter(Boolean).join('\n')
 }
