@@ -388,6 +388,13 @@ export function createCurriculumPaperCatalog({ manifestPath = DEFAULT_MANIFEST_P
   async function serveFile(request, response, id) {
     const aborted = () => request.aborted || response.destroyed || response.writableEnded
     if (aborted()) return
+    // Newly licensed boards are always account/quota protected, including raw
+    // requests from old clients without the optional rollout header. Retain the
+    // existing AP/IB rollout policy; never let a client disable these new gates.
+    const quotaRequest=/^(?:edexcel|oxfordaqa)-/.test(id)
+      ? Object.assign(Object.create(request),{headers:{...request.headers,'x-stemist-download-policy':'shared-files-v1'}})
+      : request
+    if(quotaRequest!==request)await authorizePdfFile({env,authorizeFile,request:quotaRequest,consume:false})
     const opened = await verifiedFile(id, aborted)
     if (aborted()) {
       await opened.handle.close().catch(() => {})
@@ -403,7 +410,7 @@ export function createCurriculumPaperCatalog({ manifestPath = DEFAULT_MANIFEST_P
     const end = range?.end ?? opened.size - 1
     const notModified=pdfNotModified(request,etag)
     let quota
-    try{quota=await authorizePdfFile({env,authorizeFile,request,sha256:opened.file.sha256,consume:request.method==='GET'&&!notModified})}
+    try{quota=await authorizePdfFile({env,authorizeFile,request:quotaRequest,sha256:opened.file.sha256,consume:request.method==='GET'&&!notModified})}
     catch(error){await opened.handle.close().catch(()=>{});throw error}
     if (aborted()) {
       await opened.handle.close().catch(() => {})
