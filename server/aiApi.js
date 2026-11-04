@@ -9,6 +9,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { loadTavernProvider } from './tavernProvider.js'
 import { createTavernImageGenerator } from './tavernImageGeneration.js'
+import { createScriptRoomApi } from './scriptRoomApi.js'
 import { loadStemAcademicProvider } from './stemAcademicProvider.js'
 import { createAdmissionsAdvisor } from './admissionsAdvisor.js'
 import { createIeltsTeacher } from './ieltsTeacher.js'
@@ -104,13 +105,13 @@ function sendCommittedJson(response, statusCode, value) {
   }
 }
 
-function readJsonBody(request) {
+function readJsonBody(request, maxBytes = MAX_BODY_BYTES) {
   return new Promise((resolve, reject) => {
     const chunks = []
     let bytes = 0
     request.on('data', (chunk) => {
       bytes += chunk.length
-      if (bytes > MAX_BODY_BYTES) {
+      if (bytes > maxBytes) {
         reject(Object.assign(new Error('Request is too large.'), { statusCode: 413 }))
         request.destroy()
         return
@@ -1650,9 +1651,9 @@ function trustedTavernDraw({ feature, payload, ownerId, divinationStore }) {
   return divinationStore.resolveDraw({ ownerId, persona: feature.persona, drawId: payload.drawId })
 }
 
-function coachFeatureSystemPrompt(feature, policy, context, draw = null, diagramFormat = '') {
+function coachFeatureSystemPrompt(feature, policy, context, draw = null, diagramFormat = '', storyState = null) {
   if (feature.feature !== 'tavern') return buildCoachSystemPrompt({ policy, context, feature, diagramFormat })
-  const basePrompt = buildTavernSystemPrompt(feature)
+  const basePrompt = buildTavernSystemPrompt(feature, { storyState })
   return draw ? `${basePrompt}\n${tavernDrawSystemPrompt(draw)}` : basePrompt
 }
 
@@ -1727,12 +1728,16 @@ function coachProviderMetadata(feature, context) {
 }
 
 function tavernProviderContext({ activeProvider, feature, policy, context, draw, message, state, ownerId, conversationStore, legacyHistory, mediaVersion='', mediaCatalog=null }) {
+  const previousStoryState = state
+    ? conversationStore.storyStateForContext?.({ ownerId, persona: feature.persona, conversationId: state.conversation.id })
+    : (legacyHistory || []).filter(turn => turn.role === 'user').reduce((value, turn) => advanceStoryState(feature.persona, value, turn.content), initialStoryState(feature.persona))
+  const storyState = advanceStoryState(feature.persona, previousStoryState, message)
   const recentMedia=mediaVersion===TAVERN_MEDIA_VERSION&&state?conversationStore.getMessages({ownerId,persona:feature.persona,conversationId:state.conversation.id,limit:8}).messages.flatMap(turn=>turn.media||[]).map(item=>item.id):[]
-  const mediaCandidates=mediaVersion===TAVERN_MEDIA_VERSION&&mediaCatalog?selectTavernMediaCandidates(mediaCatalog,{message,persona:feature.persona,recentIds:recentMedia}):[]
+  const mediaCandidates=mediaVersion===TAVERN_MEDIA_VERSION&&mediaCatalog?selectTavernMediaCandidates(mediaCatalog,{message,persona:feature.persona,recentIds:recentMedia,storyState}):[]
   const historicalDraw = !draw && feature.divinationKind && state
     ? conversationStore.latestDrawForContext({ownerId,persona:feature.persona,conversationId:state.conversation.id})
     : null
-  const systemPrompt = coachFeatureSystemPrompt(feature, policy, context, draw)
+  const systemPrompt = coachFeatureSystemPrompt(feature, policy, context, draw, '', storyState)
     +(historicalDraw ? '\n'+tavernDrawSystemPrompt(historicalDraw,{historical:true}) : '')
     +tavernMediaSystemPrompt(mediaCandidates)
   const metadata = coachProviderMetadata(feature, context)
@@ -1757,7 +1762,8 @@ function tavernProviderContext({ activeProvider, feature, policy, context, draw,
         currentMessage: message,
         recentMessages: legacyHistory,
       })
-  return { systemPrompt, metadata, history: selected.messages, memory: selected.memory, mediaCandidates }
+  const sceneMedia = mediaCandidates.find(item => item.id === storySceneId(feature.persona, storyState))
+  return { systemPrompt, metadata, history: selected.messages, memory: storyState ? { ...selected.memory, storyState } : selected.memory, mediaCandidates, sceneMedia }
 }
 
 function coachRequestContext(context, message) {
@@ -1982,6 +1988,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
         answer = await callCompatibleAi(activeProvider, { ...providerOptions, json: false, providerAttempt: providerIndex + 2 })
       }
       const reply=selectedTavernContext?.mediaCandidates.length?normalizeTavernMediaReply(answer,{catalog:mediaCatalog,candidates:selectedTavernContext.mediaCandidates}):{text:answer,media:[]}
+      if (selectedTavernContext?.sceneMedia && !reply.media.some(item => item.kind === 'image')) reply.media = normalizeTavernMediaItems([...reply.media, selectedTavernContext.sceneMedia])
       const safeReplyText=sanitizeCoachDiagramAnswer(reply.text,{enabled:Boolean(diagramFormat)}).trim()
       if(!safeReplyText)throw Object.assign(new Error('AI reply media or diagram schema invalid'),{code:'AI_RESPONSE_SCHEMA_INVALID'})
       if(source&&!extractCoachSourceTrailer(safeReplyText).answer.trim())throw Object.assign(new Error('AI answer was empty after source metadata removal'),{code:'AI_RESPONSE_SCHEMA_INVALID'})
@@ -2832,11 +2839,18 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
   return sendJson(response, 200, { mode: 'offline', code: 'vision_review_failed', provider: lastAttemptedProvider.name, providerStatus: 'error', error: providerMessage(lastError, lastAttemptedProvider), retryable: true })
 }
 
-export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null, authorizeCoachRequest = null, tavernDivinationStore = null, tavernConversationStore = null, tavernMemoryRoot = null, tavernMediaCatalog=null, tavernMediaRoot=DEFAULT_TAVERN_MEDIA_ROOT, tavernImageGenerator = null, admissionsConversationStore = null, admissionsMemoryRoot = null, admissionsCallCompatibleAiStream = callCompatibleAiStream, admissionsPrepareTurn = null, admissionsResearchOptions = null, admissionsPreviewOptions = null, ieltsTeacherConversationStore = null, ieltsTeacherMemoryRoot = null, ieltsTeacherCallCompatibleAiStream = callCompatibleAiStream, coachJobsRoot = null, coachImageUploadsOptions = null }) {
+export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null, authorizeCoachRequest = null, tavernDivinationStore = null, tavernConversationStore = null, tavernMemoryRoot = null, tavernMediaCatalog=null, tavernMediaRoot=DEFAULT_TAVERN_MEDIA_ROOT, tavernImageGenerator = null, admissionsConversationStore = null, admissionsMemoryRoot = null, admissionsCallCompatibleAiStream = callCompatibleAiStream, admissionsPrepareTurn = null, admissionsResearchOptions = null, admissionsPreviewOptions = null, ieltsTeacherConversationStore = null, ieltsTeacherMemoryRoot = null, ieltsTeacherCallCompatibleAiStream = callCompatibleAiStream, coachJobsRoot = null, coachImageUploadsOptions = null, scriptRoomOptions = null }) {
   const legacyConfig = providerConfig(env)
   const config = studentProviderConfig(env, legacyConfig)
   const tavernProvider = loadTavernProvider({ env }) || legacyConfig.coach
   const imageGenerator = tavernImageGenerator || createTavernImageGenerator({ env })
+  const scriptRooms = createScriptRoomApi({
+    root:()=>env.STEM_SCRIPT_ROOMS_ROOT||path.join(tavernMemoryRoot||resolveTavernMemoryRoot(env),'script-rooms'),
+    authenticate:request=>authenticatedStemUser(request,env),sendJson,readBody:request=>readJsonBody(request,16*1024),
+    enabled:env.STEM_SCRIPT_ROOMS_ENABLED!=='0',
+    generate:(messages,{requestId})=>callCompatibleAi(config.coach,{messages,requestId,operation:'script-room-actor',json:true,temperature:0.7,outputTokenLimit:4096,timeoutMs:55000,maxTimeoutMs:60000,reasoningEffortOverride:'low',telemetry}),
+    ...scriptRoomOptions,
+  })
   const timeoutConfig = aiTimeoutConfig(env)
   const divinationStore = tavernDivinationStore || createTavernDivinationStore()
   const drawArtHandler = createDrawArtHandler()
@@ -2926,15 +2940,17 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
     const requestUrl = new URL(request.url, 'http://127.0.0.1')
     if (!requestUrl.pathname.startsWith('/api/ai/')) return next()
     try {
+      if (await scriptRooms.handle(request,response,requestUrl)) return
       if (drawArtHandler(request, response, requestUrl)) return
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/tavern/image') {
         const ownerId = authenticatedStemUser(request, env)
         if (!ownerId) throw Object.assign(new Error('请登录后生成配图。'), { statusCode: 401, code: 'coach_auth_required' })
         const payload = await readJsonBody(request)
-        if (!payload || typeof payload !== 'object' || Array.isArray(payload) || Object.keys(payload).some(key => !['persona','prompt'].includes(key))) {
+        if (!payload || typeof payload !== 'object' || Array.isArray(payload) || Object.keys(payload).some(key => !['persona','prompt','conversationId','clientImageId'].includes(key))) {
           throw Object.assign(new Error('图片请求无效。'), { statusCode: 400, code: 'tavern_image_request_invalid' })
         }
-        const generated = await imageGenerator.generate({ ownerId, persona: payload.persona, prompt: payload.prompt })
+        const storyState = payload.conversationId ? conversationStore().storyStateForContext({ ownerId, persona: payload.persona, conversationId: payload.conversationId }) : null
+        const generated = await imageGenerator.generate({ ownerId, persona: payload.persona, prompt: payload.prompt, storyState, requestId: payload.clientImageId })
         response.statusCode = 200
         response.setHeader('Content-Type', generated.mimeType)
         response.setHeader('Content-Length', generated.bytes.length)
@@ -2991,7 +3007,9 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
     ieltsTeacher.close()
     activeConversationStore?.close?.()
     coachImageUploads.close()
-    return jobsClosing
+    return Promise.all([jobsClosing,scriptRooms.drain().then(()=>scriptRooms.close())])
   }
   return aiApi
 }
+import { initialStoryState, advanceStoryState, storySceneId } from './tavernStoryState.js'
+import { normalizeTavernMediaItems } from './tavernMedia.js'

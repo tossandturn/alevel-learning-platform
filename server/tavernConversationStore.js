@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { publicAdmissionsResearch } from './admissionsPreviewContract.js'
+import { initialStoryState, normalizeStoryState, advanceStoryState } from './tavernStoryState.js'
 import {normalizeTavernMediaItems,storedTavernMedia,tavernMediaProviderContent} from './tavernMedia.js'
 
 export const TAVERN_MEMORY_SCHEMA_VERSION = 'stem-tavern-memory.v1'
@@ -1154,6 +1155,24 @@ export function createTavernConversationStore({
     return JSON.parse(encoded)
   }
 
+  function storyStateForContext({ ownerId: ownerInput, persona: personaInput, conversationId: conversationInput } = {}) {
+    const ownerId = ownerValue(ownerInput)
+    const persona = personaValue(personaInput, personaSet)
+    const conversationId = boundedId(conversationInput, 'tavern_conversation_id_invalid', 'conversationId')
+    const databaseHandle = db()
+    boundConversation(databaseHandle, ownerId, persona, conversationId)
+    if (!initialStoryState(persona)) return null
+    const rows = databaseHandle.prepare("SELECT memory_json FROM tavern_turns WHERE owner_id = ? AND conversation_id = ? AND role = 'assistant' AND status = 'complete' ORDER BY sequence DESC LIMIT 32").all(ownerId, conversationId)
+    for (const row of rows) {
+      try {
+        const saved = JSON.parse(row.memory_json || '{}').storyState
+        if (saved) return normalizeStoryState(persona, saved)
+      } catch { /* Old or malformed metadata never becomes story progress. */ }
+    }
+    const legacy = databaseHandle.prepare("SELECT u.content FROM tavern_turns u JOIN tavern_turns a ON a.owner_id = u.owner_id AND a.conversation_id = u.conversation_id AND a.client_turn_id = u.client_turn_id AND a.role = 'assistant' AND a.status = 'complete' WHERE u.owner_id = ? AND u.conversation_id = ? AND u.role = 'user' ORDER BY u.sequence DESC LIMIT 200").all(ownerId, conversationId)
+    return legacy.reverse().reduce((value, turn) => advanceStoryState(persona, value, turn.content), initialStoryState(persona))
+  }
+
   function contextForProvider({ ownerId: ownerInput, persona: personaInput, conversationId: conversationInput, model, protocol = 'chat-completions', metadata = null, currentMessage, systemPrompt, contextWindowOverride = null, maxOutboundBytes = TAVERN_MEMORY_MAX_PROVIDER_BYTES, excludeClientTurnId = '' } = {}) {
     const ownerId = ownerValue(ownerInput)
     const persona = personaValue(personaInput, personaSet)
@@ -1281,6 +1300,7 @@ export function createTavernConversationStore({
     failTurn,
     getMessages,
     latestDrawForContext,
+    storyStateForContext,
     contextForProvider,
     researchSourceForPreview,
     deleteConversation,

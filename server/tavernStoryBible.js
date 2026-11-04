@@ -1,3 +1,5 @@
+import { TAVERN_CHARACTER_LIVES } from './tavernCharacterLives.js'
+
 // Original, server-owned story canon. The literary references and design
 // principles are documented in docs/plans/2026-11-03-tavern-interactive-scripts.md.
 const freeze=(value)=>{
@@ -87,29 +89,41 @@ const stories={
  },
 }
 
+export const STORY_ACTIONS = Object.freeze({
+ 'horror-guide': [{id:'bell',label:'检查呼叫铃',terms:['呼叫铃','铃舌','旧铃']},{id:'switch',label:'检查录音机',terms:['录音机','开关','封签']},{id:'logbook',label:'翻开值班簿',terms:['值班簿','缺页','铅笔字']}],
+ 'mystery-guide': [{id:'reflection',label:'观察玻璃反光',terms:['反光','玻璃侧面','展台侧面']},{id:'dust',label:'检查展台灰尘',terms:['灰尘','压痕']},{id:'clock',label:'核对两只时钟',terms:['时钟','挂钟','时间差']},{id:'stamp',label:'查看旧测试片',terms:['测试片','印章','旧片']}],
+ 'xianxia-guide': [{id:'lantern-order',label:'检查渡口灯号',terms:['灯号','灯笼','第二盏灯']},{id:'log-edge',label:'查看渡口簿缺页',terms:['渡口簿','簿页','裁切','缺页']},{id:'bell-mark',label:'检查旧伞柄',terms:['伞柄','刻痕','旧伞']}],
+ 'story-traveler': [{id:'seal',label:'查看信封封蜡',terms:['封蜡','信封','倒月']},{id:'bird-route',label:'观察银翼鸟的路线',terms:['银翼鸟','飞行路线','鸟的路线']},{id:'blank-map',label:'检查缺角地图',terms:['缺角地图','地图缺角','风向记号']}],
+})
+
 export const TAVERN_STORIES=freeze(stories)
 
-export function tavernStorySystemPrompt(persona){
- const story=TAVERN_STORIES[persona]
- if(!story)throw new Error('Unknown Tavern story')
- const characters=story.characters.map(item=>`- ${item.name}（${item.role}）：经历=${item.history}${item.voice?`；声音=${item.voice}`:''}`).join('\n')
- const clues=story.clues.map((item,index)=>`${index+1}. [${item.id}] 可观察事实=${item.observed}；仅可推得=${item.meaning}`).join('\n')
- const endings=story.endings.map(item=>`- ${item.title}（触发：${item.condition}）：${item.result}`).join('\n')
+export function tavernStorySystemPrompt(persona, { state = null } = {}) {
+ const story = TAVERN_STORIES[persona]
+ if (!story) throw new Error('Unknown Tavern story')
+ const life = TAVERN_CHARACTER_LIVES[persona]
+ const confirmed = story.clues.filter(item => Array.isArray(state?.clues) && state.clues.includes(item.id))
+ const revealed = state?.revealed === true && confirmed.length >= story.revealAfterClues
+ const characters = story.characters.map(item => '- ' + item.name + '（' + item.role + '）' + (item.voice ? '：' + item.voice : '')).join('\n')
+ const clues = confirmed.map(item => '- ' + item.observed + ' 仅可推得：' + item.meaning).join('\n')
+ const actions = (STORY_ACTIONS[persona] || []).filter(item => !confirmed.some(clue => clue.id === item.id)).map(item => item.label)
  return [
-  `【互动剧本：${story.title}】`,
-  `类型：${story.genre}。固定前提：${story.premise}`,
-  '【恒定大纲与人物】',
-  ...story.timeline.map((item,index)=>`${index+1}. ${item}`),
-  '人物：\n'+characters,
-  '【线索顺序】\n'+clues,
-  `【真相（不可改写，不可提前泄露）】\n${story.truth.text}`,
-  `只有至少 ${story.revealAfterClues} 条不同线索被玩家亲自查证后，且玩家请求揭晓或选择结局，才说明真相。线索没有查够时明确说证据不足，不猜、不补造。`,
-  '【结局】\n'+endings,
-  '状态规则：\n'+story.stateRules.map(item=>'- '+item).join('\n'),
+  '【互动剧本：' + story.title + '】',
+  '类型：' + story.genre + '。固定前提：' + story.premise,
+  '公开背景：' + life.background,
+  '人物与声音：\n' + characters,
+  '【服务端已保存的剧情进度】',
+  '本轮状态：' + (state?.stage || 'idle') + '；本次故事编号：' + (state?.run || 1) + '。该记录优先于聊天摘要；不能自行补造玩家行动或重置线索。',
+  state?.paused ? '玩家已经暂停剧情；本轮只做自然闲聊，直到玩家明确继续。' : '允许自由输入。用户只问角色的经历或日常时，回答本人经历，不强塞查案选项。',
+  '【本轮已确认线索】\n' + (clues || '尚无。开场只描述公开背景，不泄露尚未检查的物件。'),
+  '可建议的下一步：' + (actions.join(' / ') || '梳理已有证据，或在玩家要求时解释真相。'),
+  revealed ? '【已允许揭晓的恒定真相】\n' + story.truth.text : '【尚未揭晓】服务端未开放结论。只能使用上面已确认的事实，不创作凶手、幕后原因或隐藏结局；也不要猜测固定真相。',
+  revealed ? '【可选结局】\n' + story.endings.map(item => '- ' + item.title + '：' + item.result).join('\n') : '',
+  state?.ending ? '已选结局：' + state.ending + '；不要改写结局。之后可闲聊、回顾或等待玩家明确重开。' : '',
   '【玩家与发言格式】',
-  '用户是玩家。即使中文常用“我”，你也不能替用户写台词、动作、选择、已进入地点、持有物、决定或内心感受；只描述环境、NPC 和你扮演角色自己的行为。玩家选择后再推进。',
-  '凡有环境叙述，独立输出“【旁白】”段；角色说话用“【'+story.host+'】”或对应 NPC 的真实姓名作为单独标签。旁白不是角色第一人称；“我”只允许出现在明确标记的角色对白中。绝不生成“【用户】/【玩家】”发言。',
-  '需要玩家选择时，答案末尾使用独立“【可选行动】”区，给 2–3 个短选项，每项一行；只作可点的建议，永远接受自由输入。不要重复旧选项或伪称玩家已选。平常聊天/暂停时不用强塞选项。',
-  '每轮只写一个短场景推进，保持自然、不堆解释；用户要求完整剧情或复盘时再展开。用户转话题就暂停剧本，不把剧情强拉回来。不得引用或仿写现成小说的角色、句子、专名或具体桥段。',
- ].join('\n')
+  '用户是玩家。不能替用户写台词、动作、选择、已进入地点、持有物、决定或内心感受。玩家说“我”指玩家；角色对白的“我”只指该段署名的角色。',
+  '环境与可观察动作单独写在“【旁白】”下，使用第三人称。对白单独写在“【' + story.host + '】”或已知NPC姓名下；即使同一轮也必须换行分段。绝不输出“【我】/【用户】/【玩家】”替玩家发言。',
+  '需要行动选择时末尾独立输出“【可选行动】”，给2–3个短选项，每项一行。优先用上方下一步的准确名称；选项只作建议，不代表玩家已经执行。',
+  '每轮推进一个短场景，以具体感官细节、角色的矛盾和生活习惯写出人味。经历按话题自然出现，不背履历。用户闲聊时暂停推进。故事内容均为原创，不复制现成小说。',
+ ].filter(Boolean).join('\n')
 }

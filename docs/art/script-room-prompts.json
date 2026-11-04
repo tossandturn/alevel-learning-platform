@@ -1,0 +1,37 @@
+{
+  "version": "script-room-art-20261104",
+  "items": [
+    {
+      "id": "scriptroom-before-rain",
+      "sourceFile": "exec-842f6291-89ba-49cb-96c8-cb6ef3e717b4.png",
+      "alt": "雨停之前：雨后小站、旧车票与广播室",
+      "caption": "原创氛围插图 · 非解谜证据",
+      "persona": "before-rain",
+      "prompt": "Use case: illustration-story. Asset type: original WeChat interactive mystery story cover and ambient scene image, landscape 3:2. A decommissioned small Chinese railway station waiting room at dawn after rain. Four blank old paper tickets and an unopened handwritten envelope on a worn wooden bench, an old radio visible through a broadcasting booth window. Warm amber interior light meets pale blue rainy platform. Emotional reunion and gentle bittersweet hope, not horror. Painterly editorial concept illustration, fine textured brushwork, coherent cinematic composition, readable on a small phone, detailed but restrained, original art. No typography, no watermark, no logo, no UI."
+    },
+    {
+      "id": "scriptroom-thirteenth-curtain",
+      "sourceFile": "exec-ba98d0af-d41f-4454-bfb9-3c099c31f3de.png",
+      "alt": "第十三次落幕：剧院后台、幕布与道具柜",
+      "caption": "原创氛围插图 · 非解谜证据",
+      "persona": "thirteenth-curtain",
+      "prompt": "Use case: illustration-story. Asset type: original WeChat interactive mystery story cover and ambient scene image, landscape 3:2. An elegant abandoned Chinese theatre backstage at night, burgundy curtains, dusty wooden prop cabinet, old wall clock, slanting reflected stage light through glass. A closed handwritten ledger on a dressing table. Fair-play detective mystery mood. No body, no people, no blood, no visible solution or culprit. Painterly editorial concept illustration, fine textured brushwork, coherent cinematic composition, readable on a small phone, detailed but restrained, original art. No typography, no watermark, no logo, no UI."
+    },
+    {
+      "id": "scriptroom-last-midnight",
+      "sourceFile": "exec-7671729f-4c6c-4d1b-8e3c-55510fb93d8d.png",
+      "alt": "零点末班车：雨夜候车室与远处信号间",
+      "caption": "原创氛围插图 · 非解谜证据",
+      "persona": "last-midnight",
+      "prompt": "Use case: illustration-story. Asset type: original WeChat interactive mystery story cover and ambient scene image, landscape 3:2. A closed small railway station waiting room at midnight in heavy rain. Old public-address loudspeaker, analog clock, dim blue illuminated safe pedestrian route beyond a glass door, a distant signal cabin with one warm lit window. Subtle psychological suspense, eerie but safe. No monster, no people, no gore, no hazards. Painterly editorial concept illustration, fine textured brushwork, coherent cinematic composition, readable on a small phone, detailed but restrained, original art. No typography, no watermark, no logo, no UI."
+    },
+    {
+      "id": "scriptroom-inverted-observatory",
+      "sourceFile": "exec-97ed8c43-b71d-41e9-930f-01f023640a26.png",
+      "alt": "倒悬天文馆：黄铜天球仪与星图",
+      "caption": "原创氛围插图 · 非解谜证据",
+      "persona": "inverted-observatory",
+      "prompt": "Use case: illustration-story. Asset type: original WeChat interactive mystery story cover and ambient scene image, landscape 3:2. A beautiful old observatory planetarium interior at night. Brass armillary sphere, ceiling constellations, inverted-looking celestial atlas on a central wooden table, four blank folded note cards and a compass. Clear pedestrian doorway at the edge, mysterious cooperative puzzle atmosphere, midnight indigo and warm brass. No text, no digits, no puzzle answer, no people. Painterly editorial concept illustration, fine textured brushwork, coherent cinematic composition, readable on a small phone, detailed but restrained, original art. No typography, no watermark, no logo, no UI."
+    }
+  ]
+}

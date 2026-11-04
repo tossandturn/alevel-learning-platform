@@ -1,0 +1,82 @@
+{
+  "schemaVersion": "tavern-media.v1",
+  "revision": "script-room-art-20261104",
+  "items": [
+    {
+      "id": "scriptroom-before-rain",
+      "kind": "image",
+      "file": "scriptroom-before-rain-176db571c881c24a.webp",
+      "sha256": "176db571c881c24af07763773233e5ddcb2b2c242cf27580ae44f46d90158301",
+      "width": 1280,
+      "height": 853,
+      "alt": "雨停之前：雨后小站、旧车票与广播室",
+      "caption": "原创氛围插图 · 非解谜证据",
+      "tags": [
+        "before-rain",
+        "rain",
+        "原创剧本场景"
+      ],
+      "provenance": {
+        "method": "image_gen",
+        "sourceSha256": "98151cbbc5af965db848cab8c87092e5a241c150d8531ed389acb61476796354"
+      }
+    },
+    {
+      "id": "scriptroom-thirteenth-curtain",
+      "kind": "image",
+      "file": "scriptroom-thirteenth-curtain-872a6365d0049950.webp",
+      "sha256": "872a6365d0049950b44b41ac6180e2f114abdd8f59d7145e245401d1b16dc6eb",
+      "width": 1280,
+      "height": 853,
+      "alt": "第十三次落幕：剧院后台、幕布与道具柜",
+      "caption": "原创氛围插图 · 非解谜证据",
+      "tags": [
+        "thirteenth-curtain",
+        "curtain",
+        "原创剧本场景"
+      ],
+      "provenance": {
+        "method": "image_gen",
+        "sourceSha256": "7307db468f2b7cd9368cf55d713d046a6f0cb685c878275e73e9e56a2160e823"
+      }
+    },
+    {
+      "id": "scriptroom-last-midnight",
+      "kind": "image",
+      "file": "scriptroom-last-midnight-51e38e14201fb1c1.webp",
+      "sha256": "51e38e14201fb1c129809a4f8ba2db8e9edcb6377477f3dc80f9aac032ac7597",
+      "width": 1280,
+      "height": 853,
+      "alt": "零点末班车：雨夜候车室与远处信号间",
+      "caption": "原创氛围插图 · 非解谜证据",
+      "tags": [
+        "last-midnight",
+        "midnight",
+        "原创剧本场景"
+      ],
+      "provenance": {
+        "method": "image_gen",
+        "sourceSha256": "de317b82050e393bbb3ffa17e43a1ecfe009f7dabc246780ef4ff8d7dfd0c230"
+      }
+    },
+    {
+      "id": "scriptroom-inverted-observatory",
+      "kind": "image",
+      "file": "scriptroom-inverted-observatory-a448ac9e216e83f1.webp",
+      "sha256": "a448ac9e216e83f1cc94b4bc0b4542d229d5bcb2dab5aa49c5b60cb3901b9644",
+      "width": 1280,
+      "height": 853,
+      "alt": "倒悬天文馆：黄铜天球仪与星图",
+      "caption": "原创氛围插图 · 非解谜证据",
+      "tags": [
+        "inverted-observatory",
+        "observatory",
+        "原创剧本场景"
+      ],
+      "provenance": {
+        "method": "image_gen",
+        "sourceSha256": "8c2abd1fed9ed503ca2d8c4f4a428678a81a5cc52ec425db857809c6e0d3f016"
+      }
+    }
+  ]
+}

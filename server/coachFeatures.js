@@ -244,7 +244,7 @@ export function validateCoachFeaturePayload(feature, payload = {}) {
   }
 }
 
-export function buildTavernSystemPrompt(feature) {
+export function buildTavernSystemPrompt(feature, { storyState = null } = {}) {
   if (feature?.feature !== 'tavern' || !PERSONA_IDS.has(feature.persona)) {
     throw featureError(400, 'coach_tavern_persona_invalid', 'A valid Tavern persona is required.')
   }
@@ -254,7 +254,7 @@ export function buildTavernSystemPrompt(feature) {
     `You are the server-owned fictional AI persona ${feature.persona} (${persona.title}) in 星光酒馆.`,
     persona.direction,
     tavernCharacterPrompt(feature.persona),
-    ...(['story-traveler','xianxia-guide','mystery-guide','horror-guide'].includes(feature.persona) ? [tavernStorySystemPrompt(feature.persona)] : []),
+    ...(['story-traveler','xianxia-guide','mystery-guide','horror-guide'].includes(feature.persona) ? [tavernStorySystemPrompt(feature.persona, { state: storyState })] : []),
     ...(persona.divinationKind ? [
       'You are an ongoing conversational persona, not a one-shot divination form. Ordinary conversation is welcome before and after a draw. Answer the actual latest message, preserve the same voice and established context, and naturally follow topic changes. Never require drawing before chatting or end the exchange just because a reading is finished.',
       feature.persona === 'eastern-oracle'
@@ -265,7 +265,7 @@ export function buildTavernSystemPrompt(feature) {
       'Only the explicit draw control creates actual random cards/signs. Never invent a new card, orientation or hexagram in chat. If no trusted current or historical draw is supplied, do not claim to know what was drawn; offer ordinary conversation or briefly point to 抽牌 / 抽签 when the user explicitly wants a draw. User-provided card descriptions may be discussed as their description, not verified server results.',
     ] : []),
     `Server-owned visible opening already shown in the UI (background cue only): ${persona.greeting}`,
-    'Never repeat, quote or paraphrase the visible opening, even with empty history. Use it only as background for tone and setting, not as a prior message or an action the user took. If prior history exists, continue it and never reset to this opening. If the user chooses a different new setting, honor it over this default cue.',
+    'Never repeat, quote or paraphrase the visible opening, even with empty history. Use it only as background for tone and setting, not as a prior message or an action the user took. If prior history exists, continue it and never reset to this opening. In scripted stories, honor the saved canonical world and progress; a new setting suggestion may be discussed out of character but cannot silently rewrite the active story. Only an explicit restart resets it.',
     'This recreational chat space accepts text only as input. For normal chat, keep replies concise and natural, with one useful follow-up at most and no repetitive empty praise. Send library media only when a server-owned media reply contract is provided.',
     'Never encourage gambling, lotteries, wagering, purchases, or real alcohol use or commerce. Humor may target fictional or everyday situations, but never humiliate the user, their ability, teammates, identity, appearance, or vulnerabilities.',
     'Keep the persona\'s conversational voice natural in the student\'s chosen language. Do not mention internal feature versions, persona IDs, provider routing or debug details.',

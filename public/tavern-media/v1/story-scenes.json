@@ -1,0 +1,234 @@
+{
+  "schemaVersion": "tavern-media.v1",
+  "revision": "tavern-scenes-20261104",
+  "items": [
+    {
+      "id": "story-horror-opening",
+      "kind": "image",
+      "file": "story-horror-opening-53812ce600e8894a.webp",
+      "sha256": "53812ce600e8894a12555277a8eb46c3e2f4d9db42211b2f4643576e1179db0e",
+      "width": 1280,
+      "height": 853,
+      "alt": "雨夜河岸茶室、断线呼叫铃与窗外渡口灯",
+      "caption": "雨窗茶室 · 夜访",
+      "tags": [
+        "horror-guide",
+        "opening",
+        "原创剧本场景"
+      ],
+      "provenance": {
+        "method": "image_gen",
+        "sourceSha256": "11d49cff420783e4f32a19ab38fbf63322a81a072ad44abf862a7593b12a20c3"
+      }
+    },
+    {
+      "id": "story-horror-investigation",
+      "kind": "image",
+      "file": "story-horror-investigation-bed843f7714d7a60.webp",
+      "sha256": "bed843f7714d7a6067a5d1d172b1a62ba8ff9a253c817dd5bb45fa44e5a9bd9b",
+      "width": 1280,
+      "height": 853,
+      "alt": "旧录音机、封签开关和缺页值班簿的故事插画",
+      "caption": "雨窗茶室 · 旧信号间",
+      "tags": [
+        "horror-guide",
+        "investigation",
+        "原创剧本场景"
+      ],
+      "provenance": {
+        "method": "image_gen",
+        "sourceSha256": "9a768e83fe4623b340ff755087b10d09af7dcf9667fa4b5a5bb01d35a1234da3"
+      }
+    },
+    {
+      "id": "story-horror-resolution",
+      "kind": "image",
+      "file": "story-horror-resolution-df96ff5479ab3c37.webp",
+      "sha256": "df96ff5479ab3c37b12705d0b53fd199dbad9411bc258dfeaee1889ff9cbfeda",
+      "width": 1280,
+      "height": 853,
+      "alt": "天将亮的河面与收好的录音带、值班簿",
+      "caption": "雨窗茶室 · 雨停之后",
+      "tags": [
+        "horror-guide",
+        "resolution",
+        "原创剧本场景"
+      ],
+      "provenance": {
+        "method": "image_gen",
+        "sourceSha256": "42836e9af5631411a5711fd2cfd775fff5edb8938c7a9d52fc2a692cd0a625f4"
+      }
+    },
+    {
+      "id": "story-mystery-opening",
+      "kind": "image",
+      "file": "story-mystery-opening-b60fe5db85ba3d29.webp",
+      "sha256": "b60fe5db85ba3d29f87677c5ea9b4455f44ba6aa11926cabf8e41efde2e1db76",
+      "width": 1280,
+      "height": 853,
+      "alt": "雨夜档案室里玻璃展台上的神秘票影",
+      "caption": "第九张票 · 闭馆之后",
+      "tags": [
+        "mystery-guide",
+        "opening",
+        "原创剧本场景"
+      ],
+      "provenance": {
+        "method": "image_gen",
+        "sourceSha256": "2cab22b84ded4ccf13cd75834f88da4de999f02e6ed290a15b97c7d8f215ff95"
+      }
+    },
+    {
+      "id": "story-mystery-investigation",
+      "kind": "image",
+      "file": "story-mystery-investigation-769b12b4ab4077da.webp",
+      "sha256": "769b12b4ab4077dac7eec3a95b2aeb10f7ceaf60dbffb915f0cb1d41b944daa4",
+      "width": 1280,
+      "height": 853,
+      "alt": "展台玻璃反光、灰尘和淡淡的票影",
+      "caption": "第九张票 · 玻璃另一侧",
+      "tags": [
+        "mystery-guide",
+        "investigation",
+        "原创剧本场景"
+      ],
+      "provenance": {
+        "method": "image_gen",
+        "sourceSha256": "d335fc3e46b153fa43ff6c4d5482605070ecc990c2a3f6ba1745d54a08ef5b68"
+      }
+    },
+    {
+      "id": "story-mystery-resolution",
+      "kind": "image",
+      "file": "story-mystery-resolution-1fd26644dc5f9133.webp",
+      "sha256": "1fd26644dc5f9133cdb2bd7b1cae8956bd55bc490aa1aec4d7cebe2f38275084",
+      "width": 1280,
+      "height": 853,
+      "alt": "旧投影仪与测试片重现票影的故事插画",
+      "caption": "第九张票 · 复演",
+      "tags": [
+        "mystery-guide",
+        "resolution",
+        "原创剧本场景"
+      ],
+      "provenance": {
+        "method": "image_gen",
+        "sourceSha256": "2c7e00f170358b24bdd2b7028b327368d9981f416b225bf6b9ef00cbcebdbd91"
+      }
+    },
+    {
+      "id": "story-shenzhao-opening",
+      "kind": "image",
+      "file": "story-shenzhao-opening-9e32dbe1503a6b71.webp",
+      "sha256": "9e32dbe1503a6b71e46af4ba262e675422b7be585c539d9b97de2dcaee08690a",
+      "width": 1280,
+      "height": 853,
+      "alt": "夜雨渡口、旧油纸伞与两盏灯",
+      "caption": "白汀渡 · 旧灯",
+      "tags": [
+        "xianxia-guide",
+        "opening",
+        "原创剧本场景"
+      ],
+      "provenance": {
+        "method": "image_gen",
+        "sourceSha256": "3e399f877f7196e538216f845af93eb5d77ed50bb66c1fbe8aefe00fefa0438c"
+      }
+    },
+    {
+      "id": "story-shenzhao-investigation",
+      "kind": "image",
+      "file": "story-shenzhao-investigation-a9125880bb5bc6f3.webp",
+      "sha256": "a9125880bb5bc6f38086f69619161a7bd43a3164b6b4b13c6e2b8b30303c66e6",
+      "width": 1280,
+      "height": 853,
+      "alt": "灯下的缺页渡口簿和带三道刻痕的旧伞柄",
+      "caption": "白汀渡 · 伞柄旧痕",
+      "tags": [
+        "xianxia-guide",
+        "investigation",
+        "原创剧本场景"
+      ],
+      "provenance": {
+        "method": "image_gen",
+        "sourceSha256": "50197e84a4298a120ef17bed699e7781328e659f5feb1b086fc466a569dd08e2"
+      }
+    },
+    {
+      "id": "story-shenzhao-resolution",
+      "kind": "image",
+      "file": "story-shenzhao-resolution-dd08044d0a76b01c.webp",
+      "sha256": "dd08044d0a76b01c985ce9d4ae40cda41bd936d18bdef85f593ecd17f99af42a",
+      "width": 1280,
+      "height": 853,
+      "alt": "晨光里的渡船、旧伞、灯和重新装订的簿册",
+      "caption": "白汀渡 · 天明",
+      "tags": [
+        "xianxia-guide",
+        "resolution",
+        "原创剧本场景"
+      ],
+      "provenance": {
+        "method": "image_gen",
+        "sourceSha256": "a6ecf3bf81ad1d7da4f5fa498538fec764fce3cc42b6d46514e4df1237aa62f5"
+      }
+    },
+    {
+      "id": "story-fantasy-opening",
+      "kind": "image",
+      "file": "story-fantasy-opening-395e47431130f464.webp",
+      "sha256": "395e47431130f46464f5f1420753b84a3bcbaa3b01dc813b75be892015b6066b",
+      "width": 1280,
+      "height": 853,
+      "alt": "地图修补台上的无名信、银翼鸟与缺角航图",
+      "caption": "浮空群岛 · 无名信",
+      "tags": [
+        "story-traveler",
+        "opening",
+        "原创剧本场景"
+      ],
+      "provenance": {
+        "method": "image_gen",
+        "sourceSha256": "eb1a952a58336eb520560c78fcb59b1f781c27a8a05549a964bbbd995fcda035"
+      }
+    },
+    {
+      "id": "story-fantasy-investigation",
+      "kind": "image",
+      "file": "story-fantasy-investigation-41c9df3ce43db397.webp",
+      "sha256": "41c9df3ce43db397911bddbc68f4821f3d2aa50f8b4d852ca7d57844defef3c4",
+      "width": 1280,
+      "height": 853,
+      "alt": "沿退潮云层飞行的银翼鸟与浮岛航线",
+      "caption": "浮空群岛 · 潮云航线",
+      "tags": [
+        "story-traveler",
+        "investigation",
+        "原创剧本场景"
+      ],
+      "provenance": {
+        "method": "image_gen",
+        "sourceSha256": "74e0c9df05bfa4dd157d9ec51b76bf6027e2c1ebcca32f6c4e3d61761b932ee1"
+      }
+    },
+    {
+      "id": "story-fantasy-resolution",
+      "kind": "image",
+      "file": "story-fantasy-resolution-abc5cc78a7941877.webp",
+      "sha256": "abc5cc78a7941877befeacdd0e7a7d777f38adbef22a0951f6d8218faf447e31",
+      "width": 1280,
+      "height": 853,
+      "alt": "云海中的小航路站与等待来访的茶桌",
+      "caption": "浮空群岛 · 航路站",
+      "tags": [
+        "story-traveler",
+        "resolution",
+        "原创剧本场景"
+      ],
+      "provenance": {
+        "method": "image_gen",
+        "sourceSha256": "51b2a298b6e888b4b05f3bc6a2033d40931d1351f6b07b10548a549ffd4379f1"
+      }
+    }
+  ]
+}

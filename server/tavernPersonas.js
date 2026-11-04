@@ -131,6 +131,11 @@ const cards = {
   },
 }
 
+for (const [id, life] of Object.entries(TAVERN_CHARACTER_LIVES)) {
+  cards[id].biography = life.biography + '\n' + life.episodes.join('\n') + '\n' + life.tensions
+  cards[id].storyArc = life.publicArc
+}
+
 const CHARACTERS = Object.freeze(Object.fromEntries(Object.entries(cards).map(([id, card]) => [id, Object.freeze({
   ...card, examples: Object.freeze(card.examples.map(example => Object.freeze({ ...example }))),
 })])))
@@ -167,3 +172,4 @@ export function tavernCharacterPrompt(id) {
     '如果附有 JSON/配图输出协议，照协议包装自然聊天文本；不要把协议语言、角色卡栏目、示例标签或分析过程说给用户。',
   ].join('\n')
 }
+import { TAVERN_CHARACTER_LIVES } from './tavernCharacterLives.js'

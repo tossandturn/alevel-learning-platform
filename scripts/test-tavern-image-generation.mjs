@@ -29,6 +29,15 @@ assert.match(lastBody.prompt,/雾里的河灯/)
 assert.match(lastBody.prompt,/No sexual content/)
 await assert.rejects(()=>generator.generate({ownerId:'ielts:55',persona:'horror-guide',prompt:'再画一张'}),error=>error.statusCode===429&&error.code==='tavern_image_rate_limited')
 assert.equal(providerCalls,2,'rate limits prevent a second provider charge during cooldown')
+let cachedCalls=0
+const cachedGenerator=createTavernImageGenerator({env,fetchImpl:async(...args)=>{cachedCalls++;return fetchImpl(...args)}})
+const sameRequest={ownerId:'ielts:5501',persona:'horror-guide',prompt:'画一盏河灯',requestId:'image-idempotency-01'}
+const cachedResults=await Promise.all([cachedGenerator.generate(sameRequest),cachedGenerator.generate(sameRequest)])
+assert.deepEqual(cachedResults[0].bytes,cachedResults[1].bytes)
+assert.equal(cachedCalls,2,'same image retry shares one provider request and one image download')
+await cachedGenerator.generate(sameRequest)
+assert.equal(cachedCalls,2,'completed retry reuses the bounded cached image')
+await assert.rejects(()=>cachedGenerator.generate({...sameRequest,prompt:'换一个画面'}),error=>error.statusCode===409)
 now+=31_000
 await generator.generate({ownerId:'ielts:55',persona:'horror-guide',prompt:'画一盏河灯'})
 for(let index=0;index<4;index++){now+=31_000;await generator.generate({ownerId:'ielts:55',persona:'horror-guide',prompt:'画雨夜茶室'})}
