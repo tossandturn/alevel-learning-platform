@@ -2,7 +2,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { DatabaseSync } from 'node:sqlite'
-import { scriptGame, publicScriptCatalog } from './scriptGameCatalog.js'
+import { scriptGame, newScriptGame, publicScriptCatalog } from './scriptGameCatalog.js'
+import {npcRomanceDecision,romanceReplyActor,romanceOutcomes} from './scriptRomance.js'
 import {visibleScriptRole} from './scriptRoleCards.js'
 import {normalizeScriptDialogue} from './scriptDialogue.js'
 
@@ -17,7 +18,7 @@ const publicRole=role=>({id:role.id,name:role.name,tagline:role.tagline})
 const clone=v=>JSON.parse(JSON.stringify(v))
 const text=v=>{const s=scalar(v,2400).replace(/\u0000/g,'');if(!s)fail(400,'script_text_required','请输入内容（最多2400字）。');return s}
 const fields={ready:[],start:[],claim:['roleId'],inspect:['clueId'],share:['clueId'],requestEvidence:['roleId'],choose:['missionId','optionId'],solve:['answer'],advance:[],vote:['choiceId'],chat:['text','target'],image:['text','target'],retry:['jobId'],leave:[],close:[]}
-const gameFor=r=>scriptGame(r.scriptId,r.scriptVersion)
+const gameFor=r=>scriptGame(r.scriptId,r.scriptVersion,r.contentEdition)
 
 export function createScriptRoomStore({root,now=Date.now}={}){
  if(!root||!path.isAbsolute(root))throw Error('script room root must be absolute')
@@ -35,7 +36,7 @@ export function createScriptRoomStore({root,now=Date.now}={}){
   const row=db.prepare('SELECT snapshot FROM script_rooms WHERE id=?').get(scalar(id))
   if(!row)fail(404,'script_room_missing','房间不存在，或你没有加入此房间。')
   const r=JSON.parse(row.snapshot)
-  if(!scriptGame(r.scriptId,r.scriptVersion))fail(409,'script_version_unavailable','本局剧本版本暂不可用，原进度仍保留，不会换成其他剧本。')
+  if(!gameFor(r))fail(409,'script_version_unavailable','本局剧本版本暂不可用，原进度仍保留，不会换成其他剧本。')
   if(!expired&&r.expiresAt<=now())fail(410,'script_room_expired','房间已过期，请创建新房间。')
   return r
  }
@@ -56,7 +57,7 @@ export function createScriptRoomStore({root,now=Date.now}={}){
   const seen=new Map(db.prepare('SELECT owner,seen FROM script_presence WHERE room_id=?').all(r.id).map(x=>[x.owner,x.seen]))
   const act=game.acts[r.stage],publicClues=game.clues.filter(c=>r.publicClues.includes(c.id))
   const currentClues=game.clues.filter(c=>c.stage===r.stage)
-  return {id:r.id,scriptId:r.scriptId,scriptVersion:r.scriptVersion,title:game.title,genre:game.genre,warning:game.warning,revision:r.revision,phase:r.phase,stage:r.stage,
+  return {id:r.id,scriptId:r.scriptId,scriptVersion:game.clientVersion||r.scriptVersion,title:game.title,genre:game.genre,warning:game.warning,revision:r.revision,phase:r.phase,stage:r.stage,
    inviteCode:r.phase==='lobby'?r.inviteCode:'',expiresAt:r.expiresAt,isHost:r.host===who,myRoleId:me.roleId,
    seats:r.seats.map(s=>({...publicRole(game.roles.find(x=>x.id===s.roleId)),control:s.control,isMe:s.owner===who,ready:s.ready,advanced:r.advanced.includes(s.roleId),online:s.control==='ai'||now()-(seen.get(s.owner)||0)<45000})),
    myRole:running?visibleScriptRole(own,r.stage,game.id):publicRole(own),myClues:running?game.clues.filter(c=>(r.known[me.roleId]||[]).includes(c.id)).map(c=>({...c,shared:r.publicClues.includes(c.id)})):[],publicClues,
@@ -83,9 +84,9 @@ export function createScriptRoomStore({root,now=Date.now}={}){
  }
  function create(who,payload){owner(who);const {scriptId,scriptVersion,requestId}=payload||{};return transaction(()=>{
   const body={kind:'create',scriptId,...(scriptVersion===undefined?{}:{scriptVersion})},previous=existing(who,requestId,body);if(previous)return view(previous,who)
-  const game=scriptGame(scriptId,scriptVersion??1);if(!game)fail(400,'script_invalid_script','请选择已有剧本。')
+  const game=newScriptGame(scriptId,scriptVersion??1);if(!game)fail(400,'script_invalid_script','请选择已有剧本。')
   prune();quota(who)
-  const r={id:crypto.randomUUID(),inviteCode:crypto.randomBytes(8).toString('hex').toUpperCase(),scriptId,scriptVersion:game.version,host:who,phase:'lobby',stage:0,revision:1,eventSeq:0,createdAt:now(),updatedAt:now(),expiresAt:now()+TTL,
+  const r={id:crypto.randomUUID(),inviteCode:crypto.randomBytes(8).toString('hex').toUpperCase(),scriptId,scriptVersion:game.version,...(game.contentEdition?{contentEdition:game.contentEdition}:{}),host:who,phase:'lobby',stage:0,revision:1,eventSeq:0,createdAt:now(),updatedAt:now(),expiresAt:now()+TTL,
    seats:game.roles.map((role,i)=>({roleId:role.id,owner:i===0?who:null,control:i===0?'human':'open',ready:false})),known:{},publicClues:[],solved:[],attempts:{},advanced:[],votes:{},messages:[],jobs:[],npcMemory:{},relations:{},missionChoices:{},ending:null}
   db.prepare('INSERT INTO script_rooms VALUES(?,?,?,?,?)').run(r.id,r.inviteCode,JSON.stringify(r),r.expiresAt,now());event(r,'created',r.seats[0].roleId);save(r);receipt(who,requestId,body,r);heartbeat(r,who);return view(r,who)
  })}
@@ -94,7 +95,7 @@ export function createScriptRoomStore({root,now=Date.now}={}){
   if(!/^[A-F0-9]{16}$/.test(code))fail(404,'script_invite_invalid','邀请码无效或已过期。')
   const row=db.prepare('SELECT id FROM script_rooms WHERE invite_code=?').get(code);if(!row)fail(404,'script_invite_invalid','邀请码无效或已过期。')
   const r=load(row.id),already=r.seats.find(s=>s.owner===who)
-  if(r.scriptVersion>clientVersion)fail(409,'script_client_update','此房间需要新版剧本玩法，请更新小程序后加入；尚未占用角色。')
+  if((gameFor(r).clientVersion||r.scriptVersion)>clientVersion)fail(409,'script_client_update','此房间需要新版剧本玩法，请更新小程序后加入；尚未占用角色。')
   if(already){receipt(who,requestId,body,r);return view(r,who)}
   if(r.phase!=='lobby')fail(409,'script_already_started','游戏已开始，不能中途领取别人身份。')
   quota(who)
@@ -108,6 +109,8 @@ export function createScriptRoomStore({root,now=Date.now}={}){
   r.advanced=[];message(r,'dm',a.opening,{kind:'narration',image:a.image})
   // Bots obey the same stage/ownership rule; their discoveries are fixed evidence, not model inventions.
   for(const seat of r.seats.filter(s=>s.control==='ai')){
+   const decision=npcRomanceDecision(game,seat.roleId,r.stage)
+   if(decision){r.missionChoices||={};r.missionChoices[seat.roleId]||={};r.missionChoices[seat.roleId][decision.missionId]||=decision.optionId}
    const c=game.clues.find(c=>c.stage===r.stage&&c.roleId===seat.roleId)
    r.known[seat.roleId]=[...(r.known[seat.roleId]||[]),c.id]
    if(game.version>=2){event(r,'bot_discovered',seat.roleId,{clueId:c.id});message(r,seat.roleId,game.roles.find(x=>x.id===seat.roleId).card.beats[r.stage].entrance)}
@@ -128,6 +131,8 @@ export function createScriptRoomStore({root,now=Date.now}={}){
   for(const j of r.jobs)if(j.kind!=='image'&&j.status!=='done')j.status='superseded'
   r.phase='ended';r.ending={choiceId:selected,tie,counts,aiVotes,truth:game.truth,text:tie?'票数相同，团队没有形成一致结论。各人的选择被保留；以下复盘不把任何人擅自算作同意。':game.endings[selected]||game.endings.other,
    roles:game.roles.map(({id,name,secret,goal})=>({id,name,secret,goal})),clues:game.clues}
+  const relationships=romanceOutcomes(game,r)
+  if(relationships.length)r.ending.text+='\n\n【各自的感情结局】\n'+relationships.map(item=>item.text).join('\n\n')
   message(r,'dm',r.ending.text,{kind:'narration'});event(r,'ended','dm',{choiceId:selected})
  }
  function act(who,id,payload){owner(who);return transaction(()=>{
@@ -213,7 +218,9 @@ export function createScriptRoomStore({root,now=Date.now}={}){
    else if(target==='dm')queue(r,'dm',me.roleId,m.id)
    else if(seat?.control==='ai')queue(r,seat.roleId,me.roleId,m.id)
    else if(target==='public'){
-    const bots=r.seats.filter(s=>s.control==='ai');if(bots.length)queue(r,bots[r.jobs.length%bots.length].roleId,'public',m.id)
+    const reply=romanceReplyActor(game,me.roleId,m.text,r.seats)
+    if(reply)queue(r,reply,'public',m.id)
+    else if(reply===undefined){const bots=r.seats.filter(s=>s.control==='ai');if(bots.length)queue(r,bots[r.jobs.length%bots.length].roleId,'public',m.id)}
    }
    if(seat){r.relations[me.roleId]||={};r.relations[me.roleId][target]||={exchanges:0,attitude:'尚在了解'};r.relations[me.roleId][target].exchanges++}
   }
@@ -253,6 +260,10 @@ export function createScriptRoomStore({root,now=Date.now}={}){
    memory:(r.npcMemory[job.actor]||[]).filter(m=>m.target==='public'||m.target===job.target).slice(-16),
    relationship:job.target==='public'?{}:r.relations[job.target]?.[job.actor]||{},
    target:job.target,sender:publicRole(game.roles.find(s=>s.id===r.messages.find(m=>m.id===job.trigger)?.actor)||{id:'unknown',name:'玩家'}),trigger:r.messages.find(m=>m.id===job.trigger)?.text||''}
+  if(role?.card?.romance){
+   const mission=role.missions.find(m=>m.stage===r.stage),chosen=r.missionChoices?.[role.id]?.[mission?.id]
+   context.actorDecision=mission?.options.find(o=>o.id===chosen)?.label||''
+  }
   if(job.actor==='dm'&&job.target!=='public'){
    const humanRole=game.roles.find(s=>s.id===job.target)
    context.requester={id:humanRole.id,name:humanRole.name,goal:humanRole.goal,currentMission:humanRole.missions?.find(m=>m.stage===r.stage)?.prompt||'',decisionSaved:Boolean(r.missionChoices?.[job.target]?.[`${job.target}-${r.stage}`])}

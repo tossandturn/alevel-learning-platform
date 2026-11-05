@@ -219,6 +219,6 @@ export function enrichScriptRole(gameId,role){
  return {...role,card:{...entry.card,version:2},missions:entry.missions.map((m,stage)=>({...m,id:`${role.id}-${stage}`,stage}))}
 }
 export function visibleScriptRole(role,stage,gameId){
- const {card,missions,...base}=role
- return {...base,biography:roleBookBiography(gameId,role),...(card?{card:{...card,beats:card.beats.slice(0,stage+1)}}:{})}
+ const {card,missions,entryBook,...base}=role
+ return {...base,biography:entryBook||roleBookBiography(gameId,role),...(card?{card:{...card,beats:card.beats.slice(0,stage+1)}}:{})}
 }

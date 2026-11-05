@@ -22,6 +22,20 @@ try{
  let r=(await request(1,'',creation)).data
  const legacy=await fetch(base,{method:'POST',headers:{authorization:'Bearer '+jwt(9),'content-type':'application/json'},body:JSON.stringify({scriptId:'before-rain',requestId:'legacy-client-create'})})
  assert.equal((await legacy.json()).scriptVersion,1,'old clients create compatible rooms')
+ const romanceCreation={scriptId:'before-rain',scriptVersion:2,requestId:'api-romance-create-01'}
+ let romance=(await request(11,'',romanceCreation)).data
+ assert.equal(romance.scriptVersion,2,'the new content edition uses the existing native capability')
+ assert.equal(romance.genre,'爱情情感本')
+ assert.equal(romance.contentEdition,undefined,'content binding is server-owned, not a client command')
+ assert.equal((await request(11,'',{...romanceCreation,requestId:'api-romance-forged-01',contentEdition:'legacy'})).status,400)
+ const romanceLegacyJoin=await fetch(base+'/join',{method:'POST',headers:{authorization:'Bearer '+jwt(12),'content-type':'application/json'},body:JSON.stringify({inviteCode:romance.inviteCode,requestId:'api-romance-legacy-join'})})
+ assert.equal(romanceLegacyJoin.status,409,'unsupported old interaction capability cannot claim a romance seat')
+ romance=(await request(12,'/join',{inviteCode:romance.inviteCode,requestId:'api-romance-join-01',roleId:'repair'})).data
+ assert.equal(romance.scriptVersion,2);assert.equal(romance.seats.filter(s=>s.control==='human').length,2)
+ for(const who of [11,12])romance=(await request(who,'/'+romance.id+'/actions',{type:'ready',revision:romance.revision,requestId:'api-romance-ready-'+who})).data
+ romance=(await request(11,'/'+romance.id+'/actions',{type:'start',revision:romance.revision,requestId:'api-romance-start-01'})).data
+ assert.ok(romance.myRole.biography.length>1000);assert.equal(romance.myRole.card.romance.partnerId,'repair')
+ assert.ok(romance.seats.every(s=>!s.secret&&!s.biography),'new cast retains private identity boundaries')
  const legacyGet=await fetch(base+'/'+r.id,{headers:{authorization:'Bearer '+jwt(1)}})
  assert.equal(legacyGet.status,409);assert.equal((await legacyGet.json()).error.code,'script_client_update')
  const legacyJoin=await fetch(base+'/join',{method:'POST',headers:{authorization:'Bearer '+jwt(2),'content-type':'application/json'},body:JSON.stringify({inviteCode:r.inviteCode,requestId:'legacy-join-v2'})})
