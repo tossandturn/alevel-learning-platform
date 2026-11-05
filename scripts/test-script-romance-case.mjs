@@ -6,6 +6,7 @@ import {createScriptRoomStore} from '../server/scriptRoomStore.js'
 import {newScriptGame,scriptGame,publicScriptCatalog} from '../server/scriptGameCatalog.js'
 import {visibleScriptRole} from '../server/scriptRoleCards.js'
 import {scriptActorMessages} from '../server/scriptRoomApi.js'
+import {caseReplyActor} from '../server/scriptRomanceCase.js'
 const game=newScriptGame('before-rain',2),hash=v=>crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex')
 assert.equal(game.version,4,'new four-person rooms need a real case edition, not the old conversation-only edition')
 assert.equal(game.contentEdition,'romance-case-20261106');assert.equal(game.clientVersion,2)
@@ -15,6 +16,10 @@ assert.equal(publicScriptCatalog().length,5);assert.match(game.summary,/命案|�
 assert.equal(game.case.culprit,'repair');assert.ok(game.acts.every(a=>a.resolution));assert.ok(game.acts.slice(0,2).every(a=>a.puzzle));assert.equal(game.acts[2].puzzle,null)
 assert.equal(game.ballot.options.length,4);assert.ok(game.roles.every(role=>game.ballot.options.some(o=>o.id===role.id)))
 assert.equal(scriptGame(game.id,4,'wrong-edition'),null)
+const botSeats=game.roles.map(r=>({roleId:r.id,control:r.id==='letter'?'human':'ai'}))
+for(const text of ['主持人，这局共同要查什么，现在怎么推进，不要先告诉我凶手？','DM，请整理当前目标','旁白，帮我理一理','凶手是谁？','我们接着该查什么？'])assert.equal(caseReplyActor(game,'letter',text,botSeats),'dm',`explicit host or investigation request: ${text}`)
+assert.equal(caseReplyActor(game,'letter','顾晚，你怎么看这份登记？',botSeats),'conductor')
+assert.equal(caseReplyActor(game,'letter','周泊舟，我想先谈谈以前。',botSeats),'repair')
 for(const role of game.roles){
  assert.equal(role.chapters.length,3)
  for(let stage=0;stage<3;stage++){

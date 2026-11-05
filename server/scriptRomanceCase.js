@@ -107,8 +107,9 @@ export function caseNpcDecision(game,id,stage){return applies(game)?{missionId:`
 export function caseReplyActor(game,speakerId,text,seats){
  if(!applies(game))return undefined
  const line=String(text||'').trim().replace(/^@/,''),named=game.roles.find(r=>line===r.name||line.startsWith(r.name)&&/^[，,：:、！？!?\s]/u.test(line.slice(r.name.length)))
+ if(/^(?:主持人|旁白|dm)(?:[，,：:、！？!?\s]|$)/iu.test(line))return 'dm'
  if(named)return seats.some(s=>s.roleId===named.id&&s.control==='ai')?named.id:''
- if(/案|韩屿|死者|线索|时间线|播报|录音|门禁|接下来|任务|下一步|节目|验收/.test(line))return 'dm'
+ if(/案|韩屿|死者|线索|时间线|播报|录音|门禁|接下来|任务|下一步|节目|验收|凶手|谁杀|怎么推进|怎么继续|查什么|该查|还原|搜证|指认/.test(line))return 'dm'
  const partner=game.roles.find(r=>r.id===speakerId)?.card.romance.partnerId
  return seats.some(s=>s.roleId===partner&&s.control==='ai')?partner:''
 }
