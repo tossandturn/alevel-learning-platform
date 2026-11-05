@@ -28,4 +28,8 @@ Long-term continuity must include **both speakers** and the provenance/time of a
 
 ## Production
 
-Pending exact-source readiness, rollback verification and authenticated synthetic acceptance. No student rooms or purchases are test targets.
+- First backend release `30cbe0c` activated after exact-file/resource gates and verified rollback. Three scene-image GETs, five-book public catalog, old-room continuity after restart, and authenticated 1/2-human duet journeys passed. No student rooms or purchases were test targets.
+- Live old-room probes recovered an older private meeting location/object outside the recent window and correctly recognized the paper-bag plan as learned tonight, not eight years ago. Public follow-up retained public evidence without the private promise. Replies completed in about 5.1 / 5.1 seconds.
+- Manual review of a 3.1-second duet reply found an invented literal past utterance, despite correct high-level history. Added a narrow quote-provenance check: quoted past utterances must appear in authored facts or visible dialogue (style examples excluded). One bounded repair is permitted; repeated unsupported output is not saved. RED was observed, then the full Tavern suite passed. This is not a semantic verifier for unquoted prose.
+- Source `cbaef69` fixes client numeric copy; **no client upload**. Frozen 1.0.92 passed both roles, two seats, full role books, private channels and 2-clue adoption. Its generic neutral theme is retained for the new script.
+- Post-hardening production verification is recorded after the final deployment.

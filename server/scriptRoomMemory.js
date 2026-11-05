@@ -1,6 +1,18 @@
 // Derived from the durable room transcript; no AI summary, new database, or
 // cross-user search. Visibility is applied BEFORE retrieval and ranking.
 export const SCRIPT_MEMORY_LIMITS=Object.freeze({recentMessages:35,anchors:12,quoteCharacters:700,totalCharacters:6000})
+// Narrow provenance check: a literal past utterance must exist in authored
+// facts or visible actual dialogue. This is not a semantic fact checker for all
+// free-form fiction. Style examples are intentionally NOT evidence of history.
+export function hasUnsupportedRecollectionQuote(proposal,context){
+ if(!context.actor?.card?.romance)return false
+ const speech=typeof proposal.text==='string'?proposal.text:(proposal.segments||[]).filter(p=>p.kind==='speech').map(p=>p.text).join('\n')
+ if(!/以前|当年|那次|小事|回忆|记得|过去|三年|八年|刚才|上一幕/.test(String(context.trigger||'')+' '+speech))return false
+ const normalize=s=>String(s||'').normalize('NFKC').replace(/[\s\p{P}]/gu,'')
+ const sources=[context.actor.biography,context.actor.secret,...(context.actor.card.pastEventAnchors||[]),...(context.evidence||[]).map(e=>e.text),...(context.messages||[]).map(m=>m.text),...(context.continuity?.dialogueAnchors||[]).map(m=>m.text),context.trigger].map(normalize)
+ const quotes=[...speech.matchAll(/[“‘「『"]([^”’」』"\n]{6,600})[”’」』"]/gu)].map(m=>normalize(m[1])).filter(q=>Array.from(q).length>=6)
+ return quotes.some(quote=>!sources.some(source=>source.includes(quote)))
+}
 const speechText=m=>String(m?.text||'')
 const clip=(text,max)=>Array.from(String(text||'')).slice(0,max).join('')
 export function scriptMessageVisible(message,job){

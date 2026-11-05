@@ -3,6 +3,7 @@ import { createScriptRoomStore } from './scriptRoomStore.js'
 import { publicScriptCatalog } from './scriptGameCatalog.js'
 import {normalizeScriptDialogue} from './scriptDialogue.js'
 import {guardRomanceRecollection} from './scriptRomance.js'
+import {hasUnsupportedRecollectionQuote} from './scriptRoomMemory.js'
 
 const prefix='/api/ai/script-rooms'
 const error=(statusCode,code,message)=>Object.assign(Error(message),{statusCode,code})
@@ -29,6 +30,7 @@ function checkedProposal(raw,context){
  const settings={actor:context.actor.id,name:context.actor.name,target:context.target,evidence:context.evidence}
  if(!normalizeScriptDialogue(value,settings))return null
  const guarded=guardRomanceRecollection(value,context)
+ if(hasUnsupportedRecollectionQuote(guarded,context))return null
  return normalizeScriptDialogue(guarded,settings)?guarded:null
 }
 
@@ -50,7 +52,7 @@ export function createScriptRoomApi({root,authenticate,sendJson,readBody,generat
      let value=checkedProposal(await generate(messages,{requestId:item.job.id}),item.context)
      if(!value){
       // One bounded formatting repair; no state is written from the rejected response.
-      const repair=[...messages,{role:'user',content:'格式校验未通过。只返回一个JSON对象，且本次仅包含text和attitude两个字段。text是当前角色的自然发言；不要附加动作、线索发放、状态、阶段或其他字段。'}]
+      const repair=[...messages,{role:'user',content:'回复的格式或回忆依据校验未通过。只返回一个JSON对象，且本次仅包含text和attitude两个字段。text是当前角色的自然发言；不要附加动作、线索发放、状态、阶段或其他字段。若在回忆过去，删掉角色本或可见历史原文中找不到的逐字引语，不要补写玩家当年说过的话；可以用自己的话说已有事实和此刻感受。'}]
       value=checkedProposal(await generate(repair,{requestId:item.job.id+'-format-repair'}),item.context)
      }
      store().completeJob(id,item.job.id,item.job.leaseId,value)
