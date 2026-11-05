@@ -2,6 +2,7 @@ import path from 'node:path'
 import { createScriptRoomStore } from './scriptRoomStore.js'
 import { publicScriptCatalog } from './scriptGameCatalog.js'
 import {normalizeScriptDialogue} from './scriptDialogue.js'
+import {guardRomanceRecollection} from './scriptRomance.js'
 
 const prefix='/api/ai/script-rooms'
 const error=(statusCode,code,message)=>Object.assign(Error(message),{statusCode,code})
@@ -23,7 +24,10 @@ export function scriptActorMessages(context){
 
 function checkedProposal(raw,context){
  let value;try{value=typeof raw==='string'?JSON.parse(raw.replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'')):raw}catch{return null}
- return normalizeScriptDialogue(value,{actor:context.actor.id,name:context.actor.name,target:context.target,evidence:context.evidence})?value:null
+ const settings={actor:context.actor.id,name:context.actor.name,target:context.target,evidence:context.evidence}
+ if(!normalizeScriptDialogue(value,settings))return null
+ const guarded=guardRomanceRecollection(value,context)
+ return normalizeScriptDialogue(guarded,settings)?guarded:null
 }
 
 export function createScriptRoomApi({root,authenticate,sendJson,readBody,generate,generateImage,enabled=true,store:providedStore=null}){

@@ -9,7 +9,7 @@ import { createScriptRoomStore } from '../server/scriptRoomStore.js'
 import { scriptActorMessages } from '../server/scriptRoomApi.js'
 
 assert.equal(typeof catalog.newScriptGame,'function','new rooms need a separately pinned romance edition, not rewritten legacy content')
-const { romanceOutcomes } = await import('../server/scriptRomance.js')
+const { romanceOutcomes, guardRomanceRecollection } = await import('../server/scriptRomance.js')
 const game=catalog.newScriptGame('before-rain',2),hash=v=>crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex')
 assert.equal(game.contentEdition,'romance-20261105');assert.equal(game.version,3);assert.equal(game.clientVersion,2,'content version is independent of installed native capability')
 assert.match(game.genre,/爱情/);assert.match(game.summary,/许知夏.*周泊舟/);assert.match(game.summary,/林序.*顾晚/)
@@ -23,6 +23,17 @@ assert.equal(catalog.scriptGame('before-rain',2,'unknown-edition'),null)
 assert.equal(catalog.scriptGame('thirteenth-curtain',2,game.contentEdition),null)
 assert.equal(catalog.scriptGame('before-rain',1,game.contentEdition),null)
 assert.equal(catalog.scriptGame('before-rain',3,game.contentEdition),game)
+assert.equal(typeof guardRomanceRecollection,'function','known actor/player fact reversals need a final response guard')
+const repairContext={actor:game.roles[1],sender:game.roles[0],trigger:'讲一件以前相处的小事'}
+const reversed={segments:[{kind:'speech',text:'广播室门口那碗冷面，你吃之前总把香菜一根根挑出来，后来我才知道你不吃。'}]}
+assert.match(guardRomanceRecollection(reversed,repairContext).segments[0].text,/不吃香菜的是我/)
+const falseMotive={segments:[{kind:'speech',text:'新裙子那次，机器其实早修完了，我躲在后间。'}]}
+assert.match(guardRomanceRecollection(falseMotive,repairContext).segments[0].text,/不是提前修好以后故意躲/)
+for(const text of ['我不吃香菜，知夏一直记得。','那次我没有躲在后间，不是提前修好后让她等。','不是你不值得被叫住，是我没有把自己的事说清楚。']){
+ const value={segments:[{kind:'speech',text}]};assert.equal(guardRomanceRecollection(value,repairContext),value,'do not replace valid memories, denials or ordinary dialogue')
+}
+const current={segments:[{kind:'speech',text:'你不吃香菜，那今天就不加。'}]};assert.equal(guardRomanceRecollection(current,{...repairContext,trigger:'今天这碗面别加香菜'}),current,'a current request is not an invented past memory')
+assert.equal(guardRomanceRecollection(reversed,{actor:catalog.scriptGame('before-rain',2).roles[1],trigger:'以前'}),reversed,'legacy games are unchanged')
 for(const role of game.roles){
  const view=visibleScriptRole(role,0,game.id),body=view.biography
  assert.ok(body.length>=1000&&body.length<=2600,`${role.name}: complete but bounded background (${body.length})`)

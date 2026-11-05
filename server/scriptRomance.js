@@ -180,6 +180,25 @@ export function romanceReplyActor(game,speakerId,text,seats){
  const target=named?.id||game.roles.find(role=>role.id===speakerId)?.card?.romance?.partnerId
  return seats.some(seat=>seat.roleId===target&&seat.control==='ai')?target:''
 }
+// Narrow, authored checks for observed canon regressions. This is not a claim
+// to semantically verify arbitrary fiction. Preserve normal dialogue and never
+// infer or award a game-state change from the model's prose.
+export function guardRomanceRecollection(proposal,context){
+ const actor=context?.actor
+ if(actor?.id!=='repair'||actor.card?.romance?.partnerId!=='letter'||!actor.card?.pastEventAnchors)return proposal
+ const text=typeof proposal?.text==='string'?proposal.text:(proposal?.segments||[]).filter(p=>p.kind==='speech').map(p=>p.text).join('\n')
+ if(!/以前|记得|当年|哪次|哪一次|那次|小事|后来|初识|新裙子/.test(String(context.trigger||'')+' '+text))return proposal
+ const clauses=text.split(/[，,。！？\n]/u)
+ const affirmative=(clause,pattern)=>{const hit=pattern.exec(clause);return hit&&!/不是|并非|没有|没|不曾|不应|不能|否认/.test(clause.slice(Math.max(0,hit.index-12),hit.index))}
+ const inventedMotive=clauses.some(c=>affirmative(c,/(?:机器.{0,12}(?:早|已经).{0,8}修(?:完|好)|躲在(?:后间|后面|里间)|故意(?:让你等|晾着你|迟到))/u))
+ const reversedPreference=clauses.some(c=>!/(?:替|给|帮)我|我的?碗|我不吃/.test(c)&&affirmative(c,/(?:你.{0,24}香菜.{0,20}(?:挑|拣|拨)|(?:你|知夏|她).{0,8}不(?:吃|喜欢)香菜)/u))
+ if(!inventedMotive&&!reversedPreference)return proposal
+ const you=context.sender?.id==='letter'?'你':'知夏'
+ const safeText=inventedMotive
+  ?`新裙子那次，我是为了修朋友的机器耽误了约定，让${you}等了很久；不是提前修好以后故意躲着。${you}把吊牌丢到我桌上，说自己不是一件永远可以晚点处理的事。那句话我记着。初识时故意多留一首歌，是另一件事，不能拿来改写这次迟到的原因。`
+  :`我记得广播室门口那碗冷面。不吃香菜的是我，${you}记得这个习惯。那时我们会一起吃面，也会为了迟到吵架。我喜欢的不是一个只会迁就我的人；${you}肯认真告诉我哪里做得不好，我后来才慢慢学会把约定当回事。`
+ return {segments:[{kind:'speech',text:safeText}],attitude:proposal.attitude||'谨慎'}
+}
 export function romanceOutcomes(game,room){
  if(game?.contentEdition!==ROMANCE_EDITION)return []
  return [
