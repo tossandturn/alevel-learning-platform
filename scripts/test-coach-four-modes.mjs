@@ -122,7 +122,11 @@ for (const [persona, title] of expectedTavernPresets) {
   assert.match(prompt, /never repeat.*visible opening.*even.*empty history/i)
   assert.match(prompt, /background cue only/i)
   assert.match(prompt, /prior history exists.*continue it.*never reset/i)
-  assert.match(prompt, /different new setting.*over this default cue/i)
+  // Story canon is server-owned: a new setting is a suggestion, not permission
+  // to overwrite a saved story (the older free-form prompt assertion was stale).
+  assert.match(prompt, /honor the saved canonical world and progress/i)
+  assert.match(prompt, /new setting suggestion.*cannot silently rewrite the active story/i)
+  assert.match(prompt, /Only an explicit restart resets it/i)
   assert.match(prompt, /gambling.*lotter/i)
   assert.match(prompt, /purchases.*real alcohol/i)
   assert.match(prompt, /never humiliate the user/i)
@@ -140,7 +144,8 @@ assert.match(personaPrompts.get('mystery-guide'), /河岸档案室的第九张�
 assert.match(personaPrompts.get('mystery-guide'), /线索不足/)
 assert.match(personaPrompts.get('mystery-guide'), /不能替用户写台词/)
 assert.match(personaPrompts.get('horror-guide'), /雨窗茶室·00:17/)
-assert.match(personaPrompts.get('horror-guide'), /超自然回声/)
+assert.match(personaPrompts.get('horror-guide'), /尚未揭晓.*服务端未开放结论/)
+assert.doesNotMatch(personaPrompts.get('horror-guide'), /真实超自然回声/, 'the public opening must not preload the gated story solution')
 for (const persona of ['story-traveler', 'xianxia-guide']) {
   const prompt = personaPrompts.get(persona)
   assert.match(prompt, /never invent or imply.*user's past or future action/i)
