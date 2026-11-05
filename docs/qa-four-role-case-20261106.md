@@ -33,4 +33,7 @@ AI prose remains generative; the fixed case state, future-chapter permissions an
 
 ## Deployment
 
-Pending fresh readiness, rollback, source identity and authenticated synthetic production acceptance.
+- Initial content/runtime release `ac7b4e2` activated after exact-source/resource and verified rollback gates. It uses six allowlisted backend modules; no production build or client upload.
+- Old v3 synthetic canary survived with the same private book, stage and already discovered clue.
+- First live acceptance caught an explicit “主持人” request being routed to the romantic partner. Reproduced RED locally, added host-address and investigation-intent cases, fixed in `b34c5b3`; full Tavern regression passed again. Final live replay follows the routing patch.
+- Routing-patch live replay completed all 1–4-human journeys with fixed truth, staged private books and separate personal outcomes. Manual reading caught one DM instruction conflating team conclusion with private stance. Added canonical server-authored operational guidance (correct “本局 → 本幕任务 → 共同结论 / 核验答案” and “我的身份 → 本幕决定” controls); ordinary character and interpretation responses still use AI. RED reproduced, then complete Tavern suite passed. Final deployment replay checks these exact controls.

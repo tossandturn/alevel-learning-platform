@@ -115,7 +115,15 @@ export function caseReplyActor(game,speakerId,text,seats){
 }
 export function casePublicContext(game,room){
  if(!applies(game))return null
- return{case:true,edition:ROMANCE_CASE_EDITION,stage:room.stage,premise,centralQuestion:game.case.centralQuestion,chronology:known,currentObjective:game.acts[room.stage].objective,completedDiscoveries:(room.revealedStages||[]).filter(s=>s<=room.stage).map(s=>({stage:s,text:game.acts[s].resolution})),evidenceShared:game.clues.filter(c=>c.stage===room.stage&&room.publicClues.includes(c.id)).length,evidenceRequired:4}
+ return{case:true,edition:ROMANCE_CASE_EDITION,stage:room.stage,premise,centralQuestion:game.case.centralQuestion,chronology:known,currentObjective:game.acts[room.stage].objective,hasTeamConclusion:!!game.acts[room.stage].puzzle,conclusionVerified:room.solved.includes(room.stage),completedDiscoveries:(room.revealedStages||[]).filter(s=>s<=room.stage).map(s=>({stage:s,text:game.acts[s].resolution})),evidenceShared:game.clues.filter(c=>c.stage===room.stage&&room.publicClues.includes(c.id)).length,evidenceRequired:4}
+}
+export function caseProgressGuidance(context){
+ if(!context.story?.case||context.actor?.id!=='dm'||!/(?:怎么|如何|怎样).{0,5}(?:推进|继续|进入|过幕|完成|玩|投票)|下一步|本幕(?:任务|目标)|共同.{0,5}(?:查|目标)|这局.{0,8}(?:查|推进)|当前.{0,5}任务/.test(context.trigger||''))return null
+ if(context.phase==='vote')return{segments:[{kind:'narration',text:'本幕调查已完成。打开“本局”→“最终投票”，按证据选择你认为应承担责任的人；所有真人提交后，才揭晓固定真相和各自关系结果。投票不会代替个人感情选择。'}]}
+ const s=context.story,steps=[`当前共同目标：${s.currentObjective}`,`打开“本局”→“本幕任务”，查看自己的搜证位置，公开本幕线索，并询问AI同伴或与好友核对。目前已公开 ${s.evidenceShared}/${s.evidenceRequired} 份。`]
+ if(s.hasTeamConclusion)steps.push(s.conclusionVerified?'“共同结论”已经核验通过，不需要重复提交。':'材料齐全后，在“本幕任务”的“共同结论”里输入团队结论，点击“核验答案”。')
+ steps.push('再到“我的身份”→“本幕决定”选择自己的态度。它不是填写共同结论的地方。最后回到“本幕任务”，点击“完成本幕，确认继续”；所有真人确认后才会推进。')
+ return{segments:[{kind:'narration',text:steps.join('\n\n')}]}
 }
 export function caseActorContext(game,room,role,visible){
  if(!applies(game)||role?.id!=='repair')return visible

@@ -4,6 +4,7 @@ import { publicScriptCatalog } from './scriptGameCatalog.js'
 import {normalizeScriptDialogue} from './scriptDialogue.js'
 import {guardRomanceRecollection} from './scriptRomance.js'
 import {hasUnsupportedRecollectionQuote} from './scriptRoomMemory.js'
+import {caseProgressGuidance} from './scriptRomanceCase.js'
 
 const prefix='/api/ai/script-rooms'
 const error=(statusCode,code,message)=>Object.assign(Error(message),{statusCode,code})
@@ -50,7 +51,7 @@ export function createScriptRoomApi({root,authenticate,sendJson,readBody,generat
     try{
      if(kind==='image'){if(!generateImage)throw Error('Image provider unavailable');store().completeImage(id,item.job.id,item.job.leaseId,await generateImage(item.imageInput));continue}
      const messages=scriptActorMessages(item.context)
-     let value=checkedProposal(await generate(messages,{requestId:item.job.id}),item.context)
+     let value=caseProgressGuidance(item.context)||checkedProposal(await generate(messages,{requestId:item.job.id}),item.context)
      if(!value){
       // One bounded formatting repair; no state is written from the rejected response.
       const repair=[...messages,{role:'user',content:'回复的格式或回忆依据校验未通过。只返回一个JSON对象，且本次仅包含text和attitude两个字段。text是当前角色的自然发言；不要附加动作、线索发放、状态、阶段或其他字段。若在回忆过去，删掉角色本或可见历史原文中找不到的逐字引语，不要补写玩家当年说过的话；可以用自己的话说已有事实和此刻感受。'}]
