@@ -11,7 +11,8 @@ const act=(who,type,more={})=>r=store.act(who,r.id,{type,requestId:`image-action
 const png={bytes:Buffer.from([137,80,78,71,13,10,26,10,0,1,2,3]),mimeType:'image/png'}
 try{
  act('ielts:1','ready');act('ielts:2','ready');act('ielts:1','start')
- assert.doesNotThrow(()=>act('ielts:1','image',{text:'画一下我看到的剧院舞台',target:'dm'}),'explicit room image action must exist')
+ assert.throws(()=>act('ielts:1','image',{text:'画出第三幕的空舞台',target:'dm'}),e=>e.code==='script_image_spoiler')
+ assert.doesNotThrow(()=>act('ielts:1','image',{text:'重新画一下我看到的后台一角',target:'dm'}),'explicit current-scene image action must exist')
  let job=store.leaseJob(r.id)
  assert.equal(job.job.kind,'image');assert.equal(job.imageInput.persona,'script-room')
  assert.ok(!JSON.stringify(job.imageInput).includes('21:02'))

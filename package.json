@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "test:script-art": "node scripts/test-script-art-spec.mjs && node scripts/test-script-art.mjs && node scripts/test-script-art-generation.mjs",
     "test:native-product-config": "node scripts/test-native-product-config.mjs",
     "test:script-rooms": "node scripts/test-script-case-timeline.mjs && node scripts/test-script-case-guidance.mjs && node scripts/test-script-romance-case.mjs && node scripts/test-script-duet.mjs && node scripts/test-script-stage-memory.mjs && node scripts/test-script-recollection-api.mjs && node scripts/test-script-romance.mjs && node scripts/test-script-romance-guard-api.mjs && node scripts/test-script-role-books.mjs && node scripts/test-script-rooms.mjs && node scripts/test-script-roleplay-v2.mjs && node scripts/test-script-dialogue.mjs && node scripts/test-script-room-images.mjs && node scripts/test-script-room-ai.mjs && node scripts/test-script-room-api.mjs",
     "dev": "vite",

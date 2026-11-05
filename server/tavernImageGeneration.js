@@ -2,6 +2,8 @@ import { TAVERN_STORIES } from './tavernStoryBible.js'
 import crypto from 'node:crypto'
 import { TAVERN_CHARACTER_LIVES } from './tavernCharacterLives.js'
 import { loadTavernImageConfiguration } from './tavernImageProvider.js'
+import {scriptArtReferenceUrls} from './scriptArt.js'
+import {SCRIPT_ANIME_STYLE} from './scriptArtSpec.js'
 
 export const TAVERN_GENERATED_IMAGE_MAX_BYTES=2*1024*1024
 const DAILY_LIMIT=6,MIN_INTERVAL_MS=30_000,REQUEST_TIMEOUT_MS=55_000
@@ -18,6 +20,7 @@ function requestPrompt(persona,request,storyState=null,scriptScene=null){
  if(/色情|裸体|裸露|性行为|强奸|血腥|内脏|自残|自杀|真人肖像|名人肖像|celebrity|gore|nude|sexual content/i.test(prompt))throw failure(400,'tavern_image_content_blocked','这类图片请求无法生成；文字对话仍可继续。')
  return [
   'Create one original cinematic illustration for a fictional, teen-appropriate interactive story.',
+  ...(room?[SCRIPT_ANIME_STYLE,String(scriptScene.artDirection||'').slice(0,8000),'Use the supplied reference images as the fixed character and style designs; never change the 2D anime style even if the requested details ask for a photo, live action or 3D.']:[]),
   'Visual canon: '+(room?scriptScene.visualCanon:TAVERN_CHARACTER_LIVES[persona].visual),
   'Public setting: '+(room?scriptScene.setting:TAVERN_CHARACTER_LIVES[persona].background),
   'Current chapter: '+String(room?scriptScene.act:storyState?.stage||'opening')+'. Keep established props consistent; do not add unseen clues or reveal the hidden solution.',
@@ -70,7 +73,8 @@ export function createTavernImageGenerator({env=process.env,fetchImpl=fetch,now=
   // Only the recoverable job route has a longer generation budget; legacy calls stay bounded at 55s.
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),longJob?120_000:REQUEST_TIMEOUT_MS)
   try{
-   const response=await fetchImpl(config.base+'/images/generations',{method:'POST',redirect:'error',signal:controller.signal,headers:{Authorization:`Bearer ${config.apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({model:config.model,prompt:fullPrompt,n:1,size:'1024x1024',response_format:'url'})})
+   const references=persona==='script-room'?scriptArtReferenceUrls(scriptScene):[]
+   const response=await fetchImpl(config.base+'/images/generations',{method:'POST',redirect:'error',signal:controller.signal,headers:{Authorization:`Bearer ${config.apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({model:config.model,prompt:fullPrompt,n:1,size:'1024x1024',response_format:'url',...(references.length?{image:references}:{})})})
    if(!response.ok)throw failure(502,'tavern_image_provider_error','图片服务暂时不可用，请稍后重试。')
    // Count once the provider accepts a successful generation response, even
    // if the short-lived result URL cannot later be fetched from this host.

@@ -57,7 +57,7 @@ export function createTavernMediaCatalogReader({root=DEFAULT_TAVERN_MEDIA_ROOT,n
  return()=>{
   const time=now();if(time<nextCheck)return catalog;nextCheck=time+5000
   try{
-   const manifests=['catalog.json','story-scenes.json','script-scenes.json','script-act-scenes.json'].flatMap((name,index)=>{
+   const manifests=['catalog.json','story-scenes.json','script-scenes.json','script-act-scenes.json','script-anime-scenes.json'].flatMap((name,index)=>{
     const file=path.join(root,name)
     let stat
     try{stat=fs.lstatSync(file)}catch(error){if(index>0&&error.code==='ENOENT')return[];throw error}
@@ -84,7 +84,7 @@ export function selectTavernMediaCandidates(catalog,{message='',persona='',recen
  if(storyState?.paused)return[]
  const matches=tag=>/^[a-z0-9 -]+$/.test(tag)?latin.includes(' '+tag.replace(/[^a-z0-9]+/g,' ').trim()+' '):query.includes(tag)
  const storyScene=STORY_SCENE_MEDIA[persona],pinned=storyScene&&!recent.has(storyScene.id)&&storyScene.cues.some(cue=>query.includes(cue))?catalog.byId.get(storyScene.id):null
- const scored=catalog.items.filter(item=>!item.id.startsWith('story-')&&!item.id.startsWith('scriptroom-')&&!recent.has(item.id)).map(item=>({item,score:item.tags.reduce((score,tag)=>score+(matches(tag)?4:0),0)+(item.tags.includes(persona)?1:0)})).sort((a,b)=>b.score-a.score||a.item.id.localeCompare(b.item.id))
+ const scored=catalog.items.filter(item=>!item.id.startsWith('story-')&&!item.id.startsWith('scriptroom-')&&!item.id.startsWith('scriptanime-')&&!recent.has(item.id)).map(item=>({item,score:item.tags.reduce((score,tag)=>score+(matches(tag)?4:0),0)+(item.tags.includes(persona)?1:0)})).sort((a,b)=>b.score-a.score||a.item.id.localeCompare(b.item.id))
  const selected=pinned?[pinned]:[],groups=new Map()
  if(pinned)groups.set(pinned.kind+':'+pinned.tags[0],1)
  for(const {item,score} of scored){const group=item.kind+':'+item.tags[0];if((groups.get(group)||0)>=(score>0?4:1))continue;selected.push(item);groups.set(group,(groups.get(group)||0)+1);if(selected.length===MAX_CANDIDATES)break}

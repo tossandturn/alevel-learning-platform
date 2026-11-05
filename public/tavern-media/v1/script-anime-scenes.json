@@ -1,0 +1,807 @@
+{
+  "schemaVersion": "tavern-media.v1",
+  "revision": "script-anime-20261106",
+  "items": [
+    {
+      "id": "scriptanime-rain-scene-0",
+      "kind": "image",
+      "caption": "雨夜候车室",
+      "alt": "雨夜候车室 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "before-rain",
+        "scene",
+        "候车室",
+        "雨夜候车室"
+      ],
+      "file": "scriptanime-rain-scene-0-76740bae537e36ef.webp",
+      "sha256": "76740bae537e36ef9f305f5353d3c2f3d6632a71e9d65298ade4d12b916b74cb",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-rain-scene-1",
+      "kind": "image",
+      "caption": "旧广播室",
+      "alt": "旧广播室 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "before-rain",
+        "scene",
+        "广播室",
+        "旧广播室"
+      ],
+      "file": "scriptanime-rain-scene-1-be25c8058040ff9a.webp",
+      "sha256": "be25c8058040ff9a933b6058f5f578d00911eae812a0dbd2b44374d5a8ea4068",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-rain-scene-2",
+      "kind": "image",
+      "caption": "天亮的小站",
+      "alt": "天亮的小站 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "before-rain",
+        "scene",
+        "天亮的小站",
+        "天亮",
+        "第三幕场景"
+      ],
+      "file": "scriptanime-rain-scene-2-0c1fb97c235b9e9d.webp",
+      "sha256": "0c1fb97c235b9e9d894034e100ed4f5dd35b2cb5c7372ea07ea669664a5d9c9f",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-rain-role-letter",
+      "kind": "image",
+      "caption": "许知夏立绘",
+      "alt": "许知夏立绘 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "before-rain",
+        "portrait",
+        "许知夏",
+        "许知夏立绘",
+        "许知夏的样子"
+      ],
+      "file": "scriptanime-rain-role-letter-43e38bd6dffc7f2d.webp",
+      "sha256": "43e38bd6dffc7f2d5a280f8b7982752b13abce450e95b82ac5bb9f248179cf68",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-rain-role-repair",
+      "kind": "image",
+      "caption": "周泊舟立绘",
+      "alt": "周泊舟立绘 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "before-rain",
+        "portrait",
+        "周泊舟",
+        "周泊舟立绘",
+        "周泊舟的样子"
+      ],
+      "file": "scriptanime-rain-role-repair-b4b09f4a55b61bf4.webp",
+      "sha256": "b4b09f4a55b61bf41a19a980b80d0df626d6fbd8db6ec7223b3f15faf7986a36",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-rain-role-photo",
+      "kind": "image",
+      "caption": "林序立绘",
+      "alt": "林序立绘 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "before-rain",
+        "portrait",
+        "林序",
+        "林序立绘",
+        "林序的样子"
+      ],
+      "file": "scriptanime-rain-role-photo-e7d006e4c388011b.webp",
+      "sha256": "e7d006e4c388011b359c987d65ff9bda37f5a5ff83ebefb1dc89a660f5f6a1cc",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-rain-role-conductor",
+      "kind": "image",
+      "caption": "顾晚立绘",
+      "alt": "顾晚立绘 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "before-rain",
+        "portrait",
+        "顾晚",
+        "顾晚立绘",
+        "顾晚的样子"
+      ],
+      "file": "scriptanime-rain-role-conductor-84b33b790f665b08.webp",
+      "sha256": "84b33b790f665b081b74fe557b1ebb72a9a099914f5930f5a53c1bbf5d4a016d",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-rain-prop-recorder",
+      "kind": "image",
+      "caption": "旧录音机",
+      "alt": "旧录音机 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "before-rain",
+        "prop",
+        "录音机",
+        "录音器"
+      ],
+      "file": "scriptanime-rain-prop-recorder-f2a59ef6254cddb1.webp",
+      "sha256": "f2a59ef6254cddb160713d8a7a21c534191da7df24d33b007ac3bea984c0538d",
+      "width": 1254,
+      "height": 1254
+    },
+    {
+      "id": "scriptanime-rain-prop-paperbag",
+      "kind": "image",
+      "caption": "白色纸袋",
+      "alt": "白色纸袋 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "before-rain",
+        "prop",
+        "纸袋",
+        "白色纸袋"
+      ],
+      "file": "scriptanime-rain-prop-paperbag-81d10322865fd15a.webp",
+      "sha256": "81d10322865fd15a779d2c427220dab39f0eda9528317cce7aa192e5dc13b58a",
+      "width": 1254,
+      "height": 1254
+    },
+    {
+      "id": "scriptanime-rain-ensemble",
+      "kind": "image",
+      "caption": "角色合影",
+      "alt": "角色合影 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "before-rain",
+        "ensemble",
+        "合影",
+        "全体角色",
+        "全员合影",
+        "所有角色"
+      ],
+      "file": "scriptanime-rain-ensemble-50048eabf0da48b0.webp",
+      "sha256": "50048eabf0da48b0a53772f209eaacf1a644d0e3040f1a64cfb8cad14bca5523",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-curtain-scene-0",
+      "kind": "image",
+      "caption": "旧剧院后台",
+      "alt": "旧剧院后台 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "thirteenth-curtain",
+        "scene",
+        "后台",
+        "剧院后台"
+      ],
+      "file": "scriptanime-curtain-scene-0-87b99d0e4d390522.webp",
+      "sha256": "87b99d0e4d3905224772b87d2e675b4a1d6f4cbbb46fd915b8c599513c59c8a5",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-curtain-scene-1",
+      "kind": "image",
+      "caption": "旧放映间",
+      "alt": "旧放映间 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "thirteenth-curtain",
+        "scene",
+        "放映间",
+        "投影室"
+      ],
+      "file": "scriptanime-curtain-scene-1-283b028f2a394c65.webp",
+      "sha256": "283b028f2a394c65aa67ce28c510d4cb7cf49f3a435aab884f1b3c55e6d3b633",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-curtain-scene-2",
+      "kind": "image",
+      "caption": "空舞台",
+      "alt": "空舞台 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "thirteenth-curtain",
+        "scene",
+        "舞台",
+        "空舞台"
+      ],
+      "file": "scriptanime-curtain-scene-2-6b66786157bdf68e.webp",
+      "sha256": "6b66786157bdf68e82d42120f314bb0cbd431bb5f22902fcdca74300b7d85fce",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-curtain-role-actor",
+      "kind": "image",
+      "caption": "沈照立绘",
+      "alt": "沈照立绘 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "thirteenth-curtain",
+        "portrait",
+        "沈照",
+        "沈照立绘",
+        "沈照的样子"
+      ],
+      "file": "scriptanime-curtain-role-actor-476b89a4b8ff39f9.webp",
+      "sha256": "476b89a4b8ff39f94a0d4aac25be53933cfe8e4662f6e269d0985cad96040191",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-curtain-role-manager",
+      "kind": "image",
+      "caption": "陈砚立绘",
+      "alt": "陈砚立绘 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "thirteenth-curtain",
+        "portrait",
+        "陈砚",
+        "陈砚立绘",
+        "陈砚的样子"
+      ],
+      "file": "scriptanime-curtain-role-manager-ef827e5a5779ab9d.webp",
+      "sha256": "ef827e5a5779ab9d0738bd677cdc4fc032af35cc3c0fd4ead4c59bf11eea5c34",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-curtain-role-restorer",
+      "kind": "image",
+      "caption": "唐雾立绘",
+      "alt": "唐雾立绘 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "thirteenth-curtain",
+        "portrait",
+        "唐雾",
+        "唐雾立绘",
+        "唐雾的样子"
+      ],
+      "file": "scriptanime-curtain-role-restorer-72dde5daf98f7525.webp",
+      "sha256": "72dde5daf98f75253e99d81b4f7c3c28d27c38aeccfdbac7bac13ca4a460d12f",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-curtain-role-reporter",
+      "kind": "image",
+      "caption": "陆弦立绘",
+      "alt": "陆弦立绘 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "thirteenth-curtain",
+        "portrait",
+        "陆弦",
+        "陆弦立绘",
+        "陆弦的样子"
+      ],
+      "file": "scriptanime-curtain-role-reporter-7e4f6e1ecf22d85b.webp",
+      "sha256": "7e4f6e1ecf22d85b11103b5e70e78a658619235fc1273a597ba306e5e87c589e",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-curtain-prop-projector",
+      "kind": "image",
+      "caption": "旧投影机",
+      "alt": "旧投影机 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "thirteenth-curtain",
+        "prop",
+        "投影机",
+        "放映机"
+      ],
+      "file": "scriptanime-curtain-prop-projector-dcb9bd414db27183.webp",
+      "sha256": "dcb9bd414db27183f0046b333d69c89a73b94c9de1b1b0881e56c18b05973c83",
+      "width": 1254,
+      "height": 1254
+    },
+    {
+      "id": "scriptanime-curtain-prop-mask",
+      "kind": "image",
+      "caption": "戏剧面具",
+      "alt": "戏剧面具 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "thirteenth-curtain",
+        "prop",
+        "面具",
+        "戏剧面具"
+      ],
+      "file": "scriptanime-curtain-prop-mask-5db6f36252bfe650.webp",
+      "sha256": "5db6f36252bfe650f04e93c8dfc4200dde38815920865b1105ab3f93cfdd12e8",
+      "width": 1254,
+      "height": 1254
+    },
+    {
+      "id": "scriptanime-curtain-ensemble",
+      "kind": "image",
+      "caption": "角色合影",
+      "alt": "角色合影 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "thirteenth-curtain",
+        "ensemble",
+        "合影",
+        "全体角色",
+        "全员合影",
+        "所有角色"
+      ],
+      "file": "scriptanime-curtain-ensemble-9c4922c177539d54.webp",
+      "sha256": "9c4922c177539d5473ffb14b106e92b3a303538a7ca136d1c998c783ac680d6f",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-midnight-scene-0",
+      "kind": "image",
+      "caption": "午夜候车室",
+      "alt": "午夜候车室 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "last-midnight",
+        "scene",
+        "午夜候车室",
+        "候车室"
+      ],
+      "file": "scriptanime-midnight-scene-0-3648ab67759b5d11.webp",
+      "sha256": "3648ab67759b5d1119731c05ff6eea50bf762677a38042aae6608dfd791ec995",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-midnight-scene-1",
+      "kind": "image",
+      "caption": "信号间门外",
+      "alt": "信号间门外 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "last-midnight",
+        "scene",
+        "信号间",
+        "信号间门外"
+      ],
+      "file": "scriptanime-midnight-scene-1-0391ab2756a96878.webp",
+      "sha256": "0391ab2756a968788264175c4c44a9310dda59fc150efcf8e27f97fe2dc212fc",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-midnight-scene-2",
+      "kind": "image",
+      "caption": "雨后的集合点",
+      "alt": "雨后的集合点 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "last-midnight",
+        "scene",
+        "集合点",
+        "安全集合点",
+        "第三幕场景"
+      ],
+      "file": "scriptanime-midnight-scene-2-b16c5b8b940db988.webp",
+      "sha256": "b16c5b8b940db988b994e78b93bb39d89d260119b2789480f91f67d438b220c8",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-midnight-role-radio",
+      "kind": "image",
+      "caption": "林漪立绘",
+      "alt": "林漪立绘 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "last-midnight",
+        "portrait",
+        "林漪",
+        "林漪立绘",
+        "林漪的样子"
+      ],
+      "file": "scriptanime-midnight-role-radio-feec0d7e99ef11c4.webp",
+      "sha256": "feec0d7e99ef11c497a7b2bfa7d35047d3989eb1b4df4aebb9f67e3eba6111df",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-midnight-role-signal",
+      "kind": "image",
+      "caption": "秦越立绘",
+      "alt": "秦越立绘 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "last-midnight",
+        "portrait",
+        "秦越",
+        "秦越立绘",
+        "秦越的样子"
+      ],
+      "file": "scriptanime-midnight-role-signal-ef13f94fd4deff13.webp",
+      "sha256": "ef13f94fd4deff13521b96c1296906a2a3986b7be31e9a861484b32aa31fa74c",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-midnight-role-medic",
+      "kind": "image",
+      "caption": "叶澄立绘",
+      "alt": "叶澄立绘 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "last-midnight",
+        "portrait",
+        "叶澄",
+        "叶澄立绘",
+        "叶澄的样子"
+      ],
+      "file": "scriptanime-midnight-role-medic-f74fa195e0f8f42d.webp",
+      "sha256": "f74fa195e0f8f42d9ab75156b071c32d53cbb0e6ec7a30e07f26fa44a938ea00",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-midnight-role-ticket",
+      "kind": "image",
+      "caption": "闻笙立绘",
+      "alt": "闻笙立绘 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "last-midnight",
+        "portrait",
+        "闻笙",
+        "闻笙立绘",
+        "闻笙的样子"
+      ],
+      "file": "scriptanime-midnight-role-ticket-6aa9a7e7fec91c21.webp",
+      "sha256": "6aa9a7e7fec91c21fa1886fc131a6b3ed6f7c96266f42e069ccafb77bc154e7d",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-midnight-prop-radio",
+      "kind": "image",
+      "caption": "旧对讲机",
+      "alt": "旧对讲机 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "last-midnight",
+        "prop",
+        "对讲机"
+      ],
+      "file": "scriptanime-midnight-prop-radio-ba20497d15fd5a51.webp",
+      "sha256": "ba20497d15fd5a519d276c56c785de16ec0c703eb92d2871bdbf8faa066ab6ef",
+      "width": 1254,
+      "height": 1254
+    },
+    {
+      "id": "scriptanime-midnight-prop-ticket",
+      "kind": "image",
+      "caption": "旧车票",
+      "alt": "旧车票 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "last-midnight",
+        "prop",
+        "车票",
+        "旧车票"
+      ],
+      "file": "scriptanime-midnight-prop-ticket-07d259f595521baa.webp",
+      "sha256": "07d259f595521baa83d21593610157dfdff3d737de911b8184243aa1b3d79452",
+      "width": 1254,
+      "height": 1254
+    },
+    {
+      "id": "scriptanime-midnight-ensemble",
+      "kind": "image",
+      "caption": "角色合影",
+      "alt": "角色合影 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "last-midnight",
+        "ensemble",
+        "合影",
+        "全体角色",
+        "全员合影",
+        "所有角色"
+      ],
+      "file": "scriptanime-midnight-ensemble-942b5e812d7c8052.webp",
+      "sha256": "942b5e812d7c805247164eb6077732b05855abc147ff0c96301ff72297f2255c",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-stars-scene-0",
+      "kind": "image",
+      "caption": "星幕大厅",
+      "alt": "星幕大厅 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "inverted-observatory",
+        "scene",
+        "星幕大厅",
+        "穹顶",
+        "天文馆大厅"
+      ],
+      "file": "scriptanime-stars-scene-0-0c007b344e9b0451.webp",
+      "sha256": "0c007b344e9b0451fde22f74377b02b98445cff9c986d0ea55dea5fb443f3d8c",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-stars-scene-1",
+      "kind": "image",
+      "caption": "旧资料室",
+      "alt": "旧资料室 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "inverted-observatory",
+        "scene",
+        "资料室",
+        "旧资料室"
+      ],
+      "file": "scriptanime-stars-scene-1-3d3d12f2f22586d2.webp",
+      "sha256": "3d3d12f2f22586d293f5d504b8a5f3a43b36f3902fed0a584cc960c16c6d5065",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-stars-scene-2",
+      "kind": "image",
+      "caption": "馆内公共通道",
+      "alt": "馆内公共通道 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "inverted-observatory",
+        "scene",
+        "公共通道",
+        "馆内通道",
+        "第三幕场景"
+      ],
+      "file": "scriptanime-stars-scene-2-1e9f34554dc0f3f0.webp",
+      "sha256": "1e9f34554dc0f3f0831866202da81ded7ca107874bda9904e15dce5c70292716",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-stars-role-map",
+      "kind": "image",
+      "caption": "余星立绘",
+      "alt": "余星立绘 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "inverted-observatory",
+        "portrait",
+        "余星",
+        "余星立绘",
+        "余星的样子"
+      ],
+      "file": "scriptanime-stars-role-map-6ad6048c732a7e5a.webp",
+      "sha256": "6ad6048c732a7e5a41f439aff99215779d044fbe36b9376a8993a309c14617cd",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-stars-role-mechanic",
+      "kind": "image",
+      "caption": "程弧立绘",
+      "alt": "程弧立绘 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "inverted-observatory",
+        "portrait",
+        "程弧",
+        "程弧立绘",
+        "程弧的样子"
+      ],
+      "file": "scriptanime-stars-role-mechanic-879ae60cfa8b8b45.webp",
+      "sha256": "879ae60cfa8b8b45fca56a97dfbc3441bd89f7871c1fb3f0cf20d30803bbe22e",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-stars-role-archive",
+      "kind": "image",
+      "caption": "苏年立绘",
+      "alt": "苏年立绘 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "inverted-observatory",
+        "portrait",
+        "苏年",
+        "苏年立绘",
+        "苏年的样子"
+      ],
+      "file": "scriptanime-stars-role-archive-0edb3aab2db0a44f.webp",
+      "sha256": "0edb3aab2db0a44f205cde62ae085bc04aa880dd23a6d05ebb1962e53c1e8cfb",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-stars-role-light",
+      "kind": "image",
+      "caption": "白遥立绘",
+      "alt": "白遥立绘 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "inverted-observatory",
+        "portrait",
+        "白遥",
+        "白遥立绘",
+        "白遥的样子"
+      ],
+      "file": "scriptanime-stars-role-light-9310a6b6a1ab90a0.webp",
+      "sha256": "9310a6b6a1ab90a0cf39c39cec476e81d6ba63bbb90853bbfa0c5b70fa849f59",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-stars-prop-telescope",
+      "kind": "image",
+      "caption": "黄铜望远镜",
+      "alt": "黄铜望远镜 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "inverted-observatory",
+        "prop",
+        "望远镜",
+        "黄铜望远镜"
+      ],
+      "file": "scriptanime-stars-prop-telescope-3d50a55170f02eae.webp",
+      "sha256": "3d50a55170f02eaebd11f4f8f15b2aac990f5556a68c9cd0c35055a33fc14ed5",
+      "width": 1254,
+      "height": 1254
+    },
+    {
+      "id": "scriptanime-stars-prop-chart",
+      "kind": "image",
+      "caption": "空白星图册",
+      "alt": "空白星图册 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "inverted-observatory",
+        "prop",
+        "星图",
+        "星图册"
+      ],
+      "file": "scriptanime-stars-prop-chart-911db48b2b8079b0.webp",
+      "sha256": "911db48b2b8079b0c6293352ff83feab90407c22c68750ff45dbd93ed7a7e6f4",
+      "width": 1254,
+      "height": 1254
+    },
+    {
+      "id": "scriptanime-stars-ensemble",
+      "kind": "image",
+      "caption": "角色合影",
+      "alt": "角色合影 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "inverted-observatory",
+        "ensemble",
+        "合影",
+        "全体角色",
+        "全员合影",
+        "所有角色"
+      ],
+      "file": "scriptanime-stars-ensemble-194e52ad9929e78c.webp",
+      "sha256": "194e52ad9929e78cad72760749b2a699eca4225314f380e31fde5e5e70b3798a",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-duet-scene-0",
+      "kind": "image",
+      "caption": "两个人的候车室",
+      "alt": "两个人的候车室 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "one-more-stop",
+        "scene",
+        "候车室",
+        "两个人的候车室"
+      ],
+      "file": "scriptanime-duet-scene-0-b1190cdce73670dc.webp",
+      "sha256": "b1190cdce73670dc54b639c9a7418b02f8ae18817c6313ef2c4aecadd577bdaa",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-duet-scene-1",
+      "kind": "image",
+      "caption": "窗边的桌子",
+      "alt": "窗边的桌子 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "one-more-stop",
+        "scene",
+        "窗边",
+        "窗边桌子",
+        "第二幕场景"
+      ],
+      "file": "scriptanime-duet-scene-1-d1ccd41fe8047b82.webp",
+      "sha256": "d1ccd41fe8047b823f9b2d7e864478165f15c9b2be7fcbb07fa92dd296d6aa73",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-duet-scene-2",
+      "kind": "image",
+      "caption": "雨停后的站外",
+      "alt": "雨停后的站外 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "one-more-stop",
+        "scene",
+        "站外",
+        "雨停后的站外",
+        "第三幕场景"
+      ],
+      "file": "scriptanime-duet-scene-2-40ddcfe8ecb78afb.webp",
+      "sha256": "40ddcfe8ecb78afb594c4b8a621a8433e9ff71ab9c45f9ed2ceaaff70be563c1",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-duet-role-sutang",
+      "kind": "image",
+      "caption": "苏棠立绘",
+      "alt": "苏棠立绘 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "one-more-stop",
+        "portrait",
+        "苏棠",
+        "苏棠立绘",
+        "苏棠的样子"
+      ],
+      "file": "scriptanime-duet-role-sutang-3c4f5bc1ea29fa02.webp",
+      "sha256": "3c4f5bc1ea29fa028437b82f9fe6a771e880af6aa1c6afc850a183d2725cd99c",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-duet-role-jiangyuan",
+      "kind": "image",
+      "caption": "江远立绘",
+      "alt": "江远立绘 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "one-more-stop",
+        "portrait",
+        "江远",
+        "江远立绘",
+        "江远的样子"
+      ],
+      "file": "scriptanime-duet-role-jiangyuan-1995f393c39ec8ab.webp",
+      "sha256": "1995f393c39ec8abe464887a4ccab0f1e683a91f05b69b5a14f2809b17504fb0",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-duet-prop-suitcase",
+      "kind": "image",
+      "caption": "旅行箱",
+      "alt": "旅行箱 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "one-more-stop",
+        "prop",
+        "行李箱",
+        "旅行箱"
+      ],
+      "file": "scriptanime-duet-prop-suitcase-b925aa223b7834d8.webp",
+      "sha256": "b925aa223b7834d828d9778c5487885c9d100c3fce4ce0adce7982a5372b77ba",
+      "width": 1254,
+      "height": 1254
+    },
+    {
+      "id": "scriptanime-duet-prop-flashlight",
+      "kind": "image",
+      "caption": "小手电",
+      "alt": "小手电 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "one-more-stop",
+        "prop",
+        "手电",
+        "小手电"
+      ],
+      "file": "scriptanime-duet-prop-flashlight-b11e8edc250c1fd8.webp",
+      "sha256": "b11e8edc250c1fd805e4776b8e0e0a90be28c1af150b14cec5544d2a4bb950f5",
+      "width": 1254,
+      "height": 1254
+    },
+    {
+      "id": "scriptanime-duet-ensemble",
+      "kind": "image",
+      "caption": "角色合影",
+      "alt": "角色合影 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "one-more-stop",
+        "ensemble",
+        "合影",
+        "全体角色",
+        "全员合影",
+        "所有角色"
+      ],
+      "file": "scriptanime-duet-ensemble-e3151b4c287d27fd.webp",
+      "sha256": "e3151b4c287d27fd212aaa1d4bc317a50c676d9900d3e87b02aa7014e797cbfb",
+      "width": 1280,
+      "height": 720
+    }
+  ]
+}
