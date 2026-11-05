@@ -4,6 +4,29 @@ export const ROMANCE_EDITION = 'romance-20261105'
 const art = file => '/api/ai/tavern/media/v1/' + file
 const book = sections => sections.map(([title, ...paragraphs]) => `【${title}】\n${paragraphs.join('\n\n')}`).join('\n\n')
 const decision = (title, prompt, open, hold) => ({ title, prompt, options: [{ id:'open', label:open[0], consequence:open[1] }, { id:'hold', label:hold[0], consequence:hold[1] }] })
+const PAST_EVENT_ANCHORS = {
+ letter:[
+  '第一次认识泊舟是在广播室修录音机；后来恋爱。新裙子那次，你因他修机器而久等，确实生气并把吊牌丢到桌上。不能另造故意报复、第三者或躲避的秘密。',
+  '八年前离站时你在玻璃倒影看见他，却没有回头；你没有收到过明确的挽留，不能替他说当时在想什么。',
+  '八年来你有自己的事业和其他感情经历。今晚希望了解现在的泊舟，并不等于已经决定复合。',
+ ],
+ repair:[
+  '新裙子等待事件的原因是检修拖延、忽略约定，不是提前修好后躲起来，也不是故意让她等。这项原因已经锁定，不可追加相反的隐藏动机。',
+  '认识知夏时，你故意多留一首歌的时间修录音机；这是初识事件，不能挪作后来新裙子迟到那次的原因。两件事须分开。',
+  '离别站台上你没有叫住她；你也想留在本地创业，没完整商量。你知道自己的选择，不知道她曾在倒影里看见你，除非她在当前对话明确告诉你。',
+  '八年中你经营修理所、经历其他感情，并非一直为她停止生活。此次重逢你特意留了两天，不代表她已经同意复合。',
+ ],
+ photo:[
+  '你主动把一次返乡拍摄改到顾晚值勤那周，自己补路费；对外说客户改期只是你的借口。这是你自己的已知经历。',
+  '另一次你在站口看见她和同事讨论调班，自己没有进去，并把两杯热饮分给候车的人。她没有在那一次拒绝你。',
+  '顾晚曾来过你的展览。你当时只听她说刚好有空，不知道她私下换班的原因，除非当前已公开的记录或她的真实发言告诉你。',
+ ],
+ conductor:[
+  '六年前雨夜你替错过末班车的林序问面店。第二次见面他给你一张没有拍到你的照片，因为当时未问你是否愿意入镜。',
+  '你为他的展览主动调整休假，却对他说刚好有空。这是你自己的选择，不是他要求你做的事。',
+  '你对林序有好感，但尚未确认他是否要认真发展关系。自己的好感不能被写成双方已经恋爱。',
+ ],
+}
 const roles = [
  {
   id:'letter',name:'许知夏',gender:'女',age:31,tagline:'女 · 想重逢，却不敢先回头',
@@ -109,7 +132,7 @@ const roles = [
    decision('给认真的邀请一个答案','终幕会公开双方的关系结果。你愿意和林序尝试一次恋爱意义的约会吗？',['愿意约会，具体安排由两人一起商量','这是你自己的愿意；只有双方都选择愿意，才会形成共同约会。'],['不开始恋爱，保持朋友关系','你的拒绝是有效答案，不会被其他人的投票或好意改写。']),
   ],
  },
-].map(({book:sections,decisions,...role})=>({...role,entryBook:book(sections),missions:decisions.map((m,stage)=>({...m,id:`${role.id}-${stage}`,stage}))}))
+].map(({book:sections,decisions,...role})=>({...role,card:{...role.card,pastEventAnchors:PAST_EVENT_ANCHORS[role.id]},entryBook:book(sections),missions:decisions.map((m,stage)=>({...m,id:`${role.id}-${stage}`,stage}))}))
 
 export const ROMANCE_GAME = {
  id:'before-rain',version:3,clientVersion:2,contentEdition:ROMANCE_EDITION,title:'雨停之前',genre:'爱情情感本',duration:'45–65 分钟',difficulty:'双线爱情 · 重逢与暗恋',
