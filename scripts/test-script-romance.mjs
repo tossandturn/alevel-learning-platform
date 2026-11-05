@@ -73,6 +73,12 @@ try{
    assert.equal(r.jobs.at(-1).actor,'repair','romance public replies go to the addressed partner, not the next arbitrary bot')
    const followup=store.leaseJob(r.id)
    assert.equal(followup.context.actor.id,'repair');store.completeJob(r.id,followup.job.id,followup.job.leaseId,{segments:[{kind:'speech',text:'好，这次我把话说完。'}]})
+   r=act(owners[0],r,'image',{target:'public',text:'画出当前广播室的雨夜氛围'})
+   const picture=store.leaseJob(r.id,'image')
+   assert.equal(picture.imageInput.scriptScene.version,2,'the image provider also consumes capability 2, not private content version 3')
+   assert.equal(picture.imageInput.scriptScene.visualCanon,game.visualCanon)
+   assert.equal(picture.imageInput.scriptScene.setting,game.acts[0].opening)
+   store.completeImage(r.id,picture.job.id,picture.job.leaseId,{bytes:Buffer.from([137,80,78,71,13,10,26,10]),mimeType:'image/png'})
   }
   if(humans>=2){const jobs=r.jobs.length;r=act(owners[0],r,'chat',{target:'public',text:'周泊舟，我想听你自己的答案。'});assert.equal(r.jobs.length,jobs,'AI must not answer a line addressed to a human-controlled partner')}
   for(let stage=0;stage<3;stage++){

@@ -250,7 +250,7 @@ export function createScriptRoomStore({root,now=Date.now}={}){
   if(!job){save(r);return null}
   job.status='running';job.lease=now();job.attempts++;job.leaseId=crypto.randomUUID();save(r)
   const game=gameFor(r),role=game.roles.find(x=>x.id===job.actor)
-  if(job.kind==='image')return {id:r.id,job:clone(job),imageInput:{ownerId:job.owner,requestId:`room-${r.id}-${job.id}-${job.attempts}`,persona:'script-room',prompt:r.messages.find(m=>m.id===job.trigger)?.text||'',longJob:true,scriptScene:{id:game.id,version:game.version,title:game.title,visualCanon:game.visualCanon,act:game.acts[job.stage].title,setting:game.acts[job.stage].opening}}}
+  if(job.kind==='image')return {id:r.id,job:clone(job),imageInput:{ownerId:job.owner,requestId:`room-${r.id}-${job.id}-${job.attempts}`,persona:'script-room',prompt:r.messages.find(m=>m.id===job.trigger)?.text||'',longJob:true,scriptScene:{id:game.id,version:game.clientVersion||game.version,title:game.title,visualCanon:game.visualCanon,act:game.acts[job.stage].title,setting:game.acts[job.stage].opening}}}
   const visible=m=>m.target==='public'||job.target!=='public'&&((m.actor===job.actor&&m.target===job.target)||(m.actor===job.target&&m.target===job.actor))
   const disclosed=game.clues.filter(c=>r.publicClues.includes(c.id)||(r.known[job.actor]||[]).includes(c.id))
   // Never include the full game, other identities, future clues, or answer/ending fields.
