@@ -4,7 +4,7 @@ import { publicScriptCatalog } from './scriptGameCatalog.js'
 import {normalizeScriptDialogue} from './scriptDialogue.js'
 import {guardRomanceRecollection} from './scriptRomance.js'
 import {hasUnsupportedRecollectionQuote} from './scriptRoomMemory.js'
-import {caseProgressGuidance} from './scriptRomanceCase.js'
+import {caseProgressGuidance,guardCaseFixedVisit} from './scriptRomanceCase.js'
 
 const prefix='/api/ai/script-rooms'
 const error=(statusCode,code,message)=>Object.assign(Error(message),{statusCode,code})
@@ -31,7 +31,7 @@ function checkedProposal(raw,context){
  let value;try{value=typeof raw==='string'?JSON.parse(raw.replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'')):raw}catch{return null}
  const settings={actor:context.actor.id,name:context.actor.name,target:context.target,evidence:context.evidence}
  if(!normalizeScriptDialogue(value,settings))return null
- const guarded=guardRomanceRecollection(value,context)
+ const guarded=guardCaseFixedVisit(guardRomanceRecollection(value,context),context)
  if(hasUnsupportedRecollectionQuote(guarded,context))return null
  return normalizeScriptDialogue(guarded,settings)?guarded:null
 }

@@ -30,7 +30,7 @@ const caseRoles={
    ['第三幕私章 · 不能再叫作保护','旧验收、声音尾段与现场影像逐渐拼到一起。你可以承认，也可以保留最后的发言，但不能让AI临时编出另一个凶手。没有人需要为了过去爱过你，就替你承担自己作出的选择。\n如果你想对知夏说最后一段话，请把承担责任与希望被理解分开。你可以说后悔，不能说她离开才导致今天，不能用自伤、纠缠或“都是为了你”要求她留下。\n最终个人决定只决定你是否愿意在事实之上坦诚告别或保留沟通。它不改变案件结论，不自动恢复恋爱，更不是用感情交换免责。'],
   ],
   beats:[['我来拿六年前的旧材料。那段播报先按设备记录核对，别只凭声音推时间。','这张队列条能说明播放安排。它不证明谁在那个时刻站在话筒前。'],['我21:05进去、21:09出来，这一点不用绕。那段会面里有些话，我还没说完整。','进出记录在这里。我不能拿一张检修单当作自己一直在别处的证明。'],['这份验收是我自己签的。我不该再把自己的选择叫作替别人着想。','请把材料分清：旧签字是旧签字，今晚的事是今晚的事。感情不能替它们作结论。']],
-  cover:'仅可声称21:05进去取旧材料、21:09离开，对争执细节暂不说明。不可声称全程在工间或追加场外凶手；已公开证据不得否认存在。',
+  cover:'固定会面事实：21:05进入的就是旧广播室，21:09离开旧广播室，目的是取六年前的旧材料。不能把地点移成旁边的材料间、资料室、门外、工间或隔壁。可对争执细节暂不说明，不可追加场外凶手；已公开证据不得否认存在。',
  },
  photo:{tagline:'摄影师 · 被裁掉的画面与完整的记录',
   secret:'六年前宣传图由你交出，你为了让画面好看裁去了“试录，正式安排未确认”的说明，后来没有主动更正。今晚你带来了原始素材，本想先让顾晚私下看，而不是当众承认自己参与了误导。你没有进入21:05至21:09的广播室，也没有伤害韩屿。',
@@ -124,6 +124,17 @@ export function caseProgressGuidance(context){
  if(s.hasTeamConclusion)steps.push(s.conclusionVerified?'“共同结论”已经核验通过，不需要重复提交。':'材料齐全后，在“本幕任务”的“共同结论”里输入团队结论，点击“核验答案”。')
  steps.push('再到“我的身份”→“本幕决定”选择自己的态度。它不是填写共同结论的地方。最后回到“本幕任务”，点击“完成本幕，确认继续”；所有真人确认后才会推进。')
  return{segments:[{kind:'narration',text:steps.join('\n\n')}]}
+}
+export function guardCaseFixedVisit(proposal,context){
+ if(!context.story?.case||context.actor?.id!=='repair')return proposal
+ const text=typeof proposal?.text==='string'?proposal.text:(proposal?.segments||[]).filter(p=>p.kind==='speech').map(p=>p.text).join('\n')
+ const timed=/21[:：]0[59]|九点零[五九]|那四分钟/.test(text)
+ const shifted=text.split(/[，,。！？;；\n]/u).some(clause=>{
+  if(/(?:^|我)(?:当时)?(?:没有|没|未曾)进(?:入|过)?(?:旧)?广播室/.test(clause))return true
+  return [...clause.matchAll(/广播室(?:的)?(?:旁边|隔壁|门外)|(?:进|在|到).{0,18}(?:材料间|资料室|侧室|隔壁)/gu)].some(m=>!/(?:不是|并非|没有|没|未曾|不在|没去).{0,4}$/.test(clause.slice(Math.max(0,m.index-10),m.index)))
+ })
+ if(!timed||!shifted)return proposal
+ return{segments:[{kind:'speech',text:'我21:05进入旧广播室，21:09离开，来取六年前的旧材料。会面的具体细节我暂时不说明；时间和进出地点可以用原始记录核对，不能只凭我说的判断。'}],attitude:proposal.attitude||'谨慎'}
 }
 export function caseActorContext(game,room,role,visible){
  if(!applies(game)||role?.id!=='repair')return visible
