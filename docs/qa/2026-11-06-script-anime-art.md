@@ -25,4 +25,17 @@ Generic window details are allowed; explicitly requested future acts/locations a
 - [Qwen image unified API](https://help.aliyun.com/zh/model-studio/qwen-image-generation-and-editing-api-reference): compatible image generation endpoint accepts the top-level `image` reference array; Qwen 3.0 supports up to three references.
 - [Original Qwen Image project](https://github.com/QwenLM/Qwen-Image): reference-based character/style consistency. No source code or model weights were incorporated.
 
-Production deployment and live-provider results are recorded separately after acceptance; local success is not proof of release.
+## Production and visual acceptance
+
+Deployed backend/art commit `476d05a5f12d9903e8606b74edc07e074d06904e` on 2026-11-06 (Asia/Shanghai). No Mini Program upload, dependency install, production build, payment change or IELTS service restart.
+
+- Before/install/post readiness gates PASS. 55 allowlisted files match the pinned release; the four replaced modules have a checksum-verified rollback archive and all newly introduced file paths are recorded. No old image assets were removed.
+- After the normal restart window, both products' loopback and public health endpoints returned HTTP 200 and remained stable. Only the STEM process restart counter changed.
+- HTTPS delivery: all 48 WebPs return the expected MIME type and SHA-256, 6,597,742 bytes total.
+- Authenticated synthetic accounts: five complete three-act journeys, lobby/active/vote/ended anime scenes, intact canonical endings, instant stock portraits and ensembles with no generation jobs. Stock actions measured 14–19 ms from the production host, not mobile end-to-end latency.
+- Pre-deployment synthetic room: its identity, progress, evidence, dialogue and relationship state hash is unchanged after deployment; only presentation URLs change.
+- Live Singapore `qwen-image-3.0` custom scene: approximately 28.8 seconds, two approved references, PNG output 1,100,531 bytes. The retrieved image was visually reviewed: the character's ponytail, indigo coat/light-blue blouse, anime line/shading style and rainy amber-lit setting are consistent with the prepared portrait/scene. This is one sampled result, not a guarantee of identical facial details for all future generations.
+- Private custom image retrieval rejects another room member with HTTP 404; private request/image IDs are not present in that member's room response. Hidden/future request rejected before generation. No story stage advanced because of an image.
+- Native simulator using frozen 1.0.92 presentation files: reviewed five book screenshots covering inline portraits, a two-person lobby and an ending. Initial automation timeout was traced to remaining on the home page; explicit navigation fixed the test setup. Images render within the message flow. This is a simulator check; physical phone/iPad rendering was not re-tested in this task.
+
+Synthetic rooms were closed by their test accounts. No student rooms, credentials or private source images were copied into this repository.
