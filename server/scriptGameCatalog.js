@@ -1,6 +1,7 @@
 // Original scripts. This module is server-only: never ship role secrets or answers to the client.
 import {enrichScriptRole,SCRIPT_VISUAL_CANON} from './scriptRoleCards.js'
 import {ROMANCE_GAME,ROMANCE_EDITION} from './scriptRomance.js'
+import {DUET_ROMANCE_GAME,DUET_EDITION} from './scriptDuetRomance.js'
 const art=file=>'/api/ai/tavern/media/v1/'+file
 const role=(id,name,tagline,biography,secret,goal,voice)=>({id,name,tagline,biography,secret,goal,voice})
 const clues=rows=>rows.map(([roleId,stage,title,text],i)=>({id:`c${i+1}`,roleId,stage,title,text}))
@@ -139,6 +140,7 @@ const actArt={
 for(const game of SCRIPT_GAMES){for(let i=1;i<3;i++)game.acts[i].image=art(actArt[game.id][i-1]);for(const stage of game.acts)stage.objective+=' 在“我的身份”作出本幕决定，再确认继续。'}
 freeze(SCRIPT_GAMES)
 export function scriptGame(id,version,contentEdition){
+ if(id===DUET_ROMANCE_GAME.id)return version===2&&(contentEdition===undefined||contentEdition===DUET_EDITION)?DUET_ROMANCE_GAME:null
  if(contentEdition!==undefined&&!(id==='before-rain'&&version===3&&contentEdition===ROMANCE_EDITION))return null
  if(id==='before-rain'&&version===3)return ROMANCE_GAME
  return (version===1?LEGACY_SCRIPT_GAMES:SCRIPT_GAMES).find(game=>game.id===id&&(version===undefined||game.version===version))||null
@@ -146,4 +148,4 @@ export function scriptGame(id,version,contentEdition){
 // The installed client requests capabilities, not permission to rewrite the
 // content of a previous room. Existing snapshots still resolve by exact version.
 export function newScriptGame(id,clientVersion){return id==='before-rain'&&clientVersion===2?ROMANCE_GAME:scriptGame(id,clientVersion)}
-export function publicScriptCatalog(){return SCRIPT_GAMES.map(g=>newScriptGame(g.id,g.version)).map(({id,version,clientVersion,title,genre,duration,difficulty,summary,warning,roles,acts})=>({id,version:clientVersion||version,title,genre,duration,difficulty,summary,warning,players:'1–4 人 · AI 补位',cover:acts[0].image,roles:roles.map(({id,name,tagline})=>({id,name,tagline}))}))}
+export function publicScriptCatalog(){return [...SCRIPT_GAMES.map(g=>newScriptGame(g.id,g.version)),DUET_ROMANCE_GAME].map(({id,version,clientVersion,title,genre,duration,difficulty,summary,warning,roles,acts})=>({id,version:clientVersion||version,title,genre,duration,difficulty,summary,warning,players:`1–${roles.length} 人 · AI 补位`,cover:acts[0].image,roles:roles.map(({id,name,tagline})=>({id,name,tagline}))}))}
