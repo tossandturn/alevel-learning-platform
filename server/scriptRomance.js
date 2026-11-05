@@ -187,6 +187,7 @@ export function guardRomanceRecollection(proposal,context){
  const actor=context?.actor
  if(actor?.id!=='repair'||actor.card?.romance?.partnerId!=='letter'||!actor.card?.pastEventAnchors)return proposal
  const text=typeof proposal?.text==='string'?proposal.text:(proposal?.segments||[]).filter(p=>p.kind==='speech').map(p=>p.text).join('\n')
+ if(context.story?.case&&!/新裙子|香菜|冷面|初识/.test(String(context.trigger||'')+' '+text))return proposal
  if(!/以前|记得|当年|哪次|哪一次|那次|小事|后来|初识|新裙子/.test(String(context.trigger||'')+' '+text))return proposal
  const clauses=text.split(/[，,。！？\n]/u)
  const affirmative=(clause,pattern)=>{const hit=pattern.exec(clause);return hit&&!/不是|并非|没有|没|不曾|不应|不能|否认/.test(clause.slice(Math.max(0,hit.index-12),hit.index))}

@@ -3,12 +3,13 @@ import fs from 'node:fs'
 import path from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
 import {createScriptRoomStore} from '../server/scriptRoomStore.js'
-import {newScriptGame} from '../server/scriptGameCatalog.js'
+import {scriptGame} from '../server/scriptGameCatalog.js'
+import {pinTestRoomEdition} from './helpers/pin-test-room-edition.mjs'
 import {scriptActorMessages} from '../server/scriptRoomApi.js'
 import {scriptRoomContinuity,SCRIPT_MEMORY_LIMITS} from '../server/scriptRoomMemory.js'
 const root=fs.mkdtempSync(path.resolve(import.meta.dirname,'../../qa/stage-memory-'))
 let store=createScriptRoomStore({root}),seq=0
-const who='ielts:91000601',game=newScriptGame('before-rain',2),nonce=()=>`stage-memory-${++seq}`
+const who='ielts:91000601',game=scriptGame('before-rain',3),nonce=()=>`stage-memory-${++seq}`
 const act=(r,type,extra={})=>store.act(who,r.id,{type,...extra,revision:store.get(who,r.id).revision,requestId:nonce()})
 const privatePromise='下一次我们约在青石桥看晚霞，记得带黄色雨伞。这件事只在我们私聊里说。'
 const privateReply='我答应了，下次在青石桥看晚霞，我带黄色雨伞。'
@@ -42,6 +43,7 @@ recovered=scriptRoomContinuity(longSnapshot,game,{actor:'letter',target:'repair'
 assert.ok(recovered.continuity.dialogueAnchors.every(a=>Array.from(a.text).length<=SCRIPT_MEMORY_LIMITS.quoteCharacters))
 assert.ok(recovered.continuity.dialogueAnchors.reduce((n,a)=>n+Array.from(a.text).length,0)<=SCRIPT_MEMORY_LIMITS.totalCharacters)
 let r=store.create(who,{scriptId:game.id,scriptVersion:2,requestId:nonce()})
+pinTestRoomEdition(root,r.id,game);r=store.get(who,r.id)
 try{
  r=act(r,'ready');r=act(r,'start')
  const send=(text,reply='我听到了。',target='repair')=>{r=act(r,'chat',{target,text});const job=store.leaseJob(r.id);assert.equal(store.completeJob(r.id,job.job.id,job.job.leaseId,{segments:[{kind:'speech',text:reply}]}),true);return job}

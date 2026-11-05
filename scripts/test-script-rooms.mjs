@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 import { SCRIPT_GAMES, publicScriptCatalog } from '../server/scriptGameCatalog.js'
 import { createScriptRoomStore } from '../server/scriptRoomStore.js'
+import {pinTestRoomEdition} from './helpers/pin-test-room-edition.mjs'
 
-const root=fs.mkdtempSync(path.join(os.tmpdir(),'stem-script-test-'))
+const root=fs.mkdtempSync(path.resolve(import.meta.dirname,'../../qa/stem-script-test-'))
 let now=1800000000000, sequence=0
 const store=createScriptRoomStore({root,now:()=>now})
 const id=()=>`test-action-${++sequence}`
@@ -18,6 +18,7 @@ for(const script of SCRIPT_GAMES){
  for(const humans of [1,2,3,4]){
   const owners=Array.from({length:humans},(_,i)=>`ielts:${10000+sequence+i}`)
   let room=store.create(owners[0],{scriptId:script.id,scriptVersion:2,requestId:id()})
+  pinTestRoomEdition(root,room.id,script);room=store.get(owners[0],room.id)
   for(let i=1;i<humans;i++)room=store.join(owners[i],{inviteCode:room.inviteCode,roleId:script.roles[i].id,requestId:id()})
   for(const owner of owners){room=store.get(owners[0],room.id);room=act(owner,room,'ready')}
   room=act(owners[0],store.get(owners[0],room.id),'start')

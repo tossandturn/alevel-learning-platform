@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
 import {SCRIPT_GAMES,scriptGame} from '../server/scriptGameCatalog.js'
 import {createScriptRoomStore} from '../server/scriptRoomStore.js'
-const root=fs.mkdtempSync(path.join(os.tmpdir(),'roleplay-v2-'))
+import {pinTestRoomEdition} from './helpers/pin-test-room-edition.mjs'
+const root=fs.mkdtempSync(path.resolve(import.meta.dirname,'../../qa/roleplay-v2-'))
 let store=createScriptRoomStore({root}),seq=0
 const nonce=()=>`roleplay-test-${++seq}`
 const act=(who,r,type,extra={})=>store.act(who,r.id,{type,revision:store.get(who,r.id).revision,requestId:nonce(),...extra})
@@ -23,6 +23,7 @@ try{
   for(const selected of game.roles){
    const who=`ielts:${2000+seq}`
    let r=store.create(who,{scriptId:game.id,scriptVersion:2,requestId:nonce()})
+   pinTestRoomEdition(root,r.id,game);r=store.get(who,r.id)
    if(selected.id!==r.myRoleId)r=act(who,r,'claim',{roleId:selected.id})
    r=act(who,r,'ready');r=act(who,r,'start')
    assert.equal(r.publicClues.length,0,'AI does not dump evidence at the start')

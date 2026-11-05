@@ -8,7 +8,7 @@ const hash=value=>crypto.createHash('sha256').update(JSON.stringify(value)).dige
 const catalog=publicScriptCatalog(),duet=catalog.find(g=>g.id==='one-more-stop')
 assert.ok(duet,'a fifth, separate two-role romance must be present')
 assert.equal(catalog.length,5)
-assert.equal(hash(catalog.filter(g=>g.id!=='one-more-stop')),'e53b5fa06d7421a0bece086b65e47d71188bee5c5d8194750c3c68f54c13f46c','original four public entries remain unchanged')
+assert.equal(hash(catalog.filter(g=>!['one-more-stop','before-rain'].includes(g.id))),'b7596958c797f2f1c1769a6223f2348877bfae50b993996b219829c4c8d33deb','unrelated three catalog entries remain unchanged; before-rain has an intentional new case edition')
 assert.equal(hash(SCRIPT_GAMES),'da32207fa29d8bdba4dcd2fb08344d85d2d4fcbbfbd76dd87951c64ec2157397','old room definitions stay byte-equivalent')
 assert.equal(hash(scriptGame('before-rain',3)),'5de8f36ea960acec65253a3620b4329990880cc026cd80314bc9405a8d1bd4de')
 assert.equal(duet.roles.length,2);assert.equal(duet.players,'1–2 人 · AI 补位')

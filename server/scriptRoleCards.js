@@ -219,6 +219,7 @@ export function enrichScriptRole(gameId,role){
  return {...role,card:{...entry.card,version:2},missions:entry.missions.map((m,stage)=>({...m,id:`${role.id}-${stage}`,stage}))}
 }
 export function visibleScriptRole(role,stage,gameId){
- const {card,missions,entryBook,...base}=role
- return {...base,biography:entryBook||roleBookBiography(gameId,role),...(card?{card:{...card,beats:card.beats.slice(0,stage+1)}}:{})}
+ const {card,missions,entryBook,chapters,...base}=role
+ const reached=(chapters||[]).filter(c=>Number.isInteger(c.stage)&&c.stage<=stage).map(c=>`【${c.title}】\n${c.text}`)
+ return {...base,biography:[entryBook||roleBookBiography(gameId,role),...reached].join('\n\n'),...(card?{card:{...card,beats:card.beats.slice(0,stage+1)}}:{})}
 }

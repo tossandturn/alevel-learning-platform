@@ -7,10 +7,11 @@ import * as catalog from '../server/scriptGameCatalog.js'
 import { visibleScriptRole } from '../server/scriptRoleCards.js'
 import { createScriptRoomStore } from '../server/scriptRoomStore.js'
 import { scriptActorMessages } from '../server/scriptRoomApi.js'
+import {pinTestRoomEdition} from './helpers/pin-test-room-edition.mjs'
 
 assert.equal(typeof catalog.newScriptGame,'function','new rooms need a separately pinned romance edition, not rewritten legacy content')
 const { romanceOutcomes, guardRomanceRecollection } = await import('../server/scriptRomance.js')
-const game=catalog.newScriptGame('before-rain',2),hash=v=>crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex')
+const game=catalog.scriptGame('before-rain',3),hash=v=>crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex')
 assert.equal(game.contentEdition,'romance-20261105');assert.equal(game.version,3);assert.equal(game.clientVersion,2,'content version is independent of installed native capability')
 assert.match(game.genre,/爱情/);assert.match(game.summary,/许知夏.*周泊舟/);assert.match(game.summary,/林序.*顾晚/)
 assert.equal(game.roles.length,4);assert.equal(game.acts.length,3);assert.equal(game.clues.length,12)
@@ -57,11 +58,12 @@ for(let mask=0;mask<16;mask++){
 assert.deepEqual(romanceOutcomes(catalog.scriptGame('before-rain',2),{missionChoices:{}}),[])
 const root=fs.mkdtempSync(path.resolve(import.meta.dirname,'../../qa/script-romance-'))
 let store=createScriptRoomStore({root}),seq=0
+const createPinned=(who,payload)=>{const r=store.create(who,payload);pinTestRoomEdition(root,r.id,game);return store.get(who,r.id)}
 const nonce=()=>`romance-test-${++seq}`,act=(who,r,type,extra={})=>store.act(who,r.id,{type,revision:store.get(who,r.id).revision,requestId:nonce(),...extra})
 try{
  for(let humans=1;humans<=4;humans++){
   const owners=Array.from({length:humans},(_,i)=>`ielts:${91000100+humans*10+i}`)
-  let r=store.create(owners[0],{scriptId:game.id,scriptVersion:2,requestId:nonce()})
+  let r=createPinned(owners[0],{scriptId:game.id,scriptVersion:2,requestId:nonce()})
   for(let i=1;i<humans;i++)r=store.join(owners[i],{inviteCode:r.inviteCode,roleId:game.roles[i].id,requestId:nonce()},{clientVersion:2})
   for(const who of owners)r=act(who,r,'ready')
   r=act(owners[0],r,'start');assert.match(r.myRole.biography,/周泊舟/);assert.match(r.genre,/爱情/)
@@ -109,7 +111,7 @@ try{
  }
  // An already-stored v2 room has no contentEdition. Retry/restart must not adopt
  // newly published love histories. Only synthetic local fixtures are edited.
- const who='ielts:91000200',requestId=nonce(),created=store.create(who,{scriptId:game.id,scriptVersion:2,requestId})
+ const who='ielts:91000200',requestId=nonce(),created=createPinned(who,{scriptId:game.id,scriptVersion:2,requestId})
  const db=new DatabaseSync(path.join(root,'script-rooms.sqlite')),row=db.prepare('SELECT snapshot FROM script_rooms WHERE id=?').get(created.id),old=JSON.parse(row.snapshot)
  assert.equal(old.contentEdition,game.contentEdition);assert.equal(old.scriptVersion,3);delete old.contentEdition;old.scriptVersion=2
  db.prepare('UPDATE script_rooms SET snapshot=? WHERE id=?').run(JSON.stringify(old),created.id);db.close()

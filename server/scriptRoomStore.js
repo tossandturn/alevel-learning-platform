@@ -5,6 +5,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { scriptGame, newScriptGame, publicScriptCatalog } from './scriptGameCatalog.js'
 import {npcRomanceDecision,romanceReplyActor,romanceOutcomes} from './scriptRomance.js'
 import {duetNpcDecision,duetReplyActor,duetOutcomes} from './scriptDuetRomance.js'
+import {caseNpcDecision,caseReplyActor,casePublicContext,caseStageResolution,caseEnding,caseRelationshipOutcomes,caseActorContext} from './scriptRomanceCase.js'
 import {visibleScriptRole} from './scriptRoleCards.js'
 import {normalizeScriptDialogue} from './scriptDialogue.js'
 import {scriptRoomContinuity} from './scriptRoomMemory.js'
@@ -111,13 +112,19 @@ export function createScriptRoomStore({root,now=Date.now}={}){
   r.advanced=[];message(r,'dm',a.opening,{kind:'narration',image:a.image})
   // Bots obey the same stage/ownership rule; their discoveries are fixed evidence, not model inventions.
   for(const seat of r.seats.filter(s=>s.control==='ai')){
-   const decision=npcRomanceDecision(game,seat.roleId,r.stage)||duetNpcDecision(game,seat.roleId,r.stage)
+   const decision=npcRomanceDecision(game,seat.roleId,r.stage)||duetNpcDecision(game,seat.roleId,r.stage)||caseNpcDecision(game,seat.roleId,r.stage)
    if(decision){r.missionChoices||={};r.missionChoices[seat.roleId]||={};r.missionChoices[seat.roleId][decision.missionId]||=decision.optionId}
    const c=game.clues.find(c=>c.stage===r.stage&&c.roleId===seat.roleId)
    r.known[seat.roleId]=[...(r.known[seat.roleId]||[]),c.id]
    if(game.version>=2){event(r,'bot_discovered',seat.roleId,{clueId:c.id});message(r,seat.roleId,game.roles.find(x=>x.id===seat.roleId).card.beats[r.stage].entrance)}
    else {r.publicClues.push(c.id);event(r,'bot_discovered_and_shared',seat.roleId,{clueId:c.id});message(r,seat.roleId,`我在「${c.title}」里找到这一点：${c.text}`,{kind:'evidence'})}
   }
+ }
+ function revealStage(r){
+  const body=caseStageResolution(gameFor(r),r.stage)
+  if(!body||(r.revealedStages||[]).includes(r.stage))return
+  r.revealedStages||=[];r.revealedStages.push(r.stage)
+  message(r,'dm',body,{kind:'narration'});event(r,'case_reveal','dm',{stage:r.stage})
  }
  function queue(r,actor,target,trigger){
   if(r.jobs.filter(j=>['pending','running'].includes(j.status)).length>=6)fail(429,'script_ai_busy','房内仍有回复处理中，请稍后再发。')
@@ -133,7 +140,8 @@ export function createScriptRoomStore({root,now=Date.now}={}){
   for(const j of r.jobs)if(j.kind!=='image'&&j.status!=='done')j.status='superseded'
   r.phase='ended';r.ending={choiceId:selected,tie,counts,aiVotes,truth:game.truth,text:tie?'票数相同，团队没有形成一致结论。各人的选择被保留；以下复盘不把任何人擅自算作同意。':game.endings[selected]||game.endings.other,
    roles:game.roles.map(({id,name,secret,goal})=>({id,name,secret,goal})),clues:game.clues}
-  const relationships=[...romanceOutcomes(game,r),...duetOutcomes(game,r)]
+  r.ending.text=caseEnding(game,r)||r.ending.text
+  const relationships=[...romanceOutcomes(game,r),...duetOutcomes(game,r),...caseRelationshipOutcomes(game,r)]
   if(relationships.length)r.ending.text+='\n\n【各自的感情结局】\n'+relationships.map(item=>item.text).join('\n\n')
   message(r,'dm',r.ending.text,{kind:'narration'});event(r,'ended','dm',{choiceId:selected})
  }
@@ -181,7 +189,7 @@ export function createScriptRoomStore({root,now=Date.now}={}){
    if((r.attempts[r.stage]||0)>=20)fail(429,'script_puzzle_limit','本幕尝试次数已达上限，请重新阅读线索后另开一局。')
    r.attempts[r.stage]=(r.attempts[r.stage]||0)+1
    const solved=a.puzzle.answers.some(v=>answer(v)===answer(p.answer))
-   if(solved&&!r.solved.includes(r.stage))r.solved.push(r.stage)
+   if(solved&&!r.solved.includes(r.stage)){r.solved.push(r.stage);revealStage(r)}
    message(r,'dm',solved?'答案通过。请各位确认后进入下一幕。':'尚不符合全部线索。请核对题目条件；尝试两次后任务面板会显示提示。',{kind:'system'})
   }
   if(p.type==='advance'){
@@ -191,6 +199,7 @@ export function createScriptRoomStore({root,now=Date.now}={}){
    if(mission&&!r.missionChoices?.[me.roleId]?.[mission.id])fail(409,'script_mission_pending','请先到“我的身份”完成本幕个人决定；保留或暂不公开也是有效选择。')
    if(!r.advanced.includes(me.roleId))r.advanced.push(me.roleId)
    if(r.seats.filter(s=>s.control==='human').every(s=>r.advanced.includes(s.roleId))){
+    revealStage(r)
     if(r.stage<2){r.stage++;stageStart(r)}else{r.phase='vote';message(r,'dm',game.ballot.question,{kind:'system'});for(const seat of r.seats.filter(s=>s.control==='ai'))r.votes[seat.roleId]=game.botVote}
    }
   }
@@ -220,7 +229,7 @@ export function createScriptRoomStore({root,now=Date.now}={}){
    else if(target==='dm')queue(r,'dm',me.roleId,m.id)
    else if(seat?.control==='ai')queue(r,seat.roleId,me.roleId,m.id)
    else if(target==='public'){
-    const reply=romanceReplyActor(game,me.roleId,m.text,r.seats)??duetReplyActor(game,me.roleId,m.text,r.seats)
+    const reply=romanceReplyActor(game,me.roleId,m.text,r.seats)??duetReplyActor(game,me.roleId,m.text,r.seats)??caseReplyActor(game,me.roleId,m.text,r.seats)
     if(reply)queue(r,reply,'public',m.id)
     else if(reply===undefined){const bots=r.seats.filter(s=>s.control==='ai');if(bots.length)queue(r,bots[r.jobs.length%bots.length].roleId,'public',m.id)}
    }
@@ -257,11 +266,12 @@ export function createScriptRoomStore({root,now=Date.now}={}){
   const disclosed=game.clues.filter(c=>r.publicClues.includes(c.id)||(r.known[job.actor]||[]).includes(c.id))
   // Never include the full game, other identities, future clues, or answer/ending fields.
   const context={title:game.title,phase:r.phase,act:game.acts[r.stage].title,objective:game.acts[r.stage].objective,
-   actor:role?visibleScriptRole(role,r.stage,game.id):{id:'dm',name:'主持人',voice:'只帮助理解当前目标，不代替玩家发言'},
+   actor:role?caseActorContext(game,r,role,visibleScriptRole(role,r.stage,game.id)):{id:'dm',name:'主持人',voice:'只帮助理解当前目标，不代替玩家发言'},
    participants:game.roles.map(publicRole),evidence:disclosed,messages:continuity.recentMessages,continuity:continuity.continuity,
    memory:(r.npcMemory[job.actor]||[]).filter(m=>m.target==='public'||m.target===job.target).slice(-16),
    relationship:job.target==='public'?{}:r.relations[job.target]?.[job.actor]||{},
    target:job.target,sender:publicRole(game.roles.find(s=>s.id===r.messages.find(m=>m.id===job.trigger)?.actor)||{id:'unknown',name:'玩家'}),trigger:r.messages.find(m=>m.id===job.trigger)?.text||''}
+  const story=casePublicContext(game,r);if(story)context.story=story
   if(role?.card?.romance){
    const mission=role.missions.find(m=>m.stage===r.stage),chosen=r.missionChoices?.[role.id]?.[mission?.id]
    context.actorDecision=mission?.options.find(o=>o.id===chosen)?.label||''

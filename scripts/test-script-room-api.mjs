@@ -25,7 +25,7 @@ try{
  const romanceCreation={scriptId:'before-rain',scriptVersion:2,requestId:'api-romance-create-01'}
  let romance=(await request(11,'',romanceCreation)).data
  assert.equal(romance.scriptVersion,2,'the new content edition uses the existing native capability')
- assert.equal(romance.genre,'爱情情感本')
+ assert.equal(romance.genre,'爱情悬疑 · 四人命案')
  assert.equal(romance.contentEdition,undefined,'content binding is server-owned, not a client command')
  assert.equal((await request(11,'',{...romanceCreation,requestId:'api-romance-forged-01',contentEdition:'legacy'})).status,400)
  const romanceLegacyJoin=await fetch(base+'/join',{method:'POST',headers:{authorization:'Bearer '+jwt(12),'content-type':'application/json'},body:JSON.stringify({inviteCode:romance.inviteCode,requestId:'api-romance-legacy-join'})})
