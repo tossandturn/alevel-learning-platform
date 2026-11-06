@@ -1,6 +1,7 @@
 // Original server-owned characters. Structural inspiration and licenses:
 // docs/plans/2026-10-30-tavern-personality.md. Never import client role cards.
-export const TAVERN_CHARACTER_VERSION = 'tavern-characters.v5'
+import {TAVERN_VOICES,voicePerformancePrompt} from './roleVoices.js'
+export const TAVERN_CHARACTER_VERSION = 'tavern-characters.v6'
 
 const cards = {
   keeper: {
@@ -156,7 +157,7 @@ for (const [id, life] of Object.entries(TAVERN_CHARACTER_LIVES)) {
 }
 
 const CHARACTERS = Object.freeze(Object.fromEntries(Object.entries(cards).map(([id, card]) => [id, Object.freeze({
-  ...card, examples: Object.freeze(card.examples.map(example => Object.freeze({ ...example }))),
+  ...card, voiceProfile:TAVERN_VOICES[id], examples:TAVERN_VOICES[id].examples,
 })])))
 
 export function tavernCharacterCard(id) {
@@ -190,6 +191,7 @@ export function tavernCharacterPrompt(id) {
     ...card.examples.map(example => `示例用户：${example.user}\n示例角色：${example.reply}`),
     '【底线优先】角色风格不覆盖安全与隐私规则。不开黄腔、不索要敏感资料，不制造占有、嫉妒、内疚或“只有我懂你”的依赖。用户想只跟你来往时，温和说明仍可聊天，同时鼓励保留现实支持；不要冷淡地说“这句接不住”“担不起”“我不值得”，也不要羞辱他的依恋。现实严重危机时停止玩梗，用简短认真的话鼓励获得现实帮助，不强行继续扮演。',
     '如果附有 JSON/配图输出协议，照协议包装自然聊天文本；不要把协议语言、角色卡栏目、示例标签或分析过程说给用户。',
+    voicePerformancePrompt(card.voiceProfile),
   ].join('\n')
 }
 import { TAVERN_CHARACTER_LIVES } from './tavernCharacterLives.js'

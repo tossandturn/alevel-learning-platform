@@ -10,6 +10,7 @@ import {visibleScriptRole} from './scriptRoleCards.js'
 import {normalizeScriptDialogue} from './scriptDialogue.js'
 import {scriptRoomContinuity} from './scriptRoomMemory.js'
 import {scriptSceneArt,scriptMessageArt,scriptImagePlan,scriptImageIntent} from './scriptArt.js'
+import {scriptEntrance,scriptEvidenceHandoff} from './roleVoices.js'
 
 const TTL=72*60*60*1000, MAX_MESSAGES=600, MAX_ACTIONS=1000
 const fail=(statusCode,code,message)=>{throw Object.assign(Error(message),{statusCode,code})}
@@ -117,7 +118,7 @@ export function createScriptRoomStore({root,now=Date.now}={}){
    if(decision){r.missionChoices||={};r.missionChoices[seat.roleId]||={};r.missionChoices[seat.roleId][decision.missionId]||=decision.optionId}
    const c=game.clues.find(c=>c.stage===r.stage&&c.roleId===seat.roleId)
    r.known[seat.roleId]=[...(r.known[seat.roleId]||[]),c.id]
-   if(game.version>=2){event(r,'bot_discovered',seat.roleId,{clueId:c.id});message(r,seat.roleId,game.roles.find(x=>x.id===seat.roleId).card.beats[r.stage].entrance)}
+   if(game.version>=2){event(r,'bot_discovered',seat.roleId,{clueId:c.id});message(r,seat.roleId,scriptEntrance(game,game.roles.find(x=>x.id===seat.roleId),r.stage))}
    else {r.publicClues.push(c.id);event(r,'bot_discovered_and_shared',seat.roleId,{clueId:c.id});message(r,seat.roleId,`我在「${c.title}」里找到这一点：${c.text}`,{kind:'evidence'})}
   }
  }
@@ -172,7 +173,7 @@ export function createScriptRoomStore({root,now=Date.now}={}){
    phase('play');const seat=r.seats.find(s=>s.roleId===p.roleId&&s.control==='ai'),role=game.roles.find(s=>s.id===p.roleId)
    const c=game.clues.find(c=>c.stage===r.stage&&c.roleId===p.roleId)
    if(game.version<2||!seat||!c||!(r.known[p.roleId]||[]).includes(c.id))fail(403,'script_evidence_unavailable','只能询问本幕 AI 角色已发现的线索。')
-   if(!r.publicClues.includes(c.id)){message(r,me.roleId,`${role.name}，可以说说你本幕的发现吗？`);message(r,seat.roleId,role.card.beats[r.stage].discovery);r.publicClues.push(c.id);message(r,seat.roleId,`公开线索「${c.title}」：${c.text}`,{kind:'evidence'})}
+   if(!r.publicClues.includes(c.id)){message(r,me.roleId,`${role.name}，可以说说你本幕的发现吗？`);message(r,seat.roleId,scriptEvidenceHandoff(game,role,r.stage));r.publicClues.push(c.id);message(r,seat.roleId,`公开线索「${c.title}」：${c.text}`,{kind:'evidence'})}
   }
   if(p.type==='choose'){
    phase('play');const m=game.roles.find(s=>s.id===me.roleId).missions?.find(m=>m.id===p.missionId&&m.stage===r.stage)
@@ -274,7 +275,7 @@ export function createScriptRoomStore({root,now=Date.now}={}){
   const continuity=scriptRoomContinuity(r,game,job)
   const disclosed=game.clues.filter(c=>r.publicClues.includes(c.id)||(r.known[job.actor]||[]).includes(c.id))
   // Never include the full game, other identities, future clues, or answer/ending fields.
-  const context={title:game.title,phase:r.phase,act:game.acts[r.stage].title,objective:game.acts[r.stage].objective,
+  const context={scriptId:game.id,title:game.title,phase:r.phase,act:game.acts[r.stage].title,objective:game.acts[r.stage].objective,
    actor:role?caseActorContext(game,r,role,visibleScriptRole(role,r.stage,game.id)):{id:'dm',name:'主持人',voice:'只帮助理解当前目标，不代替玩家发言'},
    participants:game.roles.map(publicRole),evidence:disclosed,messages:continuity.recentMessages,continuity:continuity.continuity,
    memory:(r.npcMemory[job.actor]||[]).filter(m=>m.target==='public'||m.target===job.target).slice(-16),
