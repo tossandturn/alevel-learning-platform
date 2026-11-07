@@ -10,7 +10,8 @@ import {visibleScriptRole} from './scriptRoleCards.js'
 import {normalizeScriptDialogue} from './scriptDialogue.js'
 import {scriptRoomContinuity} from './scriptRoomMemory.js'
 import {scriptSceneArt,scriptMessageArt,scriptImagePlan,scriptImageIntent} from './scriptArt.js'
-import {scriptEntrance,scriptEvidenceHandoff} from './roleVoices.js'
+import {scriptEntrance} from './roleVoices.js'
+import {scriptStageScene} from './scriptSceneBeats.js'
 
 const TTL=72*60*60*1000, MAX_MESSAGES=600, MAX_ACTIONS=1000
 const fail=(statusCode,code,message)=>{throw Object.assign(Error(message),{statusCode,code})}
@@ -110,15 +111,34 @@ export function createScriptRoomStore({root,now=Date.now}={}){
  })}
  function stageStart(r){
   const game=gameFor(r),a=game.acts[r.stage]
+  const bots=r.seats.filter(s=>s.control==='ai'),scene=scriptStageScene(game,r.stage,bots.map(s=>s.roleId))
   for(const j of r.jobs)if(j.kind!=='image'&&j.stage!==r.stage&&!['done','superseded'].includes(j.status))j.status='superseded'
-  r.advanced=[];message(r,'dm',a.opening,{kind:'narration',image:a.image})
+  r.advanced=[]
+  const opening=message(r,'dm',scene?.narration||a.opening,{kind:'narration',image:scene?scriptSceneArt(game,r.stage):a.image})
+  if(scene){
+   opening.sceneVersion=scene.version
+   let previous=null
+   for(const beat of scene.lines){
+    const normalized=normalizeScriptDialogue({segments:beat.parts},{actor:beat.actor,name:game.roles.find(role=>role.id===beat.actor).name,target:'public',evidence:[]})
+    if(!normalized||beat.respondsTo!==(previous?.actor||null))throw Error('Invalid authored stage dialogue')
+    // Separate native messages also work on clients that use the plain-text fallback.
+    const narration=normalized.parts.filter(p=>p.kind==='narration').map(p=>p.text).join('\n\n')
+    if(narration){const aside=message(r,'dm',narration,{kind:'narration'});aside.sceneVersion=scene.version}
+    const speech=normalized.parts.filter(p=>p.kind==='speech')
+    if(!speech.length)throw Error('Authored actor needs speech')
+    const reply=message(r,beat.actor,speech.map(p=>p.text).join('\n\n'),{kind:'dialogue'})
+    reply.parts=speech;reply.sceneVersion=scene.version
+    if(previous)reply.sceneReplyTo=previous.id
+    previous=reply
+   }
+  }
   // Bots obey the same stage/ownership rule; their discoveries are fixed evidence, not model inventions.
-  for(const seat of r.seats.filter(s=>s.control==='ai')){
+  for(const seat of bots){
    const decision=npcRomanceDecision(game,seat.roleId,r.stage)||duetNpcDecision(game,seat.roleId,r.stage)||caseNpcDecision(game,seat.roleId,r.stage)
    if(decision){r.missionChoices||={};r.missionChoices[seat.roleId]||={};r.missionChoices[seat.roleId][decision.missionId]||=decision.optionId}
    const c=game.clues.find(c=>c.stage===r.stage&&c.roleId===seat.roleId)
    r.known[seat.roleId]=[...(r.known[seat.roleId]||[]),c.id]
-   if(game.version>=2){event(r,'bot_discovered',seat.roleId,{clueId:c.id});message(r,seat.roleId,scriptEntrance(game,game.roles.find(x=>x.id===seat.roleId),r.stage))}
+   if(game.version>=2){event(r,'bot_discovered',seat.roleId,{clueId:c.id});if(!scene)message(r,seat.roleId,scriptEntrance(game,game.roles.find(x=>x.id===seat.roleId),r.stage))}
    else {r.publicClues.push(c.id);event(r,'bot_discovered_and_shared',seat.roleId,{clueId:c.id});message(r,seat.roleId,`我在「${c.title}」里找到这一点：${c.text}`,{kind:'evidence'})}
   }
  }
@@ -173,7 +193,7 @@ export function createScriptRoomStore({root,now=Date.now}={}){
    phase('play');const seat=r.seats.find(s=>s.roleId===p.roleId&&s.control==='ai'),role=game.roles.find(s=>s.id===p.roleId)
    const c=game.clues.find(c=>c.stage===r.stage&&c.roleId===p.roleId)
    if(game.version<2||!seat||!c||!(r.known[p.roleId]||[]).includes(c.id))fail(403,'script_evidence_unavailable','只能询问本幕 AI 角色已发现的线索。')
-   if(!r.publicClues.includes(c.id)){message(r,me.roleId,`${role.name}，可以说说你本幕的发现吗？`);message(r,seat.roleId,scriptEvidenceHandoff(game,role,r.stage));r.publicClues.push(c.id);message(r,seat.roleId,`公开线索「${c.title}」：${c.text}`,{kind:'evidence'})}
+   if(!r.publicClues.includes(c.id)){message(r,me.roleId,`${role.name}，你刚才找到了什么？`);r.publicClues.push(c.id);message(r,seat.roleId,`公开线索「${c.title}」：${c.text}`,{kind:'evidence'})}
   }
   if(p.type==='choose'){
    phase('play');const m=game.roles.find(s=>s.id===me.roleId).missions?.find(m=>m.id===p.missionId&&m.stage===r.stage)

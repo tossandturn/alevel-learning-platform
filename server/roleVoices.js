@@ -1,6 +1,7 @@
 // Original performance layer. Names may recur in separate fictional worlds;
 // identity is keyed by story + role, never by display name alone.
 export const ROLE_VOICE_VERSION='role-voice.20261106'
+import {scriptStandaloneEntrance} from './scriptSceneBeats.js'
 const examples=rows=>rows.map(([user,reply])=>Object.freeze({user,reply}))
 function voice(name,gender,mask,innerNeed,cadence,underPressure,whenClose,samples,entrances=[],handoffs=[]){
  return Object.freeze({version:ROLE_VOICE_VERSION,name,gender,mask,innerNeed,cadence,underPressure,whenClose,examples:Object.freeze(examples(samples)),entrances:Object.freeze(entrances),handoffs:Object.freeze(handoffs)})
@@ -93,7 +94,7 @@ export const TAVERN_VOICES=Object.freeze({
 })
 
 export function scriptVoice(scriptId,role){const v=SCRIPT_VOICES[scriptId+':'+role?.id];return v&&v.name===role?.name?v:null}
-export function scriptEntrance(game,role,stage){return scriptVoice(game.id,role)?.entrances[stage]||role.card?.beats[stage]?.entrance||''}
+export function scriptEntrance(game,role,stage){return scriptStandaloneEntrance(game,role,stage)||scriptVoice(game.id,role)?.entrances[stage]||role.card?.beats[stage]?.entrance||''}
 export function scriptEvidenceHandoff(game,role,stage){return scriptVoice(game.id,role)?.handoffs[stage]||role.card?.beats[stage]?.discovery||''}
 export function voicePerformancePrompt(profile){
  if(!profile)return ''
@@ -111,7 +112,7 @@ export function voiceActorContext(context){
  if(!profile)return context
  const actor=context.actor,card=actor.card,{entrances,handoffs,...performance}=profile
  const personal=personalDialogueBeat(context.trigger)
- return {...context,...(personal?{dialogueFocus:'personal',objective:'回应眼前的情感或日常交流；案件进度保持原样。',evidence:[]}:{}),...(context.scriptId==='before-rain'&&['letter','repair'].includes(actor.id)&&card?.romance?{recollectionPerspective:'八年前临行时，许知夏问周泊舟还有没有话说；周泊舟回答一路顺风。许知夏说我时指许知夏，不能把当年自己发问说成对方问自己。这个旧事件与今晚的来访和案件分开。'}:{}),actor:{...actor,voice:profile.cadence,voiceProfile:performance,...(card?{card:{...card,examples:profile.examples,beats:(card.beats||[]).map((beat,i)=>({...beat,entrance:entrances[i]||beat.entrance,discovery:handoffs[i]||beat.discovery}))}}:{})}}
+ return {...context,...(personal?{dialogueFocus:'personal',objective:'回应眼前的情感或日常交流；案件进度保持原样。',evidence:[]}:{}),...(context.scriptId==='before-rain'&&['letter','repair'].includes(actor.id)&&card?.romance?{recollectionPerspective:'八年前临行时，许知夏问周泊舟还有没有话说；周泊舟回答一路顺风。许知夏说我时指许知夏，不能把当年自己发问说成对方问自己。这个旧事件与今晚的来访和案件分开。'}:{}),actor:{...actor,voice:profile.cadence,voiceProfile:performance,...(card?{card:{...card,examples:profile.examples,beats:(card.beats||[]).map(beat=>({memory:beat.memory}))}}:{})}}
 }
 export function personalDialogueBeat(value){
  const text=String(value||'')

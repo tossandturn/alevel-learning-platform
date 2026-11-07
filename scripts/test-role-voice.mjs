@@ -54,6 +54,7 @@ try{
  assert.equal(projected.actor.voiceProfile.name,'周泊舟');assert.match(messages[0].content,/后台约束/)
  assert.equal(projected.actor.card.examples.length,3)
 assert.ok(projected.actor.card.beats.every(b=>!dialogueVoiceIssues(b.entrance).length))
+ assert.ok(projected.actor.card.beats.every(b=>!Object.hasOwn(b,'entrance')&&!Object.hasOwn(b,'discovery')),'the model uses actually delivered scene messages, not independent stock announcements')
  assert.equal(projected.dialogueFocus,'personal');assert.deepEqual(projected.evidence,[])
  assert.match(messages[0].content.slice(-520),/顶层JSON对象/)
  assert.ok(!JSON.stringify(projected).includes(newScriptGame('before-rain',2).truth))

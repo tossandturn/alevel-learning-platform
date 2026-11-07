@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "test:script-scenes": "node scripts/test-script-scene-dialogue.mjs",
     "test:role-voice": "node scripts/test-role-voice.mjs && node scripts/test-role-voice-api.mjs",
     "test:script-art": "node scripts/test-script-art-spec.mjs && node scripts/test-script-art.mjs && node scripts/test-script-art-generation.mjs",
     "test:native-product-config": "node scripts/test-native-product-config.mjs",
