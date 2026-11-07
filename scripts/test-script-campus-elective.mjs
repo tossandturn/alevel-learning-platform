@@ -7,6 +7,7 @@ import {visibleScriptRole} from '../server/scriptRoleCards.js'
 import {campusOutcomes} from '../server/scriptCampusElective.js'
 import {scriptActorMessages} from '../server/scriptRoomApi.js'
 import {scriptVoiceIssues,personalDialogueBeat} from '../server/roleVoices.js'
+import {hasUnsupportedRecollectionQuote} from '../server/scriptRoomMemory.js'
 import {newScriptGame,publicScriptCatalog,SCRIPT_GAMES,scriptGame} from '../server/scriptGameCatalog.js'
 const game=newScriptGame('last-elective',2)
 assert.ok(game,'one new complete campus duet must exist')
@@ -99,6 +100,8 @@ try{
  const performance=JSON.parse(scriptActorMessages({...job.context,trigger:'先不聊题。我提议整理完在图书馆东门等。'})[1].content)
  assert.equal(performance.dialogueFocus,'personal')
  assert.equal(performance.actorDecision,undefined,'saved game choice is not an order to repeat a speech every turn')
+ assert.ok(!scriptActorMessages(job.context)[0].content.includes('本局有共同命案'),'campus performance has its own compact policy, not a crime-DM prompt')
+ assert.ok(scriptActorMessages(job.context)[0].content.includes('校园对白'))
  assert.ok(!performance.actor.biography.includes('【第一幕私章'))
  assert.ok(performance.actor.biography.includes('纸桥'),'factual character history survives the performance projection')
  assert.ok(!performance.actor.goal.includes('整理'))
@@ -108,6 +111,8 @@ try{
  assert.ok(scriptVoiceIssues({text:'才隔了一幕就考我记性？'},{...job.context,trigger:'刚才说在哪儿等？'}).includes('scene-meta'))
  assert.ok(scriptVoiceIssues({text:'那之前说的东门见面就当没提过。'},{...job.context,trigger:'只做同学，不想约会，别再劝了。'}).includes('unasked-plan-cancellation'))
  assert.equal(scriptVoiceIssues({text:'好，先把题放下。东门我记住了。'},{...job.context,trigger:'先不聊题，图书馆东门等。'}).length,0)
+ assert.ok(scriptVoiceIssues({text:'记住了，×年×月×日。'},{...job.context,trigger:'图书馆东门等。'}).includes('template-residue'))
+ assert.equal(hasUnsupportedRecollectionQuote({text:'还记得那张纸吗？上面写着“这里慢一点，图比我讲三分钟管用”。'},{actor:{card:{romance:{},pastEventAnchors:[]}},trigger:'你记得那页批注吗？',story:{campus:true,stage:2,publicReveals:[{stage:0,text:'这里慢一点，图比我讲三分钟管用'}]}}),false,'old officially unlocked pages stay valid quote sources after long dialogue')
  store.completeJob(r.id,job.job.id,job.job.leaseId,{text:'得先把两张条件放到一起。你那张写了什么？'})
  r=disclose(store.get(who,r.id),[who]);r=solve(r,who)
  r=action(who,r.id,'chat',{target:ai,text:'那张失败稿现在能看了吗？'});job=store.leaseJob(r.id)

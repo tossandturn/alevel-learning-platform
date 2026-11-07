@@ -142,6 +142,8 @@ export function scriptVoiceIssues(value,context){
  if(!host&&personalDialogueBeat(context?.trigger)&&(timedEvidence||/(?:编号(?:是|写着|写的是)|季节编号).{0,3}\d|(?:先|等).{0,16}(?:核对|查完|核完).{0,16}(?:再聊|再来|再说)|得先核对完/.test(text)||value?.shareClueId))issues.push('unsolicited-clue-detour')
  if(!host&&context?.story?.campus){
   const trigger=String(context.trigger||'')
+  const placeholder=/(?:×|x){1,4}年(?:×|x){1,2}月(?:×|x){1,2}日|<姓名>|\[姓名\]/i
+  if(placeholder.test(text)&&!placeholder.test(trigger))issues.push('template-residue')
   const detours=[...text.matchAll(/(?:先|接着|继续|还是|再)(?:来|把|对|做|聊|看|核对)[^。！？\n]{0,18}(?:题|条件|等式|版本单|线索|字格)|(?:我这|你那|我这边)[^。！？\n]{0,18}(?:等于|r[加减+−-]c)/g)]
   if(personalDialogueBeat(trigger)&&detours.some(m=>!/放下|收起|不急|暂停|别急/.test(m[0])&&!/^(?:先)?(?:放下|收起|不急|暂停)/.test(text.slice(m.index+m[0].length))))issues.push('unsolicited-clue-detour')
   if(!/幕|章节|游戏|任务/.test(trigger)&&/(?:隔.{0,4}|上一|下一|第[一二三])幕|本幕/.test(text))issues.push('scene-meta')
