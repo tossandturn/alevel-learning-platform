@@ -93,7 +93,7 @@ export function icelandPublicContext(game,room){
 function personal(context){return context?.story?.iceland&&!/线索|谜题|字母|编号|提示|怎么解|核验/.test(context.trigger||'')&&/喝.{0,10}(?:茶|咖啡|热汤)|(?:茶|咖啡|热汤).{0,8}(?:糖|浓|淡)|吃(?:点|一口|饭)|饿了|困了|陪我坐|先歇/.test(context.trigger||'')}
 export function icelandPerformanceContext(context){
  if(!personal(context))return context
- const projected={...context,dialogueFocus:'personal',objective:'回应此刻的日常邀请或感受，不附带调试任务。',evidence:[]}
+ const projected={...context,dialogueFocus:'personal',objective:'回应此刻的日常邀请或感受，不附带调试任务。',story:{...context.story,commonGoal:'本轮只接住眼前的日常交流；已完成的幕保持完成。'},actor:{...context.actor,goal:'回应对方这句话，沿用本局已经说定的具体偏好。'},evidence:[]}
  delete projected.actorDecision
  return projected
 }
@@ -106,6 +106,8 @@ export function icelandPerformanceIssues(proposal,context){
  const visible=JSON.stringify([context.trigger,context.messages,context.continuity,context.actor?.biography,context.actor?.card?.pastEventAnchors])
  if([...text.matchAll(pastTea)].some(m=>!visible.includes(m[0])))issues.push('unsupported-shared-tea-memory')
  if(personal(context)&&proposal?.shareClueId)issues.push('personal-dialogue-evidence-push')
+ if(context.story.stage>=1&&/(?:叶影|水纹|门灯|灯光顺序|声音同步)[^。！？\n]{0,20}(?:还没|尚未|未完成|没过)/.test(text))issues.push('completed-stage-regression')
+ if(personal(context)&&/(?:先|得|必须)[^。！？\n]{0,18}(?:扶[^。！？\n]{0,6}板|把[^。！？\n]{0,8}板|调灯|干完活|(?:顺序|调试|任务)[^。！？\n]{0,6}(?:调顺|做完|完成))|别光安排收工|别想岔开/.test(text))issues.push('personal-dialogue-task-push')
  return issues
 }
-export const ICELAND_VOICE_REPAIR=' 本局正在冰岛白夜温室。直接回应当前句子；喝茶吃饭等日常邀请不附加“先把调灯单给我”。没有可见记录的上次喝茶经历不能编造，可说现在想喝什么。调灯单给顺序但不含声音字母；录音目录本来就有字母，不能说目录缺字母。用一两句自然话重新回答。'
+export const ICELAND_VOICE_REPAIR=' 本局正在冰岛白夜温室。直接回应当前句子；喝茶吃饭等日常邀请不附加扶板、调灯、先干完活等条件，不推销线索。没有可见记录的上次喝茶经历不能编造，可说现在想喝什么。调灯单给顺序但不含声音字母；录音目录本来就有字母，不能说目录缺字母。story.stage大于等于1时，第一幕灯光和声音的同步已经完成，不能再说水纹或门灯没过关。沿用明确说好的不加糖等偏好。用一两句自然话重新回答。'

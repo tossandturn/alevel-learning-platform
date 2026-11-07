@@ -20,6 +20,10 @@ assert.ok(story.icelandPerformanceIssues(proposal('你那份录音目录就在�
 assert.equal(story.icelandPerformanceIssues(proposal('调灯单没有声音字母，需要对照你的目录。'),context).length,0)
 assert.ok(story.icelandPerformanceIssues({...proposal('好呀。'),shareClueId:'i1'},context).includes('personal-dialogue-evidence-push'))
 assert.deepEqual(story.icelandPerformanceIssues(proposal('上次那杯茶很香。'),{...context,story:undefined}),[],'other books unchanged')
+assert.ok(story.icelandPerformanceIssues(proposal('水纹和门灯还没过我这关。'),{...context,story:{iceland:true,stage:1}}).includes('completed-stage-regression'))
+assert.deepEqual(story.icelandPerformanceIssues(proposal('水纹和门灯还没过我这关。'),{...context,story:{iceland:true,stage:0},trigger:'灯光核对了吗'}),[])
+assert.ok(story.icelandPerformanceIssues(proposal('不过得先把这顺序调顺，别光安排收工以后的事。'),context).includes('personal-dialogue-task-push'))
+assert.equal(story.icelandPerformanceIssues(proposal('好啊，热一点。我也想在那张长桌坐会儿。'),context).length,0)
 console.log('PASS Iceland personal projection, visible recollection provenance and precise recording-index fact fence')
 const base=path.resolve(import.meta.dirname,'../../qa'),root=fs.mkdtempSync(path.join(base,'iceland-performance-'))
 let calls=0,seq=0,alwaysBad=false
