@@ -5,6 +5,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { scriptGame, newScriptGame, publicScriptCatalog } from './scriptGameCatalog.js'
 import {npcRomanceDecision,romanceReplyActor,romanceOutcomes} from './scriptRomance.js'
 import {duetNpcDecision,duetReplyActor,duetOutcomes} from './scriptDuetRomance.js'
+import {icelandPublicContext} from './scriptIcelandRomance.js'
 import {caseNpcDecision,caseReplyActor,casePublicContext,caseStageResolution,caseEnding,caseRelationshipOutcomes,caseActorContext} from './scriptRomanceCase.js'
 import {visibleScriptRole} from './scriptRoleCards.js'
 import {normalizeScriptDialogue} from './scriptDialogue.js'
@@ -303,7 +304,7 @@ export function createScriptRoomStore({root,now=Date.now}={}){
   const game=gameFor(r),role=game.roles.find(x=>x.id===job.actor)
   if(job.kind==='image'){
    const prompt=r.messages.find(m=>m.id===job.trigger)?.text||'',artPlan=scriptImagePlan(game,job.stage,prompt)
-   return {id:r.id,job:clone(job),imageInput:{ownerId:job.owner,requestId:`room-${r.id}-${job.id}-${job.attempts}`,persona:'script-room',prompt,longJob:true,scriptScene:{id:game.id,version:game.clientVersion||game.version,title:game.title,visualCanon:game.visualCanon,act:game.acts[job.stage].title,setting:game.acts[job.stage].opening,stage:job.stage,referenceIds:artPlan.referenceIds,artDirection:artPlan.artDirection}}}
+   return {id:r.id,job:clone(job),imageInput:{ownerId:job.owner,requestId:`room-${r.id}-${job.id}-${job.attempts}`,persona:'script-room',prompt,longJob:true,scriptScene:{id:game.id,version:game.clientVersion||game.version,contentEdition:game.contentEdition,title:game.title,visualCanon:game.visualCanon,act:game.acts[job.stage].title,setting:game.acts[job.stage].opening,stage:job.stage,referenceIds:artPlan.referenceIds,artDirection:artPlan.artDirection}}}
   }
   const continuity=scriptRoomContinuity(r,game,job)
   const disclosed=game.clues.filter(c=>r.publicClues.includes(c.id)||(r.known[job.actor]||[]).includes(c.id))
@@ -314,7 +315,7 @@ export function createScriptRoomStore({root,now=Date.now}={}){
    memory:(r.npcMemory[job.actor]||[]).filter(m=>m.target==='public'||m.target===job.target).slice(-16),
    relationship:job.target==='public'?{}:r.relations[job.target]?.[job.actor]||{},
    target:job.target,sender:publicRole(game.roles.find(s=>s.id===r.messages.find(m=>m.id===job.trigger)?.actor)||{id:'unknown',name:'玩家'}),trigger:r.messages.find(m=>m.id===job.trigger)?.text||''}
-  const story=casePublicContext(game,r)||campusPublicContext(game,r)||venicePublicContext(game,r);if(story)context.story=story
+  const story=casePublicContext(game,r)||campusPublicContext(game,r)||venicePublicContext(game,r)||icelandPublicContext(game,r);if(story)context.story=story
   if(job.actor==='dm'){
    const requesterId=context.sender.id,currentClues=game.clues.filter(c=>c.stage===r.stage),own=currentClues.find(c=>c.roleId===requesterId)
    const mission=game.roles.find(s=>s.id===requesterId)?.missions?.find(m=>m.stage===r.stage)

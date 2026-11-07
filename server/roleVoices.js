@@ -107,7 +107,7 @@ export const TAVERN_VOICES=Object.freeze({
 
 export function scriptVoice(scriptId,role){const v=SCRIPT_VOICES[scriptId+':'+role?.id];return v&&v.name===role?.name?v:null}
 export function scriptEntrance(game,role,stage){return scriptStandaloneEntrance(game,role,stage)||scriptVoice(game.id,role)?.entrances[stage]||role.card?.beats[stage]?.entrance||''}
-export function scriptEvidenceHandoff(game,role,stage){return scriptVoice(game.id,role)?.handoffs[stage]||role.card?.beats[stage]?.discovery||''}
+export function scriptEvidenceHandoff(game,role,stage){return (game.contentEdition==='duet-iceland-20261108'?role.card?.beats[stage]?.discovery:'')||scriptVoice(game.id,role)?.handoffs[stage]||role.card?.beats[stage]?.discovery||''}
 export function voicePerformancePrompt(profile){
  if(!profile)return ''
  return [
@@ -120,7 +120,8 @@ export function voicePerformancePrompt(profile){
  ].join('\n')
 }
 export function voiceActorContext(context){
- const profile=scriptVoice(context?.scriptId,context?.actor)
+ const original=scriptVoice(context?.scriptId,context?.actor)
+ const profile=original&&context?.story?.iceland?{...original,examples:context.actor.card?.examples||original.examples}:original
  if(!profile)return context
  const actor=context.actor,card=actor.card,{entrances,handoffs,...performance}=profile
  const personal=personalDialogueBeat(context.trigger)

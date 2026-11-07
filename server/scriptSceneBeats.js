@@ -3,9 +3,27 @@
 export const SCRIPT_SCENE_VERSION='script-scenes.20261107'
 import {CAMPUS_ELECTIVE_GAME,CAMPUS_ELECTIVE_EDITION} from './scriptCampusElective.js'
 import {VENICE_GAME,VENICE_EDITION} from './scriptVeniceRomance.js'
+import {ICELAND_GAME,ICELAND_EDITION} from './scriptIcelandRomance.js'
 const line=(open,after={},narration='')=>({open,after,narration})
 const scene=(narration,cast)=>({narration,cast})
 const books={
+ [ICELAND_EDITION]:{
+  edition:ICELAND_EDITION,names:{sutang:'苏棠',jiangyuan:'江远'},
+  scenes:[
+   scene(ICELAND_GAME.acts[0].opening,{
+    sutang:line('都快十一点了，天还亮着。我那套等天黑再调灯的计划，算是彻底下班了。帮我扶一下这块板？'),
+    jiangyuan:line('帘子先拉一半吧。天不配合，咱们先让它少参加一点。',{sutang:'扶着呢。你慢点挪，上次你说一点点，差点把我挪出门去。'}),
+   }),
+   scene(ICELAND_GAME.acts[1].opening,{
+    sutang:line('我想听听被剪掉的那一段。昨天没问，是怕一开口就像在找你吵架。'),
+    jiangyuan:line('原件在。我没有删，只把公共播放的那份剪短了。咱们一块儿听清楚。',{sutang:'你问就好。我昨天看出你不高兴了，还以为等忙完再问也来得及。'}),
+   }),
+   scene(ICELAND_GAME.acts[2].opening,{
+    sutang:line('先吃一口。我把汤热过了，这次总算不用边收工边啃冷面包。'),
+    jiangyuan:line('耳机收起来了。今晚最后这段，就听你当面说。',{sutang:'那我先尝。刚才肚子叫了一声，我还以为是录音出了问题。'}),
+   }),
+  ],
+ },
  'venice-blue-hour':{
   edition:VENICE_EDITION,names:{xuying:'许映',luxi:'陆晞'},
   scenes:[
@@ -261,7 +279,8 @@ const books={
 
 function definition(game,stage){
  if(!game||game.version<2||!Number.isInteger(stage)||stage<0||stage>2)return null
- const book=Object.hasOwn(books,game.id)?books[game.id]:null
+ const key=Object.hasOwn(books,game.contentEdition)?game.contentEdition:game.id
+ const book=Object.hasOwn(books,key)?books[key]:null
  if(!book||book.edition&&book.edition!==game.contentEdition)return null
  if(Object.entries(book.names).some(([id,name])=>!game.roles.some(r=>r.id===id&&r.name===name)))return null
  return book.scenes[stage]||null

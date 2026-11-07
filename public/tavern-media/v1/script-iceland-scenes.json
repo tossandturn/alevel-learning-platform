@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "tavern-media.v1",
+  "revision": "script-iceland-20261108",
+  "items": [
+    {
+      "id": "scriptanime-iceland-scene-0",
+      "kind": "image",
+      "caption": "玻璃温室",
+      "alt": "玻璃温室 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "one-more-stop",
+        "scene",
+        "玻璃温室",
+        "温室",
+        "第一幕场景"
+      ],
+      "file": "scriptanime-iceland-scene-0-3c83f16ade05fd89.webp",
+      "sha256": "3c83f16ade05fd8990a33603b397db65eddbb2eac27ebbfe360c5cabaeb4f900",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-iceland-scene-1",
+      "kind": "image",
+      "caption": "录音工作间",
+      "alt": "录音工作间 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "one-more-stop",
+        "scene",
+        "录音工作间",
+        "录音室",
+        "工作间",
+        "第二幕场景"
+      ],
+      "file": "scriptanime-iceland-scene-1-9cfd22800a6ab2b7.webp",
+      "sha256": "9cfd22800a6ab2b703d149fc496a54c49bfb538ac2174dc0b5c02ee8abbf7243",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-iceland-scene-2",
+      "kind": "image",
+      "caption": "白夜庭院",
+      "alt": "白夜庭院 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "one-more-stop",
+        "scene",
+        "白夜庭院",
+        "庭院",
+        "第三幕场景"
+      ],
+      "file": "scriptanime-iceland-scene-2-ec2d1ea1fbea4205.webp",
+      "sha256": "ec2d1ea1fbea4205acf2dd8dd2c30e96396bf178cbd078aacb12a46be9dff57d",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-iceland-role-sutang",
+      "kind": "image",
+      "caption": "苏棠立绘",
+      "alt": "苏棠立绘 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "one-more-stop",
+        "portrait",
+        "苏棠",
+        "苏棠立绘",
+        "苏棠的样子"
+      ],
+      "file": "scriptanime-iceland-role-sutang-9876c03f3b6eeeda.webp",
+      "sha256": "9876c03f3b6eeedaab31c1500bd434d5c02c0fc49b8814593aaa84ffc89bdbe9",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-iceland-role-jiangyuan",
+      "kind": "image",
+      "caption": "江远立绘",
+      "alt": "江远立绘 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "one-more-stop",
+        "portrait",
+        "江远",
+        "江远立绘",
+        "江远的样子"
+      ],
+      "file": "scriptanime-iceland-role-jiangyuan-546baec28f36aa84.webp",
+      "sha256": "546baec28f36aa843799867d5b35ed64ede8f86758e12d1c9dd6f95fb5b1eaf8",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-iceland-prop-flashlight",
+      "kind": "image",
+      "caption": "夹式手电",
+      "alt": "夹式手电 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "one-more-stop",
+        "prop",
+        "夹式手电",
+        "小手电",
+        "手电"
+      ],
+      "file": "scriptanime-iceland-prop-flashlight-2ac4864330c9265a.webp",
+      "sha256": "2ac4864330c9265a0cbf242db0b3604f80f7e18fd3e68fc87b6b8acd6cdcae08",
+      "width": 1254,
+      "height": 1254
+    },
+    {
+      "id": "scriptanime-iceland-prop-recorder",
+      "kind": "image",
+      "caption": "便携录音机",
+      "alt": "便携录音机 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "one-more-stop",
+        "prop",
+        "便携录音机",
+        "录音机",
+        "录音设备"
+      ],
+      "file": "scriptanime-iceland-prop-recorder-6ec84052dbb3d578.webp",
+      "sha256": "6ec84052dbb3d5789ca266e828ca94ee62bc6fd0fa23d3feb6078f058f0f0e23",
+      "width": 1254,
+      "height": 1254
+    },
+    {
+      "id": "scriptanime-iceland-ensemble",
+      "kind": "image",
+      "caption": "角色合影",
+      "alt": "角色合影 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "one-more-stop",
+        "ensemble",
+        "合影",
+        "全体角色",
+        "全员合影",
+        "所有角色"
+      ],
+      "file": "scriptanime-iceland-ensemble-1607598ba69bb5ea.webp",
+      "sha256": "1607598ba69bb5ea856c5f4fd6ea50b70a6bdc5a5ff5012a9ab5d81006e36105",
+      "width": 1280,
+      "height": 720
+    }
+  ]
+}

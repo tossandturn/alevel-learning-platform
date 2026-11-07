@@ -30,7 +30,7 @@ const previous={
  'one-more-stop':'9f86769055be05b012989ae856b8f743df0655ec8a691362d64404ac8c23f39a',
  'last-elective':'5ead48b7d1bf8ff8149ac9b95563c5414eb8ae03c3add11d4bc57652593d7254',
 }
-for(const [id,hash] of Object.entries(previous))assert.equal(canonicalHash(newScriptGame(id,2)),hash,id+' canon must remain pinned')
+for(const [id,hash] of Object.entries(previous))assert.equal(canonicalHash(id==='one-more-stop'?scriptGame(id,2,'duet-one-more-stop-20261106'):newScriptGame(id,2)),hash,id+' canon must remain pinned')
 const permutation=a=>a.length?a.flatMap((v,i)=>permutation(a.filter((_,j)=>i!==j)).map(rest=>[v,...rest])):[[]]
 const orders=permutation(['窗','桥','鹭','灯']).filter(a=>a[0]==='窗'&&a.indexOf('桥')===a.indexOf('鹭')+1&&a.indexOf('灯')>a.indexOf('桥')).map(a=>a.join(''))
 assert.deepEqual(orders,['窗鹭桥灯']);assert.ok(game.acts[1].puzzle.answers.includes(orders[0]))

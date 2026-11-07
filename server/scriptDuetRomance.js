@@ -1,5 +1,6 @@
 // Original two-role romance. Separate content identity: existing four books and
 // their saved rooms are never reinterpreted as this story. No licensed prose used.
+import {ICELAND_EDITION} from './scriptIcelandRomance.js'
 export const DUET_EDITION='duet-one-more-stop-20261106'
 const art=file=>'/api/ai/tavern/media/v1/'+file
 const book=sections=>sections.map(([heading,...paragraphs])=>`【${heading}】\n${paragraphs.join('\n\n')}`).join('\n\n')
@@ -83,17 +84,17 @@ export const DUET_ROMANCE_GAME={
 function freeze(value){if(value&&typeof value==='object'&&!Object.isFrozen(value)){Object.values(value).forEach(freeze);Object.freeze(value)}return value}
 freeze(DUET_ROMANCE_GAME)
 export function duetNpcDecision(game,roleId,stage){
- if(game?.contentEdition!==DUET_EDITION)return null
+ if(![DUET_EDITION,ICELAND_EDITION].includes(game?.contentEdition))return null
  const m=game.roles.find(r=>r.id===roleId)?.missions.find(m=>m.stage===stage)
  return m?{missionId:m.id,optionId:'open'}:null
 }
 export function duetReplyActor(game,speakerId,text,seats){
- if(game?.contentEdition!==DUET_EDITION)return undefined
+ if(![DUET_EDITION,ICELAND_EDITION].includes(game?.contentEdition))return undefined
  const partner=game.roles.find(r=>r.id===speakerId)?.card.romance.partnerId
  return seats.some(s=>s.roleId===partner&&s.control==='ai')?partner:''
 }
 export function duetOutcomes(game,room){
- if(game?.contentEdition!==DUET_EDITION)return []
+ if(![DUET_EDITION,ICELAND_EDITION].includes(game?.contentEdition))return []
  const yes=game.roles.filter(r=>room.missionChoices?.[r.id]?.[`${r.id}-2`]==='open')
  const text=yes.length===2?'苏棠 × 江远：共同确认：尝试六个月异地。接下来由两个人一起商量通话、见面和重新讨论的安排；没有凭空生成未说过的日期，也没有承诺从此不会分歧。':yes.length===0?'苏棠 × 江远：两个人都选择这次不再继续恋爱。三年的相爱不是假话，今晚的告别也不需要把谁写成坏人。':'苏棠 × 江远：只有一人选择继续，因此没有形成共同继续的决定。愿意的人可以表达不舍，但不能把另一人的拒绝改成暂时害羞或等待说服。'
  return [{pairId:'sutang-jiangyuan',status:yes.length===2?'mutual':'not-mutual',text}]

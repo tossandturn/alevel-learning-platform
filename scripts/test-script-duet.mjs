@@ -42,6 +42,7 @@ try{
     else r=action(host,r,'requestEvidence',{roleId:role.id})
    }
    assert.equal(r.act.shared,2)
+   if(game.acts[stage].puzzle)r=action(host,r,'solve',{answer:game.acts[stage].puzzle.answers[0]})
    r=action(host,r,'advance');if(humans===2){assert.equal(r.phase,'play');r=action(guest,r,'advance')}
   }
   assert.equal(r.phase,'vote');r=action(host,r,'vote',{choiceId:game.botVote});if(humans===2)r=action(guest,r,'vote',{choiceId:game.botVote})

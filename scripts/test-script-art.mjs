@@ -8,7 +8,7 @@ import {SCRIPT_GAMES,scriptGame,newScriptGame,publicScriptCatalog} from '../serv
 import {createScriptRoomStore} from '../server/scriptRoomStore.js'
 
 const catalog=loadTavernMediaCatalog()
-assert.equal(catalog.items.filter(i=>i.id.startsWith('scriptanime-')).length,64,'approved original, campus and Venice art packs are loaded')
+assert.equal(catalog.items.filter(i=>i.id.startsWith('scriptanime-')).length,72,'approved original, campus, Venice and Iceland packs are loaded')
 const {scriptSceneArt,scriptImagePlan,scriptImageIntent,scriptArtReferenceUrls}=await import('../server/scriptArt.js')
 for(const asset of SCRIPT_ANIME_ASSETS){
  const item=catalog.byId.get('scriptanime-'+asset.id)
@@ -73,4 +73,4 @@ act(who,'image',{target:'public',text:'看看合影'})
 assert.match(room.messages.at(-1).image,/scriptanime-rain-ensemble-/,'stock art still available during a live job')
 assert.throws(()=>act(who,'image',{text:'画出密码',target:'public'}),e=>e.code==='script_image_spoiler')
 store.close();fs.rmSync(root,{recursive:true,force:true})
-console.log('PASS: 64 assets, fixed canon, privacy, stock reuse, scoped references, stage and safety gates')
+console.log('PASS: 72 assets, fixed canon, privacy, stock reuse, scoped references, stage and safety gates')
