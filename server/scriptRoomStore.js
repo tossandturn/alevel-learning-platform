@@ -12,6 +12,7 @@ import {scriptRoomContinuity} from './scriptRoomMemory.js'
 import {scriptSceneArt,scriptMessageArt,scriptImagePlan,scriptImageIntent} from './scriptArt.js'
 import {scriptEntrance} from './roleVoices.js'
 import {scriptStageScene} from './scriptSceneBeats.js'
+import {campusStageResolution,campusNpcDecision,campusReplyActor,campusChoiceLocked,campusOutcomes,campusPublicContext} from './scriptCampusElective.js'
 
 const TTL=72*60*60*1000, MAX_MESSAGES=600, MAX_ACTIONS=1000
 const fail=(statusCode,code,message)=>{throw Object.assign(Error(message),{statusCode,code})}
@@ -67,7 +68,7 @@ export function createScriptRoomStore({root,now=Date.now}={}){
    inviteCode:r.phase==='lobby'?r.inviteCode:'',expiresAt:r.expiresAt,isHost:r.host===who,myRoleId:me.roleId,
    seats:r.seats.map(s=>({...publicRole(game.roles.find(x=>x.id===s.roleId)),control:s.control,isMe:s.owner===who,ready:s.ready,advanced:r.phase==='play'&&r.advanced.includes(s.roleId),online:s.control==='ai'||now()-(seen.get(s.owner)||0)<45000})),
    myRole:running?visibleScriptRole(own,r.stage,game.id):publicRole(own),myClues:running?game.clues.filter(c=>(r.known[me.roleId]||[]).includes(c.id)).map(c=>({...c,shared:r.publicClues.includes(c.id)})):[],publicClues,
-   myMissions:running?(own.missions||[]).filter(m=>m.stage<=r.stage).map(m=>({...m,choiceId:r.missionChoices?.[me.roleId]?.[m.id]||'',consequence:m.options.find(o=>o.id===r.missionChoices?.[me.roleId]?.[m.id])?.consequence||'',options:m.options.map(({id,label})=>({id,label}))})):[],
+   myMissions:running?(own.missions||[]).filter(m=>m.stage<=r.stage).map(m=>({...m,...(campusChoiceLocked(game,r,m.id)?{prompt:'先完成本幕字格题。折页展开后，这里会出现约会、慢慢了解和保留同学关系三种回答。'}:{}),choiceId:r.missionChoices?.[me.roleId]?.[m.id]||'',consequence:m.options.find(o=>o.id===r.missionChoices?.[me.roleId]?.[m.id])?.consequence||'',options:(campusChoiceLocked(game,r,m.id)?[]:m.options).map(({id,label})=>({id,label}))})):[],
    evidenceRequests:r.phase==='play'&&game.version>=2?currentClues.filter(c=>!r.publicClues.includes(c.id)&&r.seats.some(s=>s.roleId===c.roleId&&s.control==='ai')).map(c=>({roleId:c.roleId,name:game.roles.find(s=>s.id===c.roleId).name})):[],
    searchOptions:r.phase==='play'?currentClues.filter(c=>c.roleId===me.roleId).map(c=>({id:c.id,title:c.title,found:(r.known[me.roleId]||[]).includes(c.id)})):[],
    act:r.phase==='play'?{title:act.title,objective:act.objective,image:scriptSceneArt(game,r.stage),shared:currentClues.filter(c=>r.publicClues.includes(c.id)).length,total:currentClues.length,puzzle:act.puzzle?{question:act.puzzle.question,solved:r.solved.includes(r.stage),attempts:r.attempts[r.stage]||0,hint:(r.attempts[r.stage]||0)>=2?act.puzzle.hint:''}:null}:{title:act.title,objective:r.phase==='lobby'?'':'已公开的本幕记录。请从“本局”进入最终投票或结局与复盘。',image:scriptSceneArt(game,r.stage),preview:true,shared:r.phase==='lobby'?0:currentClues.filter(c=>r.publicClues.includes(c.id)).length,total:r.phase==='lobby'?0:currentClues.length,puzzle:null},
@@ -134,7 +135,7 @@ export function createScriptRoomStore({root,now=Date.now}={}){
   }
   // Bots obey the same stage/ownership rule; their discoveries are fixed evidence, not model inventions.
   for(const seat of bots){
-   const decision=npcRomanceDecision(game,seat.roleId,r.stage)||duetNpcDecision(game,seat.roleId,r.stage)||caseNpcDecision(game,seat.roleId,r.stage)
+   const decision=npcRomanceDecision(game,seat.roleId,r.stage)||duetNpcDecision(game,seat.roleId,r.stage)||caseNpcDecision(game,seat.roleId,r.stage)||campusNpcDecision(game,seat.roleId,r.stage,r)
    if(decision){r.missionChoices||={};r.missionChoices[seat.roleId]||={};r.missionChoices[seat.roleId][decision.missionId]||=decision.optionId}
    const c=game.clues.find(c=>c.stage===r.stage&&c.roleId===seat.roleId)
    r.known[seat.roleId]=[...(r.known[seat.roleId]||[]),c.id]
@@ -143,10 +144,14 @@ export function createScriptRoomStore({root,now=Date.now}={}){
   }
  }
  function revealStage(r){
-  const body=caseStageResolution(gameFor(r),r.stage)
+  const game=gameFor(r),campus=campusStageResolution(game,r),body=caseStageResolution(game,r.stage)||campus
   if(!body||(r.revealedStages||[]).includes(r.stage))return
   r.revealedStages||=[];r.revealedStages.push(r.stage)
-  message(r,'dm',body,{kind:'narration'});event(r,'case_reveal','dm',{stage:r.stage})
+  message(r,'dm',body,{kind:'narration'});event(r,campus?'campus_reveal':'case_reveal','dm',{stage:r.stage})
+  if(campus)for(const seat of r.seats.filter(s=>s.control==='ai')){
+   const decision=campusNpcDecision(game,seat.roleId,r.stage,r)
+   if(decision){r.missionChoices||={};r.missionChoices[seat.roleId]||={};r.missionChoices[seat.roleId][decision.missionId]||=decision.optionId}
+  }
  }
  function queue(r,actor,target,trigger){
   if(r.jobs.filter(j=>['pending','running'].includes(j.status)).length>=6)fail(429,'script_ai_busy','房内仍有回复处理中，请稍后再发。')
@@ -163,7 +168,7 @@ export function createScriptRoomStore({root,now=Date.now}={}){
   r.phase='ended';r.ending={choiceId:selected,tie,counts,aiVotes,truth:game.truth,text:tie?'票数相同，团队没有形成一致结论。各人的选择被保留；以下复盘不把任何人擅自算作同意。':game.endings[selected]||game.endings.other,
    roles:game.roles.map(({id,name,secret,goal})=>({id,name,secret,goal})),clues:game.clues}
   r.ending.text=caseEnding(game,r)||r.ending.text
-  const relationships=[...romanceOutcomes(game,r),...duetOutcomes(game,r),...caseRelationshipOutcomes(game,r)]
+  const relationships=[...romanceOutcomes(game,r),...duetOutcomes(game,r),...caseRelationshipOutcomes(game,r),...campusOutcomes(game,r)]
   if(relationships.length)r.ending.text+='\n\n【各自的感情结局】\n'+relationships.map(item=>item.text).join('\n\n')
   message(r,'dm',r.ending.text,{kind:'narration'});event(r,'ended','dm',{choiceId:selected})
  }
@@ -198,6 +203,7 @@ export function createScriptRoomStore({root,now=Date.now}={}){
   if(p.type==='choose'){
    phase('play');const m=game.roles.find(s=>s.id===me.roleId).missions?.find(m=>m.id===p.missionId&&m.stage===r.stage)
    if(!m)fail(403,'script_mission_locked','只能完成自己当前幕的个人任务。')
+   if(campusChoiceLocked(game,r,m.id))fail(409,'script_confession_locked','请先一起解开最后的折页，读完留言再保存自己的回答。')
    const clue=game.clues.find(c=>c.roleId===me.roleId&&c.stage===r.stage)
    if(!(r.known[me.roleId]||[]).includes(clue.id))fail(409,'script_mission_evidence','请先查看自己的本幕线索，再决定。')
    if(!m.options.some(o=>o.id===p.optionId))fail(400,'script_mission_choice','请选择任务卡上的决定。')
@@ -212,7 +218,8 @@ export function createScriptRoomStore({root,now=Date.now}={}){
    r.attempts[r.stage]=(r.attempts[r.stage]||0)+1
    const solved=a.puzzle.answers.some(v=>answer(v)===answer(p.answer))
    if(solved&&!r.solved.includes(r.stage)){r.solved.push(r.stage);revealStage(r)}
-   message(r,'dm',solved?'答案通过。请各位确认后进入下一幕。':'尚不符合全部线索。请核对题目条件；尝试两次后任务面板会显示提示。',{kind:'system'})
+   const success=campusStageResolution(game,r)?'返还页已展开，向上即可阅读。读完后到“我的身份”保存自己的回答，再确认继续。':'答案通过。请各位确认后进入下一幕。'
+   message(r,'dm',solved?success:'尚不符合全部线索。请核对题目条件；尝试两次后任务面板会显示提示。',{kind:'system'})
   }
   if(p.type==='advance'){
    phase('play');const a=game.acts[r.stage]
@@ -256,7 +263,7 @@ export function createScriptRoomStore({root,now=Date.now}={}){
    else if(target==='dm')queue(r,'dm',me.roleId,m.id)
    else if(seat?.control==='ai')queue(r,seat.roleId,me.roleId,m.id)
    else if(target==='public'){
-    const reply=romanceReplyActor(game,me.roleId,m.text,r.seats)??duetReplyActor(game,me.roleId,m.text,r.seats)??caseReplyActor(game,me.roleId,m.text,r.seats)
+    const reply=romanceReplyActor(game,me.roleId,m.text,r.seats)??duetReplyActor(game,me.roleId,m.text,r.seats)??caseReplyActor(game,me.roleId,m.text,r.seats)??campusReplyActor(game,me.roleId,r.seats)
     if(reply)queue(r,reply,'public',m.id)
     else if(reply===undefined){const bots=r.seats.filter(s=>s.control==='ai');if(bots.length)queue(r,bots[r.jobs.length%bots.length].roleId,'public',m.id)}
    }
@@ -301,7 +308,7 @@ export function createScriptRoomStore({root,now=Date.now}={}){
    memory:(r.npcMemory[job.actor]||[]).filter(m=>m.target==='public'||m.target===job.target).slice(-16),
    relationship:job.target==='public'?{}:r.relations[job.target]?.[job.actor]||{},
    target:job.target,sender:publicRole(game.roles.find(s=>s.id===r.messages.find(m=>m.id===job.trigger)?.actor)||{id:'unknown',name:'玩家'}),trigger:r.messages.find(m=>m.id===job.trigger)?.text||''}
-  const story=casePublicContext(game,r);if(story)context.story=story
+  const story=casePublicContext(game,r)||campusPublicContext(game,r);if(story)context.story=story
   if(role?.card?.romance){
    const mission=role.missions.find(m=>m.stage===r.stage),chosen=r.missionChoices?.[role.id]?.[mission?.id]
    context.actorDecision=mission?.options.find(o=>o.id===chosen)?.label||''

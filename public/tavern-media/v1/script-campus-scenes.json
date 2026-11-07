@@ -1,0 +1,142 @@
+{
+  "schemaVersion": "tavern-media.v1",
+  "revision": "script-campus-20261107",
+  "items": [
+    {
+      "id": "scriptanime-elective-scene-0",
+      "kind": "image",
+      "caption": "阳光教室",
+      "alt": "阳光教室 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "last-elective",
+        "scene",
+        "阳光教室",
+        "校园教室",
+        "第一幕场景"
+      ],
+      "file": "scriptanime-elective-scene-0-4e0f02c98267b604.webp",
+      "sha256": "4e0f02c98267b6045d457b9be831feaf5aa3228156e955963e3f7eff7568d814",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-elective-scene-1",
+      "kind": "image",
+      "caption": "设计工作室",
+      "alt": "设计工作室 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "last-elective",
+        "scene",
+        "设计工作室",
+        "工作室",
+        "第二幕场景"
+      ],
+      "file": "scriptanime-elective-scene-1-397a0e4cca5c8848.webp",
+      "sha256": "397a0e4cca5c8848fc5c8999d63b65ded6c6ae608e3ac1075d969a4a232b6119",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-elective-scene-2",
+      "kind": "image",
+      "caption": "校园公共花园",
+      "alt": "校园公共花园 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "last-elective",
+        "scene",
+        "校园公共花园",
+        "校园花园",
+        "公共花园",
+        "第三幕场景"
+      ],
+      "file": "scriptanime-elective-scene-2-0f4d006dd4fef2a3.webp",
+      "sha256": "0f4d006dd4fef2a334f7744437aa391c6870678e33e6dbf3b8e8b12e7533e415",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-elective-role-songmi",
+      "kind": "image",
+      "caption": "宋弥立绘",
+      "alt": "宋弥立绘 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "last-elective",
+        "portrait",
+        "宋弥",
+        "宋弥立绘",
+        "宋弥的样子"
+      ],
+      "file": "scriptanime-elective-role-songmi-ff707944dfcb13c9.webp",
+      "sha256": "ff707944dfcb13c934f6eb18d4fc691174e83ef6ee0edaccc9615b615b9a123a",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-elective-role-peixu",
+      "kind": "image",
+      "caption": "裴叙立绘",
+      "alt": "裴叙立绘 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "last-elective",
+        "portrait",
+        "裴叙",
+        "裴叙立绘",
+        "裴叙的样子"
+      ],
+      "file": "scriptanime-elective-role-peixu-816df0f6e9e3036d.webp",
+      "sha256": "816df0f6e9e3036dfdf103e1972b75dd9d4ab92fd8843d9f4da01f3125838682",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-elective-prop-notebook",
+      "kind": "image",
+      "caption": "薄荷绿错题本",
+      "alt": "薄荷绿错题本 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "last-elective",
+        "prop",
+        "错题本",
+        "薄荷绿错题本"
+      ],
+      "file": "scriptanime-elective-prop-notebook-5689defdb196308e.webp",
+      "sha256": "5689defdb196308ec552bf53f29cb8236c8290091e10bc88f3f78d17ac59ab02",
+      "width": 1254,
+      "height": 1254
+    },
+    {
+      "id": "scriptanime-elective-prop-note",
+      "kind": "image",
+      "caption": "对折的便签",
+      "alt": "对折的便签 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "last-elective",
+        "prop",
+        "便签",
+        "对折的便签"
+      ],
+      "file": "scriptanime-elective-prop-note-d21936d1904e638b.webp",
+      "sha256": "d21936d1904e638bbce8669945d272bda1efd71acb02ee0304855aaa8624e6c0",
+      "width": 1254,
+      "height": 1254
+    },
+    {
+      "id": "scriptanime-elective-ensemble",
+      "kind": "image",
+      "caption": "角色合影",
+      "alt": "角色合影 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "last-elective",
+        "ensemble",
+        "合影",
+        "全体角色",
+        "全员合影",
+        "所有角色"
+      ],
+      "file": "scriptanime-elective-ensemble-88ac8176a9bfa213.webp",
+      "sha256": "88ac8176a9bfa213edef2052b4dae5b293ee2e1fdb1b9bfa6a19e8bf9e89fa03",
+      "width": 1280,
+      "height": 720
+    }
+  ]
+}

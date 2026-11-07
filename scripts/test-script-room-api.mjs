@@ -16,7 +16,7 @@ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const base=`htt
 const jwt=who=>{const now=Math.floor(Date.now()/1000),a=Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url'),b=Buffer.from(JSON.stringify({iss:'ieltsist.com',aud:'stem.ieltsist.com',sub:`ielts:${who}`,iat:now,exp:now+600})).toString('base64url');return a+'.'+b+'.'+crypto.createHmac('sha256',key).update(a+'.'+b).digest('base64url')}
 async function request(who,tail='',body){const response=await fetch(base+tail+'?clientVersion=2',{method:body?'POST':'GET',headers:{'content-type':'application/json',...(who?{authorization:'Bearer '+jwt(who)}:{})},...(body?{body:JSON.stringify(body)}:{})});return{status:response.status,data:await response.json()}}
 try{
- assert.equal((await request(null,'/catalog')).data.scripts.length,5)
+ assert.equal((await request(null,'/catalog')).data.scripts.length,6)
  assert.equal((await request(null,'',{scriptId:'before-rain',requestId:'create-noauth'})).status,401)
  const creation={scriptId:'thirteenth-curtain',scriptVersion:2,requestId:'api-create-0001'}
  let r=(await request(1,'',creation)).data

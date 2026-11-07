@@ -15,7 +15,7 @@ const game=catalog.scriptGame('before-rain',3),hash=v=>crypto.createHash('sha256
 assert.equal(game.contentEdition,'romance-20261105');assert.equal(game.version,3);assert.equal(game.clientVersion,2,'content version is independent of installed native capability')
 assert.match(game.genre,/爱情/);assert.match(game.summary,/许知夏.*周泊舟/);assert.match(game.summary,/林序.*顾晚/)
 assert.equal(game.roles.length,4);assert.equal(game.acts.length,3);assert.equal(game.clues.length,12)
-assert.equal(catalog.publicScriptCatalog().length,5,'new duet is a separate fifth book, not a replacement')
+assert.equal(catalog.publicScriptCatalog().length,6,'duets are separate added books, not replacements')
 assert.deepEqual(catalog.publicScriptCatalog()[0].roles.map(x=>x.id),game.roles.map(x=>x.id))
 const legacy=[['b0a441a60f132319aafc32335b77587b35aa07489ee9b1ad19a6abaf590bfc4a','ca93c588904e7d590466dda36b23d2358cd533690e869fee327c5bcf5efcb384'],['6cec936e6bd1e232c957c685808985acd04131fdc15f73db781bd95de0c22f03','54680e4962ff822ac7abf4817965364a724376e4dabeb4fac2bcad43de10fd80']]
 for(const v of [1,2]){const old=catalog.scriptGame('before-rain',v);assert.equal(hash(old),legacy[v-1][0]);assert.equal(hash(old.roles.map(r=>visibleScriptRole(r,0,old.id))),legacy[v-1][1])}

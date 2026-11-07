@@ -46,11 +46,11 @@ try{
    configurations++
   }
  }
- assert.equal(configurations,189)
+ assert.equal(configurations,198)
  assert.equal(scriptStageScene(scriptGame('before-rain',3),0,['repair']),null,'old romance must not become a murder scene')
  assert.equal(scriptStageScene(SCRIPT_GAMES[0],0,['repair']),null,'old family story retains its own edition')
  const hash=v=>crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex')
  assert.equal(hash(SCRIPT_GAMES),'da32207fa29d8bdba4dcd2fb08344d85d2d4fcbbfbd76dd87951c64ec2157397')
  assert.equal(hash(scriptGame('before-rain',3)),'5de8f36ea960acec65253a3620b4329990880cc026cd80314bc9405a8d1bd4de')
- console.log('PASS screenshot reproduction and 189 staged/cast configurations, linked dialogue, human agency, exact evidence, frozen-client artwork and pinned plots')
+ console.log('PASS screenshot reproduction and 198 staged/cast configurations, linked dialogue, human agency, exact evidence, frozen-client artwork and pinned plots')
 }finally{store.close();fs.rmSync(root,{recursive:true,force:true})}

@@ -1,9 +1,27 @@
 // Authored scene exchanges, separate from immutable mysteries and evidence.
 // Each follow-up is selected only after that AI speaker actually spoke.
 export const SCRIPT_SCENE_VERSION='script-scenes.20261107'
+import {CAMPUS_ELECTIVE_GAME,CAMPUS_ELECTIVE_EDITION} from './scriptCampusElective.js'
 const line=(open,after={},narration='')=>({open,after,narration})
 const scene=(narration,cast)=>({narration,cast})
 const books={
+ 'last-elective':{
+  edition:CAMPUS_ELECTIVE_EDITION,names:{songmi:'宋弥',peixu:'裴叙'},
+  scenes:[
+   scene(CAMPUS_ELECTIVE_GAME.acts[0].opening,{
+    songmi:line('你这半张给我看看。我先声明，今天红笔没带，暂时不扣你步骤分。'),
+    peixu:line('橡皮我带了两块。今天要是再被你圈错，至少后勤准备充分。',{songmi:'那我今天争取让这两块橡皮失业。先说你那张写了什么？'}),
+   }),
+   scene(CAMPUS_ELECTIVE_GAME.acts[1].opening,{
+    songmi:line('那天我只听见前半句。今天我坐这儿，你可以慢慢把后半句说完。'),
+    peixu:line('封面是电脑弄错的，可“等会儿解释”是我自己说的。后面这件事，不能赖电脑。',{songmi:'好。这次不等会儿了。你看这几张记录，我从头说。'}),
+   }),
+   scene(CAMPUS_ELECTIVE_GAME.acts[2].opening,{
+    songmi:line('这张纸折得也太小心了。裴叙，你平时交作业可没有这么讲究。'),
+    peixu:line('我本来觉得把话藏进题里挺聪明。现在你坐在旁边，突然有点想把出题人撤职。',{songmi:'被你看出来了。交作业的时候，我可没这么紧张。'}),
+   }),
+  ],
+ },
  'thirteenth-curtain':{
   names:{actor:'沈照',manager:'陈砚',restorer:'唐雾',reporter:'陆弦'},
   scenes:[

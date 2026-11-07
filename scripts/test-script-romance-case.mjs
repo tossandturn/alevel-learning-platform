@@ -12,7 +12,7 @@ assert.equal(game.version,4,'new four-person rooms need a real case edition, not
 assert.equal(game.contentEdition,'romance-case-20261106');assert.equal(game.clientVersion,2)
 assert.equal(hash(scriptGame('before-rain',3)),'5de8f36ea960acec65253a3620b4329990880cc026cd80314bc9405a8d1bd4de','old romance snapshot immutable')
 assert.equal(game.roles.length,4);assert.equal(game.acts.length,3);assert.equal(game.clues.length,12)
-assert.equal(publicScriptCatalog().length,5);assert.match(game.summary,/命案|死亡/)
+assert.equal(publicScriptCatalog().length,6);assert.match(game.summary,/命案|死亡/)
 assert.equal(game.case.culprit,'repair');assert.ok(game.acts.every(a=>a.resolution));assert.ok(game.acts.slice(0,2).every(a=>a.puzzle));assert.equal(game.acts[2].puzzle,null)
 assert.equal(game.ballot.options.length,4);assert.ok(game.roles.every(role=>game.ballot.options.some(o=>o.id===role.id)))
 assert.equal(scriptGame(game.id,4,'wrong-edition'),null)

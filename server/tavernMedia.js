@@ -57,7 +57,7 @@ export function createTavernMediaCatalogReader({root=DEFAULT_TAVERN_MEDIA_ROOT,n
  return()=>{
   const time=now();if(time<nextCheck)return catalog;nextCheck=time+5000
   try{
-   const manifests=['catalog.json','story-scenes.json','script-scenes.json','script-act-scenes.json','script-anime-scenes.json'].flatMap((name,index)=>{
+   const manifests=['catalog.json','story-scenes.json','script-scenes.json','script-act-scenes.json','script-anime-scenes.json','script-campus-scenes.json'].flatMap((name,index)=>{
     const file=path.join(root,name)
     let stat
     try{stat=fs.lstatSync(file)}catch(error){if(index>0&&error.code==='ENOENT')return[];throw error}
