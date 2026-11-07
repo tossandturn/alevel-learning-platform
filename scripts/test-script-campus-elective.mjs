@@ -18,6 +18,7 @@ assert.equal(game.clues.length,6)
 assert.equal(publicScriptCatalog().filter(g=>g.id==='last-elective').length,1)
 assert.equal(scriptGame('last-elective',1),null)
 assert.equal(scriptGame('last-elective',2,'unknown-edition'),null)
+assert.ok(game.roles.every(r=>r.entryBook.includes('昨天下午')&&!r.entryBook.includes('上周')),'the misprinted cover happened yesterday, not both yesterday and last week')
 assert.equal(campusOutcomes(game,{missionChoices:{}})[0].status,'unconfirmed','missing or departed choice is not fabricated consent')
 for(const role of game.roles){assert.ok(role.entryBook.length>=1800);assert.equal(role.missions.length,3);assert.equal(role.chapters.length,3);assert.ok(role.card.pastEventAnchors.length>=4)}
 for(const stage of game.acts){assert.ok(stage.puzzle?.answers?.length);assert.ok(stage.puzzle.hint.length>10)}
