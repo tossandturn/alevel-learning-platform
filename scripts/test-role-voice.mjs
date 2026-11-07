@@ -7,7 +7,7 @@ import {createScriptRoomStore} from '../server/scriptRoomStore.js'
 import {scriptActorMessages} from '../server/scriptRoomApi.js'
 import {tavernCharacterCard,tavernCharacterPrompt} from '../server/tavernPersonas.js'
 assert.ok(tavernCharacterCard('xianxia-guide').voiceProfile,'Tavern must have a fixed behavioral voice profile')
-const {SCRIPT_VOICES,TAVERN_VOICES,scriptVoice,scriptEntrance,scriptEvidenceHandoff,dialogueVoiceIssues,scriptVoiceIssues,voiceActorContext}=await import('../server/roleVoices.js')
+const {SCRIPT_VOICES,TAVERN_VOICES,scriptVoice,scriptEntrance,scriptEvidenceHandoff,dialogueVoiceIssues,scriptVoiceIssues,voiceActorContext,personalDialogueBeat}=await import('../server/roleVoices.js')
 assert.equal(Object.keys(SCRIPT_VOICES).length,18);assert.equal(Object.keys(TAVERN_VOICES).length,9)
 const identities=new Set()
 for(const row of publicScriptCatalog()){
@@ -37,6 +37,12 @@ for(const s of ['我不会替你做决定，选择权始终在你手里。','行
 assert.ok(scriptVoiceIssues({text:'八年前你也问过我还有没有话说。'},{scriptId:'before-rain',actor:{id:'letter'},sender:{id:'repair'}}).includes('past-speaker-reversal'))
 assert.ok(scriptVoiceIssues({text:'累。不过21:12的声音得先核对完。'},{actor:{id:'conductor'},trigger:'你也累了吧？'}).includes('unsolicited-clue-detour'))
 assert.equal(scriptVoiceIssues({text:'21:12的声音得先核对完。'},{actor:{id:'conductor'},trigger:'21:12的声音是怎么回事？'}).length,0)
+const care='你刚才说本来想把报告交给他。现在缓过来一点了吗？'
+for(const text of [care,'还好吗？','现在好些了吗？','没事吧，要不要歇会儿？','Are you feeling better?'])assert.ok(personalDialogueBeat(text),text)
+for(const text of ['你害怕什么，是不是凶手？','墙钟为什么停在20:58？','你说缓过来了，现在核对一下证据。'])assert.equal(personalDialogueBeat(text),false,text)
+assert.ok(scriptVoiceIssues({text:'还没。不过墙上的钟停在20:58，不能当成报时证据。'},{actor:{id:'restorer'},trigger:care}).includes('unsolicited-clue-detour'))
+assert.equal(scriptVoiceIssues({text:'好些了。明天21:30见面吧。'},{actor:{id:'restorer'},trigger:'现在好些了吗？'}).length,0,'ordinary plans with a time are not clue exposition')
+assert.equal(voiceActorContext({scriptId:'thirteenth-curtain',actor:{id:'restorer',name:'唐雾'},trigger:care}).dialogueFocus,'personal')
 for(const s of ['不是我拿的。你可以看门口的记录。','我不想继续了。','你不必等我，末班车快到了。','我没有进广播室。','我是 AI 扮演的虚构角色。'])assert.equal(dialogueVoiceIssues(s,{identityAsked:/AI/.test(s)}).length,0,s)
 const hash=v=>crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex')
 assert.equal(hash(SCRIPT_GAMES),'da32207fa29d8bdba4dcd2fb08344d85d2d4fcbbfbd76dd87951c64ec2157397')
