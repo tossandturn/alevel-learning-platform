@@ -8,6 +8,7 @@ import {Readable} from 'node:stream'
 assert.equal(typeof story.icelandPerformanceContext,'function','Iceland personal dialogue needs its own performance projection')
 assert.equal(typeof story.icelandPerformanceIssues,'function')
 const context={scriptId:'one-more-stop',story:{iceland:true,stage:0,place:'玻璃温室'},actor:structuredClone(story.ICELAND_GAME.roles[0]),trigger:'收工以后在庭院喝薄荷茶，不加糖，好吗？',target:'jiangyuan',sender:{id:'jiangyuan',name:'江远'},objective:'公开调灯单',evidence:[{id:'i1',text:'fixture'}],messages:[],continuity:{},actorDecision:'先试灯'}
+context.actor.biography=context.actor.entryBook
 const projected=story.icelandPerformanceContext(context)
 assert.equal(projected.dialogueFocus,'personal');assert.equal(projected.evidence.length,0);assert.equal(projected.actorDecision,undefined)
 assert.ok(projected.actor.biography.length<300,'small-talk actor projection must not keep the full task-heavy player book')
