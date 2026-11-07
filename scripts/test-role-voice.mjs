@@ -8,7 +8,7 @@ import {scriptActorMessages} from '../server/scriptRoomApi.js'
 import {tavernCharacterCard,tavernCharacterPrompt} from '../server/tavernPersonas.js'
 assert.ok(tavernCharacterCard('xianxia-guide').voiceProfile,'Tavern must have a fixed behavioral voice profile')
 const {SCRIPT_VOICES,TAVERN_VOICES,scriptVoice,scriptEntrance,scriptEvidenceHandoff,dialogueVoiceIssues,scriptVoiceIssues,voiceActorContext,personalDialogueBeat}=await import('../server/roleVoices.js')
-assert.equal(Object.keys(SCRIPT_VOICES).length,20);assert.equal(Object.keys(TAVERN_VOICES).length,9)
+assert.equal(Object.keys(SCRIPT_VOICES).length,22);assert.equal(Object.keys(TAVERN_VOICES).length,9)
 const identities=new Set()
 for(const row of publicScriptCatalog()){
  const game=newScriptGame(row.id,2)
@@ -25,7 +25,7 @@ for(const row of publicScriptCatalog()){
   }
  }
 }
-assert.equal(identities.size,20,'each actor has a distinct delivery, not gender boilerplate')
+assert.equal(identities.size,22,'each actor has a distinct delivery, not gender boilerplate')
 assert.notEqual(scriptVoice('thirteenth-curtain',{id:'actor',name:'沈照'}).cadence,TAVERN_VOICES['xianxia-guide'].cadence,'same name is not the same persona')
 assert.equal(voiceActorContext({scriptId:'before-rain',actor:{id:'photo',name:'林序',card:{romance:{},beats:[]}}}).recollectionPerspective,undefined,'a private couple recollection cannot be injected into another role')
 for(const id of Object.keys(TAVERN_VOICES)){
@@ -64,5 +64,5 @@ assert.ok(projected.actor.card.beats.every(b=>!dialogueVoiceIssues(b.entrance).l
  assert.equal(projected.dialogueFocus,'personal');assert.deepEqual(projected.evidence,[])
  assert.match(messages[0].content.slice(-520),/顶层JSON对象/)
  assert.ok(!JSON.stringify(projected).includes(newScriptGame('before-rain',2).truth))
- console.log('PASS stable 29 voices, 120 stage lines, source leakage removed, ordinary negation and immutable canon preserved')
+ console.log('PASS stable 31 voices, source leakage removed, ordinary negation and immutable canon preserved')
 }finally{store.close();fs.rmSync(root,{recursive:true,force:true})}

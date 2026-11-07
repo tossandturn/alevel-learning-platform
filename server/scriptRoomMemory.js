@@ -9,7 +9,7 @@ export function hasUnsupportedRecollectionQuote(proposal,context){
  const speech=typeof proposal.text==='string'?proposal.text:(proposal.segments||[]).filter(p=>p.kind==='speech').map(p=>p.text).join('\n')
  if(!/以前|当年|那次|小事|回忆|记得|过去|三年|八年|刚才|上一幕/.test(String(context.trigger||'')+' '+speech))return false
  const normalize=s=>String(s||'').normalize('NFKC').replace(/[\s\p{P}]/gu,'')
- const unlocked=context.story?.campus?(context.story.publicReveals||[]).filter(p=>Number.isInteger(p.stage)&&p.stage>=0&&p.stage<=context.story.stage).map(p=>p.text):[]
+ const unlocked=context.story?.campus||context.story?.venice?(context.story.publicReveals||[]).filter(p=>Number.isInteger(p.stage)&&p.stage>=0&&p.stage<=context.story.stage).map(p=>p.text):[]
  const sources=[context.actor.biography,context.actor.secret,...(context.actor.card.pastEventAnchors||[]),...(context.evidence||[]).map(e=>e.text),...unlocked,...(context.messages||[]).map(m=>m.text),...(context.continuity?.dialogueAnchors||[]).map(m=>m.text),context.trigger].map(normalize)
  const quotes=[...speech.matchAll(/[“‘「『"]([^”’」』"\n]{6,600})[”’」』"]/gu)].map(m=>normalize(m[1])).filter(q=>Array.from(q).length>=6)
  return quotes.some(quote=>!sources.some(source=>source.includes(quote)))

@@ -11,7 +11,7 @@ const store=createScriptRoomStore({root,now:()=>now})
 const id=()=>`test-action-${++sequence}`
 const act=(owner,room,type,fields={})=>store.act(owner,room.id,{requestId:id(),revision:room.revision,type,...fields})
 assert.equal(SCRIPT_GAMES.length,4)
-assert.equal(publicScriptCatalog().length,6)
+assert.equal(publicScriptCatalog().length,7)
 assert.ok(!JSON.stringify(publicScriptCatalog()).includes('secret'))
 for(const script of SCRIPT_GAMES){
  assert.equal(script.roles.length,4);assert.equal(script.acts.length,3);assert.equal(script.clues.length,12)

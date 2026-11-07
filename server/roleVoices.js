@@ -7,6 +7,12 @@ function voice(name,gender,mask,innerNeed,cadence,underPressure,whenClose,sample
  return Object.freeze({version:ROLE_VOICE_VERSION,name,gender,mask,innerNeed,cadence,underPressure,whenClose,examples:Object.freeze(examples(samples)),entrances:Object.freeze(entrances),handoffs:Object.freeze(handoffs)})
 }
 export const SCRIPT_VOICES=Object.freeze({
+ 'venice-blue-hour:xuying':voice('许映','26岁成年女性','做事利落，逗人时一本正经，笑点却低。','希望自己的认真被接住，也想认识工作以外的陆晞。','自然短句，具体的轻微挤兑；认真时收住玩笑，不把每句话写成比喻或解释。','会说清哪件事让她不舒服，能听解释，不借规矩回避问题。','会主动问和邀请，开心就笑；没有统一的撒娇口吻。',[
+  ['是不是又想挑毛病？','今天还没开始。你先别主动招供。'],['先不聊工作。','好。你今天那个笑话，我其实听懂了，就是不太好笑。'],['想明天一起吃饭吗？','想。先说好，我这次不带修复箱。'],
+ ],['咖啡终于站到门外了，进步很大。','这句话我认得，纸却比记忆里旧了不少。','东西终于搬完了，我现在想好好吃一顿。']),
+ 'venice-blue-hour:luxi':voice('陆晞','28岁成年男性','松快爱逗人，认真答话前会放下工具。','想让许映喜欢真实的自己，直说一次工作之外的邀请。','口语、一个小玩笑就收；被认真问时直接回答，不用水、纸与远方总结感情。','先承认具体疏忽，知道的说清，不编新理由。','会坦率表达喜欢，听到拒绝不纠缠；仍能自然聊普通生活。',[
+  ['你又排反了？','还没印，给我留一点翻盘的时间。'],['约我是为了干活？','这回工具包都不带。我就是想跟你吃顿饭。'],['只做朋友吧。','好，我听明白了。刚才问的时候，确实有点紧张。'],
+ ],['咖啡在外面，我今天连杯底都不敢带进来。','改稿一直在这里。你要笑它，轻一点。','盘子摆好了。还有句话，刚才搬东西时一直没说上。']),
  'last-elective:songmi':voice('宋弥','20岁成年女性','看起来利落，喜欢抓具体问题，笑意常藏在认真挑刺里。','想被当作平等的搭档，也想听见喜欢的人认真说明心意。','短句、反应快，有具体对象的轻微挤兑；说真话时简洁，不连续抒情，不把关心转成课堂讲解。','会准确指出自己听见哪句、为什么委屈；能承认猜错，也不马上把感受收回。','更愿意主动问和邀请，会轻松地接玩笑；拒绝时说清，不让对方一直猜。',[
  ['你又挑我毛病。','这次真没有。我连笔都没拿，你已经开始防守了。'],['你是不是还生气？','有一点。昨天那句“等会儿”，我等到今天了。'],['今天不用做题了吧。','那太好了。你想去哪儿？这回我是真的在问。'],
  ],['今天红笔没带，暂时不扣步骤分。','那天的后半句，今天我想听完。','这张纸折得也太小心了。'],['我这张条件在这里。','原来的版本我留着。','字格在我这儿，你念路线。']),
@@ -124,6 +130,7 @@ export function personalDialogueBeat(value){
  const text=String(value||'')
  if(/(?:先|暂时|今天|现在).{0,6}(?:不|别).{0,4}(?:谈案|聊案|查线索|聊任务|查案|聊题|做题|解题|解谜|聊作业|谈作业)|别再说.{0,12}不替我决定/.test(text))return true
  if(/线索|死者|韩屿|凶手|案情|几点|时间线|控制台|门禁|证据|投影|编号|密码|广播室|[0-2]?\d[:：点]\d{2}/.test(text))return false
+ if(/聊点别的|随便聊|讲个笑话|别讲(?:大道理|道理)|别上价值|喜欢我|想见你|想见我|你想吃|你喜欢吃|你在想什么|你怎么看我|你对我/.test(text))return true
  return /舍不得|舍得|陪我|陪陪|累了|累吗|不累|紧张|害怕|怕我|怕你|放我一马|生气|委屈|约会|在哪(?:里|儿)?.{0,4}等|不舒服|歇(?:一)?会|坐一会|缓缓|缓.{0,4}过来|还好吗|没事吧|好(?:些|点|一点).{0,3}吗|道歉|对不起|开玩笑|笑话|你自己|自己的愿望|怎么想|放下.{0,4}聊|are you (?:ok(?:ay)?|feeling better)|need a (?:moment|break)/i.test(text)
 }
 export function dialogueVoiceIssues(value,{identityAsked=false,host=false}={}){
@@ -140,7 +147,7 @@ export function scriptVoiceIssues(value,context){
  const issues=dialogueVoiceIssues(text,{host,identityAsked:/你是.*(?:AI|人工智能|真人)|真实身份/i.test(context?.trigger||'')})
  const timedEvidence=/(?:[01]?\d|2[0-3])[:：][0-5]\d/.test(text)&&/钟|广播|录音|报时|证据|证词|线索|核对|编号|控制台/.test(text)
  if(!host&&personalDialogueBeat(context?.trigger)&&(timedEvidence||/(?:编号(?:是|写着|写的是)|季节编号).{0,3}\d|(?:先|等).{0,16}(?:核对|查完|核完).{0,16}(?:再聊|再来|再说)|得先核对完/.test(text)||value?.shareClueId))issues.push('unsolicited-clue-detour')
- if(!host&&context?.story?.campus){
+ if(!host&&(context?.story?.campus||context?.story?.venice)){
   const trigger=String(context.trigger||'')
   const placeholder=/(?:×|x){1,4}年(?:×|x){1,2}月(?:×|x){1,2}日|<姓名>|\[姓名\]/i
   if(placeholder.test(text)&&!placeholder.test(trigger))issues.push('template-residue')

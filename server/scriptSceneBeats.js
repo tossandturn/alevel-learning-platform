@@ -2,9 +2,27 @@
 // Each follow-up is selected only after that AI speaker actually spoke.
 export const SCRIPT_SCENE_VERSION='script-scenes.20261107'
 import {CAMPUS_ELECTIVE_GAME,CAMPUS_ELECTIVE_EDITION} from './scriptCampusElective.js'
+import {VENICE_GAME,VENICE_EDITION} from './scriptVeniceRomance.js'
 const line=(open,after={},narration='')=>({open,after,narration})
 const scene=(narration,cast)=>({narration,cast})
 const books={
+ 'venice-blue-hour':{
+  edition:VENICE_EDITION,names:{xuying:'许映',luxi:'陆晞'},
+  scenes:[
+   scene(VENICE_GAME.acts[0].opening,{
+    xuying:line('今天咖啡终于站到门外了，进步很大。先让我看看你那张目录，别又拿倒。'),
+    luxi:line('咖啡在门外。我今天连杯底都不敢带进来。',{xuying:'拿倒只是为了让你看得方便。好吧，是我拿倒了。'}),
+   }),
+   scene(VENICE_GAME.acts[1].opening,{
+    xuying:line('这句挑毛病的话，我越看越眼熟。字写得倒比我现在端正。'),
+    luxi:line('这张改稿我一直留着。你要笑它，轻一点，纸已经够旧了。',{xuying:'当年收到的时候，我还不服气，改完才发现她说得对。'}),
+   }),
+   scene(VENICE_GAME.acts[2].opening,{
+    xuying:line('总算坐下了。我今天只想认真做一件事：趁面包没凉把它吃完。'),
+    luxi:line('盘子摆好了。我有句话，刚才搬了三趟东西都没找到机会说。',{xuying:'那我负责切，你负责吃。等你第一口咽下去，我想问你件事。'}),
+   }),
+  ],
+ },
  'last-elective':{
   edition:CAMPUS_ELECTIVE_EDITION,names:{songmi:'宋弥',peixu:'裴叙'},
   scenes:[

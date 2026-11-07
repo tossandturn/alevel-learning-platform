@@ -1,0 +1,146 @@
+{
+  "schemaVersion": "tavern-media.v1",
+  "revision": "script-venice-20261107",
+  "items": [
+    {
+      "id": "scriptanime-venice-scene-0",
+      "kind": "image",
+      "caption": "临水修复画室",
+      "alt": "临水修复画室 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "venice-blue-hour",
+        "scene",
+        "临水修复画室",
+        "修复画室",
+        "画室",
+        "第一幕场景"
+      ],
+      "file": "scriptanime-venice-scene-0-7c256121231212dd.webp",
+      "sha256": "7c256121231212dd90163c668e75a20b2940cb873943bd8859a8f0eaa9dfdce2",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-venice-scene-1",
+      "kind": "image",
+      "caption": "运河旧书店",
+      "alt": "运河旧书店 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "venice-blue-hour",
+        "scene",
+        "运河旧书店",
+        "青窗书店",
+        "旧书店",
+        "第二幕场景"
+      ],
+      "file": "scriptanime-venice-scene-1-b402a0bfc9b97f05.webp",
+      "sha256": "b402a0bfc9b97f056d219abcdcf075275d3e4ec2d95f7add27cc4b87a857de48",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-venice-scene-2",
+      "kind": "image",
+      "caption": "屋顶晚宴",
+      "alt": "屋顶晚宴 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "venice-blue-hour",
+        "scene",
+        "屋顶晚宴",
+        "屋顶露台",
+        "露台",
+        "第三幕场景"
+      ],
+      "file": "scriptanime-venice-scene-2-98afd39d42f61433.webp",
+      "sha256": "98afd39d42f61433d5ab93851b56f926b35efafefdfa9d27f1c93451a12df2cf",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-venice-role-xuying",
+      "kind": "image",
+      "caption": "许映立绘",
+      "alt": "许映立绘 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "venice-blue-hour",
+        "portrait",
+        "许映",
+        "许映立绘",
+        "许映的样子"
+      ],
+      "file": "scriptanime-venice-role-xuying-f7e36531378a83aa.webp",
+      "sha256": "f7e36531378a83aadf2fa404df76f88ba8c6210627d131ff07d844cb1e221ae4",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-venice-role-luxi",
+      "kind": "image",
+      "caption": "陆晞立绘",
+      "alt": "陆晞立绘 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "venice-blue-hour",
+        "portrait",
+        "陆晞",
+        "陆晞立绘",
+        "陆晞的样子"
+      ],
+      "file": "scriptanime-venice-role-luxi-7ee47692a5a3068c.webp",
+      "sha256": "7ee47692a5a3068c64d57466d87737e8124066d9f128f8da788eea76185d98c2",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-venice-prop-album",
+      "kind": "image",
+      "caption": "蓝色折页画册",
+      "alt": "蓝色折页画册 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "venice-blue-hour",
+        "prop",
+        "蓝色画册",
+        "折页画册",
+        "画册"
+      ],
+      "file": "scriptanime-venice-prop-album-17955ec1b598f0ab.webp",
+      "sha256": "17955ec1b598f0abf64ee1d3f3d59a1621af5af0087fb208a613f0aa3c8567ef",
+      "width": 1254,
+      "height": 1254
+    },
+    {
+      "id": "scriptanime-venice-prop-folio",
+      "kind": "image",
+      "caption": "创作信封",
+      "alt": "创作信封 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "venice-blue-hour",
+        "prop",
+        "创作信封",
+        "信封",
+        "旧信"
+      ],
+      "file": "scriptanime-venice-prop-folio-798f6c7ccd59eaf4.webp",
+      "sha256": "798f6c7ccd59eaf40cace3dd3b5bf0cffcbb99aaac42a5f45c4f7617d9c47797",
+      "width": 1254,
+      "height": 1254
+    },
+    {
+      "id": "scriptanime-venice-ensemble",
+      "kind": "image",
+      "caption": "角色合影",
+      "alt": "角色合影 · 原创二次元氛围插画，不作为线索证据",
+      "tags": [
+        "venice-blue-hour",
+        "ensemble",
+        "合影",
+        "全体角色",
+        "全员合影",
+        "所有角色"
+      ],
+      "file": "scriptanime-venice-ensemble-e7aee1ba4f9d2c07.webp",
+      "sha256": "e7aee1ba4f9d2c076f3c4c72837cec0b26aa31907a1f50877c250e82f6c7aa16",
+      "width": 1280,
+      "height": 720
+    }
+  ]
+}

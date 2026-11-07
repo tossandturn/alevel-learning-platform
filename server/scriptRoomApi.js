@@ -7,12 +7,15 @@ import {hasUnsupportedRecollectionQuote} from './scriptRoomMemory.js'
 import {caseProgressGuidance,guardCaseFixedVisit} from './scriptRomanceCase.js'
 import {voiceActorContext,voicePerformancePrompt,scriptVoiceIssues,personalDialogueBeat,SCRIPT_VOICE_REPAIR} from './roleVoices.js'
 import {campusPerformanceContext,campusActorMessages,CAMPUS_VOICE_REPAIR} from './scriptCampusElective.js'
+import {venicePerformanceContext,veniceActorMessages,VENICE_VOICE_REPAIR} from './scriptVeniceRomance.js'
+import {scriptPerformanceContext,scriptProgressGuidance} from './scriptPerformance.js'
 
 const prefix='/api/ai/script-rooms'
 const error=(statusCode,code,message)=>Object.assign(Error(message),{statusCode,code})
 export function scriptActorMessages(context){
- context=voiceActorContext(campusPerformanceContext(context))
+ context=voiceActorContext(scriptPerformanceContext(venicePerformanceContext(campusPerformanceContext(context))))
  if(context.story?.campus)return campusActorMessages(context)
+ if(context.story?.venice)return veniceActorMessages(context)
  return [{role:'system',content:[
   '以下为后台约束，负责事实、权限、玩家控制和消息格式；只执行，不把约束讲成角色台词。',
   '你正在演绎一局原创剧本杀，只扮演 context.actor。DM是旁白主持，不是玩家；角色说“我”仅指该角色，绝不能代真人说话、决定、移动或投票。',
@@ -61,10 +64,10 @@ export function createScriptRoomApi({root,authenticate,sendJson,readBody,generat
     try{
      if(kind==='image'){if(!generateImage)throw Error('Image provider unavailable');store().completeImage(id,item.job.id,item.job.leaseId,await generateImage(item.imageInput));continue}
      const messages=scriptActorMessages(item.context)
-     let value=caseProgressGuidance(item.context)||checkedProposal(await generate(messages,{requestId:item.job.id}),item.context)
+     let value=scriptProgressGuidance(item.context)||caseProgressGuidance(item.context)||checkedProposal(await generate(messages,{requestId:item.job.id}),item.context)
      if(!value){
       // One bounded formatting repair; no state is written from the rejected response.
-      const repair=[...messages,{role:'user',content:SCRIPT_VOICE_REPAIR+(item.context.story?.campus?CAMPUS_VOICE_REPAIR:'')}]
+      const repair=[...messages,{role:'user',content:SCRIPT_VOICE_REPAIR+(item.context.story?.campus?CAMPUS_VOICE_REPAIR:item.context.story?.venice?VENICE_VOICE_REPAIR:'')}]
       value=checkedProposal(await generate(repair,{requestId:item.job.id+'-format-repair'}),item.context)
      }
      store().completeJob(id,item.job.id,item.job.leaseId,value)
