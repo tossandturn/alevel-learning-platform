@@ -9,11 +9,12 @@ import {voiceActorContext,voicePerformancePrompt,scriptVoiceIssues,personalDialo
 import {campusPerformanceContext,campusActorMessages,CAMPUS_VOICE_REPAIR} from './scriptCampusElective.js'
 import {venicePerformanceContext,veniceActorMessages,VENICE_VOICE_REPAIR} from './scriptVeniceRomance.js'
 import {scriptPerformanceContext,scriptProgressGuidance} from './scriptPerformance.js'
+import {icelandPerformanceContext,icelandPerformanceIssues,ICELAND_VOICE_REPAIR} from './scriptIcelandRomance.js'
 
 const prefix='/api/ai/script-rooms'
 const error=(statusCode,code,message)=>Object.assign(Error(message),{statusCode,code})
 export function scriptActorMessages(context){
- context=voiceActorContext(scriptPerformanceContext(venicePerformanceContext(campusPerformanceContext(context))))
+ context=voiceActorContext(scriptPerformanceContext(venicePerformanceContext(campusPerformanceContext(icelandPerformanceContext(context)))))
  if(context.story?.campus)return campusActorMessages(context)
  if(context.story?.venice)return veniceActorMessages(context)
  return [{role:'system',content:[
@@ -46,7 +47,7 @@ function checkedProposal(raw,context){
  if(value.shareClueId&&personalDialogueBeat(context.trigger))return null
  const guarded=guardCaseFixedVisit(guardRomanceRecollection(value,context),context)
  if(hasUnsupportedRecollectionQuote(guarded,context))return null
- if(scriptVoiceIssues(guarded,context).length)return null
+ if(scriptVoiceIssues(guarded,context).length||icelandPerformanceIssues(guarded,context).length)return null
  return normalizeScriptDialogue(guarded,settings)?guarded:null
 }
 
@@ -68,7 +69,7 @@ export function createScriptRoomApi({root,authenticate,sendJson,readBody,generat
      let value=scriptProgressGuidance(item.context)||caseProgressGuidance(item.context)||checkedProposal(await generate(messages,{requestId:item.job.id}),item.context)
      if(!value){
       // One bounded formatting repair; no state is written from the rejected response.
-      const repair=[...messages,{role:'user',content:SCRIPT_VOICE_REPAIR+(item.context.story?.campus?CAMPUS_VOICE_REPAIR:item.context.story?.venice?VENICE_VOICE_REPAIR:'')}]
+      const repair=[...messages,{role:'user',content:SCRIPT_VOICE_REPAIR+(item.context.story?.campus?CAMPUS_VOICE_REPAIR:item.context.story?.venice?VENICE_VOICE_REPAIR:item.context.story?.iceland?ICELAND_VOICE_REPAIR:'')}]
       value=checkedProposal(await generate(repair,{requestId:item.job.id+'-format-repair'}),item.context)
      }
      store().completeJob(id,item.job.id,item.job.leaseId,value)

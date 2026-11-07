@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "test:script-iceland": "node scripts/test-script-iceland.mjs",
+    "test:script-iceland": "node scripts/test-script-iceland.mjs && node scripts/test-script-iceland-performance.mjs",
     "test:script-venice": "node scripts/test-script-venice-duet.mjs && node scripts/test-script-performance.mjs",
     "test:script-campus": "node scripts/test-script-campus-elective.mjs",
     "test:script-scenes": "node scripts/test-script-scene-dialogue.mjs",

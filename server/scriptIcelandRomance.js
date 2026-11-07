@@ -90,3 +90,22 @@ export function icelandPublicContext(game,room){
  if(game?.contentEdition!==ICELAND_EDITION)return null
  return {iceland:true,edition:ICELAND_EDITION,stage:room.stage,setting:current,place:game.acts[room.stage].place,commonGoal:game.acts[room.stage].objective,publicReveals:[...(room.solved.includes(0)?['灯光与声音的同步已完成，原有角色关系和实际对话继续有效。']:[]),...(room.solved.includes(1)?['完整原件已核对；公共剪辑与原件不同，公开范围仍需双方实际同意。']:[])]}
 }
+function personal(context){return context?.story?.iceland&&!/线索|谜题|字母|编号|提示|怎么解|核验/.test(context.trigger||'')&&/喝.{0,10}(?:茶|咖啡|热汤)|(?:茶|咖啡|热汤).{0,8}(?:糖|浓|淡)|吃(?:点|一口|饭)|饿了|困了|陪我坐|先歇/.test(context.trigger||'')}
+export function icelandPerformanceContext(context){
+ if(!personal(context))return context
+ const projected={...context,dialogueFocus:'personal',objective:'回应此刻的日常邀请或感受，不附带调试任务。',evidence:[]}
+ delete projected.actorDecision
+ return projected
+}
+export function icelandPerformanceIssues(proposal,context){
+ if(!context?.story?.iceland)return []
+ const text=(proposal?.segments||proposal?.parts||[]).map(p=>p.text||'').join('\n'),issues=[]
+ // Narrow observed factual failures, not a claim of universal semantic validation.
+ if(/录音目录[^。！？\n]{0,32}(?:缺|没有|没写|未标)[^。！？\n]{0,8}(?:字母|编号)/.test(text))issues.push('recording-index-fact-reversal')
+ const pastTea=/(?:上次|上回|那次)[^。！？\n]{0,8}(?:那杯|薄荷茶|喝茶)/g
+ const visible=JSON.stringify([context.trigger,context.messages,context.continuity,context.actor?.biography,context.actor?.card?.pastEventAnchors])
+ if([...text.matchAll(pastTea)].some(m=>!visible.includes(m[0])))issues.push('unsupported-shared-tea-memory')
+ if(personal(context)&&proposal?.shareClueId)issues.push('personal-dialogue-evidence-push')
+ return issues
+}
+export const ICELAND_VOICE_REPAIR=' 本局正在冰岛白夜温室。直接回应当前句子；喝茶吃饭等日常邀请不附加“先把调灯单给我”。没有可见记录的上次喝茶经历不能编造，可说现在想喝什么。调灯单给顺序但不含声音字母；录音目录本来就有字母，不能说目录缺字母。用一两句自然话重新回答。'
