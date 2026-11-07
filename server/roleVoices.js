@@ -122,9 +122,9 @@ export function voiceActorContext(context){
 }
 export function personalDialogueBeat(value){
  const text=String(value||'')
- if(/(?:先|暂时|今天).{0,6}(?:不|别).{0,4}(?:谈案|聊案|查线索|聊任务|查案)|别再说.{0,12}不替我决定/.test(text))return true
+ if(/(?:先|暂时|今天|现在).{0,6}(?:不|别).{0,4}(?:谈案|聊案|查线索|聊任务|查案|聊题|做题|解题|解谜|聊作业|谈作业)|别再说.{0,12}不替我决定/.test(text))return true
  if(/线索|死者|韩屿|凶手|案情|几点|时间线|控制台|门禁|证据|投影|编号|密码|广播室|[0-2]?\d[:：点]\d{2}/.test(text))return false
- return /舍不得|舍得|陪我|陪陪|累了|累吗|不累|紧张|害怕|不舒服|歇(?:一)?会|坐一会|缓缓|缓.{0,4}过来|还好吗|没事吧|好(?:些|点|一点).{0,3}吗|道歉|对不起|开玩笑|笑话|你自己|自己的愿望|怎么想|放下.{0,4}聊|are you (?:ok(?:ay)?|feeling better)|need a (?:moment|break)/i.test(text)
+ return /舍不得|舍得|陪我|陪陪|累了|累吗|不累|紧张|害怕|怕我|怕你|放我一马|生气|委屈|约会|在哪(?:里|儿)?.{0,4}等|不舒服|歇(?:一)?会|坐一会|缓缓|缓.{0,4}过来|还好吗|没事吧|好(?:些|点|一点).{0,3}吗|道歉|对不起|开玩笑|笑话|你自己|自己的愿望|怎么想|放下.{0,4}聊|are you (?:ok(?:ay)?|feeling better)|need a (?:moment|break)/i.test(text)
 }
 export function dialogueVoiceIssues(value,{identityAsked=false,host=false}={}){
  const text=typeof value==='string'?value:typeof value?.text==='string'?value.text:(value?.segments||[]).map(p=>p.text||'').join('\n')
@@ -140,6 +140,13 @@ export function scriptVoiceIssues(value,context){
  const issues=dialogueVoiceIssues(text,{host,identityAsked:/你是.*(?:AI|人工智能|真人)|真实身份/i.test(context?.trigger||'')})
  const timedEvidence=/(?:[01]?\d|2[0-3])[:：][0-5]\d/.test(text)&&/钟|广播|录音|报时|证据|证词|线索|核对|编号|控制台/.test(text)
  if(!host&&personalDialogueBeat(context?.trigger)&&(timedEvidence||/(?:编号(?:是|写着|写的是)|季节编号).{0,3}\d|(?:先|等).{0,16}(?:核对|查完|核完).{0,16}(?:再聊|再来|再说)|得先核对完/.test(text)||value?.shareClueId))issues.push('unsolicited-clue-detour')
+ if(!host&&context?.story?.campus){
+  const trigger=String(context.trigger||'')
+  const detours=[...text.matchAll(/(?:先|接着|继续|还是|再)(?:来|把|对|做|聊|看|核对)[^。！？\n]{0,18}(?:题|条件|等式|版本单|线索|字格)|(?:我这|你那|我这边)[^。！？\n]{0,18}(?:等于|r[加减+−-]c)/g)]
+  if(personalDialogueBeat(trigger)&&detours.some(m=>!/放下|收起|不急|暂停|别急/.test(m[0])&&!/^(?:先)?(?:放下|收起|不急|暂停)/.test(text.slice(m.index+m[0].length))))issues.push('unsolicited-clue-detour')
+  if(!/幕|章节|游戏|任务/.test(trigger)&&/(?:隔.{0,4}|上一|下一|第[一二三])幕|本幕/.test(text))issues.push('scene-meta')
+  if(/只做同学|只当朋友|不想约会|不想恋爱/.test(trigger)&&!/取消|不去|不等|作废|不见|别等/.test(trigger)&&/(?:东门|图书馆|之前|见面|等你|安排|约定)[^。！？\n]{0,22}(?:取消|作废|没提过|不用去)|(?:取消|作废)[^。！？\n]{0,18}(?:见面|安排|约定)/.test(text))issues.push('unasked-plan-cancellation')
+ }
  if(context?.scriptId==='before-rain'&&context?.actor?.id==='letter'&&context?.sender?.id==='repair'&&/(?:八年前|当年|临行|临走).{0,12}你.{0,8}问(?:过)?我.{0,8}还有(?:没有|什么)话/.test(text))issues.push('past-speaker-reversal')
  return issues
 }

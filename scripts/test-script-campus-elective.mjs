@@ -5,6 +5,8 @@ import path from 'node:path'
 import {createScriptRoomStore} from '../server/scriptRoomStore.js'
 import {visibleScriptRole} from '../server/scriptRoleCards.js'
 import {campusOutcomes} from '../server/scriptCampusElective.js'
+import {scriptActorMessages} from '../server/scriptRoomApi.js'
+import {scriptVoiceIssues,personalDialogueBeat} from '../server/roleVoices.js'
 import {newScriptGame,publicScriptCatalog,SCRIPT_GAMES,scriptGame} from '../server/scriptGameCatalog.js'
 const game=newScriptGame('last-elective',2)
 assert.ok(game,'one new complete campus duet must exist')
@@ -94,6 +96,18 @@ try{
  r=action(who,r.id,'chat',{target:ai,text:'解完这道题会拿到什么？'});let job=store.leaseJob(r.id)
  assert.ok(job);assert.ok(!JSON.stringify(job.context).includes('纸背夹着一张只印了'));assert.ok(!JSON.stringify(job.context).includes('两张纸放在同一页了'))
  assert.equal(job.context.story?.campus,true);assert.deepEqual(job.context.story.publicReveals,[])
+ const performance=JSON.parse(scriptActorMessages({...job.context,trigger:'先不聊题。我提议整理完在图书馆东门等。'})[1].content)
+ assert.equal(performance.dialogueFocus,'personal')
+ assert.equal(performance.actorDecision,undefined,'saved game choice is not an order to repeat a speech every turn')
+ assert.ok(!performance.actor.biography.includes('【第一幕私章'))
+ assert.ok(performance.actor.biography.includes('纸桥'),'factual character history survives the performance projection')
+ assert.ok(!performance.actor.goal.includes('整理'))
+ assert.deepEqual(performance.evidence,[])
+ for(const text of ['先不聊题。我提议整理完在图书馆东门等。','你今天带两块橡皮，真这么怕我？','我们刚才说整理完在哪儿等来着？'])assert.equal(personalDialogueBeat(text),true)
+ assert.ok(scriptVoiceIssues({text:'东门记住了。先对一下版本单吧。'},{...job.context,trigger:'我们刚才说整理完在哪儿等来着？'}).includes('unsolicited-clue-detour'))
+ assert.ok(scriptVoiceIssues({text:'才隔了一幕就考我记性？'},{...job.context,trigger:'刚才说在哪儿等？'}).includes('scene-meta'))
+ assert.ok(scriptVoiceIssues({text:'那之前说的东门见面就当没提过。'},{...job.context,trigger:'只做同学，不想约会，别再劝了。'}).includes('unasked-plan-cancellation'))
+ assert.equal(scriptVoiceIssues({text:'好，先把题放下。东门我记住了。'},{...job.context,trigger:'先不聊题，图书馆东门等。'}).length,0)
  store.completeJob(r.id,job.job.id,job.job.leaseId,{text:'得先把两张条件放到一起。你那张写了什么？'})
  r=disclose(store.get(who,r.id),[who]);r=solve(r,who)
  r=action(who,r.id,'chat',{target:ai,text:'那张失败稿现在能看了吗？'});job=store.leaseJob(r.id)

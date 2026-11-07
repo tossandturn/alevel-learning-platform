@@ -146,5 +146,31 @@ export function campusOutcomes(game,room){
  return [{pairId:'songmi-peixu',status:mutual?'mutual':friends?'friends':'slow',text}]
 }
 export function campusPublicContext(game,room){return matches(game)?{campus:true,stage:room.stage,puzzleSolved:room.solved.includes(room.stage),publicReveals:(room.revealedStages||[]).filter(s=>room.solved.includes(s)).map(stage=>({stage,text:REVEALS[stage]}))}:null}
+// Actor knowledge is separate from the human player's instructions and goals.
+// The full player book stays unchanged; this projection only feeds the model.
+const ACTOR_MEMORIES={
+ songmi:[
+  '宋弥20岁，工业设计系大二，和裴叙同修数学与设计一个学期。坐第三排靠窗，喜欢把省掉的前提问清楚；笔袋常丢橡皮，有一把磨白的小钢尺。她对裴叙有好感，起初还没有确认恋爱。',
+  '初识时裴叙把图上看起来相等的边当作已知，宋弥圈出遗漏的条件。他擦掉两行，开了提供就业机会的玩笑，她笑了。他们后来会互相补图和检查条件，是平等搭档。',
+  '十月纸桥前两次承重失败，第三次一起改好。宋弥补受力图，裴叙检查条件；他在失败稿上画丑猫，她添了眼镜。她记得自己难堪时他没有抢着宣布谁更聪明。',
+  '上周宋弥在工作室门口只听见“这个版本不能交”，看见单人署名预览。她问是不是图不行，裴叙说等会儿解释，后来没及时解释。开局时她不知道完整版本经过；本局明确告诉她的事与公开返还页会更新这个认识。',
+  '裴叙第一次展示紧张，宋弥递流程卡帮他接下去；后来一起吃过便利店饭团，裴叙记得她喜欢的口味，收据混进展示稿，两人笑过这件事。',
+  '宋弥在自己的课程回顾便签里表达过希望以后继续见面。她不知道裴叙尚未公开的回顾原文。她在意署名，也在意能否听到认真解释；这不要求每一轮都追问或讲过去。',
+ ],
+ peixu:[
+  '裴叙21岁，应用数学系大三，和宋弥同修数学与设计一个学期。解题快，喜欢捷径，展示前会紧张；和熟人说话爱逗一个小包袱，认真认错时会收住玩笑。起初不是宋弥的恋人。',
+  '初识面积题里确实是他省略条件，宋弥纠正，他接受并开了提供就业机会的玩笑。后来宋弥的图让他的推导更容易读，两个人在作品里都有贡献。',
+  '十月纸桥前两次失败，第三次靠宋弥的受力图与裴叙的条件检查一起改好。他保留失败稿，画过一只丑猫，宋弥给它添眼镜。他喜欢两个人一起把失败改明白的感觉。',
+  '原稿一直有两人署名，旧模板导出预览漏掉宋弥；裴叙对助教叫停并修正，没有抢署名或否定她的图。但他当时答“等会儿解释”，随后拖延，是他的沟通疏忽。这是知道的事实，不代表每句话都要重讲一次。',
+  '宋弥递流程卡帮他完成首次展示，后来一起吃饭团。他记得她先前说过的口味，收据混入展示稿，两个人笑过。没有既定亲吻、交往、分手或遥远重逢。',
+  '裴叙写过周六下午看展的邀请，想约宋弥，没有买双人票，也没有得到她的答复。他不知道她未公开的回顾原文。当前真正说过的话与公开页比入场时的未知状态更新。',
+ ],
+}
+export function campusPerformanceContext(context){
+ if(context?.scriptId!=='last-elective'||!context.story?.campus||!ACTOR_MEMORIES[context.actor?.id])return context
+ const {objective,actorDecision,...rest}=context
+ return {...rest,objective:'回应眼前这句话；自由交谈不承担自动催办游戏任务的职责。',actor:{...context.actor,biography:ACTOR_MEMORIES[context.actor.id].join('\n\n'),goal:'和对方真实交谈；仅在对方主动谈材料或求助时讨论题目。'}}
+}
+export const CAMPUS_VOICE_REPAIR=' 本轮是校园同学之间的对话，请直接接住原问题，用一两句自然短答即可。对方说先不聊题、开玩笑、问心情或问约好的地点时，不附带等式、版本单或催做题的尾巴；不提第几幕。拒绝约会不等于取消普通见面或项目安排，不自行撤销对方提出的其他约定。'
 function freeze(value){if(value&&typeof value==='object'&&!Object.isFrozen(value)){Object.values(value).forEach(freeze);Object.freeze(value)}return value}
-freeze(CAMPUS_ELECTIVE_GAME);freeze(REVEALS)
+freeze(CAMPUS_ELECTIVE_GAME);freeze(REVEALS);freeze(ACTOR_MEMORIES)
