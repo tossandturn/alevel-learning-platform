@@ -22,7 +22,7 @@ Files: `server/scriptCampusElective.js`, `server/scriptGameCatalog.js`, `scripts
 Files: `server/scriptCampusElective.js`, `server/scriptRoomStore.js`, `scripts/test-script-campus-elective.mjs`.
 
 1. Add failing real-store journeys for both roles and both-human play, locked future pages, wrong answers, duplicate solve and restart.
-2. Add helpers `campusStageResolution(game,room)`, `campusNpcDecision(game,roleId,stage)`, `campusReplyActor(game,speakerId,seats)`, `campusOutcomes(game,room)`, `campusActorContext(game,room,role,view)` and visible public-reveal context.
+2. Add helpers `campusStageResolution(game,room)`, `campusNpcDecision(game,roleId,stage,room)`, `campusReplyActor(game,speakerId,seats)`, `campusOutcomes(game,room)` and visible public-reveal context. The provider-only actor projection is implemented as `campusPerformanceContext(context)` in Task 3, leaving the player's full identity view intact.
 3. Call scoped helpers only for the matching content edition. Gate final choice on solved third puzzle. Keep legacy reveal and ending behavior byte-pinned.
 4. Verify 9 final-choice combinations and no outcome overridden by atmospheric vote; full negative-path suite.
 
