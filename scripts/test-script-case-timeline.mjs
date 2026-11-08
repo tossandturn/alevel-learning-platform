@@ -17,7 +17,7 @@ try{
  const act=async(type,extra={})=>{r=await req('/'+r.id+'/actions',{type,...extra,revision:r.revision,requestId:'case-timeline-'+(++n)});return r}
  await act('ready');await act('start');await act('chat',{target:'repair',text:'今晚你进去的时间和地点是什么？'})
  await api.drain();r=await req('/'+r.id)
- const reply=r.messages.findLast(m=>m.actor==='repair'&&m.target==='letter')
+ const last=r.messages.findLast(m=>m.actor==='repair'&&m.target==='letter'),reply={text:last.sourceMessageId?r.messages.filter(m=>m.sourceMessageId===last.sourceMessageId).map(m=>m.text).join('\n'):last.text}
  assert.match(reply.text,/21:05进入旧广播室/,'a fixed visit cannot become a visit to an invented side room')
  assert.doesNotMatch(reply.text,/旁边的材料间|没有进旧广播室/);assert.equal(calls,1,'authored fact guard needs no second model call')
  assert.equal(r.stage,0);assert.equal(r.publicClues.length,0)

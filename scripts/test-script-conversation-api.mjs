@@ -18,7 +18,7 @@ try{
   ['嗯',say('嗯。你想聊什么？'),say('院子那边挺亮的。你想坐窗边，还是出去坐？')],
   ['先别说了，让我安静一会。',say('好。你想吃点什么吗？'),say('好，歇会儿。')],
  ]
- for(const [trigger,bad,good] of cases){const before=calls;samples=[bad,good];await act('chat',{target:'jiangyuan',text:trigger});await api.drain();r=await req('/'+r.id);assert.equal(calls-before,2);assert.equal(r.jobs.at(-1).status,'done');assert.ok(!r.messages.some(m=>m.text===bad.segments[0].text));if(trigger.startsWith('收工'))assert.equal(r.messages.at(-1).parts.length,2,'frozen client receives separate short bubbles')}
+ for(const [trigger,bad,good] of cases){const before=calls;samples=[bad,good];await act('chat',{target:'jiangyuan',text:trigger});await api.drain();r=await req('/'+r.id);assert.equal(calls-before,2);assert.equal(r.jobs.at(-1).status,'done');assert.ok(!r.messages.some(m=>m.text===bad.segments[0].text));if(trigger.startsWith('收工')){const bubbles=r.messages.slice(-2);assert.equal(bubbles[0].sourceMessageId,bubbles[1].sourceMessageId);assert.notEqual(bubbles[0].id,bubbles[1].id);assert.ok(bubbles.every(m=>m.parts.length===1&&!/【江远】/.test(m.text)),'plain-text clients receive distinct short bubbles')}}
  samples=[say('这句话我记下了。'),say('你的话我记住了。')];const before=calls;await act('chat',{target:'jiangyuan',text:'明天这杯茶还是不加糖。'});await api.drain();r=await req('/'+r.id);assert.equal(calls-before,2);assert.equal(r.jobs.at(-1).status,'failed');assert.ok(!r.messages.some(m=>/这句话我记下了|你的话我记住了/.test(m.text)))
  assert.equal(r.stage,0);assert.equal(r.publicClues.length,0)
  console.log('PASS API short bubbles, bounded repair, canned/verbose/passive/pause cases, no failed draft persistence or game-state changes')

@@ -13,17 +13,18 @@ const server=http.createServer((req,res)=>api.handle(req,res,new URL(req.url,'ht
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve))
 const base=`http://127.0.0.1:${server.address().port}/api/ai/script-rooms`
 async function request(tail,body){const response=await fetch(base+tail+'?clientVersion=2',{method:body?'POST':'GET',headers:{'x-owner':'ielts:91000501','content-type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});assert.equal(response.status,200);return response.json()}
+const latestReply=r=>{const last=r.messages.findLast(m=>m.actor==='repair'&&m.target==='letter');return{text:last.sourceMessageId?r.messages.filter(m=>m.sourceMessageId===last.sourceMessageId).map(m=>m.text).join('\n'):last.text}}
 try{
  let r=await request('',{scriptId:'before-rain',scriptVersion:2,requestId:'guard-create-001'})
  const act=async(type,extra={})=>{r=await request('/'+r.id+'/actions',{type,revision:r.revision,requestId:'guard-api-'+(++seq),...extra});return r}
  await act('ready');await act('start')
  await act('chat',{target:'repair',text:'讲一件以前相处的小事'})
  await api.drain();r=await request('/'+r.id)
- let reply=r.messages.findLast(m=>m.actor==='repair'&&m.target==='letter')
+ let reply=latestReply(r)
  assert.match(reply.text,/不吃香菜的是我/);assert.doesNotMatch(reply.text,/你吃之前总把香菜/)
  assert.equal(calls,1,'the authored response guard adds no provider latency')
  await act('chat',{target:'repair',text:'新裙子那次到底为什么让我等？'})
- await api.drain();r=await request('/'+r.id);reply=r.messages.findLast(m=>m.actor==='repair'&&m.target==='letter')
+ await api.drain();r=await request('/'+r.id);reply=latestReply(r)
  assert.match(reply.text,/不是提前修好以后故意躲/);assert.equal(calls,2)
  assert.equal(r.stage,0);assert.equal(r.publicClues.length,0)
  assert.ok(r.jobs.every(j=>j.status==='done'))

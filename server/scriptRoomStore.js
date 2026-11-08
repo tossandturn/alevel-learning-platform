@@ -78,7 +78,16 @@ export function createScriptRoomStore({root,now=Date.now}={}){
    evidenceRequests:r.phase==='play'&&game.version>=2?currentClues.filter(c=>!r.publicClues.includes(c.id)&&r.seats.some(s=>s.roleId===c.roleId&&s.control==='ai')).map(c=>({roleId:c.roleId,name:game.roles.find(s=>s.id===c.roleId).name})):[],
    searchOptions:r.phase==='play'?currentClues.filter(c=>c.roleId===me.roleId).map(c=>({id:c.id,title:c.title,found:(r.known[me.roleId]||[]).includes(c.id)})):[],
    act:r.phase==='play'?{title:act.title,objective:act.objective,image:scriptSceneArt(game,r.stage),shared:currentClues.filter(c=>r.publicClues.includes(c.id)).length,total:currentClues.length,puzzle:act.puzzle?{question:act.puzzle.question,solved:r.solved.includes(r.stage),attempts:r.attempts[r.stage]||0,hint:(r.attempts[r.stage]||0)>=2?act.puzzle.hint:''}:null}:{title:act.title,objective:r.phase==='lobby'?'':'已公开的本幕记录。请从“本局”进入最终投票或结局与复盘。',image:scriptSceneArt(game,r.stage),preview:true,shared:r.phase==='lobby'?0:currentClues.filter(c=>r.publicClues.includes(c.id)).length,total:r.phase==='lobby'?0:currentClues.length,puzzle:null},
-   messages:r.messages.filter(visible).slice(-200).map(m=>{const copy=clone(m),j=m.imageJobId?r.jobs.find(j=>j.id===m.imageJobId):null;return {...copy,...(m.image?{image:scriptMessageArt(game,m)}:{}),...(j?{imageStatus:j.status,imageError:j.status==='failed'?'配图未完成，可重试；故事进度不受影响。':'',canRetry:j.owner===who}:{} )}}),
+   messages:r.messages.filter(visible).slice(-200).flatMap(m=>{
+    const copy=clone(m),j=m.imageJobId?r.jobs.find(j=>j.id===m.imageJobId):null
+    // Filter by real ownership first. Only then project a private UI hint into
+    // this viewer's public feed; other viewers never receive the source row.
+    const displayed={...copy,...((m.directorGuide||m.uiGuidance)&&m.target===me.roleId?{target:'public',selfOnly:true}:{}),...(m.image?{image:scriptMessageArt(game,m)}:{}),...(j?{imageStatus:j.status,imageError:j.status==='failed'?'配图未完成，可重试；故事进度不受影响。':'',canRetry:j.owner===who}:{})}
+    if(!Array.isArray(m.parts)||m.parts.length<2||m.kind!=='dialogue')return[displayed]
+    // Old native builds may use only text, not the parts renderer. Keep the
+    // persisted message and memory intact, with stable per-part view IDs.
+    return m.parts.map((part,index)=>({...displayed,id:index?`${m.id}-p${index}`:m.id,sourceMessageId:m.id,actor:part.kind==='narration'&&m.target==='public'?'dm':m.actor,kind:part.kind==='narration'?'narration':'dialogue',text:part.kind==='narration'?'旁白：'+part.text:part.text,parts:[part]}))
+   }).slice(-200),
    jobs:r.jobs.filter(j=>j.target==='public'||j.target===me.roleId||j.kind==='image'&&j.actor===me.roleId).map(({id,actor,target,status,kind,owner:requester})=>({id,actor,target,status,kind:kind||'text',canRetry:kind!=='image'||requester===who})),
    ballot:['vote','ended'].includes(r.phase)?{...game.ballot,voted:Object.keys(r.votes),myVote:r.votes[me.roleId]||''}:null,
    ending:r.phase==='ended'?{...r.ending,myJourney:(own.missions||[]).map(m=>({title:m.title,choice:m.options.find(o=>o.id===r.missionChoices?.[me.roleId]?.[m.id])?.label||'未选择',text:m.options.find(o=>o.id===r.missionChoices?.[me.roleId]?.[m.id])?.consequence||''}))}:null,relationship:r.relations[me.roleId]||{},

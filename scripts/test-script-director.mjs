@@ -17,7 +17,7 @@ try{
  act(who,r.id,'chat',{target:'jiangyuan',text:'嗯，你说吧'});let job=store.leaseJob(r.id)
  assert.ok(!job.context.messages.some(m=>m.directorGuide),'actors must not read UI instructions as dialogue')
  store.completeJob(r.id,job.job.id,job.job.leaseId,{segments:[{kind:'speech',text:'你想坐窗边，还是院子里？'}]})
- r=act(who,r.id,'inspect',{clueId:r.searchOptions[0].id});assert.match(r.messages.at(-1).text,/公开给所有人/);assert.equal(r.messages.at(-1).target,r.myRoleId)
+ r=act(who,r.id,'inspect',{clueId:r.searchOptions[0].id});assert.match(r.messages.at(-1).text,/公开给所有人/);assert.equal(r.messages.at(-1).target,'public');assert.equal(r.messages.at(-1).selfOnly,true)
  r=act(who,r.id,'share',{clueId:r.searchOptions[0].id});r=act(who,r.id,'requestEvidence',{roleId:'jiangyuan'});assert.match(r.messages.at(-1).text,/共同结论/)
  r=act(who,r.id,'solve',{answer:'BAC'});assert.match(r.messages.at(-1).text,/本幕决定/)
  r=act(who,r.id,'choose',{missionId:r.myRoleId+'-0',optionId:'open'});assert.match(r.messages.at(-1).text,/完成本幕/)
@@ -30,6 +30,6 @@ try{
  store.completeJob(r.id,job.job.id,job.job.leaseId,{segments:[{kind:'speech',text:'我刚才有点饿，想问你要不要先吃一口。'}]});act(who,r.id,'leave')
  // A progress reminder is visible only to the requesting player, not their partner.
  r=store.create(who,{scriptId:game.id,scriptVersion:2,requestId:nonce()});store.join(peer,{inviteCode:r.inviteCode,requestId:nonce()});act(peer,r.id,'ready');act(who,r.id,'ready');r=act(who,r.id,'start')
- r=act(who,r.id,'inspect',{clueId:r.searchOptions[0].id});const privateGuide=r.messages.at(-1);assert.equal(privateGuide.target,r.myRoleId);assert.ok(!store.get(peer,r.id).messages.some(m=>m.id===privateGuide.id))
+ r=act(who,r.id,'inspect',{clueId:r.searchOptions[0].id});const privateGuide=r.messages.at(-1);assert.equal(privateGuide.selfOnly,true);assert.ok(!store.get(peer,r.id).messages.some(m=>m.id===privateGuide.id))
  console.log('PASS proactive DM onboarding/milestones, truthful entry points, no GET spam, private guidance and actor memory separation')
 }finally{store.close();fs.rmSync(root,{recursive:true,force:true})}
