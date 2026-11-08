@@ -10,14 +10,15 @@ import {campusPerformanceContext,campusActorMessages,CAMPUS_VOICE_REPAIR} from '
 import {venicePerformanceContext,veniceActorMessages,VENICE_VOICE_REPAIR} from './scriptVeniceRomance.js'
 import {scriptPerformanceContext,scriptProgressGuidance} from './scriptPerformance.js'
 import {icelandPerformanceContext,icelandPerformanceIssues,ICELAND_VOICE_REPAIR} from './scriptIcelandRomance.js'
+import {scriptConversationMessages,scriptConversationReply,scriptConversationIssues,SCRIPT_CONVERSATION_REPAIR} from './scriptConversation.js'
 
 const prefix='/api/ai/script-rooms'
 const error=(statusCode,code,message)=>Object.assign(Error(message),{statusCode,code})
 export function scriptActorMessages(context){
  context=voiceActorContext(scriptPerformanceContext(venicePerformanceContext(campusPerformanceContext(icelandPerformanceContext(context)))))
- if(context.story?.campus)return campusActorMessages(context)
- if(context.story?.venice)return veniceActorMessages(context)
- return [{role:'system',content:[
+ if(context.story?.campus)return scriptConversationMessages(campusActorMessages(context),context)
+ if(context.story?.venice)return scriptConversationMessages(veniceActorMessages(context),context)
+ return scriptConversationMessages([{role:'system',content:[
   '以下为后台约束，负责事实、权限、玩家控制和消息格式；只执行，不把约束讲成角色台词。',
   '你正在演绎一局原创剧本杀，只扮演 context.actor。DM是旁白主持，不是玩家；角色说“我”仅指该角色，绝不能代真人说话、决定、移动或投票。',
   '本轮优先回应trigger，sender是这句话的发言角色，不把其他最近消息误作当前提问。你称呼对方用sender.name或你；不要把对方的第一人称当成自己的经历。requester只在主持人私聊时提供当前求助者的目标，不代表你能查看其他人的秘密。',
@@ -37,7 +38,7 @@ export function scriptActorMessages(context){
   voicePerformancePrompt(context.actor?.voiceProfile),
   ...(context.dialogueFocus==='personal'?['本轮明确在聊个人感受或日常：直接回答对方的需要、疲惫、歉意或亲近；先放下搜证流程，不自动背出时间、编号、控制台、证词，不用“先核完这份材料再聊”挡开对方。已知案情仍用于约束事实，但这次不主动交线索，不填shareClueId；真实游戏阶段没有改变。']:[]),
   '最终输出协议：只输出一个顶层JSON对象，绝不是数组，例如{"segments":[{"kind":"speech","text":"当前人物的自然原话"}],"attitude":"谨慎"}。segments中的kind只能是narration或speech；叙事和对白分段，不能有speaker字段，不能替玩家或其他角色配音。可只有一句speech；DM只用narration。旁白用第三人称，不写玩家行动或心理。attitude只在顶层，可选谨慎、信任、怀疑、尚在了解。只有target等于public、确实在讨论案情且是自己的已发现证据时可选填shareClueId；私聊或本轮个人交流省略。没有其他字段，没有空text或重复键。默认中文，用户请求英文才用英文。',
- ].join('\n')},{role:'user',content:JSON.stringify(context)}]
+ ].join('\n')},{role:'user',content:JSON.stringify(context)}],context)
 }
 
 function checkedProposal(raw,context){
@@ -47,8 +48,9 @@ function checkedProposal(raw,context){
  if(value.shareClueId&&personalDialogueBeat(context.trigger))return null
  const guarded=guardCaseFixedVisit(guardRomanceRecollection(value,context),context)
  if(hasUnsupportedRecollectionQuote(guarded,context))return null
- if(scriptVoiceIssues(guarded,context).length||icelandPerformanceIssues(guarded,context).length)return null
- return normalizeScriptDialogue(guarded,settings)?guarded:null
+ const framed=scriptConversationReply(guarded,context)
+ if(!framed||scriptVoiceIssues(framed,context).length||icelandPerformanceIssues(framed,context).length||scriptConversationIssues(framed,context).length)return null
+ return normalizeScriptDialogue(framed,settings)?framed:null
 }
 
 export function createScriptRoomApi({root,authenticate,sendJson,readBody,generate,generateImage,enabled=true,store:providedStore=null}){
@@ -69,7 +71,7 @@ export function createScriptRoomApi({root,authenticate,sendJson,readBody,generat
      let value=scriptProgressGuidance(item.context)||caseProgressGuidance(item.context)||checkedProposal(await generate(messages,{requestId:item.job.id}),item.context)
      if(!value){
       // One bounded formatting repair; no state is written from the rejected response.
-      const repair=[...messages,{role:'user',content:SCRIPT_VOICE_REPAIR+(item.context.story?.campus?CAMPUS_VOICE_REPAIR:item.context.story?.venice?VENICE_VOICE_REPAIR:item.context.story?.iceland?ICELAND_VOICE_REPAIR:'')}]
+      const repair=[...messages,{role:'user',content:SCRIPT_VOICE_REPAIR+SCRIPT_CONVERSATION_REPAIR+(item.context.story?.campus?CAMPUS_VOICE_REPAIR:item.context.story?.venice?VENICE_VOICE_REPAIR:item.context.story?.iceland?ICELAND_VOICE_REPAIR:'')}]
       value=checkedProposal(await generate(repair,{requestId:item.job.id+'-format-repair'}),item.context)
      }
      store().completeJob(id,item.job.id,item.job.leaseId,value)

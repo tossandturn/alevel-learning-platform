@@ -14,7 +14,7 @@ try{
  await act('ready');await act('start');await act('chat',{target:'public',text:'主持人，这局共同要查什么，现在怎么推进？'})
  await api.drain();r=await req('/'+r.id)
  assert.equal(calls,0,'operational guidance comes from authoritative rules, not a model guessing controls')
- const m=r.messages.findLast(m=>m.actor==='dm');assert.match(m.text,/本幕任务/);assert.match(m.text,/共同结论/);assert.match(m.text,/核验答案/);assert.match(m.text,/我的身份.*本幕决定/);assert.doesNotMatch(m.text,/结论.{0,10}写进.{0,4}我的身份/)
+ const m=r.messages.findLast(m=>m.actor==='dm');assert.match(m.text,/本幕任务/);assert.match(m.text,/我的搜证位置/);assert.doesNotMatch(m.text,/核验答案|本幕决定/,'first-time help gives the next step, not the entire future checklist');assert.equal(m.kind,'system');assert.equal(m.uiGuidance,true);assert.doesNotMatch(m.text,/结论.{0,10}写进.{0,4}我的身份/)
  assert.equal(r.phase,'play');assert.equal(r.publicClues.length,0)
  await act('chat',{target:'dm',text:'怎样区分六年前的选择与八年前的感情？'})
  await api.drain();assert.equal(calls,1,'interpretation questions still use the character/DM generator')

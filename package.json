@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "test:script-conversation": "node scripts/test-script-conversation.mjs && node scripts/test-script-conversation-api.mjs && node scripts/test-script-director.mjs",
     "test:script-iceland": "node scripts/test-script-iceland.mjs && node scripts/test-script-iceland-performance.mjs",
     "test:script-venice": "node scripts/test-script-venice-duet.mjs && node scripts/test-script-performance.mjs",
     "test:script-campus": "node scripts/test-script-campus-elective.mjs",

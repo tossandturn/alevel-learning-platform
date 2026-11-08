@@ -61,7 +61,9 @@ export function scriptRoomContinuity(room,game,job){
  const roles=new Map(game.roles.map(role=>[role.id,role.name]));roles.set('dm','主持人')
  if(!roles.has(job.actor)||job.target!=='public'&&!roles.has(job.target))throw Error('Invalid script memory scope')
  const all=stagedMessages(room,game)
- const visible=all.filter(m=>m.stage<=room.stage&&roles.has(m.actor)&&scriptMessageVisible(m,job))
+ const ui=m=>m.kind==='system'||m.directorGuide||m.uiGuidance||m.actor==='dm'&&/^(?:本幕材料[：:]|本幕已经完成。打开“本局”)/.test(m.text||'')
+ const uiQuestions=new Set(all.filter(ui).map(m=>m.replyTo).filter(Boolean))
+ const visible=all.filter(m=>m.stage<=room.stage&&roles.has(m.actor)&&scriptMessageVisible(m,job)&&!ui(m)&&!uiQuestions.has(m.id))
  const recent=visible.slice(-SCRIPT_MEMORY_LIMITS.recentMessages),recentIds=new Set(recent.map(m=>m.id))
  const candidates=visible.filter(m=>!recentIds.has(m.id)&&speechText(m)&&m.kind!=='evidence'&&m.kind!=='system'&&!(m.actor==='dm'&&m.target==='public'&&m.kind==='narration'))
  const query=room.messages.find(m=>m.id===job.trigger)?.text||'',terms=queryTerms(query)
@@ -103,7 +105,7 @@ export function scriptRoomContinuity(room,game,job){
  const knownEvidence=game.clues.filter(c=>c.stage<=room.stage&&((room.publicClues||[]).includes(c.id)||(room.known?.[job.actor]||[]).includes(c.id))).map(c=>({id:c.id,stage:c.stage,title:c.title,text:c.text,source:(room.publicClues||[]).includes(c.id)?'public-evidence':'actor-own-evidence'}))
  return{
   recentMessages:recent.map(({index,...message})=>message),
-  continuity:{schemaVersion:'script-continuity-v1',currentAct:{stage:room.stage,title:game.acts[room.stage].title},
+  continuity:{schemaVersion:'script-continuity-v1',currentAct:{stage:room.stage,title:game.acts[room.stage].title,puzzleSolved:(room.solved||[]).includes(room.stage)},
    completedActs:game.acts.slice(0,room.stage).map((act,stage)=>({stage,title:act.title,publicEvidenceIds:knownEvidence.filter(c=>c.stage===stage&&c.source==='public-evidence').map(c=>c.id)})),
    alreadyKnownEvidence:knownEvidence,actorDecisions:ownDecisions(room,game,job.actor),
    ...(job.actor==='dm'&&job.target!=='public'?{requesterDecisions:ownDecisions(room,game,job.target)}:{}),
