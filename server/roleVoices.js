@@ -121,6 +121,12 @@ export function voicePerformancePrompt(profile){
   '下列只是说话示范，绝非本局已经发生的对话，不照抄或新增往事：'+JSON.stringify(profile.examples),
  ].join('\n')
 }
+export const SCRIPT_PLAYER_BEHAVIOR_PROMPT=[
+ '【玩家行为来源】sender是正在与你对话的玩家角色；actor是你扮演的NPC。actor.biography中的第二人称“你”指NPC本人，不能拿来证明sender做过同样的事。',
+ '闲聊先说NPC自己的当下感受、看法或合理自主动作。对方问今天有什么好笑的，不必编出一段两人刚刚经历的趣事，更不能顺手补上玩家拿东西、笑、点头、答应或身体反应。',
+ '提到玩家已发生或正在发生的行为，只用sender自己真实说过的内容，或明确点名该角色的已知作者事实、已验证证据。AI自己以前编过的回复、别的角色的断言、示范台词和未实现的邀请都不是证明。没有这种依据，就转回NPC自己的回应，而不是说一段我不会替你之类的规则。',
+ '可以提问、假设、发出未来邀请，可以自然否认，也可以承接已有的真实自述和明确剧情细节；不要把这些全写成免责声明。保持各自性格，不必每次反问或编往事来撑满回复。',
+].join('\n')
 export function voiceActorContext(context){
  const original=scriptVoice(context?.scriptId,context?.actor)
  const profile=original&&context?.story?.iceland?{...original,examples:context.actor.card?.examples||original.examples}:original
@@ -196,6 +202,71 @@ function inventedAddressedQuote(text,context){
   return quotes.length>0&&!sources.some(source=>quotes.every(quote=>source.includes(quote)))
  })
 }
+// Deliberately narrow surface check, not a full semantic fact judge. It handles
+// direct physical actions while the shared prompt governs broader narration.
+// Promises/agreements deliberately stay out: "明天下午见" can establish an
+// agreement without a past-tense verb, and this is not a semantic entailment model.
+const PHYSICAL_WORDS='点头|摇头|低头|抬头|转身|站起|坐下|微笑|大笑|亲吻|比划|拿起|拿出|拿走|拿回|取出|取走|递给|递来|递过|放下|放回|放进|摆好|摆出|摊开|翻开|翻过|写下|画出|剪下|剪开|切开|举起|捧起|挪开|擦掉|撕开|敲打|指向|握住|抱住|摸到|拍打|走到|走进|坐到|靠近'
+const PHYSICAL_ROOTS='拿|取|递|放|摆|摊|翻|写|画|剪|切|比|笑|哭|举|捧|晃|挪|擦|撕|敲|握|抱|亲|摸|拍|走|坐|靠'
+const PHYSICAL_START=new RegExp('^(?:'+PHYSICAL_WORDS+'|(?:'+PHYSICAL_ROOTS+')(?=[了过着])|(?:拿|递|举|捧|翻|写|画|剪|切|摆|摊)(?=[那这一二三四五六七八九十两几数\\d])|笑(?=到|得)|哭(?=到|得)|比(?:了|一)比|点(?:了|一)点头|摇(?:了|一)摇头)','u')
+const PHYSICAL_ASPECT=new RegExp('(?:'+PHYSICAL_WORDS+'|'+PHYSICAL_ROOTS+')(?:了|过|着)|(?:点|摇)了(?:点|摇)头','u')
+const DISPOSAL_ACTION=new RegExp('^(?:把|将).{1,48}(?:'+PHYSICAL_WORDS+'|(?:'+PHYSICAL_ROOTS+')(?:了|过|着))(?!的)','u')
+const ACTION_LEAD=/^(?:(?:刚才|刚刚|方才|今天|昨天|前天|上次|那次|当时|那天|已经|曾经|正在|正|现在|也|还|又|就|才|一直|突然|轻轻|慢慢|偷偷|忍不住|随手|一边)\s*)*/u
+const EVENT_LEAD=/刚才|刚刚|方才|昨天|前天|上次|那次|当时|那天|已经|曾经|正在|现在|正/u,MARKER=/@(P|A|O|J)@/u
+const escaped=s=>String(s).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')
+function behaviorText(value,context,perspective){
+ let text=String(value||'').normalize('NFKC').replace(/@/g,'')
+ const names=[[context.sender?.name,'P'],[context.actor?.name,'A'],...(context.participants||[]).filter(p=>p.id!==context.sender?.id&&p.id!==context.actor?.id).map(p=>[p.name,'O'])].filter(([name])=>name).sort((a,b)=>b[0].length-a[0].length)
+ for(const[name,kind]of names)text=text.replace(new RegExp(escaped(name),'gu'),'@'+kind+'@')
+ text=text.replace(/我们|咱们/gu,perspective==='canon'?'@A@':'@J@').replace(/你们|他们|她们/gu,'@O@')
+ const first=perspective==='sender'?'P':'A',second=perspective==='sender'?'A':perspective==='sender-card'?'P':perspective==='output'?'P':'A'
+ return text.replace(/我/gu,'@'+first+'@').replace(/你/gu,'@'+second+'@').replace(/(?<!其)他|她/gu,'@O@').replace(/@P@和@A@|@A@和@P@/gu,'@J@')
+}
+function nonAssertion(prefix,body,end){
+ return /如果|假如|要是|假设|也许|或许|可能|明天|后天|下次|以后|稍后|将来|(?:等|等到)$/.test(prefix)||/^(?:明天|后天|下次|以后|稍后|待会|等会|将来|打算|准备|想|要不要|能不能|可不可以|可以|应该|会|愿意)/.test(body)
+  ||/^(?:刚才|今天|昨天|当时|那天|已经|也|还|又|更|并|从来|一直|本来|其实|根本|真的|就|都|曾经|完全|毕竟|原来|\s)*(?:没(?:有)?|不曾|从未|未曾|不(?:会|要|想|能|肯|愿意)?)/.test(body)
+  ||/^(?:明天|后天|下次|以后|稍后|待会|等会|将来).{0,12}/.test(body)||/是不是|有没有|是否|了吗|了么|要不要|能不能/.test(body)
+  ||/[吗么]$/.test(body)||(/[?？]/.test(end)&&!/[，,]/.test(body))||/吧$/.test(body)
+}
+function actionFacts(value,context,perspective,{requireEvent=false}={}){
+ const text=behaviorText(value,context,perspective),facts=[];let subject=null,event=false
+ for(const match of text.matchAll(/([^，,。！？!?；;\n]+)([，,。！？!?；;\n]?)/gu)){
+  const clause=match[1].trim(),end=match[2],marker=MARKER.exec(clause);let body=clause,prefix=''
+  if(marker){
+   subject=marker[1];event=false;prefix=clause.slice(0,marker.index);body=clause.slice(marker.index+marker[0].length)
+   if(!['P','J'].includes(subject)){
+    // An affirmative observation can assert another subject's physical action;
+    // a belief, allegation, denial or hypothetical cannot ground it as a fact.
+    const named=clause.match(/@(P|J)@/u),intro=named?clause.slice(0,named.index):''
+    if(named&&/(?:看见|看到|看着|瞧见|眼看|听见)\s*$/.test(intro)&&!/(?:没(?:有)?|不曾|不是|如果|假如|也许|或许|以为|觉得|猜|怀疑|听说|好像|似乎)/.test(intro)){subject=named[1];prefix=intro;body=clause.slice(named.index+named[0].length)}else{subject=null;event=false;continue}
+   }
+  }
+  if(!['P','J'].includes(subject))continue
+  if(body.startsWith('的')||nonAssertion(prefix,body,end)){subject=null;event=false;continue}
+  const lead=ACTION_LEAD.exec(body)[0];let action=body.slice(lead.length)
+  // Require a direct action predicate, never an arbitrary character inside a
+  // comparison/adjective (比我了解 / 很亲切 / 这句话好笑 / 拿手的本事).
+  if(!PHYSICAL_START.test(action)&&!DISPOSAL_ACTION.test(action))continue
+  event||=EVENT_LEAD.test(prefix+lead)||PHYSICAL_ASPECT.test(action)
+  if(requireEvent&&!event)continue
+  const ownReaction=action.search(/@A@(?:也|就|在|跟着|忍不住|想|说|觉得)/u);if(ownReaction>=0)action=action.slice(0,ownReaction)
+  const normalized=('@'+subject+'@'+action).replace(/[\s\p{P}\p{S}]/gu,'').replace(/[了过着的地得]/gu,'').replace(/[那这](?=[一二三四五六七八九十两\d]+(?:张|片|个|支|只)?)/gu,'')
+  if(normalized.length>2)facts.push(normalized)
+  if(end&&!/[，,]/.test(end)){subject=null;event=false}
+ }
+ return facts
+}
+function unsupportedPlayerBehavior(text,context){
+ if(!context.sender?.id&&!context.sender?.name)return false
+ const claims=actionFacts(text,context,'output',{requireEvent:true});if(!claims.length)return false
+ const senderRow=row=>{const who=row.actor??row.speaker,s=context.sender;return who&&typeof who==='object'?(who.id?who.id===s.id:Boolean(who.name&&who.name===s.name)):typeof who==='string'&&Boolean(who&&(who===s.id||who===s.name))}
+ const own=[context.trigger,...[...(context.messages||[]),...(context.continuity?.dialogueAnchors||[])].filter(senderRow).map(m=>m.text)]
+ const canon=[context.actor?.biography,context.actor?.secret,...(context.actor?.card?.pastEventAnchors||[]),...(context.story?.publicReveals||[]).filter(r=>Number.isInteger(r.stage)&&r.stage<=context.story.stage).map(r=>r.text),...(context.messages||[]).filter(m=>m.actor==='dm'&&m.kind==='narration'&&m.sceneVersion).map(m=>m.text)]
+ const facts=[...own.flatMap(t=>actionFacts(t,context,'sender')),...canon.flatMap(t=>actionFacts(t,context,'canon')),...(context.evidence||[]).flatMap(e=>actionFacts(e.text,context,e.roleId===context.sender.id?'sender-card':'canon'))]
+ // Named joint action includes the player, but a player's individual action
+ // does not establish that the NPC took part too.
+ return claims.some(claim=>!facts.some(fact=>fact.includes(claim)||claim.startsWith('P')&&fact.startsWith('J')&&fact.slice(1).includes(claim.slice(1))))
+}
 export function scriptVoiceIssues(value,context){
  const text=typeof value?.text==='string'?value.text:(value?.segments||[]).map(p=>p.text||'').join('\n'),host=context?.actor?.id==='dm'
  const issues=dialogueVoiceIssues(text,{host,identityAsked:/你是.*(?:AI|人工智能|真人)|真实身份/i.test(context?.trigger||'')})
@@ -203,6 +274,7 @@ export function scriptVoiceIssues(value,context){
  if(!host&&personalDialogueBeat(context?.trigger)&&(timedEvidence||/(?:编号(?:是|写着|写的是)|季节编号).{0,3}\d|(?:先|等).{0,16}(?:核对|查完|核完).{0,16}(?:再聊|再来|再说)|得先核对完|我先把该核的核完/.test(text)||value?.shareClueId))issues.push('unsolicited-clue-detour')
  if(!host&&personalDialogueBeat(context?.trigger)&&inventedPersonalSchedule(text,context))issues.push('unsupported-personal-schedule')
  if(!host&&inventedAddressedQuote(text,context||{}))issues.push('unsupported-player-recollection')
+ if(!host&&unsupportedPlayerBehavior(text,context||{}))issues.push('unsupported-player-behavior')
  if(!host&&(context?.story?.campus||context?.story?.venice)){
   const trigger=String(context.trigger||'')
   const placeholder=/(?:×|x){1,4}年(?:×|x){1,2}月(?:×|x){1,2}日|<姓名>|\[姓名\]/i

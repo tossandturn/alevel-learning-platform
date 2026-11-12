@@ -1,4 +1,5 @@
 import {normalizeScriptDialogue} from './scriptDialogue.js'
+import {voicePerformancePrompt,SCRIPT_PLAYER_BEHAVIOR_PROMPT} from './roleVoices.js'
 const length=value=>Array.from(String(value||'')).length
 export function scriptConversationContract(context={}){
  const trigger=String(context.trigger||'').trim(),pause=/先别说|不要再问|别再问|让我安静|暂停聊天|先不聊|别说了|安静一会|stop talking|leave me alone/i.test(trigger)
@@ -39,6 +40,8 @@ export function scriptConversationMessages(messages,context={}){
  if(context.actor?.id==='dm')return messages
  const policy=scriptConversationContract(context)
  const prompt=[
+  voicePerformancePrompt(context.actor?.voiceProfile),
+  SCRIPT_PLAYER_BEHAVIOR_PROMPT,
   '【本轮聊天节奏】像即时聊天，默认一到三条短消息，每条通常一两句。一个具体回应就可以结束，不总结人生意义，不复述玩家整句话。',
   `本轮${policy.mode==='detail'?'需要展开，但仍分成清楚短段':'是短聊'}：总计最多${policy.maxCharacters}字，每条speech最多${policy.maxSpeechCharacters}字，最多${policy.maxSpeechParts}条speech。旁白最多一句、${policy.maxNarrationCharacters}字；没有必要动作就不要旁白。用segments分别发出短消息，不合成一篇小作文。`,
   '记忆直接体现在内容里。不要说“这句话我记下了”“你的话我记住了”等确认记忆的套话。例：对方提议在院子喝不加糖的茶，可以直接说“院子见。要带点面包吗？”示例只是节奏，不是本局已发生事实。',
@@ -52,4 +55,4 @@ export function scriptConversationMessages(messages,context={}){
  ].join('\n')
  return messages.map((m,i)=>i===0&&m.role==='system'?{...m,content:m.content+'\n'+prompt}:m)
 }
-export const SCRIPT_CONVERSATION_REPAIR=' 本次回复使用一到三条短speech，每条一两句。删去确认记忆、复述指令或宣告没有替谁答应的套话，直接说地点、物品、感受或自己的意愿；不要背操作指引。普通见面提议不是搜证邀请，别接上案件时间线。没定时间就留待商量，不编确定的下班或空闲日程。玩家只回嗯、你说吧等时，给一个有具体对象的新话头。若玩家要暂停则停下。不能以短句为由截断事实或改写过去；按原来的JSON格式返回。'
+export const SCRIPT_CONVERSATION_REPAIR=' 本次回复使用一到三条短speech，每条一两句。删去确认记忆、复述指令或宣告没有替谁答应的套话，直接说地点、物品、感受或自己的意愿；不要背操作指引。删去没有sender真实发言或明确作者事实依据的玩家动作、身体反应和共享往事，不是换个说法继续编；可只说NPC自己此刻的反应。普通见面提议不是搜证邀请，别接上案件时间线。没定时间就留待商量，不编确定的下班或空闲日程。玩家只回嗯、你说吧等时，给一个有具体对象的新话头。若玩家要暂停则停下。不能以短句为由截断事实或改写过去；按原来的JSON格式返回。'
