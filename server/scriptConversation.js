@@ -10,7 +10,7 @@ function partsOf(value){return typeof value?.text==='string'?[{kind:'speech',tex
 export function scriptConversationIssues(value,context={}){
  if(context.actor?.id==='dm')return []
  const policy=scriptConversationContract(context),parts=partsOf(value),speech=parts.filter(p=>p.kind==='speech'),text=speech.map(p=>p.text||'').join('\n'),issues=[]
- if(/(?:这句话|这句|这话|你的话|你说的话|你说的)[，,\s]*(?:我(?:已经|会|都|也)?)?(?:记下|记住|记着)(?:了|啦|的)?|我(?:已经|会|都)?(?:记下|记住)(?:了)?(?:你说的话|你的话)|(?:^|[。！？!\n])(?:好[的啊]?[，,。]?|嗯[，,。]?|行[，,。]?)?\s*我(?:已经|会|都)?(?:记住|记下|记着)(?:了|的|啦)?(?=[，,。！？!\n]|$)/u.test(text))issues.push('canned-memory-ack')
+ if(/(?:这句话|这句|这话|你的话|你说的话|你说的)[，,\s]*(?:我(?:已经|会|都|也)?)?(?:记下|记住|记着)(?:了|啦|的)?|我(?:已经|会|都)?(?:记下|记住)(?:了)?(?:你说的话|你的话)|(?:^|[，,。！？!\n])(?:好[的啊]?[，,。]?|嗯[，,。]?|行[，,。]?)?\s*我(?:已经|会|都|也)?(?:记住|记下|记着)(?:了|的|啦)?(?=[，,。！？!\n]|$)/u.test(text))issues.push('canned-memory-ack')
  if(length(parts.map(p=>p.text||'').join(''))>policy.maxCharacters)issues.push('reply-too-long')
  if(speech.length>policy.maxSpeechParts||speech.some(p=>length(p.text)>policy.maxSpeechCharacters))issues.push('speech-chunk-too-long')
  if(parts.filter(p=>p.kind==='narration').length>1||parts.some(p=>p.kind==='narration'&&length(p.text)>policy.maxNarrationCharacters))issues.push('narration-too-long')
@@ -42,7 +42,9 @@ export function scriptConversationMessages(messages,context={}){
   '【本轮聊天节奏】像即时聊天，默认一到三条短消息，每条通常一两句。一个具体回应就可以结束，不总结人生意义，不复述玩家整句话。',
   `本轮${policy.mode==='detail'?'需要展开，但仍分成清楚短段':'是短聊'}：总计最多${policy.maxCharacters}字，每条speech最多${policy.maxSpeechCharacters}字，最多${policy.maxSpeechParts}条speech。旁白最多一句、${policy.maxNarrationCharacters}字；没有必要动作就不要旁白。用segments分别发出短消息，不合成一篇小作文。`,
   '记忆直接体现在内容里。不要说“这句话我记下了”“你的话我记住了”等确认记忆的套话。例：对方提议在院子喝不加糖的茶，可以直接说“院子见。要带点面包吗？”示例只是节奏，不是本局已发生事实。',
+  '问起见面提议，就自然说地点、要带的东西或自己的意愿。不要宣布“我照你的提议复述”“我没替你应下什么”，也不要把后台核对过程说出来。对方说稍后而时间还没定，就保留未定；不得临时编自己的下班或空闲日程。尚未答应的邀约不写成已经见面或已经答应。',
   '可以主动提出自己的小问题、邀请或看法，取自当前可见场景和稳定人格。每次最多接出一个话头；不是每句都反问，也不问笼统的“你想聊什么”。对方聊日常时不要附带先做任务的条件。',
+  '主动带话题不靠编对方昨天的口误、旧笑话或从未说过的引语。用眼前场景、自己的当下反应和可见对话里确有的细节；小词和短引语也不能冒充玩家说过的话。',
   ...(policy.lead?['玩家这句很短，轮到你带一个具体话题。先给一点自己的内容，再留一个容易接的小问题或邀请；不要只答“嗯”“好的”，不要让玩家再次负责找话题。']:[]),
   ...(policy.lead&&context.sharedMoment?['本幕已解锁一个可选共同片刻，见sharedMoment。可以从里面挑一个具体对象，用自己的口吻先说一点感受，再邀请对方回应；不要朗读活动说明、替对方行动、宣布活动已完成，也不用每次回到同一个问题。对方已经换话题或明确暂停时，跟随实际对话。']:[]),
   ...(policy.pause?['玩家明确要暂停。简短回应并停下，不追问、不转新话题、不主动续发。']:[]),
@@ -50,4 +52,4 @@ export function scriptConversationMessages(messages,context={}){
  ].join('\n')
  return messages.map((m,i)=>i===0&&m.role==='system'?{...m,content:m.content+'\n'+prompt}:m)
 }
-export const SCRIPT_CONVERSATION_REPAIR=' 本次回复使用一到三条短speech，每条一两句。删去确认记忆的套话，直接回应具体内容；不要背操作指引。玩家只回嗯、你说吧等时，给一个有具体对象的新话头。若玩家要暂停则停下。不能以短句为由截断事实或改写过去；按原来的JSON格式返回。'
+export const SCRIPT_CONVERSATION_REPAIR=' 本次回复使用一到三条短speech，每条一两句。删去确认记忆、复述指令或宣告没有替谁答应的套话，直接说地点、物品、感受或自己的意愿；不要背操作指引。普通见面提议不是搜证邀请，别接上案件时间线。没定时间就留待商量，不编确定的下班或空闲日程。玩家只回嗯、你说吧等时，给一个有具体对象的新话头。若玩家要暂停则停下。不能以短句为由截断事实或改写过去；按原来的JSON格式返回。'

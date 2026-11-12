@@ -113,8 +113,10 @@ export function voicePerformancePrompt(profile){
  return [
   '【后台约束与人物表演分开】前面的权限、事实、边界和输出格式是后台约束，执行在行为里；人物此刻只说自己的所见、想法、需要和反应。',
   '人物不是解说员。先对眼前那句话作具体回应，想挽留就说舍不得，害怕就说怕，生气就指出哪件事；允许犹豫、语气变化和一句话结束。无需宣讲尊重、选择权、规则或写作原则。',
+  '见面提议和问起私下约定都是人物之间的交流，不是让你复述指令。直接回答地点、东西或自己的意思，不说我记下了、只按你的提议复述、没替谁应下。没有约定的时间不能编成已知日程；若想另约时间，用明确的建议或问句，不能声称早就有空、已经答应或已经见面。没有被问案情，不附带案件记录或以核完材料作为聊天条件。',
   '普通否认、拒绝和更正照常说清；减少连续的“不是……而是……”辩解和抽象金句。不要为了显得成熟，把每段对话总结成道理。',
   '身份与事实取自本局记录。性别只是已有角色的一部分：语气主要来自经历、性格和熟悉程度，拒绝统一的撒娇女生或霸道男生模板。',
+  '找轻松话题也不能编玩家昨天说过的话或口误。说自己的当下感受、眼前的小事即可；若引用对方过去的话，即使只是两个字，也须在角色已知事实或当前可见对话中有依据。',
   '人物固定声线：'+JSON.stringify({name:profile.name,gender:profile.gender,mask:profile.mask,innerNeed:profile.innerNeed,cadence:profile.cadence,underPressure:profile.underPressure,whenClose:profile.whenClose}),
   '下列只是说话示范，绝非本局已经发生的对话，不照抄或新增往事：'+JSON.stringify(profile.examples),
  ].join('\n')
@@ -129,25 +131,78 @@ export function voiceActorContext(context){
 }
 export function personalDialogueBeat(value){
  const text=String(value||'')
- if(/(?:先|暂时|今天|现在).{0,6}(?:不|别).{0,4}(?:谈案|聊案|查线索|聊任务|查案|聊题|做题|解题|解谜|聊作业|谈作业)|别再说.{0,12}不替我决定/.test(text))return true
- if(/线索|死者|韩屿|凶手|案情|几点|时间线|控制台|门禁|证据|投影|编号|密码|广播室|[0-2]?\d[:：点]\d{2}/.test(text))return false
+ const pauseLead=/^(?:先|暂时|今天|现在).{0,6}(?:不|别).{0,4}(?:谈案(?:子|情)?|聊案(?:子|情)?|查线索|聊任务|查案|聊题(?:目)?|做题|解题|解谜|聊作业|谈作业|谈工作|聊工作|谈路线|聊路线)[，,。；;：:\s]*/.exec(text.trim())
+ if(pauseLead){
+  const rest=text.trim().slice(pauseLead[0].length)
+  // The opening pause is not a permanent override: an explicit later request
+  // to investigate/solve must retain the normal evidence-bearing context.
+  if(/线索|死者|韩屿|凶手|案情|时间线|控制台|门禁|证据|投影|编号|密码|广播室|(?:解释|核对|检查|讲解|解答|解开|提示|帮我).{0,16}(?:这道题|题目|条件|等式|谜题|机关|路线|记录)/.test(rest))return false
+  return true
+ }
+ if(/别再说.{0,12}不替我决定/.test(text))return true
+ if(/线索|死者|韩屿|凶手|案情|时间线|控制台|门禁|证据|投影|编号|密码|广播室/.test(text))return false
+ if(/(?:稍后|待会儿?|等会儿?|一会儿?|明天|晚点|今晚|改天|周末|我们|咱们|我(?:想|提议)|要不要|能不能).{0,22}(?:见(?:面)?|碰(?:个)?面|喝茶|吃饭|喝咖啡|散步)|(?:刚才|之前|上一幕|上次).{0,18}(?:提议|约定|约好|说好|见面|在哪儿?见)/.test(text))return true
+ if(/几点|[0-2]?\d[:：点]\d{2}/.test(text))return false
  if(/聊点别的|随便聊|讲个笑话|别讲(?:大道理|道理)|别上价值|喜欢我|想见你|想见我|你想吃|你喜欢吃|你在想什么|你怎么看我|你对我/.test(text))return true
- return /舍不得|舍得|陪我|陪陪|累了|累吗|不累|紧张|害怕|怕我|怕你|放我一马|生气|委屈|约会|在哪(?:里|儿)?.{0,4}等|不舒服|歇(?:一)?会|坐一会|缓缓|缓.{0,4}过来|还好吗|没事吧|好(?:些|点|一点).{0,3}吗|道歉|对不起|开玩笑|笑话|你自己|自己的愿望|怎么想|放下.{0,4}聊|are you (?:ok(?:ay)?|feeling better)|need a (?:moment|break)/i.test(text)
+ return /舍不得|舍得|陪我|陪陪|累了|累吗|不累|紧张|害怕|怕我|怕你|放我一马|生气|委屈|约会|在哪(?:里|儿)?.{0,4}等|不舒服|歇(?:一)?会|坐一会|缓缓|缓.{0,4}过来|还好吗|没事吧|好(?:些|点|一点).{0,3}吗|感觉(?:怎样|怎么样|如何)|有点饿|饿(?:了|吗)|道歉|对不起|开玩笑|笑话|你自己|自己的愿望|怎么想|放下.{0,4}聊|are you (?:ok(?:ay)?|feeling better)|need a (?:moment|break)/i.test(text)
 }
 export function dialogueVoiceIssues(value,{identityAsked=false,host=false}={}){
  const text=typeof value==='string'?value:typeof value?.text==='string'?value.text:(value?.segments||[]).map(p=>p.text||'').join('\n')
  const issues=[]
  if(/context\.(?:actor|sender|story)|voiceProfile|shareClueId|系统(?:要求|规定)|提示词|后台约束|角色卡(?:要求|规定)|(?:作为|按照)(?:这个|一个|我的)?(?:角色|人物设定)/i.test(text)||!identityAsked&&/作为(?:一个)?AI/i.test(text))issues.push('director-language')
- if(!host&&/(?:替你|替谁|替任何人|替玩家|代你|代替你|代替玩家).{0,8}(?:决定|选择|作答|表态|做主|拿主意)|(?:选择权|决定权).{0,8}(?:你|玩家)|(?:决定|选择)(?:还|仍)是你的|尊重你的(?:边界|选择权)|不(?:会|能)?(?:强行|擅自).{0,6}(?:替你|代你|安排你|决定你)/.test(text))issues.push('agency-recital')
+ if(!host&&/(?:替你|替谁|替任何人|替玩家|替自己|代你|代替你|代替玩家).{0,8}(?:决定|选择|作答|表态|做主|拿主意|应下|答应|承诺)|(?:选择权|决定权).{0,8}(?:你|玩家)|(?:决定|选择)(?:还|仍)是你的|尊重你的(?:边界|选择权)|不(?:会|能)?(?:强行|擅自).{0,6}(?:替你|代你|安排你|决定你)/.test(text))issues.push('agency-recital')
+ if(!host&&/(?:我(?:就|只|只是|仅|会)?(?:照|按|按照)[^。！？\n]{0,20}(?:复述|转述|重复))|(?:我(?:只|只是|仅)(?:是在|会)?(?:复述|转述|重复))|不往里(?:再)?添(?:别的)?(?:话|内容)|(?:不|不会)(?:擅自)?(?:添加|补充)[^。！？\n]{0,8}(?:原话以外|额外细节)/.test(text))issues.push('instruction-following-recital')
  const contrasts=(text.match(/不是|不等于|不代表/g)||[]).length
  if(contrasts>=3||(text.match(/不是[^。！？\n]{1,35}而是/g)||[]).length>=2)issues.push('contrast-loop')
  return issues
 }
+function clockTokens(value){
+ const digit={'零':0,'〇':0,'一':1,'二':2,'两':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9}
+ const number=s=>/^\d+$/.test(s)?Number(s):s==='十'?10:s.includes('十')?(digit[s.split('十')[0]]||1)*10+(digit[s.split('十')[1]]||0):digit[s]
+ return [...String(value||'').matchAll(/(凌晨|早上|上午|中午|下午|傍晚|晚上)?\s*([零〇一二三四五六七八九十两\d]{1,3})\s*(?:[:：]\s*(\d{2})|点(?:(半|一刻|三刻)|([零〇一二三四五六七八九十两\d]{1,3})分?)?)/gu)].flatMap(m=>{
+  let h=number(m[2]);const minutes=m[3]?Number(m[3]):m[4]?{半:30,一刻:15,三刻:45}[m[4]]:m[5]?number(m[5]):0
+  if(!Number.isInteger(h)||h<0||h>23||!Number.isInteger(minutes)||minutes>59)return[]
+  if(/下午|傍晚|晚上/.test(m[1]||'')&&h<12)h+=12
+  const keys=[`${h}:${minutes}`];if(!m[1]&&h>0&&h<12)keys.push(`${h+12}:${minutes}`)
+  return [{raw:m[0].trim(),keys}]
+ })
+}
+function inventedPersonalSchedule(text,context){
+ const history=[...(context.messages||[]),...(context.continuity?.dialogueAnchors||[])].flatMap(m=>String(m.text||'').split(/[。！？!?\n]/)).filter(s=>/有空|下班|忙完|收工|空出来|腾出|抽出/.test(s)||/见面|碰面|约好|等你|喝茶|吃饭|散步/.test(s)&&!/门禁|控制台|广播室|证词|证据|编号|案情|凶手|死者|线索/.test(s))
+ const known=[context.trigger,...history].join('\n')
+ const grounded=new Set(clockTokens(known).flatMap(t=>t.keys))
+ return text.split(/[。！？!?\n]/).some(sentence=>{
+  if(/要不|不如|要不要|好吗|行吗|可以吗|怎么样|(?:见面|碰面|见|碰头)吧/.test(sentence))return false
+  if(!/(?:能|可以).{0,4}(?:空出来|腾出|抽出)|有空|忙完|收工|下班|已经约好|早就说好|说好了/.test(sentence))return false
+  return clockTokens(sentence).some(t=>!t.keys.some(k=>grounded.has(k)))
+ })
+}
+function inventedAddressedQuote(text,context){
+ const fromSender=row=>{
+  const who=row.actor??row.speaker,sender=context.sender
+  if(!sender)return false
+  if(who&&typeof who==='object')return who.id?who.id===sender.id:Boolean(who.name&&who.name===sender.name)
+  return typeof who==='string'&&Boolean(who&&(who===sender.id||who===sender.name))
+ }
+ // Only the addressed sender's own saved utterances are provenance for what
+ // "you" said. Prior AI repetitions or another player's claims are not proof.
+ const dialogue=[...(context.messages||[]),...(context.continuity?.dialogueAnchors||[])].filter(fromSender).map(m=>m.text)
+ const sources=[context.trigger,context.actor?.biography,context.actor?.secret,...(context.actor?.card?.pastEventAnchors||[]),...dialogue,...(context.evidence||[]).map(m=>m.text)].map(v=>String(v||'').normalize('NFKC'))
+ return text.split(/[。！？!?\n]/).some(sentence=>{
+  if(!/你(?:在)?(?:昨天|前天|上次|上回|那天|当时|曾经)[^。！？\n]{0,35}(?:说|叫|喊|念|写)/.test(sentence))return false
+  const quotes=[...sentence.matchAll(/[“‘「『"]([^”’」』"\n]{1,80})[”’」』"]/gu)].map(m=>m[1].normalize('NFKC'))
+  const plain=sentence.normalize('NFKC').replace(/[“”‘’「」『』"]/gu,''),slip=plain.match(/(?:把|将)\s*([^，,。！？\n]{1,24}?)\s*(?:说|叫|喊|念|写)(?:成|作|为)(?:了)?\s*([^，,。！？\n]{1,24})/u)
+  if(slip)quotes.push(slip[1].trim(),slip[2].trim())
+  return quotes.length>0&&!sources.some(source=>quotes.every(quote=>source.includes(quote)))
+ })
+}
 export function scriptVoiceIssues(value,context){
  const text=typeof value?.text==='string'?value.text:(value?.segments||[]).map(p=>p.text||'').join('\n'),host=context?.actor?.id==='dm'
  const issues=dialogueVoiceIssues(text,{host,identityAsked:/你是.*(?:AI|人工智能|真人)|真实身份/i.test(context?.trigger||'')})
- const timedEvidence=/(?:[01]?\d|2[0-3])[:：][0-5]\d/.test(text)&&/钟|广播|录音|报时|证据|证词|线索|核对|编号|控制台/.test(text)
- if(!host&&personalDialogueBeat(context?.trigger)&&(timedEvidence||/(?:编号(?:是|写着|写的是)|季节编号).{0,3}\d|(?:先|等).{0,16}(?:核对|查完|核完).{0,16}(?:再聊|再来|再说)|得先核对完/.test(text)||value?.shareClueId))issues.push('unsolicited-clue-detour')
+ const timedEvidence=/(?:[01]?\d|2[0-3])[:：][0-5]\d/.test(text)&&/钟|广播|录音|报时|证据|证词|线索|核对|编号|控制台|控台|记录/.test(text)
+ if(!host&&personalDialogueBeat(context?.trigger)&&(timedEvidence||/(?:编号(?:是|写着|写的是)|季节编号).{0,3}\d|(?:先|等).{0,16}(?:核对|查完|核完).{0,16}(?:再聊|再来|再说)|得先核对完|我先把该核的核完/.test(text)||value?.shareClueId))issues.push('unsolicited-clue-detour')
+ if(!host&&personalDialogueBeat(context?.trigger)&&inventedPersonalSchedule(text,context))issues.push('unsupported-personal-schedule')
+ if(!host&&inventedAddressedQuote(text,context||{}))issues.push('unsupported-player-recollection')
  if(!host&&(context?.story?.campus||context?.story?.venice)){
   const trigger=String(context.trigger||'')
   const placeholder=/(?:×|x){1,4}年(?:×|x){1,2}月(?:×|x){1,2}日|<姓名>|\[姓名\]/i
