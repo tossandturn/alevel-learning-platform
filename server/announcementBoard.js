@@ -39,6 +39,7 @@ const ALLOWED_ACTION_PATHS = new Set([
   '/bundles/marking/index',
 ])
 const INITIAL_ANNOUNCEMENT_ID = 'system-announcement-board-v1'
+const PAPER_CODE_GUIDE_ID = 'announcement-paper-code-guide-v1'
 
 function boardError(code, message, statusCode = 400) {
   return Object.assign(new Error(message), { code, statusCode })
@@ -155,10 +156,10 @@ function publicAnnouncement(row, { includeStatus = false, includeReadAt = false 
     summary: row.summary,
     body: row.body,
     category: row.category,
-    pinned: Boolean(row.pinned),
+    pinned: row.id === PAPER_CODE_GUIDE_ID || Boolean(row.pinned),
     publishedAt: row.published_at || null,
     updatedAt: row.updated_at,
-    expiresAt: row.expires_at || null,
+    expiresAt: row.id === PAPER_CODE_GUIDE_ID ? null : row.expires_at || null,
     action,
     ...(includeReadAt ? { readAt: row.read_at || null } : {}),
     ...(includeStatus ? { status: row.status, archivedAt: row.archived_at || null, createdAt: row.created_at } : {}),
@@ -226,8 +227,8 @@ function activeAnnouncement(database, id, now) {
   return database.prepare(`
     SELECT * FROM announcements
     WHERE id = ? AND status = 'published' AND published_at IS NOT NULL AND published_at <= ?
-      AND (expires_at IS NULL OR expires_at > ?)
-  `).get(id, now, now)
+      AND (id = ? OR expires_at IS NULL OR expires_at > ?)
+  `).get(id, now, PAPER_CODE_GUIDE_ID, now)
 }
 
 function requiredActor(actor) {
@@ -287,18 +288,19 @@ export function createAnnouncementBoard({ database, now = () => new Date().toISO
       const total = Number(database.prepare(`
         SELECT COUNT(*) AS count FROM announcements
         WHERE status = 'published' AND published_at IS NOT NULL AND published_at <= ?
-          AND (expires_at IS NULL OR expires_at > ?)
-      `).get(current, current)?.count || 0)
+          AND (id = ? OR expires_at IS NULL OR expires_at > ?)
+      `).get(current, PAPER_CODE_GUIDE_ID, current)?.count || 0)
       const rows = database.prepare(`
         SELECT announcements.*, announcement_reads.read_at
         FROM announcements
         LEFT JOIN announcement_reads
           ON announcement_reads.announcement_id = announcements.id AND announcement_reads.user_id = ?
         WHERE announcements.status = 'published' AND announcements.published_at IS NOT NULL AND announcements.published_at <= ?
-          AND (announcements.expires_at IS NULL OR announcements.expires_at > ?)
-        ORDER BY announcements.pinned DESC, announcements.published_at DESC, announcements.created_at DESC
+          AND (announcements.id = ? OR announcements.expires_at IS NULL OR announcements.expires_at > ?)
+        ORDER BY CASE WHEN announcements.id = ? THEN 0 ELSE 1 END,
+          announcements.pinned DESC, announcements.published_at DESC, announcements.created_at DESC
         LIMIT ? OFFSET ?
-      `).all(readerId, current, current, pageLimit, pageOffset)
+      `).all(readerId, current, PAPER_CODE_GUIDE_ID, current, PAPER_CODE_GUIDE_ID, pageLimit, pageOffset)
       const hasMore = pageOffset + rows.length < total
       return {
         schemaVersion: STEM_ANNOUNCEMENT_PROTOCOL,

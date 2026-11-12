@@ -9,7 +9,8 @@ import {veniceOutcomes} from '../server/scriptVeniceRomance.js'
 
 const game=newScriptGame('venice-blue-hour',2)
 assert.ok(game,'a complete original Venice duet must be available')
-assert.equal(game.contentEdition,'venice-blue-hour-20261107')
+assert.equal(game.contentEdition,'venice-blue-hour-editorial-20261112')
+assert.equal(game.sourceContentEdition,'venice-blue-hour-20261107')
 assert.equal(game.roles.length,2)
 assert.equal(game.acts.length,3)
 assert.equal(game.clues.length,6)
@@ -30,7 +31,7 @@ const previous={
  'one-more-stop':'9f86769055be05b012989ae856b8f743df0655ec8a691362d64404ac8c23f39a',
  'last-elective':'5ead48b7d1bf8ff8149ac9b95563c5414eb8ae03c3add11d4bc57652593d7254',
 }
-for(const [id,hash] of Object.entries(previous))assert.equal(canonicalHash(id==='one-more-stop'?scriptGame(id,2,'duet-one-more-stop-20261106'):newScriptGame(id,2)),hash,id+' canon must remain pinned')
+for(const [id,hash] of Object.entries(previous))assert.equal(canonicalHash(id==='one-more-stop'?scriptGame(id,2,'duet-one-more-stop-20261106'):scriptGame(id,id==='before-rain'?4:2)),hash,id+' old canon must remain pinned')
 const permutation=a=>a.length?a.flatMap((v,i)=>permutation(a.filter((_,j)=>i!==j)).map(rest=>[v,...rest])):[[]]
 const orders=permutation(['窗','桥','鹭','灯']).filter(a=>a[0]==='窗'&&a.indexOf('桥')===a.indexOf('鹭')+1&&a.indexOf('灯')>a.indexOf('桥')).map(a=>a.join(''))
 assert.deepEqual(orders,['窗鹭桥灯']);assert.ok(game.acts[1].puzzle.answers.includes(orders[0]))
@@ -87,7 +88,7 @@ try{
   action(who,r.id,'vote',{choiceId:'supper'});r=action(peer,r.id,'vote',{choiceId:'sketch'});assert.equal(r.ending.tie,true)
   if(first==='date'&&second==='date')assert.match(r.ending.text,/都愿意.*约会/)
   else if([first,second].includes('friends'))assert.match(r.ending.text,/没有形成约会/)
-  else assert.match(r.ending.text,/尚未确认约会或恋爱/)
+  else assert.match(r.ending.text,/尚未(?:确认约会或恋爱|共同确认约会)/)
   close(r,[who,peer])
  }
  let r=start('xuying')

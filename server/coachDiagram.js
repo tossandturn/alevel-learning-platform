@@ -1,3 +1,5 @@
+import { COACH_FORCE_FORMAT, compilePhysicsDiagram } from './coachPhysicsDiagram.js'
+
 export const COACH_DIAGRAM_FORMAT = 'stem-diagram-v1'
 
 const OPEN_FENCE = '```stem-diagram'
@@ -121,6 +123,7 @@ function normalizeElement(element, width, height, index) {
 
 export function validateCoachDiagram(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw diagramError('diagram must be an object.')
+  if (value.version === COACH_FORCE_FORMAT) return validateCoachDiagram(compilePhysicsDiagram(value))
   assertFields(value, ROOT_FIELDS, 'diagram')
   if (value.version !== COACH_DIAGRAM_FORMAT) throw diagramError(`diagram version must be ${COACH_DIAGRAM_FORMAT}.`)
   const width = finiteNumber(value.width, 'diagram width', 200, 800)
@@ -186,7 +189,7 @@ function completeObjectLength(value) {
 function isRawDiagramObject(value) {
   try {
     const parsed = JSON.parse(String(value || ''))
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) && parsed.version === COACH_DIAGRAM_FORMAT
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) && [COACH_DIAGRAM_FORMAT, COACH_FORCE_FORMAT].includes(parsed.version)
   } catch {
     return false
   }
@@ -239,7 +242,7 @@ export function createCoachDiagramStream({ enabled = false } = {}) {
             continue
           }
           if (rawObject.length > MAX_BUFFER_CHARS) {
-            if (!rawObject.includes(COACH_DIAGRAM_FORMAT)) output += rawObject
+            if (![COACH_DIAGRAM_FORMAT, COACH_FORCE_FORMAT].some(format => rawObject.includes(format))) output += rawObject
             rawObject = ''
             mode = 'text'
           }
@@ -272,7 +275,7 @@ export function createCoachDiagramStream({ enabled = false } = {}) {
     finish() {
       const output = mode === 'text'
         ? pending
-        : mode === 'raw-object' && !rawObject.includes(COACH_DIAGRAM_FORMAT)
+        : mode === 'raw-object' && ![COACH_DIAGRAM_FORMAT, COACH_FORCE_FORMAT].some(format => rawObject.includes(format))
           ? rawObject
           : ''
       pending = ''

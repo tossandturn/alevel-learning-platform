@@ -4,6 +4,7 @@ export const SCRIPT_SCENE_VERSION='script-scenes.20261107'
 import {CAMPUS_ELECTIVE_GAME,CAMPUS_ELECTIVE_EDITION} from './scriptCampusElective.js'
 import {VENICE_GAME,VENICE_EDITION} from './scriptVeniceRomance.js'
 import {ICELAND_GAME,ICELAND_EDITION} from './scriptIcelandRomance.js'
+import {sourceScriptEdition} from './scriptEditorialEditions.js'
 const line=(open,after={},narration='')=>({open,after,narration})
 const scene=(narration,cast)=>({narration,cast})
 const books={
@@ -279,11 +280,16 @@ const books={
 
 function definition(game,stage){
  if(!game||game.version<2||!Number.isInteger(stage)||stage<0||stage>2)return null
- const key=Object.hasOwn(books,game.contentEdition)?game.contentEdition:game.id
+ const edition=sourceScriptEdition(game),key=Object.hasOwn(books,edition)?edition:game.id
  const book=Object.hasOwn(books,key)?books[key]:null
- if(!book||book.edition&&book.edition!==game.contentEdition)return null
+ if(!book||book.edition&&book.edition!==edition)return null
  if(Object.entries(book.names).some(([id,name])=>!game.roles.some(r=>r.id===id&&r.name===name)))return null
- return book.scenes[stage]||null
+ const scene=book.scenes[stage]
+ if(!scene)return null
+ const base=game.sourceScriptVersion&&game.id==='last-midnight'&&stage===2?{...scene,narration:game.acts[stage].opening}:scene
+ const override=game.sourceScriptVersion?game.sceneOverrides?.[stage]:null
+ if(!override)return base
+ return {...base,...(override.narration?{narration:override.narration}:{}),cast:Object.fromEntries(Object.entries(base.cast).map(([id,beat])=>[id,{...beat,...override.cast?.[id],after:{...beat.after,...override.cast?.[id]?.after}}]))}
 }
 export function scriptStageScene(game,stage,aiRoleIds=[]){
  const authored=definition(game,stage);if(!authored)return null

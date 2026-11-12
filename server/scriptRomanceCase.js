@@ -102,7 +102,7 @@ export const ROMANCE_CASE_GAME={
 }
 function freeze(value){if(value&&typeof value==='object'&&!Object.isFrozen(value)){Object.values(value).forEach(freeze);Object.freeze(value)}return value}
 freeze(ROMANCE_CASE_GAME)
-const applies=game=>game?.contentEdition===ROMANCE_CASE_EDITION
+const applies=game=>(game?.sourceContentEdition||game?.contentEdition)===ROMANCE_CASE_EDITION
 export function caseNpcDecision(game,id,stage){return applies(game)?{missionId:`${id}-${stage}`,optionId:'open'}:null}
 export function caseReplyActor(game,speakerId,text,seats){
  if(!applies(game))return undefined
@@ -115,7 +115,7 @@ export function caseReplyActor(game,speakerId,text,seats){
 }
 export function casePublicContext(game,room){
  if(!applies(game))return null
- return{case:true,edition:ROMANCE_CASE_EDITION,stage:room.stage,premise,centralQuestion:game.case.centralQuestion,chronology:known,currentObjective:game.acts[room.stage].objective,hasTeamConclusion:!!game.acts[room.stage].puzzle,conclusionVerified:room.solved.includes(room.stage),completedDiscoveries:(room.revealedStages||[]).filter(s=>s<=room.stage).map(s=>({stage:s,text:game.acts[s].resolution})),evidenceShared:game.clues.filter(c=>c.stage===room.stage&&room.publicClues.includes(c.id)).length,evidenceRequired:4}
+ return{case:true,edition:ROMANCE_CASE_EDITION,stage:room.stage,premise,centralQuestion:game.case.centralQuestion,chronology:known,currentObjective:game.acts[room.stage].objective,hasTeamConclusion:!!game.acts[room.stage].puzzle,conclusionVerified:room.solved.includes(room.stage),completedDiscoveries:(room.revealedStages||[]).filter(s=>s<=room.stage).map(s=>({stage:s,text:game.acts[s].resolution})),evidenceShared:game.clues.filter(c=>c.stage===room.stage&&c.required!==false&&room.publicClues.includes(c.id)).length,evidenceRequired:4}
 }
 export function caseProgressGuidance(context){
  if(!context.story?.case||context.actor?.id!=='dm'||!/(?:怎么|如何|怎样).{0,5}(?:推进|继续|进入|过幕|完成|玩|投票)|下一步|本幕(?:任务|目标)|共同.{0,5}(?:查|目标)|这局.{0,8}(?:查|推进)|当前.{0,5}任务/.test(context.trigger||''))return null
@@ -138,25 +138,34 @@ export function guardCaseFixedVisit(proposal,context){
 }
 export function caseActorContext(game,room,role,visible){
  if(!applies(game)||role?.id!=='repair')return visible
- const finalEvidence=game.clues.filter(c=>c.stage===2)
+ const finalEvidence=game.clues.filter(c=>c.stage===2&&c.required!==false)
  if(room.stage===2&&finalEvidence.every(c=>room.publicClues.includes(c.id)))return visible
  // Human killer-role readers receive their full private book. An AI performer
  // gets only its authored cover and personal history until public evidence is
  // complete; merely demanding a spoiler cannot expose the engine's full case.
  const personal=ROMANCE_GAME.roles.find(r=>r.id==='repair')
- return {...visible,secret:'你暂不向其他人说明会面细节。只能使用已写定说法，不编造新事实或不在场证明。',
-  goal:'以周泊舟的口吻回应现场追问，保留尚未公开的细节；不代替引擎宣布案件结论，不以感情逼迫知夏信任。',
-  biography:personal.entryBook.split(/(?=【[^】]+】\n)/u).filter(section=>!/^【(?:此刻的你|走进这一夜|你可以从这里开始)】/u.test(section)).join('')+'\n\n【本局已公开的共同事件】\n'+premise+'\n'+known+'\n\n【本幕可演绎范围】\n'+caseRoles.repair.cover+'\n六年前的提前验收需要你自己的说明，但不把旧事省略直接等同于今夜的责任。关键行为细节由服务器保留到本幕证据齐全后，不用猜测补出。',
+ return {...visible,secret:game.sourceScriptVersion?'你还不愿把会面的细节讲出来。每次话题靠近那几分钟，你就想先看一眼桌上的记录。':'你暂不向其他人说明会面细节。只能使用已写定说法，不编造新事实或不在场证明。',
+  goal:game.sourceScriptVersion?'回应眼前的追问，面对六年前的签字，也面对知夏看过来的目光。':'以周泊舟的口吻回应现场追问，保留尚未公开的细节；不代替引擎宣布案件结论，不以感情逼迫知夏信任。',
+  biography:personal.entryBook.split(/(?=【[^】]+】\n)/u).filter(section=>!/^【(?:此刻的你|走进这一夜|你可以从这里开始)】/u.test(section)).join('')+(game.sourceScriptVersion?'\n\n【今夜的共同经历】\n':'\n\n【本局已公开的共同事件】\n')+premise+'\n'+known+(game.sourceScriptVersion?'\n\n【眼前的追问】\n':'\n\n【本幕可演绎范围】\n')+caseRoles.repair.cover+(game.sourceScriptVersion?'\n六年前那张提前签下的验收单也被提起了。你想先听清每一个问题，再决定哪一句能说出口。':'\n六年前的提前验收需要你自己的说明，但不把旧事省略直接等同于今夜的责任。关键行为细节由服务器保留到本幕证据齐全后，不用猜测补出。'),
  }
 }
 export function caseStageResolution(game,stage){return applies(game)?game.acts[stage]?.resolution||'':''}
 export function caseEnding(game,room){
  if(!applies(game))return null
  const verdict=room.ending.choiceId==='repair'?'你们的指认正确，锁定周泊舟。':room.ending.tie?'投票没有形成一致指认。固定证据仍指向周泊舟。':'这次指认与固定证据不符。复盘锁定周泊舟，不能把替喜欢的人承担或转移责任当成正确答案。'
- return verdict+'\n\n【今夜与旧事的完整还原】\n'+truth+'\n\n案件材料交给警方，四人的讲述各自留下。集体指认不是现实司法裁决；这段虚构故事也不会让一次道歉抹去行为的后果。'
+ return (room.ending.tie&&game.tieEnding?game.tieEnding+'\n\n':'')+verdict+'\n\n【今夜与旧事的完整还原】\n'+(game.case?.truth||truth)+'\n\n案件材料交给警方，四人的讲述各自留下。集体指认不是现实司法裁决；这段虚构故事也不会让一次道歉抹去行为的后果。'
 }
 export function caseRelationshipOutcomes(game,room){
  if(!applies(game))return []
+ if(game.sourceScriptVersion){
+  return [['letter','repair'],['photo','conductor']].map(([a,b])=>{
+   const roles=[a,b].map(id=>game.roles.find(r=>r.id===id)),choices=Object.fromEntries(roles.map(r=>[r.id,room.missionChoices?.[r.id]?.[`${r.id}-2`]||'']))
+   if(Object.values(choices).some(choice=>!['open','hold'].includes(choice)))return {pairId:a+'-'+b,status:'unconfirmed',choices,text:roles.map(r=>r.name).join(' × ')+'：双方回答尚未齐全，不补填缺席一方的心意。'}
+   const willing=roles.filter(r=>choices[r.id]==='open'),closed=roles.filter(r=>choices[r.id]==='hold'),isFormer=a==='letter'
+   const statement=roles.map(r=>r.name+(choices[r.id]==='open'?(isFormer?'愿意在事实与责任被承认后保留沟通':'愿意尝试一次恋爱意义的约会'):(isFormer?'选择不再延续关系':'希望保持朋友关系'))).join('；')+'。'
+   return {pairId:a+'-'+b,status:willing.length===2?(isFormer?'communication':'mutual'):willing.length?'not-mutual':'apart',choices,text:statement+(isFormer?'两人没有确认复合。':'')+(willing.length===2?(isFormer?'双方愿意继续沟通，案件责任不因此改变。':'双方共同愿意约会，具体安排仍需他们实际商量。'):closed.length===2?'两人的距离选择一致，认真告别或保留朋友关系。':`${willing[0].name}的愿意与${closed[0].name}保持距离的回答都保留，没有共同确认关系推进。`)}
+  })
+ }
  const chosen=id=>room.missionChoices?.[id]?.[`${id}-2`]==='open'
  return[{text:'许知夏 × 周泊舟：没有确认复合。'+(chosen('letter')&&chosen('repair')?'两人都愿意在事实与责任被承认后保留沟通；这不是原谅、免责或重新恋爱的自动承诺。':'至少一人不愿延续关系，告别被尊重，不安排被迫等待或感动后的反转。')},{text:'林序 × 顾晚：'+(chosen('photo')&&chosen('conductor')?'两人愿意在事情处理后尝试一次不带交换条件的约会，不能再把替对方遮掩当成爱情证明。':'两人没有共同确认恋爱约会。谁公开了证据、谁选择告别，都不因此欠另一人一段关系。')}]
 }

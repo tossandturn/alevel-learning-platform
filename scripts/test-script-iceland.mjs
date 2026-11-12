@@ -13,9 +13,10 @@ const digest=v=>crypto.createHash('sha256').update(JSON.stringify(v)).digest('he
 const old=scriptGame('one-more-stop',2,'duet-one-more-stop-20261106')
 assert.equal(digest(old),'9f86769055be05b012989ae856b8f743df0655ec8a691362d64404ac8c23f39a','old saved rooms remain byte-equivalent')
 const game=newScriptGame('one-more-stop',2)
-assert.equal(game.contentEdition,'duet-iceland-20261108','new rooms need the complete location-specific edition')
-assert.equal(game.version,3);assert.equal(game.clientVersion,2)
-assert.equal(scriptGame(game.id,3,game.contentEdition),game)
+assert.equal(game.contentEdition,'one-more-stop-editorial-20261112','new rooms need the reviewed location-specific edition')
+assert.equal(game.sourceContentEdition,'duet-iceland-20261108')
+assert.equal(game.version,4);assert.equal(game.clientVersion,2)
+assert.equal(scriptGame(game.id,4,game.contentEdition),game)
 assert.equal(scriptGame(game.id,3,'unknown'),null)
 assert.equal(scriptGame(game.id,2,'duet-iceland-20261108'),null)
 assert.equal(scriptGame(game.id,2),old)
@@ -35,14 +36,14 @@ for(let stage=0;stage<3;stage++){
  assert.ok(!/候车室|车还没来/.test(JSON.stringify(scene)))
  assert.match(scriptStageScene(old,stage,old.roles.map(r=>r.id)).narration,/候车室|工作安排|站外/)
 }
-const currentAssets=SCRIPT_ANIME_ASSETS.filter(a=>a.contentEdition===game.contentEdition)
+const currentAssets=SCRIPT_ANIME_ASSETS.filter(a=>a.contentEdition===game.sourceContentEdition)
 assert.equal(currentAssets.length,8)
 assert.equal(SCRIPT_ANIME_ASSETS.filter(a=>a.contentEdition===old.contentEdition).length,8)
 assert.ok(scriptImagePlan(game,0,'画出白夜庭院').blocked,'future current-edition scene remains private')
 assert.ok(!scriptImagePlan(game,0,'画出温室窗边').blocked)
 const references=['scriptanime-iceland-scene-0','scriptanime-iceland-scene-2','scriptanime-duet-scene-0']
 const fakeCatalog={byId:new Map(references.map(id=>[id,{id,src:'/api/ai/tavern/media/v1/'+id+'.webp'}]))}
-assert.deepEqual(scriptArtReferenceUrls({id:game.id,contentEdition:game.contentEdition,stage:0,referenceIds:references},fakeCatalog),['https://stem.ieltsist.com/api/ai/tavern/media/v1/scriptanime-iceland-scene-0.webp'])
+assert.deepEqual(scriptArtReferenceUrls({id:game.id,contentEdition:game.contentEdition,sourceContentEdition:game.sourceContentEdition,stage:0,referenceIds:references},fakeCatalog),['https://stem.ieltsist.com/api/ai/tavern/media/v1/scriptanime-iceland-scene-0.webp'])
 console.log('PASS Iceland remaster: pinned old edition, current catalog, complete role books, specific settings and fixed puzzles')
 const base=path.resolve(import.meta.dirname,'../../qa'),root=fs.mkdtempSync(path.join(base,'iceland-test-'))
 let store=createScriptRoomStore({root}),seq=0

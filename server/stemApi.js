@@ -2144,8 +2144,12 @@ function requireSchoolAdminClaim(user) {
   }
 }
 
+function canPublishAnnouncements(user) {
+  return Array.isArray(user?.roles) && (user.roles.includes('school_admin') || user.roles.includes('school_owner'))
+}
+
 function requireAnnouncementPublisher(user) {
-  if (!user.roles.includes('school_admin') && !user.roles.includes('school_owner')) {
+  if (!canPublishAnnouncements(user)) {
     throw Object.assign(new Error('A server-verified school administrator claim is required to publish announcements.'), { statusCode: 403 })
   }
 }
@@ -2868,11 +2872,11 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
       }
       if (request.method === 'GET' && url.pathname === '/api/stem/announcements') {
         const publicUser = request.headers.authorization ? identityFromRequest(request, signingKey) : null
-        sendJson(response, 200, announcementBoard.listPublic({
+        sendJson(response, 200, { ...announcementBoard.listPublic({
           limit: url.searchParams.get('limit'),
           offset: url.searchParams.get('offset'),
           userId: publicUser?.id || '',
-        }))
+        }), canManage: canPublishAnnouncements(publicUser) })
         return
       }
       if (request.method === 'POST' && url.pathname === '/api/auth/wechat') {

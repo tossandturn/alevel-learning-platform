@@ -209,7 +209,9 @@ const admissionsResearchSources = [{
   applicableYears: ['2027'],
   verification: { courseMatched: true, yearMatched: true, requestedYear: '2027', yearStatus: 'matched' },
   excerpt: admissionsSourceExcerpt('Oxford Physics 2027 entry. A*AA including Mathematics and Physics.'),
-  preview: createAdmissionsPreviewDescriptor({ sourceUrl: 'https://www.ox.ac.uk/admissions/undergraduate/courses/course-listing/physics', now: Date.parse('2026-11-01T09:30:00.000Z') }),
+  // The source text date is historical fixture metadata; preview TTL must start
+  // with this test run or the ready-preview case expires after three days.
+  preview: createAdmissionsPreviewDescriptor({ sourceUrl: 'https://www.ox.ac.uk/admissions/undergraduate/courses/course-listing/physics', now: Date.now() }),
 }]
 const researchHistories = []
 async function admissionsPrepareTurn({ message, history, onActivity }) {

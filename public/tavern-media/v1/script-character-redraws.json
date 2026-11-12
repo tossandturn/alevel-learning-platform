@@ -1,0 +1,506 @@
+{
+  "schemaVersion": "tavern-media.v1",
+  "revision": "script-characters-v2-20261112",
+  "items": [
+    {
+      "id": "scriptanime-rain-role-letter-v2",
+      "kind": "image",
+      "caption": "许知夏立绘",
+      "alt": "许知夏立绘 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "before-rain",
+        "portrait",
+        "许知夏",
+        "许知夏立绘",
+        "许知夏的样子"
+      ],
+      "file": "scriptanime-rain-role-letter-v2-fd79ecd5cfe9c88d.webp",
+      "sha256": "fd79ecd5cfe9c88defa372b567879015472678b23b5fffe13db9684e1f5b2ef8",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-rain-role-repair-v2",
+      "kind": "image",
+      "caption": "周泊舟立绘",
+      "alt": "周泊舟立绘 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "before-rain",
+        "portrait",
+        "周泊舟",
+        "周泊舟立绘",
+        "周泊舟的样子"
+      ],
+      "file": "scriptanime-rain-role-repair-v2-ba7441afd9726dc5.webp",
+      "sha256": "ba7441afd9726dc5321d5a1707cfc2213e596a2fd0c72b4d09dacfef0706f12c",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-rain-role-photo-v2",
+      "kind": "image",
+      "caption": "林序立绘",
+      "alt": "林序立绘 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "before-rain",
+        "portrait",
+        "林序",
+        "林序立绘",
+        "林序的样子"
+      ],
+      "file": "scriptanime-rain-role-photo-v2-1dbddc3db0100a86.webp",
+      "sha256": "1dbddc3db0100a86d10cddfba0a079040b2ba07470db56baee49b42597447b5f",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-rain-role-conductor-v2",
+      "kind": "image",
+      "caption": "顾晚立绘",
+      "alt": "顾晚立绘 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "before-rain",
+        "portrait",
+        "顾晚",
+        "顾晚立绘",
+        "顾晚的样子"
+      ],
+      "file": "scriptanime-rain-role-conductor-v2-46e1bfa01068f994.webp",
+      "sha256": "46e1bfa01068f9943584522dce7985d1b6e4dddc49ed0141c50e07b202d216f3",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-rain-ensemble-v2",
+      "kind": "image",
+      "caption": "角色合影",
+      "alt": "角色合影 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "before-rain",
+        "ensemble",
+        "合影",
+        "全体角色",
+        "全员合影",
+        "所有角色"
+      ],
+      "file": "scriptanime-rain-ensemble-v2-4be5937dd963b9bc.webp",
+      "sha256": "4be5937dd963b9bc96f0a646ad1df1ce1eb9c4a60134910f4062e726a79a4fb2",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-curtain-role-actor-v2",
+      "kind": "image",
+      "caption": "沈照立绘",
+      "alt": "沈照立绘 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "thirteenth-curtain",
+        "portrait",
+        "沈照",
+        "沈照立绘",
+        "沈照的样子"
+      ],
+      "file": "scriptanime-curtain-role-actor-v2-fe642847d09c5ceb.webp",
+      "sha256": "fe642847d09c5cebc791f667ed6349e5f4a4496ebec475b78f772221ccbdec32",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-curtain-role-manager-v2",
+      "kind": "image",
+      "caption": "陈砚立绘",
+      "alt": "陈砚立绘 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "thirteenth-curtain",
+        "portrait",
+        "陈砚",
+        "陈砚立绘",
+        "陈砚的样子"
+      ],
+      "file": "scriptanime-curtain-role-manager-v2-fc3f97c9f0d9fc8b.webp",
+      "sha256": "fc3f97c9f0d9fc8b8bc0b165bd126a2fc32fa1a0cc769f4ec94e1f3ec6d3f769",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-curtain-role-restorer-v2",
+      "kind": "image",
+      "caption": "唐雾立绘",
+      "alt": "唐雾立绘 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "thirteenth-curtain",
+        "portrait",
+        "唐雾",
+        "唐雾立绘",
+        "唐雾的样子"
+      ],
+      "file": "scriptanime-curtain-role-restorer-v2-313d3da505f221e4.webp",
+      "sha256": "313d3da505f221e4acda92651f708e89cd11777bef5c08c5e278b0ab61818b77",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-curtain-role-reporter-v2",
+      "kind": "image",
+      "caption": "陆弦立绘",
+      "alt": "陆弦立绘 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "thirteenth-curtain",
+        "portrait",
+        "陆弦",
+        "陆弦立绘",
+        "陆弦的样子"
+      ],
+      "file": "scriptanime-curtain-role-reporter-v2-24ba0c464fc2eebd.webp",
+      "sha256": "24ba0c464fc2eebdf4da34811f4a4ee1f9bdf357e8419c06405f42d2fd2a832d",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-curtain-ensemble-v2",
+      "kind": "image",
+      "caption": "角色合影",
+      "alt": "角色合影 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "thirteenth-curtain",
+        "ensemble",
+        "合影",
+        "全体角色",
+        "全员合影",
+        "所有角色"
+      ],
+      "file": "scriptanime-curtain-ensemble-v2-39c37c84d16c1914.webp",
+      "sha256": "39c37c84d16c19145d6c15ee61962ff2ec61ef3cab94f1911d7415cbb010e24d",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-midnight-role-radio-v2",
+      "kind": "image",
+      "caption": "林漪立绘",
+      "alt": "林漪立绘 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "last-midnight",
+        "portrait",
+        "林漪",
+        "林漪立绘",
+        "林漪的样子"
+      ],
+      "file": "scriptanime-midnight-role-radio-v2-8911a8cb7bd1e83b.webp",
+      "sha256": "8911a8cb7bd1e83bb4cfee38a54223cbaef49c12e0fc9db9189e1f52d819db7e",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-midnight-role-signal-v2",
+      "kind": "image",
+      "caption": "秦越立绘",
+      "alt": "秦越立绘 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "last-midnight",
+        "portrait",
+        "秦越",
+        "秦越立绘",
+        "秦越的样子"
+      ],
+      "file": "scriptanime-midnight-role-signal-v2-9f576cc9ccf6e8e2.webp",
+      "sha256": "9f576cc9ccf6e8e233090300123a7b2baa0f4cc9bde6a74a36eeb3372cd16370",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-midnight-role-medic-v2",
+      "kind": "image",
+      "caption": "叶澄立绘",
+      "alt": "叶澄立绘 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "last-midnight",
+        "portrait",
+        "叶澄",
+        "叶澄立绘",
+        "叶澄的样子"
+      ],
+      "file": "scriptanime-midnight-role-medic-v2-19ef105eb3ce49e6.webp",
+      "sha256": "19ef105eb3ce49e67899bd976da9fb544fef384afbb79f41f0ff68f5639ccc75",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-midnight-role-ticket-v2",
+      "kind": "image",
+      "caption": "闻笙立绘",
+      "alt": "闻笙立绘 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "last-midnight",
+        "portrait",
+        "闻笙",
+        "闻笙立绘",
+        "闻笙的样子"
+      ],
+      "file": "scriptanime-midnight-role-ticket-v2-fb71fc21975f9d33.webp",
+      "sha256": "fb71fc21975f9d334bf0b3c931fdb4c7362deb957a577c0d1034afe40b2772a9",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-midnight-ensemble-v2",
+      "kind": "image",
+      "caption": "角色合影",
+      "alt": "角色合影 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "last-midnight",
+        "ensemble",
+        "合影",
+        "全体角色",
+        "全员合影",
+        "所有角色"
+      ],
+      "file": "scriptanime-midnight-ensemble-v2-75ab7582321d220c.webp",
+      "sha256": "75ab7582321d220c1a167b6b9febf4e04977425fb3010ca539e43a9847353138",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-stars-role-map-v2",
+      "kind": "image",
+      "caption": "余星立绘",
+      "alt": "余星立绘 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "inverted-observatory",
+        "portrait",
+        "余星",
+        "余星立绘",
+        "余星的样子"
+      ],
+      "file": "scriptanime-stars-role-map-v2-1cdb0f57e6c6154c.webp",
+      "sha256": "1cdb0f57e6c6154ca3408163752e09de98728d8d1a0fdb85fd0f3ac7ee964ab9",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-stars-role-mechanic-v2",
+      "kind": "image",
+      "caption": "程弧立绘",
+      "alt": "程弧立绘 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "inverted-observatory",
+        "portrait",
+        "程弧",
+        "程弧立绘",
+        "程弧的样子"
+      ],
+      "file": "scriptanime-stars-role-mechanic-v2-deaa8744d6a36b82.webp",
+      "sha256": "deaa8744d6a36b82f0eae9529cf39f0b5d6fd9dbe8c02a84f2c0ab26dffe42f5",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-stars-role-archive-v2",
+      "kind": "image",
+      "caption": "苏年立绘",
+      "alt": "苏年立绘 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "inverted-observatory",
+        "portrait",
+        "苏年",
+        "苏年立绘",
+        "苏年的样子"
+      ],
+      "file": "scriptanime-stars-role-archive-v2-e634a0df5e1227de.webp",
+      "sha256": "e634a0df5e1227de71e6a0f936b80f2745f56b062df80678de24325cd69f9746",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-stars-role-light-v2",
+      "kind": "image",
+      "caption": "白遥立绘",
+      "alt": "白遥立绘 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "inverted-observatory",
+        "portrait",
+        "白遥",
+        "白遥立绘",
+        "白遥的样子"
+      ],
+      "file": "scriptanime-stars-role-light-v2-e50f8da4c639e8f0.webp",
+      "sha256": "e50f8da4c639e8f0f13699c89f430694857de108a9e7b7f12be6f5972571dc30",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-stars-ensemble-v2",
+      "kind": "image",
+      "caption": "角色合影",
+      "alt": "角色合影 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "inverted-observatory",
+        "ensemble",
+        "合影",
+        "全体角色",
+        "全员合影",
+        "所有角色"
+      ],
+      "file": "scriptanime-stars-ensemble-v2-8c0f9df1680d928b.webp",
+      "sha256": "8c0f9df1680d928b1c4f6c0ca0152854d8bf39af0690132ee0a225f084673f91",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-elective-role-songmi-v2",
+      "kind": "image",
+      "caption": "宋弥立绘",
+      "alt": "宋弥立绘 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "last-elective",
+        "portrait",
+        "宋弥",
+        "宋弥立绘",
+        "宋弥的样子"
+      ],
+      "file": "scriptanime-elective-role-songmi-v2-8020382390d93251.webp",
+      "sha256": "8020382390d9325178e28afd2dce70df8673a5231fcf7c377d517d61e2aebf5e",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-elective-role-peixu-v2",
+      "kind": "image",
+      "caption": "裴叙立绘",
+      "alt": "裴叙立绘 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "last-elective",
+        "portrait",
+        "裴叙",
+        "裴叙立绘",
+        "裴叙的样子"
+      ],
+      "file": "scriptanime-elective-role-peixu-v2-d310bcde6962fc0e.webp",
+      "sha256": "d310bcde6962fc0eea07d6d4f01d62ba11f6f03dfd227da081fafeacc361d4e1",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-elective-ensemble-v2",
+      "kind": "image",
+      "caption": "角色合影",
+      "alt": "角色合影 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "last-elective",
+        "ensemble",
+        "合影",
+        "全体角色",
+        "全员合影",
+        "所有角色"
+      ],
+      "file": "scriptanime-elective-ensemble-v2-68fdd978c05920fc.webp",
+      "sha256": "68fdd978c05920fce3ef1d77b864dc16ec633059b8f2a1f50c31e4d91b668d1a",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-venice-role-xuying-v2",
+      "kind": "image",
+      "caption": "许映立绘",
+      "alt": "许映立绘 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "venice-blue-hour",
+        "portrait",
+        "许映",
+        "许映立绘",
+        "许映的样子"
+      ],
+      "file": "scriptanime-venice-role-xuying-v2-894eb9e84e9bbd1e.webp",
+      "sha256": "894eb9e84e9bbd1ebe38b9a5bd285de81e25d45c7fd1f18e1d6ba1841dd744c6",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-venice-role-luxi-v2",
+      "kind": "image",
+      "caption": "陆晞立绘",
+      "alt": "陆晞立绘 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "venice-blue-hour",
+        "portrait",
+        "陆晞",
+        "陆晞立绘",
+        "陆晞的样子"
+      ],
+      "file": "scriptanime-venice-role-luxi-v2-ff001308c5567b97.webp",
+      "sha256": "ff001308c5567b97ea476db82978785bf598aeb6d0c5bee7a03db8f9b104778e",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-venice-ensemble-v2",
+      "kind": "image",
+      "caption": "角色合影",
+      "alt": "角色合影 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "venice-blue-hour",
+        "ensemble",
+        "合影",
+        "全体角色",
+        "全员合影",
+        "所有角色"
+      ],
+      "file": "scriptanime-venice-ensemble-v2-5fa7be382d88b8bf.webp",
+      "sha256": "5fa7be382d88b8bfd334f04f81bed391d56527e0ca384135aadea7b761bb9589",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "id": "scriptanime-iceland-role-sutang-v2",
+      "kind": "image",
+      "caption": "苏棠立绘",
+      "alt": "苏棠立绘 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "one-more-stop",
+        "portrait",
+        "苏棠",
+        "苏棠立绘",
+        "苏棠的样子"
+      ],
+      "file": "scriptanime-iceland-role-sutang-v2-2ccd1598857923af.webp",
+      "sha256": "2ccd1598857923af8d7946a4d039f802cd16d70bd31080d9316c1025af072201",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-iceland-role-jiangyuan-v2",
+      "kind": "image",
+      "caption": "江远立绘",
+      "alt": "江远立绘 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "one-more-stop",
+        "portrait",
+        "江远",
+        "江远立绘",
+        "江远的样子"
+      ],
+      "file": "scriptanime-iceland-role-jiangyuan-v2-ab452c0e8c2fc1f1.webp",
+      "sha256": "ab452c0e8c2fc1f115fd2113e17ca0e2815d04ddf986570c8e24879a49774317",
+      "width": 960,
+      "height": 1280
+    },
+    {
+      "id": "scriptanime-iceland-ensemble-v2",
+      "kind": "image",
+      "caption": "角色合影",
+      "alt": "角色合影 · 原创二次元角色插画，不作为线索证据",
+      "tags": [
+        "one-more-stop",
+        "ensemble",
+        "合影",
+        "全体角色",
+        "全员合影",
+        "所有角色"
+      ],
+      "file": "scriptanime-iceland-ensemble-v2-90e5914d8e463974.webp",
+      "sha256": "90e5914d8e463974c58945a7942724f4c475ca24da50f343db72569fd92ff303",
+      "width": 1280,
+      "height": 720
+    }
+  ]
+}

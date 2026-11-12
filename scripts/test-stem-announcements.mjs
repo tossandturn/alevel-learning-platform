@@ -50,6 +50,13 @@ try {
   assert.equal(initial.body.schemaVersion, 'stem-announcements-v1')
   assert.equal(initial.body.items.length, 1)
   assert.equal(initial.body.items[0].pinned, true)
+  assert.equal(initial.body.canManage, false, 'guest public list exposes no management capability')
+  const studentPublic = await call(api, { method: 'GET', url: '/api/stem/announcements?limit=1', token: studentToken })
+  assert.equal(studentPublic.statusCode, 200)
+  assert.equal(studentPublic.body.canManage, false)
+  const adminPublic = await call(api, { method: 'GET', url: '/api/stem/announcements?limit=1', token: adminToken })
+  assert.equal(adminPublic.body.canManage, true, 'only a verified server role enables the management entry')
+  assert.equal(JSON.stringify(adminPublic.body).includes('ielts:202'), false, 'capabilities do not disclose administrator identifiers')
 
   const studentManage = await call(api, { method: 'GET', url: '/api/stem/announcements/manage', token: studentToken })
   assert.equal(studentManage.statusCode, 403)

@@ -35,6 +35,19 @@ assert.ok(!JSON.stringify(recovered).includes('紫藤屋'),'filter privacy befor
 assert.ok(recovered.continuity.dialogueAnchors.length<=SCRIPT_MEMORY_LIMITS.anchors)
 assert.ok(recovered.continuity.dialogueAnchors.reduce((n,a)=>n+Array.from(a.text).length,0)<=SCRIPT_MEMORY_LIMITS.totalCharacters)
 assert.throws(()=>scriptRoomContinuity(snapshot,game,{actor:'stranger',target:'repair'}),/Invalid script memory scope/)
+// A late correction is more important than many repeated topic matches. Keep
+// its explicit reply together without inferring an agreement from adjacency.
+const crowded=[]
+const quote=(actor,text,replyTo)=>{const m={id:`crowded-${crowded.length}`,actor,target:actor==='repair'?'letter':'repair',text,stage:0,kind:'dialogue',...(replyTo?{replyTo}:{})};crowded.push(m);return m}
+quote('repair','我们原来约好在青石桥见。');quote('letter','好。')
+for(let i=0;i<25;i++){quote('repair',`纸袋要检查的第${i}个细节是什么？`);quote('letter','先看看纸袋的边缘。')}
+const changed=quote('repair','更正一下，取消青石桥，改去白塔桥。')
+const accepted=quote('letter','好，我会带上黄色雨伞。',changed.id)
+for(let i=0;i<75;i++)quote(i%2?'repair':'letter',`聊今天窗外的天气${i}。`)
+const recall={id:'crowded-trigger',actor:'repair',target:'letter',kind:'dialogue',text:'纸袋呢，上一幕我们改过的约定是什么？',stage:1};crowded.push(recall)
+const focused=scriptRoomContinuity({...snapshot,messages:crowded},{...game},{actor:'letter',target:'repair',trigger:recall.id})
+assert.ok(focused.continuity.dialogueAnchors.some(a=>a.messageId===changed.id),'latest correction must not be crowded out by repeated keyword matches')
+assert.ok(focused.continuity.dialogueAnchors.some(a=>a.messageId===accepted.id&&a.replyToMessageId===changed.id),'retain explicit reply linkage, not a fabricated summary agreement')
 // A failed old job is not an agreement. A fake player opening is not an act boundary.
 snapshot.jobs=[{actor:'letter',trigger:transcript[0].id,stage:0,status:'superseded'}]
 assert.equal(scriptRoomContinuity(snapshot,game,{actor:'letter',target:'repair',trigger:trigger.id}).continuity.unanswered[0].status,'no-committed-reply')

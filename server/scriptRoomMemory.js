@@ -72,12 +72,18 @@ export function scriptRoomContinuity(room,game,job){
  const select=m=>{if(m&&selected.size<SCRIPT_MEMORY_LIMITS.anchors)selected.add(m.id)}
  const pairWithReply=m=>{
   select(m)
-  const reply=candidates.find(next=>next.replyTo===m?.id)
-   ||candidates.find(next=>next.index>m?.index&&next.stage===m.stage&&next.actor===job.actor&&next.kind==='dialogue')
+  const sameChannel=next=>m.target==='public'?next.target==='public':next.actor===m.target&&next.target===m.actor
+  const reply=candidates.find(next=>next.replyTo===m?.id&&sameChannel(next))
+   ||candidates.find(next=>!next.replyTo&&next.index===m?.index+1&&next.stage===m.stage&&next.actor===job.actor&&next.kind==='dialogue'&&sameChannel(next))
   // This selects both quotes, but does not claim a legacy adjacency proves a
   // completed agreement. The model sees separate speakers and exact wording.
   select(reply)
  }
+ // A changed/cancelled plan must not lose to many repetitions of an unrelated
+ // keyword. Reserve at most two correction/reply pairs before broad retrieval.
+ // Keep exact quotations; these markers do not prove mutual agreement.
+ const corrections=candidates.filter(m=>m.kind==='dialogue'&&(m.actor===peer||m.actor===job.actor)&&/改成|改为|改去|取消|更正|说错|不再.{0,12}(?:去|约|见|等)|不是.{0,30}而是/.test(speechText(m)))
+ for(const correction of corrections.slice(-2))pairWithReply(correction)
  for(let stage=0;stage<room.stage;stage++){
   const peerTurns=candidates.filter(m=>m.stage===stage&&m.actor===peer&&m.kind==='dialogue')
   if(peerTurns.length){pairWithReply(peerTurns[0]);if(peerTurns.length>1)pairWithReply(peerTurns.at(-1))}
@@ -95,7 +101,7 @@ export function scriptRoomContinuity(room,game,job){
  const dialogueAnchors=[...selected].map(id=>byId.get(id)).sort((a,b)=>a.index-b.index).flatMap(m=>{
   if(remaining<=0)return[]
   const quoted=excerpt(speechText(m),terms,Math.min(remaining,SCRIPT_MEMORY_LIMITS.quoteCharacters));remaining-=Array.from(quoted.text).length
-  return [{messageId:m.id,stage:m.stage,act:game.acts[m.stage]?.title||'',speaker:{id:m.actor,name:roles.get(m.actor)},kind:m.kind||'dialogue',channel:m.target==='public'?'public':'this-private-conversation',source:'saved-dialogue-excerpt',...quoted}]
+  return [{messageId:m.id,...(m.replyTo&&visible.some(prior=>prior.id===m.replyTo)?{replyToMessageId:m.replyTo}:{}),stage:m.stage,act:game.acts[m.stage]?.title||'',speaker:{id:m.actor,name:roles.get(m.actor)},kind:m.kind||'dialogue',channel:m.target==='public'?'public':'this-private-conversation',source:'saved-dialogue-excerpt',...quoted}]
  })
  const visibleById=new Map(visible.map(m=>[m.id,m]))
  const unanswered=(room.jobs||[]).filter(j=>j.kind!=='image'&&j.actor===job.actor&&j.stage<room.stage&&j.status!=='done'&&visibleById.has(j.trigger)).slice(-3).map(j=>{

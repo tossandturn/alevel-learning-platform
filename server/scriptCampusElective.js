@@ -129,8 +129,8 @@ const REVEALS=[
  '【返还页二 · 这次是完整的后半句】\n四色版本单核验为：黄 → 蓝 → 白 → 绿。原稿双人署名，旧模板导出时漏掉宋弥，裴叙停止提交，随后才补齐并重新导出。\n\n停交附言是裴叙的字：“这个版本不能交。封面漏了宋弥；图和方法都是我们一起做的。先把名字补齐。”助教在回执旁注明了收到这条说明。\n\n封面的经过有了完整记录。当时那句“等会儿解释”确实没有及时兑现，也是这份记录无法替任何人说完的部分。',
  '【返还页三 · 题目以外的两张便签】\n坐标连成的邀请是：“周六下午一起看展吗？”\n\n裴叙的原便签写着：“这次没有小组作业，也不用顺便帮我改稿。我想和你一起去。要是你问这是不是约会——我希望是。”便签写在返还材料封袋前，未代替宋弥作任何答复。\n\n另一张是宋弥的课程回顾：“我没把你画的猫擦掉。每次翻到那页，就想起桥塌下去以后，我们又做了一次。如果还有下一次，我希望不用等老师分组。”\n\n两张纸放在同一页了。现在的答案，留给写下它们的人自己说。',
 ]
-const matches=game=>game?.id===CAMPUS_ELECTIVE_GAME.id&&game.contentEdition===CAMPUS_ELECTIVE_EDITION
-export function campusStageResolution(game,room){return matches(game)&&room.solved?.includes(room.stage)?REVEALS[room.stage]||'':''}
+const matches=game=>game?.id===CAMPUS_ELECTIVE_GAME.id&&(game.sourceContentEdition||game.contentEdition)===CAMPUS_ELECTIVE_EDITION
+export function campusStageResolution(game,room){return matches(game)&&room.solved?.includes(room.stage)?game.publicRevealOverrides?.[room.stage]||REVEALS[room.stage]||'':''}
 export function campusNpcDecision(game,roleId,stage,room){
  if(!matches(game)||stage===2&&!room?.solved?.includes(2))return null
  const m=game.roles.find(r=>r.id===roleId)?.missions.find(m=>m.stage===stage)
@@ -142,10 +142,16 @@ export function campusOutcomes(game,room){
  if(!matches(game))return[]
  const choices=game.roles.map(r=>room.missionChoices?.[r.id]?.[`${r.id}-2`]),mutual=choices.every(c=>c==='date'),friends=choices.includes('friends')
  if(choices.some(c=>!['date','slow','friends'].includes(c)))return [{pairId:'songmi-peixu',status:'unconfirmed',text:'宋弥 × 裴叙：尚无完整的双方最终回答，本局不确认恋爱或约会，也不替缺席的一方补填心意。'}]
+ if(game.sourceScriptVersion){
+  const stance={date:'愿意把看展当作第一次约会',slow:'希望先慢慢了解',friends:'选择保留同学和搭档关系'}
+  const summary=`宋弥${stance[choices[0]]}；裴叙${stance[choices[1]]}。`
+  const ending=mutual?'两个人都选择第一次约会，具体时间和安排仍可当面商量。':friends?'没有形成恋爱或约会的共同决定。拒绝约会有效，双方各自不同或相同的回答都保留，不要求任何一人改变。':choices.every(c=>c==='slow')?'尚未确认约会或恋爱；两个人都愿意先慢慢了解，并未预先答应未来一定交往。':'尚未形成约会共识。想约会与想慢一点是两种真实回答，都没有被改成另一种。'
+  return [{pairId:'songmi-peixu',status:mutual?'mutual':friends?'friends':'slow',choices:{songmi:choices[0],peixu:choices[1]},text:summary+ending+'今晚的收场投票与这两份回答分别保存。'}]
+ }
  const text=mutual?'宋弥 × 裴叙：两个人都选择把周六看展当作第一次约会。不是小组作业，也没有顺便改稿的任务。具体见面时间可以继续商量，这一次，邀请与答复都说清楚了。':friends?'宋弥 × 裴叙：没有形成恋爱或约会的共同决定。至少一人选择保留同学与搭档关系；今晚的好感和合作仍真实发生，不把这个回答改写成害羞，也不要求继续说服。':'宋弥 × 裴叙：两个人给彼此留下继续了解的空间，尚未确认约会或恋爱。可以继续见面、一起做事，也可以日后再坦白自己的变化；没有自动生成未说过的承诺。'
  return [{pairId:'songmi-peixu',status:mutual?'mutual':friends?'friends':'slow',text}]
 }
-export function campusPublicContext(game,room){return matches(game)?{campus:true,stage:room.stage,puzzleSolved:room.solved.includes(room.stage),publicReveals:(room.revealedStages||[]).filter(s=>room.solved.includes(s)).map(stage=>({stage,text:REVEALS[stage]}))}:null}
+export function campusPublicContext(game,room){return matches(game)?{campus:true,stage:room.stage,puzzleSolved:room.solved.includes(room.stage),publicReveals:(room.revealedStages||[]).filter(s=>room.solved.includes(s)).map(stage=>({stage,text:game.publicRevealOverrides?.[stage]||REVEALS[stage]}))}:null}
 // Actor knowledge is separate from the human player's instructions and goals.
 // The full player book stays unchanged; this projection only feeds the model.
 const ACTOR_MEMORIES={

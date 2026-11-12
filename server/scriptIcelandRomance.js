@@ -87,7 +87,7 @@ ICELAND_GAME.roles[0].card.pastEventAnchors=[...past.slice(0,3),
 function freeze(v){if(v&&typeof v==='object'&&!Object.isFrozen(v)){Object.values(v).forEach(freeze);Object.freeze(v)}return v}
 freeze(ICELAND_GAME)
 export function icelandPublicContext(game,room){
- if(game?.contentEdition!==ICELAND_EDITION)return null
+ if((game?.sourceContentEdition||game?.contentEdition)!==ICELAND_EDITION)return null
  return {iceland:true,edition:ICELAND_EDITION,stage:room.stage,setting:current,place:game.acts[room.stage].place,commonGoal:game.acts[room.stage].objective,publicReveals:[...(room.solved.includes(0)?['灯光与声音的同步已完成，原有角色关系和实际对话继续有效。']:[]),...(room.solved.includes(1)?['完整原件已核对；公共剪辑与原件不同，公开范围仍需双方实际同意。']:[])]}
 }
 function personal(context){return context?.story?.iceland&&!/线索|谜题|字母|编号|提示|怎么解|核验|扶板|遮光板|调灯|调试顺序/.test(context.trigger||'')&&/喝.{0,10}(?:茶|咖啡|热汤)|(?:茶|咖啡|热汤).{0,8}(?:糖|浓|淡)|吃(?:点|一口|饭)|饿了|困了|陪我坐|先歇/.test(context.trigger||'')}

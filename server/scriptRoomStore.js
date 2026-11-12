@@ -17,6 +17,7 @@ import {campusStageResolution,campusNpcDecision,campusReplyActor,campusChoiceLoc
 import {veniceStageResolution,veniceNpcDecision,veniceReplyActor,veniceChoiceLocked,veniceOutcomes,venicePublicContext} from './scriptVeniceRomance.js'
 import {isScriptProgressRequest} from './scriptPerformance.js'
 import {directorProgress,directorNextStep,directorOpening} from './scriptDirector.js'
+import {scriptSharedMoment,scriptPrivateChoiceReflection} from './scriptSharedMoments.js'
 
 const TTL=72*60*60*1000, MAX_MESSAGES=600, MAX_ACTIONS=1000
 const fail=(statusCode,code,message)=>{throw Object.assign(Error(message),{statusCode,code})}
@@ -69,20 +70,20 @@ export function createScriptRoomStore({root,now=Date.now}={}){
   const own=game.roles.find(x=>x.id===me.roleId),visible=m=>m.target==='public'||m.actor===me.roleId||m.target===me.roleId
   const seen=new Map(db.prepare('SELECT owner,seen FROM script_presence WHERE room_id=?').all(r.id).map(x=>[x.owner,x.seen]))
   const act=game.acts[r.stage],publicClues=game.clues.filter(c=>r.publicClues.includes(c.id))
-  const currentClues=game.clues.filter(c=>c.stage===r.stage)
+  const currentClues=game.clues.filter(c=>c.stage===r.stage&&c.required!==false)
   return {id:r.id,scriptId:r.scriptId,scriptVersion:game.clientVersion||r.scriptVersion,title:game.title,genre:game.genre,warning:game.warning,revision:r.revision,phase:r.phase,stage:r.stage,
    inviteCode:r.phase==='lobby'?r.inviteCode:'',expiresAt:r.expiresAt,isHost:r.host===who,myRoleId:me.roleId,
    seats:r.seats.map(s=>({...publicRole(game.roles.find(x=>x.id===s.roleId)),control:s.control,isMe:s.owner===who,ready:s.ready,advanced:r.phase==='play'&&r.advanced.includes(s.roleId),online:s.control==='ai'||now()-(seen.get(s.owner)||0)<45000})),
    myRole:running?visibleScriptRole(own,r.stage,game.id):publicRole(own),myClues:running?game.clues.filter(c=>(r.known[me.roleId]||[]).includes(c.id)).map(c=>({...c,shared:r.publicClues.includes(c.id)})):[],publicClues,
    myMissions:running?(own.missions||[]).filter(m=>m.stage<=r.stage).map(m=>({...m,...(choiceLocked(game,r,m.id)?{prompt:lockedChoicePrompt(game,r)}:{}),choiceId:r.missionChoices?.[me.roleId]?.[m.id]||'',consequence:m.options.find(o=>o.id===r.missionChoices?.[me.roleId]?.[m.id])?.consequence||'',options:(choiceLocked(game,r,m.id)?[]:m.options).map(({id,label})=>({id,label}))})):[],
    evidenceRequests:r.phase==='play'&&game.version>=2?currentClues.filter(c=>!r.publicClues.includes(c.id)&&r.seats.some(s=>s.roleId===c.roleId&&s.control==='ai')).map(c=>({roleId:c.roleId,name:game.roles.find(s=>s.id===c.roleId).name})):[],
-   searchOptions:r.phase==='play'?currentClues.filter(c=>c.roleId===me.roleId).map(c=>({id:c.id,title:c.title,found:(r.known[me.roleId]||[]).includes(c.id)})):[],
+   searchOptions:r.phase==='play'?game.clues.filter(c=>c.stage===r.stage&&(c.roleId===me.roleId||c.access==='public-investigation')).map(c=>({id:c.id,title:c.title+(c.required===false?' · 补充材料':''),found:(r.known[me.roleId]||[]).includes(c.id)})):[],
    act:r.phase==='play'?{title:act.title,objective:act.objective,image:scriptSceneArt(game,r.stage),shared:currentClues.filter(c=>r.publicClues.includes(c.id)).length,total:currentClues.length,puzzle:act.puzzle?{question:act.puzzle.question,solved:r.solved.includes(r.stage),attempts:r.attempts[r.stage]||0,hint:(r.attempts[r.stage]||0)>=2?act.puzzle.hint:''}:null}:{title:act.title,objective:r.phase==='lobby'?'':'已公开的本幕记录。请从“本局”进入最终投票或结局与复盘。',image:scriptSceneArt(game,r.stage),preview:true,shared:r.phase==='lobby'?0:currentClues.filter(c=>r.publicClues.includes(c.id)).length,total:r.phase==='lobby'?0:currentClues.length,puzzle:null},
    messages:r.messages.filter(visible).slice(-200).flatMap(m=>{
     const copy=clone(m),j=m.imageJobId?r.jobs.find(j=>j.id===m.imageJobId):null
     // Filter by real ownership first. Only then project a private UI hint into
     // this viewer's public feed; other viewers never receive the source row.
-    const displayed={...copy,...((m.directorGuide||m.uiGuidance)&&m.target===me.roleId?{target:'public',selfOnly:true}:{}),...(m.image?{image:scriptMessageArt(game,m)}:{}),...(j?{imageStatus:j.status,imageError:j.status==='failed'?'配图未完成，可重试；故事进度不受影响。':'',canRetry:j.owner===who}:{})}
+    const displayed={...copy,...((m.directorGuide||m.uiGuidance||m.choiceReflection)&&m.target===me.roleId?{target:'public',selfOnly:true}:{}),...(m.image?{image:scriptMessageArt(game,m)}:{}),...(j?{imageStatus:j.status,imageError:j.status==='failed'?'配图未完成，可重试；故事进度不受影响。':'',canRetry:j.owner===who}:{})}
     if(!Array.isArray(m.parts)||m.parts.length<2||m.kind!=='dialogue')return[displayed]
     // Old native builds may use only text, not the parts renderer. Keep the
     // persisted message and memory intact, with stable per-part view IDs.
@@ -98,7 +99,8 @@ export function createScriptRoomStore({root,now=Date.now}={}){
   const live=db.prepare('SELECT snapshot FROM script_rooms WHERE expires_at>?').all(now()).map(row=>JSON.parse(row.snapshot))
   if(live.length>=2000)fail(429,'script_capacity','房间较多，请稍后再创建。')
   const active=live.filter(r=>!['closed','ended'].includes(r.phase))
-  if(active.length>=500||active.filter(r=>r.seats.some(s=>s.owner===who)).length>=3)fail(429,'script_room_limit','最多保留3间进行中的房间，请先结束或退出旧房间。')
+  if(active.filter(r=>r.seats.some(s=>s.owner===who)).length>=3)fail(429,'script_room_limit','最多保留3间进行中的房间，请先继续、结束或退出旧房间。')
+  if(active.length>=500)fail(429,'script_capacity','当前进行中的房间较多，请稍后再创建；已有房间仍可继续。')
  }
  function prune(){
   const expired=db.prepare('SELECT id FROM script_rooms WHERE expires_at<? LIMIT 25').all(now()-24*60*60*1000)
@@ -166,6 +168,12 @@ export function createScriptRoomStore({root,now=Date.now}={}){
   }
   if(game.version>=2){const guide=message(r,'dm',directorOpening(r.stage),{kind:'system'});guide.directorGuide='opening';r.directorHints||={};for(const seat of r.seats.filter(s=>s.control==='human'))r.directorHints[seat.roleId]=`${r.stage}:play:inspect`}
  }
+ function sharedMoment(r){
+  const moment=scriptSharedMoment(gameFor(r),r)
+  if(!moment||(r.sharedMoments||[]).includes(moment.id))return
+  r.sharedMoments||=[];r.sharedMoments.push(moment.id)
+  const m=message(r,'dm',`一起聊一会 · ${moment.title}\n${moment.prompt}\n这段交流可自由跳过，不影响任务或关系选择。`,{kind:'system'});m.sharedMoment=moment.id
+ }
  function revealStage(r){
   const game=gameFor(r),campus=campusStageResolution(game,r),venice=veniceStageResolution(game,r),body=caseStageResolution(game,r.stage)||campus||venice
   if(!body||(r.revealedStages||[]).includes(r.stage))return
@@ -188,7 +196,7 @@ export function createScriptRoomStore({root,now=Date.now}={}){
   const max=Math.max(...Object.values(counts)),winners=Object.keys(counts).filter(k=>counts[k]===max),tie=winners.length>1
   const selected=tie?'tie':winners[0]
   for(const j of r.jobs)if(j.kind!=='image'&&j.status!=='done')j.status='superseded'
-  r.phase='ended';r.ending={choiceId:selected,tie,counts,aiVotes,truth:game.truth,text:tie?'票数相同，团队没有形成一致结论。各人的选择被保留；以下复盘不把任何人擅自算作同意。':game.endings[selected]||game.endings.other,
+  r.phase='ended';r.ending={choiceId:selected,tie,counts,aiVotes,truth:game.truth,text:tie?game.tieEnding||'票数相同，团队没有形成一致结论。各人的选择被保留；以下复盘不把任何人擅自算作同意。':game.endings[selected]||game.endings.other,
    roles:game.roles.map(({id,name,secret,goal})=>({id,name,secret,goal})),clues:game.clues}
   r.ending.text=caseEnding(game,r)||r.ending.text
   const relationships=[...romanceOutcomes(game,r),...duetOutcomes(game,r),...caseRelationshipOutcomes(game,r),...campusOutcomes(game,r),...veniceOutcomes(game,r)]
@@ -209,12 +217,12 @@ export function createScriptRoomStore({root,now=Date.now}={}){
   if(p.type==='start'){host();phase('lobby');if(r.seats.some(s=>s.control==='human'&&!s.ready))fail(409,'script_not_ready','请等待所有真人点击准备。');for(const seat of r.seats)if(!seat.owner)seat.control='ai';r.phase='play';stageStart(r)}
   if(p.type==='inspect'){
    phase('play');const c=game.clues.find(c=>c.id===p.clueId)
-   if(!c||c.stage!==r.stage||c.roleId!==me.roleId)fail(403,'script_clue_locked','该线索不属于你，或尚未解锁。')
+   if(!c||c.stage!==r.stage||c.roleId!==me.roleId&&c.access!=='public-investigation')fail(403,'script_clue_locked','该线索不属于你，或尚未解锁。')
    r.known[me.roleId]||=[];if(!r.known[me.roleId].includes(c.id))r.known[me.roleId].push(c.id)
   }
   if(p.type==='share'){
    phase('play');const c=game.clues.find(c=>c.id===p.clueId)
-   if(!c||c.roleId!==me.roleId||!(r.known[me.roleId]||[]).includes(c.id))fail(403,'script_clue_unknown','请先搜集自己的线索。')
+   if(!c||c.roleId!==me.roleId&&c.access!=='public-investigation'||!(r.known[me.roleId]||[]).includes(c.id))fail(403,'script_clue_unknown','请先查看这份自己的线索或公共调查材料。')
    if(!r.publicClues.includes(c.id)){r.publicClues.push(c.id);message(r,me.roleId,`公开线索「${c.title}」：${c.text}`,{kind:'evidence'})}
    if(veniceStageResolution(game,r))revealStage(r)
   }
@@ -235,10 +243,12 @@ export function createScriptRoomStore({root,now=Date.now}={}){
    r.missionChoices||={};r.missionChoices[me.roleId]||={}
    if(r.missionChoices[me.roleId][m.id])fail(409,'script_mission_decided','这个决定已经保存，不会被重复请求改写。')
    r.missionChoices[me.roleId][m.id]=p.optionId
+   const chosen=m.options.find(o=>o.id===p.optionId),reflection=scriptPrivateChoiceReflection(game,game.roles.find(s=>s.id===me.roleId),m,chosen)
+   if(reflection){const note=message(r,'dm',reflection,{target:me.roleId,kind:'system'});note.choiceReflection=m.id}
   }
   if(p.type==='solve'){
    phase('play');const a=game.acts[r.stage];if(!a.puzzle)fail(400,'script_no_puzzle','本幕无需输入密码。')
-   if(game.clues.some(c=>c.stage===r.stage&&!r.publicClues.includes(c.id)))fail(409,'script_need_evidence','请先公开本幕全部线索，再提交结论。')
+   if(game.clues.some(c=>c.stage===r.stage&&c.required!==false&&!r.publicClues.includes(c.id)))fail(409,'script_need_evidence','请先公开本幕必需材料，再提交结论。')
    if((r.attempts[r.stage]||0)>=20)fail(429,'script_puzzle_limit','本幕尝试次数已达上限，请重新阅读线索后另开一局。')
    r.attempts[r.stage]=(r.attempts[r.stage]||0)+1
    const solved=a.puzzle.answers.some(v=>answer(v)===answer(p.answer))
@@ -248,7 +258,7 @@ export function createScriptRoomStore({root,now=Date.now}={}){
   }
   if(p.type==='advance'){
    phase('play');const a=game.acts[r.stage]
-   if(game.clues.some(c=>c.stage===r.stage&&!r.publicClues.includes(c.id))||(a.puzzle&&!r.solved.includes(r.stage)))fail(409,'script_objective_pending','先完成本幕搜证和共同目标。')
+   if(game.clues.some(c=>c.stage===r.stage&&c.required!==false&&!r.publicClues.includes(c.id))||(a.puzzle&&!r.solved.includes(r.stage)))fail(409,'script_objective_pending','先完成本幕搜证和共同目标。')
    const mission=game.roles.find(s=>s.id===me.roleId).missions?.find(m=>m.stage===r.stage)
    if(mission&&!r.missionChoices?.[me.roleId]?.[mission.id])fail(409,'script_mission_pending','请先到“我的身份”完成本幕个人决定；保留或暂不公开也是有效选择。')
    if(!r.advanced.includes(me.roleId))r.advanced.push(me.roleId)
@@ -308,6 +318,7 @@ export function createScriptRoomStore({root,now=Date.now}={}){
     const next=r.seats.find(s=>s.owner);if(!next)r.phase='closed';else if(r.host===who)r.host=next.owner
    }
   }
+  if(['share','requestEvidence','solve'].includes(p.type))sharedMoment(r)
   if(['inspect','share','requestEvidence','solve','choose','advance'].includes(p.type)&&r.stage===initialStage)directorNotice(r,game,me.roleId)
   r.revision++;event(r,p.type,me.roleId,{...(p.clueId?{clueId:p.clueId}:{}),...(p.type==='vote'?{choiceId:p.choiceId}:{})});save(r);receipt(who,p.requestId,body,r)
   return p.type==='leave'?{left:true,id:r.id}:view(r,who)
@@ -323,26 +334,28 @@ export function createScriptRoomStore({root,now=Date.now}={}){
   const game=gameFor(r),role=game.roles.find(x=>x.id===job.actor)
   if(job.kind==='image'){
    const prompt=r.messages.find(m=>m.id===job.trigger)?.text||'',artPlan=scriptImagePlan(game,job.stage,prompt)
-   return {id:r.id,job:clone(job),imageInput:{ownerId:job.owner,requestId:`room-${r.id}-${job.id}-${job.attempts}`,persona:'script-room',prompt,longJob:true,scriptScene:{id:game.id,version:game.clientVersion||game.version,contentEdition:game.contentEdition,title:game.title,visualCanon:game.visualCanon,act:game.acts[job.stage].title,setting:game.acts[job.stage].opening,stage:job.stage,referenceIds:artPlan.referenceIds,artDirection:artPlan.artDirection}}}
+   return {id:r.id,job:clone(job),imageInput:{ownerId:job.owner,requestId:`room-${r.id}-${job.id}-${job.attempts}`,persona:'script-room',prompt,longJob:true,scriptScene:{id:game.id,version:game.clientVersion||game.version,contentEdition:game.contentEdition,sourceContentEdition:game.sourceContentEdition||null,title:game.title,visualCanon:game.visualCanon,act:game.acts[job.stage].title,setting:game.acts[job.stage].opening,stage:job.stage,referenceIds:artPlan.referenceIds,artDirection:artPlan.artDirection}}}
   }
   const continuity=scriptRoomContinuity(r,game,job)
   const disclosed=game.clues.filter(c=>r.publicClues.includes(c.id)||(r.known[job.actor]||[]).includes(c.id))
   // Never include the full game, other identities, future clues, or answer/ending fields.
-  const context={scriptId:game.id,title:game.title,phase:r.phase,act:game.acts[r.stage].title,objective:game.acts[r.stage].objective,
+  const context={scriptId:game.id,contentEdition:game.contentEdition,title:game.title,phase:r.phase,act:game.acts[r.stage].title,objective:game.acts[r.stage].objective,
    actor:role?caseActorContext(game,r,role,visibleScriptRole(role,r.stage,game.id)):{id:'dm',name:'主持人',voice:'只帮助理解当前目标，不代替玩家发言'},
    participants:game.roles.map(publicRole),evidence:disclosed,messages:continuity.recentMessages,continuity:continuity.continuity,
    memory:(r.npcMemory[job.actor]||[]).filter(m=>m.target==='public'||m.target===job.target).slice(-16),
    relationship:job.target==='public'?{}:r.relations[job.target]?.[job.actor]||{},
    target:job.target,sender:publicRole(game.roles.find(s=>s.id===r.messages.find(m=>m.id===job.trigger)?.actor)||{id:'unknown',name:'玩家'}),trigger:r.messages.find(m=>m.id===job.trigger)?.text||''}
   const story=casePublicContext(game,r)||campusPublicContext(game,r)||venicePublicContext(game,r)||icelandPublicContext(game,r);if(story)context.story=story
+  const moment=scriptSharedMoment(game,r);if(moment&&role)context.sharedMoment=moment
   if(job.actor==='dm'){
-   const requesterId=context.sender.id,currentClues=game.clues.filter(c=>c.stage===r.stage),own=currentClues.find(c=>c.roleId===requesterId)
+   const requesterId=context.sender.id,currentClues=game.clues.filter(c=>c.stage===r.stage&&c.required!==false),own=currentClues.find(c=>c.roleId===requesterId)
    const mission=game.roles.find(s=>s.id===requesterId)?.missions?.find(m=>m.stage===r.stage)
-   context.progress={shared:currentClues.filter(c=>r.publicClues.includes(c.id)).length,total:currentClues.length,puzzleRequired:Boolean(game.acts[r.stage].puzzle),solved:r.solved.includes(r.stage),ownFound:Boolean(own&&(r.known[requesterId]||[]).includes(own.id)),ownShared:Boolean(own&&r.publicClues.includes(own.id)),ownDecisionSaved:!mission||Boolean(r.missionChoices?.[requesterId]?.[mission.id]),ownConfirmed:r.advanced.includes(requesterId),pendingHumanNames:r.seats.filter(s=>s.control==='human'&&!r.advanced.includes(s.roleId)).map(s=>game.roles.find(role=>role.id===s.roleId).name)}
+   context.progress={shared:currentClues.filter(c=>r.publicClues.includes(c.id)).length,total:currentClues.length,publicInvestigation:currentClues.some(c=>c.access==='public-investigation'),puzzleRequired:Boolean(game.acts[r.stage].puzzle),solved:r.solved.includes(r.stage),ownFound:Boolean(own&&(r.known[requesterId]||[]).includes(own.id)),ownShared:Boolean(own&&r.publicClues.includes(own.id)),ownDecisionSaved:!mission||Boolean(r.missionChoices?.[requesterId]?.[mission.id]),ownConfirmed:r.advanced.includes(requesterId),pendingHumanNames:r.seats.filter(s=>s.control==='human'&&!r.advanced.includes(s.roleId)).map(s=>game.roles.find(role=>role.id===s.roleId).name)}
   }
   if(role?.card?.romance){
    const mission=role.missions.find(m=>m.stage===r.stage),chosen=r.missionChoices?.[role.id]?.[mission?.id]
    context.actorDecision=mission?.options.find(o=>o.id===chosen)?.label||''
+   if(game.sourceScriptVersion)context.actorReflection=mission?.options.find(o=>o.id===chosen)?.followup||''
   }
   if(job.actor==='dm'&&job.target!=='public'){
    const humanRole=game.roles.find(s=>s.id===job.target)
@@ -364,6 +377,7 @@ export function createScriptRoomStore({root,now=Date.now}={}){
   const reply=message(r,j.actor,proposal.text.trim(),{target:j.target,kind:operational?'system':j.actor==='dm'?'narration':'dialogue'});reply.parts=proposal.parts;reply.replyTo=j.trigger;if(operational)reply.uiGuidance=true
   if(clue&&!r.publicClues.includes(clue.id)){r.publicClues.push(clue.id);message(r,j.actor,`公开线索「${clue.title}」：${clue.text}`,{kind:'evidence'})}
   if(clue&&veniceStageResolution(game,r))revealStage(r)
+  if(clue)sharedMoment(r)
   if(clue)for(const human of r.seats.filter(s=>s.control==='human'))directorNotice(r,game,human.roleId)
   r.npcMemory[j.actor]||=[];r.npcMemory[j.actor].push({target:j.target,trigger:j.trigger,text:proposal.text.slice(0,700)});r.npcMemory[j.actor]=r.npcMemory[j.actor].slice(-40)
   if(j.target!=='public'&&['谨慎','信任','怀疑','尚在了解'].includes(proposal.attitude)){r.relations[j.target]||={};r.relations[j.target][j.actor]||={exchanges:0};r.relations[j.target][j.actor].attitude=proposal.attitude}

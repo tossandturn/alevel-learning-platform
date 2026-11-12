@@ -8,10 +8,10 @@ import {visibleScriptRole} from '../server/scriptRoleCards.js'
 import {scriptActorMessages} from '../server/scriptRoomApi.js'
 import {caseReplyActor} from '../server/scriptRomanceCase.js'
 const game=newScriptGame('before-rain',2),hash=v=>crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex')
-assert.equal(game.version,4,'new four-person rooms need a real case edition, not the old conversation-only edition')
-assert.equal(game.contentEdition,'romance-case-20261106');assert.equal(game.clientVersion,2)
+assert.equal(game.version,5,'new four-person rooms use the editorial case remaster')
+assert.equal(game.contentEdition,'before-rain-editorial-20261112');assert.equal(game.sourceContentEdition,'romance-case-20261106');assert.equal(game.clientVersion,2)
 assert.equal(hash(scriptGame('before-rain',3)),'5de8f36ea960acec65253a3620b4329990880cc026cd80314bc9405a8d1bd4de','old romance snapshot immutable')
-assert.equal(game.roles.length,4);assert.equal(game.acts.length,3);assert.equal(game.clues.length,12)
+assert.equal(game.roles.length,4);assert.equal(game.acts.length,3);assert.equal(game.clues.length,13);assert.equal(game.clues.filter(c=>c.required!==false).length,12)
 assert.equal(publicScriptCatalog().length,7);assert.match(game.summary,/命案|死亡/)
 assert.equal(game.case.culprit,'repair');assert.ok(game.acts.every(a=>a.resolution));assert.ok(game.acts.slice(0,2).every(a=>a.puzzle));assert.equal(game.acts[2].puzzle,null)
 assert.equal(game.ballot.options.length,4);assert.ok(game.roles.every(role=>game.ballot.options.some(o=>o.id===role.id)))

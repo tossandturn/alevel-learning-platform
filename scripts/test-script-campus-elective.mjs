@@ -12,7 +12,8 @@ import {newScriptGame,publicScriptCatalog,SCRIPT_GAMES,scriptGame} from '../serv
 const game=newScriptGame('last-elective',2)
 assert.ok(game,'one new complete campus duet must exist')
 assert.equal(game.roles.length,2)
-assert.equal(game.contentEdition,'campus-elective-20261107')
+assert.equal(game.contentEdition,'last-elective-editorial-20261112')
+assert.equal(game.sourceContentEdition,'campus-elective-20261107')
 assert.equal(game.acts.length,3)
 assert.equal(game.clues.length,6)
 assert.equal(publicScriptCatalog().filter(g=>g.id==='last-elective').length,1)
@@ -90,7 +91,7 @@ try{
   action(who,r.id,'vote',{choiceId:'photo'});r=action(peer,r.id,'vote',{choiceId:'walk'});assert.equal(r.phase,'ended');assert.equal(r.ending.tie,true)
   if(first==='date'&&second==='date')assert.match(r.ending.text,/两个人都选择/)
   else if([first,second].includes('friends')){assert.match(r.ending.text,/保留同学/);assert.ok(!r.ending.text.includes('两个人都选择'))}
-  else assert.match(r.ending.text,/尚未确认约会或恋爱/)
+  else assert.match(r.ending.text,/尚未(?:确认约会或恋爱|形成约会共识)/)
   close(r,[who,peer])
  }
  // The AI gets its own current materials and public unlocked pages, never future sealed pages.

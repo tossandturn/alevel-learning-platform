@@ -1,10 +1,11 @@
-import {SCRIPT_ANIME_ASSETS,SCRIPT_ANIME_BOOKS,SCRIPT_ANIME_STYLE} from './scriptArtSpec.js'
+import {SCRIPT_ANIME_ASSETS,SCRIPT_ANIME_BOOKS,SCRIPT_ANIME_STYLE,SCRIPT_CHARACTER_STYLE} from './scriptArtSpec.js'
 import {loadTavernMediaCatalog} from './tavernMedia.js'
 
 // Presentation-only data. Never import story truth or rewrite pinned room editions.
 const normalize=s=>String(s||'').normalize('NFKC').toLowerCase().replace(/[\s，。！？、,.:：;；!?“”"'（）()]/g,'')
-const eligible=(game,a)=>a.scriptId===game.id&&(!a.contentEdition||a.contentEdition===game.contentEdition)&&(!a.roleId||game.roles.some(r=>r.id===a.roleId&&r.name===a.roleName))
-const art=(spec,catalog)=>spec?catalog.byId.get('scriptanime-'+spec.id)||null:null
+const artEdition=game=>game.sourceContentEdition||game.contentEdition
+const eligible=(game,a)=>a.scriptId===game.id&&(!a.contentEdition||a.contentEdition===artEdition(game))&&(!a.roleId||game.roles.some(r=>r.id===a.roleId&&r.name===a.roleName))
+const art=(spec,catalog)=>spec?((['portrait','ensemble'].includes(spec.kind)?catalog.byId.get('scriptanime-'+spec.id+'-v2'):null)||catalog.byId.get('scriptanime-'+spec.id)||null):null
 export function scriptSceneArt(game,stage,catalog=loadTavernMediaCatalog()){
  return art(SCRIPT_ANIME_ASSETS.find(a=>eligible(game,a)&&a.kind==='scene'&&a.stage===stage),catalog)?.src||game.acts?.[stage]?.image||''
 }
@@ -26,7 +27,7 @@ function simpleRequest(query,asset){
  return rest.replace(/给我|让我|我想要|我想|我要|想要|请|麻烦|帮我|一下|一张|一幅|一个|看看|看|展示|显示|发来|发|画出|画|图片|照片|配图|立绘|肖像|头像|图|的|吧|呀|好不好|可以吗/g,'')===''
 }
 export function scriptImagePlan(game,stage,request,catalog=loadTavernMediaCatalog()){
- const book=SCRIPT_ANIME_BOOKS.find(b=>b.id===game.id&&(!b.contentEdition||b.contentEdition===game.contentEdition)),query=normalize(request),assets=SCRIPT_ANIME_ASSETS.filter(a=>eligible(game,a)),visible=assets.filter(a=>a.minStage<=stage)
+ const book=SCRIPT_ANIME_BOOKS.find(b=>b.id===game.id&&(!b.contentEdition||b.contentEdition===artEdition(game))),query=normalize(request),assets=SCRIPT_ANIME_ASSETS.filter(a=>eligible(game,a)),visible=assets.filter(a=>a.minStage<=stage)
  const namedStage=query.match(/第([一二三123])幕/),futureStage=namedStage?({'一':0,'二':1,'三':2,'1':0,'2':1,'3':2}[namedStage[1]]>stage):false
  const blocked=futureStage||/(?:凶手|真凶|谜底|密码|未解锁|幕后真相|隐藏答案|其他角色的秘密|色情|裸体|裸露|性行为|强奸|血腥|内脏|自残|自杀|真人肖像|名人肖像|celebrity|gore|nude|sexualcontent)/i.test(query)||assets.some(a=>a.minStage>stage&&a.aliases.some(alias=>query.includes(normalize(alias))&&(alias.length>=4||simpleRequest(query,a))))
  if(blocked)return {blocked:true,asset:null,referenceIds:[]}
@@ -39,10 +40,10 @@ export function scriptImagePlan(game,stage,request,catalog=loadTavernMediaCatalo
  const references=[...(named.length>2?[ensemble]:named),...(!named.length&&prop?[prop]:[]),...(!named.length&&!prop&&/合影|全员|全体|所有角色/.test(query)?[ensemble]:[]),scene].filter(Boolean)
  const referenceIds=[...new Set(references.map(a=>art(a,catalog)?.id).filter(Boolean))].slice(0,3)
  const characters=(book?.characters||[]).filter(c=>game.roles.some(r=>r.id===c.roleId&&r.name===c.name))
- return {blocked:false,asset,referenceIds,artDirection:[SCRIPT_ANIME_STYLE,book?.mood||'',...characters.map(c=>c.name+': '+c.appearance),'Reference images are the authoritative visual design. Preserve the characters\' faces, hair, clothing and the book palette. The request may change composition but never change the 2D anime style. No readable text, evidence reconstruction or hidden clue.'].join('\n')}
+ return {blocked:false,asset,referenceIds,artDirection:[SCRIPT_ANIME_STYLE,SCRIPT_CHARACTER_STYLE,book?.mood||'',...characters.map(c=>c.name+': '+c.appearance),'Reference images are the authoritative visual design. Preserve the characters\' faces, hair, clothing and the book palette. The request may change composition but never change the 2D anime style. No readable text, evidence reconstruction or hidden clue.'].join('\n')}
 }
 export function scriptArtReferenceUrls(scene,catalog=loadTavernMediaCatalog()){
  if(!Number.isInteger(scene?.stage)||scene.stage<0||scene.stage>2)return []
- const allowed=new Set(SCRIPT_ANIME_ASSETS.filter(a=>a.scriptId===scene.id&&(!a.contentEdition||a.contentEdition===scene.contentEdition)&&a.minStage<=scene.stage).map(a=>'scriptanime-'+a.id))
+ const allowed=new Set(SCRIPT_ANIME_ASSETS.filter(a=>a.scriptId===scene.id&&(!a.contentEdition||a.contentEdition===artEdition(scene))&&a.minStage<=scene.stage).flatMap(a=>['scriptanime-'+a.id,...(['portrait','ensemble'].includes(a.kind)?['scriptanime-'+a.id+'-v2']:[])]))
  return [...new Set(Array.isArray(scene.referenceIds)?scene.referenceIds:[])].filter(id=>allowed.has(id)).map(id=>catalog.byId.get(id)?.src).filter(Boolean).slice(0,3).map(src=>'https://stem.ieltsist.com'+src)
 }

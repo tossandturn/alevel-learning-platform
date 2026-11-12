@@ -1,5 +1,6 @@
 // Original visual art direction, independent of story truth and room snapshots.
 export const SCRIPT_ANIME_STYLE='High-quality 2D anime visual-novel illustration: clean controlled ink contours, mature adult character proportions and expressive but not oversized eyes, crisp two-step cel shading on characters, hand-painted atmospheric environments, coherent cinematic light and restrained colors. Clearly drawn animation art, never photography, photorealism, live action, 3D CGI, chibi, or a comic collage.'
+export const SCRIPT_CHARACTER_STYLE='Premium contemporary 2D anime visual-novel character illustration. Elegant fine variable-width ink lines; expressive almond-shaped eyes with delicate restrained catchlights, individually designed attractive adult faces, confident natural facial anatomy, rich subtly layered hair strands, crisp cel-shaded silhouettes with soft hand-painted light, tactile fabrics and cinematic luminous atmosphere. Preserve each approved portrait identity, adult age, hairstyle and clothing. No photographic or 3D rendering, chibi, huge eyes, plastic skin, generic identical faces, sexualization or unrequested costume changes.'
 const person=(roleId,name,appearance)=>({roleId,name,appearance})
 const scene=(label,aliases,description)=>({label,aliases,description})
 const prop=(key,label,aliases,description)=>({key,label,aliases,description})
