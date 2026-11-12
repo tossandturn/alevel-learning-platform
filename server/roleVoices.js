@@ -208,9 +208,12 @@ function inventedAddressedQuote(text,context){
 // agreement without a past-tense verb, and this is not a semantic entailment model.
 const PHYSICAL_WORDS='点头|摇头|低头|抬头|转身|站起|坐下|微笑|大笑|亲吻|比划|拿起|拿出|拿走|拿回|取出|取走|递给|递来|递过|放下|放回|放进|摆好|摆出|摊开|翻开|翻过|写下|画出|剪下|剪开|切开|举起|捧起|挪开|擦掉|撕开|敲打|指向|握住|抱住|摸到|拍打|走到|走进|坐到|靠近'
 const PHYSICAL_ROOTS='拿|取|递|放|摆|摊|翻|写|画|剪|切|比|笑|哭|举|捧|晃|挪|擦|撕|敲|握|抱|亲|摸|拍|走|坐|靠'
-const PHYSICAL_START=new RegExp('^(?:'+PHYSICAL_WORDS+'|(?:'+PHYSICAL_ROOTS+')(?=[了过着])|(?:拿|递|举|捧|翻|写|画|剪|切|摆|摊)(?=[那这一二三四五六七八九十两几数\\d])|笑(?=到|得)|哭(?=到|得)|比(?:了|一)比|点(?:了|一)点头|摇(?:了|一)摇头)','u')
-const PHYSICAL_ASPECT=new RegExp('(?:'+PHYSICAL_WORDS+'|'+PHYSICAL_ROOTS+')(?:了|过|着)|(?:点|摇)了(?:点|摇)头','u')
-const DISPOSAL_ACTION=new RegExp('^(?:把|将).{1,48}(?:'+PHYSICAL_WORDS+'|(?:'+PHYSICAL_ROOTS+')(?:了|过|着))(?!的)','u')
+// Material handling + a physical result complement, not arbitrary "歪/坏/了"
+// anywhere in a sentence (e.g. 想歪 / 理解错 remain outside this physical guard).
+const PHYSICAL_RESULT='(?:拿|放|摆|翻|写|画|剪|切|举|挪|擦|撕|敲|握|抱|拍)(?:歪|反|倒|掉|坏|断|破|碎|松|紧|稳|干|湿)'
+const PHYSICAL_START=new RegExp('^(?:'+PHYSICAL_WORDS+'|'+PHYSICAL_RESULT+'|(?:'+PHYSICAL_ROOTS+')(?=[了过着])|(?:拿|递|举|捧|翻|写|画|剪|切|摆|摊)(?=[那这一二三四五六七八九十两几数\\d])|笑(?=到|得)|哭(?=到|得)|比(?:了|一)比|点(?:了|一)点头|摇(?:了|一)摇头)','u')
+const PHYSICAL_ASPECT=new RegExp('(?:'+PHYSICAL_WORDS+'|'+PHYSICAL_RESULT+'|'+PHYSICAL_ROOTS+')(?:了|过|着)|(?:点|摇)了(?:点|摇)头','u')
+const DISPOSAL_ACTION=new RegExp('^(?:把|将).{1,48}(?:'+PHYSICAL_WORDS+'|'+PHYSICAL_RESULT+'|(?:'+PHYSICAL_ROOTS+')(?:了|过|着))(?!的)','u')
 const ACTION_LEAD=/^(?:(?:刚才|刚刚|方才|今天|昨天|前天|上次|那次|当时|那天|已经|曾经|正在|正|现在|也|还|又|就|才|一直|突然|轻轻|慢慢|偷偷|忍不住|随手|一边)\s*)*/u
 const EVENT_LEAD=/刚才|刚刚|方才|昨天|前天|上次|那次|当时|那天|已经|曾经|正在|现在|正/u,MARKER=/@(P|A|O|J)@/u
 const escaped=s=>String(s).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')
