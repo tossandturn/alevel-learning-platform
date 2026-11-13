@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import {SCRIPT_ANIME_BOOKS,SCRIPT_ANIME_ASSETS,SCRIPT_ANIME_STYLE} from '../server/scriptArtSpec.js'
-import {newScriptGame,publicScriptCatalog} from '../server/scriptGameCatalog.js'
+import {newScriptGame,publicScriptCatalog} from './helpers/historical-script-fixture.mjs'
 assert.equal(SCRIPT_ANIME_BOOKS.length,8);assert.equal(SCRIPT_ANIME_ASSETS.length,72)
 assert.equal(new Set(SCRIPT_ANIME_ASSETS.map(a=>a.id)).size,72)
 assert.match(SCRIPT_ANIME_STYLE,/2D anime/)

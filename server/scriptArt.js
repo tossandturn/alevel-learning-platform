@@ -40,7 +40,7 @@ export function scriptImagePlan(game,stage,request,catalog=loadTavernMediaCatalo
  const references=[...(named.length>2?[ensemble]:named),...(!named.length&&prop?[prop]:[]),...(!named.length&&!prop&&/合影|全员|全体|所有角色/.test(query)?[ensemble]:[]),scene].filter(Boolean)
  const referenceIds=[...new Set(references.map(a=>art(a,catalog)?.id).filter(Boolean))].slice(0,3)
  const characters=(book?.characters||[]).filter(c=>game.roles.some(r=>r.id===c.roleId&&r.name===c.name))
- return {blocked:false,asset,referenceIds,artDirection:[SCRIPT_ANIME_STYLE,SCRIPT_CHARACTER_STYLE,book?.mood||'',...characters.map(c=>c.name+': '+c.appearance),'Reference images are the authoritative visual design. Preserve the characters\' faces, hair, clothing and the book palette. The request may change composition but never change the 2D anime style. No readable text, evidence reconstruction or hidden clue.'].join('\n')}
+ return {blocked:false,asset,referenceIds,artDirection:[SCRIPT_ANIME_STYLE,SCRIPT_CHARACTER_STYLE,book?.mood||'',...(game.roles.some(r=>r.card?.student)?[game.visualCanon]:characters.map(c=>c.name+': '+c.appearance)),'Reference images preserve the faces, hair and palette; the current edition visual canon governs age and setting. The request may change composition but never change the 2D anime style. No readable text, evidence reconstruction or hidden clue.'].join('\n')}
 }
 export function scriptArtReferenceUrls(scene,catalog=loadTavernMediaCatalog()){
  if(!Number.isInteger(scene?.stage)||scene.stage<0||scene.stage>2)return []

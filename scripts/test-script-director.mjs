@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
-import {createScriptRoomStore} from '../server/scriptRoomStore.js'
-import {newScriptGame} from '../server/scriptGameCatalog.js'
+import {createScriptRoomStore} from './helpers/historical-script-fixture.mjs'
+import {newScriptGame} from './helpers/historical-script-fixture.mjs'
 const root=fs.mkdtempSync(path.resolve(import.meta.dirname,'../../qa/director-test-')),store=createScriptRoomStore({root})
 const who='ielts:91841001',peer='ielts:91841002';let seq=0
 const nonce=()=>`director-${++seq}`,act=(owner,id,type,extra={})=>store.act(owner,id,{type,...extra,revision:store.get(owner,id).revision,requestId:nonce()})

@@ -2,10 +2,10 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
-import {createScriptRoomStore} from '../server/scriptRoomStore.js'
-import {newScriptGame,scriptGame,publicScriptCatalog} from '../server/scriptGameCatalog.js'
+import {createScriptRoomStore} from './helpers/historical-script-fixture.mjs'
+import {newScriptGame,scriptGame,publicScriptCatalog} from './helpers/historical-script-fixture.mjs'
 import {visibleScriptRole} from '../server/scriptRoleCards.js'
-import {scriptActorMessages} from '../server/scriptRoomApi.js'
+import {scriptActorMessages} from './helpers/historical-script-fixture.mjs'
 import {caseReplyActor} from '../server/scriptRomanceCase.js'
 const game=newScriptGame('before-rain',2),hash=v=>crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex')
 assert.equal(game.version,5,'new four-person rooms use the editorial case remaster')

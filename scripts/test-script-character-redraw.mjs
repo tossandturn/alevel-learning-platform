@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import {loadTavernMediaCatalog} from '../server/tavernMedia.js'
 import {scriptImagePlan,scriptArtReferenceUrls} from '../server/scriptArt.js'
-import {newScriptGame,scriptGame} from '../server/scriptGameCatalog.js'
+import {newScriptGame,scriptGame} from './helpers/historical-script-fixture.mjs'
 
 const loaded=loadTavernMediaCatalog(),original={...loaded,byId:new Map([...loaded.byId].filter(([id])=>!id.endsWith('-v2')))},byId=new Map(original.byId)
 for(const id of ['scriptanime-elective-role-songmi','scriptanime-elective-role-peixu','scriptanime-elective-ensemble']){

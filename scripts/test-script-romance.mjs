@@ -3,10 +3,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { DatabaseSync } from 'node:sqlite'
-import * as catalog from '../server/scriptGameCatalog.js'
+import * as catalog from './helpers/historical-script-fixture.mjs'
 import { visibleScriptRole } from '../server/scriptRoleCards.js'
-import { createScriptRoomStore } from '../server/scriptRoomStore.js'
-import { scriptActorMessages } from '../server/scriptRoomApi.js'
+import { createScriptRoomStore } from './helpers/historical-script-fixture.mjs'
+import { scriptActorMessages } from './helpers/historical-script-fixture.mjs'
 import {pinTestRoomEdition} from './helpers/pin-test-room-edition.mjs'
 
 assert.equal(typeof catalog.newScriptGame,'function','new rooms need a separately pinned romance edition, not rewritten legacy content')

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
-import {currentEditorialBooks,editorialPacket,normalizeEditorialReview} from './helpers/script-editorial-review.mjs'
+import {editorialPacket,normalizeEditorialReview} from './helpers/script-editorial-review.mjs'
+import {currentEditorialBooks} from './helpers/historical-script-fixture.mjs'
 import {scriptStageScene} from '../server/scriptSceneBeats.js'
 import {campusStageResolution,campusOutcomes} from '../server/scriptCampusElective.js'
 import {veniceOutcomes,venicePerformanceContext,veniceActorMessages} from '../server/scriptVeniceRomance.js'

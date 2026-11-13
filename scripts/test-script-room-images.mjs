@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import {createScriptRoomStore} from '../server/scriptRoomStore.js'
+import {createScriptRoomStore} from './helpers/historical-script-fixture.mjs'
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'script-images-'))
 let time=1800000000000,store=createScriptRoomStore({root,now:()=>time}),seq=0
 let r=store.create('ielts:1',{scriptId:'thirteenth-curtain',scriptVersion:2,requestId:'image-create-one'})

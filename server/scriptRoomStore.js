@@ -34,7 +34,7 @@ const gameFor=r=>scriptGame(r.scriptId,r.scriptVersion,r.contentEdition)
 const choiceLocked=(game,r,id)=>campusChoiceLocked(game,r,id)||veniceChoiceLocked(game,r,id)
 const lockedChoicePrompt=(game,r)=>game.id==='venice-blue-hour'?(r.stage===2?'先公开双方的新计划，读完后再保存自己的回答。':'先一起完成本幕材料核对，打开档案后再保存自己的回应。'):'先完成本幕字格题。折页展开后，这里会出现约会、慢慢了解和保留同学关系三种回答。'
 
-export function createScriptRoomStore({root,now=Date.now}={}){
+export function createScriptRoomStore({root,now=Date.now,resolveNewGame=newScriptGame}={}){
  if(!root||!path.isAbsolute(root))throw Error('script room root must be absolute')
  fs.mkdirSync(root,{recursive:true,mode:0o700})
  const file=path.join(root,'script-rooms.sqlite'),db=new DatabaseSync(file)
@@ -108,7 +108,7 @@ export function createScriptRoomStore({root,now=Date.now}={}){
  }
  function create(who,payload){owner(who);const {scriptId,scriptVersion,requestId}=payload||{};return transaction(()=>{
   const body={kind:'create',scriptId,...(scriptVersion===undefined?{}:{scriptVersion})},previous=existing(who,requestId,body);if(previous)return view(previous,who)
-  const game=newScriptGame(scriptId,scriptVersion??1);if(!game)fail(400,'script_invalid_script','请选择已有剧本。')
+  const game=resolveNewGame(scriptId,scriptVersion??1);if(!game)fail(400,'script_invalid_script','此剧本暂不支持新建房间，请返回列表选择；已有房间仍可继续。')
   prune();quota(who)
   const r={id:crypto.randomUUID(),inviteCode:crypto.randomBytes(8).toString('hex').toUpperCase(),scriptId,scriptVersion:game.version,...(game.contentEdition?{contentEdition:game.contentEdition}:{}),host:who,phase:'lobby',stage:0,revision:1,eventSeq:0,createdAt:now(),updatedAt:now(),expiresAt:now()+TTL,
    seats:game.roles.map((role,i)=>({roleId:role.id,owner:i===0?who:null,control:i===0?'human':'open',ready:false})),known:{},publicClues:[],solved:[],attempts:{},advanced:[],votes:{},messages:[],jobs:[],npcMemory:{},relations:{},missionChoices:{},ending:null}
@@ -166,7 +166,7 @@ export function createScriptRoomStore({root,now=Date.now}={}){
    if(game.version>=2){event(r,'bot_discovered',seat.roleId,{clueId:c.id});if(!scene)message(r,seat.roleId,scriptEntrance(game,game.roles.find(x=>x.id===seat.roleId),r.stage))}
    else {r.publicClues.push(c.id);event(r,'bot_discovered_and_shared',seat.roleId,{clueId:c.id});message(r,seat.roleId,`我在「${c.title}」里找到这一点：${c.text}`,{kind:'evidence'})}
   }
-  if(game.version>=2){const guide=message(r,'dm',directorOpening(r.stage),{kind:'system'});guide.directorGuide='opening';r.directorHints||={};for(const seat of r.seats.filter(s=>s.control==='human'))r.directorHints[seat.roleId]=`${r.stage}:play:inspect`}
+  if(game.version>=2){const guide=message(r,'dm',directorOpening(r.stage),{kind:'system'});guide.directorGuide='opening';r.directorHints||={};for(const seat of r.seats.filter(s=>s.control==='human'))r.directorHints[seat.roleId]=`${r.stage}:play:inspect`;if(game.discussionOpenings?.[r.stage]){const invitation=message(r,'dm',game.discussionOpenings[r.stage],{kind:'system'});invitation.directorGuide='optional-discussion'}}
  }
  function sharedMoment(r){
   const moment=scriptSharedMoment(gameFor(r),r)

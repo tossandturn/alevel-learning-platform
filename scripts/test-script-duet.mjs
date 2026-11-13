@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import {SCRIPT_GAMES,publicScriptCatalog,newScriptGame,scriptGame} from '../server/scriptGameCatalog.js'
-import {createScriptRoomStore} from '../server/scriptRoomStore.js'
+import {SCRIPT_GAMES,publicScriptCatalog,newScriptGame,scriptGame} from './helpers/historical-script-fixture.mjs'
+import {createScriptRoomStore} from './helpers/historical-script-fixture.mjs'
 const hash=value=>crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex')
 const catalog=publicScriptCatalog(),duet=catalog.find(g=>g.id==='one-more-stop')
 assert.ok(duet,'a fifth, separate two-role romance must be present')

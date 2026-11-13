@@ -23,9 +23,9 @@ const moments={
 }
 export function scriptSharedMoment(game,room){
  if(!game?.sourceScriptVersion||room.phase!=='play')return null
- const found=moments[game.id]?.[room.stage]
+ const found=(game.sharedMoments||moments[game.id])?.[room.stage]
  if(!found||game.clues.some(c=>c.stage===room.stage&&c.required!==false&&!room.publicClues.includes(c.id))||game.acts[room.stage].puzzle&&!room.solved.includes(room.stage))return null
  return {id:`${game.contentEdition}:${room.stage}`,title:found[0],prompt:found[1],optional:true}
 }
-export function scriptMomentPlan(game){return game?.sourceScriptVersion?(moments[game.id]||[]).map((item,stage)=>item?{stage,title:item[0],prompt:item[1],unlock:'all-current-clues-public-and-current-puzzle-solved-if-present',optional:true}:null).filter(Boolean):[]}
+export function scriptMomentPlan(game){return game?.sourceScriptVersion?(game.sharedMoments||moments[game.id]||[]).map((item,stage)=>item?{stage,title:item[0],prompt:item[1],unlock:'all-current-clues-public-and-current-puzzle-solved-if-present',optional:true}:null).filter(Boolean):[]}
 export function scriptPrivateChoiceReflection(game,role,mission,option){return game?.sourceScriptVersion?`私人笔记 · ${mission.title.replace(/^内心打算 · /,'')}\n${option.followup}`:''}

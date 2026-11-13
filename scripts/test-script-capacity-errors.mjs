@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import {DatabaseSync} from 'node:sqlite'
-import {createScriptRoomStore} from '../server/scriptRoomStore.js'
+import {createScriptRoomStore} from './helpers/historical-script-fixture.mjs'
 const root=fs.mkdtempSync(path.resolve(import.meta.dirname,'../../qa/script-capacity-')),store=createScriptRoomStore({root})
 let seq=0
 const create=who=>store.create(who,{scriptId:'thirteenth-curtain',scriptVersion:2,requestId:`capacity-${++seq}`})

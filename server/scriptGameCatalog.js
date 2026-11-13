@@ -8,8 +8,10 @@ import {VENICE_GAME,VENICE_EDITION} from './scriptVeniceRomance.js'
 import {ICELAND_GAME,ICELAND_EDITION} from './scriptIcelandRomance.js'
 import {scriptSceneArt} from './scriptArt.js'
 import {editorialEdition,editorialScriptGame} from './scriptEditorialEditions.js'
+import {studentEdition,studentScriptGame,STUDENT_SCRIPT_IDS} from './scriptStudentEditions.js'
 // Activation controls new rooms only. Stored editions must remain readable.
 export const EDITORIAL_RELEASE_ACTIVE = true;
+export const STUDENT_RELEASE_ACTIVE = false;
 const art=file=>'/api/ai/tavern/media/v1/'+file
 const role=(id,name,tagline,biography,secret,goal,voice)=>({id,name,tagline,biography,secret,goal,voice})
 const clues=rows=>rows.map(([roleId,stage,title,text],i)=>({id:`c${i+1}`,roleId,stage,title,text}))
@@ -148,6 +150,8 @@ const actArt={
 for(const game of SCRIPT_GAMES){for(let i=1;i<3;i++)game.acts[i].image=art(actArt[game.id][i-1]);for(const stage of game.acts)stage.objective+=' 在“我的身份”作出本幕决定，再确认继续。'}
 freeze(SCRIPT_GAMES)
 export function scriptGame(id,version,contentEdition){
+ const student=studentEdition(id)
+ if(student&&version===student.version)return contentEdition===undefined||contentEdition===student.edition?studentScriptGame(scriptGame(id,student.sourceVersion)):null
  const revised=editorialEdition(id)
  if(revised&&version===revised.version&&(contentEdition===undefined||contentEdition===revised.edition))return editorialScriptGame(scriptGame(id,revised.sourceVersion,revised.sourceEdition))
  if(id===ICELAND_GAME.id&&version===3)return contentEdition===undefined||contentEdition===ICELAND_EDITION?ICELAND_GAME:null
@@ -162,8 +166,12 @@ export function scriptGame(id,version,contentEdition){
 // The installed client requests capabilities, not permission to rewrite the
 // content of a previous room. Existing snapshots still resolve by exact version.
 export function newScriptGame(id,clientVersion){
+ if(STUDENT_RELEASE_ACTIVE){
+  const student=studentEdition(id)
+  return student&&clientVersion===2?scriptGame(id,student.version,student.edition):null
+ }
  const revised=editorialEdition(id)
  if(clientVersion===2&&revised)return EDITORIAL_RELEASE_ACTIVE?scriptGame(id,revised.version,revised.edition):scriptGame(id,revised.sourceVersion,revised.sourceEdition)
  return scriptGame(id,clientVersion)
 }
-export function publicScriptCatalog(){return [...SCRIPT_GAMES.map(g=>newScriptGame(g.id,2)),...[ICELAND_GAME,CAMPUS_ELECTIVE_GAME,VENICE_GAME].map(g=>newScriptGame(g.id,2))].map(game=>{const {id,version,clientVersion,title,genre,duration,difficulty,summary,warning,roles}=game;return {id,version:clientVersion||version,title,genre,duration,difficulty,summary,warning,players:`1–${roles.length} 人 · AI 补位`,cover:scriptSceneArt(game,0),roles:roles.map(({id,name,tagline})=>({id,name,tagline}))}})}
+export function publicScriptCatalog(){return (STUDENT_RELEASE_ACTIVE?STUDENT_SCRIPT_IDS.map(id=>newScriptGame(id,2)):[...SCRIPT_GAMES.map(g=>newScriptGame(g.id,2)),...[ICELAND_GAME,CAMPUS_ELECTIVE_GAME,VENICE_GAME].map(g=>newScriptGame(g.id,2))]).map(game=>{const {id,version,clientVersion,title,genre,duration,difficulty,summary,warning,roles}=game;return {id,version:clientVersion||version,title,genre,duration,difficulty,summary,warning,players:`1–${roles.length} 人 · AI 补位`,cover:scriptSceneArt(game,0),roles:roles.map(({id,name,tagline})=>({id,name,tagline}))}})}

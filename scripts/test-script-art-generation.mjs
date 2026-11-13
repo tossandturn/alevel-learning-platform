@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import {createTavernImageGenerator} from '../server/tavernImageGeneration.js'
 import {scriptImagePlan} from '../server/scriptArt.js'
-import {newScriptGame} from '../server/scriptGameCatalog.js'
+import {newScriptGame} from './helpers/historical-script-fixture.mjs'
 const game=newScriptGame('before-rain',2),plan=scriptImagePlan(game,0,'重新画许知夏和周泊舟在窗边喝茶')
 const png=Buffer.from([137,80,78,71,13,10,26,10,1,2,3]),calls=[]
 const generator=createTavernImageGenerator({env:{TAVERN_IMAGE_API_KEY:'fixture-only',TAVERN_IMAGE_BASE_URL:'https://fixture.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1'},fetchImpl:async(url,options)=>{

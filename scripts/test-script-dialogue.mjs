@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import {createScriptRoomStore} from '../server/scriptRoomStore.js'
+import {createScriptRoomStore} from './helpers/historical-script-fixture.mjs'
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'script-dialogue-')),store=createScriptRoomStore({root})
 let r=store.create('ielts:7',{scriptId:'thirteenth-curtain',scriptVersion:2,requestId:'dialogue-create-1'}),n=0
 const act=(type,rest={})=>r=store.act('ielts:7',r.id,{type,requestId:`dialogue-action-${++n}`,revision:store.get('ielts:7',r.id).revision,...rest})

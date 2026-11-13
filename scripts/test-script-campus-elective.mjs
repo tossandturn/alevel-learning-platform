@@ -2,13 +2,13 @@ import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import {createScriptRoomStore} from '../server/scriptRoomStore.js'
+import {createScriptRoomStore} from './helpers/historical-script-fixture.mjs'
 import {visibleScriptRole} from '../server/scriptRoleCards.js'
 import {campusOutcomes} from '../server/scriptCampusElective.js'
-import {scriptActorMessages} from '../server/scriptRoomApi.js'
+import {scriptActorMessages} from './helpers/historical-script-fixture.mjs'
 import {scriptVoiceIssues,personalDialogueBeat} from '../server/roleVoices.js'
 import {hasUnsupportedRecollectionQuote} from '../server/scriptRoomMemory.js'
-import {newScriptGame,publicScriptCatalog,SCRIPT_GAMES,scriptGame} from '../server/scriptGameCatalog.js'
+import {newScriptGame,publicScriptCatalog,SCRIPT_GAMES,scriptGame} from './helpers/historical-script-fixture.mjs'
 const game=newScriptGame('last-elective',2)
 assert.ok(game,'one new complete campus duet must exist')
 assert.equal(game.roles.length,2)

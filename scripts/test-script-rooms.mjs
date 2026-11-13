@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
-import { SCRIPT_GAMES, publicScriptCatalog } from '../server/scriptGameCatalog.js'
-import { createScriptRoomStore } from '../server/scriptRoomStore.js'
+import { SCRIPT_GAMES, publicScriptCatalog } from './helpers/historical-script-fixture.mjs'
+import { createScriptRoomStore } from './helpers/historical-script-fixture.mjs'
 import {pinTestRoomEdition} from './helpers/pin-test-room-edition.mjs'
 
 const root=fs.mkdtempSync(path.resolve(import.meta.dirname,'../../qa/stem-script-test-'))

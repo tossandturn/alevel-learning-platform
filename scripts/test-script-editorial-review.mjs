@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
-import {currentEditorialBooks,editorialPacket,editorialMessages,validateEditorialReview,EDITORIAL_DIMENSIONS} from './helpers/script-editorial-review.mjs'
+import {editorialPacket,editorialMessages,validateEditorialReview,EDITORIAL_DIMENSIONS} from './helpers/script-editorial-review.mjs'
+import {currentEditorialBooks} from './helpers/historical-script-fixture.mjs'
 
 const books=currentEditorialBooks()
 assert.equal(books.length,7)

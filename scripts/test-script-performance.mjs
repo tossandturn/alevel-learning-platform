@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
-import {publicScriptCatalog,newScriptGame} from '../server/scriptGameCatalog.js'
+import {publicScriptCatalog,newScriptGame} from './helpers/historical-script-fixture.mjs'
 import {visibleScriptRole} from '../server/scriptRoleCards.js'
-import {scriptActorMessages} from '../server/scriptRoomApi.js'
-import {createScriptRoomStore} from '../server/scriptRoomStore.js'
+import {scriptActorMessages} from './helpers/historical-script-fixture.mjs'
+import {createScriptRoomStore} from './helpers/historical-script-fixture.mjs'
 import {personalDialogueBeat} from '../server/roleVoices.js'
 
 const game=newScriptGame('thirteenth-curtain',2),role=game.roles.find(r=>r.id==='restorer')

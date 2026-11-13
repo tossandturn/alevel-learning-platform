@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import http from 'node:http'
-import {createScriptRoomApi} from '../server/scriptRoomApi.js'
+import {createScriptRoomApi} from './helpers/historical-script-fixture.mjs'
 const root=fs.mkdtempSync(path.resolve(import.meta.dirname,'../../qa/recollection-api-'))
 let calls=0,seq=0
 const invented='不算错，是我先看见演员动了'

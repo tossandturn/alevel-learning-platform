@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
-import {createScriptRoomStore} from '../server/scriptRoomStore.js'
-import {currentEditorialBooks} from './helpers/script-editorial-review.mjs'
+import {createScriptRoomStore} from './helpers/historical-script-fixture.mjs'
+import {currentEditorialBooks} from './helpers/historical-script-fixture.mjs'
 const root=fs.mkdtempSync(path.resolve(import.meta.dirname,'../../qa/editorial-ties-')),store=createScriptRoomStore({root});let seq=0
 const owners=['ielts:91874101','ielts:91874102'],nonce=()=>`editorial-ties-${++seq}`,act=(who,id,type,p={})=>store.act(who,id,{type,...p,revision:store.get(who,id).revision,requestId:nonce()})
 try{

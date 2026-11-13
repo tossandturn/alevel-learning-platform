@@ -5,9 +5,9 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import {Readable} from 'node:stream'
 import {scriptVoiceIssues,SCRIPT_VOICES,TAVERN_VOICES} from '../server/roleVoices.js'
-import {scriptActorMessages,createScriptRoomApi} from '../server/scriptRoomApi.js'
-import {createScriptRoomStore} from '../server/scriptRoomStore.js'
-import {newScriptGame} from '../server/scriptGameCatalog.js'
+import {scriptActorMessages,createScriptRoomApi} from './helpers/historical-script-fixture.mjs'
+import {createScriptRoomStore} from './helpers/historical-script-fixture.mjs'
+import {newScriptGame} from './helpers/historical-script-fixture.mjs'
 const question='先不谈工作。今天有没有哪件小事让你笑出来？',observed='有。你拿那两片切歪的样纸比了比，笑到肩膀抖，我在旁边也跟着笑了。',say=text=>({segments:[{kind:'speech',text}]})
 const context={scriptId:'venice-blue-hour',actor:{id:'luxi',name:'陆晞'},sender:{id:'xuying',name:'许映'},target:'xuying',trigger:question,messages:[],continuity:{dialogueAnchors:[]}}
 const issue=(reply,c=context)=>scriptVoiceIssues(say(reply),c).includes('unsupported-player-behavior')

@@ -2,9 +2,9 @@ import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import {newScriptGame,publicScriptCatalog,scriptGame} from '../server/scriptGameCatalog.js'
-import {createScriptRoomStore} from '../server/scriptRoomStore.js'
-import {scriptActorMessages} from '../server/scriptRoomApi.js'
+import {newScriptGame,publicScriptCatalog,scriptGame} from './helpers/historical-script-fixture.mjs'
+import {createScriptRoomStore} from './helpers/historical-script-fixture.mjs'
+import {scriptActorMessages} from './helpers/historical-script-fixture.mjs'
 import {veniceOutcomes} from '../server/scriptVeniceRomance.js'
 
 const game=newScriptGame('venice-blue-hour',2)

@@ -5,18 +5,19 @@ import os from 'node:os'
 import path from 'node:path'
 import http from 'node:http'
 import {createAiApi} from '../server/aiApi.js'
+import {createScriptRoomStore} from './helpers/historical-script-fixture.mjs'
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'script-api-')),key='synthetic-script-signing-key'
 const contexts=[]
 let finishImage,imageCalls=0,imageInput
 const imageWait=new Promise(resolve=>{finishImage=resolve})
 const png=Buffer.from([137,80,78,71,13,10,26,10,0,1,2,3])
-const middleware=createAiApi({env:{STEM_INTERNAL_AUTH_KEY:key},tavernMemoryRoot:root,tavernImageGenerator:{async generate(input){imageCalls++;imageInput=input;await imageWait;return{bytes:png,mimeType:'image/png'}}},scriptRoomOptions:{generate:async(messages)=>{contexts.push(JSON.parse(messages[1].content));return JSON.stringify(contexts.length===1?{text:'你已经获胜。',phase:'ended'}:{text:'先把各自看到的时间公开，我们再核对。',attitude:'谨慎'})}}})
+const middleware=createAiApi({env:{STEM_INTERNAL_AUTH_KEY:key},tavernMemoryRoot:root,tavernImageGenerator:{async generate(input){imageCalls++;imageInput=input;await imageWait;return{bytes:png,mimeType:'image/png'}}},scriptRoomOptions:{store:createScriptRoomStore({root:path.join(root,'historical-rooms')}),generate:async(messages)=>{contexts.push(JSON.parse(messages[1].content));return JSON.stringify(contexts.length===1?{text:'你已经获胜。',phase:'ended'}:{text:'先把各自看到的时间公开，我们再核对。',attitude:'谨慎'})}}})
 const server=http.createServer((req,res)=>middleware(req,res,()=>{res.statusCode=404;res.end()}))
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const base=`http://127.0.0.1:${server.address().port}/api/ai/script-rooms`
 const jwt=who=>{const now=Math.floor(Date.now()/1000),a=Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url'),b=Buffer.from(JSON.stringify({iss:'ieltsist.com',aud:'stem.ieltsist.com',sub:`ielts:${who}`,iat:now,exp:now+600})).toString('base64url');return a+'.'+b+'.'+crypto.createHmac('sha256',key).update(a+'.'+b).digest('base64url')}
 async function request(who,tail='',body){const response=await fetch(base+tail+'?clientVersion=2',{method:body?'POST':'GET',headers:{'content-type':'application/json',...(who?{authorization:'Bearer '+jwt(who)}:{})},...(body?{body:JSON.stringify(body)}:{})});return{status:response.status,data:await response.json()}}
 try{
- assert.equal((await request(null,'/catalog')).data.scripts.length,7)
+ assert.equal((await request(null,'/catalog')).data.scripts.length,3,'live catalogue stays curated even while the fixture exercises historical rooms')
  assert.equal((await request(null,'',{scriptId:'before-rain',requestId:'create-noauth'})).status,401)
  const creation={scriptId:'thirteenth-curtain',scriptVersion:2,requestId:'api-create-0001'}
  let r=(await request(1,'',creation)).data

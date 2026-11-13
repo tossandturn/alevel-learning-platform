@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
-import {SCRIPT_GAMES,scriptGame,publicScriptCatalog} from '../server/scriptGameCatalog.js'
+import {SCRIPT_GAMES,scriptGame,publicScriptCatalog} from './helpers/historical-script-fixture.mjs'
 import {visibleScriptRole} from '../server/scriptRoleCards.js'
-import {createScriptRoomStore} from '../server/scriptRoomStore.js'
-import {scriptActorMessages} from '../server/scriptRoomApi.js'
+import {createScriptRoomStore} from './helpers/historical-script-fixture.mjs'
+import {scriptActorMessages} from './helpers/historical-script-fixture.mjs'
 assert.match(scriptActorMessages({})[0].content,/人物印象和可选开场发言不是已发生的对话/,'a role observation is not a statement spoken by the player')
 const catalog=JSON.stringify(publicScriptCatalog())
 let count=0

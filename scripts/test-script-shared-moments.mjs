@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
-import {createScriptRoomStore} from '../server/scriptRoomStore.js'
-import {newScriptGame} from '../server/scriptGameCatalog.js'
+import {createScriptRoomStore} from './helpers/historical-script-fixture.mjs'
+import {newScriptGame} from './helpers/historical-script-fixture.mjs'
 const root=fs.mkdtempSync(path.resolve(import.meta.dirname,'../../qa/shared-moments-')),store=createScriptRoomStore({root});let seq=0
 const host='ielts:91851101',peer='ielts:91851102',nonce=()=>`moments-${++seq}`
 const act=(who,id,type,extra={})=>store.act(who,id,{type,...extra,revision:store.get(who,id).revision,requestId:nonce()})

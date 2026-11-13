@@ -4,8 +4,8 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import {SCRIPT_ANIME_ASSETS} from '../server/scriptArtSpec.js'
 import {loadTavernMediaCatalog,selectTavernMediaCandidates,DEFAULT_TAVERN_MEDIA_ROOT} from '../server/tavernMedia.js'
-import {SCRIPT_GAMES,scriptGame,newScriptGame,publicScriptCatalog} from '../server/scriptGameCatalog.js'
-import {createScriptRoomStore} from '../server/scriptRoomStore.js'
+import {SCRIPT_GAMES,scriptGame,newScriptGame,publicScriptCatalog} from './helpers/historical-script-fixture.mjs'
+import {createScriptRoomStore} from './helpers/historical-script-fixture.mjs'
 
 const catalog=loadTavernMediaCatalog()
 assert.equal(catalog.items.filter(i=>i.id.startsWith('scriptanime-')).length,101,'original art remains served alongside 29 approved current cast redraws')

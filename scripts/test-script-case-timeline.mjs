@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import http from 'node:http'
-import {createScriptRoomApi} from '../server/scriptRoomApi.js'
+import {createScriptRoomApi} from './helpers/historical-script-fixture.mjs'
 import {guardCaseFixedVisit} from '../server/scriptRomanceCase.js'
 for(const text of ['我21:05进入旧广播室，21:09离开。','我21:05进入旧广播室，不是广播室旁边的材料间。','林序没有进旧广播室，我21:05进去拿材料。']){
  const value={segments:[{kind:'speech',text}]};assert.equal(guardCaseFixedVisit(value,{story:{case:true},actor:{id:'repair'}}),value,'retain correct visits and denials of invented alternate rooms')

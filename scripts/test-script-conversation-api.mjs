@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import {Readable} from 'node:stream'
-import {createScriptRoomApi} from '../server/scriptRoomApi.js'
+import {createScriptRoomApi} from './helpers/historical-script-fixture.mjs'
 const base=path.resolve(import.meta.dirname,'../../qa'),root=fs.mkdtempSync(path.join(base,'conversation-api-'))
 let samples=[],calls=0,seq=0
 const api=createScriptRoomApi({root,authenticate:()=> 'ielts:91842001',sendJson:(res,status,value)=>{res.status=status;res.value=value},readBody:async req=>{let s='';for await(const p of req)s+=p;return JSON.parse(s)},generate:async()=>{calls++;const value=samples.shift();assert.ok(value,'unexpected extra repair');return JSON.stringify(value)}})

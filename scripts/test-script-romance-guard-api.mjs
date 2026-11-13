@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import http from 'node:http'
-import {createScriptRoomApi} from '../server/scriptRoomApi.js'
+import {createScriptRoomApi} from './helpers/historical-script-fixture.mjs'
 const root=fs.mkdtempSync(path.resolve(import.meta.dirname,'../../qa/romance-api-'))
 let calls=0,seq=0
 const api=createScriptRoomApi({root,authenticate:req=>req.headers['x-owner'],sendJson:(res,status,value)=>{res.writeHead(status,{'content-type':'application/json'});res.end(JSON.stringify(value))},readBody:async req=>{let body='';for await(const piece of req)body+=piece;return JSON.parse(body)},generate:async()=>{

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
-import {scriptGame,newScriptGame} from '../server/scriptGameCatalog.js'
+import {scriptGame,newScriptGame} from './helpers/historical-script-fixture.mjs'
 import {scriptStageScene} from '../server/scriptSceneBeats.js'
 import {campusStageResolution,campusOutcomes} from '../server/scriptCampusElective.js'
 import {veniceOutcomes} from '../server/scriptVeniceRomance.js'

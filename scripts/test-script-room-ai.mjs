@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import {createScriptRoomStore} from '../server/scriptRoomStore.js'
-import {scriptActorMessages} from '../server/scriptRoomApi.js'
+import {createScriptRoomStore} from './helpers/historical-script-fixture.mjs'
+import {scriptActorMessages} from './helpers/historical-script-fixture.mjs'
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'script-ai-')),store=createScriptRoomStore({root})
 let seq=0,r=store.create('ielts:10',{scriptId:'thirteenth-curtain',requestId:'create-ai-0001'})
 r=store.join('ielts:11',{inviteCode:r.inviteCode,roleId:'reporter',requestId:'join-ai-00001'})

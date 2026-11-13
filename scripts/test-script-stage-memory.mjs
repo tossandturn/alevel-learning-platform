@@ -2,10 +2,10 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
-import {createScriptRoomStore} from '../server/scriptRoomStore.js'
-import {scriptGame} from '../server/scriptGameCatalog.js'
+import {createScriptRoomStore} from './helpers/historical-script-fixture.mjs'
+import {scriptGame} from './helpers/historical-script-fixture.mjs'
 import {pinTestRoomEdition} from './helpers/pin-test-room-edition.mjs'
-import {scriptActorMessages} from '../server/scriptRoomApi.js'
+import {scriptActorMessages} from './helpers/historical-script-fixture.mjs'
 import {scriptRoomContinuity,SCRIPT_MEMORY_LIMITS} from '../server/scriptRoomMemory.js'
 const root=fs.mkdtempSync(path.resolve(import.meta.dirname,'../../qa/stage-memory-'))
 let store=createScriptRoomStore({root}),seq=0

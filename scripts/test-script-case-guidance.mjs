@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import http from 'node:http'
-import {createScriptRoomApi} from '../server/scriptRoomApi.js'
+import {createScriptRoomApi} from './helpers/historical-script-fixture.mjs'
 const root=fs.mkdtempSync(path.resolve(import.meta.dirname,'../../qa/case-guidance-'));let calls=0,seq=0
 const api=createScriptRoomApi({root,authenticate:req=>req.headers['x-owner'],sendJson:(res,status,value)=>{res.writeHead(status,{'content-type':'application/json'});res.end(JSON.stringify(value))},readBody:async req=>{let b='';for await(const c of req)b+=c;return JSON.parse(b)},generate:async()=>{calls++;return JSON.stringify({segments:[{kind:'narration',text:'可以先区分不同事件的时间，不把自己的猜测当成已经核实的事实。'}]})}})
 const server=http.createServer((req,res)=>api.handle(req,res,new URL(req.url,'http://local')))

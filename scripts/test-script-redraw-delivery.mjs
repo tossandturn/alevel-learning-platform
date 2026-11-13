@@ -4,7 +4,7 @@ import crypto from 'node:crypto'
 import path from 'node:path'
 import {SCRIPT_ANIME_ASSETS} from '../server/scriptArtSpec.js'
 import {loadTavernMediaCatalog,DEFAULT_TAVERN_MEDIA_ROOT} from '../server/tavernMedia.js'
-import {newScriptGame,publicScriptCatalog} from '../server/scriptGameCatalog.js'
+import {newScriptGame,publicScriptCatalog} from './helpers/historical-script-fixture.mjs'
 import {scriptImagePlan,scriptArtReferenceUrls} from '../server/scriptArt.js'
 const catalog=loadTavernMediaCatalog(),expected=SCRIPT_ANIME_ASSETS.filter(a=>['portrait','ensemble'].includes(a.kind)&&a.contentEdition!=='duet-one-more-stop-20261106')
 assert.equal(expected.length,29)
