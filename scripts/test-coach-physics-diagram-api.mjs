@@ -45,7 +45,7 @@ const options = {
 let api = createAiApi(options)
 const server = http.createServer((req, res) => api(req, res, () => { res.statusCode = 404; res.end() }))
 const url = await listen(server)
-const payload = { feature: 'answers', message: 'A ball falls near Earth. Ignore air resistance. Explain its forces.', helpIntent: 'worked-solution', diagramFormat: 'stem-diagram-v1', context: { view: 'coach-photo', subject: { code: '9702', name: 'Physics' }, stage: 'AS' } }
+const payload = { feature: 'answers', message: 'A ball falls near Earth. Ignore air resistance. Explain its forces.', helpIntent: 'worked-solution', diagramFormat: 'stem-diagram-v1', diagramIntent:'draw', context: { view: 'coach-photo', subject: { code: '9702', name: 'Physics' }, stage: 'AS' } }
 async function request(route, body, method = 'POST') {
   const response = await fetch(url + route, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) })
   const text = await response.text(); let data

@@ -1,4 +1,5 @@
 import { COACH_FORCE_FORMAT, compilePhysicsDiagram } from './coachPhysicsDiagram.js'
+import {resolveCoachDiagramIntent} from './coachDiagramConsent.js'
 
 export const COACH_DIAGRAM_FORMAT = 'stem-diagram-v1'
 
@@ -294,6 +295,7 @@ export function sanitizeCoachDiagramAnswer(value, { enabled = false } = {}) {
 }
 
 export function resolveCoachDiagramFormat(payload, feature = null) {
+  const intent=resolveCoachDiagramIntent(payload||{},feature)
   if (!Object.hasOwn(payload || {}, 'diagramFormat')) return ''
   if (payload.diagramFormat !== COACH_DIAGRAM_FORMAT || feature?.feature === 'tavern') {
     throw Object.assign(new Error(`diagramFormat must be ${COACH_DIAGRAM_FORMAT} for Academic Coach requests.`), {
@@ -301,5 +303,5 @@ export function resolveCoachDiagramFormat(payload, feature = null) {
       code: 'coach_diagram_format_invalid',
     })
   }
-  return COACH_DIAGRAM_FORMAT
+  return intent.draw ? COACH_DIAGRAM_FORMAT : ''
 }

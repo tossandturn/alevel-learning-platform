@@ -15,6 +15,7 @@ import { loadStemAcademicProvider } from './stemAcademicProvider.js'
 import { createAdmissionsAdvisor } from './admissionsAdvisor.js'
 import { createIeltsTeacher } from './ieltsTeacher.js'
 import {createCoachDiagramStream,resolveCoachDiagramFormat,sanitizeCoachDiagramAnswer} from './coachDiagram.js'
+import {resolveCoachDiagramIntent,coachDiagramOffer,createCoachDiagramOfferStream,sanitizeCoachDiagramOffer} from './coachDiagramConsent.js'
 import {createCoachQuestionSourceResolver,createCoachSourceStream,extractCoachSourceTrailer,coachQuestionSourceText} from './coachQuestionSource.js'
 import {TAVERN_MEDIA_VERSION,TAVERN_MEDIA_PREFIX,loadTavernMediaCatalog,selectTavernMediaCandidates,tavernMediaSystemPrompt,normalizeTavernMediaReply,serveTavernMedia,DEFAULT_TAVERN_MEDIA_ROOT} from './tavernMedia.js'
 import {createDrawArtHandler} from './tavernDrawArt.js'
@@ -1652,8 +1653,8 @@ function trustedTavernDraw({ feature, payload, ownerId, divinationStore }) {
   return divinationStore.resolveDraw({ ownerId, persona: feature.persona, drawId: payload.drawId })
 }
 
-function coachFeatureSystemPrompt(feature, policy, context, draw = null, diagramFormat = '', storyState = null) {
-  if (feature.feature !== 'tavern') return buildCoachSystemPrompt({ policy, context, feature, diagramFormat })
+function coachFeatureSystemPrompt(feature, policy, context, draw = null, diagramFormat = '', storyState = null, diagramPolicy = null) {
+  if (feature.feature !== 'tavern') return buildCoachSystemPrompt({ policy, context, feature, diagramFormat, diagramPolicy })
   const basePrompt = buildTavernSystemPrompt(feature, { storyState })
   return draw ? `${basePrompt}\n${tavernDrawSystemPrompt(draw)}` : basePrompt
 }
@@ -1805,6 +1806,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
     : null
   const feature = resolveCoachFeature({ feature: payload.feature, persona: payload.persona })
   validateCoachFeaturePayload(feature, payload)
+  const diagramPolicy = resolveCoachDiagramIntent(payload, feature)
   const diagramFormat = resolveCoachDiagramFormat(payload, feature)
   const effort = coachEffort(payload.reasoningEffort)
   if(effort)withCoachEffort(feature.feature==='tavern'&&tavernProvider?tavernProvider:payload.imageDataUrl||payload.imageDataUrls?.length?visionProvider:provider,effort)
@@ -1955,7 +1957,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
         : null
       lastMemory = selectedTavernContext?.memory || null
       const providerOptions = {
-        messages: [{ role: 'system', content: selectedTavernContext?.systemPrompt || coachFeatureSystemPrompt(feature, policy, context, draw, diagramFormat)+sourcePrompt }, ...(selectedTavernContext?.history || history), { role: 'user', content }],
+        messages: [{ role: 'system', content: selectedTavernContext?.systemPrompt || coachFeatureSystemPrompt(feature, policy, context, draw, diagramFormat,null,diagramPolicy)+sourcePrompt }, ...(selectedTavernContext?.history || history), { role: 'user', content }],
         json: activeProvider.name === 'deepseek' && Boolean(selectedTavernContext?.mediaCandidates.length),
         temperature: feature.feature === 'tavern' ? 0.8 : 0.2,
         metadata: selectedTavernContext?.metadata || coachProviderMetadata(feature, context),
@@ -1990,7 +1992,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
       }
       const reply=selectedTavernContext?.mediaCandidates.length?normalizeTavernMediaReply(answer,{catalog:mediaCatalog,candidates:selectedTavernContext.mediaCandidates}):{text:answer,media:[]}
       if (selectedTavernContext?.sceneMedia && !reply.media.some(item => item.kind === 'image')) reply.media = normalizeTavernMediaItems([...reply.media, selectedTavernContext.sceneMedia])
-      const safeReplyText=sanitizeCoachDiagramAnswer(reply.text,{enabled:Boolean(diagramFormat)}).trim()
+      const safeReplyText=sanitizeCoachDiagramOffer(sanitizeCoachDiagramAnswer(reply.text,{enabled:Boolean(diagramFormat)}),diagramPolicy).trim()
       if(!safeReplyText)throw Object.assign(new Error('AI reply media or diagram schema invalid'),{code:'AI_RESPONSE_SCHEMA_INVALID'})
       if(source&&!extractCoachSourceTrailer(safeReplyText).answer.trim())throw Object.assign(new Error('AI answer was empty after source metadata removal'),{code:'AI_RESPONSE_SCHEMA_INVALID'})
       successfulProviderResult = { answer:safeReplyText, media:reply.media, provider: activeProvider, memory: lastMemory }
@@ -2004,6 +2006,7 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
   if (successfulProviderResult) {
     const { answer, provider: successfulProvider, memory, media } = successfulProviderResult
     const presentation=coachSourcePresentation({answer,source,resolver:questionSourceResolver,message,context,authorization,hasImages})
+    const offer=coachDiagramOffer(extractCoachSourceTrailer(answer).answer,diagramPolicy)
     const completedState = state ? stateStore.completeTurn({
       ownerId: authenticatedUserId,
       persona: feature.persona,
@@ -2023,7 +2026,8 @@ async function handleCoach(request, response, provider, visionProvider, libraryR
       ...presentation,
       answer:completedState?.turns.find(turn=>turn.role==='assistant')?.content||presentation.answer,
       model: successfulProvider.model,
-      ...(diagramFormat ? { diagramFormat } : {}),
+      ...(payload.diagramFormat ? {diagramFormat:payload.diagramFormat} : {}),
+      ...(offer ? {diagramOffer:offer} : {}),
       ...coachResponseFields(policy, feature, 'complete', draw),
       ...tavernConversationResponse(completedState ? { ...completedState, clientTurnId: state.clientTurnId } : null, memory),
     }
@@ -2317,6 +2321,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
     : null
   const feature = resolveCoachFeature({ feature: payload.feature, persona: payload.persona })
   validateCoachFeaturePayload(feature, payload)
+  const diagramPolicy = resolveCoachDiagramIntent(payload, feature)
   const diagramFormat = resolveCoachDiagramFormat(payload, feature)
   const effort = coachEffort(payload.reasoningEffort)
   if(effort)withCoachEffort(feature.feature==='tavern'&&tavernProvider?tavernProvider:payload.imageDataUrl||payload.imageDataUrls?.length?visionProvider:provider,effort)
@@ -2480,6 +2485,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
       let attemptAnswer = ''
       const sourceStream=source?createCoachSourceStream():null
       const diagramStream=createCoachDiagramStream({enabled:Boolean(diagramFormat)})
+      const offerStream=createCoachDiagramOfferStream({allowOffer:diagramPolicy.mayOffer||diagramPolicy.academic===false})
       try {
         providerImages = await temporaryProviderImages(imageDataUrls, imagePublicBase(activeProvider, request))
         const content = providerMessageContent(userText, providerImages)
@@ -2509,7 +2515,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
         })
         if(providerIndex===0)preparationMs=Math.round(performance.now()-handlerStarted)
         const result = await callCompatibleAiStream(activeProvider, {
-          messages: [{ role: 'system', content: selectedTavernContext?.systemPrompt || coachFeatureSystemPrompt(feature, policy, context, draw, diagramFormat)+sourcePrompt }, ...(selectedTavernContext?.history || history), { role: 'user', content }],
+          messages: [{ role: 'system', content: selectedTavernContext?.systemPrompt || coachFeatureSystemPrompt(feature, policy, context, draw, diagramFormat,null,diagramPolicy)+sourcePrompt }, ...(selectedTavernContext?.history || history), { role: 'user', content }],
           temperature: feature.feature === 'tavern' ? 0.8 : 0.2,
           metadata: selectedTavernContext?.metadata || coachProviderMetadata(feature, context),
           operation: feature.feature === 'tavern' ? 'coach-tavern-stream' : hasImages ? 'coach-vision-stream' : 'coach-stream',
@@ -2535,15 +2541,15 @@ async function handleCoachStream(request, response, provider, visionProvider, li
           onDelta: async (delta) => {
             attemptAnswer += delta
             const sourceVisible=sourceStream?sourceStream.push(delta):delta
-            const visible=diagramStream.push(sourceVisible)
+            const visible=offerStream.push(diagramStream.push(sourceVisible))
             if(visible)sendCoachEventOrThrow(response, 'delta', { text: visible })
           },
         })
         const rawAnswer=result.answer||attemptAnswer
-        const safeAnswer=sanitizeCoachDiagramAnswer(rawAnswer,{enabled:Boolean(diagramFormat)}).trim()
+        const safeAnswer=sanitizeCoachDiagramOffer(sanitizeCoachDiagramAnswer(rawAnswer,{enabled:Boolean(diagramFormat)}),diagramPolicy).trim()
         if(!safeAnswer||source&&!extractCoachSourceTrailer(safeAnswer).answer.trim())throw Object.assign(new Error('AI answer was empty after source or diagram validation'),{code:'AI_RESPONSE_SCHEMA_INVALID'})
         const sourceRemainder=sourceStream?.finish()||''
-        const remainder=diagramStream.push(sourceRemainder)+diagramStream.finish()
+        const remainder=offerStream.push(diagramStream.push(sourceRemainder)+diagramStream.finish())+offerStream.finish()
         if(remainder)sendCoachEventOrThrow(response,'delta',{text:remainder})
         streamedAnswer = safeAnswer
         successfulStreamResult = { answer: streamedAnswer, provider: activeProvider, memory: lastMemory }
@@ -2551,13 +2557,13 @@ async function handleCoachStream(request, response, provider, visionProvider, li
         lastError = error
         if (error?.code === 'COACH_RESPONSE_TRANSPORT') {
           const partialSource=source?extractCoachSourceTrailer(attemptAnswer).answer:attemptAnswer
-          lastPartialAnswer=sanitizeCoachDiagramAnswer(partialSource,{enabled:Boolean(diagramFormat)}).trimEnd()
+          lastPartialAnswer=sanitizeCoachDiagramOffer(sanitizeCoachDiagramAnswer(partialSource,{enabled:Boolean(diagramFormat)}),diagramPolicy).trimEnd()
           responseTransportFailure = error
           break
         }
         if (attemptAnswer) {
           const partialSource=source?extractCoachSourceTrailer(attemptAnswer).answer:attemptAnswer
-          lastPartialAnswer = sanitizeCoachDiagramAnswer(partialSource,{enabled:Boolean(diagramFormat)}).trimEnd()
+          lastPartialAnswer = sanitizeCoachDiagramOffer(sanitizeCoachDiagramAnswer(partialSource,{enabled:Boolean(diagramFormat)}),diagramPolicy).trimEnd()
           if (providerIndex < activeProviders.length - 1) {
             try {
               sendCoachEventOrThrow(response, 'reset', { provider: activeProvider.name })
@@ -2575,6 +2581,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
     if (successfulStreamResult) {
       const { answer, provider: successfulProvider, memory } = successfulStreamResult
       const presentation=coachSourcePresentation({answer,source,resolver:questionSourceResolver,message,context,authorization,hasImages})
+      const offer=coachDiagramOffer(extractCoachSourceTrailer(answer).answer,diagramPolicy)
       if(source){
         const suffix=presentation.answer.slice(extractCoachSourceTrailer(answer).answer.length)
         try{if(suffix)sendCoachEventOrThrow(response,'delta',{text:suffix})}
@@ -2599,7 +2606,8 @@ async function handleCoachStream(request, response, provider, visionProvider, li
         timing:{version:1,preparationMs,providers:providerTimings,finalizeMs:Math.round(performance.now()-providerEnded),handlerTotalMs:Math.round(performance.now()-handlerStarted)},
         ...presentation,
         model: successfulProvider.model,
-        ...(diagramFormat ? { diagramFormat } : {}),
+        ...(payload.diagramFormat ? {diagramFormat:payload.diagramFormat} : {}),
+        ...(offer ? {diagramOffer:offer} : {}),
         ...coachResponseFields(policy, feature, 'complete', draw),
         ...tavernConversationResponse(completedState ? { ...completedState, clientTurnId: state.clientTurnId } : null, memory),
       })
@@ -2912,6 +2920,7 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
       const feature=resolveCoachFeature({feature:payload.feature,persona:payload.persona})
       if(feature.feature==='tavern'||feature.feature==='pdf')throw Object.assign(new Error('此入口仅用于学科答疑。'),{statusCode:400,code:'coach_job_feature_invalid'})
       validateCoachFeaturePayload(feature,payload)
+      if(!polling)resolveCoachDiagramFormat(payload,feature)
       const authorization=await authorizeCoachRequest?.({request,payload})
       const context=applyCoachAuthorization(safeCoachContext(payload.context),authorization)
       const policy=resolveCoachRequestPolicy({typedIntent:payload.helpIntent,message:compactText(payload.message,3000),context,authorization,verifiedSubmitted:Boolean(authorization?.submitted)||(!polling&&verifiedCoachSubmission(payload,request,env)),feature})

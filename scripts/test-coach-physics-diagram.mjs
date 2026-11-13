@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { compilePhysicsDiagram } from '../server/coachPhysicsDiagram.js'
 import { validateCoachDiagram, sanitizeCoachDiagramAnswer, createCoachDiagramStream } from '../server/coachDiagram.js'
 import { buildCoachSystemPrompt, resolveCoachRequestPolicy } from '../server/coachPolicy.js'
+import {resolveCoachDiagramIntent} from '../server/coachDiagramConsent.js'
 
 const base = {
   version: 'stem-force-v1', title: '受力图', body: 'block',
@@ -73,11 +74,13 @@ assert.equal(sanitizeCoachDiagramAnswer('Keep text\n' + fence({ ...base, forces:
 
 for (const typedIntent of ['hint', 'worked-solution', 'check-work']) {
   const policy = resolveCoachRequestPolicy({ typedIntent })
-  const prompt = buildCoachSystemPrompt({ policy, diagramFormat: 'stem-diagram-v1', context: { subject: 'Physics' } })
+  const diagramPolicy=resolveCoachDiagramIntent({diagramFormat:'stem-diagram-v1',diagramIntent:'draw'})
+  const prompt = buildCoachSystemPrompt({ policy, diagramFormat: 'stem-diagram-v1', diagramPolicy, context: { subject: 'Physics' } })
   assert.match(prompt, /stem-force-v1/)
   assert.match(prompt, /free-body diagram/i)
   assert.match(prompt, /not.*invent|never.*invent/i)
   assert.match(prompt, /hint.*diagram|diagram.*hint/i)
 }
 assert.doesNotMatch(buildCoachSystemPrompt({}), /stem-force-v1/)
+assert.doesNotMatch(buildCoachSystemPrompt({diagramFormat:'stem-diagram-v1'}),/stem-force-v1/,'capability alone leaves the first prompt text-only')
 console.log('PASS physics diagrams: semantic geometry, missing-evidence rejection, hint policy, old-client output and split streams')

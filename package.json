@@ -142,7 +142,7 @@
     "test:admissions-preview": "node scripts/test-admissions-preview-contract.mjs && node scripts/test-admissions-preview-fetch.mjs && node scripts/test-admissions-preview-renderer.mjs",
     "smoke:admissions-research": "node scripts/smoke-admissions-research.mjs",
     "smoke:admissions-preview-renderer": "node scripts/smoke-admissions-preview-renderer.mjs",
-    "test:coach-diagram": "node scripts/test-coach-diagram.mjs && node scripts/test-coach-physics-diagram.mjs && node scripts/test-coach-physics-diagram-api.mjs && node scripts/test-coach-answer-api.mjs",
+    "test:coach-diagram": "node scripts/test-coach-diagram.mjs && node scripts/test-coach-diagram-consent.mjs && node scripts/test-coach-diagram-consent-api.mjs && node scripts/test-coach-physics-diagram.mjs && node scripts/test-coach-physics-diagram-api.mjs && node scripts/test-coach-answer-api.mjs",
     "test:ielts-teacher": "node --test scripts/test-ielts-teacher-api.mjs",
     "test:advisor-prompt-product": "node --test scripts/test-advisor-prompt-product.mjs",
     "test:coach-question-source": "node scripts/test-coach-question-source.mjs && node scripts/test-coach-source-recall.mjs && node scripts/test-coach-source-pages.mjs && node scripts/test-coach-pdf-source-text.mjs && node scripts/test-coach-question-source-api.mjs",

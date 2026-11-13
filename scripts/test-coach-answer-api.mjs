@@ -220,6 +220,7 @@ try {
     helpIntent: 'worked-solution',
     message: 'VALID_DIAGRAM explain this force question.',
     diagramFormat: 'stem-diagram-v1',
+    diagramIntent: 'draw',
     context: baseContext,
   })
   assert.equal(diagramSolution.response.status, 200, diagramSolution.text)
@@ -232,6 +233,7 @@ try {
     helpIntent: 'worked-solution',
     message: 'BROKEN_DIAGRAM explain this force question.',
     diagramFormat: 'stem-diagram-v1',
+    diagramIntent: 'draw',
     context: baseContext,
   })
   assert.equal(brokenDiagram.response.status, 200, brokenDiagram.text)
@@ -252,6 +254,7 @@ try {
     helpIntent: 'worked-solution',
     message: 'VALID_DIAGRAM explain this force question.',
     diagramFormat: 'stem-diagram-v1',
+    diagramIntent: 'draw',
     context: baseContext,
   })
   assert.equal(streamedDiagram.response.status, 200, streamedDiagram.text)
