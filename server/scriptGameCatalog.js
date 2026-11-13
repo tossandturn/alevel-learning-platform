@@ -11,7 +11,7 @@ import {editorialEdition,editorialScriptGame} from './scriptEditorialEditions.js
 import {studentEdition,studentScriptGame,STUDENT_SCRIPT_IDS} from './scriptStudentEditions.js'
 // Activation controls new rooms only. Stored editions must remain readable.
 export const EDITORIAL_RELEASE_ACTIVE = true;
-export const STUDENT_RELEASE_ACTIVE = false;
+export const STUDENT_RELEASE_ACTIVE = true;
 const art=file=>'/api/ai/tavern/media/v1/'+file
 const role=(id,name,tagline,biography,secret,goal,voice)=>({id,name,tagline,biography,secret,goal,voice})
 const clues=rows=>rows.map(([roleId,stage,title,text],i)=>({id:`c${i+1}`,roleId,stage,title,text}))
