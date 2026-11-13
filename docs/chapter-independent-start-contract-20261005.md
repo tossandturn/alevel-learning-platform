@@ -18,7 +18,7 @@ Baseline commit: `a17196cb18a2aa87e05d2be861a3b064585a9a82`
 npm run test:chapter-independent-start
 ```
 
-The focused test exercises the authenticated-independent API contract in memory for all 22 syllabus practice routes and all 222 chapters. For every chapter it starts:
+The focused test exercises the authenticated-independent API contract in memory for all 22 syllabus practice routes and all 314 current chapters. For every chapter it starts:
 
 1. a v1 `original-foundation-only` request for 15 questions and requires `available=1`, `count=1`, `limited=true`;
 2. a v2 `official-first` request for 15 questions and requires `count=min(15, available)`;
@@ -44,14 +44,14 @@ It also asserts the unchanged legacy constants `MIN_QUESTION_GROUPS_PER_TEST=6` 
 | `cie-0610-igcse-biology` | 19 | 0 | 19 |
 | `cie-9700-as-biology` | 12 | 0 | 12 |
 | `cie-9700-a2-biology` | 9 | 0 | 9 |
-| `cie-9701-as-chemistry` | 15 | 0 | 15 |
-| `cie-9701-a2-chemistry` | 8 | 0 | 8 |
-| `cie-9708-as-economics` | 6 | 0 | 6 |
-| `cie-9708-a2-economics` | 5 | 0 | 5 |
-| `cie-9231-as-p1-p3` | 3 | 0 | 3 |
-| `cie-9231-as-p1-p4` | 3 | 0 | 3 |
-| `cie-9231-a2-after-p1-p3-p2-p4` | 3 | 0 | 3 |
-| `cie-9231-a2-after-p1-p4-p2-p3` | 3 | 0 | 3 |
-| **Total** | **222** | **34** | **188** |
+| `cie-9701-as-chemistry` | 22 | 0 | 22 |
+| `cie-9701-a2-chemistry` | 15 | 0 | 15 |
+| `cie-9708-as-economics` | 29 | 0 | 29 |
+| `cie-9708-a2-economics` | 24 | 0 | 24 |
+| `cie-9231-as-p1-p3` | 13 | 0 | 13 |
+| `cie-9231-as-p1-p4` | 12 | 0 | 12 |
+| `cie-9231-a2-after-p1-p3-p2-p4` | 11 | 0 | 11 |
+| `cie-9231-a2-after-p1-p4-p2-p3` | 12 | 0 | 12 |
+| **Total** | **314** | **34** | **280** |
 
-All 222 chapters are independently startable because every chapter has at least one complete original-foundation question in v1. The 188 official gaps are content backlog, not a runtime start-coupling defect. No runtime/API change was required by this audit.
+All 314 chapters are independently startable because every current chapter has at least one complete original-foundation question. The 280 official gaps are content backlog, not a runtime start-coupling defect. Chemistry, Economics and Further Mathematics use the expanded v2 catalogue described in `chapter-expansion-9701-9708-9231-20261114.md`; their unreviewed official fragments remain excluded.

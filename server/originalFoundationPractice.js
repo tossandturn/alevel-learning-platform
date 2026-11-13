@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 
 import { routeById } from '../src/data/routeRegistry.js'
 import { SYLLABUS_PRACTICE_ROUTE_IDS } from '../src/lib/syllabusPracticeRoutes.js'
+import { EXPANDED_CHAPTER_FOUNDATION_SPECS } from './catalogs/chapter-foundation-specs.js'
 
 export const ORIGINAL_FOUNDATION_SCHEMA_VERSION = 'stem-original-foundation-question-v1'
 export const ORIGINAL_FOUNDATION_CATALOG_VERSION = 'v1'
@@ -12,6 +13,34 @@ export const ORIGINAL_FOUNDATION_SOURCE_AUTHORITY = 'original-foundation-catalog
 export const ORIGINAL_FOUNDATION_DISPLAY_LABEL = '原创基础练习'
 export const ORIGINAL_FOUNDATION_SUBMISSION_ENDPOINT = '/api/stem/original-foundation/submit'
 export const ORIGINAL_FOUNDATION_ITEM_KINDS = Object.freeze(['concept', 'application', 'transfer'])
+
+const LEGACY_ROUTE_TOPIC_TITLES = Object.freeze({
+  'cie-9701-as-chemistry': Object.freeze(['Atomic structure', 'Atoms, molecules and stoichiometry', 'Chemical bonding', 'States of matter', 'Chemical energetics', 'Electrochemistry', 'Equilibria', 'Reaction kinetics', 'Periodicity', 'Group 2', 'Group 17', 'Nitrogen and sulfur', 'AS organic chemistry', 'AS analytical techniques', 'AS practical skills']),
+  'cie-9701-a2-chemistry': Object.freeze(['A2 energetics', 'Electrochemistry', 'Equilibria', 'Reaction kinetics', 'Transition elements', 'A2 organic chemistry', 'A2 analytical techniques', 'A2 planning, analysis and evaluation']),
+  'cie-9708-as-economics': Object.freeze(['Basic economic ideas and resource allocation', 'The price system and the microeconomy', 'Government microeconomic intervention', 'The macroeconomy', 'Government macroeconomic intervention', 'International economic issues']),
+  'cie-9708-a2-economics': Object.freeze(['The price system and the microeconomy', 'Government microeconomic intervention', 'The macroeconomy', 'Government macroeconomic intervention', 'International economic issues']),
+  'cie-9231-as-p1-p3': Object.freeze(['Further Pure Mathematics 1', 'Further Mechanics', 'Further Probability and Statistics']),
+  'cie-9231-as-p1-p4': Object.freeze(['Further Pure Mathematics 1', 'Further Mechanics', 'Further Probability and Statistics']),
+  'cie-9231-a2-after-p1-p3-p2-p4': Object.freeze(['Further Pure Mathematics 2', 'Further Mechanics when selected for A Level completion', 'Further Probability and Statistics when selected for A Level completion']),
+  'cie-9231-a2-after-p1-p4-p2-p3': Object.freeze(['Further Pure Mathematics 2', 'Further Mechanics when selected for A Level completion', 'Further Probability and Statistics when selected for A Level completion']),
+})
+
+function legacyTopicPrefix(routeId) {
+  if (routeId.startsWith('cie-9701-as-')) return '9701-as-topic-'
+  if (routeId.startsWith('cie-9701-a2-')) return '9701-a2-topic-'
+  if (routeId.startsWith('cie-9708-as-')) return '9708-as-topic-'
+  if (routeId.startsWith('cie-9708-a2-')) return '9708-a2-topic-'
+  if (routeId.includes('cie-9231-as-')) return '9231-as-topic-'
+  return '9231-a2-topic-'
+}
+
+const LEGACY_ROUTE_TOPICS = Object.freeze(Object.fromEntries(Object.entries(LEGACY_ROUTE_TOPIC_TITLES).map(([routeId, titles]) => [
+  routeId,
+  Object.freeze(titles.map((title, index) => Object.freeze({
+    id: `${legacyTopicPrefix(routeId)}${String(index + 1).padStart(2, '0')}`,
+    title,
+  }))),
+])))
 
 const ORIGINAL_FOUNDATION_ROUTE_TOPIC_STATEMENTS = Object.freeze({
   'cie-0580-igcse-mathematics:0580-igcse-topic-01': 'Number work uses place value, arithmetic, proportional reasoning and representations such as fractions, percentages and standard form.',
@@ -507,6 +536,8 @@ function topicName(topic) {
 
 function foundationStatement(route, topic) {
   const name = topicName(topic)
+  const expanded = EXPANDED_CHAPTER_FOUNDATION_SPECS[topic?.id]
+  if (expanded) return Object.freeze({ text: expanded.truth, basis: 'curated-foundation', syllabusPointId: null })
   const questionSpec = ORIGINAL_FOUNDATION_QUESTION_SPECS[name]
   if (questionSpec) return Object.freeze({ text: questionSpec.correct, basis: 'curated-foundation', syllabusPointId: null })
   const routeSpecific = ORIGINAL_FOUNDATION_ROUTE_TOPIC_STATEMENTS[`${route.routeId}:${topic.id}`]
@@ -537,15 +568,14 @@ function orderedOptions(questionId, correctText, distractorTexts) {
     .map((option, index) => Object.freeze({ id: OPTION_IDS[index], text: option.text }))
 }
 
-function routeCatalog(routeId) {
-  const route = routeById(routeId)
-  const topics = route?.syllabus?.topics || []
+function catalogForTopics(route, topics) {
   if (!route || !topics.length) return []
+  const routeId = route.routeId
   const foundations = topics.map((topic) => ({ topic, name: topicName(topic), ...foundationStatement(route, topic) }))
   return foundations.map((foundation) => {
     const id = `original-foundation:${routeId}:${foundation.topic.id}:v1`
     const questionSpec = ORIGINAL_FOUNDATION_QUESTION_SPECS[foundation.name]
-    const curatedDistractors = questionSpec?.distractors || ORIGINAL_FOUNDATION_WITHIN_TOPIC_DISTRACTORS[foundation.name]
+    const curatedDistractors = EXPANDED_CHAPTER_FOUNDATION_SPECS[foundation.topic.id]?.misconceptions || questionSpec?.distractors || ORIGINAL_FOUNDATION_WITHIN_TOPIC_DISTRACTORS[foundation.name]
     if (!Array.isArray(curatedDistractors) || curatedDistractors.length !== 3) {
       throw new Error(`Missing three within-topic distractors for ${routeId}/${foundation.topic.id} (${foundation.name}).`)
     }
@@ -569,7 +599,9 @@ function routeCatalog(routeId) {
       foundationBasis: foundation.basis,
       distractorBasis: 'curated-within-topic',
       syllabusPointId: foundation.syllabusPointId,
-      prompt: questionSpec?.prompt || `Which statement about ${foundation.name} is correct?`,
+      prompt: questionSpec?.prompt || (EXPANDED_CHAPTER_FOUNDATION_SPECS[foundation.topic.id]
+        ? `Which core rule about ${foundation.name} is correct?`
+        : `Which statement about ${foundation.name} is correct?`),
       answerType: 'single-choice',
       options: Object.freeze(options),
       correctOptionId: correctOption.id,
@@ -589,8 +621,14 @@ function routeCatalog(routeId) {
   })
 }
 
+function routeCatalog(routeId) {
+  const route = routeById(routeId)
+  return catalogForTopics(route, route?.syllabus?.topics || [])
+}
+
 const CATALOG = Object.freeze(SYLLABUS_PRACTICE_ROUTE_IDS.flatMap(routeCatalog))
-const CATALOG_BY_KEY = new Map(CATALOG.map((entry) => [`${entry.routeId}\u0000${entry.topicId}`, entry]))
+const LEGACY_CATALOG = Object.freeze(Object.entries(LEGACY_ROUTE_TOPICS).flatMap(([routeId, topics]) => catalogForTopics(routeById(routeId), topics)))
+const CATALOG_BY_KEY = new Map([...LEGACY_CATALOG, ...CATALOG].map((entry) => [`${entry.routeId}\u0000${entry.topicId}`, entry]))
 
 export function normalizeOriginalFoundationCatalog(value) {
   if (value !== undefined && value !== null && typeof value !== 'string') return null
@@ -605,6 +643,11 @@ function catalogOption(options) {
 }
 
 function applicationFor(entry) {
+  const expanded = EXPANDED_CHAPTER_FOUNDATION_SPECS[entry.topicId]
+  if (expanded) return Object.freeze({
+    ...expanded.application,
+    nextStep: `Explain the ${entry.topicName} rule, then apply it to a fresh example without looking back.`,
+  })
   const key = `${entry.subject}:${entry.topicName}`
   const spec = V2_APPLICATION_SPECS[key] || V2_APPLICATION_SPECS[entry.topicName]
   if (!spec) throw new Error(`Missing curated v2 application for ${entry.routeId}/${entry.topicId} (${entry.topicName}).`)
@@ -718,8 +761,35 @@ function v2EntryFrom(entry, itemKind) {
 const V2_CATALOG = Object.freeze(CATALOG.flatMap((entry) => (
   ORIGINAL_FOUNDATION_ITEM_KINDS.map((itemKind) => v2EntryFrom(entry, itemKind))
 )))
-const V2_CATALOG_BY_KEY = new Map(V2_CATALOG.map((entry) => [`${entry.routeId}\u0000${entry.topicId}\u0000${entry.itemKind}`, entry]))
-const V2_CATALOG_BY_ID = new Map(V2_CATALOG.map((entry) => [entry.id, entry]))
+const LEGACY_V2_CATALOG = Object.freeze(LEGACY_CATALOG.flatMap((entry) => (
+  ORIGINAL_FOUNDATION_ITEM_KINDS.map((itemKind) => v2EntryFrom(entry, itemKind))
+)))
+const V2_CATALOG_BY_KEY = new Map([...LEGACY_V2_CATALOG, ...V2_CATALOG].map((entry) => [`${entry.routeId}\u0000${entry.topicId}\u0000${entry.itemKind}`, entry]))
+
+function topicComponentScope(routeId, topicId) {
+  const topic = routeById(routeId)?.syllabus?.topics?.find((item) => item.id === topicId)
+  const scope = topic?.componentScope
+  if (Array.isArray(scope?.components)) return [...new Set(scope.components.map(Number).filter(Number.isInteger))]
+  const component = Number(scope?.component ?? topic?.component)
+  return Number.isInteger(component) ? [component] : []
+}
+
+function syllabusProvenance(routeId, topicId) {
+  const route = routeById(routeId)
+  const topic = route?.syllabus?.topics?.find((item) => item.id === topicId)
+  if (!route || !topic) return null
+  return Object.freeze({
+    schemaVersion: 'stem-original-foundation-syllabus-provenance-v1',
+    board: route.syllabus.board,
+    subjectCode: route.subjectCode,
+    syllabusVersion: route.syllabus.version,
+    officialUrl: route.syllabus.url,
+    topicId,
+    topicCode: topic.code,
+    topicName: topic.name || topic.title,
+  })
+}
+const V2_CATALOG_BY_ID = new Map([...LEGACY_V2_CATALOG, ...V2_CATALOG].map((entry) => [entry.id, entry]))
 
 function publicAnswerContract(entry) {
   if (entry.catalogVersion === ORIGINAL_FOUNDATION_V2_CATALOG_VERSION) {
@@ -805,7 +875,14 @@ export function originalFoundationQuestionGroup(routeId, topicId, {
     itemKind,
   })
   if (!question) return null
+  const requestedComponents = [...new Set((Array.isArray(components) ? components : [components]).map(Number).filter(Number.isInteger))]
+  const allowedComponents = topicComponentScope(question.routeId, question.topicId)
+  const resolvedComponents = allowedComponents.length
+    ? (requestedComponents.length ? requestedComponents.filter((component) => allowedComponents.includes(component)) : allowedComponents)
+    : requestedComponents
+  if (requestedComponents.length && allowedComponents.length && resolvedComponents.length === 0) return null
   const v2 = normalizedCatalog === ORIGINAL_FOUNDATION_V2_CATALOG_VERSION
+  const provenance = syllabusProvenance(question.routeId, question.topicId)
   const partId = `${question.id}:part-1`
   const bindingSignature = `original:${crypto.createHash('sha256').update(JSON.stringify([
     question.id,
@@ -827,7 +904,7 @@ export function originalFoundationQuestionGroup(routeId, topicId, {
     stage: question.stage,
     subjectCode: question.subjectCode,
     paperComponent: null,
-    componentScope: Object.freeze([...new Set((Array.isArray(components) ? components : [components]).map(Number).filter(Number.isInteger))]),
+    componentScope: Object.freeze(resolvedComponents),
     questionNumber: null,
     totalMarks: 1,
     prompt: question.prompt,
@@ -868,6 +945,7 @@ export function originalFoundationQuestionGroup(routeId, topicId, {
       syllabusPointIds: Object.freeze([]),
       mappingMethod: 'original-authoring',
       reviewStatus: 'original-authored',
+      ...(provenance ? { syllabusProvenance: provenance } : {}),
     }),
     sourceKind: ORIGINAL_FOUNDATION_SOURCE_KIND,
     sourceAuthority: ORIGINAL_FOUNDATION_SOURCE_AUTHORITY,
@@ -888,7 +966,10 @@ export function originalFoundationQuestionGroupsForRoute(routeId, topicIds, {
 } = {}) {
   const normalizedCatalog = normalizeOriginalFoundationCatalog(foundationCatalog)
   const requestedTopicIds = topicIds === undefined
-    ? (routeById(routeId)?.syllabus?.topics || []).map((topic) => topic.id)
+    ? [
+        ...(routeById(routeId)?.syllabus?.topics || []).map((topic) => topic.id),
+        ...(LEGACY_ROUTE_TOPICS[routeId] || []).map((topic) => topic.id),
+      ]
     : (Array.isArray(topicIds) ? topicIds : [topicIds])
   return [...new Set(requestedTopicIds.map((topicId) => String(topicId || '')).filter(Boolean))]
     .flatMap((topicId) => (
@@ -913,16 +994,20 @@ export function decorateOriginalFoundationInventory(inventory, {
       foundationCatalog: normalizedCatalog,
       itemKind: 'concept',
     }) ? (v2 ? ORIGINAL_FOUNDATION_ITEM_KINDS.length : 1) : 0
-    const decorate = (chapterStudy = {}) => {
+    const allowedComponents = topicComponentScope(inventory.routeId, topic.id)
+    const decorate = (chapterStudy = {}, component = null) => {
       const officialAvailable = Math.max(0, Number(chapterStudy.available) || 0)
-      const available = officialAvailable + originalAvailable
+      const scopedOriginalAvailable = component == null || allowedComponents.length === 0 || allowedComponents.includes(Number(component))
+        ? originalAvailable
+        : 0
+      const available = officialAvailable + scopedOriginalAvailable
       return Object.freeze({
         mode: 'chapter-study',
         available,
         officialAvailable,
-        originalAvailable,
+        originalAvailable: scopedOriginalAvailable,
         startable: available > 0,
-        fallbackKind: officialAvailable === 0 && originalAvailable > 0 ? ORIGINAL_FOUNDATION_SOURCE_KIND : null,
+        fallbackKind: officialAvailable === 0 && scopedOriginalAvailable > 0 ? ORIGINAL_FOUNDATION_SOURCE_KIND : null,
       })
     }
     return {
@@ -930,7 +1015,7 @@ export function decorateOriginalFoundationInventory(inventory, {
       chapterStudy: decorate(topic.chapterStudy),
       componentCounts: Object.fromEntries(Object.entries(topic.componentCounts || {}).map(([component, counts]) => [component, {
         ...counts,
-        chapterStudy: decorate(counts.chapterStudy),
+        chapterStudy: decorate(counts.chapterStudy, component),
       }])),
     }
   })

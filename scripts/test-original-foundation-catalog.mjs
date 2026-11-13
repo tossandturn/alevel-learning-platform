@@ -31,12 +31,14 @@ for (const { routeId, topicId } of expected) {
   assert.equal(entry.displaySourceLabel, '原创基础练习')
   assert.equal(entry.foundationBasis, 'curated-foundation')
   assert.equal(entry.answerType, 'single-choice')
-  if (entry.subject === 'Further Mathematics') {
+  const expandedTopic = /^9701-(?:as|a2)-topic-\d{2}-/.test(topicId)
+    || /^9708-(?:as|a2)-topic-\d+-\d+$/.test(topicId)
+    || /^9231-p\d-topic-/.test(topicId)
+  if (entry.subject === 'Further Mathematics' || expandedTopic) {
     assert.notEqual(entry.prompt, `Which statement about ${entry.topicName} is correct?`)
-    assert.doesNotMatch(`${entry.prompt} ${entry.solution.summary}`, /standard course|selected for A Level|paper component|which topic/i)
-  } else {
-    assert.equal(entry.prompt, `Which statement about ${entry.topicName} is correct?`)
   }
+  if (expandedTopic) assert.match(entry.prompt, new RegExp(entry.topicName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'))
+  assert.doesNotMatch(`${entry.prompt} ${entry.solution.summary}`, /standard course|selected for A Level|paper component|which topic/i)
   assert.ok(entry.options.length >= 3 && entry.options.length <= 4)
   assert.equal(new Set(entry.options.map((option) => option.id)).size, entry.options.length)
   assert.equal(new Set(entry.options.map((option) => option.text)).size, entry.options.length)

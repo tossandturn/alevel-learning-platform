@@ -150,8 +150,9 @@ try {
   closeStemDatabaseForTests()
 }
 
-assert.equal(chapterCount, 222)
-assert.equal(officialChapterCount + officialGapCount, 222)
+const expectedChapterCount = SYLLABUS_PRACTICE_ROUTE_IDS.reduce((sum, routeId) => sum + (routeById(routeId)?.syllabus?.topics?.length || 0), 0)
+assert.equal(chapterCount, expectedChapterCount)
+assert.equal(officialChapterCount + officialGapCount, expectedChapterCount)
 console.log(JSON.stringify({
   status: 'PASS_CHAPTER_INDEPENDENT_START',
   routeCount: SYLLABUS_PRACTICE_ROUTE_IDS.length,

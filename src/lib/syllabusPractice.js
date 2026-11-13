@@ -1102,9 +1102,12 @@ function syllabusTopicSelection(routeId, values, validTopicIds) {
   return { selectedTopicIds, topicScopes, topicIds: valid ? topicIds : [] }
 }
 
-function syllabusTopicsForPersistedUnit(unit, config) {
+function syllabusTopicsForPersistedUnit(unit, config, additionalTopicIds = []) {
   const candidates = String(unit?.syllabusTopic || unit?.knowledgeGroupId || '').split(',')
-  const validTopicIds = new Set(config.syllabus.topics.map((topic) => topic.id))
+  const validTopicIds = new Set([
+    ...config.syllabus.topics.map((topic) => topic.id),
+    ...(Array.isArray(additionalTopicIds) ? additionalTopicIds : []),
+  ].map((topicId) => String(topicId || '').trim()).filter(Boolean))
   return syllabusTopicSelection(config.syllabus.routeId, candidates, validTopicIds)
 }
 
@@ -1164,7 +1167,9 @@ export function rebindSyllabusPracticeUnit(unit, {
   if (!normalizedFoundationCatalog
     || (!chapterStudy && normalizedFoundationCatalog !== ORIGINAL_FOUNDATION_CATALOGS.V1)) return null
 
-  const topicSelection = syllabusTopicsForPersistedUnit(unit, config)
+  const topicSelection = syllabusTopicsForPersistedUnit(unit, config, originalFoundationGroups
+    .map((group) => group?.originalQuestion?.topicId)
+    .filter(Boolean))
   const topicIds = topicSelection.topicIds
   const selectedComponents = [...new Set((Array.isArray(unit.paperComponent) ? unit.paperComponent : [unit.paperComponent])
     .map((value) => Number(value))

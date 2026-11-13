@@ -7,8 +7,11 @@ import { CAMBRIDGE_9702_AS_TOPICS } from './syllabus/cambridge-9702-as-2025-2027
 import { CAMBRIDGE_9702_AS_SYLLABUS } from './syllabus/cambridge-9702-as-2025-2027.js'
 import { CAMBRIDGE_9702_A2_TOPICS } from './syllabus/cambridge-9702-a2-2025-2027.js'
 import { CAMBRIDGE_9702_A2_SYLLABUS } from './syllabus/cambridge-9702-a2-2025-2027.js'
+import { CAMBRIDGE_9701_AS_SYLLABUS, CAMBRIDGE_9701_A2_SYLLABUS } from './syllabus/cambridge-9701-2025-2027.js'
+import { CAMBRIDGE_9708_AS_SYLLABUS, CAMBRIDGE_9708_A2_SYLLABUS } from './syllabus/cambridge-9708-2026-2028.js'
 import { CAMBRIDGE_9709_AS_P1_S1_TOPICS } from './syllabus/cambridge-9709-as-p1-s1-2026-2027.js'
 import { cambridge9709SyllabusForRoute, cambridge9709TopicsForRoute } from './syllabus/cambridge-9709-2026-2027.js'
+import { cambridge9231SyllabusForRoute } from './syllabus/cambridge-9231-2026-2027.js'
 import { attach9700AsCellStructure } from './syllabus/biology-9700-as-cell-structure-bridge.js'
 import { attach9700AsBiologicalMolecules } from './syllabus/biology-9700-as-biological-molecules-bridge.js'
 import { attach9700AsEnzymes } from './syllabus/biology-9700-as-enzymes-bridge.js'
@@ -151,7 +154,12 @@ function officialSyllabusForRoute({ routeId, code, stage, paperComponents }) {
   if (code === '0625') return CAMBRIDGE_0625_IGCSE_SYLLABUS
   if (code === '9702' && stage === 'AS') return CAMBRIDGE_9702_AS_SYLLABUS
   if (code === '9702' && stage === 'A2') return CAMBRIDGE_9702_A2_SYLLABUS
+  if (code === '9701' && stage === 'AS') return CAMBRIDGE_9701_AS_SYLLABUS
+  if (code === '9701' && stage === 'A2') return CAMBRIDGE_9701_A2_SYLLABUS
+  if (code === '9708' && stage === 'AS') return CAMBRIDGE_9708_AS_SYLLABUS
+  if (code === '9708' && stage === 'A2') return CAMBRIDGE_9708_A2_SYLLABUS
   if (code === '9709') return cambridge9709SyllabusForRoute(routeId, paperComponents)
+  if (code === '9231') return cambridge9231SyllabusForRoute(routeId, paperComponents)
   return null
 }
 
