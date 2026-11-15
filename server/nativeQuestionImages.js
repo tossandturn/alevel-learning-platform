@@ -171,8 +171,12 @@ function legacyRegionsFor(question, isReleased) {
   return visible.sort((a, b) => a.page - b.page || a.region[1] - b.region[1] || a.region[0] - b.region[0])
 }
 
-export function createNativeQuestionImages({ getQuestionBank, libraryRoot, env = {}, pageReader = readVerifiedSourcePage, isReleased = isStudentReleasedAiStudyItem } = {}) {
+export function createNativeQuestionImages({ getQuestionBank, libraryRoot, env = {}, pageReader = readVerifiedSourcePage,
+  isReleased = isStudentReleasedAiStudyItem, cacheByteLimit = 8 * 1024 * 1024 } = {}) {
   const cache = new Map(), pending = new Map(), queue = []
+  const cacheLimit = Number.isInteger(cacheByteLimit) && cacheByteLimit > 0 && cacheByteLimit <= 8 * 1024 * 1024
+    ? cacheByteLimit
+    : 8 * 1024 * 1024
   let cachedBytes = 0, active = false
   function resolveWith(regionResolver, routeId, sourceQuestionId) {
     const matches = (getQuestionBank() || []).filter(q => q.routeId === routeId && q.sourceQuestionId === sourceQuestionId)
@@ -226,12 +230,15 @@ export function createNativeQuestionImages({ getQuestionBank, libraryRoot, env =
         crypto.createHash('sha256').update(page.bytes).digest('hex') !== job.descriptor.spec.expectedPageImageSha256) fail(422, 'native_question_image_invalid')
       const value = job.view === 'region' ? await sourceRegionPixels(page, job.descriptor) : page
       if (!jobIsCurrent(job)) fail(409, 'native_question_image_changed')
-      while (cache.size >= 40 || cachedBytes + value.bytes.length > 8 * 1024 * 1024) {
-        const first = cache.keys().next().value
-        if (first === undefined) break
-        cachedBytes -= cache.get(first).bytes.length; cache.delete(first)
+      if (value.bytes.length <= cacheLimit) {
+        while (cache.size >= 40 || cachedBytes + value.bytes.length > cacheLimit) {
+          const first = cache.keys().next().value
+          if (first === undefined) break
+          cachedBytes -= cache.get(first).bytes.length; cache.delete(first)
+        }
+        cache.set(job.cacheKey, value); cachedBytes += value.bytes.length
       }
-      cache.set(job.cacheKey, value); cachedBytes += value.bytes.length; job.resolve(value)
+      job.resolve(value)
     } catch (error) { job.reject(error) }
     finally { pending.delete(job.cacheKey); active = false; drain() }
   }
