@@ -4,6 +4,7 @@ import path from 'node:path'
 import { isHumanReviewedPastPaperItem, isStudentReleasedAiStudyItem, studyQuestionBank, unifiedQuestionBank } from '../src/data/questionBank.js'
 import { auditedQuestionAssetEvidence, canonicalAiMarkingProvenance, canonicalSourcePracticeProvenance, exactPartEvidenceFieldsMatch } from '../src/lib/sourceContentContract.js'
 import { listAiPdfIngestionCandidates, resolveAiPdfIngestionRoot } from './aiPdfIngestionCandidates.js'
+import { isAiStudyPromotionError } from './aiStudyPromotion.js'
 import { issueMarkingCapabilities } from './markingCapability.js'
 import { buildSyllabusPracticeSet, normalizeChapterStudySourcePreference, normalizeSyllabusPracticeStudyMode, rebindSyllabusPracticeUnit, seedSyllabusTables, syllabusDatabaseInventory, syllabusTopicsInventory, SYLLABUS_PRACTICE_STUDY_MODES } from '../src/lib/syllabusPractice.js'
 import { MIN_QUESTION_GROUPS_PER_TEST, MIN_VERIFIED_GROUPS_FOR_PRACTICE } from '../src/lib/practiceConstants.js'
@@ -886,7 +887,8 @@ export function createCoachAttemptAuthorizer({ env = process.env, questionBank =
       if (typeof questionBankProvider !== 'function') return questionBank
       try {
         return mergeTopicPracticeQuestionBanks(questionBank, questionBankProvider())
-      } catch {
+      } catch (error) {
+        if (isAiStudyPromotionError(error)) throw error
         return questionBank
       }
     })()
@@ -2656,7 +2658,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
       return mergedQuestionBank
     } catch (error) {
       // An invalid runtime artifact must fail closed to the established static study bank.
-      if(error?.code==='AI_PDF_RUNTIME_ARTIFACT_LIMIT_EXCEEDED')throw error
+      if(error?.code==='AI_PDF_RUNTIME_ARTIFACT_LIMIT_EXCEEDED'||isAiStudyPromotionError(error))throw error
       runtimeTopicPracticeSnapshot = null
       runtimeTopicPracticeQuestionBank = null
       return baseTopicPracticeQuestionBank
@@ -3126,6 +3128,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
           throw Object.assign(new Error('Topic PDF rendering is not available on this server.'), { statusCode: 503, code: 'topic_pdf_unavailable' })
         }
         const renderRequest = topicPdfRequestPayload(await readJson(request, 16 * 1024))
+        currentRuntimeTopicPracticeQuestionBank()
         const rendered = await topicPdfRenderer(renderRequest)
         sendTopicPdf(response, rendered, renderRequest)
         return

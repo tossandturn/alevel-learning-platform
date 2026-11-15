@@ -13,6 +13,7 @@ import {
   resolveArtifactSourcePdfPath,
 } from '../scripts/ai-pdf-ingestion/contract.mjs'
 import { buildCropCommand, buildCropManifest } from '../scripts/ai-pdf-ingestion/render.mjs'
+import { verifyAiStudyPromotion } from './aiStudyPromotion.js'
 
 export const TOPIC_PDF_RENDER_SCHEMA_VERSION = 'stem-topic-pdf-render.v1'
 
@@ -691,6 +692,9 @@ export function createTopicPdfRenderer({
   const resolvedLibraryRoot = path.resolve(String(libraryRoot || ''))
   const boundedTimeoutMs = resolveTimeout(timeoutMs)
   return async function renderTopicPdf({ routeId, topicId } = {}) {
+    // This renderer rereads artifact files, so signed candidates remain blocked
+    // until it can render the exact verified bytes rather than a mutable path.
+    verifyAiStudyPromotion({ artifactRoot: resolvedArtifactRoot })
     const requestedRouteId = text(routeId, 160).toLowerCase()
     const requestedTopicId = text(topicId, 240)
     if (!SAFE_ROUTE.test(requestedRouteId) || !supportsSyllabusPracticeRoute(requestedRouteId)) throw codedError('invalid_route', 'A supported syllabus route is required.', 400)

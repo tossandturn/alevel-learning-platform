@@ -191,7 +191,22 @@ function coordinateEvidenceSignatureEntries(question = {}) {
       ? (Array.isArray(part.markSchemeEvidence) ? part.markSchemeEvidence : [])
         .map((entry) => [validPage(entry?.page), validSha256(entry?.pageImageSha256)])
       : []
-    return [partId, sourceEvidence, markSchemeEvidence]
+    const referenceMaterialEvidence = (Array.isArray(part.sourceEvidence) ? part.sourceEvidence : [])
+      .filter((entry) => entry?.evidenceRole === 'reference-material'
+        || (entry?.rotationDegrees !== undefined && entry?.rotationDegrees !== null && Number(entry.rotationDegrees) !== 0))
+      .map((entry) => {
+        const rotation = entry?.rotationDegrees == null ? 0 : Number(entry.rotationDegrees)
+        return [
+          validPage(entry?.page),
+          validSha256(entry?.documentSha256),
+          validSha256(entry?.pageImageSha256),
+          Array.isArray(entry?.region) ? entry.region.map(Number) : [],
+          Array.isArray(entry?.imageSize) ? entry.imageSize.map(Number) : [],
+          String(entry?.evidenceRole || ''),
+          Number.isFinite(rotation) ? rotation : `invalid:${String(entry?.rotationDegrees)}`,
+        ]
+      })
+    return [partId, sourceEvidence, markSchemeEvidence, ...(referenceMaterialEvidence.length ? [referenceMaterialEvidence] : [])]
   }), (left, right) => left[0].localeCompare(right[0]))
 }
 

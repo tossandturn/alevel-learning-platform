@@ -8,6 +8,7 @@ import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { createAiApi } from './server/aiApi.js'
 import { createAiVerifiedQuestionBankLoader } from './server/aiVerifiedQuestionBank.js'
+import { isAiStudyPromotionError } from './server/aiStudyPromotion.js'
 import { resolveAiPdfIngestionRoot } from './server/aiPdfIngestionCandidates.js'
 import { createCoachAttemptAuthorizer, createCurriculumPracticeAccess, createStemApi } from './server/stemApi.js'
 import { createCurriculumPracticeApi } from './server/curriculumPracticeApi.js'
@@ -103,10 +104,22 @@ export async function sendLocalPdf(request, response, next, env, runtimePdfDocum
 
   const staticCatalogItem = paperCatalogIndex().get(`${subject}/${fileName}`)
   let runtimeCatalogItem = null
-  try {
-    runtimeCatalogItem = (runtimePdfDocuments() || []).find((item) => item?.subject === subject && item?.file === fileName) || null
-  } catch {
-    runtimeCatalogItem = null
+  if (!staticCatalogItem) {
+    try {
+      runtimeCatalogItem = (runtimePdfDocuments() || []).find((item) => item?.subject === subject && item?.file === fileName) || null
+    } catch (error) {
+      if (isAiStudyPromotionError(error)) {
+        response.statusCode = 503
+        response.setHeader('Content-Type', 'application/json; charset=utf-8')
+        response.setHeader('Cache-Control', 'no-store')
+        response.end(request.method === 'HEAD' ? undefined : JSON.stringify({
+          code: error.code,
+          error: 'The AI study candidate is not authorized for this catalog.',
+        }))
+        return
+      }
+      runtimeCatalogItem = null
+    }
   }
   const catalogItem = staticCatalogItem || runtimeCatalogItem
   if (!catalogItem) {
@@ -498,16 +511,25 @@ function stemPublicAssetOutput() {
   }
 }
 
-function localCieLibrary(env) {
-  const libraryRoot = resolveLibraryRoot({ env, cwd: process.cwd() })
-  const sendHealth = createHealthMiddleware(env)
-  const runtimeAiQuestionBank = createAiVerifiedQuestionBankLoader({
+export function createRuntimeAiQuestionBank({ env = {}, libraryRoot } = {}) {
+  const configuredMode = env.STEM_AI_STUDY_PROMOTION_MODE
+  // A single root cannot admit a new candidate without replacing legacy data.
+  // Keep this entry legacy-only until isolated dual-root routing is complete.
+  const mode = configuredMode === undefined || configuredMode === null || configuredMode === 'legacy' ? 'legacy' : 'invalid'
+  return createAiVerifiedQuestionBankLoader({
     artifactRoot: resolveAiPdfIngestionRoot(env),
     // The runtime bank validates each artifact against its own subject folder.
     // Pass the complete private library so 9709 and other supported routes are
     // not silently excluded by a 9702-only root.
     libraryRoot,
+    promotionPolicy: { mode },
   })
+}
+
+function localCieLibrary(env) {
+  const libraryRoot = resolveLibraryRoot({ env, cwd: process.cwd() })
+  const sendHealth = createHealthMiddleware(env)
+  const runtimeAiQuestionBank = createRuntimeAiQuestionBank({ env, libraryRoot })
   const runtimeAiGroups = () => runtimeAiQuestionBank().groups
   const runtimePdfDocuments = () => runtimeAiQuestionBank().documents
   const topicPdfRenderer = createTopicPdfRenderer({

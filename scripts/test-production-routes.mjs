@@ -3,7 +3,6 @@ import crypto from 'node:crypto'
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import http from 'node:http'
-import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -11,21 +10,10 @@ import { resolveLibraryRoot } from '../server/pdfLibrary.js'
 import { releaseBuildIdentity, sendLocalPdf } from '../vite.config.js'
 import { artifactTreeIdentity } from './release-content-policy.mjs'
 import { resolveProductionBuildIdentity } from './productionRouteBuildIdentity.mjs'
+import { freeFetchPort } from './lib/fetch-safe-port.mjs'
 
 const root = path.resolve(import.meta.dirname, '..')
 const viteCli = path.join(root, 'node_modules', 'vite', 'bin', 'vite.js')
-
-function freePort() {
-  return new Promise((resolve, reject) => {
-    const probe = net.createServer()
-    probe.once('error', reject)
-    probe.listen(0, '127.0.0.1', () => {
-      const address = probe.address()
-      const port = typeof address === 'object' && address ? address.port : 0
-      probe.close((error) => error ? reject(error) : resolve(port))
-    })
-  })
-}
 
 async function waitFor(url, child) {
   for (let attempt = 0; attempt < 120; attempt += 1) {
@@ -134,7 +122,7 @@ async function localPdfRangeOnly() {
 }
 
 async function main() {
-  const port = await freePort()
+  const port = await freeFetchPort()
   const libraryRoot = resolveLibraryRoot({ cwd: root, env: process.env })
   const sourcePdf = path.join(libraryRoot, '9709', '9709_w25_qp_25.pdf')
   assert.ok(fs.existsSync(sourcePdf), `the governed local PDF fixture is missing: ${sourcePdf}`)

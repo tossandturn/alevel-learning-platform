@@ -21,6 +21,7 @@ import {TAVERN_MEDIA_VERSION,TAVERN_MEDIA_PREFIX,loadTavernMediaCatalog,selectTa
 import {createDrawArtHandler} from './tavernDrawArt.js'
 import { isAiMarkablePastPaperItem, studyQuestionBank } from '../src/data/questionBank.js'
 import { renderVerifiedCoordinatePdfPage } from './coordinatePdfImages.js'
+import { isAiStudyPromotionError } from './aiStudyPromotion.js'
 import {
   auditedMarkSchemeAssetEvidence,
   auditedQuestionAssetEvidence,
@@ -2903,7 +2904,8 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
     if (typeof questionBankProvider !== 'function') return studyQuestionBank
     try {
       return mergeAiMarkingQuestionBanks(studyQuestionBank, questionBankProvider())
-    } catch {
+    } catch (error) {
+      if (isAiStudyPromotionError(error)) throw error
       return studyQuestionBank
     }
   }

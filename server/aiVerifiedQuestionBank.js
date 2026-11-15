@@ -11,12 +11,15 @@ import { getExamPaperProfile } from '../src/data/examStructure.js'
 import { STEM_AI_PART_EVIDENCE_BINDING_SCHEMA_VERSION } from '../src/lib/sourceContentContract.js'
 import { syllabusPracticeComponentsForRoute } from '../src/lib/syllabusPracticeRoutes.js'
 import { registerAiStudyObjectiveKey, aiStudyObjectiveKey } from './aiStudyObjectiveKeys.js'
+import { assertPromotedAiStudyGroups, verifyAiStudyPromotion } from './aiStudyPromotion.js'
 
 const MIN_RUNTIME_YEAR = 2017
 const MAX_RUNTIME_YEAR = 2025
 const SHA256 = /^[a-f0-9]{64}$/i
 export const MAX_RUNTIME_ARTIFACTS = 10000
 const DEFAULT_RENDER_DPI = 180
+const MAX_PROMOTED_SOURCE_BYTES = 32 * 1024 * 1024
+const MAX_PROMOTED_SOURCE_TOTAL_BYTES = 256 * 1024 * 1024
 
 function asText(value) {
   return typeof value === 'string' ? value.trim() : ''
@@ -699,12 +702,50 @@ function fileSha256(filePath) {
   return hash.update(bytes).digest('hex')
 }
 
-function readVerifiedCoordinateArtifact(artifactPath, libraryRoot) {
+function promotedSourceHasher() {
+  const hashes = new Map()
+  let totalBytes = 0
+  return (filePath) => {
+    if (hashes.has(filePath)) return hashes.get(filePath)
+    const link = fs.lstatSync(filePath)
+    if (!link.isFile() || link.isSymbolicLink()) throw new Error('Invalid promoted source file')
+    const descriptor = fs.openSync(filePath, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0))
+    try {
+      const before = fs.fstatSync(descriptor)
+      if (!before.isFile() || before.size <= 0 || before.size > MAX_PROMOTED_SOURCE_BYTES
+        || totalBytes + before.size > MAX_PROMOTED_SOURCE_TOTAL_BYTES) throw new Error('Promoted source budget exceeded')
+      if (before.dev !== link.dev || before.ino !== link.ino || before.size !== link.size) throw new Error('Promoted source changed before hashing')
+      const hash = crypto.createHash('sha256')
+      const buffer = Buffer.allocUnsafe(64 * 1024)
+      let offset = 0
+      while (offset < before.size) {
+        const count = fs.readSync(descriptor, buffer, 0, Math.min(buffer.length, before.size - offset), offset)
+        if (!count) throw new Error('Promoted source changed during hashing')
+        hash.update(buffer.subarray(0, count))
+        offset += count
+      }
+      const after = fs.fstatSync(descriptor)
+      const afterPath = fs.lstatSync(filePath)
+      if (after.size !== before.size || after.mtimeMs !== before.mtimeMs || after.ctimeMs !== before.ctimeMs
+        || after.dev !== before.dev || after.ino !== before.ino || !afterPath.isFile() || afterPath.isSymbolicLink()
+        || afterPath.dev !== before.dev || afterPath.ino !== before.ino || afterPath.size !== before.size
+        || afterPath.mtimeMs !== before.mtimeMs || afterPath.ctimeMs !== before.ctimeMs) throw new Error('Promoted source changed during hashing')
+      const result = hash.digest('hex')
+      totalBytes += before.size
+      hashes.set(filePath, result)
+      return result
+    } finally {
+      fs.closeSync(descriptor)
+    }
+  }
+}
+
+function readVerifiedCoordinateArtifact(artifactPath, libraryRoot, verifiedBytes = null, hashSource = fileSha256) {
   let artifact
   try {
     const stat = fs.statSync(artifactPath)
     if (!stat.isFile() || stat.size <= 0 || stat.size > 5 * 1024 * 1024) return null
-    artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'))
+    artifact = JSON.parse(verifiedBytes ? verifiedBytes.toString('utf8') : fs.readFileSync(artifactPath, 'utf8'))
   } catch {
     return null
   }
@@ -757,7 +798,7 @@ function readVerifiedCoordinateArtifact(artifactPath, libraryRoot) {
   const markSchemeStat = fs.statSync(markSchemePath, { throwIfNoEntry: false })
   if (!questionStat?.isFile() || !markSchemeStat?.isFile() || questionStat.size <= 0 || markSchemeStat.size <= 0) return null
   try {
-    if (fileSha256(questionPath) !== questionHash || fileSha256(markSchemePath) !== markSchemeHash) return null
+    if (hashSource(questionPath) !== questionHash || hashSource(markSchemePath) !== markSchemeHash) return null
   } catch {
     return null
   }
@@ -778,7 +819,7 @@ function readVerifiedCoordinateArtifact(artifactPath, libraryRoot) {
  * still match their local QP/MS source PDFs. The caller may cache this loader
  * safely; artifact or source file changes invalidate its snapshot.
  */
-export function createAiVerifiedQuestionBankLoader({ artifactRoot, libraryRoot, artifactLimit = MAX_RUNTIME_ARTIFACTS } = {}) {
+export function createAiVerifiedQuestionBankLoader({ artifactRoot, libraryRoot, artifactLimit = MAX_RUNTIME_ARTIFACTS, promotionPolicy = null } = {}) {
   if(!Number.isInteger(artifactLimit)||artifactLimit<1||artifactLimit>MAX_RUNTIME_ARTIFACTS)throw new Error('Invalid runtime artifact limit')
   const resolvedArtifactRoot = path.resolve(String(artifactRoot || ''))
   const resolvedLibraryRoot = path.resolve(String(libraryRoot || ''))
@@ -786,12 +827,18 @@ export function createAiVerifiedQuestionBankLoader({ artifactRoot, libraryRoot, 
 
   return function loadAiVerifiedQuestionBank({ refresh = false } = {}) {
     const paths = artifactPaths(resolvedArtifactRoot, artifactLimit)
+    const promotion = verifyAiStudyPromotion({ artifactRoot: resolvedArtifactRoot, artifactPaths: paths, promotionPolicy })
     const artifactSnapshot = paths.map(fileSnapshot).join('|')
     const sourceSnapshot = cached?.sourcePaths?.map(fileSnapshot).join('|') || ''
-    if (!refresh && cached && cached.artifactSnapshot === artifactSnapshot && cached.sourceSnapshot === sourceSnapshot) return cached.value
+    if (!promotion && !refresh && cached && cached.artifactSnapshot === artifactSnapshot && cached.sourceSnapshot === sourceSnapshot) return cached.value
 
-    const records = paths.map((artifactPath) => readVerifiedCoordinateArtifact(artifactPath, resolvedLibraryRoot)).filter(Boolean)
+    const hashSource = promotion ? promotedSourceHasher() : fileSha256
+    const records = paths.map((artifactPath) => {
+      const relative = path.relative(resolvedArtifactRoot, artifactPath).split(path.sep).join('/')
+      return readVerifiedCoordinateArtifact(artifactPath, resolvedLibraryRoot, promotion?.bytesByPath.get(relative), hashSource)
+    }).filter(Boolean)
     const groups = questionGroupsFromAiArtifacts(records.map((record) => record.artifact), { libraryRoot: resolvedLibraryRoot })
+    assertPromotedAiStudyGroups(promotion, records, groups)
     const documents = [...new Map(records
       .filter((record) => groups.some((group) => group.sourceRef?.paper === record.metadata.questionFile))
       .flatMap((record) => record.documents)
