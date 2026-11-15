@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { releaseBuildIdentity } from '../vite.config.js'
 
 const writer = path.resolve(import.meta.dirname, 'write-stem-release-manifest.mjs')
 const verifier = path.resolve(import.meta.dirname, 'verify-stem-release.mjs')
@@ -100,6 +101,22 @@ try {
   })
   const validResult = runWriter(valid, path.basename(valid.releaseRoot))
   assert.equal(validResult.status, 0, `matching build identity must generate a manifest:\n${output(validResult)}`)
+
+  const linked = createRelease(`linked-assets-${commit.slice(0, 7)}`, {
+    schemaVersion: 'stem-build-identity.v1',
+    commit,
+    sourceState: 'clean',
+  })
+  const immutableTarget = path.join(scratchRoot, 'immutable-question-assets')
+  fs.mkdirSync(immutableTarget, { recursive: true })
+  fs.writeFileSync(path.join(immutableTarget, 'page.jpg'), 'immutable fixture', 'utf8')
+  fs.rmSync(linked.immutableAssetsRoot, { recursive: true, force: true })
+  fs.symlinkSync(immutableTarget, linked.immutableAssetsRoot, process.platform === 'win32' ? 'junction' : 'dir')
+  const linkedResult = runWriter(linked, path.basename(linked.releaseRoot))
+  assert.equal(linkedResult.status, 0, `linked immutable assets must generate a manifest:\n${output(linkedResult)}`)
+  const linkedManifest = JSON.parse(fs.readFileSync(path.join(linked.releaseRoot, 'release-manifest.json'), 'utf8'))
+  assert.equal(linkedManifest.immutableAssets.identity, path.basename(immutableTarget))
+  assert.equal(releaseBuildIdentity({}, linked.releaseRoot).status, 'verified')
 
   fs.writeFileSync(
     path.join(valid.releaseRoot, 'dist', 'build-identity.json'),

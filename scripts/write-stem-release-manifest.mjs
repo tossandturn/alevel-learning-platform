@@ -79,6 +79,10 @@ assert.ok(
 const runtimeData = verifiedRuntimeDataBinding(releaseRoot, runtimeDataRoot)
 const releaseTree = artifactTreeIdentity(releaseRoot, { exclude: ['release-manifest.json'] })
 const immutableAssets = artifactTreeIdentity(immutableAssetsRoot)
+// Runtime verification resolves the question-assets link before checking its
+// identity. Store the same canonical target name so an external immutable
+// asset binding can be verified instead of appearing unavailable.
+const immutableAssetsIdentity = path.basename(fs.realpathSync(immutableAssetsRoot))
 const manifest = {
   schemaVersion: 'stem-release-manifest.v1',
   releaseId,
@@ -95,7 +99,7 @@ const manifest = {
   generatedAt: new Date().toISOString(),
   releaseTree,
   immutableAssets: {
-    identity: path.basename(immutableAssetsRoot),
+    identity: immutableAssetsIdentity,
     ...immutableAssets,
   },
 }
