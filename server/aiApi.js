@@ -21,6 +21,7 @@ import {TAVERN_MEDIA_VERSION,TAVERN_MEDIA_PREFIX,loadTavernMediaCatalog,selectTa
 import {createDrawArtHandler} from './tavernDrawArt.js'
 import { isAiMarkablePastPaperItem, studyQuestionBank } from '../src/data/questionBank.js'
 import { renderVerifiedCoordinatePdfPage } from './coordinatePdfImages.js'
+import { aiStudySourceCacheRoot } from './aiStudySourceCache.js'
 import { isAiStudyPromotionError } from './aiStudyPromotion.js'
 import {
   auditedMarkSchemeAssetEvidence,
@@ -696,6 +697,8 @@ function coordinatePdfFileName(value, failureCode) {
 
 async function coordinateOfficialImages(canonical, { libraryRoot, env, deadlineAt = null }) {
   const question = canonical.question
+  const pageCacheRoot = aiStudySourceCacheRoot(question)
+  const sourceEnv = pageCacheRoot ? { ...env, STEM_SOURCE_PAGE_CACHE_ROOT: pageCacheRoot } : env
   const part = canonical.part
   const sourceRef = question.sourceRef || {}
   const answerRef = question.answerRef || {}
@@ -727,7 +730,7 @@ async function coordinateOfficialImages(canonical, { libraryRoot, env, deadlineA
       region: evidence.region,
       renderDpi,
       deadlineAt,
-      env,
+      env: sourceEnv,
     }))),
     Promise.all(markSchemeEvidence.map((evidence) => renderVerifiedCoordinatePdfPage({
       libraryRoot,
@@ -740,7 +743,7 @@ async function coordinateOfficialImages(canonical, { libraryRoot, env, deadlineA
       role: 'mark-scheme',
       renderDpi,
       deadlineAt,
-      env,
+      env: sourceEnv,
     }))),
   ])
   return Object.freeze({ questionImages: Object.freeze(questionImages), markSchemeImages: Object.freeze(markSchemeImages) })

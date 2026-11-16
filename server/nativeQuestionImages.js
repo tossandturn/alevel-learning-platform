@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import { isStudentReleasedAiStudyItem } from '../src/data/questionBank.js'
 import { readVerifiedSourcePage } from './nativeSourcePages.js'
+import { aiStudySourceCacheRoot } from './aiStudySourceCache.js'
 
 const HASH = /^[a-f0-9]{64}$/
 const MAX_NEAR_CONTAINMENT_OVERFLOW_PX = 8
@@ -187,7 +188,8 @@ export function createNativeQuestionImages({ getQuestionBank, libraryRoot, env =
       const v = crypto.createHash('sha256').update(JSON.stringify([routeId, sourceQuestionId, question.sourceContent.bindingSignature, question.sourceRef, region])).digest('hex')
       const url = '/api/stem/practice-source-image?routeId=' + encodeURIComponent(routeId) + '&sourceQuestionId=' + encodeURIComponent(sourceQuestionId) + '&region=' + index + '&v=' + v
       return { url, schemaVersion: 'native-source-region-v1', page: region.page, region: region.region, imageSize: region.imageSize, v,
-        spec: { libraryRoot, cacheRoot: env.STEM_SOURCE_PAGE_CACHE_ROOT, subject: question.subjectCode, fileName: question.sourceRef.paper,
+        spec: { libraryRoot, cacheRoot: aiStudySourceCacheRoot(question) || env.STEM_SOURCE_PAGE_CACHE_ROOT,
+          subject: question.subjectCode, fileName: question.sourceRef.paper,
           expectedPdfSha256: region.hash, page: region.page, expectedPageImageSha256: region.pageHash, imageSize: region.imageSize, role: 'question-paper' } }
     })
   }

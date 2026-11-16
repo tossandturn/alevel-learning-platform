@@ -10,6 +10,7 @@ import { createAiApi } from './server/aiApi.js'
 import { createAiVerifiedQuestionBankLoader } from './server/aiVerifiedQuestionBank.js'
 import { isAiStudyPromotionError } from './server/aiStudyPromotion.js'
 import { readReleaseAnchor, readReleaseManifestBytes, verifyReleaseAnchor } from './server/aiStudyReleaseAnchor.js'
+import { bindAiStudySourceCache } from './server/aiStudySourceCache.js'
 import { createAiStudyDualRootLoader } from './server/aiStudyDualRoot.js'
 import { resolveAiPdfIngestionRoot } from './server/aiPdfIngestionCandidates.js'
 import { createCoachAttemptAuthorizer, createCurriculumPracticeAccess, createStemApi } from './server/stemApi.js'
@@ -575,7 +576,8 @@ export function createReleaseChapterBinding(env, runtimeRoot, build) {
     assertRuntimeDataBinding(root, manifest.runtimeData, manifest.runtimeData?.target)
     const packRoot = path.join(root, ...chapter.packBinding.relativePath.split('/'))
     const packParent = path.dirname(packRoot)
-    const roots = [root, packParent, packRoot].map((directory) => {
+    const pageCacheRoot = path.join(packRoot, 'source-pages')
+    const roots = [root, packParent, packRoot, pageCacheRoot].map((directory) => {
       const stat = fs.lstatSync(directory)
       if (!stat.isDirectory() || stat.isSymbolicLink()) invalidStudyRelease()
       return { directory, dev: stat.dev, ino: stat.ino, real: fs.realpathSync(directory) }
@@ -596,7 +598,8 @@ export function createReleaseChapterBinding(env, runtimeRoot, build) {
       } catch { invalidStudyRelease() }
     }
     assertValid()
-    return { routeIds, packRoot, expectedRealRoot, manifestSha256: chapter.packBinding.manifestSha256, assertValid }
+    return { routeIds, packRoot, expectedRealRoot, pageCacheRoot: roots[3].real,
+      manifestSha256: chapter.packBinding.manifestSha256, assertValid }
   } catch { return rejected }
 }
 
@@ -642,7 +645,9 @@ export function createRuntimeAiQuestionBank({ env = {}, libraryRoot, trustedPubl
     const loadCandidate = createAiVerifiedQuestionBankLoader({ artifactRoot: candidateRoot, libraryRoot, promotionPolicy })
     candidateLoader = (scope) => {
       releaseChapterBinding?.assertValid()
-      return loadCandidate(scope)
+      const snapshot = loadCandidate(scope)
+      if (releaseChapterBinding) bindAiStudySourceCache(snapshot.groups, releaseChapterBinding.pageCacheRoot)
+      return snapshot
     }
   }
   const load = createAiStudyDualRootLoader({ legacyLoader: guardedLegacyLoader, candidateLoader, candidateRouteIds, protectedGroups: PROTECTED_STUDY_GROUPS })

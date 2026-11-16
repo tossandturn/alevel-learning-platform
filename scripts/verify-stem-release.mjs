@@ -235,11 +235,13 @@ if (chapterScope) {
   const pageCacheRoot = option('--chapter-source-page-cache-root')
   assert.ok(chapterRoots.length === 1 && pageCacheRoot, 'Chapter-study requires exactly one artifact root and a page-cache root')
   const expectedPackRoot = path.join(releaseRoot, ...chapterScope.packBinding.relativePath.split('/'))
-  for (const directory of [path.dirname(expectedPackRoot), expectedPackRoot]) {
+  const expectedPageCacheRoot = path.join(expectedPackRoot, 'source-pages')
+  for (const directory of [path.dirname(expectedPackRoot), expectedPackRoot, expectedPageCacheRoot]) {
     const stat = fs.lstatSync(directory)
     assert.ok(stat.isDirectory() && !stat.isSymbolicLink(), 'Chapter-study pack directories must not be symlinks')
   }
   assert.equal(fs.realpathSync(chapterRoots[0]), fs.realpathSync(expectedPackRoot), 'Chapter-study artifact root differs from the release binding')
+  assert.equal(fs.realpathSync(pageCacheRoot), fs.realpathSync(expectedPageCacheRoot), 'Chapter-study page cache differs from the release pack')
   const marker = path.join(expectedPackRoot, 'candidate-manifest.json')
   const markerStat = fs.lstatSync(marker)
   assert.ok(markerStat.isFile() && !markerStat.isSymbolicLink(), 'Chapter-study pack marker must be a regular file')

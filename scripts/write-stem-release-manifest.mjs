@@ -117,7 +117,7 @@ const runtimeData = verifiedRuntimeDataBinding(releaseRoot, runtimeDataRoot)
 if (wantsChapterStudy) {
   assert.ok(runtimeData, 'Chapter-study requires an explicitly bound runtime data root')
   const packRoot = path.join(releaseRoot, ...chapterStudy.packBinding.relativePath.split('/'))
-  for (const directory of [path.dirname(packRoot), packRoot]) {
+  for (const directory of [path.dirname(packRoot), packRoot, path.join(packRoot, 'source-pages')]) {
     const stat = fs.lstatSync(directory)
     assert.ok(stat.isDirectory() && !stat.isSymbolicLink(), 'Chapter-study pack directories must not be symlinks')
   }

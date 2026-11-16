@@ -7,10 +7,11 @@ import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 import { backup, DatabaseSync } from 'node:sqlite'
-import { createServer as createViteServer } from 'vite'
+import { createServer as createViteServer, preview as createVitePreview } from 'vite'
 import { createCanvas } from '@napi-rs/canvas'
 
 import { createAiVerifiedQuestionBankLoader } from '../server/aiVerifiedQuestionBank.js'
+import { canonicalHandwritingMarkingImages } from '../server/aiApi.js'
 import { MARKING_CAPABILITY_AUDIENCE, MARKING_CAPABILITY_ISSUER, MARKING_CAPABILITY_SCOPE, signHmacJwt } from '../server/markingCapability.js'
 import { closeStemDatabaseForTests } from '../server/stemApi.js'
 import { seedSyllabusTables, syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
@@ -252,6 +253,27 @@ function signCandidate(fixture) {
 
 function preparePinnedRelease(fixture) {
   const artifacts = fixture.artifacts || [fixture]
+  const pageRoot = path.join(candidateRoot, 'source-pages')
+  const copied = new Set()
+  for (const entry of artifacts) {
+    const artifact = JSON.parse(fs.readFileSync(entry.artifactPath, 'utf8'))
+    for (const question of artifact.candidate.questions) {
+      const evidence = [...(question.regions || []), ...(question.diagramRegions || []), ...(question.sharedStemRegions || [])]
+        .map((region) => ({ documentHash: artifact.source.questionPdfSha256, ...region }))
+        .concat((question.markSchemeEvidence || []).map((region) => ({ documentHash: artifact.source.markSchemePdfSha256, ...region })))
+      for (const item of evidence) {
+        const file = `${item.page}-${item.pageImageSha256}.png`, key = `${item.documentHash}/${file}`
+        if (copied.has(key)) continue
+        const source = path.join(cacheRoot, item.documentHash, file), target = path.join(pageRoot, item.documentHash, file)
+        assert.ok(path.relative(root, source).startsWith(`source-cache${path.sep}`), 'only fixture pages may be moved')
+        fs.mkdirSync(path.dirname(target), { recursive: true })
+        fs.copyFileSync(source, target, fs.constants.COPYFILE_EXCL)
+        assert.equal(sha256(fs.readFileSync(target)), item.pageImageSha256)
+        fs.unlinkSync(source)
+        copied.add(key)
+      }
+    }
+  }
   const marker = Buffer.from(JSON.stringify({ schemaVersion: 'stem-ai-study-release-pack.v1', scope: 'chapter-study',
     formalProgressEligible: false, routeIds: [fixture.routeId], expectedRouteGroups: artifacts.length,
     artifacts: artifacts.map((entry) => ({ path: entry.relative, sha256: sha256(fs.readFileSync(entry.artifactPath)) })) }))
@@ -259,6 +281,7 @@ function preparePinnedRelease(fixture) {
   const assets = path.join(releaseRoot, 'public', 'question-assets')
   fs.mkdirSync(assets, { recursive: true })
   fs.mkdirSync(path.join(releaseRoot, 'dist'), { recursive: true })
+  fs.writeFileSync(path.join(releaseRoot, 'dist', 'index.html'), '<!doctype html><title>fixture</title>')
   fs.writeFileSync(path.join(assets, 'synthetic.txt'), 'fixture only')
   fs.writeFileSync(path.join(releaseRoot, 'dist', 'build-identity.json'), JSON.stringify({
     schemaVersion: 'stem-build-identity.v1', commit: fixtureCommit, sourceState: 'clean' }))
@@ -398,6 +421,30 @@ try {
   const valid = runtime({ routeId: candidate.routeId })
   assert.deepEqual(new Set(valid.groups.map((group) => group.sourceQuestionId)),
     new Set([physics.questionId, biology.questionId, ...(candidate.questionIds || [candidate.questionId])]))
+  if (releasePinnedMode) {
+    const question = valid.groups.find((group) => group.sourceQuestionId === candidate.questionId)
+    const canonical = { ok: true, question, part: question.parts[0],
+      provenance: { reviewSchemaVersion: 'stem-ai-coordinate-source-binding.v1' } }
+    const rendered = await canonicalHandwritingMarkingImages(canonical, { libraryRoot, env })
+    assert.ok(rendered.questionImages.length && rendered.markSchemeImages.length, 'candidate QP/MS pages use its own pinned cache')
+    const item = question.parts[0].markSchemeEvidence[0]
+    const page = path.join(candidateRoot, 'source-pages', candidate.markSchemePdfSha256, `${item.page}-${item.pageImageSha256}.png`)
+    const bytes = fs.readFileSync(page), stat = fs.statSync(page), tamperedPage = Buffer.from(bytes)
+    tamperedPage[tamperedPage.length - 1] ^= 1
+    fs.writeFileSync(page, tamperedPage); fs.utimesSync(page, stat.atime, stat.mtime)
+    try {
+      await assert.rejects(() => canonicalHandwritingMarkingImages(canonical, { libraryRoot, env }),
+        'same-size MS page tampering must fail closed')
+    } finally { fs.writeFileSync(page, bytes); fs.utimesSync(page, stat.atime, stat.mtime) }
+    const port = await freeFetchPort()
+    const preview = await createVitePreview({ configFile: false, envFile: false, root: requestRoot, publicDir: false, logLevel: 'silent',
+      preview: { port, strictPort: true, host: '127.0.0.1' }, plugins: [localCieLibrary(env, { trustedPublicKeys })] })
+    try {
+      const direct = await fetch(`http://127.0.0.1:${port}/data/ai-study-packs/fixture-pack/source-pages/${candidate.markSchemePdfSha256}/${item.page}-${item.pageImageSha256}.png`)
+      assert.doesNotMatch(direct.headers.get('content-type') || '', /^image\/png/i, 'the mark scheme must not be served as a static page')
+      assert.notEqual(sha256(Buffer.from(await direct.arrayBuffer())), sha256(bytes), 'the static response must not expose MS bytes')
+    } finally { await close(preview.httpServer) }
+  }
 
   // Disable Vite configuration and env-file discovery; cache and root are disposable fixtures.
   process.chdir(requestRoot)
@@ -1179,6 +1226,9 @@ try {
     fixtureRoutes: [physics.routeId, biology.routeId, candidate.routeId], providerPositiveControls: 2, providerCallsForRejectedRequests: providerCalls,
     candidate: 'valid -> same-size/mtime tamper 503 -> restored', legacy: 'inventory/start/draft/rebind/save; source failure 503 then recovery',
     sqlite: 'group and mapping rows retained without stale inventory', externalNetworkAttempts, privateConfigProbes,
+    ...(releasePinnedMode ? { releasePinned: { manifestAndAnchorTamperRejected: true, rootReplacementRejected: true,
+      missingAuthorityPreservesLegacyAndHistory: true, noHotPathTreeScan: true, separatePageCache: true,
+      markSchemeStaticAccessDenied: true, tamperedMarkSchemePageRejected: true } } : {}),
     ...(q8Mode ? { q8Clients: q8Versions } : {}), ...(batchMode ? { batchClients: batchVersions, batchQuestionsChecked, batchTagStarts } : {}),
     ...(rollbackSummary ? { rollback: rollbackSummary } : {}),
     ...(evidenceRoot ? { syntheticSqliteEvidence: evidenceRoot } : {}) }))
