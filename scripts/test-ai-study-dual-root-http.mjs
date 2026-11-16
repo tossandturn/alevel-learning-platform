@@ -330,6 +330,23 @@ function expectStatus(result, status, label) {
 }
 
 try {
+  if (q8Mode || batchMode) {
+    const requiredFixtures = [
+      'D:/CodexWork/cie-fraft-fetcher/output/pdf/9702/9702_m25_qp_42.pdf',
+      ...(q8Mode ? [
+        'D:/CodexWork/ai-function-regression-20261103/qa/9708-q8-q19-review-20261116/simulation-two-model',
+        'D:/CodexWork/stem-ocr-work/candidate-source-page-cache/9708-s25-p32-q8-local-20261116',
+      ] : [
+        'D:/CodexWork/stem-ocr-work/candidate-artifacts/9708-m25-p12-18-reviewed-records-pending-20261116',
+        'D:/CodexWork/ai-function-regression-20261103/qa/9708-m25-p12-batch-20261116/question-evidence-table-v2.json',
+        'D:/CodexWork/stem-ocr-work/candidate-source-page-cache/active-safe-20261115-v4',
+        ...['1.0.92-83b8d9f', '1.0.93-17c480b', '1.0.95-e73701e'].map((version) =>
+          `D:/CodexWork/ai-function-regression-20261103/stemist-miniprogram-review-${version}`),
+      ]),
+    ]
+    const missing = requiredFixtures.filter((item) => !fs.existsSync(item))
+    assert.deepEqual(missing, [], `Optional local real-source acceptance needs its local fixtures; no production validation ran. Missing: ${missing.join(', ')}`)
+  }
   const physics = writeFixtureArtifact(routes.physics, legacyRoot)
   const biology = writeFixtureArtifact(routes.biology, legacyRoot)
   const candidate = q8Mode ? writeQ8Simulation(routes.candidate, candidateRoot)
