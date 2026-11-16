@@ -1,6 +1,7 @@
 import crypto from 'node:crypto'
 import { isAiMarkablePastPaperItem } from '../src/data/questionBank.js'
 import { canonicalAiMarkingProvenance, exactPartEvidenceFieldsMatch } from '../src/lib/sourceContentContract.js'
+import { SCORING_CONTEXT_GRANT_SCHEMA, normalizeScoringContextText, scoringContextWorkDigest } from './aiScoringContext.js'
 
 export const MARKING_CAPABILITY_ISSUER = 'stem.ieltsist.com'
 export const MARKING_CAPABILITY_AUDIENCE = 'stem-ai'
@@ -123,6 +124,30 @@ function persistedPartMatchesResolvedPart(persistedPart, resolvedPart) {
   )
 }
 
+function scoringContextGrant(question, part, persistedAttempt, attemptId, signingKey) {
+  const requirements = part?.scoringContextRequirements
+  if (!requirements) return undefined
+  const fingerprint = String(part.scoringContextFingerprint || '')
+  const persistedParts = Array.isArray(persistedAttempt?.binding?.parts) ? persistedAttempt.binding.parts : []
+  const dependencies = Array.isArray(requirements.dependsOnPartLabels) ? requirements.dependsOnPartLabels.map((label) => {
+    const matches = (question.parts || []).filter((item) => item.label === label)
+    const dependency = matches.length === 1 ? matches[0] : null
+    const canonical = dependency ? canonicalAiMarkingProvenance(question, dependency) : null
+    const bound = canonical ? persistedParts.filter((item) => persistedPartMatchesResolvedPart(item, { question, canonical })) : []
+    const unitPartId = bound.length === 1 ? String(bound[0].unitPartId || '') : ''
+    const snapshot = persistedAttempt?.snapshot || {}
+    const value = unitPartId ? (snapshot.answers?.[unitPartId] ?? snapshot.working?.[unitPartId]) : ''
+    const work = normalizeScoringContextText(value)
+    const evidence = unitPartId ? snapshot.evidence?.[unitPartId] : null
+    const hasUnboundEvidence = Boolean(evidence && (typeof evidence !== 'object'
+      || (evidence.hasVisualContent !== false && Object.keys(evidence).length > 0)))
+    const questionPartId = String(dependency?.partId || '')
+    return Object.freeze({ questionPartId, workDigest: work && !hasUnboundEvidence
+      ? scoringContextWorkDigest(signingKey, attemptId, question.sourceQuestionId, questionPartId, work) : '' })
+  }) : []
+  return Object.freeze({ schemaVersion: SCORING_CONTEXT_GRANT_SCHEMA, fingerprint, dependencies: Object.freeze(dependencies) })
+}
+
 function persistedAttemptMatchesRequest(persistedAttempt, request) {
   const binding = persistedAttempt?.binding
   if (
@@ -136,6 +161,17 @@ function persistedAttemptMatchesRequest(persistedAttempt, request) {
 
   const persistedParts = Array.isArray(binding.parts) ? binding.parts : []
   return request.parts.every((resolvedPart) => persistedParts.some((persistedPart) => persistedPartMatchesResolvedPart(persistedPart, resolvedPart)))
+}
+
+export function authoritativeScoringContextGrant({ userId, attemptId, mode, question, part, persistedAttempt, signingKey }) {
+  if (!part?.scoringContextRequirements || !persistedAttempt
+    || String(persistedAttempt.userId || '') !== String(userId || '')
+    || persistedAttempt.submissionStatus !== 'submitted' || !persistedAttempt.submittedAt) return null
+  const canonical = canonicalAiMarkingProvenance(question, part)
+  if (!canonical || !persistedAttemptMatchesRequest(persistedAttempt, {
+    attemptId, mode, paperId: String(question?.sourceRef?.paperId || ''), parts: [{ question, part, canonical }],
+  })) return null
+  return scoringContextGrant(question, part, persistedAttempt, attemptId, signingKey)
 }
 
 /**
@@ -200,7 +236,7 @@ export function issueMarkingCapabilities({ userId, payload, questionBank, signin
   if (!persistedAttemptMatchesRequest(persistedAttempt, request)) {
     return rejected('attempt_binding_mismatch', 'The submitted attempt binding does not match the requested source.', 409)
   }
-  const capabilities = request.parts.map(({ canonical, question }) => ({
+  const capabilities = request.parts.map(({ canonical, question, part }) => ({
     sourceQuestionId: canonical.sourceQuestionId,
     questionPartId: canonical.questionPartId,
     markingGrant: signHmacJwt({
@@ -223,6 +259,7 @@ export function issueMarkingCapabilities({ userId, payload, questionBank, signin
       sourceIndexSha256: canonical.sourceIndexSha256,
       sourceManifestChecksum: canonical.sourceManifestChecksum,
       sourceEvidence: canonical.sourceEvidence,
+      ...(part.scoringContextRequirements ? { scoringContext: scoringContextGrant(question, part, persistedAttempt, request.attemptId, signingKey) } : {}),
     }, signingKey, {
       issuer: MARKING_CAPABILITY_ISSUER,
       audience: MARKING_CAPABILITY_AUDIENCE,

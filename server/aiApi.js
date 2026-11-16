@@ -22,6 +22,7 @@ import {createDrawArtHandler} from './tavernDrawArt.js'
 import { isAiMarkablePastPaperItem, studyQuestionBank } from '../src/data/questionBank.js'
 import { renderVerifiedCoordinatePdfPage } from './coordinatePdfImages.js'
 import { aiStudySourceCacheRoot } from './aiStudySourceCache.js'
+import { authorizeScoringContext, hasReadableScoringContextEvidence } from './aiScoringContext.js'
 import { isAiStudyPromotionError } from './aiStudyPromotion.js'
 import {
   auditedMarkSchemeAssetEvidence,
@@ -36,7 +37,7 @@ import {
   STEM_MARKING_MANIFEST_SCHEMA_VERSION,
   STEM_SOURCE_REVIEW_SCHEMA_VERSION,
 } from '../src/lib/sourceContentContract.js'
-import { validHmacJwt, verifyMarkingCapability } from './markingCapability.js'
+import { authoritativeScoringContextGrant, validHmacJwt, verifyMarkingCapability } from './markingCapability.js'
 import {
   buildCoachSystemPrompt,
   coachPolicyResponseFields,
@@ -2679,7 +2680,7 @@ async function handleCoachStream(request, response, provider, visionProvider, li
   }
 }
 
-async function handleHandwritingMark(request, response, provider, libraryRoot, allowedSubjects, sourceAssetRoot, env, questionBank, telemetry, timeoutConfig) {
+async function handleHandwritingMark(request, response, provider, libraryRoot, allowedSubjects, sourceAssetRoot, env, questionBank, telemetry, timeoutConfig, loadScoringContextAttempt) {
   const payload = await readJsonBody(request)
   const identitySigningKey = env.STEM_INTERNAL_AUTH_KEY || env.STEM_IDENTITY_SIGNING_KEY
   const capability = verifyMarkingCapability({
@@ -2704,6 +2705,24 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
       reviewRequired: true,
     })
   }
+  const currentScoringGrant = async (question, part) => {
+    if (!part.scoringContextRequirements || typeof loadScoringContextAttempt !== 'function') return null
+    try {
+      const persistedAttempt = await loadScoringContextAttempt({ userId: capability.userId, attemptId: capability.claims.attemptId })
+      return authoritativeScoringContextGrant({ userId: capability.userId, attemptId: capability.claims.attemptId,
+        mode: capability.claims.mode, question, part, persistedAttempt,
+        signingKey: env.STEM_MARKING_CAPABILITY_SIGNING_KEY || identitySigningKey })
+    } catch { return null }
+  }
+  const currentGrant = await currentScoringGrant(canonical.question, canonical.part)
+  const scoringContext = authorizeScoringContext({ question: canonical.question, part: canonical.part,
+    claims: capability.claims, currentGrant, supplied: payload.dependentResponses,
+    signingKey: env.STEM_MARKING_CAPABILITY_SIGNING_KEY || identitySigningKey, attemptId: String(payload.attemptId || '') })
+  if (!scoringContext.ok) return sendJson(response, 409, {
+    code: 'scoring_context_human_review_required',
+    error: 'The required earlier work could not be verified. Automatic marking is unavailable; your answer remains saved.',
+    reviewRequired: true, humanReviewRequired: true,
+  })
   const typedResponse = compactText(payload.typedResponse, 6000)
   const hasStudentImage = Boolean(String(payload.imageDataUrl || '').trim())
   if (!hasStudentImage && !typedResponse) {
@@ -2739,6 +2758,7 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
     expectedMarkPoints: canonical.part.markSchemePoints || [],
     requestedMaxMarks,
     typedResponse,
+    ...(scoringContext.dependencies.length ? { scoringContext: { dependencies: scoringContext.dependencies } } : {}),
     officialSourceImages: [
       ...questionImages.map((image) => ({
         role: image.role,
@@ -2770,6 +2790,9 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
     'The sum of all markPoints[].marks must equal rawMarks. rawMarks is an integer from 0 to requestedMaxMarks; maxMarks must equal requestedMaxMarks.',
     'A zero score is valid: return rawMarks=0 and at least one point with awarded=false and marks=0. Do not omit markPoints when no credit is earned.',
     'For every point, keep reason and studentEvidence non-empty and grounded in the observed answer, including incorrect or unreadable work; never copy schema instructions as student evidence.',
+    ...(scoringContext.dependencies.length ? [
+      'For each scoringContext dependency, return dependencyEvidence with questionPartId, readable (boolean), and an exact quote from that prior typed response. If prior work is unclear, set readable=false and reviewRequired=true.',
+    ] : []),
   ].join('\n')
   let lastError = null
   let lastAttemptedProvider = activeProviders[0]
@@ -2816,21 +2839,44 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
         validateResponse: (answer) => validateMarkAssessment(parseStructuredJson(answer), requestedMaxMarks),
       })
       const assessment = validateMarkAssessment(parseStructuredJson(raw), requestedMaxMarks)
+      if (!hasReadableScoringContextEvidence(assessment, scoringContext.dependencies)) return sendJson(response, 409, {
+        code: 'scoring_context_human_review_required',
+        error: 'The required earlier work could not be reliably assessed. Automatic marking is unavailable; your answer remains saved.',
+        reviewRequired: true, humanReviewRequired: true,
+      })
+      if (scoringContext.dependencies.length) {
+        let rebound = null
+        try {
+          const bank = typeof questionBank === 'function' ? questionBank({ routeId: String(capability.claims?.routeId || '') }) : questionBank
+          rebound = canonicalHandwritingMarkingContext(payload, { questionBank: bank })
+        } catch { /* A changed or unavailable source must not produce a score. */ }
+        const refreshedGrant = rebound?.ok ? await currentScoringGrant(rebound.question, rebound.part) : null
+        const refreshed = rebound?.ok && authorizeScoringContext({ question: rebound.question, part: rebound.part,
+          claims: capability.claims, currentGrant: refreshedGrant, supplied: payload.dependentResponses,
+          signingKey: env.STEM_MARKING_CAPABILITY_SIGNING_KEY || identitySigningKey, attemptId: String(payload.attemptId || '') })
+        if (!refreshed?.ok) return sendJson(response, 409, {
+          code: 'scoring_context_human_review_required',
+          error: 'The submitted work or source changed during assessment. Automatic marking is unavailable; your answer remains saved.',
+          reviewRequired: true, humanReviewRequired: true,
+        })
+      }
       const result = normalizeMarkResult(assessment, requestedMaxMarks)
-      const autoFinal = canonical.autoFinal && result.reviewRequired === false && result.confidence >= 0.7
+      const requiresContextReview = scoringContext.dependencies.length > 0
+      const autoFinal = !requiresContextReview && canonical.autoFinal && result.reviewRequired === false && result.confidence >= 0.7
       return sendJson(response, 200, {
         mode: 'vision',
         provider: activeProvider.name,
         providerStatus: 'connected',
         model: activeProvider.model,
         autoFinal,
-        humanReviewRequired: result.reviewRequired,
+        humanReviewRequired: requiresContextReview || result.reviewRequired,
         score: result.rawMarks,
         maxScore: result.maxMarks,
         criteria: result.markPoints,
         evidence: result.markPoints.map((point) => point.studentEvidence),
         rationale: result.summary,
         ...result,
+        ...(requiresContextReview ? { reviewRequired: true, resultAuthority: 'ai-provisional' } : {}),
       })
     } catch (error) {
       lastError = error
@@ -2846,14 +2892,16 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
       providerStatus: 'invalid_schema',
       error: 'The AI marking response could not be validated. Your answer remains saved for review or retry.',
       reviewRequired: true,
+      ...(scoringContext.dependencies.length ? { humanReviewRequired: true } : {}),
       retryable: true,
     })
   }
   console.error(`[${lastAttemptedProvider.name}-vision] ${providerMessage(lastError, lastAttemptedProvider)}`)
-  return sendJson(response, 200, { mode: 'offline', code: 'vision_review_failed', provider: lastAttemptedProvider.name, providerStatus: 'error', error: providerMessage(lastError, lastAttemptedProvider), retryable: true })
+  return sendJson(response, 200, { mode: 'offline', code: 'vision_review_failed', provider: lastAttemptedProvider.name, providerStatus: 'error', error: providerMessage(lastError, lastAttemptedProvider), retryable: true,
+    ...(scoringContext.dependencies.length ? { reviewRequired: true, humanReviewRequired: true } : {}) })
 }
 
-export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null, authorizeCoachRequest = null, tavernDivinationStore = null, tavernConversationStore = null, tavernMemoryRoot = null, tavernMediaCatalog=null, tavernMediaRoot=DEFAULT_TAVERN_MEDIA_ROOT, tavernImageGenerator = null, admissionsConversationStore = null, admissionsMemoryRoot = null, admissionsCallCompatibleAiStream = callCompatibleAiStream, admissionsPrepareTurn = null, admissionsResearchOptions = null, admissionsPreviewOptions = null, ieltsTeacherConversationStore = null, ieltsTeacherMemoryRoot = null, ieltsTeacherCallCompatibleAiStream = callCompatibleAiStream, coachJobsRoot = null, coachImageUploadsOptions = null, scriptRoomOptions = null }) {
+export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, sourceAssetRoot = DEFAULT_SOURCE_ASSET_ROOT, questionBankProvider = null, telemetry = null, authorizeCoachRequest = null, loadScoringContextAttempt = null, tavernDivinationStore = null, tavernConversationStore = null, tavernMemoryRoot = null, tavernMediaCatalog=null, tavernMediaRoot=DEFAULT_TAVERN_MEDIA_ROOT, tavernImageGenerator = null, admissionsConversationStore = null, admissionsMemoryRoot = null, admissionsCallCompatibleAiStream = callCompatibleAiStream, admissionsPrepareTurn = null, admissionsResearchOptions = null, admissionsPreviewOptions = null, ieltsTeacherConversationStore = null, ieltsTeacherMemoryRoot = null, ieltsTeacherCallCompatibleAiStream = callCompatibleAiStream, coachJobsRoot = null, coachImageUploadsOptions = null, scriptRoomOptions = null }) {
   const legacyConfig = providerConfig(env)
   const config = studentProviderConfig(env, legacyConfig)
   const tavernProvider = loadTavernProvider({ env }) || legacyConfig.coach
@@ -3024,7 +3072,7 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach') return await handleCoach(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStore,tavernMediaCatalog||loadTavernMediaCatalog(),tavernProvider,questionSourceResolver)
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach/source') return await handleCoachSource(request,response,config.vision,env,telemetry,timeoutConfig,authorizeCoachRequest,questionSourceResolver)
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach/stream') return await handleCoachStream(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStore,tavernProvider,questionSourceResolver)
-      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/mark-handwriting') return await handleHandwritingMark(request, response, config.vision, libraryRoot, allowedSubjects, sourceAssetRoot, env, currentAiMarkingQuestionBank, telemetry, timeoutConfig)
+      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/mark-handwriting') return await handleHandwritingMark(request, response, config.vision, libraryRoot, allowedSubjects, sourceAssetRoot, env, currentAiMarkingQuestionBank, telemetry, timeoutConfig, loadScoringContextAttempt)
       return sendJson(response, 404, { error: 'AI route not found.' })
     } catch (error) {
       return sendJson(response, error.statusCode || 500, {

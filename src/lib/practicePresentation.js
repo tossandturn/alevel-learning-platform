@@ -164,7 +164,14 @@ export function withPracticePresentation(unit = {}) {
 
 export function markingStatusForPart(part = {}) {
   const reviewed = part.reviewStatus === 'reviewed' && part.studyOnly !== true
-  const aiStudy = part.reviewStatus === 'machine-indexed' && part.studyOnly === true && part.aiAssistedMarkingAvailable
+  const aiStudy = part.studyOnly === true && part.aiAssistedMarkingAvailable && (
+    part.reviewStatus === 'machine-indexed' || (part.reviewStatus === 'ai-verified' && part.studentStudyEligible === true
+      && part.markingProvenance && part.sourceBindingProvenance))
+  if (aiStudy && part.scoringContextRequirements) return {
+    mode: 'ai-review-required', label: 'AI-assisted, review required',
+    detail: 'The earlier work must be verified. Any AI assessment remains provisional and needs human judgment.',
+    formalMasteryEligible: false,
+  }
   if (part.deterministicScoringAvailable || part.answerKey) {
     return {
       mode: 'auto-scored',

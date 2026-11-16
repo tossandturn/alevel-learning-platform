@@ -15,7 +15,44 @@ function boundedMark(value, maxMarks) {
 }
 
 export function canUseAiAssistedMarking(part) {
-  return Boolean(part?.aiAssistedMarkingAvailable && ['reviewed', 'machine-indexed'].includes(part?.reviewStatus))
+  return Boolean(part?.aiAssistedMarkingAvailable && (
+    ['reviewed', 'machine-indexed'].includes(part?.reviewStatus)
+    || (part?.reviewStatus === 'ai-verified' && part?.studentStudyEligible === true
+      && part?.markingProvenance && part?.sourceBindingProvenance)
+  ))
+}
+
+export function visionReviewFailure(payload = {}) {
+  if (payload.code === 'scoring_context_human_review_required') return {
+    status: 'review_required', code: payload.code, reviewRequired: true, humanReviewRequired: true,
+    error: 'Automatic marking cannot reliably assess the earlier work. Your answer remains saved; compare it with the mark scheme or seek a teacher review.',
+  }
+  return { status: payload.code === 'vision_not_configured' ? 'unconfigured' : 'error', error: payload.error || 'AI review could not be completed.' }
+}
+
+export function visionReviewOutcome(payload = {}) {
+  if (payload.resultAuthority === 'ai-provisional' && payload.humanReviewRequired === true && payload.autoFinal === false) {
+    return visionReviewFailure({ code: 'scoring_context_human_review_required' })
+  }
+  return { ...payload, status: 'success' }
+}
+
+export function mergeStoredScoringContextReviews(localReviews, partIds) {
+  if (!Array.isArray(partIds)) return localReviews
+  const retained = Object.fromEntries(Object.entries(localReviews || {}).filter(([, review]) => review?.code !== 'scoring_context_human_review_required'))
+  return { ...retained, ...Object.fromEntries(partIds.map((partId) => [partId, visionReviewFailure({ code: 'scoring_context_human_review_required' })])) }
+}
+
+export function dependentScoringResponses(unit, part, attempt) {
+  const labels = part?.scoringContextRequirements?.dependsOnPartLabels
+  if (!Array.isArray(labels)) return []
+  return labels.flatMap((label) => {
+    const siblings = (unit?.parts || []).filter((candidate) => candidate.sourceQuestionId === part.sourceQuestionId && candidate.sourcePartLabel === label)
+    if (siblings.length !== 1 || !siblings[0].questionPartId) return []
+    const sibling = siblings[0]
+    const value = attempt?.answers?.[sibling.id] ?? attempt?.working?.[sibling.id] ?? ''
+    return [{ questionPartId: sibling.questionPartId, typedResponse: typeof value === 'string' ? value.trim() : '' }]
+  })
 }
 
 export function partMarkingCapability(part) {
@@ -117,6 +154,7 @@ function aiPendingStatus(review) {
 }
 
 function aiPendingReason(review) {
+  if (review?.code === 'scoring_context_human_review_required') return review.error || visionReviewFailure(review).error
   if (!review || review.status === 'no_evidence') return 'Add handwriting evidence and retry AI review, or record a self-mark from the paired mark scheme.'
   if (review.status === 'unconfigured') return 'AI review is unavailable. Your response is saved and can be self-marked with the paired mark scheme.'
   if (review.status === 'success' || review.status === 'review_required') return 'The AI result needs review and has not been counted. Retry with clearer evidence or record a self-mark.'

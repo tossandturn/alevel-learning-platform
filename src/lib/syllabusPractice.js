@@ -985,6 +985,7 @@ function publicQuestionGroup(record, { forceStudyOnly = false } = {}) {
       return {
         partId: part.partId,
         label: part.label,
+        sourcePartLabel: part.label,
         displayLabel: sourceQuestionDisplayLabel(question, part),
         marks: Number(part.marks || 0),
         promptFragment: part.promptFragment || '',
@@ -996,6 +997,7 @@ function publicQuestionGroup(record, { forceStudyOnly = false } = {}) {
         answerSourcePage: part.answerSourcePage || question.answerRef?.pageStart || null,
         sourceEvidence: part.sourceEvidence || [],
         markSchemeEvidence: part.markSchemeEvidence || [],
+        ...(part.scoringContextRequirements ? { scoringContextRequirements: part.scoringContextRequirements } : {}),
         sourceFocus: part.sourceFocus || null,
         markingProvenance,
         sourceBindingProvenance,

@@ -443,7 +443,16 @@ function compactAttemptValue(value, key = '', depth = 0) {
   return result
 }
 
-function compactStudentAttemptSnapshot(payload, { attemptId, routeId, stage, paperId, paperStudyMode, studyMode, sourcePreference, foundationCatalog, submittedAt }) {
+function scoringContextReviewRequiredPartIds(reviews, binding) {
+  if (!reviews || typeof reviews !== 'object' || Array.isArray(reviews)) return []
+  const allowed = new Set((binding?.parts || []).map((part) => String(part?.unitPartId || '')).filter(Boolean))
+  return Object.entries(reviews).filter(([partId, review]) => allowed.has(partId)
+    && review?.status === 'review_required' && review?.code === 'scoring_context_human_review_required'
+    && review?.reviewRequired === true && review?.humanReviewRequired === true)
+    .map(([partId]) => partId).sort()
+}
+
+function compactStudentAttemptSnapshot(payload, { attemptId, routeId, stage, paperId, paperStudyMode, studyMode, sourcePreference, foundationCatalog, submittedAt, binding }) {
   const source = payload?.attempt && typeof payload.attempt === 'object' ? payload.attempt : {}
   const suppliedScoreResult = source.scoreResult ?? source.result ?? payload.scoreResult ?? payload.result
   const hasClientReportedResult = suppliedScoreResult && typeof suppliedScoreResult === 'object' && !Array.isArray(suppliedScoreResult)
@@ -485,6 +494,7 @@ function compactStudentAttemptSnapshot(payload, { attemptId, routeId, stage, pap
     maxMarksByQuestion: source.maxMarksByQuestion || payload.maxMarksByQuestion,
     aiMarks: source.aiMarks || payload.aiMarks,
     lastSavedReview: source.lastSavedReview || payload.lastSavedReview,
+    ...(Object.hasOwn(source, 'visionReviews') ? { scoringContextReviewRequiredPartIds: scoringContextReviewRequiredPartIds(source.visionReviews, binding) } : {}),
     scoreResult: suppliedScoreResult,
     formalResult: false,
     ...(hasClientReportedResult ? { resultAuthority: 'client-reported' } : {}),
@@ -789,6 +799,19 @@ export function createCurriculumPracticeAccess({ env = process.env, questionBank
     // AP/IB has separate session tables and never reseeds CIE attempts/mastery.
     databaseProvider: () => appDatabase(env, questionBank, { synchronizeSource: false }),
   })
+}
+
+export function createScoringContextAttemptLoader({ env = process.env, questionBank = unifiedQuestionBank, databaseProvider = null } = {}) {
+  return function loadScoringContextAttempt({ userId, attemptId } = {}) {
+    if (!/^ielts:\d+$/.test(String(userId || '')) || !/^[A-Za-z0-9._:-]{8,120}$/.test(String(attemptId || ''))) return null
+    const db = typeof databaseProvider === 'function' ? databaseProvider() : (database || appDatabase(env, questionBank, { synchronizeSource: false }))
+    const row = db.prepare(`
+      SELECT user_id, attempt_id, mode, route_id, stage, paper_id, binding_json, attempt_json, submission_status, submitted_at, created_at, updated_at
+      FROM student_attempts
+      WHERE user_id = ? AND attempt_id = ?
+    `).get(userId, attemptId)
+    return row ? parseStudentAttemptRow(row) : null
+  }
 }
 
 export function createCoachAttemptAuthorizer({ env = process.env, questionBank = unifiedQuestionBank, questionBankProvider = null, databaseProvider = null } = {}) {
@@ -1239,6 +1262,7 @@ const MUTABLE_SUBMITTED_SNAPSHOT_KEYS = new Set([
   'maxMarksByQuestion',
   'aiMarks',
   'lastSavedReview',
+  'scoringContextReviewRequiredPartIds',
   'scoreResult',
   'formalResult',
   'resultAuthority',
@@ -3240,6 +3264,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
           sourcePreference: binding.sourcePreference,
           foundationCatalog: binding.foundationCatalog,
           submittedAt,
+          binding,
         })
         const persistedSnapshot = existing?.submissionStatus === 'submitted' && submissionStatus === 'submitted'
           ? mergeSubmittedAttemptSnapshot(existing?.snapshot, attemptSnapshot)

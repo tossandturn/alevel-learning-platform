@@ -6,6 +6,7 @@ import { SourceRegionRenderer } from './SourceRegionRenderer'
 import { buildSourceRenderManifest } from '../lib/sourceRenderManifest.js'
 import { stripSourceVisualPlaceholders } from '../lib/questionContent.js'
 import { evidencePresent, practiceAttemptMetrics, sourceQuestionDisplayLabel } from '../lib/practicePresentation.js'
+import { canUseAiAssistedMarking } from '../lib/markingLifecycle.js'
 import './QuestionPlayer.css'
 
 const EMPTY_PARTS = Object.freeze([])
@@ -82,7 +83,11 @@ function markingCapability(part) {
     return { mode: 'deterministic', label: 'Checked after submission',
       detail: 'The server checks the selected option against the source-bound answer after submission.' }
   }
-  if (part.aiAssistedMarkingAvailable && ['reviewed', 'machine-indexed'].includes(part.reviewStatus)) {
+  if (canUseAiAssistedMarking(part) && part.scoringContextRequirements) return {
+    mode: 'ai-assisted', label: 'AI-assisted, review required',
+    detail: 'The earlier work must be verified. Any AI assessment remains provisional and needs human judgment.',
+  }
+  if (canUseAiAssistedMarking(part)) {
     const studyEstimate = part.studyOnly === true
     return {
       mode: 'ai-assisted',
@@ -175,7 +180,7 @@ function AnswerPartWorkspace({ part, partIndex, totalParts, attempt, active, sou
         key={part.id}
         answerId={part.id}
         evidenceId={`${attempt.id}:${part.id}`}
-        aiReviewEligible={Boolean(part.aiAssistedMarkingAvailable && ['reviewed', 'machine-indexed'].includes(part.reviewStatus))}
+        aiReviewEligible={canUseAiAssistedMarking(part)}
         image={attempt.evidence?.[part.id]}
         label={part.answerType === 'numeric' ? 'Working and method' : `${answerTypeLabel(part)} area`}
         text={attempt.answers[part.id] ?? attempt.working?.[part.id] ?? ''}
@@ -393,7 +398,7 @@ export function PracticeWorkspace({ attempt, unit, setActivePart, updateAnswer, 
                   </figure> : activeRequiresBoundSource ? <div className="qp-source-incomplete" role="alert"><AlertTriangle size={18} /><strong>This question is temporarily unavailable.</strong><span>The complete official question and marking guidance could not be confirmed, so answering and submission are blocked.</span></div> : null}
                   {!activePart.sourceRef?.paperId && <h2>{displayPrompt(activePart)}</h2>}
                   {activePart.sourceRef && <div className="question-source-label qp-source-label"><strong>Official Cambridge question · {sourceQuestionLabel(activePart, `Question ${activeQuestionIndex + 1}`)}</strong><span>Source-bound question from the original paper. Marking feedback appears after submission.</span></div>}
-                  {activePart.studyOnly && <div className="qp-source-study-note" role="status"><strong>Study mode</strong><span>{activePart.aiAssistedMarkingAvailable ? 'Submit for automatic AI marking against the bound QP/MS. The result is saved as study evidence outside formal mastery.' : 'This official source is ready for practice while its marking evidence is incomplete. Submit and use the paired mark scheme; formal mastery remains unavailable.'}</span></div>}
+                  {activePart.studyOnly && <div className="qp-source-study-note" role="status"><strong>Study mode</strong><span>{activePart.scoringContextRequirements ? 'Earlier work must be verified; any AI assessment remains provisional and needs human judgment.' : activePart.aiAssistedMarkingAvailable ? 'Submit for automatic AI marking against the bound QP/MS. The result is saved as study evidence outside formal mastery.' : 'This official source is ready for practice while its marking evidence is incomplete. Submit and use the paired mark scheme; formal mastery remains unavailable.'}</span></div>}
                 </section>
 
                 <section className={`qp-question__answer-panel ${activeQuestion.parts.length > 1 ? 'qp-question__answer-panel--multi' : ''}`} aria-label="Answer workspace">

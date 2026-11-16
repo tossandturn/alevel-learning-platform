@@ -40,11 +40,15 @@ import { stripSourceVisualPlaceholders } from './lib/questionText'
 import {
   buildPartMarkingLifecycle,
   canUseAiAssistedMarking,
+  dependentScoringResponses,
   finalizePartMarking,
   hasCompleteStudentMarks,
   isFormalScoreResult,
   markingCapabilityForUnit,
+  mergeStoredScoringContextReviews,
   pendingPartsForLifecycle,
+  visionReviewFailure,
+  visionReviewOutcome,
 } from './lib/markingLifecycle'
 import { latestBphoSpcPaper } from './lib/coachIntent'
 import { buildCompletionByUnit, buildLearningProgress, latestSubmittedActivity, recommendForRoute } from './lib/learningProgress'
@@ -195,6 +199,10 @@ function mergeServerStudentAttempts(state, records = []) {
   for (const serverAttempt of serverAttempts) {
     const local = localById.get(serverAttempt.id)
     const merged = { ...local, ...serverAttempt }
+    if (Array.isArray(serverAttempt.scoringContextReviewRequiredPartIds)) {
+      merged.visionReviews = mergeStoredScoringContextReviews(local?.visionReviews, serverAttempt.scoringContextReviewRequiredPartIds)
+      delete merged.markingLifecycle
+    }
     if (serverAttempt.sourceBinding) merged.sourceBinding = serverAttempt.sourceBinding
     if (!Object.prototype.hasOwnProperty.call(serverAttempt, 'scoreResult') && ['marking-pending', 'self-mark-pending'].includes(serverAttempt.attemptStatus)) {
       delete merged.scoreResult
@@ -361,6 +369,9 @@ async function requestVisionReviews(unit, attempt, identityToken = '') {
             throw Object.assign(new Error('The saved handwriting image is unavailable.'), { code: 'evidence_unavailable' })
           })(),
           typedResponse: responseEntry.typedResponse,
+          ...(part.scoringContextRequirements ? {
+            dependentResponses: dependentScoringResponses(unit, part, attempt),
+          } : {}),
           provenance: {
             routeId: unit.routeId,
             ...(part.markingProvenance || {}),
@@ -369,9 +380,9 @@ async function requestVisionReviews(unit, attempt, identityToken = '') {
         }),
       })
       const payload = await response.json().catch(() => ({}))
-      if (!response.ok) return [partId, { status: payload.code === 'vision_not_configured' ? 'unconfigured' : 'error', error: payload.error || 'AI review could not be completed.' }]
+      if (!response.ok) return [partId, visionReviewFailure(payload)]
       if (payload.mode !== 'vision') return [partId, { status: 'error', error: payload.error || 'AI review could not be completed.' }]
-      return [partId, { ...payload, status: 'success' }]
+      return [partId, visionReviewOutcome(payload)]
     } catch (error) {
       return [partId, { status: 'error', failureCode: error.code || 'provider_unavailable', retryable: error.code !== 'evidence_unavailable', error: error.message || 'AI review could not be reached. Your response remains saved.' }]
     }
@@ -433,6 +444,7 @@ function unitFromSyllabusPracticeSet(payload) {
     sourceQuestionId: group.id,
     questionGroupId: group.questionGroupId || group.id,
     questionPartId: questionPart.partId,
+    sourcePartLabel: questionPart.label || '',
     label: `${group.questionNumber || groupIndex + 1}${questionPart.label ? `(${questionPart.label})` : ''}`,
     displayLabel: questionPart.displayLabel || `${group.questionNumber || groupIndex + 1}${questionPart.label ? `(${questionPart.label})` : ''}`,
     sourceKind: 'past-paper',
@@ -4119,7 +4131,8 @@ function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibr
     const unansweredCount = Object.values(markingLifecycle.partStates || {}).filter((state) => state?.status === 'unanswered').length
     const aiReviewStates = Object.values(attempt.visionReviews || {})
     const aiReviewAttempted = aiReviewStates.length > 0
-    const automaticAiPending = pendingParts.length > 0 && pendingParts.every((part) => (
+    const needsContextReview = pendingParts.some((part) => attempt.visionReviews?.[part.id]?.code === 'scoring_context_human_review_required')
+    const automaticAiPending = !needsContextReview && pendingParts.length > 0 && pendingParts.every((part) => (
       markingLifecycle.partStates?.[part.id]?.capability === 'ai-assisted'
       && part.studyOnly === true
       && part.aiAssistedMarkingAvailable === true
@@ -4173,10 +4186,12 @@ function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibr
         </section>
       )
     }
-    const pendingHeading = pendingParts.length
+    const pendingHeading = needsContextReview ? 'Review the saved work' : pendingParts.length
       ? aiReviewAttempted ? 'AI review first, then self-mark' : 'AI check unavailable, self-mark next'
       : 'No answered parts to score'
-    const pendingIntro = pendingParts.length
+    const pendingIntro = needsContextReview
+      ? 'Automatic marking could not reliably assess the earlier work. Your answer is saved; compare it with the paired mark scheme or seek a teacher review. No automatic score was created.'
+      : pendingParts.length
       ? 'Your submission has passed through the AI-capable marking step. Anything still unresolved now needs your reviewed self-mark from the paired official mark scheme.'
       : 'Your submission is saved, but no answer evidence was submitted. Finish or retake the set before it can create a score, mastery, mistake or progress event.'
     const updateSelfMark = (part, raw) => {
@@ -4198,7 +4213,7 @@ function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibr
           <div className="result-actions">{chapterCoachAction}<button type="button" className="secondary-action" onClick={goLibrary}><ArrowLeft size={18} />Back to library</button></div>
         </div>
         <section className="self-mark-result__guide" aria-label="Record self-mark">
-          <header className="self-mark-result__heading"><div><p className="section-label">AI-first marking</p><h2>{pendingParts.length ? 'Finish the unresolved parts' : 'Return when you have answer evidence'}</h2><p>AI-reviewed, deterministic or unavailable states are recorded first. Self-marking is only the second step for unresolved answered parts; blanks remain pending, not zero.</p></div>{resolvedCount > 0 && <div className="self-mark-result__subtotal"><span>Checked so far</span><strong>{markingLifecycle.provisionalRawMarks}/{markingLifecycle.provisionalMaxMarks}</strong><small>Provisional only; not in progress</small></div>}{unansweredCount > 0 && <div className="self-mark-result__subtotal"><span>Unanswered</span><strong>{unansweredCount}</strong><small>Not marked as zero</small></div>}</header>
+          <header className="self-mark-result__heading"><div><p className="section-label">{needsContextReview ? 'Manual review' : 'AI-first marking'}</p><h2>{pendingParts.length ? 'Finish the unresolved parts' : 'Return when you have answer evidence'}</h2><p>{needsContextReview ? 'Use the paired mark scheme or seek a teacher review before recording a self-mark. No automatic score was created.' : 'AI-reviewed, deterministic or unavailable states are recorded first. Self-marking is only the second step for unresolved answered parts; blanks remain pending, not zero.'}</p></div>{resolvedCount > 0 && <div className="self-mark-result__subtotal"><span>Checked so far</span><strong>{markingLifecycle.provisionalRawMarks}/{markingLifecycle.provisionalMaxMarks}</strong><small>Provisional only; not in progress</small></div>}{unansweredCount > 0 && <div className="self-mark-result__subtotal"><span>Unanswered</span><strong>{unansweredCount}</strong><small>Not marked as zero</small></div>}</header>
           <div className="self-mark-result__rows">
             {pendingParts.map((part) => {
               const index = unit.parts.findIndex((item) => item.id === part.id)
@@ -4207,7 +4222,7 @@ function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibr
               return <div className="self-mark-result__row" key={part.id}><div className="self-mark-result__question"><span className={`self-mark-result__state self-mark-result__state--${isAiPending ? 'ai' : 'manual'}`}>{isAiPending ? 'AI unresolved' : 'Self-mark'}</span><strong>{displayPartLabel(part, `Question ${index + 1}`)}</strong><small>{partState?.reason || 'Compare your response with the paired mark scheme.'}</small></div><label className="self-mark-result__input"><span>Mark</span><span><input type="number" min="0" max={part.marks} step="1" inputMode="numeric" aria-label={`Self-mark for ${displayPartLabel(part, `Question ${index + 1}`)}`} value={selfMarks[part.id] ?? ''} onChange={(event) => updateSelfMark(part, event.target.value)} /><b>/ {part.marks}</b></span></label>{part.answerRef?.localUrl ? <a className="self-mark-result__scheme" href={part.answerRef.localUrl} target="_blank" rel="noreferrer"><BookOpen size={16} />Mark scheme</a> : <span className="self-mark-result__scheme is-missing">Scheme unavailable</span>}</div>
             })}
           </div>
-          <footer className="self-mark-result__footer"><p className={marksComplete ? 'self-mark-result__validation is-complete' : 'self-mark-result__validation'} role="status">{marksComplete ? 'Every unresolved answered part has an explicit mark. Saving appends a canonical scored result.' : pendingParts.length ? `Enter all ${pendingParts.length} unresolved marks after the AI-first check. Blank or partial entries remain unscored.` : 'There are no answered unresolved parts to self-mark yet.'}</p><button type="button" className="primary-action" disabled={!marksComplete} onClick={() => recordSelfMark?.(attempt.id, selfMarks)}>Record self-mark after AI review</button></footer>
+          <footer className="self-mark-result__footer"><p className={marksComplete ? 'self-mark-result__validation is-complete' : 'self-mark-result__validation'} role="status">{marksComplete ? (needsContextReview ? 'Every unresolved answered part has an explicit mark. Saving records your self-mark.' : 'Every unresolved answered part has an explicit mark. Saving appends a canonical scored result.') : pendingParts.length ? (needsContextReview ? `Enter all ${pendingParts.length} unresolved marks after reviewing the work. Blank or partial entries remain unscored.` : `Enter all ${pendingParts.length} unresolved marks after the AI-first check. Blank or partial entries remain unscored.`) : 'There are no answered unresolved parts to self-mark yet.'}</p><button type="button" className="primary-action" disabled={!marksComplete} onClick={() => recordSelfMark?.(attempt.id, selfMarks)}>{needsContextReview ? 'Record self-mark' : 'Record self-mark after AI review'}</button></footer>
         </section>
       </section>
     )
@@ -4225,7 +4240,7 @@ function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibr
   const isStudyOnly = isStudyOnlyPracticeUnit(unit)
   const isProvisional = result.partial === true
   const weakest = result.weakestPartId ? unit.parts.find((part) => part.id === result.weakestPartId) : null
-  const hasAiReview = Object.values(attempt.visionReviews || {}).some((review) => ['success', 'unconfigured', 'error'].includes(review?.status))
+  const hasAiReview = Object.values(attempt.visionReviews || {}).some((review) => ['success', 'unconfigured', 'error', 'review_required'].includes(review?.status))
   const hasSavedHandwriting = attempt.imageEvidence?.length > 0
   const hasCanonicalAiMarks = result.criteria.some((criterion) => criterion.scoringSource === 'vision-assisted')
   const hasServerObjectiveMarks = result.criteria.some((criterion) => criterion.scoringSource === 'server-objective')
@@ -4321,6 +4336,7 @@ function ResultView({ attempt, unit, sourceCurrent = true, startPractice, goLibr
                     {visionPart?.status === 'success' && <div className="vision-result-inline"><header><Sparkles size={14} /><strong>Handwriting review: {visionPart.rawMarks}/{visionPart.maxMarks}</strong><span>{Math.round(visionPart.confidence * 100)}% confidence{visionPart.reviewRequired ? ' · check required' : ''}</span></header>{visionPart.recognizedWork && <p>{visionPart.recognizedWork}</p>}{visionPart.correctedSolution && <details><summary>Correction</summary><p>{visionPart.correctedSolution}</p></details>}</div>}
                     {visionPart?.status === 'unconfigured' && <p className="vision-result-inactive">AI handwriting marking was not configured; this image is saved for manual review.</p>}
                     {visionPart?.status === 'error' && <p className="vision-result-inactive">{visionPart.error}</p>}
+                    {visionPart?.status === 'review_required' && <p className="vision-result-inactive">{visionPart.error}</p>}
                     {visionPart?.status === 'self_mark_only' && <p className="vision-result-inactive">Handwriting is saved with this attempt. Compare it with the exact mark scheme and record your self-mark.</p>}
                     {part.sourceRef?.markSchemeUrl && <a className="mark-scheme-link" href={part.sourceRef.markSchemeUrl} target="_blank" rel="noreferrer">Open exact mark scheme for {displayPartLabel(part)}</a>}
                     {part.answerRef && <div className="official-answer"><header><strong>Official mark scheme</strong><a className="mark-scheme-link" href={part.answerRef.localUrl} target="_blank" rel="noreferrer">Open {part.answerRef.file}</a></header>{part.answerRef.assetUrls?.map((url) => <img src={url} alt={`${part.answerRef.file}, answer for ${part.sourceRef?.question}`} loading="lazy" key={url} />)}{part.exactAnswer && <details><summary>Extracted mark-scheme text</summary><p>{part.exactAnswer}</p></details>}</div>}

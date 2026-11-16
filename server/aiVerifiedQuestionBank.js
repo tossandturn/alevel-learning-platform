@@ -243,6 +243,49 @@ function samePartMarks(candidateParts, verifiedParts) {
     && part.label === right[index].label && part.marks === right[index].marks)
 }
 
+function matchingScoringContextRequirements(candidateParts, verificationParts) {
+  const hasRequirement = [...candidateParts, ...verificationParts].some((part) => part?.scoringContextRequirements != null)
+  if (!hasRequirement) return new Map()
+  const labels = candidateParts.map((part) => asText(part?.label))
+  const knownLabels = new Set(labels)
+  if (knownLabels.size !== labels.length || labels.some((label) => !label)) return null
+  const normalize = (value, label) => {
+    if (value === undefined || value === null) return null
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+    const allowed = ['schemaVersion', 'dependency', 'dependsOnPartLabels', 'evidenceRequirement', 'onMissing']
+    if (Object.keys(value).some((key) => !allowed.includes(key))
+      || value.schemaVersion !== 'stem-ai-scoring-context.v1'
+      || value.dependency !== 'follow-through'
+      || value.evidenceRequirement !== 'student-work-visible-and-readable'
+      || value.onMissing !== 'human-review-required'
+      || !Array.isArray(value.dependsOnPartLabels) || !value.dependsOnPartLabels.length) return false
+    const dependencies = value.dependsOnPartLabels.map(asText)
+    if (dependencies.some((dependency) => !dependency || dependency === label || !knownLabels.has(dependency))
+      || new Set(dependencies).size !== dependencies.length) return false
+    dependencies.sort()
+    return Object.freeze({ schemaVersion: value.schemaVersion, dependency: value.dependency,
+      dependsOnPartLabels: Object.freeze(dependencies), evidenceRequirement: value.evidenceRequirement, onMissing: value.onMissing })
+  }
+  const contexts = new Map()
+  for (const [index, part] of candidateParts.entries()) {
+    const label = labels[index]
+    const candidate = normalize(part?.scoringContextRequirements, label)
+    const verified = normalize(verificationParts[index]?.scoringContextRequirements, label)
+    if (candidate === false || verified === false || JSON.stringify(candidate) !== JSON.stringify(verified)) return null
+    if (candidate) contexts.set(label, candidate)
+  }
+  const states = new Map()
+  const acyclic = (label) => {
+    if (states.get(label) === 'visiting') return false
+    if (states.get(label) === 'done') return true
+    states.set(label, 'visiting')
+    for (const dependency of contexts.get(label)?.dependsOnPartLabels || []) if (!acyclic(dependency)) return false
+    states.set(label, 'done')
+    return true
+  }
+  return labels.every(acyclic) ? contexts : null
+}
+
 function evidenceForRegion(region, sourceHash, evidenceRole = '') {
   return Object.freeze({
     page: region.page,
@@ -318,7 +361,7 @@ function sameSingleLabel(labels, label) {
   return Array.isArray(labels) && labels.length === 1 && labels[0] === label
 }
 
-function exactPartEvidenceBindings({ candidate, verification, candidateRegions, candidateDiagrams, markSchemeEvidence }) {
+function exactPartEvidenceBindings({ candidate, verification, candidateRegions, candidateDiagrams, candidateSharedStems, markSchemeEvidence }) {
   const candidateVersion = asText(candidate?.partEvidenceSchemaVersion)
   const verificationVersion = asText(verification?.partEvidenceSchemaVersion)
   const optedIn = Boolean(candidateVersion || verificationVersion)
@@ -333,6 +376,7 @@ function exactPartEvidenceBindings({ candidate, verification, candidateRegions, 
   if (!labels.length || labels.some((label) => !label) || knownLabels.size !== labels.length) return null
   if (candidateRegions.some((region) => !sameSingleLabel(region.partLabels, region.partLabels?.[0]) || !knownLabels.has(region.partLabels[0]))) return null
   if (candidateDiagrams.some((region) => !region.partLabels?.length || region.partLabels.some((label) => !knownLabels.has(label)))) return null
+  if (candidateSharedStems.some((region) => !region.partLabels?.length || region.partLabels.some((label) => !knownLabels.has(label)))) return null
   if (markSchemeEvidence.some((entry) => !sameSingleLabel(entry.partLabels, entry.partLabels?.[0])
     || !knownLabels.has(entry.partLabels[0]) || !entry.region || !Number.isInteger(entry.marks))) return null
 
@@ -361,6 +405,7 @@ function exactPartEvidenceBindings({ candidate, verification, candidateRegions, 
       questionRegion: qpMatches[0],
       markSchemeRegion: msMatches[0],
       sharedDiagramRegions: Object.freeze(candidateDiagrams.filter((region) => region.partLabels.includes(label))),
+      sharedStemRegions: Object.freeze(candidateSharedStems.filter((region) => region.partLabels.includes(label))),
     }))
   }
   return Object.freeze({ optedIn: true, byLabel })
@@ -376,7 +421,9 @@ function questionFromArtifact(artifact, candidate, verification, metadata, route
   const topicId = asText(candidate?.tags?.primaryTopicId)
   const candidateRegions = normalizedRegions(candidate?.regions, source.pageSizes, source.pageImageHashes, { required: true })
   const candidateDiagrams = normalizedRegions(candidate?.diagramRegions, source.pageSizes, source.pageImageHashes)
-  const regions = candidateRegions && candidateDiagrams ? [...candidateRegions, ...candidateDiagrams]
+  const candidateSharedStems = normalizedRegions(candidate?.sharedStemRegions, source.pageSizes, source.pageImageHashes)
+  const verifiedSharedStems = normalizedRegions(verification?.sharedStemRegions, source.pageSizes, source.pageImageHashes)
+  const regions = candidateRegions && candidateDiagrams && candidateSharedStems ? [...candidateRegions, ...candidateDiagrams, ...candidateSharedStems]
     .filter((region, index, all) => all.findIndex((entry) => regionKey(entry) === regionKey(region)) === index) : null
   const diagramRegions = candidateDiagrams
   const markSchemeEvidence = normalizedEvidence(candidate?.markSchemeEvidence, source.markSchemePageSizes, source.markSchemePageHashes)
@@ -426,15 +473,29 @@ function questionFromArtifact(artifact, candidate, verification, metadata, route
     || !samePartMarks(candidate?.parts, verification?.parts)
     || !verificationRegions
     || !verificationDiagrams
+    || !candidateSharedStems
+    || !verifiedSharedStems
     || !sameRegionCollection(candidateRegions, verificationRegions)
-    || !sameRegionCollection(diagramRegions, verificationDiagrams)) return null
+    || !sameRegionCollection(diagramRegions, verificationDiagrams)
+    || !sameRegionCollection(candidateSharedStems, verifiedSharedStems)) return null
   if (!verifiedEvidence || JSON.stringify(markSchemeEvidence) !== JSON.stringify(verifiedEvidence)) return null
   if (JSON.stringify(questionPages) !== JSON.stringify(verificationPages)) return null
+  const scoringContexts = matchingScoringContextRequirements(candidate.parts, verification.parts)
+  if (!scoringContexts) return null
+  const partLabels = new Set(candidate.parts.map((part) => asText(part.label)))
+  if (candidateSharedStems.some((region) => !region.partLabels.length || region.partLabels.some((label) => !partLabels.has(label)))) return null
+  for (const [index, part] of candidate.parts.entries()) {
+    const reviewedPart = verification.parts[index]
+    if ((part.needsSharedStem !== undefined || reviewedPart.needsSharedStem !== undefined)
+      && (typeof part.needsSharedStem !== 'boolean' || part.needsSharedStem !== reviewedPart.needsSharedStem)) return null
+    if (part.needsSharedStem === true && !candidateSharedStems.some((region) => region.partLabels.includes(asText(part.label)))) return null
+  }
   const exactBindings = exactPartEvidenceBindings({
     candidate,
     verification,
     candidateRegions,
     candidateDiagrams: diagramRegions,
+    candidateSharedStems,
     markSchemeEvidence,
   })
   if (!exactBindings) return null
@@ -446,6 +507,7 @@ function questionFromArtifact(artifact, candidate, verification, metadata, route
       ? [
           evidenceForRegion(exact.questionRegion, sourceHash, 'question-part'),
           ...exact.sharedDiagramRegions.map((region) => evidenceForRegion(region, sourceHash, 'shared-diagram')),
+          ...exact.sharedStemRegions.map((region) => evidenceForRegion(region, sourceHash, 'shared-stem')),
         ]
       : regions.map((region) => evidenceForRegion(region, sourceHash))
     const partMarkSchemeEvidence = exact
@@ -461,6 +523,14 @@ function questionFromArtifact(artifact, candidate, verification, metadata, route
       answerArea: Object.freeze({ type: 'handwritten' }),
       options: Object.freeze([]),
       markSchemePoints: Object.freeze([]),
+      ...(scoringContexts.has(label) ? {
+        scoringContextRequirements: scoringContexts.get(label),
+        scoringContextFingerprint: crypto.createHash('sha256').update(JSON.stringify({
+          schemaVersion: 'stem-ai-scoring-context-binding.v1', routeId: routeConfig.routeId,
+          sourceQuestionId: questionId, partLabel: label, requirements: scoringContexts.get(label),
+          sharedStemRegions: candidateSharedStems.filter((region) => region.partLabels.includes(label)).map(regionKey).sort(),
+        })).digest('hex'),
+      } : {}),
       answerKey: null,
       answerText: '',
       sourcePage: exact?.questionPage || questionPages[0],

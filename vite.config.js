@@ -13,7 +13,7 @@ import { readReleaseAnchor, readReleaseManifestBytes, verifyReleaseAnchor } from
 import { bindAiStudySourceCache } from './server/aiStudySourceCache.js'
 import { createAiStudyDualRootLoader } from './server/aiStudyDualRoot.js'
 import { resolveAiPdfIngestionRoot } from './server/aiPdfIngestionCandidates.js'
-import { createCoachAttemptAuthorizer, createCurriculumPracticeAccess, createStemApi } from './server/stemApi.js'
+import { createCoachAttemptAuthorizer, createCurriculumPracticeAccess, createScoringContextAttemptLoader, createStemApi } from './server/stemApi.js'
 import { createCurriculumPracticeApi } from './server/curriculumPracticeApi.js'
 import { createTopicPdfRenderer } from './server/topicPdfRenderer.js'
 import { createPdfDownloadPolicy, authorizePdfFile, applyPdfQuotaHeaders, pdfNotModified, sendPdfAccessError } from './server/pdfDownloadPolicy.js'
@@ -711,6 +711,7 @@ export function localCieLibrary(env, { trustedPublicKeys = AI_STUDY_TRUSTED_PUBL
     allowedSubjects: ALLOWED_SUBJECTS,
     questionBankProvider: runtimeAiGroups,
     authorizeCoachRequest: createCoachAttemptAuthorizer({ env, questionBankProvider: runtimeAiGroups }),
+    loadScoringContextAttempt: createScoringContextAttemptLoader({ env }),
   })
   return {
     name: 'local-cie-library',
