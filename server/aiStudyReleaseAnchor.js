@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const SHA256 = /^[a-f0-9]{64}$/
+export const MAX_RELEASE_MANIFEST_BYTES = 8 * 1024 * 1024
 
 function invalid() {
   throw Object.assign(new Error('The verified chapter-study release anchor is unavailable.'),
@@ -73,5 +74,5 @@ export function verifyReleaseAnchor({ releaseRoot, manifest, manifestBytes }) {
 }
 
 export function readReleaseManifestBytes(releaseRoot) {
-  return readRegularFile(path.join(releaseRoot, 'release-manifest.json'), 2 * 1024 * 1024)
+  return readRegularFile(path.join(releaseRoot, 'release-manifest.json'), MAX_RELEASE_MANIFEST_BYTES)
 }

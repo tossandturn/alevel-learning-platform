@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { artifactTreeIdentity } from './release-content-policy.mjs'
+import { MAX_RELEASE_MANIFEST_BYTES, readReleaseManifestBytes } from '../server/aiStudyReleaseAnchor.js'
 import { releaseBuildIdentity } from '../vite.config.js'
 
 // This fixture is deliberately synthetic; it is not a release approval.
@@ -56,13 +57,36 @@ try {
   assert.equal(releaseBuildIdentity({}, releaseRoot).status, 'unavailable', 'a pinned chapter release cannot be downgraded to v1')
   fs.writeFileSync(manifestPath, bytes)
   const altered = Buffer.from(bytes)
+  const originalStat = fs.statSync(manifestPath)
   const offset = altered.indexOf(Buffer.from('d'.repeat(64)))
   assert.ok(offset >= 0)
   altered[offset] = 'e'.charCodeAt(0)
-  fs.writeFileSync(manifestPath, altered)
+  fs.writeFileSync(manifestPath, altered); fs.utimesSync(manifestPath, originalStat.atime, originalStat.mtime)
   assert.equal(releaseBuildIdentity({}, releaseRoot).status, 'unavailable',
     'a same-length manifest substitution must fail even when the release tree is unchanged')
   fs.writeFileSync(manifestPath, bytes)
+  const anchorBytes = fs.readFileSync(anchorPath), alteredAnchor = JSON.parse(anchorBytes)
+  alteredAnchor.commit = 'f'.repeat(40)
+  fs.writeFileSync(anchorPath, JSON.stringify(alteredAnchor))
+  assert.equal(releaseBuildIdentity({}, releaseRoot).status, 'unavailable', 'a changed release anchor must fail closed')
+  fs.writeFileSync(anchorPath, anchorBytes)
+  fs.writeFileSync(manifestPath, '{"truncated":')
+  assert.equal(releaseBuildIdentity({}, releaseRoot).status, 'unavailable', 'a truncated manifest must fail closed')
+  const largeManifest = { ...manifest, fixturePadding: 'x'.repeat(3 * 1024 * 1024) }
+  const largeBytes = Buffer.from(JSON.stringify(largeManifest))
+  fs.writeFileSync(manifestPath, largeBytes)
+  fs.writeFileSync(anchorPath, JSON.stringify({ schemaVersion: 'stem-verified-release-anchor.v1', releaseId, commit,
+    manifestSha256: crypto.createHash('sha256').update(largeBytes).digest('hex'), routeIds: [routeId] }))
+  assert.equal(releaseBuildIdentity({}, releaseRoot).status, 'verified', 'a realistic manifest larger than 2 MiB must verify')
+  const atLimit = Buffer.alloc(MAX_RELEASE_MANIFEST_BYTES, 0x20)
+  Buffer.from('{}').copy(atLimit)
+  fs.writeFileSync(manifestPath, atLimit)
+  assert.equal(readReleaseManifestBytes(releaseRoot).length, MAX_RELEASE_MANIFEST_BYTES, 'the exact bound must be accepted')
+  fs.appendFileSync(manifestPath, ' ')
+  assert.throws(() => readReleaseManifestBytes(releaseRoot), (error) => error?.code === 'AI_STUDY_PROMOTION_INVALID',
+    'one byte over the bound must be rejected')
+  fs.writeFileSync(manifestPath, bytes)
+  fs.writeFileSync(anchorPath, anchorBytes)
   fs.unlinkSync(anchorPath)
   assert.equal(releaseBuildIdentity({}, releaseRoot).status, 'unavailable', 'missing external pin must fail closed')
   console.log(JSON.stringify({ status: 'PASS_LOCAL_ONLY', scope: 'chapter-study-release-authority', fixtureAnchor: true }))
