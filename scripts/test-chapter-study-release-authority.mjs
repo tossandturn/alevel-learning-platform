@@ -85,6 +85,36 @@ try {
   fs.appendFileSync(manifestPath, ' ')
   assert.throws(() => readReleaseManifestBytes(releaseRoot), (error) => error?.code === 'AI_STUDY_PROMOTION_INVALID',
     'one byte over the bound must be rejected')
+  const racingBytes = Buffer.alloc(128 * 1024, 0x20)
+  Buffer.from('{}').copy(racingBytes)
+  const heldManifest = `${manifestPath}.fixture-held`
+  for (const [label, mutate] of [
+    ['growth', () => fs.appendFileSync(manifestPath, Buffer.alloc(MAX_RELEASE_MANIFEST_BYTES))],
+    ['truncation', () => fs.truncateSync(manifestPath, 1)],
+    ['replacement', () => { fs.renameSync(manifestPath, heldManifest); fs.writeFileSync(manifestPath, racingBytes) }],
+  ]) {
+    fs.writeFileSync(manifestPath, racingBytes)
+    const originalRead = fs.readSync, originalAllocate = Buffer.allocUnsafe
+    let mutated = false, largestAllocation = 0
+    Buffer.allocUnsafe = function boundedAllocation(size) {
+      largestAllocation = Math.max(largestAllocation, size)
+      return originalAllocate.call(this, size)
+    }
+    fs.readSync = function mutateDuringRead(fd, buffer, offset, length, position) {
+      const count = originalRead.call(this, fd, buffer, offset, length, position)
+      if (!mutated) { mutated = true; mutate() }
+      return count
+    }
+    try {
+      assert.throws(() => readReleaseManifestBytes(releaseRoot), (error) => error?.code === 'AI_STUDY_PROMOTION_INVALID',
+        `concurrent ${label} must fail closed`)
+      assert.equal(mutated, true, `the ${label} fixture must exercise a real read`)
+      assert.ok(largestAllocation <= MAX_RELEASE_MANIFEST_BYTES, 'concurrent growth must not cause an unbounded allocation')
+    } finally {
+      fs.readSync = originalRead; Buffer.allocUnsafe = originalAllocate
+      if (fs.existsSync(heldManifest)) { fs.unlinkSync(manifestPath); fs.renameSync(heldManifest, manifestPath) }
+    }
+  }
   fs.writeFileSync(manifestPath, bytes)
   fs.writeFileSync(anchorPath, anchorBytes)
   fs.unlinkSync(anchorPath)

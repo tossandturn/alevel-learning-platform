@@ -18,8 +18,19 @@ function readRegularFile(file, limit) {
     descriptor = fs.openSync(file, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0))
     const stat = fs.fstatSync(descriptor)
     if (!stat.isFile() || stat.size !== before.size || stat.dev !== before.dev || stat.ino !== before.ino) invalid()
-    const bytes = fs.readFileSync(descriptor)
-    if (bytes.length !== stat.size) invalid()
+    const bytes = Buffer.allocUnsafe(stat.size)
+    let offset = 0
+    while (offset < bytes.length) {
+      const count = fs.readSync(descriptor, bytes, offset, Math.min(64 * 1024, bytes.length - offset), offset)
+      if (count <= 0) invalid()
+      offset += count
+    }
+    if (fs.readSync(descriptor, Buffer.alloc(1), 0, 1, stat.size) !== 0) invalid()
+    const after = fs.fstatSync(descriptor), current = fs.lstatSync(file)
+    for (const value of [after, current]) {
+      if (!value.isFile() || value.isSymbolicLink() || value.dev !== stat.dev || value.ino !== stat.ino
+        || value.size !== stat.size || value.mtimeMs !== stat.mtimeMs || value.ctimeMs !== stat.ctimeMs) invalid()
+    }
     return bytes
   } catch (error) {
     if (error?.code === 'AI_STUDY_PROMOTION_INVALID') throw error
