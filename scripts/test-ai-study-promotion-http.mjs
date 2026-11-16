@@ -7,12 +7,14 @@ import { DatabaseSync } from 'node:sqlite'
 
 import { createAiApi } from '../server/aiApi.js'
 import { createAiVerifiedQuestionBankLoader } from '../server/aiVerifiedQuestionBank.js'
+import { MARKING_CAPABILITY_AUDIENCE, MARKING_CAPABILITY_ISSUER, MARKING_CAPABILITY_SCOPE, signHmacJwt } from '../server/markingCapability.js'
 import { createPdfDownloadPolicy, sendPdfAccessError } from '../server/pdfDownloadPolicy.js'
 import { closeStemDatabaseForTests, createCoachAttemptAuthorizer, createStemApi } from '../server/stemApi.js'
 import { createTopicPdfRenderer } from '../server/topicPdfRenderer.js'
 import { unifiedQuestionBank } from '../src/data/questionBank.js'
 import { canonicalSourcePracticeProvenance } from '../src/lib/sourceContentContract.js'
 import { sendLocalPdf } from '../vite.config.js'
+import { freeFetchPort } from './lib/fetch-safe-port.mjs'
 
 const worktreeRoot = fs.realpathSync(path.resolve(import.meta.dirname, '..'))
 const root = fs.mkdtempSync(path.join(worktreeRoot, '.promotion-http-fixture-'))
@@ -21,6 +23,7 @@ fs.mkdirSync(artifactRoot)
 const signingKey = 'local-only-promotion-http-fixture'
 const env = { NODE_ENV: 'test', STEM_DB_PATH: ':memory:', STEM_INTERNAL_AUTH_KEY: signingKey,
   COACH_AI_API_KEY: 'local-only-provider-fixture', COACH_AI_MODEL: 'fixture-coach',
+  STEM_ACADEMIC_PROVIDER: 'legacy', STEM_TAVERN_PROVIDER: 'legacy', TAVERN_IMAGE_PROVIDER_SETTINGS: path.join(root, 'absent-image-provider.json'),
   CIE_LIBRARY_ROOT: 'D:/CodexWork/cie-fraft-fetcher/output/pdf',
   STEM_PDF_DOWNLOAD_QUOTA_ENABLED: '1', STEM_PDF_DOWNLOAD_QUOTA_READY: '1' }
 const paperId = 'cie-9702-9702_m25_qp_22'
@@ -42,10 +45,11 @@ function identityToken() {
     username: 'local-promotion-fixture', iat: now, exp: now + 3600 })).toString('base64url')
   return `${header}.${payload}.${crypto.createHmac('sha256', signingKey).update(`${header}.${payload}`).digest('base64url')}`
 }
-function listen(server) {
+async function listen(server) {
+  const port = await freeFetchPort()
   return new Promise((resolve, reject) => {
     server.once('error', reject)
-    server.listen(0, '127.0.0.1', () => resolve(`http://127.0.0.1:${server.address().port}`))
+    server.listen(port, '127.0.0.1', () => resolve(`http://127.0.0.1:${port}`))
   })
 }
 function close(server) { return new Promise((resolve) => server.close(resolve)) }
@@ -141,7 +145,13 @@ try {
     routeId, syllabusTopicIds: ['physics-9702-topic-01'], components: [1], questionCount: 1,
     studyMode: 'chapter-study', foundationCatalog: 'v2', excludeAttempted: false,
   } }), 'practice start')
-  expectPromotionFailure(await request('/api/ai/mark-handwriting', { method: 'POST', body: {} }), 'marking')
+  const provenance = markingParts[0].provenance
+  const markingGrant = signHmacJwt({ sub: 'ielts:940001', scope: MARKING_CAPABILITY_SCOPE, attemptId,
+    mode: 'full-paper', paperId, ...provenance }, signingKey,
+  { issuer: MARKING_CAPABILITY_ISSUER, audience: MARKING_CAPABILITY_AUDIENCE })
+  expectPromotionFailure(await request('/api/ai/mark-handwriting', { method: 'POST', body: {
+    submitted: true, mode: 'full-paper', paperId, attemptId, provenance, markingGrant,
+  } }), 'marking')
   expectPromotionFailure(await request('/api/ai/coach/stream', { method: 'POST', body: {
     message: 'Explain this question.', context: { view: 'full-paper', attemptId, routeId, stage: 'AS',
       paperStudyMode: 'past-paper-practice', paper: { id: paperId },

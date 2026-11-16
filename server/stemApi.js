@@ -821,7 +821,7 @@ export function createCoachAttemptAuthorizer({ env = process.env, questionBank =
         return null
       }
     }
-    const db = typeof databaseProvider === 'function' ? databaseProvider() : (database || appDatabase(env, questionBank))
+    const db = typeof databaseProvider === 'function' ? databaseProvider() : (database || appDatabase(env, questionBank, { synchronizeSource: false }))
     row = db.prepare(`
       SELECT user_id, attempt_id, mode, route_id, stage, paper_id, binding_json, attempt_json, submission_status, submitted_at, created_at, updated_at
       FROM student_attempts
@@ -863,6 +863,24 @@ export function createCoachAttemptAuthorizer({ env = process.env, questionBank =
       : null
     if (!persistedFullPaperAttempt) {
       if (explicitFullPaperContext) throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'This attempt is not a full-paper Coach attempt.')
+      const sourceParts = (Array.isArray(binding?.parts) ? binding.parts : []).filter((part) => part?.sourceKind !== 'original-foundation')
+      if (sourceParts.length && typeof questionBankProvider === 'function') {
+        const bank = mergeTopicPracticeQuestionBanks(questionBank, questionBankProvider({ routeId: persistedRouteId }))
+        for (const bound of sourceParts) {
+          const question = bank.find((item) => item?.routeId === persistedRouteId && item?.sourceQuestionId === bound.sourceQuestionId)
+          const part = question?.parts?.find((item) => String(item?.partId || item?.questionPartId || item?.id || '') === bound.questionPartId)
+          const canonical = part && [canonicalAiMarkingProvenance(question, part), canonicalSourcePracticeProvenance(question, part)]
+            .find((item) => canonicalAttemptProvenanceMatches(bound.provenance, item))
+          if (!canonical) throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'The persisted topic source is no longer available.')
+        }
+        const requestedQuestion = asText(context.question?.id, 360)
+        const requestedPart = asText(context.part?.questionPartId || context.part?.id, 360)
+        if ((requestedQuestion || requestedPart) && !sourceParts.some((part) =>
+          (!requestedQuestion || [part.sourceQuestionId, part.questionPartId, part.unitPartId].includes(requestedQuestion))
+          && (!requestedPart || [part.questionPartId, part.unitPartId].includes(requestedPart)))) {
+          throw coachAuthorizationError(409, 'coach_attempt_binding_mismatch', 'The Coach question does not match the persisted topic attempt.')
+        }
+      }
       return {
         userId: user.id,
         attemptId,
@@ -886,7 +904,7 @@ export function createCoachAttemptAuthorizer({ env = process.env, questionBank =
     const currentQuestionBank = (() => {
       if (typeof questionBankProvider !== 'function') return questionBank
       try {
-        return mergeTopicPracticeQuestionBanks(questionBank, questionBankProvider())
+        return mergeTopicPracticeQuestionBanks(questionBank, questionBankProvider({ routeId: persistedRouteId }))
       } catch (error) {
         if (isAiStudyPromotionError(error)) throw error
         return questionBank
@@ -1397,14 +1415,14 @@ function questionBankSeedSignatureUncached(questionBank = []) {
   return crypto.createHash('sha256').update(records.join('\n')).digest('hex')
 }
 
-function seedCurrentQuestionBank(databaseHandle, questionBank) {
-  const signature = questionBankSeedSignature(questionBank)
+function seedCurrentQuestionBank(databaseHandle, questionBank, { preserveMissingAiVerified = false } = {}) {
+  const signature = `${questionBankSeedSignature(questionBank)}:${preserveMissingAiVerified ? 'partial' : 'complete'}`
   if (signature === databaseQuestionBankSignatures.get(databaseHandle)) return
   // A source snapshot is one atomic update, not thousands of independent
   // disk commits. Failed imports must leave the prior inventory intact.
   databaseHandle.exec('SAVEPOINT stem_source_bank_seed')
   try {
-    seedSyllabusTables(databaseHandle, questionBank)
+    seedSyllabusTables(databaseHandle, questionBank, { preserveMissingAiVerified })
     databaseHandle.exec('RELEASE SAVEPOINT stem_source_bank_seed')
   } catch (error) {
     try { databaseHandle.exec('ROLLBACK TO SAVEPOINT stem_source_bank_seed; RELEASE SAVEPOINT stem_source_bank_seed') } catch { /* Preserve the original seed error. */ }
@@ -1413,9 +1431,9 @@ function seedCurrentQuestionBank(databaseHandle, questionBank) {
   databaseQuestionBankSignatures.set(databaseHandle, signature)
 }
 
-function appDatabase(env, questionBank = unifiedQuestionBank, { synchronizeSource = true } = {}) {
+function appDatabase(env, questionBank = unifiedQuestionBank, { synchronizeSource = true, preserveMissingAiVerified = false } = {}) {
   if (database) {
-    if (synchronizeSource) seedCurrentQuestionBank(database, questionBank)
+    if (synchronizeSource) seedCurrentQuestionBank(database, questionBank, { preserveMissingAiVerified })
     return database
   }
   if (!globalThis.process?.versions?.node) throw new Error('STEM storage requires Node.js.')
@@ -1534,7 +1552,7 @@ function appDatabase(env, questionBank = unifiedQuestionBank, { synchronizeSourc
   migrateRouteScope(database)
   migrateRegisteredRouteStages(database)
   migrateSubmissionIdempotency(database)
-  if (synchronizeSource) seedCurrentQuestionBank(database, questionBank)
+  if (synchronizeSource) seedCurrentQuestionBank(database, questionBank, { preserveMissingAiVerified })
   return database
 }
 
@@ -2588,7 +2606,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
   const ieltsPaperDownloads=createIeltsPaperDownloads({root:env.STEM_IELTS_DOWNLOADS_ROOT||undefined,authorizeFile:context=>ieltsPdfQuota.authorize(context)})
   const ieltsAudioDownloads=createIeltsAudioDownloads({root:env.STEM_IELTS_AUDIO_DOWNLOADS_ROOT||undefined,authorizeFile:context=>ieltsPdfQuota.authorize(context)})
   const curriculumPaperCatalog = createCurriculumPaperCatalog({ ...(curriculumPaperCatalogOptions || {}), env, authorizeFile:context=>pdfQuota.authorize(context) })
-  const nativeQuestionImages = createNativeQuestionImages({getQuestionBank:()=>currentTopicPracticeQuestionBank(),libraryRoot,env})
+  const nativeQuestionImages = createNativeQuestionImages({getQuestionBank:(scope)=>currentTopicPracticeQuestionBank(scope),libraryRoot,env})
   // A single shared server key is sufficient for both the internal account
   // request and the short-lived STEM API token. The legacy identity key is a
   // migration fallback only, so every active path uses the same canonical key.
@@ -2613,6 +2631,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
   let runtimeTopicPracticeSnapshot = null
   let runtimeTopicPracticeQuestionBank = null
   const immutableTopicPracticeBanks = new WeakSet()
+  const partialTopicPracticeBanks = new WeakSet()
   const syllabusInventoryByQuestionBank = new WeakMap()
 
   function immutableQuestionBankSnapshot(value) {
@@ -2634,11 +2653,15 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
       && String(env.NODE_ENV || '').trim().toLowerCase() !== 'production'
   }
 
-  function currentTopicPracticeQuestionBank() {
+  function currentTopicPracticeQuestionBank(scope = {}) {
     if (typeof topicQuestionBankProvider !== 'function') return baseTopicPracticeQuestionBank
     try {
-      const runtimeQuestionBank = topicQuestionBankProvider()
+      const runtimeQuestionBank = topicQuestionBankProvider(scope)
+      const incomplete = typeof topicQuestionBankProvider.isSnapshotComplete === 'function'
+        && !topicQuestionBankProvider.isSnapshotComplete(runtimeQuestionBank)
       if (runtimeQuestionBank === runtimeTopicPracticeSnapshot && runtimeTopicPracticeQuestionBank) {
+        if (incomplete) partialTopicPracticeBanks.add(runtimeTopicPracticeQuestionBank)
+        else partialTopicPracticeBanks.delete(runtimeTopicPracticeQuestionBank)
         return runtimeTopicPracticeQuestionBank
       }
       const immutableRuntimeSnapshot = immutableQuestionBankSnapshot(runtimeQuestionBank)
@@ -2647,6 +2670,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
           ? question
           : Object.freeze({ ...question, studentStudyEligible: false }))
       const mergedQuestionBank = mergeTopicPracticeQuestionBanks(baseTopicPracticeQuestionBank, guardedRuntimeQuestionBank)
+      if (incomplete) partialTopicPracticeBanks.add(mergedQuestionBank)
       if (immutableRuntimeSnapshot && immutableTopicPracticeBanks.has(baseTopicPracticeQuestionBank)) {
         runtimeTopicPracticeSnapshot = runtimeQuestionBank
         runtimeTopicPracticeQuestionBank = mergedQuestionBank
@@ -2742,7 +2766,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
       if (await ieltsAudioDownloads.handle(request, response, url)) return
       if(request.method==='GET'&&url.pathname==='/api/stem/practice-source-image'){
         const result=await nativeQuestionImages.image(Object.fromEntries(url.searchParams))
-        response.setHeader('Content-Type',result.contentType);response.setHeader('Cache-Control','public, max-age=60, must-revalidate');response.setHeader('ETag','"'+result.sha256+'"');response.setHeader('X-Content-Type-Options','nosniff')
+        response.setHeader('Content-Type',result.contentType);response.setHeader('Cache-Control','private, no-store');response.setHeader('ETag','"'+result.sha256+'"');response.setHeader('X-Content-Type-Options','nosniff')
         response.writeHead(200,{'Content-Length':result.bytes.length});response.end(result.bytes);return
       }
       if (request.method === 'GET' && url.pathname === '/api/stem/paper-catalog') {
@@ -2752,7 +2776,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
       }
       const paperSourcesMatch = url.pathname.match(/^\/api\/stem\/papers\/([A-Za-z0-9_-]+)\/source-context$/)
       if (request.method === 'GET' && paperSourcesMatch) {
-        const result = nativePaperContext(currentTopicPracticeQuestionBank(), { paperId: paperSourcesMatch[1], routeId: url.searchParams.get('routeId'), stage: url.searchParams.get('stage') })
+        const result = nativePaperContext(currentTopicPracticeQuestionBank({ routeId: url.searchParams.get('routeId') || '' }), { paperId: paperSourcesMatch[1], routeId: url.searchParams.get('routeId'), stage: url.searchParams.get('stage') })
         await sendPublicCatalogJson(request, response, 200, {
           schemaVersion: 'native-paper-sources-v1',
           paperId: result.paperId,
@@ -2774,7 +2798,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
         // Source metadata needs authentication, not a learning database. In
         // particular, a guest request must not seed every syllabus table.
         identityFromRequest(request, signingKey)
-        sendJson(response, 200, nativePaperContext(currentTopicPracticeQuestionBank(), {
+        sendJson(response, 200, nativePaperContext(currentTopicPracticeQuestionBank({ routeId: url.searchParams.get('routeId') || '' }), {
           paperId: nativePaperMatch[1], routeId: url.searchParams.get('routeId'), stage: url.searchParams.get('stage'),
         }))
         return
@@ -2825,8 +2849,8 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
       const db = appDatabase(env, baseTopicPracticeQuestionBank, { synchronizeSource: false })
       const announcementBoard = currentAnnouncementBoard(db)
       let runtimeTopicPracticeQuestionBank = null
-      function currentRuntimeTopicPracticeQuestionBank() {
-        runtimeTopicPracticeQuestionBank ||= currentTopicPracticeQuestionBank()
+      function currentRuntimeTopicPracticeQuestionBank(routeId = '') {
+        runtimeTopicPracticeQuestionBank ||= currentTopicPracticeQuestionBank({ routeId })
         return runtimeTopicPracticeQuestionBank
       }
       const syllabusRouteMatch = url.pathname.match(/^\/api\/stem\/routes\/([^/]+)\/syllabus-topics$/)
@@ -2840,10 +2864,11 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
           })
         }
         const routeIncludesStudyOnly = includeStudyOnlyForRoute()
-        const topicPracticeQuestionBank = currentRuntimeTopicPracticeQuestionBank()
-        const runtimeDb = appDatabase(env, topicPracticeQuestionBank)
+        const topicPracticeQuestionBank = currentRuntimeTopicPracticeQuestionBank(routeId)
+        const partialSnapshot = partialTopicPracticeBanks.has(topicPracticeQuestionBank)
+        const runtimeDb = appDatabase(env, topicPracticeQuestionBank, { preserveMissingAiVerified: partialSnapshot })
         const staticInventory = currentSyllabusTopicsInventory(routeId, topicPracticeQuestionBank, routeIncludesStudyOnly)
-        const databaseRows = syllabusDatabaseInventory(runtimeDb, routeId, { includeStudyOnly: routeIncludesStudyOnly })
+        const databaseRows = partialSnapshot ? [] : syllabusDatabaseInventory(runtimeDb, routeId, { includeStudyOnly: routeIncludesStudyOnly })
         const databaseById = new Map(databaseRows.map((topic) => [topic.id, topic]))
         // The database is the authority for live inventory counts. Static
         // data supplies only the official syllabus shape and labels; merging
@@ -2857,7 +2882,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
           ...staticInventory,
           topics,
           ready: topics.length > 0 && topics.every((topic) => topic.ready),
-          aggregation: 'sqlite-question-groups-and-syllabus-mappings',
+          aggregation: partialSnapshot ? 'validated-runtime-snapshot' : 'sqlite-question-groups-and-syllabus-mappings',
         }, { foundationCatalog })
         await sendPublicCatalogJson(request, response, 200, inventory)
         return
@@ -2921,7 +2946,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
         const { studyMode, sourcePreference, foundationCatalog } = validateTopicPracticeQuestionCount(payload)
         const user = request.headers.authorization ? identityFromRequest(request, signingKey) : null
         const routeIncludesStudyOnly = includeStudyOnlyForRoute()
-        const topicPracticeQuestionBank = currentRuntimeTopicPracticeQuestionBank()
+        const topicPracticeQuestionBank = currentRuntimeTopicPracticeQuestionBank(payload.routeId)
         const result = buildSyllabusPracticeSet({
           routeId: payload.routeId,
           syllabusTopicIds: payload.syllabusTopicIds,
@@ -2945,7 +2970,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
         requireStartableTopicPracticeSet(result)
         const view = request.headers['x-stemist-source-images'] === 'region-v2' ? 'region' : 'page'
         response.setHeader('Vary', [response.getHeader?.('Vary'), 'X-STEMist-Source-Images'].filter(Boolean).join(', '))
-        const projected = nativeQuestionImages.projectSet(result, { view })
+        const projected = nativeQuestionImages.projectSet(result, { view, questionBank: topicPracticeQuestionBank })
         const studentView = view === 'region' ? projectNativeObjectivePracticeSet(projected) : projected
         await sendPublicCatalogJson(request, response, 201, { ...studentView, ownerId: user?.id || null })
         return
@@ -2969,7 +2994,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
           ? authoritativeFocusedRetestParent(db, identityFromRequest(request, signingKey), payload.unit)
           : null
         const unit = rebindSyllabusPracticeUnit(payload.unit, {
-          questionBank: currentRuntimeTopicPracticeQuestionBank(),
+          questionBank: currentRuntimeTopicPracticeQuestionBank(payload.unit.routeId),
           includeStudyOnly: includeStudyOnlyForRoute(),
           originalFoundationGroups: originalFoundationQuestionGroupsForRoute(
             payload.unit.routeId,
@@ -3079,7 +3104,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
           }
         }
 
-        const matchingQuestions = currentRuntimeTopicPracticeQuestionBank().filter((question) => (
+        const matchingQuestions = currentRuntimeTopicPracticeQuestionBank(objective.routeId).filter((question) => (
           String(question?.routeId || '') === objective.routeId
           && String(question?.stage || '') === objective.stage
           && String(question?.sourceRef?.paperId || '') === objective.paperId
@@ -3128,7 +3153,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
           throw Object.assign(new Error('Topic PDF rendering is not available on this server.'), { statusCode: 503, code: 'topic_pdf_unavailable' })
         }
         const renderRequest = topicPdfRequestPayload(await readJson(request, 16 * 1024))
-        currentRuntimeTopicPracticeQuestionBank()
+        currentRuntimeTopicPracticeQuestionBank(renderRequest.routeId)
         const rendered = await topicPdfRenderer(renderRequest)
         sendTopicPdf(response, rendered, renderRequest)
         return
@@ -3173,7 +3198,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
       }
       if (request.method === 'POST' && url.pathname === '/api/stem/attempts') {
         const payload = await readJson(request, 8 * 1024 * 1024)
-        const binding = canonicalStudentAttemptBinding(payload, currentRuntimeTopicPracticeQuestionBank())
+        const binding = canonicalStudentAttemptBinding(payload, currentRuntimeTopicPracticeQuestionBank(payload.routeId || payload.attempt?.routeId || ''))
         const existingRow = db.prepare(`
           SELECT user_id, attempt_id, mode, route_id, stage, paper_id, binding_json, attempt_json, submission_status, submitted_at, created_at, updated_at
           FROM student_attempts
@@ -3286,7 +3311,7 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
         const issued = issueMarkingCapabilities({
           userId: user.id,
           payload,
-          questionBank: currentRuntimeTopicPracticeQuestionBank(),
+          questionBank: currentRuntimeTopicPracticeQuestionBank(persistedAttempt?.binding?.routeId || payload.routeId || ''),
           signingKey: markingCapabilitySigningKey,
           persistedAttempt,
         })

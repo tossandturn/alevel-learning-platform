@@ -647,17 +647,17 @@ export function questionGroupsFromAiArtifacts(artifacts = [], { libraryRoot } = 
       if (conflicted.has(deduplicationKey)) continue
       const fingerprint = JSON.stringify({
         privateObjectiveKeyFingerprint: aiStudyObjectiveKey(group)?.fingerprint || null,
-        artifactId: group.artifactId,
+        artifactId: group.answerBinding?.artifactId,
         sourceQuestionId: group.sourceQuestionId,
-        pages: group.pages,
-        regions: group.regions,
+        questionStartPage: group.questionStartPage,
+        sourcePages: group.sourceContent?.sourcePages,
         diagramRegions: group.diagramRegions,
         parts: group.parts,
-        tags: group.tags,
-        markSchemeEvidence: group.markSchemeEvidence,
+        topicTags: group.topicTags,
+        syllabusMapping: group.syllabusMapping,
         sourceRef: group.sourceRef,
         answerRef: group.answerRef,
-        bindingSignature: group.bindingSignature,
+        bindingSignature: group.sourceContent?.bindingSignature,
       })
       const existing = seen.get(deduplicationKey)
       if (existing) {
@@ -691,15 +691,26 @@ function artifactPaths(root, limit) {
   return paths
 }
 
+function fileSnapshotFromStat(filePath, stat) {
+  return stat?.isFile() ? `${filePath}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}` : `${filePath}:missing`
+}
+
 function fileSnapshot(filePath) {
-  const stat = fs.statSync(filePath, { throwIfNoEntry: false })
-  return stat?.isFile() ? `${filePath}:${stat.size}:${stat.mtimeMs}` : `${filePath}:missing`
+  return fileSnapshotFromStat(filePath, fs.statSync(filePath, { throwIfNoEntry: false }))
 }
 
 function fileSha256(filePath) {
   const hash = crypto.createHash('sha256')
   const bytes = fs.readFileSync(filePath)
   return hash.update(bytes).digest('hex')
+}
+
+function legacySourceHasher() {
+  const hashes = new Map()
+  return (filePath) => {
+    if (!hashes.has(filePath)) hashes.set(filePath, fileSha256(filePath))
+    return hashes.get(filePath)
+  }
 }
 
 function promotedSourceHasher() {
@@ -740,7 +751,8 @@ function promotedSourceHasher() {
   }
 }
 
-function readVerifiedCoordinateArtifact(artifactPath, libraryRoot, verifiedBytes = null, hashSource = fileSha256) {
+function readVerifiedCoordinateArtifact(artifactPath, libraryRoot, verifiedBytes = null, hashSource = fileSha256,
+  observeSource = () => {}, statSource = (filePath) => fs.statSync(filePath, { throwIfNoEntry: false })) {
   let artifact
   try {
     const stat = fs.statSync(artifactPath)
@@ -794,8 +806,10 @@ function readVerifiedCoordinateArtifact(artifactPath, libraryRoot, verifiedBytes
 
   const questionPath = resolvedSources.questionPath
   const markSchemePath = resolvedSources.markSchemePath
-  const questionStat = fs.statSync(questionPath, { throwIfNoEntry: false })
-  const markSchemeStat = fs.statSync(markSchemePath, { throwIfNoEntry: false })
+  observeSource(questionPath)
+  observeSource(markSchemePath)
+  const questionStat = statSource(questionPath)
+  const markSchemeStat = statSource(markSchemePath)
   if (!questionStat?.isFile() || !markSchemeStat?.isFile() || questionStat.size <= 0 || markSchemeStat.size <= 0) return null
   try {
     if (hashSource(questionPath) !== questionHash || hashSource(markSchemePath) !== markSchemeHash) return null
@@ -819,11 +833,13 @@ function readVerifiedCoordinateArtifact(artifactPath, libraryRoot, verifiedBytes
  * still match their local QP/MS source PDFs. The caller may cache this loader
  * safely; artifact or source file changes invalidate its snapshot.
  */
-export function createAiVerifiedQuestionBankLoader({ artifactRoot, libraryRoot, artifactLimit = MAX_RUNTIME_ARTIFACTS, promotionPolicy = null } = {}) {
+export function createAiVerifiedQuestionBankLoader({ artifactRoot, libraryRoot, artifactLimit = MAX_RUNTIME_ARTIFACTS,
+  promotionPolicy = null, failOnPreviouslyVerifiedLoss = false } = {}) {
   if(!Number.isInteger(artifactLimit)||artifactLimit<1||artifactLimit>MAX_RUNTIME_ARTIFACTS)throw new Error('Invalid runtime artifact limit')
   const resolvedArtifactRoot = path.resolve(String(artifactRoot || ''))
   const resolvedLibraryRoot = path.resolve(String(libraryRoot || ''))
   let cached = null
+  let priorLegacyFingerprints = null
 
   return function loadAiVerifiedQuestionBank({ refresh = false } = {}) {
     const paths = artifactPaths(resolvedArtifactRoot, artifactLimit)
@@ -832,26 +848,50 @@ export function createAiVerifiedQuestionBankLoader({ artifactRoot, libraryRoot, 
     const sourceSnapshot = cached?.sourcePaths?.map(fileSnapshot).join('|') || ''
     if (!promotion && !refresh && cached && cached.artifactSnapshot === artifactSnapshot && cached.sourceSnapshot === sourceSnapshot) return cached.value
 
-    const hashSource = promotion ? promotedSourceHasher() : fileSha256
+    const hashSource = promotion ? promotedSourceHasher() : legacySourceHasher()
+    const watchedSourcePaths = new Set()
+    const sourceStats = new Map()
+    const statSource = (filePath) => {
+      if (!sourceStats.has(filePath)) sourceStats.set(filePath, fs.statSync(filePath, { throwIfNoEntry: false }))
+      return sourceStats.get(filePath)
+    }
     const records = paths.map((artifactPath) => {
       const relative = path.relative(resolvedArtifactRoot, artifactPath).split(path.sep).join('/')
-      return readVerifiedCoordinateArtifact(artifactPath, resolvedLibraryRoot, promotion?.bytesByPath.get(relative), hashSource)
+      return readVerifiedCoordinateArtifact(artifactPath, resolvedLibraryRoot, promotion?.bytesByPath.get(relative), hashSource,
+        (sourcePath) => watchedSourcePaths.add(sourcePath), statSource)
     }).filter(Boolean)
     const groups = questionGroupsFromAiArtifacts(records.map((record) => record.artifact), { libraryRoot: resolvedLibraryRoot })
     assertPromotedAiStudyGroups(promotion, records, groups)
+    const legacyFingerprints = failOnPreviouslyVerifiedLoss && !promotion
+      ? new Map(groups.map((group) => [`${group.routeId}\u0000${group.sourceQuestionId}`,
+        crypto.createHash('sha256').update(JSON.stringify({ group, objective: aiStudyObjectiveKey(group)?.fingerprint || null })).digest('hex')]))
+      : null
+    if (priorLegacyFingerprints && [...priorLegacyFingerprints].some(([key, fingerprint]) => legacyFingerprints?.get(key) !== fingerprint)) {
+      throw Object.assign(new Error('A previously verified legacy source is no longer available.'), {
+        statusCode: 503, code: 'AI_STUDY_LEGACY_UNAVAILABLE',
+      })
+    }
     const documents = [...new Map(records
       .filter((record) => groups.some((group) => group.sourceRef?.paper === record.metadata.questionFile))
       .flatMap((record) => record.documents)
       .map((document) => [`${document.subject}/${document.file}`, document]))
       .values()]
       .sort((left, right) => left.file.localeCompare(right.file))
+    const sourcePaths = [...watchedSourcePaths]
+    const finalSourceSnapshot = sourcePaths.map(fileSnapshot)
+    if (sourcePaths.some((filePath, index) => fileSnapshotFromStat(filePath, sourceStats.get(filePath)) !== finalSourceSnapshot[index])) {
+      throw Object.assign(new Error('A source file changed during catalog validation.'), {
+        statusCode: 503, code: promotion ? 'AI_STUDY_PROMOTION_INVALID' : 'AI_STUDY_LEGACY_UNAVAILABLE',
+      })
+    }
     const value = Object.freeze({ groups, documents: Object.freeze(documents) })
     cached = {
       artifactSnapshot,
-      sourcePaths: Object.freeze(records.flatMap((record) => record.sourcePaths)),
-      sourceSnapshot: records.flatMap((record) => record.sourcePaths).map(fileSnapshot).join('|'),
+      sourcePaths: Object.freeze(sourcePaths),
+      sourceSnapshot: finalSourceSnapshot.join('|'),
       value,
     }
+    if (legacyFingerprints) priorLegacyFingerprints = legacyFingerprints
     return value
   }
 }

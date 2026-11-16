@@ -6,15 +6,17 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { createAiApi, providerConfig } from '../server/aiApi.js'
+import { freeFetchPort } from './lib/fetch-safe-port.mjs'
 
-function listen(server) {
+async function listen(server) {
+  const port = await freeFetchPort()
   return new Promise((resolve, reject) => {
     const onError = (error) => {
       server.off('error', onError)
       reject(error)
     }
     server.once('error', onError)
-    server.listen(0, '127.0.0.1', () => {
+    server.listen(port, '127.0.0.1', () => {
       server.off('error', onError)
       resolve(`http://127.0.0.1:${server.address().port}`)
     })

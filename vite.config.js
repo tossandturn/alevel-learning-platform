@@ -9,15 +9,19 @@ import { execFileSync } from 'node:child_process'
 import { createAiApi } from './server/aiApi.js'
 import { createAiVerifiedQuestionBankLoader } from './server/aiVerifiedQuestionBank.js'
 import { isAiStudyPromotionError } from './server/aiStudyPromotion.js'
+import { readReleaseAnchor, readReleaseManifestBytes, verifyReleaseAnchor } from './server/aiStudyReleaseAnchor.js'
+import { createAiStudyDualRootLoader } from './server/aiStudyDualRoot.js'
 import { resolveAiPdfIngestionRoot } from './server/aiPdfIngestionCandidates.js'
 import { createCoachAttemptAuthorizer, createCurriculumPracticeAccess, createStemApi } from './server/stemApi.js'
 import { createCurriculumPracticeApi } from './server/curriculumPracticeApi.js'
 import { createTopicPdfRenderer } from './server/topicPdfRenderer.js'
 import { createPdfDownloadPolicy, authorizePdfFile, applyPdfQuotaHeaders, pdfNotModified, sendPdfAccessError } from './server/pdfDownloadPolicy.js'
 import { isPaperAvailableToStudents } from './src/lib/paperGovernance.js'
+import { isHumanReviewedPastPaperItem, isStudentReleasedAiStudyItem, studyQuestionBank } from './src/data/questionBank.js'
 import { mergeRuntimeEnv } from './src/lib/runtimeEnv.js'
 import { resolveLibraryRoot } from './server/pdfLibrary.js'
 import { artifactTreeIdentity } from './scripts/release-content-policy.mjs'
+import { assertRuntimeDataBinding } from './scripts/runtime-data-binding.mjs'
 import {
   releaseIdMatchesCommit,
   sameTreeIdentity,
@@ -29,6 +33,9 @@ const ALLOWED_SUBJECTS = new Set(['0580', '0606', '0610', '0625', '9231', '9700'
 const PUBLIC_ROOT = path.resolve(process.cwd(), 'public')
 const PUBLIC_METADATA_FILES = ['favicon.svg', 'icons.svg', 'robots.txt', 'sitemap.xml']
 const QA_DISABLE_HMR = process.env.NODE_ENV === 'test' && process.env.STEM_QA_DISABLE_HMR === '1'
+const AI_STUDY_TRUSTED_PUBLIC_KEYS = Object.freeze({})
+const PROTECTED_STUDY_GROUPS = Object.freeze(studyQuestionBank.filter((question) =>
+  isHumanReviewedPastPaperItem(question) || isStudentReleasedAiStudyItem(question)))
 let paperCatalogCache = { path: '', modifiedAtMs: -1, byFile: new Map() }
 const pdfIntegrityCache = new Map()
 
@@ -106,7 +113,7 @@ export async function sendLocalPdf(request, response, next, env, runtimePdfDocum
   let runtimeCatalogItem = null
   if (!staticCatalogItem) {
     try {
-      runtimeCatalogItem = (runtimePdfDocuments() || []).find((item) => item?.subject === subject && item?.file === fileName) || null
+      runtimeCatalogItem = (runtimePdfDocuments(subject) || []).find((item) => item?.subject === subject && item?.file === fileName) || null
     } catch (error) {
       if (isAiStudyPromotionError(error)) {
         response.statusCode = 503
@@ -350,7 +357,8 @@ export function releaseBuildIdentity(env, runtimeRootInput = process.cwd()) {
     const expectedManifestPath = path.join(runtimeRoot, 'release-manifest.json')
     const manifestPath = path.resolve(env.STEM_RELEASE_MANIFEST_PATH || expectedManifestPath)
     if (fs.realpathSync(manifestPath) !== fs.realpathSync(expectedManifestPath)) return { status: 'unavailable' }
-    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+    const manifestBytes = readReleaseManifestBytes(runtimeRoot)
+    const manifest = JSON.parse(manifestBytes.toString('utf8'))
     if (!validateReleaseManifest(manifest, { releaseId: path.basename(runtimeRoot) }).valid) return { status: 'unavailable' }
     if (env.STEM_RELEASE_ID && String(env.STEM_RELEASE_ID) !== manifest.releaseId) return { status: 'unavailable' }
     if (env.STEM_RELEASE_COMMIT && String(env.STEM_RELEASE_COMMIT).toLowerCase() !== manifest.commit) return { status: 'unavailable' }
@@ -362,6 +370,14 @@ export function releaseBuildIdentity(env, runtimeRootInput = process.cwd()) {
     const immutableAssetsRoot = fs.realpathSync(path.join(runtimeRoot, 'public', 'question-assets'))
     if (path.basename(immutableAssetsRoot) !== manifest.immutableAssets.identity) return { status: 'unavailable' }
     if (!sameTreeIdentity(artifactTreeIdentity(immutableAssetsRoot), manifest.immutableAssets)) return { status: 'unavailable' }
+    if (manifest.syllabusScope?.schemaVersion === 'stem-syllabus-release-scope.v2') {
+      verifyReleaseAnchor({ releaseRoot: runtimeRoot, manifest, manifestBytes })
+      if (!readReleaseManifestBytes(runtimeRoot).equals(manifestBytes)) return { status: 'unavailable' }
+    } else {
+      let anchored = false
+      try { readReleaseAnchor(runtimeRoot); anchored = true } catch { /* Legacy releases need no chapter-study anchor. */ }
+      if (anchored) return { status: 'unavailable' }
+    }
     return {
       status: 'verified',
       schemaVersion: manifest.schemaVersion,
@@ -420,8 +436,8 @@ function stemBuildIdentityOutput(env) {
   }
 }
 
-function createHealthMiddleware(env) {
-  const build = releaseBuildIdentity(env)
+function createHealthMiddleware(env, verifiedBuild = null) {
+  const build = verifiedBuild || releaseBuildIdentity(env)
   return function sendHealth(request, response, next) {
     const requestUrl = new URL(request.url, 'http://127.0.0.1')
     if (!['/healthz', '/api/health'].includes(requestUrl.pathname)) return next()
@@ -511,32 +527,163 @@ function stemPublicAssetOutput() {
   }
 }
 
-export function createRuntimeAiQuestionBank({ env = {}, libraryRoot } = {}) {
+function disjointStudyRoots(first, second) {
+  const canonical = (value) => {
+    try { return fs.realpathSync(value) } catch { return path.resolve(value) }
+  }
+  const a = canonical(first), b = canonical(second)
+  const contains = (left, right) => {
+    const relative = path.relative(left, right)
+    return relative === '' || (!path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`))
+  }
+  return !contains(a, b) && !contains(b, a)
+}
+
+function invalidStudyRelease() {
+  throw Object.assign(new Error('The chapter-study release is not authorized.'), { code: 'AI_STUDY_PROMOTION_INVALID', statusCode: 503 })
+}
+
+export function createReleaseChapterBinding(env, runtimeRoot, build) {
+  let root, manifest, bytes
+  const unavailableRelease = () => {
+    try {
+      const resolved = fs.realpathSync(runtimeRoot)
+      if (build.status !== 'verified' && path.basename(path.dirname(resolved)) === 'releases') {
+        return { routeIds: [], preserveLegacyOnly: true, assertValid: invalidStudyRelease }
+      }
+    } catch { /* No release root can be trusted. */ }
+    return null
+  }
+  try {
+    root = fs.realpathSync(runtimeRoot)
+    bytes = readReleaseManifestBytes(root)
+    manifest = JSON.parse(bytes.toString('utf8'))
+  } catch {
+    try { return { routeIds: [...readReleaseAnchor(runtimeRoot).routeIds], assertValid: invalidStudyRelease } }
+    catch { return unavailableRelease() }
+  }
+  if (manifest?.syllabusScope?.schemaVersion !== 'stem-syllabus-release-scope.v2') {
+    try { return { routeIds: [...readReleaseAnchor(root).routeIds], assertValid: invalidStudyRelease } }
+    catch { return unavailableRelease() }
+  }
+  const chapter = manifest.syllabusScope.chapterStudy
+  const routeIds = Array.isArray(chapter?.routeIds) ? [...chapter.routeIds] : []
+  const rejected = { routeIds, assertValid: invalidStudyRelease }
+  try {
+    if (build.status !== 'verified' || env.STEM_AI_STUDY_CANDIDATE_ROOT || env.STEM_AI_STUDY_CANDIDATE_ROUTES) return rejected
+    const anchor = verifyReleaseAnchor({ releaseRoot: root, manifest, manifestBytes: bytes })
+    assertRuntimeDataBinding(root, manifest.runtimeData, manifest.runtimeData?.target)
+    const packRoot = path.join(root, ...chapter.packBinding.relativePath.split('/'))
+    const packParent = path.dirname(packRoot)
+    const roots = [root, packParent, packRoot].map((directory) => {
+      const stat = fs.lstatSync(directory)
+      if (!stat.isDirectory() || stat.isSymbolicLink()) invalidStudyRelease()
+      return { directory, dev: stat.dev, ino: stat.ino, real: fs.realpathSync(directory) }
+    })
+    const expectedRealRoot = roots[2].real
+    const assertValid = () => {
+      try {
+        for (const expected of roots) {
+          const stat = fs.lstatSync(expected.directory)
+          if (!stat.isDirectory() || stat.isSymbolicLink() || stat.dev !== expected.dev || stat.ino !== expected.ino
+            || fs.realpathSync(expected.directory) !== expected.real) invalidStudyRelease()
+        }
+        const current = readReleaseManifestBytes(root)
+        if (!current.equals(bytes)) invalidStudyRelease()
+        const currentAnchor = verifyReleaseAnchor({ releaseRoot: root, manifest, manifestBytes: current })
+        if (currentAnchor.anchorSha256 !== anchor.anchorSha256) invalidStudyRelease()
+        assertRuntimeDataBinding(root, manifest.runtimeData, manifest.runtimeData.target)
+      } catch { invalidStudyRelease() }
+    }
+    assertValid()
+    return { routeIds, packRoot, expectedRealRoot, manifestSha256: chapter.packBinding.manifestSha256, assertValid }
+  } catch { return rejected }
+}
+
+export function createRuntimeAiQuestionBank({ env = {}, libraryRoot, trustedPublicKeys = AI_STUDY_TRUSTED_PUBLIC_KEYS,
+  releaseChapterBinding = null } = {}) {
   const configuredMode = env.STEM_AI_STUDY_PROMOTION_MODE
-  // A single root cannot admit a new candidate without replacing legacy data.
-  // Keep this entry legacy-only until isolated dual-root routing is complete.
+  // The existing root remains legacy-only; a candidate must use a separate root.
   const mode = configuredMode === undefined || configuredMode === null || configuredMode === 'legacy' ? 'legacy' : 'invalid'
-  return createAiVerifiedQuestionBankLoader({
-    artifactRoot: resolveAiPdfIngestionRoot(env),
+  const legacyRoot = resolveAiPdfIngestionRoot(env)
+  const candidateRoot = releaseChapterBinding?.packRoot
+    || (typeof env.STEM_AI_STUDY_CANDIDATE_ROOT === 'string' ? env.STEM_AI_STUDY_CANDIDATE_ROOT.trim() : '')
+  const legacyLoader = createAiVerifiedQuestionBankLoader({
+    artifactRoot: legacyRoot,
     // The runtime bank validates each artifact against its own subject folder.
     // Pass the complete private library so 9709 and other supported routes are
     // not silently excluded by a 9702-only root.
     libraryRoot,
     promotionPolicy: { mode },
+    failOnPreviouslyVerifiedLoss: true,
   })
+  if (releaseChapterBinding?.preserveLegacyOnly) {
+    return () => ({ ...legacyLoader(), complete: false, candidateErrorCode: 'AI_STUDY_PROMOTION_INVALID' })
+  }
+  if (!candidateRoot && !releaseChapterBinding) return createAiStudyDualRootLoader({ legacyLoader })
+  const guardedLegacyLoader = () => {
+    try {
+      if (!fs.statSync(legacyRoot, { throwIfNoEntry: false })?.isDirectory()) throw new Error('Missing legacy root')
+      return legacyLoader()
+    } catch (error) {
+      if (isAiStudyPromotionError(error) || error?.code === 'AI_PDF_RUNTIME_ARTIFACT_LIMIT_EXCEEDED') throw error
+      throw Object.assign(new Error('The legacy AI study catalog is unavailable.'), { code: 'AI_STUDY_LEGACY_UNAVAILABLE', statusCode: 503 })
+    }
+  }
+  const candidateRouteIds = releaseChapterBinding?.routeIds
+    || String(env.STEM_AI_STUDY_CANDIDATE_ROUTES || '').split(',').map((value) => value.trim()).filter(Boolean)
+  const invalidCandidate = () => { throw Object.assign(new Error('The candidate root is not isolated.'), { code: 'AI_STUDY_PROMOTION_INVALID', statusCode: 503 }) }
+  let candidateLoader = invalidCandidate
+  if (candidateRoot && disjointStudyRoots(legacyRoot, candidateRoot)) {
+    const promotionPolicy = releaseChapterBinding
+      ? { mode: 'release-pinned', trustedManifestSha256: releaseChapterBinding.manifestSha256,
+        expectedRealRoot: releaseChapterBinding.expectedRealRoot, expectedRouteIds: candidateRouteIds }
+      : { mode: 'signed-candidate', trustedPublicKeys }
+    const loadCandidate = createAiVerifiedQuestionBankLoader({ artifactRoot: candidateRoot, libraryRoot, promotionPolicy })
+    candidateLoader = (scope) => {
+      releaseChapterBinding?.assertValid()
+      return loadCandidate(scope)
+    }
+  }
+  const load = createAiStudyDualRootLoader({ legacyLoader: guardedLegacyLoader, candidateLoader, candidateRouteIds, protectedGroups: PROTECTED_STUDY_GROUPS })
+  // Legacy roots have no authenticated completeness manifest yet. Treat every
+  // dual-root result as partial for database synchronization, even on success.
+  return (scope = {}) => ({ ...load(scope), complete: false })
 }
 
-function localCieLibrary(env) {
+export function localCieLibrary(env, { trustedPublicKeys = AI_STUDY_TRUSTED_PUBLIC_KEYS } = {}) {
   const libraryRoot = resolveLibraryRoot({ env, cwd: process.cwd() })
-  const sendHealth = createHealthMiddleware(env)
-  const runtimeAiQuestionBank = createRuntimeAiQuestionBank({ env, libraryRoot })
-  const runtimeAiGroups = () => runtimeAiQuestionBank().groups
-  const runtimePdfDocuments = () => runtimeAiQuestionBank().documents
-  const topicPdfRenderer = createTopicPdfRenderer({
+  const build = releaseBuildIdentity(env)
+  const sendHealth = createHealthMiddleware(env, build)
+  const releaseChapterBinding = createReleaseChapterBinding(env, process.cwd(), build)
+  const runtimeAiQuestionBank = createRuntimeAiQuestionBank({ env, libraryRoot, trustedPublicKeys, releaseChapterBinding })
+  const incompleteBanks = new WeakSet()
+  let lastGroups = null, lastComplete = null
+  const runtimeAiGroups = (scope = {}) => {
+    const snapshot = runtimeAiQuestionBank(scope)
+    if (lastGroups && lastComplete === snapshot.complete && lastGroups.length === snapshot.groups.length
+      && lastGroups.every((group, index) => group === snapshot.groups[index])) return lastGroups
+    lastGroups = Object.freeze([...snapshot.groups])
+    lastComplete = snapshot.complete
+    if (!snapshot.complete) incompleteBanks.add(lastGroups)
+    return lastGroups
+  }
+  runtimeAiGroups.isSnapshotComplete = (groups) => !incompleteBanks.has(groups)
+  runtimeAiGroups.alwaysRefresh = Boolean(releaseChapterBinding || String(env.STEM_AI_STUDY_CANDIDATE_ROOT || '').trim())
+  const runtimePdfDocuments = (subject) => runtimeAiQuestionBank({ subject }).documents
+  const legacyTopicPdfRenderer = createTopicPdfRenderer({
     artifactRoot: resolveAiPdfIngestionRoot(env),
     libraryRoot,
     timeoutMs: env.STEM_TOPIC_PDF_TIMEOUT_MS,
   })
+  const candidateRouteIds = new Set(releaseChapterBinding?.routeIds
+    || String(env.STEM_AI_STUDY_CANDIDATE_ROUTES || '').split(',').map((value) => value.trim()).filter(Boolean))
+  const topicPdfRenderer = async (request) => {
+    if (runtimeAiGroups.alwaysRefresh && candidateRouteIds.has(request.routeId)) {
+      throw Object.assign(new Error('Candidate topic PDFs are not available.'), { statusCode: 503, code: 'AI_STUDY_PROMOTION_REQUIRED' })
+    }
+    return legacyTopicPdfRenderer(request)
+  }
   const stemApi = createStemApi({ env, topicQuestionBankProvider: runtimeAiGroups, libraryRoot, topicPdfRenderer })
   const pdfAccess = createCurriculumPracticeAccess({env})
   const pdfQuota = createPdfDownloadPolicy({env,authenticateRequest:pdfAccess.authenticatePdfRequest,databaseProvider:pdfAccess.databaseProvider})

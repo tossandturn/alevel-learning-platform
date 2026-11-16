@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -17,14 +18,20 @@ import {
 } from './release-content-policy.mjs'
 import {
   releaseIdMatchesCommit,
+  baselineSyllabusScopeMatches,
   validateBuildIdentity,
   validateReleaseManifest,
 } from './release-manifest-contract.mjs'
 import { assertRuntimeDataBinding } from './runtime-data-binding.mjs'
+import { releaseAnchorPath, verifyReleaseAnchor } from '../server/aiStudyReleaseAnchor.js'
 
 function option(name) {
   const index = process.argv.indexOf(name)
   return index >= 0 ? process.argv[index + 1] : ''
+}
+
+function optionValues(name) {
+  return process.argv.flatMap((value, index) => value === name ? [String(process.argv[index + 1] || '')] : [])
 }
 
 function hasRenderedAsset(assetRoot) {
@@ -66,7 +73,8 @@ assert.match(expectedPackageSha256, /^[a-f0-9]{64}$/, 'Pass --package-sha256 <sh
 assert.ok(releaseIdMatchesCommit(expectedReleaseId, expectedCommit), 'Release ID must end with the commit short SHA')
 assert.equal(path.basename(releaseRoot), expectedReleaseId, 'Release root basename must match the release ID')
 assert.ok(fs.existsSync(releaseManifestPath) && fs.statSync(releaseManifestPath).isFile(), 'Release is missing release-manifest.json')
-const releaseManifest = JSON.parse(fs.readFileSync(releaseManifestPath, 'utf8'))
+const releaseManifestBytes = fs.readFileSync(releaseManifestPath)
+const releaseManifest = JSON.parse(releaseManifestBytes.toString('utf8'))
 assert.ok(validateReleaseManifest(releaseManifest, { releaseId: expectedReleaseId }).valid, 'Release manifest contract is invalid')
 assert.equal(releaseManifest.commit, expectedCommit, 'Release manifest commit does not match the expected commit')
 assert.equal(releaseManifest.releaseId, expectedReleaseId, 'Release manifest ID does not match the expected release')
@@ -80,13 +88,37 @@ const forbiddenSensitiveFiles = findForbiddenSensitiveFiles(releaseRoot)
 assert.equal(forbiddenSensitiveFiles.length, 0, `Release contains nested secrets, keys, databases, dumps, caches or OCR staging files: ${forbiddenSensitiveFiles.slice(0, 10).join(', ')}`)
 const escapingSymlinks = findEscapingSymlinks(releaseRoot, ['public/question-assets', 'dist/question-assets', ...runtimeDataEntries])
 assert.equal(escapingSymlinks.length, 0, `Release contains external symlinks outside declared bindings: ${escapingSymlinks.slice(0, 10).join(', ')}`)
-const releaseRouteIds = Array.isArray(releaseManifest.syllabusScope?.routeIds)
-  ? [...new Set(releaseManifest.syllabusScope.routeIds.map((routeId) => String(routeId).trim()).filter(Boolean))]
+const releaseScope = releaseManifest.syllabusScope
+const chapterScope = releaseScope?.schemaVersion === 'stem-syllabus-release-scope.v2' ? releaseScope.chapterStudy : null
+const baselineScope = chapterScope ? releaseScope.baseline : releaseScope
+if (chapterScope) {
+  const expectedManifestHash = String(option('--trusted-release-manifest-sha256') || '').toLowerCase()
+  assert.match(expectedManifestHash, /^[a-f0-9]{64}$/, 'Chapter-study requires an independently supplied release manifest SHA')
+  assert.equal(crypto.createHash('sha256').update(releaseManifestBytes).digest('hex'), expectedManifestHash,
+    'Release manifest differs from the independently supplied expected SHA')
+  const baselinePath = option('--baseline-release-manifest')
+  const trustedHash = String(option('--trusted-baseline-manifest-sha256') || '').toLowerCase()
+  const trustedCommit = String(option('--trusted-baseline-commit') || '').toLowerCase()
+  const trustedReleaseId = option('--trusted-baseline-release-id')
+  assert.ok(baselinePath && /^[a-f0-9]{64}$/.test(trustedHash) && /^[a-f0-9]{40}$/.test(trustedCommit) && trustedReleaseId,
+    'A separately trusted baseline manifest, hash, commit and release ID are required for chapter-study')
+  const realBaseline = fs.realpathSync(baselinePath)
+  assert.ok(!pathsOverlap(fs.realpathSync(releaseRoot), realBaseline), 'The trusted baseline manifest must be outside the new release')
+  const baselineBytes = fs.readFileSync(realBaseline)
+  const baselineHash = crypto.createHash('sha256').update(baselineBytes).digest('hex')
+  const baselineManifest = JSON.parse(baselineBytes.toString('utf8'))
+  assert.equal(baselineHash, trustedHash, 'Trusted baseline manifest bytes changed')
+  assert.equal(baselineManifest.commit, trustedCommit, 'Trusted baseline commit changed')
+  assert.equal(baselineManifest.releaseId, trustedReleaseId, 'Trusted baseline release ID changed')
+  assert.ok(baselineSyllabusScopeMatches(releaseScope, baselineManifest, trustedHash), 'The complete baseline scope must be preserved')
+}
+const releaseRouteIds = Array.isArray(baselineScope?.routeIds)
+  ? [...new Set(baselineScope.routeIds.map((routeId) => String(routeId).trim()).filter(Boolean))]
   : []
-const releaseTopicScopes = releaseManifest.syllabusScope?.topicScopes || {}
-assert.equal(releaseManifest.syllabusScope?.schemaVersion, 'stem-syllabus-release-scope.v1', 'Release must declare its syllabus scope')
+const releaseTopicScopes = baselineScope?.topicScopes || {}
+assert.equal(baselineScope?.schemaVersion, 'stem-syllabus-release-scope.v1', 'Release must preserve its baseline syllabus scope')
 assert.ok(releaseRouteIds.length > 0, 'Release syllabus scope must contain at least one route')
-assert.equal(releaseRouteIds.length, releaseManifest.syllabusScope.routeIds.length, 'Release syllabus scope routes must be unique and non-empty')
+assert.equal(releaseRouteIds.length, baselineScope.routeIds.length, 'Release syllabus scope routes must be unique and non-empty')
 assert.ok(fs.existsSync(buildIdentityPath) && fs.statSync(buildIdentityPath).isFile(), 'Release is missing dist/build-identity.json')
 const buildIdentity = JSON.parse(fs.readFileSync(buildIdentityPath, 'utf8'))
 assert.ok(
@@ -163,7 +195,8 @@ const paperAudit = spawnSync(process.execPath, [paperAuditScript], {
   maxBuffer: 32 * 1024 * 1024,
 })
 assert.equal(paperAudit.status, 0, `Release paper catalog audit failed:\n${paperAudit.stdout}\n${paperAudit.stderr}`)
-const readinessMode = releaseManifest.syllabusScope.readinessMode ?? 'formal'
+const readinessMode = baselineScope.readinessMode ?? 'formal'
+assert.ok(['formal', 'student-study'].includes(readinessMode), 'Unknown baseline readiness mode')
 if (readinessMode === 'student-study') {
   const artifactRoot = option('--ai-artifact-root')
   assert.ok(artifactRoot, 'AI study release requires --ai-artifact-root')
@@ -196,10 +229,49 @@ const allSyllabusCoverage = spawnSync(process.execPath, [
 assert.equal(allSyllabusCoverage.status, 0, `Release all-syllabus coverage gate failed:\n${allSyllabusCoverage.stdout}\n${allSyllabusCoverage.stderr}`)
 }
 
+let chapterStudyReport = null
+if (chapterScope) {
+  const chapterRoots = optionValues('--chapter-ai-artifact-root')
+  const pageCacheRoot = option('--chapter-source-page-cache-root')
+  assert.ok(chapterRoots.length === 1 && pageCacheRoot, 'Chapter-study requires exactly one artifact root and a page-cache root')
+  const expectedPackRoot = path.join(releaseRoot, ...chapterScope.packBinding.relativePath.split('/'))
+  for (const directory of [path.dirname(expectedPackRoot), expectedPackRoot]) {
+    const stat = fs.lstatSync(directory)
+    assert.ok(stat.isDirectory() && !stat.isSymbolicLink(), 'Chapter-study pack directories must not be symlinks')
+  }
+  assert.equal(fs.realpathSync(chapterRoots[0]), fs.realpathSync(expectedPackRoot), 'Chapter-study artifact root differs from the release binding')
+  const marker = path.join(expectedPackRoot, 'candidate-manifest.json')
+  const markerStat = fs.lstatSync(marker)
+  assert.ok(markerStat.isFile() && !markerStat.isSymbolicLink(), 'Chapter-study pack marker must be a regular file')
+  assert.equal(crypto.createHash('sha256').update(fs.readFileSync(marker)).digest('hex'), chapterScope.packBinding.manifestSha256,
+    'Chapter-study pack marker differs from the release binding')
+  const chapterCoverage = spawnSync(process.execPath, [
+    path.join(releaseRoot, 'scripts', 'verify-study-release-coverage.mjs'),
+    ...chapterRoots.flatMap((artifactRoot) => ['--artifact-root', artifactRoot]),
+    '--pdf-library-root', paperLibraryRoot, '--readiness-mode', 'chapter-study', '--source-page-cache-root', pageCacheRoot,
+    '--pinned-manifest-sha256', chapterScope.packBinding.manifestSha256,
+    ...chapterScope.routeIds.flatMap((routeId) => ['--route', routeId]),
+    ...Object.entries(chapterScope.topicScopes).flatMap(([routeId, topicIds]) => topicIds.flatMap((topicId) => ['--topic', `${routeId}:${topicId}`])),
+  ], { cwd: releaseRoot, env, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
+  assert.equal(chapterCoverage.status, 0, `Chapter-study source coverage failed:\n${chapterCoverage.stdout}\n${chapterCoverage.stderr}`)
+  chapterStudyReport = JSON.parse(chapterCoverage.stdout.trim())
+  assert.equal(chapterStudyReport.readinessMode, 'chapter-study')
+}
+
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
 const identity = fs.readFileSync(identityPath, 'utf8')
 assert.ok(identity.includes(`SOURCE_INDEX_SHA256 = '${manifest.sourceIndexSha256}'`), 'Release source identity does not match manifest source index')
 assert.ok(identity.includes(`SOURCE_CONTENT_MANIFEST_CHECKSUM = '${manifest.checksum}'`), 'Release source identity does not match manifest checksum')
+
+let runtimeAnchor = null
+if (chapterScope && process.argv.includes('--write-runtime-anchor')) {
+  assert.ok(fs.readFileSync(releaseManifestPath).equals(releaseManifestBytes), 'Release manifest changed during verification')
+  const anchorPath = releaseAnchorPath(releaseRoot)
+  const value = { schemaVersion: 'stem-verified-release-anchor.v1', releaseId: expectedReleaseId, commit: expectedCommit,
+    manifestSha256: crypto.createHash('sha256').update(releaseManifestBytes).digest('hex'), routeIds: chapterScope.routeIds }
+  fs.writeFileSync(anchorPath, `${JSON.stringify(value)}\n`, { encoding: 'utf8', flag: 'wx', mode: 0o444 })
+  runtimeAnchor = verifyReleaseAnchor({ releaseRoot, manifest: releaseManifest, manifestBytes: releaseManifestBytes }).path
+}
 
 console.log(JSON.stringify({
   ok: true,
@@ -208,4 +280,6 @@ console.log(JSON.stringify({
   manifestChecksum: manifest.checksum,
   catalogBytes: fs.statSync(catalogPath).size,
   paperLibraryRoot,
+  ...(runtimeAnchor ? { runtimeAnchor } : {}),
+  ...(chapterStudyReport ? { chapterStudy: chapterStudyReport } : {}),
 }, null, 2))

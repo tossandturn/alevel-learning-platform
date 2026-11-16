@@ -26,11 +26,14 @@ const artifactRelative = `${paperId}/${identity.slice('sha256:'.length)}.json`
 const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519')
 
 function fixtureArtifact() {
+  const session = (id, model) => ({ sessionId: `00000000-0000-4000-8000-${id.padStart(12, '0')}`,
+    turnId: `10000000-0000-4000-8000-${id.padStart(12, '0')}`, modelProvider: 'fixture', model,
+    sessionLogSha256: (id === '1' ? '1' : '2').repeat(64), outputSha256: (id === '1' ? '3' : '4').repeat(64) })
   const artifact = {
     schemaVersion: 'ai-pdf-ingestion.v1', artifactId: identity, paperId, subject: '9702', stage: 'A2',
     syllabusRouteId: 'cie-9702-a2-physics', status: 'ai-verified', storageMode: 'coordinate-only',
-    extractor: { provider: 'fixture-a', model: 'fixture-a', schemaName: 'ai_pdf_question_extraction_v1' },
-    verifier: { provider: 'fixture-b', model: 'fixture-b', schemaName: 'ai_pdf_question_verification_v1' },
+    extractor: { provider: 'fixture', model: 'fixture-a', schemaName: 'ai_pdf_question_extraction_v1', runtimeAttestation: session('1', 'fixture-a') },
+    verifier: { provider: 'fixture', model: 'fixture-b', schemaName: 'ai_pdf_question_verification_v1', runtimeAttestation: session('2', 'fixture-b') },
     source: { questionPdfPath: path.join(subjectRoot, qpFile), markSchemePdfPath: path.join(subjectRoot, msFile),
       questionPdfSha256, markSchemePdfSha256, renderDpi: 180,
       pageImageHashes: { 3: 'd'.repeat(64) }, pageSizes: { 3: { width: 1200, height: 1600 } },
@@ -84,8 +87,12 @@ function signPromotion(markerPath, artifactPath, { artifactPathInManifest = arti
 }
 
 const policy = { mode: 'signed-candidate', trustedPublicKeys: { 'fixture-key': publicKey } }
-const rejected = (operation, message) => assert.throws(operation,
-  (error) => error?.statusCode === 503 && ['AI_STUDY_PROMOTION_REQUIRED', 'AI_STUDY_PROMOTION_INVALID'].includes(error.code), message)
+let rejectionCases = 0
+const rejected = (operation, message) => {
+  assert.throws(operation,
+    (error) => error?.statusCode === 503 && ['AI_STUDY_PROMOTION_REQUIRED', 'AI_STUDY_PROMOTION_INVALID'].includes(error.code), message)
+  rejectionCases += 1
+}
 
 try {
   fs.mkdirSync(subjectRoot, { recursive: true })
@@ -98,6 +105,12 @@ try {
   assert.equal(legacy().groups.length, 1, 'an unmarked existing legacy root must preserve its original loading behavior')
   const legacyEntry = createRuntimeAiQuestionBank({ env: { AI_PDF_INGESTION_ROOT: legacyRoot }, libraryRoot })
   assert.equal(legacyEntry().groups.length, 1, 'the production entry must retain unmarked legacy roots by default')
+  const legacySourcePath = path.join(subjectRoot, qpFile)
+  fs.writeFileSync(legacySourcePath, Buffer.concat([qpBytes, Buffer.from('!')]))
+  assert.throws(() => legacyEntry(), (error) => error.code === 'AI_STUDY_LEGACY_UNAVAILABLE' && error.statusCode === 503,
+    'the legacy-only runtime must not turn a previously valid source loss into an incomplete snapshot')
+  fs.writeFileSync(legacySourcePath, qpBytes)
+  assert.equal(legacyEntry().groups.length, 1, 'the original legacy source must recover after exact restoration')
 
   const legacyMarker = path.join(legacyRoot, 'active-safe-manifest.json')
   fs.writeFileSync(legacyMarker, JSON.stringify({ productionEligible: false }))
@@ -138,6 +151,12 @@ try {
   const candidate = createAiVerifiedQuestionBankLoader({ artifactRoot: candidateRoot, libraryRoot, promotionPolicy: policy })
   assert.equal(candidate().groups.length, 1, 'a valid signed fixture remains subject to the existing artifact release gate')
   assert.equal(candidate().groups[0].formalProgressEligible, false)
+  const blockPath = path.join(candidateRoot, 'BLOCKED.json')
+  fs.writeFileSync(blockPath, '{}', { flag: 'wx' })
+  assert.throws(() => candidate(), (error) => error.code === 'AI_STUDY_CANDIDATE_BLOCKED' && error.statusCode === 503,
+    'an explicit block signal must be distinguishable from damaged signed bytes')
+  fs.unlinkSync(blockPath)
+  assert.equal(candidate().groups.length, 1)
   const candidateEnv = { AI_PDF_INGESTION_ROOT: candidateRoot, STEM_AI_STUDY_PROMOTION_MODE: 'signed-candidate' }
   rejected(() => createRuntimeAiQuestionBank({ env: { AI_PDF_INGESTION_ROOT: candidateRoot }, libraryRoot })(),
     'the real entry must not treat a marked candidate as a legacy root')
@@ -149,12 +168,23 @@ try {
     trustedPublicKeys: { 'fixture-key': publicKey } })(),
   'the single-root runtime entry must not replace the legacy catalog with even a valid signed candidate')
 
+  const repeatedIdPath = path.join(candidateRoot, paperId, 'repeated-id.json')
+  fs.copyFileSync(artifactPath, repeatedIdPath)
+  signPromotion(markerPath, artifactPath, { extraArtifactPaths: [repeatedIdPath] })
+  rejected(() => candidate(), 'a signed candidate must reject a repeated route and source question ID')
+  fs.unlinkSync(repeatedIdPath)
+  signPromotion(markerPath, artifactPath)
+
   const duplicates = Array.from({ length: 28 }, (_, index) => {
     const duplicate = path.join(candidateRoot, paperId, `duplicate-${String(index).padStart(2, '0')}.json`)
-    fs.copyFileSync(artifactPath, duplicate)
+    const item = JSON.parse(fs.readFileSync(artifactPath, 'utf8'))
+    item.candidate.questions[0].questionNumber = String(index + 3)
+    item.verification.questions[0].questionNumber = String(index + 3)
+    item.studentRelease = buildAiStudentStudyRelease({ ...item, routeId: item.syllabusRouteId })
+    fs.writeFileSync(duplicate, JSON.stringify(item))
     return duplicate
   })
-  signPromotion(markerPath, artifactPath, { extraArtifactPaths: duplicates })
+  signPromotion(markerPath, artifactPath, { extraArtifactPaths: duplicates, expectedRouteGroups: 29 })
   const originalRead = fs.readFileSync
   const originalReadSync = fs.readSync
   const originalOpen = fs.openSync
@@ -196,7 +226,7 @@ try {
   }
   const startCpu = process.cpuUsage()
   const start = process.hrtime.bigint()
-  try { assert.equal(candidate().groups.length, 1) } finally {
+  try { assert.equal(candidate().groups.length, 29) } finally {
     fs.readFileSync = originalRead
     fs.readSync = originalReadSync
     fs.openSync = originalOpen
@@ -212,6 +242,33 @@ try {
   signPromotion(markerPath, artifactPath)
 
   const originalArtifact = fs.readFileSync(artifactPath)
+  const missingReceipt = JSON.parse(originalArtifact.toString('utf8'))
+  delete missingReceipt.verifier.runtimeAttestation
+  missingReceipt.studentRelease = buildAiStudentStudyRelease({ ...missingReceipt, routeId: missingReceipt.syllabusRouteId })
+  assert.equal(missingReceipt.studentRelease.review.independentPassCount, 2, 'the legacy count alone is not a receipt')
+  fs.writeFileSync(artifactPath, JSON.stringify(missingReceipt))
+  signPromotion(markerPath, artifactPath)
+  rejected(() => candidate(), 'a signed candidate with a missing review-session receipt must be rejected')
+  fs.writeFileSync(artifactPath, originalArtifact)
+  signPromotion(markerPath, artifactPath)
+  const repeatedSession = JSON.parse(originalArtifact.toString('utf8'))
+  repeatedSession.extractor.runtimeAttestation.sessionId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  repeatedSession.verifier.runtimeAttestation.sessionId = 'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA'
+  repeatedSession.studentRelease = buildAiStudentStudyRelease({ ...repeatedSession, routeId: repeatedSession.syllabusRouteId })
+  fs.writeFileSync(artifactPath, JSON.stringify(repeatedSession))
+  signPromotion(markerPath, artifactPath)
+  rejected(() => candidate(), 'the same session must not appear independent by changing UUID letter case')
+  fs.writeFileSync(artifactPath, originalArtifact)
+  signPromotion(markerPath, artifactPath)
+  const repeatedTurn = JSON.parse(originalArtifact.toString('utf8'))
+  repeatedTurn.extractor.runtimeAttestation.turnId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  repeatedTurn.verifier.runtimeAttestation.turnId = 'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA'
+  repeatedTurn.studentRelease = buildAiStudentStudyRelease({ ...repeatedTurn, routeId: repeatedTurn.syllabusRouteId })
+  fs.writeFileSync(artifactPath, JSON.stringify(repeatedTurn))
+  signPromotion(markerPath, artifactPath)
+  rejected(() => candidate(), 'the same turn must not appear independent by changing UUID letter case')
+  fs.writeFileSync(artifactPath, originalArtifact)
+  signPromotion(markerPath, artifactPath)
   const originalStat = fs.statSync(artifactPath)
   const modifiedArtifact = Buffer.from(originalArtifact)
   const index = modifiedArtifact.indexOf(Buffer.from('Fixture question.'))
@@ -275,6 +332,9 @@ try {
   const singlePassArtifact = JSON.parse(originalArtifact.toString('utf8'))
   singlePassArtifact.sourceReview = {
     schemaVersion: 'ai-source-semantic-review.v1', decision: 'accept', provider: 'fixture-reviewer', model: 'fixture-model',
+    runtimeAttestation: { sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      turnId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', modelProvider: 'fixture-reviewer', model: 'fixture-model',
+      sessionLogSha256: 'c'.repeat(64), fullReviewSha256: 'd'.repeat(64) },
     reviewedAt: '2026-11-16T00:00:00Z',
     reviewNote: 'Synthetic review confirms the entire source-bound question, marks, coordinates and paired marking evidence.',
     confirmations: Object.fromEntries(['sourceBindingConfirmed', 'wholeQuestionConfirmed', 'partStructureConfirmed',
@@ -287,7 +347,47 @@ try {
   assert.equal(singlePassArtifact.studentRelease.review.independentPassCount, 1)
   fs.writeFileSync(artifactPath, JSON.stringify(singlePassArtifact))
   signPromotion(markerPath, artifactPath)
-  rejected(() => candidate(), 'a newly signed candidate must not promote a single-pass artifact')
+  assert.equal(candidate().groups.length, 1, 'a signed study-only candidate may use one traceable source review')
+  const missingSingleReceipt = JSON.parse(JSON.stringify(singlePassArtifact))
+  delete missingSingleReceipt.sourceReview.runtimeAttestation
+  missingSingleReceipt.studentRelease = buildAiStudentStudyRelease({ ...missingSingleReceipt, routeId: missingSingleReceipt.syllabusRouteId })
+  fs.writeFileSync(artifactPath, JSON.stringify(missingSingleReceipt))
+  signPromotion(markerPath, artifactPath)
+  rejected(() => candidate(), 'single-review candidates require a source review session receipt')
+  const wrongSingleReviewer = JSON.parse(JSON.stringify(singlePassArtifact))
+  wrongSingleReviewer.sourceReview.runtimeAttestation.model = 'other-model'
+  wrongSingleReviewer.studentRelease = buildAiStudentStudyRelease({ ...wrongSingleReviewer, routeId: wrongSingleReviewer.syllabusRouteId })
+  fs.writeFileSync(artifactPath, JSON.stringify(wrongSingleReviewer))
+  signPromotion(markerPath, artifactPath)
+  rejected(() => candidate(), 'single-review session model must match the source reviewer')
+  const referenceDependent = JSON.parse(originalArtifact.toString('utf8'))
+  referenceDependent.candidate.questions[0].parts[0].needsReferenceMaterial = true
+  referenceDependent.verification.questions[0].parts[0].needsReferenceMaterial = true
+  referenceDependent.studentRelease = buildAiStudentStudyRelease({ ...referenceDependent, routeId: referenceDependent.syllabusRouteId })
+  fs.writeFileSync(artifactPath, JSON.stringify(referenceDependent))
+  signPromotion(markerPath, artifactPath)
+  rejected(() => candidate(), 'a candidate requiring an unsupported reference must remain unavailable')
+  const questionReference = JSON.parse(originalArtifact.toString('utf8'))
+  questionReference.candidate.questions[0].needsReferenceMaterial = true
+  questionReference.verification.questions[0].needsReferenceMaterial = true
+  questionReference.studentRelease = buildAiStudentStudyRelease({ ...questionReference, routeId: questionReference.syllabusRouteId })
+  fs.writeFileSync(artifactPath, JSON.stringify(questionReference))
+  signPromotion(markerPath, artifactPath)
+  rejected(() => candidate(), 'a question-level reference dependency must not be hidden')
+  const referenceRegions = JSON.parse(originalArtifact.toString('utf8'))
+  referenceRegions.candidate.questions[0].referenceMaterialRegions = [{ page: 16 }]
+  referenceRegions.verification.questions[0].referenceMaterialRegions = [{ page: 16 }]
+  referenceRegions.studentRelease = buildAiStudentStudyRelease({ ...referenceRegions, routeId: referenceRegions.syllabusRouteId })
+  fs.writeFileSync(artifactPath, JSON.stringify(referenceRegions))
+  signPromotion(markerPath, artifactPath)
+  rejected(() => candidate(), 'declared reference regions must remain unavailable until clients can render them')
+  const separateReference = JSON.parse(originalArtifact.toString('utf8'))
+  separateReference.candidate.examReference = { page: 16, rotationDegrees: 90 }
+  separateReference.verification.examReference = { page: 16, rotationDegrees: 90 }
+  separateReference.studentRelease = buildAiStudentStudyRelease({ ...separateReference, routeId: separateReference.syllabusRouteId })
+  fs.writeFileSync(artifactPath, JSON.stringify(separateReference))
+  signPromotion(markerPath, artifactPath)
+  rejected(() => candidate(), 'a declared paper reference must not be lost for old clients')
   fs.writeFileSync(artifactPath, originalArtifact)
   signPromotion(markerPath, artifactPath, { expectedRouteGroups: 2 })
   rejected(() => candidate(), 'a signed pack with a missing expected route group must not partially load')
@@ -298,7 +398,7 @@ try {
   rejected(() => createAiVerifiedQuestionBankLoader({ artifactRoot: candidateRoot, libraryRoot, promotionPolicy: policy })(),
     'signed-candidate mode must reject a missing candidate marker')
   console.log(JSON.stringify({ status: 'PASS_LOCAL_ONLY', legacyGroups: 1, signedFixtureGroups: 1,
-    rejectionCases: 13, sourceTamperCases: 1, unreviewedArtifactCases: 1, singlePassCases: 1 }))
+    rejectionCases, sourceTamperCases: 1, unreviewedArtifactCases: 1, singlePassCases: 1 }))
 } finally {
   const resolved = fs.realpathSync(root)
   assert.equal(path.dirname(resolved), worktreeRoot, 'refusing cleanup outside the staging worktree')

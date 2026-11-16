@@ -1,6 +1,7 @@
 import {isVerifiedPastPaperItem,isStudentReleasedAiStudyItem} from '../src/data/questionBank.js'
 import {createSourceTextIndex,sourceTokens,meaningfulSourceQuery} from './coachSourceText.js'
 import {createCoachSourcePageProvider} from './coachSourcePages.js'
+import {isAiStudyPromotionError} from './aiStudyPromotion.js'
 
 const OPEN='<question_lookup>',CLOSE='</question_lookup>',MAX_LOOKUP=2400,MAX_INDEX_CHARS=8*1024*1024,MAX_RECORDS=12000
 const PRIVATE_MARKERS=[OPEN,'## 题目出处','## 题目来源','## Question source','题目出处：','题目出处:']
@@ -45,9 +46,9 @@ export function createCoachQuestionSourceResolver({questionBankProvider=()=>[],n
  let rows=[],expires=0,index=createSourceTextIndex([])
  const pages=sourcePageProvider||(libraryRoot?createCoachSourcePageProvider({libraryRoot}):null)
  let pageRows=null,pageIndex=null
- function getRows(){const time=now();if(time>=expires){try{rows=indexRows(questionBankProvider());index=createSourceTextIndex(rows);expires=time+30000}catch{rows=[];index=createSourceTextIndex([]);expires=time+1000}}return rows}
+ function getRows(routeId=''){const time=now();if(questionBankProvider.alwaysRefresh===true||time>=expires){try{rows=indexRows(questionBankProvider({routeId}));index=createSourceTextIndex(rows);expires=time+30000}catch(error){rows=[];index=createSourceTextIndex([]);expires=time+1000;if(isAiStudyPromotionError(error))throw error}}return rows}
  return Object.freeze({resolve({message='',context={},authorization=null,lookupText='',hasImages=false}={}){
-  const bank=getRows()
+  const bank=getRows(String(authorization?.routeId||context?.routeId||''))
   if(authorization?.coachAccess?.binding==='authoritative-attempt'&&authorization.paperId){
    const a=authorization,paper=a.paper||{},q=a.question||{},matches=bank.filter(r=>r.source.paperId===a.paperId&&r.source.paperFile===paper.questionFile&&r.source.questionNumber===q.number&&r.routeId===a.routeId&&[r.sourceId,r.bankId].includes(q.id))
    return matches.length?{...matches[0].source,method:'bound-record'}:unknown()

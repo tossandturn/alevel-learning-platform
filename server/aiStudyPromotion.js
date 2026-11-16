@@ -8,6 +8,7 @@ const MAX_MANIFEST_BYTES = 2 * 1024 * 1024
 const MAX_ARTIFACT_BYTES = 5 * 1024 * 1024
 const MAX_SIGNED_BYTES = 32 * 1024 * 1024
 const SHA256 = /^[a-f0-9]{64}$/
+const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i
 const SAFE_RELATIVE_ARTIFACT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,199}\/[A-Za-z0-9][A-Za-z0-9._-]{0,199}\.json$/
 
 function promotionError(code) {
@@ -16,6 +17,7 @@ function promotionError(code) {
 
 export function isAiStudyPromotionError(error) {
   return error?.code === 'AI_STUDY_PROMOTION_REQUIRED' || error?.code === 'AI_STUDY_PROMOTION_INVALID'
+    || error?.code === 'AI_STUDY_CANDIDATE_BLOCKED' || error?.code === 'AI_STUDY_LEGACY_UNAVAILABLE'
 }
 
 function invalid() {
@@ -44,6 +46,11 @@ function readWithinRoot(root, relative, limit) {
   if (!relativeToRoot || path.isAbsolute(relativeToRoot) || relativeToRoot === '..' || relativeToRoot.startsWith(`..${path.sep}`)) invalid()
   let descriptor
   try {
+    let segmentPath = root
+    for (const segment of relative.split('/')) {
+      segmentPath = path.join(segmentPath, segment)
+      if (fs.lstatSync(segmentPath).isSymbolicLink()) invalid()
+    }
     const linkStat = fs.lstatSync(candidate)
     if (!linkStat.isFile() || linkStat.isSymbolicLink() || linkStat.size <= 0 || linkStat.size > limit) invalid()
     const realRoot = fs.realpathSync(root)
@@ -80,7 +87,7 @@ function entryExists(root, name) {
 export function verifyAiStudyPromotion({ artifactRoot, artifactPaths = [], promotionPolicy = null } = {}) {
   const root = path.resolve(String(artifactRoot || ''))
   const mode = promotionPolicy?.mode || 'legacy'
-  if (!['legacy', 'signed-candidate'].includes(mode)) invalid()
+  if (!['legacy', 'signed-candidate', 'release-pinned'].includes(mode)) invalid()
   const markers = MARKERS.filter((name) => entryExists(root, name))
   const envelopeExists = entryExists(root, ENVELOPE_NAME)
   const blockedExists = entryExists(root, 'BLOCKED.json')
@@ -88,7 +95,44 @@ export function verifyAiStudyPromotion({ artifactRoot, artifactPaths = [], promo
     if (markers.length || envelopeExists || blockedExists) throw promotionError('AI_STUDY_PROMOTION_REQUIRED')
     return null
   }
-  if (blockedExists || markers.length !== 1 || !envelopeExists) invalid()
+  // This is a fail-closed operational signal, not an authenticated revocation.
+  if (blockedExists) throw promotionError('AI_STUDY_CANDIDATE_BLOCKED')
+  if (mode === 'release-pinned') {
+    const pin = promotionPolicy?.trustedManifestSha256, expectedRoot = promotionPolicy?.expectedRealRoot
+    if (!SHA256.test(String(pin || '')) || typeof expectedRoot !== 'string' || !expectedRoot
+      || markers.length !== 1 || markers[0] !== 'candidate-manifest.json' || envelopeExists) invalid()
+    let rootStat, realRoot
+    try { rootStat = fs.lstatSync(root); realRoot = fs.realpathSync(root) } catch { invalid() }
+    if (!rootStat.isDirectory() || rootStat.isSymbolicLink() || realRoot !== expectedRoot) invalid()
+    const bytes = readWithinRoot(root, markers[0], MAX_MANIFEST_BYTES), pack = parseJson(bytes)
+    if (digest(bytes) !== pin || !exactKeys(pack, ['schemaVersion', 'scope', 'formalProgressEligible', 'routeIds', 'expectedRouteGroups', 'artifacts'])
+      || pack.schemaVersion !== 'stem-ai-study-release-pack.v1' || pack.scope !== 'chapter-study'
+      || pack.formalProgressEligible !== false || !Array.isArray(pack.routeIds) || !pack.routeIds.length
+      || pack.routeIds.some((id) => typeof id !== 'string' || !/^[A-Za-z0-9-]{1,120}$/.test(id))
+      || new Set(pack.routeIds).size !== pack.routeIds.length
+      || !Number.isInteger(pack.expectedRouteGroups) || pack.expectedRouteGroups < 1 || pack.expectedRouteGroups > 100000
+      || !Array.isArray(pack.artifacts) || !pack.artifacts.length || pack.artifacts.length > 10000) invalid()
+    if (!Array.isArray(promotionPolicy.expectedRouteIds)
+      || JSON.stringify([...pack.routeIds].sort()) !== JSON.stringify([...promotionPolicy.expectedRouteIds].sort())) invalid()
+    const declared = new Map()
+    for (const item of pack.artifacts) {
+      if (!exactKeys(item, ['path', 'sha256']) || typeof item.path !== 'string'
+        || !SAFE_RELATIVE_ARTIFACT.test(item.path) || !SHA256.test(String(item.sha256 || '')) || declared.has(item.path)) invalid()
+      declared.set(item.path, item.sha256)
+    }
+    const actualPaths = artifactPaths.map((file) => path.relative(root, file).split(path.sep).join('/')).sort()
+    if (JSON.stringify(actualPaths) !== JSON.stringify([...declared.keys()].sort())) invalid()
+    const bytesByPath = new Map(); let totalBytes = 0
+    for (const [relative, expected] of declared) {
+      const content = readWithinRoot(root, relative, MAX_ARTIFACT_BYTES)
+      totalBytes += content.length
+      if (totalBytes > MAX_SIGNED_BYTES || digest(content) !== expected) invalid()
+      bytesByPath.set(relative, content)
+    }
+    return Object.freeze({ bytesByPath, artifactCount: declared.size, expectedRouteGroups: pack.expectedRouteGroups,
+      routeIds: Object.freeze([...pack.routeIds]), manifestSha256: digest(bytes) })
+  }
+  if (markers.length !== 1 || !envelopeExists) invalid()
   const markerName = markers[0]
   const markerBytes = readWithinRoot(root, markerName, MAX_MANIFEST_BYTES)
   const marker = parseJson(markerBytes)
@@ -144,10 +188,61 @@ export function verifyAiStudyPromotion({ artifactRoot, artifactPaths = [], promo
     expectedRouteGroups: payload.expectedRouteGroups, manifestSha256: digest(payloadBytes) })
 }
 
+function reviewSessionMatches(session, reviewer) {
+  const outputHash = session?.outputSha256 || session?.fullReviewSha256 || session?.questionReviewSha256 || session?.reviewBinding?.outputSha256
+  const sessionHash = session?.sessionLogSha256 || session?.sessionLog?.sha256
+  return Boolean(session && typeof session.sessionId === 'string' && UUID.test(session.sessionId)
+    && typeof session.turnId === 'string' && UUID.test(session.turnId)
+    && session.modelProvider === reviewer?.provider && session.model === reviewer?.model
+    && SHA256.test(String(sessionHash || '')) && SHA256.test(String(outputHash || '')))
+}
+
+function hasBoundReviewSessions(artifact) {
+  const review = artifact?.studentRelease?.review
+  if (review?.method === 'single-model-source-review') {
+    const session = artifact.sourceReview?.runtimeAttestation?.finalSourceReview || artifact.sourceReview?.runtimeAttestation
+    return review.independentPassCount === 1 && reviewSessionMatches(session, artifact.sourceReview)
+  }
+  if (review?.independentPassCount !== 2) return false
+  const supplemented = review?.method === 'single-model-plus-independent-source-review'
+  const firstReviewer = supplemented ? artifact.sourceReview : artifact.extractor
+  const secondReviewer = supplemented ? artifact.independentReview : artifact.verifier
+  const first = supplemented ? artifact.sourceReview?.runtimeAttestation?.finalSourceReview : artifact.extractor?.runtimeAttestation
+  const second = supplemented ? artifact.independentReview?.providerAttestation : artifact.verifier?.runtimeAttestation
+  return reviewSessionMatches(first, firstReviewer) && reviewSessionMatches(second, secondReviewer)
+    && String(first.sessionId).toLowerCase() !== String(second.sessionId).toLowerCase()
+    && String(first.turnId).toLowerCase() !== String(second.turnId).toLowerCase()
+}
+
+function hasUndeliverableReference(artifact) {
+  const declared = (value) => value != null && (!Array.isArray(value) || value.length > 0)
+  const list = (value) => Array.isArray(value) ? value : []
+  return [artifact.candidate, artifact.verification].some((document) =>
+    document?.needsReferenceMaterial === true || declared(document?.examReference) || declared(document?.referenceMaterialRegions)
+    || list(document?.questions).some((question) => declared(question?.examReference)
+      || question?.needsReferenceMaterial === true || declared(question?.referenceMaterialRegions)
+      || list(question?.parts).some((part) => part?.needsReferenceMaterial === true || declared(part?.referenceMaterialRegions))))
+}
+
+function hasDuplicateSourceIds(records) {
+  const seen = new Set()
+  for (const { artifact } of records) {
+    for (const question of Array.isArray(artifact?.candidate?.questions) ? artifact.candidate.questions : []) {
+      const sourceId = `${artifact.paperId}:q${question.questionNumber}`
+      if (question.sourceQuestionId != null && question.sourceQuestionId !== sourceId) return true
+      const key = JSON.stringify([artifact.syllabusRouteId, sourceId])
+      if (seen.has(key)) return true
+      seen.add(key)
+    }
+  }
+  return false
+}
+
 export function assertPromotedAiStudyGroups(promotion, records, groups) {
   if (!promotion) return
-  // This count is a structural condition, not proof of independent review.
-  // Release still requires separately authenticated, hash-bound review receipts.
-  if (records.length !== promotion.artifactCount || groups.length !== promotion.expectedRouteGroups
-    || records.some((record) => record.artifact?.studentRelease?.review?.independentPassCount !== 2)) invalid()
+  // These are structural conditions, not proof that a review occurred.
+  // The authorized signer must independently verify the referenced receipts.
+  if (records.length !== promotion.artifactCount || groups.length !== promotion.expectedRouteGroups || hasDuplicateSourceIds(records)
+    || (promotion.routeIds && groups.some((group) => !promotion.routeIds.includes(group.routeId)))
+    || records.some((record) => hasUndeliverableReference(record.artifact) || !hasBoundReviewSessions(record.artifact))) invalid()
 }

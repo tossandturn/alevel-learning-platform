@@ -1873,7 +1873,7 @@ export function ensureSyllabusTables(database) {
   }
 }
 
-export function seedSyllabusTables(database, questionBank = []) {
+export function seedSyllabusTables(database, questionBank = [], { preserveMissingAiVerified = false } = {}) {
   ensureSyllabusTables(database)
   const now = new Date().toISOString()
   const insertTopic = database.prepare(`
@@ -1948,6 +1948,15 @@ export function seedSyllabusTables(database, questionBank = []) {
       evidence_json = excluded.evidence_json,
       updated_at = excluded.updated_at
   `)
+  const suppliedQuestionIds = preserveMissingAiVerified
+    ? new Set((Array.isArray(questionBank) ? questionBank : []).filter(isStudentReleasedAiStudyItem).map((question) => (
+      `${String(question?.routeId || '')}\u0000${String(question?.questionGroupId || question?.sourceQuestionId || '')}`
+    )))
+    : null
+  const preservedAiVerifiedIds = preserveMissingAiVerified
+    ? new Set(database.prepare("SELECT route_id AS routeId, id FROM route_question_groups WHERE verification_status = 'ai-verified'").all()
+      .map((row) => `${row.routeId}\u0000${row.id}`).filter((key) => !suppliedQuestionIds.has(key)))
+    : null
   const activeAiVerifiedQuestionGroupIds = new Set()
   for (const config of allSyllabusConfigs()) {
     const records = effectiveQuestionRecords(questionBank, config)
@@ -1955,6 +1964,7 @@ export function seedSyllabusTables(database, questionBank = []) {
     const question = record.question
     const answerRef = question.answerRef || {}
     const mapping = record.mapping
+    if (preservedAiVerifiedIds?.has(`${record.routeId}\u0000${record.questionGroupId}`)) continue
     // The effective record set is the current bank authority. Raw catalog
     // rows are retained as indexed context, but must not keep their former
     // reviewed status when they are absent from the supplied/current bank.
@@ -2009,10 +2019,12 @@ export function seedSyllabusTables(database, questionBank = []) {
   // Coordinate-only records are loaded only when their artifact and both
   // local PDFs still validate. Remove an earlier runtime copy when that guard
   // stops returning it, while leaving reviewed and machine-indexed rows intact.
-  const existingAiVerified = database.prepare("SELECT route_id AS routeId, id FROM route_question_groups WHERE verification_status = 'ai-verified'").all()
-  const deleteStaleAiVerified = database.prepare("DELETE FROM route_question_groups WHERE route_id = ? AND id = ? AND verification_status = 'ai-verified'")
-  for (const row of existingAiVerified) {
-    if (!activeAiVerifiedQuestionGroupIds.has(`${row.routeId}\u0000${row.id}`)) deleteStaleAiVerified.run(row.routeId, row.id)
+  if (!preserveMissingAiVerified) {
+    const existingAiVerified = database.prepare("SELECT route_id AS routeId, id FROM route_question_groups WHERE verification_status = 'ai-verified'").all()
+    const deleteStaleAiVerified = database.prepare("DELETE FROM route_question_groups WHERE route_id = ? AND id = ? AND verification_status = 'ai-verified'")
+    for (const row of existingAiVerified) {
+      if (!activeAiVerifiedQuestionGroupIds.has(`${row.routeId}\u0000${row.id}`)) deleteStaleAiVerified.run(row.routeId, row.id)
+    }
   }
 }
 

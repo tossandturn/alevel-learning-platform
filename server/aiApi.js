@@ -1574,7 +1574,7 @@ async function handleCoachSource(request,response,visionProvider,env,telemetry,t
       let parsed;try{parsed=JSON.parse(raw)}catch{throw Error('Invalid transcription')}
       if(!parsed||typeof parsed.text!=='string'||parsed.text.length>2400||/[\u0000-\u0008<>]/.test(parsed.text))throw Error('Invalid transcription')
       source=resolver.resolve({message,context,authorization,hasImages:true,lookupText:parsed.text})
-    }catch{throw Object.assign(new Error('出处识别暂未完成，原答案已保留，可以重试。'),{statusCode:503,code:'source_lookup_failed'})}
+    }catch(error){if(isAiStudyPromotionError(error))throw error;throw Object.assign(new Error('出处识别暂未完成，原答案已保留，可以重试。'),{statusCode:503,code:'source_lookup_failed'})}
     finally{images.forEach(image=>image.cleanup())}
   }
   return sendJson(response,200,{questionSource:source,sourceText:coachQuestionSourceText(source)})
@@ -2692,7 +2692,8 @@ async function handleHandwritingMark(request, response, provider, libraryRoot, a
       reviewRequired: true,
     })
   }
-  const canonical = canonicalHandwritingMarkingContext(payload, { questionBank })
+  const scopedQuestionBank = typeof questionBank === 'function' ? questionBank({ routeId: String(capability.claims?.routeId || '') }) : questionBank
+  const canonical = canonicalHandwritingMarkingContext(payload, { questionBank: scopedQuestionBank })
   if (!canonical.ok) {
     return sendJson(response, 422, {
       code: canonical.code,
@@ -2900,15 +2901,16 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
     baseMemoryRoot: tavernMemoryRoot,
     callCompatibleAiStream: ieltsTeacherCallCompatibleAiStream,
   })
-  const currentAiMarkingQuestionBank = () => {
+  const currentAiMarkingQuestionBank = (scope = {}) => {
     if (typeof questionBankProvider !== 'function') return studyQuestionBank
     try {
-      return mergeAiMarkingQuestionBanks(studyQuestionBank, questionBankProvider())
+      return mergeAiMarkingQuestionBanks(studyQuestionBank, questionBankProvider(scope))
     } catch (error) {
       if (isAiStudyPromotionError(error)) throw error
       return studyQuestionBank
     }
   }
+  currentAiMarkingQuestionBank.alwaysRefresh = questionBankProvider?.alwaysRefresh === true
   const questionSourceResolver=createCoachQuestionSourceResolver({questionBankProvider:currentAiMarkingQuestionBank,libraryRoot})
   const coachImageUploads=createCoachImageUploads({
     authenticate:request=>authenticatedStemUser(request,env),sendJson,options:coachImageUploadsOptions||{},
@@ -3019,7 +3021,7 @@ export function createAiApi({ env = process.env, libraryRoot, allowedSubjects, s
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach') return await handleCoach(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStore,tavernMediaCatalog||loadTavernMediaCatalog(),tavernProvider,questionSourceResolver)
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach/source') return await handleCoachSource(request,response,config.vision,env,telemetry,timeoutConfig,authorizeCoachRequest,questionSourceResolver)
       if (request.method === 'POST' && requestUrl.pathname === '/api/ai/coach/stream') return await handleCoachStream(request, response, config.coach, config.vision, libraryRoot, allowedSubjects, env, telemetry, timeoutConfig, authorizeCoachRequest, divinationStore, conversationStore,tavernProvider,questionSourceResolver)
-      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/mark-handwriting') return await handleHandwritingMark(request, response, config.vision, libraryRoot, allowedSubjects, sourceAssetRoot, env, currentAiMarkingQuestionBank(), telemetry, timeoutConfig)
+      if (request.method === 'POST' && requestUrl.pathname === '/api/ai/mark-handwriting') return await handleHandwritingMark(request, response, config.vision, libraryRoot, allowedSubjects, sourceAssetRoot, env, currentAiMarkingQuestionBank, telemetry, timeoutConfig)
       return sendJson(response, 404, { error: 'AI route not found.' })
     } catch (error) {
       return sendJson(response, error.statusCode || 500, {

@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import { artifactTreeIdentity } from './release-content-policy.mjs'
-import { releaseIdMatchesCommit, validateBuildIdentity, validateReleaseManifest } from './release-manifest-contract.mjs'
+import { artifactTreeIdentity, pathsOverlap } from './release-content-policy.mjs'
+import { baselineSyllabusScopeMatches, releaseIdMatchesCommit, validChapterStudyPackBinding, validateBuildIdentity, validateReleaseManifest } from './release-manifest-contract.mjs'
 import { verifiedRuntimeDataBinding } from './runtime-data-binding.mjs'
 import { parseStudyTopicScopes } from './study-release-policy.mjs'
 
@@ -42,13 +42,13 @@ const commit = requiredOption('--commit').toLowerCase()
 const releaseId = requiredOption('--release-id')
 const packageSha256 = requiredOption('--package-sha256').toLowerCase()
 const runtimeDataRoot = option('--runtime-data-root')
-const readinessMode = String(option('--readiness-mode') || 'formal').trim()
+let readinessMode = String(option('--readiness-mode') || 'formal').trim()
 const requestedSyllabusRouteIds = optionValues('--route')
 const requestedTopicScopeEntries = [
   ...rawOptionValues('--topic-scope'),
   ...rawOptionValues('--topic'),
 ]
-const syllabusRouteIds = requestedSyllabusRouteIds.length
+let syllabusRouteIds = requestedSyllabusRouteIds.length
   ? requestedSyllabusRouteIds
   : String(process.env.STEM_RELEASE_ROUTES || 'cie-9702-as-physics')
     .split(',')
@@ -67,9 +67,46 @@ assert.ok(fs.existsSync(buildIdentityPath) && fs.statSync(buildIdentityPath).isF
 assert.ok(syllabusRouteIds.length > 0, 'Release must declare at least one syllabus route')
 assert.ok(syllabusRouteIds.every((routeId) => /^[A-Za-z0-9._:-]{1,120}$/.test(routeId)), 'Release syllabus routes must use safe route IDs')
 assert.equal(new Set(syllabusRouteIds).size, syllabusRouteIds.length, 'Release syllabus routes must be unique')
+const chapterRoutes = rawOptionValues('--chapter-route')
+const chapterTopicEntries = rawOptionValues('--chapter-topic')
+const wantsChapterStudy = chapterRoutes.length > 0 || chapterTopicEntries.length > 0 || Boolean(option('--baseline-release-manifest'))
+let baselineScope = null, baselineIdentity = null, chapterStudy = null
+if (wantsChapterStudy) {
+  assert.ok(chapterRoutes.length && chapterTopicEntries.length, 'Chapter-study requires explicit routes and topic scopes')
+  assert.ok(!requestedSyllabusRouteIds.length && !requestedTopicScopeEntries.length && !option('--readiness-mode'),
+    'Baseline routes, topics and mode must come only from the trusted baseline manifest')
+  assert.ok(chapterRoutes.every((routeId) => routeId === routeId.trim() && /^[A-Za-z0-9._:-]{1,120}$/.test(routeId)))
+  assert.equal(new Set(chapterRoutes).size, chapterRoutes.length, 'Chapter-study routes must be unique')
+  const baselinePath = fs.realpathSync(requiredOption('--baseline-release-manifest'))
+  const trustedHash = requiredOption('--trusted-baseline-manifest-sha256').toLowerCase()
+  const trustedCommit = requiredOption('--trusted-baseline-commit').toLowerCase()
+  const trustedReleaseId = requiredOption('--trusted-baseline-release-id')
+  assert.match(trustedHash, /^[a-f0-9]{64}$/); assert.match(trustedCommit, /^[a-f0-9]{40}$/)
+  assert.ok(!pathsOverlap(fs.realpathSync(releaseRoot), baselinePath), 'Trusted baseline must be outside the new release')
+  const baselineBytes = fs.readFileSync(baselinePath)
+  const actualHash = crypto.createHash('sha256').update(baselineBytes).digest('hex')
+  const baselineManifest = JSON.parse(baselineBytes.toString('utf8'))
+  assert.equal(actualHash, trustedHash, 'Trusted baseline manifest bytes changed')
+  assert.equal(baselineManifest.commit, trustedCommit); assert.equal(baselineManifest.releaseId, trustedReleaseId)
+  assert.ok(validateReleaseManifest(baselineManifest).valid && baselineManifest.syllabusScope?.schemaVersion === 'stem-syllabus-release-scope.v1',
+    'A valid v1 baseline release manifest is required')
+  baselineScope = baselineManifest.syllabusScope
+  baselineIdentity = { releaseId: trustedReleaseId, commit: trustedCommit, manifestSha256: trustedHash }
+  const chapterTopicScopes = parseStudyTopicScopes(chapterTopicEntries, chapterRoutes)
+  assert.ok(chapterRoutes.every((routeId) => chapterTopicScopes[routeId]?.length), 'Every chapter route needs an explicit topic scope')
+  const packBinding = { schemaVersion: 'stem-release-study-pack-binding.v1',
+    relativePath: requiredOption('--chapter-pack-relative-path'), manifestSha256: requiredOption('--chapter-pack-manifest-sha256').toLowerCase() }
+  assert.ok(validChapterStudyPackBinding(packBinding), 'An explicitly pinned chapter-study pack is required')
+  chapterStudy = { schemaVersion: 'stem-chapter-study-release-scope.v1', routeIds: chapterRoutes,
+    topicScopes: chapterTopicScopes, formalProgressEligible: false, packBinding }
+  syllabusRouteIds = baselineScope.routeIds
+  readinessMode = baselineScope.readinessMode ?? 'formal'
+  assert.ok(baselineSyllabusScopeMatches({ schemaVersion: 'stem-syllabus-release-scope.v2', baseline: baselineScope,
+    baselineIdentity, chapterStudy }, baselineManifest, trustedHash), 'Complete baseline scope must remain unchanged')
+}
 assert.ok(['formal', 'student-study'].includes(readinessMode), 'readiness mode must be formal or student-study')
-assert.ok(readinessMode === 'student-study' || requestedTopicScopeEntries.length === 0, 'Topic scoping is allowed only in student-study mode')
-const topicScopes = parseStudyTopicScopes(requestedTopicScopeEntries, syllabusRouteIds)
+assert.ok(wantsChapterStudy || readinessMode === 'student-study' || requestedTopicScopeEntries.length === 0, 'Topic scoping is allowed only in student-study mode')
+const topicScopes = wantsChapterStudy ? (baselineScope.topicScopes || {}) : parseStudyTopicScopes(requestedTopicScopeEntries, syllabusRouteIds)
 const buildIdentity = JSON.parse(fs.readFileSync(buildIdentityPath, 'utf8'))
 assert.ok(
   validateBuildIdentity(buildIdentity, { commit, requireClean: true }).valid,
@@ -77,6 +114,18 @@ assert.ok(
 )
 
 const runtimeData = verifiedRuntimeDataBinding(releaseRoot, runtimeDataRoot)
+if (wantsChapterStudy) {
+  assert.ok(runtimeData, 'Chapter-study requires an explicitly bound runtime data root')
+  const packRoot = path.join(releaseRoot, ...chapterStudy.packBinding.relativePath.split('/'))
+  for (const directory of [path.dirname(packRoot), packRoot]) {
+    const stat = fs.lstatSync(directory)
+    assert.ok(stat.isDirectory() && !stat.isSymbolicLink(), 'Chapter-study pack directories must not be symlinks')
+  }
+  const marker = path.join(packRoot, 'candidate-manifest.json')
+  assert.ok(fs.lstatSync(marker).isFile() && !fs.lstatSync(marker).isSymbolicLink(), 'Chapter-study pack marker must be a regular file')
+  assert.equal(crypto.createHash('sha256').update(fs.readFileSync(marker)).digest('hex'), chapterStudy.packBinding.manifestSha256,
+    'Chapter-study pack differs from its explicit expected SHA')
+}
 const releaseTree = artifactTreeIdentity(releaseRoot, { exclude: ['release-manifest.json'] })
 const immutableAssets = artifactTreeIdentity(immutableAssetsRoot)
 // Runtime verification resolves the question-assets link before checking its
@@ -89,7 +138,8 @@ const manifest = {
   commit,
   packageSha256,
   ...(runtimeData ? { runtimeData } : {}),
-  syllabusScope: {
+  syllabusScope: wantsChapterStudy ? { schemaVersion: 'stem-syllabus-release-scope.v2', baseline: baselineScope,
+    baselineIdentity, chapterStudy } : {
     schemaVersion: 'stem-syllabus-release-scope.v1',
     routeIds: syllabusRouteIds,
     readinessMode,

@@ -319,7 +319,7 @@ function hasValidSourceReview(artifact) {
   const keys = new Set(review.evidence.filter(e => ['qp','ms'].includes(e.document) && Number.isInteger(e.page) && e.page > 0 && safeSha256(e.pageImageSha256)).map(e => `${e.document}:${e.page}:${safeSha256(e.pageImageSha256)}`))
   const questions = artifact.candidate?.questions
   return Array.isArray(questions) && questions.length > 0 && questions.every(q => {
-    const qp = [...(q.regions || []), ...(q.diagramRegions || [])], ms = q.markSchemeEvidence || []
+    const qp = [...(q.regions || []), ...(q.diagramRegions || []), ...(q.sharedStemRegions || []), ...(q.referenceMaterialRegions || [])], ms = q.markSchemeEvidence || []
     return qp.length > 0 && ms.length > 0 && qp.every(e => keys.has(`qp:${e.page}:${safeSha256(e.pageImageSha256)}`)) && ms.every(e => keys.has(`ms:${e.page}:${safeSha256(e.pageImageSha256)}`))
   })
 }

@@ -178,8 +178,9 @@ export function createNativeQuestionImages({ getQuestionBank, libraryRoot, env =
     ? cacheByteLimit
     : 8 * 1024 * 1024
   let cachedBytes = 0, active = false
-  function resolveWith(regionResolver, routeId, sourceQuestionId) {
-    const matches = (getQuestionBank() || []).filter(q => q.routeId === routeId && q.sourceQuestionId === sourceQuestionId)
+  function resolveWith(regionResolver, routeId, sourceQuestionId, questionBank = null) {
+    const matches = (Array.isArray(questionBank) ? questionBank : (getQuestionBank({ routeId }) || []))
+      .filter(q => q.routeId === routeId && q.sourceQuestionId === sourceQuestionId)
     if (matches.length !== 1) return []
     const question = matches[0]
     return regionResolver(question, isReleased).map((region, index) => {
@@ -190,7 +191,7 @@ export function createNativeQuestionImages({ getQuestionBank, libraryRoot, env =
           expectedPdfSha256: region.hash, page: region.page, expectedPageImageSha256: region.pageHash, imageSize: region.imageSize, role: 'question-paper' } }
     })
   }
-  const resolve = (routeId, sourceQuestionId) => resolveWith(regionsFor, routeId, sourceQuestionId)
+  const resolve = (routeId, sourceQuestionId, questionBank) => resolveWith(regionsFor, routeId, sourceQuestionId, questionBank)
   const resolveLegacy = (routeId, sourceQuestionId) => resolveWith(legacyRegionsFor, routeId, sourceQuestionId)
   const resolverFor = (family) => family === 'legacy' ? resolveLegacy : resolve
   function resolveImageRequest(routeId, sourceQuestionId, region, v) {
@@ -214,7 +215,7 @@ export function createNativeQuestionImages({ getQuestionBank, libraryRoot, env =
   function projectSet(result, options) {
     return { ...result, questionGroups: result.questionGroups.map(group => {
       if (group.sourceContent?.assetUrls?.length) return group
-      const descriptors = resolve(group.routeId, group.id)
+      const descriptors = resolve(group.routeId, group.id, options?.questionBank)
       return descriptors.length ? { ...group, nativeSourceImages: descriptors.map(d => publicDescriptor(d, options)) } : group
     }) }
   }

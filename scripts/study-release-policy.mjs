@@ -86,3 +86,50 @@ export function assertStudyReleaseInventory(inventory, routeId, topicScope = und
     minimumFormalGroups: MIN_VERIFIED_GROUPS_FOR_PRACTICE,
   }
 }
+
+export function assertChapterStudyReleaseInventory(inventory, routeId, topicScope = undefined) {
+  assert.equal(inventory.routeId, routeId, 'route mismatch')
+  const policy = inventory.practicePolicy?.chapterStudy
+  assert.ok(policy && policy.mode === 'chapter-study' && policy.minSourceGroups === 1
+    && policy.maxSourceGroups === 15 && policy.countPolicy === 'cap-to-available'
+    && policy.formalProgressEligible === false, 'chapter-study policy must remain non-formal and source-bound')
+  const selected = selectedTopics(inventory, routeId, topicScope)
+  for (const topic of inventory.topics) {
+    for (const key of ['verifiedQuestionCount', 'studyQuestionCount', 'releasedStudyQuestionCount', 'availableQuestionCount']) {
+      assert.ok(Number.isSafeInteger(topic[key]) && topic[key] >= 0, `invalid ${key}`)
+    }
+    assert.equal(topic.availableQuestionCount, topic.verifiedQuestionCount + topic.studyQuestionCount, 'official count mismatch')
+    assert.equal(topic.studyQuestionCount, topic.releasedStudyQuestionCount, 'unreleased study questions must not count')
+    const components = Object.values(topic.questionIdsByComponent || {})
+    assert.ok(components.length, 'component source IDs are required')
+    const availableIds = [], reviewedIds = []
+    for (const component of components) {
+      for (const field of ['verifiedQuestionIds', 'releasedStudyQuestionIds', 'apiReadyQuestionIds']) {
+        assert.ok(Array.isArray(component[field]) && component[field].every((id) => typeof id === 'string' && id.trim() === id && id), `invalid ${field}`)
+        assert.equal(new Set(component[field]).size, component[field].length, `duplicate ${field}`)
+      }
+      availableIds.push(...component.apiReadyQuestionIds)
+      reviewedIds.push(...component.verifiedQuestionIds, ...component.releasedStudyQuestionIds)
+    }
+    assert.equal(new Set(availableIds).size, availableIds.length, 'duplicate component source IDs')
+    assert.equal(new Set(reviewedIds).size, reviewedIds.length, 'duplicate reviewed source IDs')
+    assert.deepEqual([...availableIds].sort(), [...reviewedIds].sort(), 'available IDs must be verified or released study sources')
+    assert.equal(availableIds.length, topic.availableQuestionCount, 'official count and source list differ')
+    assert.equal(topic.chapterStudy?.mode, 'chapter-study')
+    assert.equal(topic.chapterStudy.officialAvailable, topic.availableQuestionCount, 'original fallback is not a reviewed past paper')
+    assert.ok(Number.isSafeInteger(topic.chapterStudy.originalAvailable) && topic.chapterStudy.originalAvailable >= 0)
+    assert.equal(topic.chapterStudy.available, topic.chapterStudy.officialAvailable + topic.chapterStudy.originalAvailable)
+    assert.equal(topic.chapterStudy.startable, topic.chapterStudy.available > 0)
+  }
+  for (const topic of selected) {
+    assert.ok(topic.availableQuestionCount >= 1 && topic.chapterStudy.officialAvailable >= 1,
+      `${routeId}/${topic.id} has no reviewed source question and is not chapter-startable`)
+  }
+  const missingOfficialTopicIds = inventory.topics.filter((topic) => topic.availableQuestionCount === 0).map((topic) => topic.id)
+  return { routeId, readinessMode: 'chapter-study', topics: selected.length, syllabusTopics: inventory.topics.length,
+    ...(topicScope === undefined ? {} : { topicScope: selected.map((topic) => topic.id) }),
+    officialCoveredTopicCount: inventory.topics.length - missingOfficialTopicIds.length,
+    missingOfficialTopicIds, fullChapterCoverage: missingOfficialTopicIds.length === 0,
+    minimumChapterSourceGroups: 1, minimumStudentStudyGroups: MIN_QUESTION_GROUPS_PER_TEST,
+    minimumFormalGroups: MIN_VERIFIED_GROUPS_FOR_PRACTICE, formalProgressEligible: false }
+}
