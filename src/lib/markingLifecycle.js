@@ -19,6 +19,7 @@ export function canUseAiAssistedMarking(part) {
 }
 
 export function partMarkingCapability(part) {
+  if (part?.serverDeterministicScoringAvailable === true && part?.answerFormat === 'single-choice') return 'server-objective'
   if (part?.deterministicScoringAvailable || part?.answerKey) return 'deterministic'
   if (canUseAiAssistedMarking(part)) return 'ai-assisted'
   return 'self-mark'
@@ -30,7 +31,12 @@ export function markingCapabilityForUnit(unit) {
     const capability = partMarkingCapability(part)
     result[capability] += 1
     return result
-  }, { deterministic: 0, 'ai-assisted': 0, 'self-mark': 0 })
+  }, { deterministic: 0, 'server-objective': 0, 'ai-assisted': 0, 'self-mark': 0 })
+
+  if (counts['server-objective'] === parts.length && parts.length) {
+    return { mode: 'server-objective', label: 'Checked after submission',
+      description: 'The server checks each choice against its source-bound marking record after submission.', counts }
+  }
 
   if (counts['self-mark'] === parts.length) {
     return {
@@ -48,9 +54,9 @@ export function markingCapabilityForUnit(unit) {
       counts,
     }
   }
-  if (counts['self-mark'] || counts['ai-assisted']) {
+  if (counts['self-mark'] || counts['ai-assisted'] || counts['server-objective']) {
     const resolved = counts.deterministic
-    const deferred = counts['self-mark'] + counts['ai-assisted']
+    const deferred = counts['self-mark'] + counts['ai-assisted'] + counts['server-objective']
     return {
       mode: 'mixed',
       label: 'Mixed marking',
@@ -133,7 +139,7 @@ function hasPartResponse(answers, evidence, partId) {
   return responsePresent(value) || evidencePresent(evidence?.[partId])
 }
 
-export function buildPartMarkingLifecycle(unit, answers = {}, elapsedSec = 0, visionReviews = {}, evidence = {}) {
+export function buildPartMarkingLifecycle(unit, answers = {}, elapsedSec = 0, visionReviews = {}, evidence = {}, objectiveReviews = {}) {
   const deterministicByPart = new Map(deterministicCriteria(unit, answers, elapsedSec).map((criterion) => [criterion.partId, criterion]))
   const partStates = {}
   const provisionalCriteria = []
@@ -158,6 +164,24 @@ export function buildPartMarkingLifecycle(unit, answers = {}, elapsedSec = 0, vi
         status: 'deterministic-scored',
         awarded: criterion.awarded,
         maxMarks: criterion.maxMarks,
+      }
+      continue
+    }
+
+    if (capability === 'server-objective') {
+      const review = objectiveReviews[part.id]
+      const score = review?.score
+      const valid = review?.status === 'success' && review?.available === true && [0, 1].includes(score)
+        && review?.maxScore === 1 && Number(part.marks) === 1
+        && ['ai-checked-official-key', 'reviewed-official-key'].includes(review?.sourceStatus)
+      if (valid) {
+        provisionalCriteria.push({ partId: part.id, awarded: score, maxMarks: 1,
+          status: criterionStatus(score, 1), feedback: score ? 'Correct choice.' : 'The selected choice is not correct.',
+          evidence: [], evidenceStatus: review.sourceStatus, scoringSource: 'server-objective' })
+        partStates[part.id] = { capability, status: 'objective-scored', awarded: score, maxMarks: 1 }
+      } else {
+        partStates[part.id] = { capability, status: 'objective-review-pending', maxMarks: Number(part.marks),
+          reason: review?.error || 'The source-bound result is unavailable. Your answer remains saved and unscored.' }
       }
       continue
     }

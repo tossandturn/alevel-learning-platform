@@ -78,6 +78,10 @@ function sourceMixText(sourceMix) {
 }
 
 function markingCapability(part) {
+  if (part.serverDeterministicScoringAvailable && part.answerFormat === 'single-choice') {
+    return { mode: 'deterministic', label: 'Checked after submission',
+      detail: 'The server checks the selected option against the source-bound answer after submission.' }
+  }
   if (part.aiAssistedMarkingAvailable && ['reviewed', 'machine-indexed'].includes(part.reviewStatus)) {
     const studyEstimate = part.studyOnly === true
     return {

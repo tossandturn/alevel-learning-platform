@@ -297,12 +297,13 @@ export async function requestSyllabusPracticeSet(token, selection) {
   const options = {
     method: 'POST',
     body: JSON.stringify(selection),
+    ...(selection?.studyMode === 'chapter-study' ? { headers: { 'X-STEMist-Source-Images': 'region-v2' } } : {}),
   }
   if (token) return sharedAccountRequest(token, '/api/stem/practice-sets', options)
   const { response, payload } = await jsonFetch('/api/stem/practice-sets', {
     ...options,
     credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
   })
   if (!response.ok) throw responseError(response, payload, 'The syllabus practice set could not be generated.')
   return payload
@@ -313,12 +314,13 @@ export async function requestSyllabusPracticeRebind(token, unit) {
   const options = {
     method: 'POST',
     body: JSON.stringify({ unit: compactUnit }),
+    ...(unit?.studyMode === 'chapter-study' ? { headers: { 'X-STEMist-Source-Images': 'region-v2' } } : {}),
   }
   if (token) return sharedAccountRequest(token, '/api/stem/practice-sets/rebind', options)
   const { response, payload } = await jsonFetch('/api/stem/practice-sets/rebind', {
     ...options,
     credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
   })
   if (!response.ok) throw responseError(response, payload, 'This saved syllabus set could not be verified against the current source catalog.')
   return payload

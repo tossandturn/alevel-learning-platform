@@ -104,9 +104,15 @@ function sourceQuestionGroupCount(unit) {
 export function isStartableTopicPracticeUnit(unit, { allowFocusedRetest = false } = {}) {
   const sourceBacked = unit?.sourceAuthority === 'server-syllabus'
     || (unit?.parts || []).some((part) => part?.sourceKind === 'past-paper')
+  const questionGroupCount = sourceQuestionGroupCount(unit)
+  if (unit?.studyMode === 'chapter-study') return Boolean(
+    unit.type === 'topic' && unit.startable !== false && unit.sourceAuthority === 'server-syllabus' && unit.sourcePreference === 'official-first'
+    && unit.practiceMode === 'study-only' && unit.formalProgressEligible === false
+    && questionGroupCount >= 1 && questionGroupCount <= 15 && Array.isArray(unit.parts) && unit.parts.length > 0
+    && unit.parts.every((part) => part.sourceKind === 'past-paper' && part.sourceQuestionId),
+  )
   if (unit?.type !== 'topic' || !sourceBacked) return true
   if (unit?.startable === false) return false
-  const questionGroupCount = sourceQuestionGroupCount(unit)
   if (questionGroupCount >= MIN_QUESTION_GROUPS_PER_TEST) return true
   return Boolean(
     allowFocusedRetest

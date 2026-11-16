@@ -204,6 +204,20 @@ export function projectNativeObjectivePracticeSet(result = {}) {
   }
 }
 
+export function projectNativeObjectivePracticeUnit(unit = {}, { questionBank = [] } = {}) {
+  if (!Array.isArray(unit.parts) || !Array.isArray(questionBank)) return unit
+  return { ...unit, parts: unit.parts.map((part) => {
+    const matches = questionBank.filter((question) => question?.routeId === unit.routeId
+      && question?.sourceQuestionId === part?.sourceQuestionId
+      && (question.parts || []).some((candidate) => candidate.partId === part.questionPartId))
+    const metadata = matches.length === 1 ? objectiveAnswerMetadata(matches[0]) : null
+    if (!metadata) return part
+    return { ...stripAnswerFields(part), ...metadata, answerType: 'multiple-choice',
+      options: metadata.choiceLabels.map((label) => `${label}.`), serverDeterministicScoringAvailable: true,
+      deterministicScoringAvailable: false, aiAssistedMarkingAvailable: false }
+  }) }
+}
+
 export function scoreObjectiveQuestion({ question, selectedOption, mode = 'topic' } = {}) {
   const metadata = objectiveAnswerMetadata(question || {})
   const choiceParts = (question?.parts || []).filter(isExplicitSingleChoicePart)

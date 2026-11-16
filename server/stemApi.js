@@ -25,6 +25,7 @@ import {
   objectiveAnswerMetadata,
   objectivePaperProfile,
   projectNativeObjectivePracticeSet,
+  projectNativeObjectivePracticeUnit,
   scoreObjectiveQuestion,
 } from './objectiveAnswers.js'
 import { createWholePaperMarkingService } from './wholePaperMarking.js'
@@ -2993,8 +2994,9 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
         const focusedRetestParent = payload.unit.focusedRetestOf
           ? authoritativeFocusedRetestParent(db, identityFromRequest(request, signingKey), payload.unit)
           : null
+        const questionBank = currentRuntimeTopicPracticeQuestionBank(payload.unit.routeId)
         const unit = rebindSyllabusPracticeUnit(payload.unit, {
-          questionBank: currentRuntimeTopicPracticeQuestionBank(payload.unit.routeId),
+          questionBank,
           includeStudyOnly: includeStudyOnlyForRoute(),
           originalFoundationGroups: originalFoundationQuestionGroupsForRoute(
             payload.unit.routeId,
@@ -3012,7 +3014,9 @@ export function createStemApi({ env, questionBank = unifiedQuestionBank, topicQu
             code: 'stale_syllabus_practice_set',
           })
         }
-        sendJson(response, 200, { unit })
+        const studentUnit = request.headers['x-stemist-source-images'] === 'region-v2' && unit.studyMode === 'chapter-study'
+          ? projectNativeObjectivePracticeUnit(unit, { questionBank }) : unit
+        sendJson(response, 200, { unit: studentUnit })
         return
       }
       const user = identityFromRequest(request, signingKey)
