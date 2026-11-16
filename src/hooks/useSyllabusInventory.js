@@ -11,6 +11,14 @@ function finiteNumberOrNull(value) {
   return Number.isFinite(number) ? number : null
 }
 
+function componentStageMatchesRoute(componentStage, routeStage) {
+  const expected = String(routeStage || '').trim()
+  const declared = String(componentStage || '').trim()
+  if (!expected || !declared) return false
+  if (declared === expected) return true
+  return declared === 'AS/A2' && (expected === 'AS' || expected === 'A2')
+}
+
 export function validateSyllabusInventoryPayload(payload, expectedRouteId = '') {
   if (!isPlainObject(payload)) throw new Error('Syllabus inventory returned an invalid response.')
   if (!Array.isArray(payload.topics)) throw new Error('Syllabus inventory returned an invalid topic list.')
@@ -74,7 +82,7 @@ export function validateSyllabusInventoryPayload(payload, expectedRouteId = '') 
     const label = String(component.label || '').trim()
     if (componentNumber == null || !label) throw new Error(`Syllabus inventory assessment component ${index + 1} is missing component or label.`)
     if (expectedRoute) {
-      if (String(component.stage || '').trim() !== expectedRoute.stage) {
+      if (!componentStageMatchesRoute(component.stage, expectedRoute.stage)) {
         throw new Error(`Syllabus inventory assessment component ${index + 1} stage does not match the selected course.`)
       }
       if (!expectedRoute.paperComponents.includes(componentNumber)) {

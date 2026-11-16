@@ -3,6 +3,8 @@ import { isStartableTopicPracticeUnit } from '../src/lib/practiceConstants.js'
 import { studentNavigationFromLocation, studentNavigationHref } from '../src/lib/studentNavigation.js'
 import { chapterStudySizes, objectiveAnswerSnapshot, officialChapterCount, validateOfficialChapterSet, validateServerObjectiveResult } from '../src/lib/chapterStudyWeb.js'
 import { buildPartMarkingLifecycle, markingCapabilityForUnit } from '../src/lib/markingLifecycle.js'
+import { syllabusTopicsInventory } from '../src/lib/syllabusPractice.js'
+import { validateSyllabusInventoryPayload } from '../src/hooks/useSyllabusInventory.js'
 
 const part = { sourceKind: 'past-paper', sourceQuestionId: 'cie-9708-9708_m25_qp_12:q3' }
 const chapter = { type: 'topic', sourceAuthority: 'server-syllabus', studyMode: 'chapter-study',
@@ -66,4 +68,22 @@ for (const bad of [{ ...objectiveResult, attemptId: 'other' }, { ...objectiveRes
   { ...objectiveResult, available: false }, { ...objectiveResult, formalProgressEligible: true }]) {
   assert.equal(validateServerObjectiveResult(bad, expectedObjective), false, 'invalid or mismatched results must remain unscored')
 }
+const furtherMathematicsInventory = syllabusTopicsInventory({ routeId: 'cie-9231-as-p1-p4', questionBank: [], includeStudyOnly: true })
+assert.doesNotThrow(() => validateSyllabusInventoryPayload(furtherMathematicsInventory, 'cie-9231-as-p1-p4'),
+  'a shared AS/A2 component must remain valid on an AS route')
+const furtherMathematicsA2 = syllabusTopicsInventory({ routeId: 'cie-9231-a2-after-p1-p3-p2-p4', questionBank: [], includeStudyOnly: true })
+assert.doesNotThrow(() => validateSyllabusInventoryPayload(furtherMathematicsA2, 'cie-9231-a2-after-p1-p3-p2-p4'),
+  'a shared AS/A2 component must remain valid on an A2 route')
+for (const invalidStage of ['A2', 'AS/AS', 'AS/OTHER', 'IGCSE/AS/A2', 'A2/AS']) {
+  const invalid = structuredClone(furtherMathematicsInventory)
+  invalid.assessmentComponents[1].stage = invalidStage
+  assert.throws(() => validateSyllabusInventoryPayload(invalid, 'cie-9231-as-p1-p4'), /stage does not match/,
+    `invalid shared component stage ${invalidStage} must fail closed`)
+}
+const wrongComponent = structuredClone(furtherMathematicsInventory)
+wrongComponent.assessmentComponents[1].component = 3
+assert.throws(() => validateSyllabusInventoryPayload(wrongComponent, 'cie-9231-as-p1-p4'), /outside the selected course/)
+const wrongQualification = structuredClone(furtherMathematicsInventory)
+wrongQualification.qualification = 'IGCSE'
+assert.throws(() => validateSyllabusInventoryPayload(wrongQualification, 'cie-9231-as-p1-p4'), /qualification does not match/)
 console.log(JSON.stringify({ status: 'PASS_LOCAL_ONLY', chapterOneQuestion: true, topicFloorPreserved: true, deepLink: true }))
