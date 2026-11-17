@@ -9,6 +9,9 @@ import {
   topicPracticeEligibility,
 } from '../src/lib/practiceConstants.js'
 import { SYLLABUS_PRACTICE_ROUTE_IDS } from '../src/lib/syllabusPracticeRoutes.js'
+import { OCR_PAST_PAPER_ONLY_CHAPTER_ROUTE_IDS } from '../src/lib/syllabusPractice.js'
+
+const OCR_PAST_PAPER_ONLY_ROUTES = new Set(OCR_PAST_PAPER_ONLY_CHAPTER_ROUTE_IDS)
 
 function call(api, { method, url, body }) {
   return new Promise((resolve, reject) => {
@@ -70,12 +73,15 @@ try {
 
     let routeOfficialChapters = 0
     let routeOfficialGaps = 0
+    const ocrPastPaperOnly = OCR_PAST_PAPER_ONLY_ROUTES.has(routeId)
     for (const topic of inventory.payload.topics) {
       chapterCount += 1
       const componentEntries = Object.entries(topic.componentCounts || {})
         .filter(([, counts]) => counts?.chapterStudy?.startable)
       assert.ok(componentEntries.length > 0, `${routeId}/${topic.id} needs a startable component scope`)
-      const [componentKey, componentCounts] = componentEntries[0]
+      const [componentKey, componentCounts] = ocrPastPaperOnly
+        ? componentEntries.find(([, counts]) => counts.chapterStudy.officialAvailable > 0) || componentEntries[0]
+        : componentEntries[0]
       const component = Number(componentKey)
       assert.ok(Number.isInteger(component), `${routeId}/${topic.id} component`)
 
@@ -112,7 +118,9 @@ try {
       assert.equal(single.payload.formalProgressEligible, false)
       assert.deepEqual(single.payload.coveredSyllabusTopicIds, [topic.id])
 
-      const expectedAvailable = Number(componentCounts.chapterStudy.available)
+      const expectedAvailable = Number(ocrPastPaperOnly
+        ? componentCounts.chapterStudy.officialAvailable
+        : componentCounts.chapterStudy.available)
       const officialFirst = await call(api, {
         method: 'POST',
         url: '/api/stem/practice-sets',
@@ -127,10 +135,17 @@ try {
           excludeAttempted: false,
         },
       })
+      if (ocrPastPaperOnly && expectedAvailable === 0) {
+        assert.equal(officialFirst.statusCode, 409, `${routeId}/${topic.id}: empty official chapter must fail closed`)
+        assert.equal(officialFirst.payload.code, 'chapter_study_unavailable')
+        continue
+      }
       assert.equal(officialFirst.statusCode, 201, `${routeId}/${topic.id}: ${officialFirst.payload?.error || ''}`)
       assert.equal(officialFirst.payload.available, expectedAvailable)
       assert.equal(officialFirst.payload.count, Math.min(15, expectedAvailable))
       assert.equal(officialFirst.payload.limited, expectedAvailable < 15)
+      if (ocrPastPaperOnly) assert.equal(officialFirst.payload.sourceMix.originalFoundation, 0,
+        `${routeId}/${topic.id}: official-first must not fill an OCR chapter with original content`)
       assert.equal(officialFirst.payload.practiceMode, 'study-only')
       assert.equal(officialFirst.payload.formalProgressEligible, false)
       assert.deepEqual(officialFirst.payload.coveredSyllabusTopicIds, [topic.id])

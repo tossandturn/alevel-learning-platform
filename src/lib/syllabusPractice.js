@@ -27,6 +27,17 @@ export const CHAPTER_STUDY_SOURCE_PREFERENCES = Object.freeze({
   ORIGINAL_FOUNDATION_ONLY: 'original-foundation-only',
 })
 export const ORIGINAL_FOUNDATION_CATALOGS = Object.freeze({ V1: 'v1', V2: 'v2' })
+export const OCR_PAST_PAPER_ONLY_CHAPTER_ROUTE_IDS = Object.freeze([
+  'cie-9701-as-chemistry',
+  'cie-9701-a2-chemistry',
+  'cie-9708-as-economics',
+  'cie-9708-a2-economics',
+  'cie-9231-as-p1-p3',
+  'cie-9231-as-p1-p4',
+  'cie-9231-a2-after-p1-p3-p2-p4',
+  'cie-9231-a2-after-p1-p4-p2-p3',
+])
+const OCR_PAST_PAPER_ONLY_CHAPTER_ROUTES = new Set(OCR_PAST_PAPER_ONLY_CHAPTER_ROUTE_IDS)
 
 const CHAPTER_STUDY_POLICY = Object.freeze({
   mode: SYLLABUS_PRACTICE_STUDY_MODES.CHAPTER_STUDY,
@@ -1573,6 +1584,7 @@ export function buildSyllabusPracticeSet({
   )
   const originalOnly = chapterStudy
     && normalizedSourcePreference === CHAPTER_STUDY_SOURCE_PREFERENCES.ORIGINAL_FOUNDATION_ONLY
+  const officialPastPaperOnly = chapterStudy && !originalOnly && OCR_PAST_PAPER_ONLY_CHAPTER_ROUTES.has(routeId)
   const prioritizedOriginalGroups = (topicId) => {
     const groups = originalByTopic.get(topicId) || []
     if (!excludeAttempted) return groups
@@ -1584,7 +1596,7 @@ export function buildSyllabusPracticeSet({
   const availableOriginalGroups = chapterStudy
     ? topicSelection.selectedTopicIds.flatMap((topicId) => prioritizedOriginalGroups(topicId))
     : []
-  const requiredOriginalGroups = chapterStudy
+  const requiredOriginalGroups = chapterStudy && !officialPastPaperOnly
     ? topicSelection.selectedTopicIds.flatMap((selectedTopicId, index) => {
         const topicScope = topicSelection.topicScopes[index]
         const hasOfficial = !originalOnly && availableRecords.some((record) => (
@@ -1620,7 +1632,9 @@ export function buildSyllabusPracticeSet({
         selectedComponents,
         includeStudyOnly,
       )
-  const optionalOriginalGroups = availableOriginalGroups.filter((group) => !requiredOriginalGroups.includes(group))
+  const optionalOriginalGroups = officialPastPaperOnly
+    ? []
+    : availableOriginalGroups.filter((group) => !requiredOriginalGroups.includes(group))
   const remainingOriginalSlots = Math.max(0, effectiveRequestedCount - requiredOriginalGroups.length - selectedOfficialRecords.length)
   const selectedOriginalGroups = [
     ...requiredOriginalGroups,
@@ -1629,7 +1643,8 @@ export function buildSyllabusPracticeSet({
   const officialAvailableCount = new Set(availableRecords.map((record) => record.sourceQuestionId).filter(Boolean)).size
   const selectableOfficialAvailableCount = originalOnly ? 0 : officialAvailableCount
   const originalAvailableCount = availableOriginalGroups.length
-  const availableCount = selectableOfficialAvailableCount + originalAvailableCount
+  const selectableOriginalAvailableCount = officialPastPaperOnly ? 0 : originalAvailableCount
+  const availableCount = selectableOfficialAvailableCount + selectableOriginalAvailableCount
   const forceStudyOnly = chapterStudy
     || selectedOfficialRecords.some((record) => record.studyOnly)
     || !topicReadiness.eligibility.ready
