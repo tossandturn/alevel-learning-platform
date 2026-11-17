@@ -10,8 +10,15 @@ function samePoint(left, right) {
 
 export function pointerSamples(event) {
   const source = pointerSource(event)
-  const coalesced = source?.getCoalescedEvents?.()
-  const samples = Array.isArray(coalesced) ? coalesced.filter(Boolean) : []
+  let coalesced = []
+  try {
+    // WebKit exposes this as a FrozenArray in some iPadOS builds rather than
+    // a true Array. Array.from keeps the hardware-rate samples in both cases.
+    coalesced = source?.getCoalescedEvents?.() || []
+  } catch {
+    coalesced = []
+  }
+  const samples = Array.from(coalesced).filter(Boolean)
   if (!samples.length || !samePoint(samples.at(-1), source)) samples.push(source)
   return samples.filter(Boolean)
 }

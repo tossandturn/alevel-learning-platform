@@ -3054,6 +3054,13 @@ textarea:focus-visible {
   position: relative;
   min-width: 0;
   background: #fff;
+  overscroll-behavior: contain;
+}
+
+.handwriting-pad__surface:has(.handwriting-pad__canvas) {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .handwriting-pad__toolbar {
@@ -4908,6 +4915,12 @@ button:disabled {
   padding: 20px;
   text-align: center;
   background: #4c5661;
+}
+
+.pdf-canvas-scroll--annotating {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .pdf-canvas-scroll canvas:not(.pdf-ink-layer) {

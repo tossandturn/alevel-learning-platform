@@ -154,6 +154,7 @@ for (const questionId of Object.keys(SEMANTIC_REVIEW_FIXTURES)) {
 }
 
 assert.equal(pointerSamples({ nativeEvent: { clientX: 10, clientY: 12, getCoalescedEvents: () => [] } }).length, 1, 'an empty Safari coalesced-event list must retain the current pointer sample')
+assert.equal(pointerSamples({ nativeEvent: { clientX: 10, clientY: 12, getCoalescedEvents: () => ({ 0: { clientX: 8, clientY: 10, pressure: 0.5 }, length: 1 }) } }).length, 2, 'iPad FrozenArray-like coalesced samples must be retained')
 const iPadHistorySnapshot = handwritingHistorySize(2048, 2732)
 assert.ok(iPadHistorySnapshot.bytes < 2 * 1024 * 1024, 'one iPad undo snapshot must stay below 2 MB instead of retaining a full-DPR canvas')
 assert.equal(iPadHistorySnapshot.fullDpr, false, 'iPad undo history must use bounded preview snapshots')

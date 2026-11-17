@@ -494,6 +494,9 @@ export function HandwritingPad({
     if (!drawingRef.current || disabled || event.pointerId !== activePointerIdRef.current) return
     event.preventDefault()
     event.stopPropagation()
+    // WKWebView can expose pointerrawupdate intermittently. Never gate the
+    // normal pointer stream on it: pointerSamples() de-duplicates the latest
+    // coalesced point, while pointermove remains the lossless fallback.
     appendSamples(event)
   }
 
@@ -523,6 +526,23 @@ export function HandwritingPad({
     snapshot(canvas)
     scheduleEmit(canvas)
   }
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || mode !== 'handwrite' || typeof canvas.addEventListener !== 'function') return undefined
+    const handleRawPenUpdate = (event) => {
+      if (event.pointerType !== 'pen' || !drawingRef.current) return
+      event.preventDefault()
+      event.stopPropagation()
+      appendSamples(event)
+    }
+    if (!('onpointerrawupdate' in canvas)) return undefined
+    canvas.addEventListener('pointerrawupdate', handleRawPenUpdate, { passive: false })
+    return () => canvas.removeEventListener('pointerrawupdate', handleRawPenUpdate)
+    // The listener reads current drawing refs; it only needs replacement when
+    // the handwriting canvas is remounted for a mode change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode])
 
   function preventSelection(event) {
     event.preventDefault()
@@ -608,13 +628,13 @@ export function HandwritingPad({
       <header className="handwriting-pad__header">
         <div><strong id={`${instanceId}-label`}>{label}</strong><span>{mode === 'type' ? 'Type the complete method, substitutions, units and final answer.' : 'Write with Apple Pencil, upload a clear photo, or use the camera, then submit for review.'}</span></div>
         <div className="handwriting-pad__modes" role="group" aria-label="Answer input mode">
-          <button type="button" className="handwriting-pad__capture" disabled={disabled} onClick={() => uploadInputRef.current?.click()}><Upload size={15} />Upload photo</button>
-          <button type="button" className="handwriting-pad__capture" disabled={disabled} onClick={() => cameraInputRef.current?.click()}><Camera size={15} />Take photo</button>
+          <button type="button" className="handwriting-pad__capture" data-upload-intent="true" disabled={disabled} onClick={() => uploadInputRef.current?.click()}><Upload size={15} />Upload photo</button>
+          <button type="button" className="handwriting-pad__capture" data-camera-intent="true" disabled={disabled} onClick={() => cameraInputRef.current?.click()}><Camera size={15} />Take photo</button>
           <button type="button" className={mode === 'handwrite' ? 'active' : ''} onClick={() => switchMode('handwrite')}><PenTool size={16} />Handwrite</button>
           <button type="button" className={mode === 'type' ? 'active' : ''} onClick={() => switchMode('type')}><Keyboard size={16} />Type</button>
         </div>
-        <input ref={uploadInputRef} type="file" accept="image/*" hidden onChange={importImage} />
-        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" hidden onChange={importImage} />
+        <input ref={uploadInputRef} type="file" accept="image/*" data-upload-input="true" hidden onChange={importImage} />
+        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" data-camera-input="true" hidden onChange={importImage} />
       </header>
 
       {mode === 'handwrite' ? (

@@ -400,6 +400,9 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, evidenceStor
     if (!drawingRef.current || event.pointerId !== activePointerIdRef.current) return
     event.preventDefault()
     event.stopPropagation()
+    // WKWebView may deliver pointerrawupdate in bursts rather than as a
+    // complete stream. Keep pointermove as the lossless fallback; the shared
+    // sampler removes duplicate coalesced points.
     appendSamples(event)
   }
 
@@ -428,6 +431,23 @@ function PdfInkCanvas({ pageNumber, baseCanvas, width, height, ink, evidenceStor
     exposeInkMetrics(canvas, inkMetricsRef.current)
     scheduleEmit()
   }
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || readOnly || panMode || typeof canvas.addEventListener !== 'function') return undefined
+    const handleRawPenUpdate = (event) => {
+      if (event.pointerType !== 'pen' || !drawingRef.current) return
+      event.preventDefault()
+      event.stopPropagation()
+      appendSamples(event)
+    }
+    if (!('onpointerrawupdate' in canvas)) return undefined
+    canvas.addEventListener('pointerrawupdate', handleRawPenUpdate, { passive: false })
+    return () => canvas.removeEventListener('pointerrawupdate', handleRawPenUpdate)
+    // The listener reads current drawing refs; it only needs replacement when
+    // the active tool or the canvas interaction mode changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panMode, readOnly, tool])
 
   const inert = readOnly || panMode
   return <canvas ref={canvasRef} className={`pdf-ink-layer ${readOnly ? 'read-only' : ''} ${panMode ? 'pdf-pan-mode' : ''}`} aria-label={`Handwriting layer for PDF page ${pageNumber}`} data-stroke-count={inkMetricsRef.current.strokes} data-segment-count={inkMetricsRef.current.segments} data-ink-surface="pdf" data-ink-surface-id={nativeSurfaceId} data-ink-interactive={(!inert && ready).toString()} data-ink-tool={tool} onPointerDown={inert ? undefined : startStroke} onPointerMove={inert ? undefined : continueStroke} onPointerUp={inert ? undefined : finishStroke} onPointerCancel={inert ? undefined : finishStroke} onLostPointerCapture={inert ? undefined : finishStroke} onDragStart={(event) => event.preventDefault()} onContextMenu={(event) => event.preventDefault()} />
@@ -610,7 +630,11 @@ export function PdfViewer({ file, annotate = false, readOnly = false, inkByPage 
         <button type="button" onClick={() => setZoom((value) => Math.min(2, value + 0.15))} aria-label="Zoom in"><ZoomIn size={17} /></button>
         <a href={file.localUrl} download={file.file} aria-label="Download PDF"><Download size={17} /></a>
       </div>
-      <div className="pdf-canvas-scroll" ref={scrollRef}>
+      <div
+        className={`pdf-canvas-scroll ${annotate ? 'pdf-canvas-scroll--annotating' : ''}`}
+        ref={scrollRef}
+        onContextMenu={annotate ? (event) => event.preventDefault() : undefined}
+      >
         {status === 'loading' && <div className="pdf-loading"><span className="loading-line" />Rendering verified PDF...</div>}
         {status === 'error' && <div className="pdf-loading error">Could not render this PDF. <a href={file.localUrl} target="_blank" rel="noreferrer">Open it directly</a><small>{error}</small></div>}
         {document && <div className="pdf-page-stack" data-virtualized-pages="true">
