@@ -16,6 +16,49 @@ function pixelBounds({ region: [x0, y0, x1, y1], imageSize: [width, height] }) {
   return { left, top, width: Math.ceil(x1 * width) - left, height: Math.ceil(y1 * height) - top }
 }
 
+function normalizedRotation(record) {
+  if (record?.rotationDegrees === undefined) return 0
+  const rotation = Number(record.rotationDegrees)
+  return Number.isInteger(rotation) && [0, 90, 180, 270].includes(rotation) ? rotation : null
+}
+
+function renderedImageSize(descriptor) {
+  const box = pixelBounds(descriptor)
+  return [90, 270].includes(descriptor.rotationDegrees || 0)
+    ? [box.height, box.width]
+    : [box.width, box.height]
+}
+
+function publicRegionGeometry(descriptor) {
+  const rotation = descriptor.rotationDegrees || 0
+  const [x0, y0, x1, y1] = descriptor.region
+  const [width, height] = descriptor.imageSize
+  if (rotation === 90) return { region: [1 - y1, x0, 1 - y0, x1], imageSize: [height, width] }
+  if (rotation === 180) return { region: [1 - x1, 1 - y1, 1 - x0, 1 - y0], imageSize: [width, height] }
+  if (rotation === 270) return { region: [y0, 1 - x1, y1, 1 - x0], imageSize: [height, width] }
+  return { region: descriptor.region, imageSize: descriptor.imageSize }
+}
+
+function rotateCanvas(source, rotation, createCanvas) {
+  if (!rotation) return source
+  const width = [90, 270].includes(rotation) ? source.height : source.width
+  const height = [90, 270].includes(rotation) ? source.width : source.height
+  const canvas = createCanvas(width, height)
+  const context = canvas.getContext('2d')
+  if (rotation === 90) {
+    context.translate(width, 0)
+    context.rotate(Math.PI / 2)
+  } else if (rotation === 180) {
+    context.translate(width, height)
+    context.rotate(Math.PI)
+  } else {
+    context.translate(0, height)
+    context.rotate(-Math.PI / 2)
+  }
+  context.drawImage(source, 0, 0)
+  return canvas
+}
+
 function pixelEdges(record) {
   const box = pixelBounds(record)
   return { ...box, right: box.left + box.width, bottom: box.top + box.height, area: box.width * box.height }
@@ -23,7 +66,8 @@ function pixelEdges(record) {
 
 function sameVerifiedPage(left, right) {
   return left.page === right.page && left.pageHash === right.pageHash && left.hash === right.hash &&
-    left.imageSize[0] === right.imageSize[0] && left.imageSize[1] === right.imageSize[1]
+    left.imageSize[0] === right.imageSize[0] && left.imageSize[1] === right.imageSize[1] &&
+    (left.rotationDegrees || 0) === (right.rotationDegrees || 0)
 }
 
 function exactlyContains(container, item) {
@@ -59,6 +103,7 @@ function compareRecords(left, right) {
     ...left.region.map((value, index) => value - right.region[index]),
     left.imageSize[0] - right.imageSize[0],
     left.imageSize[1] - right.imageSize[1],
+    (left.rotationDegrees || 0) - (right.rotationDegrees || 0),
     Number(right.fromPartEvidence) - Number(left.fromPartEvidence),
     Number(left.fromDiagramRegion) - Number(right.fromDiagramRegion),
   ]
@@ -114,11 +159,22 @@ async function sourceRegionPixels(page, descriptor) {
   // coordinates from the client; the descriptor is resolved from the bank.
   const image = await loadImage(page.bytes)
   if (image.width !== descriptor.imageSize[0] || image.height !== descriptor.imageSize[1]) fail(422, 'native_question_image_invalid')
-  const box = pixelBounds(descriptor), canvas = createCanvas(box.width, box.height)
-  canvas.getContext('2d').drawImage(image, box.left, box.top, box.width, box.height, 0, 0, box.width, box.height)
+  const box = pixelBounds(descriptor), crop = createCanvas(box.width, box.height)
+  crop.getContext('2d').drawImage(image, box.left, box.top, box.width, box.height, 0, 0, box.width, box.height)
+  const canvas = rotateCanvas(crop, descriptor.rotationDegrees || 0, createCanvas)
   const bytes = await canvas.encode('png')
   return { bytes, contentType: 'image/png', sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
-    sourcePageSha256: descriptor.spec.expectedPageImageSha256, imageSize: [box.width, box.height] }
+    sourcePageSha256: descriptor.spec.expectedPageImageSha256, imageSize: [canvas.width, canvas.height] }
+}
+
+async function sourcePagePixels(page, descriptor) {
+  const { createCanvas, loadImage } = await import('@napi-rs/canvas')
+  const image = await loadImage(page.bytes)
+  if (image.width !== descriptor.imageSize[0] || image.height !== descriptor.imageSize[1]) fail(422, 'native_question_image_invalid')
+  const canvas = rotateCanvas(image, descriptor.rotationDegrees || 0, createCanvas)
+  const bytes = await canvas.encode('png')
+  return { bytes, contentType: 'image/png', sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+    sourcePageSha256: descriptor.spec.expectedPageImageSha256, imageSize: [canvas.width, canvas.height] }
 }
 
 function regionsFor(question, isReleased) {
@@ -134,12 +190,14 @@ function regionsFor(question, isReleased) {
   const unique = new Map()
   for (const { record, fromPartEvidence, fromDiagramRegion } of records) {
     const { region, imageSize } = record, page = Number(record.page), pageHash = String(record.pageImageSha256 || '').toLowerCase()
+    const rotationDegrees = normalizedRotation(record)
     if (record.coordinateSpace !== 'normalized-xyxy' || record.documentSha256 !== hash || !HASH.test(pageHash) ||
       !Number.isInteger(page) || page < 1 || page > 1000 || !Array.isArray(region) || region.length !== 4 ||
       !region.every(Number.isFinite) || region[0] < 0 || region[1] < 0 || region[2] > 1 || region[3] > 1 || region[0] >= region[2] || region[1] >= region[3] ||
-      !Array.isArray(imageSize) || imageSize.length !== 2 || !imageSize.every(n => Number.isInteger(n) && n > 0 && n <= 10000) || imageSize[0] * imageSize[1] > 24000000) return []
-    const key = JSON.stringify([page, region, pageHash]), existing = unique.get(key)
+      !Array.isArray(imageSize) || imageSize.length !== 2 || !imageSize.every(n => Number.isInteger(n) && n > 0 && n <= 10000) || imageSize[0] * imageSize[1] > 24000000 || rotationDegrees === null) return []
+    const key = JSON.stringify([page, region, pageHash, rotationDegrees]), existing = unique.get(key)
     unique.set(key, { page, region, imageSize, pageHash, hash,
+      ...(rotationDegrees ? { rotationDegrees } : {}),
       fromPartEvidence: existing?.fromPartEvidence === true || fromPartEvidence,
       fromDiagramRegion: existing?.fromDiagramRegion === true || fromDiagramRegion })
   }
@@ -155,6 +213,8 @@ function legacyRegionsFor(question, isReleased) {
   const hash = String(question.sourceRef?.sha256 || '').replace(/^sha256:/i, '').toLowerCase()
   if (!HASH.test(hash) || !/^\d{4}$/.test(question.subjectCode) || !/^\d{4}_[msw]\d{2}_qp_\d{2}\.pdf$/.test(question.sourceRef?.paper || '')) return []
   const records = [...(question.parts || []).flatMap(part => part.sourceEvidence || []), ...(question.diagramRegions || [])]
+    .filter((record) => record?.evidenceRole !== 'reference-material'
+      && (record?.rotationDegrees === undefined || Number(record.rotationDegrees) === 0))
   if (!records.length || records.length > 200) return []
   const unique = new Map()
   for (const record of records) {
@@ -188,6 +248,7 @@ export function createNativeQuestionImages({ getQuestionBank, libraryRoot, env =
       const v = crypto.createHash('sha256').update(JSON.stringify([routeId, sourceQuestionId, question.sourceContent.bindingSignature, question.sourceRef, region])).digest('hex')
       const url = '/api/stem/practice-source-image?routeId=' + encodeURIComponent(routeId) + '&sourceQuestionId=' + encodeURIComponent(sourceQuestionId) + '&region=' + index + '&v=' + v
       return { url, schemaVersion: 'native-source-region-v1', page: region.page, region: region.region, imageSize: region.imageSize, v,
+        ...(region.rotationDegrees ? { rotationDegrees: region.rotationDegrees } : {}),
         spec: { libraryRoot, cacheRoot: aiStudySourceCacheRoot(question) || env.STEM_SOURCE_PAGE_CACHE_ROOT,
           subject: question.subjectCode, fileName: question.sourceRef.paper,
           expectedPdfSha256: region.hash, page: region.page, expectedPageImageSha256: region.pageHash, imageSize: region.imageSize, role: 'question-paper' } }
@@ -208,17 +269,20 @@ export function createNativeQuestionImages({ getQuestionBank, libraryRoot, env =
     return resolverFor(job.family)(job.routeId, job.sourceQuestionId)[job.region]?.v === job.v
   }
   const publicDescriptor = (descriptor, { view = 'page' } = {}) => {
-    const { url, schemaVersion, page, region, imageSize } = descriptor
-    if (view !== 'region') return { url, schemaVersion, page, region, imageSize }
-    const box = pixelBounds(descriptor)
-    return { url: url + '&view=region', schemaVersion: 'native-source-region-v2', page, region, imageSize,
-      renderedImageSize: [box.width, box.height] }
+    const { url, schemaVersion, page } = descriptor
+    const publicGeometry = publicRegionGeometry(descriptor)
+    if (view !== 'region') return { url, schemaVersion, page, ...publicGeometry }
+    return { url: url + '&view=region', schemaVersion: 'native-source-region-v2', page, ...publicGeometry,
+      renderedImageSize: renderedImageSize(descriptor) }
   }
   function projectSet(result, options) {
     return { ...result, questionGroups: result.questionGroups.map(group => {
       if (group.sourceContent?.assetUrls?.length) return group
       const descriptors = resolve(group.routeId, group.id, options?.questionBank)
-      return descriptors.length ? { ...group, nativeSourceImages: descriptors.map(d => publicDescriptor(d, options)) } : group
+      if (!descriptors.length) return group
+      const nativeSourceImages = descriptors.map(d => publicDescriptor(d, options))
+      const displayPages = [...new Set(nativeSourceImages.map((descriptor) => descriptor.page))].sort((left, right) => left - right)
+      return { ...group, sourceContent: { ...group.sourceContent, pages: displayPages }, nativeSourceImages }
     }) }
   }
   async function drain() {
@@ -231,7 +295,11 @@ export function createNativeQuestionImages({ getQuestionBank, libraryRoot, env =
       if (!jobIsCurrent(job)) fail(409, 'native_question_image_changed')
       if (!Buffer.isBuffer(page.bytes) || !page.bytes.length || page.bytes.length > 8 * 1024 * 1024 || page.contentType !== 'image/png' ||
         crypto.createHash('sha256').update(page.bytes).digest('hex') !== job.descriptor.spec.expectedPageImageSha256) fail(422, 'native_question_image_invalid')
-      const value = job.view === 'region' ? await sourceRegionPixels(page, job.descriptor) : page
+      const value = job.view === 'region'
+        ? await sourceRegionPixels(page, job.descriptor)
+        : job.descriptor.rotationDegrees
+          ? await sourcePagePixels(page, job.descriptor)
+          : page
       if (!jobIsCurrent(job)) fail(409, 'native_question_image_changed')
       if (value.bytes.length <= cacheLimit) {
         while (cache.size >= 40 || cachedBytes + value.bytes.length > cacheLimit) {

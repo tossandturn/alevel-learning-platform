@@ -20,6 +20,7 @@ export const MAX_RUNTIME_ARTIFACTS = 10000
 const DEFAULT_RENDER_DPI = 180
 const MAX_PROMOTED_SOURCE_BYTES = 32 * 1024 * 1024
 const MAX_PROMOTED_SOURCE_TOTAL_BYTES = 256 * 1024 * 1024
+const STEM_AI_REFERENCE_MATERIAL_EVIDENCE_SCHEMA_VERSION = 'stem-ai-reference-material-evidence.v1'
 
 function asText(value) {
   return typeof value === 'string' ? value.trim() : ''
@@ -183,8 +184,11 @@ function validRegion(region, pageSizes, pageImageHashes) {
   if (![x0, y0, x1, y1].every(Number.isFinite) || x0 < 0 || y0 < 0 || x1 > 1 || y1 > 1 || x0 >= x1 || y0 >= y1) return null
   const pageImageSha256 = normalizedHash(region?.pageImageSha256)
   const partLabels = normalizedPartLabels(region?.partLabels)
+  const rawRotation = region?.rotationDegrees
+  const rotationDegrees = rawRotation === undefined ? 0 : Number(rawRotation)
   if (!pageImageSha256) return null
   if (!partLabels) return null
+  if (!Number.isInteger(rotationDegrees) || ![0, 90, 180, 270].includes(rotationDegrees)) return null
   if (pageImageHashes !== undefined && pageImageHashes !== null
     && normalizedHash(pageImageHashes?.[page]) !== pageImageSha256) return null
   return Object.freeze({
@@ -193,6 +197,7 @@ function validRegion(region, pageSizes, pageImageHashes) {
     region: Object.freeze([x0, y0, x1, y1]),
     imageSize: Object.freeze([Number(size.width), Number(size.height)]),
     partLabels,
+    ...(rotationDegrees ? { rotationDegrees } : {}),
     ...(typeof region?.containsQuestionStem === 'boolean' ? { containsQuestionStem: region.containsQuestionStem } : {}),
   })
 }
@@ -295,6 +300,7 @@ function evidenceForRegion(region, sourceHash, evidenceRole = '') {
     region: region.region,
     imageSize: region.imageSize,
     ...(region.partLabels?.length ? { partLabels: region.partLabels } : {}),
+    ...(region.rotationDegrees ? { rotationDegrees: region.rotationDegrees } : {}),
     ...(evidenceRole ? { evidenceRole } : {}),
   })
 }
@@ -326,7 +332,7 @@ function sameIdList(left, right) {
 }
 
 function regionKey(region) {
-  return [region.page, ...(region.region || []), region.pageImageSha256, ...(region.partLabels || [])].join(':')
+  return [region.page, ...(region.region || []), region.pageImageSha256, region.rotationDegrees || 0, ...(region.partLabels || [])].join(':')
 }
 
 function sameRegionCollection(left, right) {
@@ -361,13 +367,20 @@ function sameSingleLabel(labels, label) {
   return Array.isArray(labels) && labels.length === 1 && labels[0] === label
 }
 
-function exactPartEvidenceBindings({ candidate, verification, candidateRegions, candidateDiagrams, candidateSharedStems, markSchemeEvidence }) {
+function exactPartEvidenceBindings({ candidate, verification, candidateRegions, candidateDiagrams, candidateSharedStems, candidateReferenceMaterials, markSchemeEvidence }) {
   const candidateVersion = asText(candidate?.partEvidenceSchemaVersion)
   const verificationVersion = asText(verification?.partEvidenceSchemaVersion)
   const optedIn = Boolean(candidateVersion || verificationVersion)
-  if (!optedIn) return Object.freeze({ optedIn: false, byLabel: new Map() })
+  const candidateReferenceVersion = asText(candidate?.referenceMaterialEvidenceSchemaVersion)
+  const verificationReferenceVersion = asText(verification?.referenceMaterialEvidenceSchemaVersion)
+  const referenceMaterialDeclared = Boolean(candidateReferenceVersion || verificationReferenceVersion || candidateReferenceMaterials.length)
+  if (!optedIn) return referenceMaterialDeclared ? null : Object.freeze({ optedIn: false, byLabel: new Map() })
   if (candidateVersion !== STEM_AI_PART_EVIDENCE_BINDING_SCHEMA_VERSION
     || verificationVersion !== STEM_AI_PART_EVIDENCE_BINDING_SCHEMA_VERSION) return null
+  const referenceMaterialOptedIn = Boolean(candidateReferenceVersion || verificationReferenceVersion)
+  if (referenceMaterialOptedIn && (candidateReferenceVersion !== STEM_AI_REFERENCE_MATERIAL_EVIDENCE_SCHEMA_VERSION
+    || verificationReferenceVersion !== STEM_AI_REFERENCE_MATERIAL_EVIDENCE_SCHEMA_VERSION)) return null
+  if (!referenceMaterialOptedIn && candidateReferenceMaterials.length) return null
 
   const candidateParts = Array.isArray(candidate?.parts) ? candidate.parts : []
   const verificationParts = Array.isArray(verification?.parts) ? verification.parts : []
@@ -377,6 +390,7 @@ function exactPartEvidenceBindings({ candidate, verification, candidateRegions, 
   if (candidateRegions.some((region) => !sameSingleLabel(region.partLabels, region.partLabels?.[0]) || !knownLabels.has(region.partLabels[0]))) return null
   if (candidateDiagrams.some((region) => !region.partLabels?.length || region.partLabels.some((label) => !knownLabels.has(label)))) return null
   if (candidateSharedStems.some((region) => !region.partLabels?.length || region.partLabels.some((label) => !knownLabels.has(label)))) return null
+  if (candidateReferenceMaterials.some((region) => !region.partLabels?.length || region.partLabels.some((label) => !knownLabels.has(label)))) return null
   if (markSchemeEvidence.some((entry) => !sameSingleLabel(entry.partLabels, entry.partLabels?.[0])
     || !knownLabels.has(entry.partLabels[0]) || !entry.region || !Number.isInteger(entry.marks))) return null
 
@@ -386,11 +400,17 @@ function exactPartEvidenceBindings({ candidate, verification, candidateRegions, 
     const verifiedPart = verificationParts[index]
     const candidatePageBinding = normalizedPartPageBinding(part)
     const verificationPageBinding = normalizedPartPageBinding(verifiedPart)
+    const candidateNeedsReferenceMaterial = part?.needsReferenceMaterial
+    const verificationNeedsReferenceMaterial = verifiedPart?.needsReferenceMaterial
     const qpMatches = candidateRegions.filter((region) => sameSingleLabel(region.partLabels, label))
     const msMatches = markSchemeEvidence.filter((entry) => sameSingleLabel(entry.partLabels, label))
+    const referenceMaterialRegions = candidateReferenceMaterials.filter((region) => region.partLabels.includes(label))
     if (!candidatePageBinding || !verificationPageBinding
       || asText(verifiedPart?.label) !== label
       || Number(verifiedPart?.marks) !== Number(part?.marks)
+      || (referenceMaterialOptedIn && (typeof candidateNeedsReferenceMaterial !== 'boolean'
+        || candidateNeedsReferenceMaterial !== verificationNeedsReferenceMaterial
+        || (candidateNeedsReferenceMaterial ? referenceMaterialRegions.length < 1 : referenceMaterialRegions.length > 0)))
       || JSON.stringify(candidatePageBinding) !== JSON.stringify(verificationPageBinding)
       || qpMatches.length !== 1
       || msMatches.length !== 1
@@ -406,6 +426,8 @@ function exactPartEvidenceBindings({ candidate, verification, candidateRegions, 
       markSchemeRegion: msMatches[0],
       sharedDiagramRegions: Object.freeze(candidateDiagrams.filter((region) => region.partLabels.includes(label))),
       sharedStemRegions: Object.freeze(candidateSharedStems.filter((region) => region.partLabels.includes(label))),
+      referenceMaterialRegions: Object.freeze(referenceMaterialRegions),
+      needsReferenceMaterial: referenceMaterialOptedIn ? candidateNeedsReferenceMaterial : false,
     }))
   }
   return Object.freeze({ optedIn: true, byLabel })
@@ -423,6 +445,8 @@ function questionFromArtifact(artifact, candidate, verification, metadata, route
   const candidateDiagrams = normalizedRegions(candidate?.diagramRegions, source.pageSizes, source.pageImageHashes)
   const candidateSharedStems = normalizedRegions(candidate?.sharedStemRegions, source.pageSizes, source.pageImageHashes)
   const verifiedSharedStems = normalizedRegions(verification?.sharedStemRegions, source.pageSizes, source.pageImageHashes)
+  const candidateReferenceMaterials = normalizedRegions(candidate?.referenceMaterialRegions, source.pageSizes, source.pageImageHashes)
+  const verifiedReferenceMaterials = normalizedRegions(verification?.referenceMaterialRegions, source.pageSizes, source.pageImageHashes)
   const regions = candidateRegions && candidateDiagrams && candidateSharedStems ? [...candidateRegions, ...candidateDiagrams, ...candidateSharedStems]
     .filter((region, index, all) => all.findIndex((entry) => regionKey(entry) === regionKey(region)) === index) : null
   const diagramRegions = candidateDiagrams
@@ -475,9 +499,12 @@ function questionFromArtifact(artifact, candidate, verification, metadata, route
     || !verificationDiagrams
     || !candidateSharedStems
     || !verifiedSharedStems
+    || !candidateReferenceMaterials
+    || !verifiedReferenceMaterials
     || !sameRegionCollection(candidateRegions, verificationRegions)
     || !sameRegionCollection(diagramRegions, verificationDiagrams)
-    || !sameRegionCollection(candidateSharedStems, verifiedSharedStems)) return null
+    || !sameRegionCollection(candidateSharedStems, verifiedSharedStems)
+    || !sameRegionCollection(candidateReferenceMaterials, verifiedReferenceMaterials)) return null
   if (!verifiedEvidence || JSON.stringify(markSchemeEvidence) !== JSON.stringify(verifiedEvidence)) return null
   if (JSON.stringify(questionPages) !== JSON.stringify(verificationPages)) return null
   const scoringContexts = matchingScoringContextRequirements(candidate.parts, verification.parts)
@@ -496,6 +523,7 @@ function questionFromArtifact(artifact, candidate, verification, metadata, route
     candidateRegions,
     candidateDiagrams: diagramRegions,
     candidateSharedStems,
+    candidateReferenceMaterials,
     markSchemeEvidence,
   })
   if (!exactBindings) return null
@@ -508,6 +536,7 @@ function questionFromArtifact(artifact, candidate, verification, metadata, route
           evidenceForRegion(exact.questionRegion, sourceHash, 'question-part'),
           ...exact.sharedDiagramRegions.map((region) => evidenceForRegion(region, sourceHash, 'shared-diagram')),
           ...exact.sharedStemRegions.map((region) => evidenceForRegion(region, sourceHash, 'shared-stem')),
+          ...exact.referenceMaterialRegions.map((region) => evidenceForRegion(region, sourceHash, 'reference-material')),
         ]
       : regions.map((region) => evidenceForRegion(region, sourceHash))
     const partMarkSchemeEvidence = exact
@@ -521,6 +550,7 @@ function questionFromArtifact(artifact, candidate, verification, metadata, route
       questionDeclaredMarks: Number(part.marks),
       markSource: 'ai-verified-qp-ms-v1',
       answerArea: Object.freeze({ type: 'handwritten' }),
+      ...(candidate?.referenceMaterialEvidenceSchemaVersion ? { needsReferenceMaterial: exact?.needsReferenceMaterial === true } : {}),
       options: Object.freeze([]),
       markSchemePoints: Object.freeze([]),
       ...(scoringContexts.has(label) ? {
@@ -601,6 +631,7 @@ function questionFromArtifact(artifact, candidate, verification, metadata, route
     totalMarks,
     marks: totalMarks,
     parts,
+    referenceMaterialRegions: Object.freeze(candidateReferenceMaterials.map((region) => Object.freeze(evidenceForRegion(region, sourceHash, 'reference-material')))),
     diagramRegions: Object.freeze(diagramRegions.map((region) => Object.freeze({
       page: region.page,
       documentSha256: sourceHash,
