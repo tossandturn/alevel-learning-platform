@@ -14,12 +14,11 @@ function singleReviewHasBoundObjectiveKey(artifact, candidate) {
   const outputHash = session?.outputSha256 || session?.fullReviewSha256 || session?.questionReviewSha256 || session?.reviewBinding?.outputSha256
   const sessionHash = session?.sessionLogSha256 || session?.sessionLog?.sha256
   const answer = candidate?.parts?.[0]?.answerKey, verification = artifact.verification?.questions?.[0]
-  return Boolean(artifact.candidate?.questions?.length === 1 && artifact.verification?.questions?.length === 1
+  const common = Boolean(evidence && artifact.candidate?.questions?.length === 1 && artifact.verification?.questions?.length === 1
     && verification?.questionNumber === candidate.questionNumber
     && (verification.sourceQuestionId == null || verification.sourceQuestionId === `${artifact.paperId}:q${candidate.questionNumber}`)
     && verification.parts?.length === 1 && verification.parts[0].label === candidate.parts?.[0]?.label
     && verification.parts[0].marks === 1 && (verification.parts[0].answerKey == null || verification.parts[0].answerKey === answer)
-    && evidence?.schemaVersion === 'stem-ai-single-review-objective-key.v1'
     && evidence.sourceQuestionId === `${artifact.paperId}:q${candidate.questionNumber}`
     && evidence.questionPdfSha256 === artifact.source?.questionPdfSha256
     && evidence.markSchemePdfSha256 === artifact.source?.markSchemePdfSha256
@@ -32,8 +31,24 @@ function singleReviewHasBoundObjectiveKey(artifact, candidate) {
     && typeof session?.sessionId === 'string' && uuid.test(session.sessionId)
     && typeof session?.turnId === 'string' && uuid.test(session.turnId)
     && session.modelProvider === review.provider && session.model === review.model
-    && sha256.test(String(sessionHash || '')) && sha256.test(String(outputHash || ''))
-    && evidence.reviewOutputSha256 === outputHash)
+    && sha256.test(String(sessionHash || '')) && sha256.test(String(outputHash || '')))
+  if (!common) return false
+  if (evidence.schemaVersion === 'stem-ai-single-review-objective-key.v1') {
+    return evidence.reviewOutputSha256 === outputHash
+  }
+  if (evidence.schemaVersion !== 'stem-ai-split-review-objective-key.v1') return false
+  const qpOnly = session.qpOnlyReview
+  const qpOnlyOutput = qpOnly?.outputSha256 || qpOnly?.reviewBinding?.outputSha256
+  const qpOnlyLog = qpOnly?.sessionLogSha256 || qpOnly?.sessionLog?.sha256
+  return Boolean(qpOnly
+    && typeof qpOnly.sessionId === 'string' && uuid.test(qpOnly.sessionId)
+    && typeof qpOnly.turnId === 'string' && uuid.test(qpOnly.turnId)
+    && qpOnly.sessionId.toLowerCase() !== session.sessionId.toLowerCase()
+    && qpOnly.turnId.toLowerCase() !== session.turnId.toLowerCase()
+    && sha256.test(String(qpOnlyLog || '')) && sha256.test(String(qpOnlyOutput || ''))
+    && evidence.finalReviewOutputSha256 === outputHash
+    && evidence.qpOnlyReviewOutputSha256 === qpOnlyOutput
+    && evidence.qpOnlyReviewSessionLogSha256 === qpOnlyLog)
 }
 
 function supportedReviewMethod(release) {

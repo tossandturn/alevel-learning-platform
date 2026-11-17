@@ -39,6 +39,22 @@ function register(artifact, overrides = {}) {
   registerAiStudyObjectiveKey(group, artifact, question)
   return group
 }
+function splitFixture() {
+  const artifact = fixture()
+  const qpOnlyOutput = '1'.repeat(64), qpOnlyLog = '2'.repeat(64)
+  artifact.sourceReview.runtimeAttestation.qpOnlyReview = {
+    sessionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', turnId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    sessionLogSha256: qpOnlyLog, outputSha256: qpOnlyOutput,
+  }
+  artifact.sourceReview.objectiveKeyEvidence = {
+    schemaVersion: 'stem-ai-split-review-objective-key.v1', sourceQuestionId: questionId,
+    questionPdfSha256: qp, markSchemePdfSha256: ms, markSchemePage: 2, markSchemePageSha256: msPage,
+    answer: 'B', markSchemeAnswer: 'B', derivedAnswer: 'B', finalReviewOutputSha256: output,
+    qpOnlyReviewOutputSha256: qpOnlyOutput, qpOnlyReviewSessionLogSha256: qpOnlyLog,
+  }
+  artifact.sourceReview.inputSha256 = sourceReviewInputSha256(artifact)
+  return artifact
+}
 const group = register(fixture())
 const correct = scoreObjectiveQuestion({ question: group, selectedOption: 'B', mode: 'topic' })
 assert.equal(correct.score, 1)
@@ -54,6 +70,9 @@ assert.equal(scoreObjectiveQuestion({ question: register(fixture(), { answerRef:
 const revoked = fixture(); revoked.status = 'quarantined'
 assert.equal(scoreObjectiveQuestion({ question: register(revoked), selectedOption: 'B', mode: 'topic' }).available, false)
 assert.doesNotMatch(JSON.stringify(group), /"correctOption"|"answerKey"/)
+const splitGroup = register(splitFixture())
+assert.equal(scoreObjectiveQuestion({ question: splitGroup, selectedOption: 'B', mode: 'topic' }).score, 1,
+  'separately bound QP-only derivation and final MS review may mint a server-only key')
 for (const mutate of [
   (a) => { delete a.sourceReview.objectiveKeyEvidence },
   (a) => { a.sourceReview.objectiveKeyEvidence.answer = 'A' },
@@ -77,4 +96,17 @@ for (const mutate of [
   assert.equal(scoreObjectiveQuestion({ question: register(artifact), selectedOption: 'B', mode: 'topic' }).available, false,
     'a missing or mismatched source-review key binding must fail closed')
 }
-console.log(JSON.stringify({ status: 'PASS_LOCAL_ONLY', scope: 'single-reviewed-objective-key', negativeCases: 20 }))
+for (const mutate of [
+  (a) => { delete a.sourceReview.runtimeAttestation.qpOnlyReview },
+  (a) => { a.sourceReview.runtimeAttestation.qpOnlyReview.sessionId = a.sourceReview.runtimeAttestation.sessionId },
+  (a) => { a.sourceReview.runtimeAttestation.qpOnlyReview.turnId = a.sourceReview.runtimeAttestation.turnId },
+  (a) => { a.sourceReview.objectiveKeyEvidence.qpOnlyReviewOutputSha256 = '0'.repeat(64) },
+  (a) => { a.sourceReview.objectiveKeyEvidence.qpOnlyReviewSessionLogSha256 = '0'.repeat(64) },
+  (a) => { a.sourceReview.objectiveKeyEvidence.finalReviewOutputSha256 = '0'.repeat(64) },
+  (a) => { a.sourceReview.objectiveKeyEvidence.derivedAnswer = 'A' },
+]) {
+  const artifact = splitFixture(); mutate(artifact)
+  assert.equal(scoreObjectiveQuestion({ question: register(artifact), selectedOption: 'B', mode: 'topic' }).available, false,
+    'a split-review key must bind two distinct complete review sessions')
+}
+console.log(JSON.stringify({ status: 'PASS_LOCAL_ONLY', scope: 'single-reviewed-objective-key', negativeCases: 27 }))
