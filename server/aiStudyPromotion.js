@@ -10,6 +10,14 @@ const MAX_SIGNED_BYTES = 32 * 1024 * 1024
 const SHA256 = /^[a-f0-9]{64}$/
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i
 const SAFE_RELATIVE_ARTIFACT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,199}\/[A-Za-z0-9][A-Za-z0-9._-]{0,199}\.json$/
+const REFERENCE_MATERIAL_DELIVERY = Object.freeze({
+  schemaVersion: 'stem-ai-reference-material-delivery.v1',
+  renderer: 'native-question-images',
+  clientCapability: 'region-v2',
+  coordinateContract: 'normalized-rotation-v1',
+  authorization: 'released-question-bank-only',
+  markingContext: 'part-source-evidence-v1',
+})
 
 function promotionError(code) {
   return Object.assign(new Error('The AI study candidate is not authorized for this catalog.'), { statusCode: 503, code })
@@ -27,6 +35,11 @@ function invalid() {
 function exactKeys(value, keys) {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value)
     && JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...keys].sort()))
+}
+
+function validReferenceMaterialDelivery(value) {
+  return exactKeys(value, Object.keys(REFERENCE_MATERIAL_DELIVERY))
+    && Object.entries(REFERENCE_MATERIAL_DELIVERY).every(([key, expected]) => value[key] === expected)
 }
 
 function canonicalBase64(value, maxBytes) {
@@ -81,8 +94,8 @@ function entryExists(root, name) {
 }
 
 /**
- * Legacy roots are unchanged. New candidate roots require an externally
- * trusted Ed25519 public key and a signed, complete artifact inventory.
+ * Non-reference legacy roots are unchanged. Reference-bearing content must
+ * use a capability-bound release pack; signed candidates still reject it.
  */
 export function verifyAiStudyPromotion({ artifactRoot, artifactPaths = [], promotionPolicy = null } = {}) {
   const root = path.resolve(String(artifactRoot || ''))
@@ -105,8 +118,13 @@ export function verifyAiStudyPromotion({ artifactRoot, artifactPaths = [], promo
     try { rootStat = fs.lstatSync(root); realRoot = fs.realpathSync(root) } catch { invalid() }
     if (!rootStat.isDirectory() || rootStat.isSymbolicLink() || realRoot !== expectedRoot) invalid()
     const bytes = readWithinRoot(root, markers[0], MAX_MANIFEST_BYTES), pack = parseJson(bytes)
-    if (digest(bytes) !== pin || !exactKeys(pack, ['schemaVersion', 'scope', 'formalProgressEligible', 'routeIds', 'expectedRouteGroups', 'artifacts'])
-      || pack.schemaVersion !== 'stem-ai-study-release-pack.v1' || pack.scope !== 'chapter-study'
+    const packV1 = pack?.schemaVersion === 'stem-ai-study-release-pack.v1'
+      && exactKeys(pack, ['schemaVersion', 'scope', 'formalProgressEligible', 'routeIds', 'expectedRouteGroups', 'artifacts'])
+    const packV2 = pack?.schemaVersion === 'stem-ai-study-release-pack.v2'
+      && exactKeys(pack, ['schemaVersion', 'scope', 'formalProgressEligible', 'routeIds', 'expectedRouteGroups',
+        'referenceMaterialDelivery', 'artifacts'])
+      && validReferenceMaterialDelivery(pack.referenceMaterialDelivery)
+    if (digest(bytes) !== pin || (!packV1 && !packV2) || pack.scope !== 'chapter-study'
       || pack.formalProgressEligible !== false || !Array.isArray(pack.routeIds) || !pack.routeIds.length
       || pack.routeIds.some((id) => typeof id !== 'string' || !/^[A-Za-z0-9-]{1,120}$/.test(id))
       || new Set(pack.routeIds).size !== pack.routeIds.length
@@ -130,7 +148,8 @@ export function verifyAiStudyPromotion({ artifactRoot, artifactPaths = [], promo
       bytesByPath.set(relative, content)
     }
     return Object.freeze({ bytesByPath, artifactCount: declared.size, expectedRouteGroups: pack.expectedRouteGroups,
-      routeIds: Object.freeze([...pack.routeIds]), manifestSha256: digest(bytes) })
+      routeIds: Object.freeze([...pack.routeIds]), manifestSha256: digest(bytes),
+      referenceMaterialDelivery: packV2 ? Object.freeze({ ...pack.referenceMaterialDelivery }) : null })
   }
   if (markers.length !== 1 || !envelopeExists) invalid()
   const markerName = markers[0]
@@ -214,14 +233,118 @@ function hasBoundReviewSessions(artifact) {
     && String(first.turnId).toLowerCase() !== String(second.turnId).toLowerCase()
 }
 
-function hasUndeliverableReference(artifact) {
+function referenceTuple(entry) {
+  const page = Number(entry?.page)
+  const pageImageSha256 = String(entry?.pageImageSha256 || '').toLowerCase()
+  const region = Array.isArray(entry?.region) ? entry.region.map(Number)
+    : ['x0', 'y0', 'x1', 'y1'].map((key) => Number(entry?.[key]))
+  const partLabels = Array.isArray(entry?.partLabels) ? [...entry.partLabels].map(String).sort() : []
+  const rotationDegrees = entry?.rotationDegrees == null ? 0 : Number(entry.rotationDegrees)
+  if (!Number.isInteger(page) || page < 1 || !SHA256.test(pageImageSha256)
+    || region.length !== 4 || !region.every(Number.isFinite)
+    || region[0] < 0 || region[1] < 0 || region[2] > 1 || region[3] > 1
+    || region[0] >= region[2] || region[1] >= region[3]
+    || !partLabels.length || ![0, 90, 180, 270].includes(rotationDegrees)) return null
+  return JSON.stringify([page, pageImageSha256, region, partLabels, rotationDegrees])
+}
+
+function exactReferenceTuples(entries) {
+  const tuples = entries.map(referenceTuple)
+  return tuples.every(Boolean) && new Set(tuples).size === tuples.length ? tuples.sort() : null
+}
+
+function hasBoundedNativeImageProjection(group) {
+  const sourceHash = String(group?.sourceRef?.sha256 || '').replace(/^sha256:/i, '').toLowerCase()
+  const parts = Array.isArray(group?.parts) ? group.parts : []
+  const diagrams = Array.isArray(group?.diagramRegions) ? group.diagramRegions : []
+  const records = [
+    ...parts.flatMap((part) => Array.isArray(part?.sourceEvidence) ? part.sourceEvidence : []),
+    ...diagrams,
+  ]
+  if (!SHA256.test(sourceHash) || !records.length || records.length > 200) return false
+  const tuples = records.map((entry) => {
+    const page = Number(entry?.page), pageHash = String(entry?.pageImageSha256 || '').toLowerCase()
+    const documentHash = String(entry?.documentSha256 || '').toLowerCase()
+    const region = Array.isArray(entry?.region) ? entry.region.map(Number) : []
+    const imageSize = Array.isArray(entry?.imageSize) ? entry.imageSize.map(Number) : []
+    const rotation = entry?.rotationDegrees == null ? 0 : Number(entry.rotationDegrees)
+    if (!Number.isInteger(page) || page < 1 || page > 1000 || !SHA256.test(pageHash)
+      || documentHash !== sourceHash || entry?.coordinateSpace !== 'normalized-xyxy'
+      || region.length !== 4 || !region.every(Number.isFinite)
+      || region[0] < 0 || region[1] < 0 || region[2] > 1 || region[3] > 1
+      || region[0] >= region[2] || region[1] >= region[3]
+      || imageSize.length !== 2 || !imageSize.every((value) => Number.isInteger(value) && value > 0 && value <= 10000)
+      || imageSize[0] * imageSize[1] > 24_000_000 || ![0, 90, 180, 270].includes(rotation)) return null
+    return JSON.stringify([page, pageHash, region, imageSize, rotation])
+  })
+  if (tuples.some((tuple) => !tuple)) return false
+  // The renderer can merge redundant regions, but promotion uses a stricter
+  // exact-unique budget so it can never authorize a zero-descriptor result.
+  return new Set(tuples).size <= 20
+}
+
+function hasUndeliverableReference(artifact, promotion, groupByIdentity) {
   const declared = (value) => value != null && (!Array.isArray(value) || value.length > 0)
   const list = (value) => Array.isArray(value) ? value : []
-  return [artifact.candidate, artifact.verification].some((document) =>
+  const documents = [artifact.candidate, artifact.verification]
+  const hasReference = documents.some((document) =>
     document?.needsReferenceMaterial === true || declared(document?.examReference) || declared(document?.referenceMaterialRegions)
     || list(document?.questions).some((question) => declared(question?.examReference)
       || question?.needsReferenceMaterial === true || declared(question?.referenceMaterialRegions)
       || list(question?.parts).some((part) => part?.needsReferenceMaterial === true || declared(part?.referenceMaterialRegions))))
+  if (!hasReference) return false
+  if (!validReferenceMaterialDelivery(promotion?.referenceMaterialDelivery)) return true
+  if (documents.some((document) => document?.needsReferenceMaterial === true
+    || declared(document?.examReference) || declared(document?.referenceMaterialRegions))) return true
+
+  const byNumber = (document) => new Map(list(document?.questions)
+    .map((question) => [String(question?.questionNumber || ''), question]))
+  const candidateByNumber = byNumber(artifact.candidate)
+  const verificationByNumber = byNumber(artifact.verification)
+  const declaresReference = (question) => declared(question?.examReference)
+    || question?.needsReferenceMaterial === true || declared(question?.referenceMaterialRegions)
+    || list(question?.parts).some((part) => part?.needsReferenceMaterial === true
+      || declared(part?.referenceMaterialRegions))
+  const questionNumbers = new Set([...candidateByNumber.keys(), ...verificationByNumber.keys()])
+  for (const number of questionNumbers) {
+    const question = candidateByNumber.get(number)
+    const verification = verificationByNumber.get(number)
+    const candidateDeclaresReference = declaresReference(question)
+    const verificationDeclaresReference = declaresReference(verification)
+    if (candidateDeclaresReference !== verificationDeclaresReference) return true
+    if (!candidateDeclaresReference) continue
+    const candidateReferenceRegions = list(question?.referenceMaterialRegions)
+    const verificationReferenceRegions = list(verification?.referenceMaterialRegions)
+    const referenceParts = list(question?.parts).filter((part) => part?.needsReferenceMaterial === true)
+    if (!question || !verification || declared(question.examReference) || question.needsReferenceMaterial === true
+      || declared(verification.examReference) || verification.needsReferenceMaterial === true
+      || list(question.parts).some((part) => declared(part?.referenceMaterialRegions))
+      || list(verification.parts).some((part) => declared(part?.referenceMaterialRegions))
+      || question.referenceMaterialEvidenceSchemaVersion !== 'stem-ai-reference-material-evidence.v1'
+      || verification.referenceMaterialEvidenceSchemaVersion !== 'stem-ai-reference-material-evidence.v1') return true
+    const sourceQuestionId = `${artifact.paperId}:q${number}`
+    const group = groupByIdentity.get(JSON.stringify([artifact.syllabusRouteId, sourceQuestionId]))
+    const candidateTuples = exactReferenceTuples(candidateReferenceRegions)
+    const verificationTuples = exactReferenceTuples(verificationReferenceRegions)
+    const groupTuples = exactReferenceTuples(list(group?.referenceMaterialRegions))
+    if (!group || !hasBoundedNativeImageProjection(group)
+      || !candidateTuples?.length || !verificationTuples?.length || !groupTuples?.length
+      || JSON.stringify(candidateTuples) !== JSON.stringify(verificationTuples)
+      || JSON.stringify(candidateTuples) !== JSON.stringify(groupTuples)) return true
+    const verificationParts = new Map(list(verification.parts).map((part) => [String(part?.label || ''), part]))
+    for (const part of referenceParts) {
+      const groupPart = list(group.parts).find((entry) => entry.label === part.label)
+      const verifiedPart = verificationParts.get(String(part.label || ''))
+      const expectedPartTuples = exactReferenceTuples(candidateReferenceRegions
+        .filter((entry) => list(entry?.partLabels).map(String).includes(String(part.label))))
+      const groupPartTuples = exactReferenceTuples(list(groupPart?.sourceEvidence)
+        .filter((entry) => entry?.evidenceRole === 'reference-material'))
+      if (verifiedPart?.needsReferenceMaterial !== true || !groupPart?.needsReferenceMaterial
+        || !expectedPartTuples?.length || !groupPartTuples?.length
+        || JSON.stringify(expectedPartTuples) !== JSON.stringify(groupPartTuples)) return true
+    }
+  }
+  return false
 }
 
 function hasDuplicateSourceIds(records) {
@@ -239,10 +362,16 @@ function hasDuplicateSourceIds(records) {
 }
 
 export function assertPromotedAiStudyGroups(promotion, records, groups) {
-  if (!promotion) return
+  const groupByIdentity = new Map(groups.map((group) => [JSON.stringify([group.routeId, group.sourceQuestionId]), group]))
+  if (!promotion) {
+    if (records.some((record) => hasUndeliverableReference(record.artifact, null, groupByIdentity))) invalid()
+    return
+  }
   // These are structural conditions, not proof that a review occurred.
   // The authorized signer must independently verify the referenced receipts.
   if (records.length !== promotion.artifactCount || groups.length !== promotion.expectedRouteGroups || hasDuplicateSourceIds(records)
+    || groupByIdentity.size !== groups.length
     || (promotion.routeIds && groups.some((group) => !promotion.routeIds.includes(group.routeId)))
-    || records.some((record) => hasUndeliverableReference(record.artifact) || !hasBoundReviewSessions(record.artifact))) invalid()
+    || records.some((record) => hasUndeliverableReference(record.artifact, promotion, groupByIdentity)
+      || !hasBoundReviewSessions(record.artifact))) invalid()
 }
