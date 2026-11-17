@@ -84,6 +84,7 @@ const group = loaded.groups[0]
 assert.deepEqual(group.sourceContent.sourcePages, [2], 'reference material must not widen the internal question span')
 assert.equal(group.sourceRef.pageStart, 2)
 assert.equal(group.sourceRef.pageEnd, 2)
+const originalBindingSignature = group.sourceContent.bindingSignature
 assert.deepEqual(group.referenceMaterialRegions.map((entry) => ({ page: entry.page, rotationDegrees: entry.rotationDegrees })),
   [{ page: 16, rotationDegrees: 90 }])
 assert.equal(group.parts[0].needsReferenceMaterial, true)
@@ -110,6 +111,35 @@ assert.deepEqual(renderedPage.imageSize, [160, 120])
 const projected = service.projectSet({ questionGroups: [{ id: group.sourceQuestionId, routeId: group.routeId,
   sourceContent: { assetUrls: [], pages: [2] } }] }, { view: 'region', questionBank: bank })
 assert.deepEqual(projected.questionGroups[0].sourceContent.pages, [2, 16])
+assert.deepEqual(group.sourceContent.sourcePages, [2])
+assert.equal(group.sourceRef.pageStart, 2)
+assert.equal(group.sourceRef.pageEnd, 2)
+assert.equal(group.sourceContent.bindingSignature, originalBindingSignature)
+
+const ordinaryEvidence = group.parts[0].sourceEvidence.find((entry) => entry.evidenceRole === 'question-part')
+const referenceEvidence = group.parts[0].sourceEvidence.find((entry) => entry.evidenceRole === 'reference-material')
+const rotatedVariant = { ...referenceEvidence, rotationDegrees: 270 }
+const variantQuestion = { ...group, sourceQuestionId: `${paperId}:q3`,
+  sourceContent: { ...group.sourceContent, bindingSignature: `${group.sourceContent.bindingSignature}:rotation-variant` },
+  parts: [{ ...group.parts[0], sourceEvidence: [ordinaryEvidence, referenceEvidence, referenceEvidence, rotatedVariant] }],
+  diagramRegions: [] }
+let variantReads = 0
+const variantService = createNativeQuestionImages({ getQuestionBank: () => [variantQuestion], libraryRoot: path.dirname(libraryRoot),
+  isReleased: () => true, pageReader: async (spec) => { variantReads += 1; return { bytes: spec.page === 16 ? referencePage : questionPage,
+    contentType: 'image/png', sha256: spec.expectedPageImageSha256 } } })
+const variantDescriptors = variantService.descriptors(variantQuestion.routeId, variantQuestion.sourceQuestionId, { view: 'region' })
+assert.equal(variantDescriptors.length, 3, 'shared identical reference evidence must deduplicate while distinct rotations remain separate')
+const rotatedDescriptors = variantDescriptors.filter((entry) => entry.page === 16)
+assert.equal(rotatedDescriptors.length, 2)
+assert.notEqual(rotatedDescriptors[0].url, rotatedDescriptors[1].url)
+const rotatedResults = []
+for (const descriptor of rotatedDescriptors) {
+  const input = Object.fromEntries(new URL(descriptor.url, 'https://example.test').searchParams)
+  rotatedResults.push(await variantService.image(input))
+  await variantService.image(input)
+}
+assert.equal(variantReads, 2, 'each immutable rotation needs one physical read and its own cache entry')
+assert.notEqual(rotatedResults[0].sha256, rotatedResults[1].sha256)
 
 for (const mutate of [
   (value) => { value.verification.questions[0].referenceMaterialRegions[0].rotationDegrees = 270 },
@@ -127,4 +157,5 @@ bank = []
 assert.throws(() => service.image(referenceInput), (error) => error?.statusCode === 404, 'reference cache must revoke with its question')
 
 console.log(JSON.stringify({ status: 'PASS_LOCAL_ONLY', scope: 'ai-reference-material-runtime',
-  questionPages: [2], displayPages: [2, 16], rotationDegrees: 90, negativeCases: 3 }))
+  questionPages: [2], displayPages: [2, 16], rotationDegrees: [90, 270],
+  sharedReferenceDeduplicated: true, rotationCacheEntries: 2, negativeCases: 3 }))
